@@ -1572,3 +1572,18 @@
   `@MapView`, no menugrid and no UI root, so six of sixteen protected-verb refusals had no receiver at all.
   Guarding each entry with `receiver ~= nil` and printing `10 of 16` plus the skipped names turned a green line
   that proved nothing into a red one that named why — and in-game the same line read `16 of 16`.
+- **(049.2) A suite can MANUFACTURE the ambiguity it is testing, instead of asking the maintainer to open two
+  containers.** The claim under test was "two matching widgets ⇒ the lookup refuses", which reads like a
+  `[manual]` (the player must open two cupboards) and is not: `hafen.ui():window():title(CAP)` twice, with the
+  SAME caption, builds the situation deterministically, and the third probe button inside the second window makes
+  the scoped door ambiguous too. Then do both — scan the live HUD for two windows that happen to share a caption
+  and, if there are any, assert the same claim against them and print no `[manual]` line at all; only when there
+  are none does the suite ask. On the verification run two windows were captioned "Stack", so the real-window
+  claim was proven automatically and the run came back 11 pass / 0 manual.
+- **(049.2) An ancestor-step selector IS headless-testable, without a `Window`, via `@Class` on a named nested
+  subclass.** `haven.Window` needs GL (learning 034.1), so a chain anchored on the `window` role cannot be probed
+  headlessly — but the anchor does not have to be a role: `public static class PA extends Widget` inside the probe
+  gives `@PA` a stable `typeName`, so `collect(scope, "@PA label")` proves the querySelector rule (an ancestor step
+  may match ABOVE the scope) over a hand-built tree of bare `Widget`s plus a `haven.Label`. The refusal MESSAGE is
+  worth pinning the same way — reflect into the private helper that raises it and assert the exact substrings the
+  Lua suite will later grep for, so a reworded error never fails in-game first.

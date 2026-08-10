@@ -5,7 +5,7 @@ need a piece of the client's UI — to read it, to move it, to replace it, or as
 [stylesheet](style/keys.md) rule.
 
 ```lua
-hafen.ui():find("window[title=Cupboard]")             -- the first match, or nil
+hafen.ui():find("window[title=Cupboard]")             -- the one match, or nil
 hafen.ui():all("inventory")                           -- every open container, in tree order
 hafen.ui():find("window[title=Cupboard] inventory")   -- the grid inside that window
 hafen.ui():find("window[title=Foo] button[text=Close]")  -- one exact widget, named in one string
@@ -13,6 +13,40 @@ hafen.ui():find("@Equipory")                          -- by widget class
 hafen.ui():all("*[res*=gfx/hud/meter]")               -- by resource name, matched as a substring
 hafen.ui():root()                                     -- no selector at all: the root of the whole tree
 ```
+
+## One, or all of them
+
+`:find` answers only where there **is** one answer. No match is `nil`; exactly one match is that widget;
+**two or more raises an error** saying how many matched and handing you the two spellings that do have an
+answer. `:all` always answers — an array in tree order, empty rather than `nil`.
+
+> A selector that names several widgets today may name one on your screen. "The Cupboard window" is one
+> widget right up to the moment a second cupboard opens, and a lookup that quietly picked whichever came
+> first would then act on the wrong one. That is the error you are being handed instead.
+
+So `:find` is for a selector that identifies **one** widget — a chain down to an exact button, a unique
+caption, a class only one widget has — and `:all` for a question with several answers.
+
+### Inside one widget
+
+`w:find(sel)` and `w:all(sel)` run the same search over `w`'s **own subtree**, `w` included. Same grammar,
+same errors, same strictness. The scope decides which widgets are *candidates*; an ancestor step may still
+name a widget above it, exactly as in CSS.
+
+```lua
+hafen.ui():on("window[title=Cupboard]", "appear", function(w)
+  local grid = w:find("inventory")        -- THIS cupboard's grid, whatever else is open
+  ...
+end)
+```
+
+That is the right lookup inside an [`appear` callback](replace.md#watching-for-a-widget), and the reason the
+pair exists: `hafen.ui():find("window[title=Cupboard] inventory")` asks the whole tree a question that has no
+single answer while two cupboards are open, while the widget your callback was handed does.
+
+Both **refuse on a widget that has left the tree**, rather than reporting an empty result — "nothing matched"
+and "the thing you were searching is gone" are different answers, and a handle you kept across a window's
+lifetime is exactly where they get confused. Ask [`:exists()`](widget.md#read) if you are unsure.
 
 ## The grammar
 
@@ -100,10 +134,9 @@ Nobody guesses a widget's role. The bundled **`widgetstack`** addon answers it b
 panel reports the hovered widget's **role** (or an honest `nil`), its **class**, its `[title=]` and its
 `[res=]`, and then **every selector that actually matches it**, most specific first, with how many widgets
 each one matches and where this one falls among them. The bottom line is ready to paste into `:lua` — it is
-`hafen.ui():find("…")` when this widget is the **first** match and `hafen.ui():all("…")[i]` when it is
-not, because `hafen.ui():find(sel)` means *first match*. Every offered selector is resolved before it is
-offered, so it always
-hands back the widget you were pointing at.
+`hafen.ui():find("…")` when the selector matches this widget and **nothing else**, and
+`hafen.ui():all("…")[i]` when it matches more. Every offered selector is resolved before it is offered, so it
+always hands back the widget you were pointing at.
 
 Click a row, or run `:selector`, to log the line: chat-log text is selectable, which is how it reaches your
 editor. Freeze the stack first with `widgetstack`'s `freeze` hotkey, or moving the mouse to the window
@@ -116,7 +149,8 @@ re-hovers.
 
 ## Hold the result
 
-`hafen.ui():all("*")` walks the whole tree. Once per event, or once when the hover changes, that is nothing;
+Every lookup walks the whole tree — `:find` too, since it cannot know a match is the only one until it has
+looked everywhere. Once per event, or once when the hover changes, that is nothing;
 sixty times a second it is a real slice of your frame budget. Because widgets are
 [interned](widget.md), holding the result costs nothing and the objects stay `==`-comparable — so select
 once, keep it, and use `:exists()` when you need to know it is still there.

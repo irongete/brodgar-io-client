@@ -13,7 +13,7 @@
       and `:bags`: the migrated spellings are asserted HERE — the old one refused naming its replacement,
       the new one resolved against the live Inventory window. `atlas`/`cupboard` needed no change at all.
 
-- [ ] **049.2 — the lookup doors: strict `find` + scoped `w:find`/`w:all`.**
+- [x] **049.2 — the lookup doors: strict `find` + scoped `w:find`/`w:all`.**
       `selectFirst` stops short-circuiting, collects up to two and RAISES on the second, saying how
       many matched and naming `:all(sel)[i]`. `:all()` unchanged. `w:find(sel)`/`w:all(sel)` search the
       widget's own subtree (inclusive) through the same `firstMatch`/`collect`, opened to
@@ -24,6 +24,14 @@
       match; a stale widget handle refuses at both doors.
       **`[manual]`:** with two containers open, the root-anchored `find` raises and the scoped one does
       not — the whole point of the pair.
+      **Shipped 11/11, 0 manual.** The `[manual]` never fired: the suite BUILDS its two same-captioned windows
+      (deterministic), then scans the live HUD and, finding two windows captioned "Stack", asserted the pair on
+      the client's own too. `find` walks the WHOLE tree and reports the exact count (**D-224**) — plan.md's
+      "up to two" would not have; `firstMatch` was deleted, having no caller left. The scope narrows the
+      CANDIDATES only, so an ancestor step still names a widget above it (**D-225**), and a departed subject
+      REFUSES at both doors where every flat read answers empty (**D-226**). The audit found five raising
+      `find`s in frozen `hello` — including the root-anchored chain inside its own `appear` callback, now
+      `w:find("inventory")` — plus `theme`'s key read from a FILE, which is the dangerous class.
 
 - [ ] **049.3 — the other two consumers: subscriptions and stylesheet keys.**
       `LuaSelectorWatch`'s `matchesStructure`/`late()` widen over the chain; the placement seam's
@@ -41,17 +49,22 @@
       `widgetstack`'s selector panel builds **combinator** candidates (the enclosing window as the
       anchor step + the hovered widget as the target), offers `[text=]` and the operators, keeps its
       self-validation (`:all()` must resolve the candidate back to this very widget), and offers a
-      `find(...)` line only where it is unique — now enforced, not merely documented. Report the walk
+      `find(...)` line only where it is unique. Report the walk
       count: a chain candidate costs more than a flat one.
+      *Reduced by 049.2*, which already switched `pasteLine` from "the FIRST match" to "the ONLY match" — a
+      shipped inspector could not go on offering a line that raises. What is left is the candidate BUILDING:
+      combinator candidates, `[text=]`, the operators, and the walk-count report.
       **Suite must prove:** the panel's offered line, pasted into `:lua`, returns the hovered widget
       (`==`); no offered candidate raises; a candidate offered as `find` resolves to exactly one.
       **`[manual]`:** hover a button in a Cupboard; the offered line is a chain and pasting it works.
 
-- [ ] **049.5 — the docs tier.** *Reduced by 049.1*, which already rewrote `api/ui/selectors.md` around the
-      combinator/operators/two-disjoint-keys and fixed every example on five other pages that the new
+- [ ] **049.5 — the docs tier.** *Reduced by 049.1 and again by 049.2*: 049.1 rewrote `api/ui/selectors.md`
+      around the combinator/operators/two-disjoint-keys and fixed every example on five other pages that the new
       grammar would have made RAISE — a shipped page teaching a selector that errors could not wait four
-      tasks. What is left here is what 049.2–049.4 add: **strict `find`**, scoped **`w:find`/`w:all`**, and
-      the inspector's new candidates, plus a pass over the pages those touch. Read
+      tasks — and 049.2 shipped **strict `find`** and the scoped **`w:find`/`w:all`** on their own pages the
+      same day for the same reason (`selectors.md` "One, or all of them",
+      `widget.md` "Searching inside one widget", plus `ui/README.md`, `references.md` and `replace.md`).
+      What is left here is the inspector's new candidates and a pass over the pages those touch. Read
       `specs/docs/design/style-guide.md` §9–§12 and the
       `grep "^### D-" specs/docs/decisions/docs-standard.md` one-liners BEFORE writing, and run and
       report §12's six checks.

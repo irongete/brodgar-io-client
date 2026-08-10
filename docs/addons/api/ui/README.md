@@ -10,7 +10,7 @@ callback are all the same [Widget object](widget.md). What you create and what y
 different things.
 
 **And one way to name one.** `hafen.ui()` is the section, and every lookup is a verb on it:
-`hafen.ui():find("window[title=Cupboard]")` is the first matching widget, `hafen.ui():all("inventory")` is
+`hafen.ui():find("window[title=Cupboard]")` is the one matching widget, `hafen.ui():all("inventory")` is
 every one, and `hafen.ui():root()` is the top of the whole client tree. That same [selector](selectors.md)
 is the key of a [stylesheet](style/README.md) rule, so there is one vocabulary for "which part of the UI",
 not two.

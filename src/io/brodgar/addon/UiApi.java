@@ -227,8 +227,9 @@ final class UiApi {
         // hafen.ui():find(sel) / :all(sel) / :root() / :node(id) / :at(x,y) — the widget-tree entry points (spec 20
         // W1/W2, rebuilt on the ONE entity by 029-widget-oop). Walk ANY widget's children to arbitrary depth from Lua
         // (the generic reader that complements the spec-14 typed adapters). Entry points for distinct inputs (D-012):
-        // :find(selector) = the FIRST widget matching a selector string, or nil; :all(selector) = every
-        // match as a 1-based array (empty, never nil); :root() = the ROOT of the whole client tree (discovery,
+        // :find(selector) = THE widget matching a selector string, or nil — and since 049.2 an ERROR when two or
+        // more match, because "the first in tree order" is a wrong answer in place of no answer; :all(selector) =
+        // every match as a 1-based array (empty, never nil); :root() = the ROOT of the whole client tree (discovery,
         // walk DOWN to any open window — it is a VERB now, because hafen.ui() is the section, 039.5);
         // node(id) = the Widget object for a SERVER widget id (another widget's :id(), typically) — nil if it
         // doesn't resolve. All of them hand back the SAME type: opaque, facade-safe
@@ -250,6 +251,10 @@ final class UiApi {
         //   :exists()        -- is it still in the tree? (the one read that always answers)
         //   :info()          -- the snapshot escape hatch {type,role,res,id,pos,size,visible,text,owned}
         //   :walk(fn)        -- depth-first: fn(widget, depth); return false to PRUNE the subtree
+        //   :find(selector)  -- 049.2: the same search, scoped to THIS widget's subtree (inclusive) — the only
+        //                       correct lookup inside an :on(sel, "appear", fn) callback, where the root-anchored
+        //                       form would re-find whichever matching window it met first. Strict, like the
+        //                       section's own :find. :all(selector) is its collection form (empty, never nil).
         //   :at(coord)       -- W2: the DEEPEST Widget object under a {x=,y=} root-coord point WITHIN this subtree
         //   :rootPos()       -- W2: {x=,y=} its top-left in root coords (with :size() = a highlight box)
         //   :visible(b)      -- the ONE write that answers on a native widget (:show()/:hide() are CUT, 039.5 R6 --
@@ -651,7 +656,7 @@ final class UiApi {
      * A selector argument &rarr; a parsed {@link Selector}, or a clear error. The number check comes BEFORE
      * {@code isstring()} because in LuaJ a number IS a string (the {@code hafen.asset} lesson, 028).
      */
-    private static Selector selArg(LuaValue v, String where) {
+    static Selector selArg(LuaValue v, String where) {
         if(v.isnumber())
             throw new LuaError(where + ": the argument is a SELECTOR string (e.g. \"window[title=Cupboard]\"),"
                 + " not a number — hafen.ui.node(id) is the one that takes a widget id");
@@ -662,17 +667,24 @@ final class UiApi {
     }
 
     /**
-     * {@code hafen.ui(selector)} — the FIRST widget matching {@code sel} in tree order (pre-order, depth-first from
-     * {@code ui.root}), or {@code nil}. Stops at the first hit, so the common "find one window" case does not pay
-     * for the whole tree.
+     * {@code hafen.ui():find(selector)} — <b>THE</b> widget matching {@code sel}, or {@code nil}, and (049.2) a
+     * <b>refusal</b> when two or more match. It used to be "the first in tree order", which is a wrong answer in
+     * place of no answer the moment a second window matches: an addon that reached the Close button of "the" Foo
+     * window kept working right up to the day the player opened a second Foo, and then quietly clicked the other
+     * one. So the walk no longer short-circuits — it collects every match and says how many there were, which is
+     * the rule {@link LuaWidget#role} beside it has always followed.
+     *
+     * <p>The price is the whole tree on every call (0.08 ms / 625 widgets, measured 030.1), which is nothing once
+     * per event and a real slice of the frame budget sixty times a second — so <i>hold your result</i> stopped
+     * being advice and became load-bearing.
      */
     private static LuaValue selectFirst(Addon owner, Selector sel) {
         UI u = ui;
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
-        Widget hit;
-        synchronized(u) { hit = firstMatch(u.root, sel); }
-        return (hit == null) ? LuaValue.NIL : LuaWidget.of(owner, hit);
+        List<Widget> hits = new ArrayList<Widget>();
+        synchronized(u) { collect(u.root, sel, hits); }
+        return one(owner, hits, sel, "hafen.ui():");
     }
 
     /**
@@ -682,32 +694,68 @@ final class UiApi {
      * the {@code ui} monitor, so it never races tree mutation, and the matcher calls no Lua.
      */
     private static LuaValue selectAll(Addon owner, Selector sel) {
-        LuaTable out = new LuaTable();
         UI u = ui;
         if((u == null) || (u.root == null))
-            return out;
+            return new LuaTable();
         List<Widget> hits = new ArrayList<Widget>();
         synchronized(u) { collect(u.root, sel, hits); }
+        return table(owner, hits);
+    }
+
+    /**
+     * {@code widget:find(selector)} — the same search from {@code scope} instead of {@code ui.root}, and just as
+     * strict. The scope decides which widgets are <b>candidates</b> (this one and everything under it); the
+     * selector is still matched against the whole tree, so an ancestor step may name a widget <i>above</i> the
+     * scope — exactly what {@code element.querySelector} does in CSS.
+     */
+    static LuaValue scopedFind(Addon owner, Widget scope, Selector sel) {
+        UI u = ui;
+        if(u == null)
+            return LuaValue.NIL;
+        List<Widget> hits = new ArrayList<Widget>();
+        synchronized(u) { collect(scope, sel, hits); }
+        return one(owner, hits, sel, "widget:");
+    }
+
+    /** {@code widget:all(selector)} — every match inside {@code scope} (inclusive), 1-based; empty, never nil. */
+    static LuaValue scopedAll(Addon owner, Widget scope, Selector sel) {
+        UI u = ui;
+        if(u == null)
+            return new LuaTable();
+        List<Widget> hits = new ArrayList<Widget>();
+        synchronized(u) { collect(scope, sel, hits); }
+        return table(owner, hits);
+    }
+
+    /**
+     * The strict answer of a {@code find} door: {@code nil} for no match, the widget for exactly one, and an error
+     * for two or more that says <b>how many</b> and hands back the two spellings that do have an answer — the
+     * collection with an index, and (since the chain exists) a selector that names the one widget exactly.
+     * {@code door} is the receiver the caller wrote, so the message quotes {@code hafen.ui():all(…)} or
+     * {@code widget:all(…)} rather than a form the reader was not using.
+     */
+    private static LuaValue one(Addon owner, List<Widget> hits, Selector sel, String door) {
+        if(hits.isEmpty())
+            return LuaValue.NIL;
+        if(hits.size() > 1)
+            throw new LuaError(door + "find(\"" + sel.src + "\") matches " + hits.size() + " widgets, so there is no"
+                + " ONE widget to hand back — name the one you mean (a chain reaches an exact nested widget:"
+                + " \"window[title=Foo] button[text=Close]\"), search inside a single widget with"
+                + " widget:find(selector), or take one by index with " + door + "all(\"" + sel.src + "\")[i]");
+        return LuaWidget.of(owner, hits.get(0));
+    }
+
+    /** A list of widgets as the 1-based Lua array every collection door hands back, each entity interned. */
+    private static LuaValue table(Addon owner, List<Widget> hits) {
+        LuaTable out = new LuaTable();
         int i = 0;
         for(Widget w : hits)
             out.set(++i, LuaWidget.of(owner, w));
         return out;
     }
 
-    /** Pre-order search for the first match under {@code w} (inclusive). Under the {@code ui} monitor. */
-    private static Widget firstMatch(Widget w, Selector sel) {
-        if(sel.matches(w))
-            return w;
-        for(Widget c = w.child; c != null; c = c.next) {
-            Widget hit = firstMatch(c, sel);
-            if(hit != null)
-                return hit;
-        }
-        return null;
-    }
-
     /** Pre-order collection of every match under {@code w} (inclusive). Under the {@code ui} monitor. */
-    private static void collect(Widget w, Selector sel, List<Widget> out) {
+    static void collect(Widget w, Selector sel, List<Widget> out) {
         if(sel.matches(w))
             out.add(w);
         for(Widget c = w.child; c != null; c = c.next)

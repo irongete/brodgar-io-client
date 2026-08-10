@@ -35,10 +35,12 @@ hafen.ui():on("window[title=Cupboard]", "appear", function(w)
 end)
 ```
 
-Three things are worth knowing:
+Four things are worth knowing:
 
 - **`appear` covers what is already open.** Registering scans the live tree once, so an addon reloaded with
   a window open still sees it. You never have to handle "was it there before me?" yourself.
+- **Search inside the widget you were handed**, with [`w:find(sel)`](widget.md#searching-inside-one-widget),
+  not from the root. Two cupboards can be open at once, and only the callback knows which one this is.
 - **Neither event is about visibility.** They track the *tree*: a window the client merely hides — the
   inventory's Tab toggle — never left, so it fires neither.
 - **At `disappear`, treat the widget as a key, not as something to read.** It fires when the widget stops

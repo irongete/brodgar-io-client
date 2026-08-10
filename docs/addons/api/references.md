@@ -80,7 +80,7 @@ Ids and handles address a thing you already have. A **selector** addresses one y
 *describe*: a string that names a widget by what it **is**, resolved against the live tree.
 
 ```lua
-hafen.ui():find("window[title=Cupboard]")     -- the first match, or nil
+hafen.ui():find("window[title=Cupboard]")     -- the one match, or nil (two or more raises)
 hafen.ui():all("inventory")              -- every match, in tree order (empty array, never nil)
 ```
 
@@ -94,8 +94,10 @@ Three properties make it a convention rather than a lookup helper:
   [stylesheet](ui/style/README.md): a **role** names a render *site* and restyles it
   ([the site keys](ui/style/surfaces.md)), while every other selector resolves against the live tree.
   `w:role()` reports a widget's role, or an honest `nil`.
-- **The verb says how many**: `hafen.ui():find(sel)` is one widget, `hafen.ui():all(sel)` is all of them,
-  and `hafen.ui():root()` is the root of the tree.
+- **The verb says how many**: `hafen.ui():find(sel)` is one widget — and refuses where the selector names
+  several, rather than picking one — `hafen.ui():all(sel)` is all of them, and `hafen.ui():root()` is the
+  root of the tree. Both verbs are also methods on a widget, searching inside it
+  ([`w:find`](ui/widget.md#searching-inside-one-widget)).
 
 The grammar, the role table and the two rules worth knowing first — a space is the *descendant
 combinator*, and you hold your result rather than re-selecting every frame — are in

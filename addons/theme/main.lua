@@ -159,7 +159,11 @@ local function saveLayout()
   local saved, n = pins(), 0
   for key, rule in pairs(rules) do
     if places(rule) then
-      local w = hafen.ui():find(key)
+      -- Asked through :all: the key comes from the theme FILE, so it can name two windows at once (two chests),
+      -- and find() refuses that since 049.2 -- which would abort the whole save half-written. Where a rule places
+      -- several windows there is no single position to record, so that key is simply skipped.
+      local hits = hafen.ui():all(key)
+      local w = (#hits == 1) and hits[1] or nil
       if w ~= nil then
         local p = w:position()
         saved[key] = { x = p.x, y = p.y }

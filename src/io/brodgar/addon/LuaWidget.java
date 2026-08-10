@@ -915,6 +915,32 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // find(selector) / all(selector) — 049.2: THE SAME SEARCH the section does, from THIS widget instead of the
+        // root. The scope decides which widgets are CANDIDATES (this one and everything under it); the selector is
+        // still matched against the whole tree, so an ancestor step may name a widget ABOVE the scope — exactly
+        // what element.querySelector does in CSS. Inside an :on(sel, "appear", fn) callback this is the only
+        // correct lookup: the root-anchored form asks "the Cupboard's grid" of a client that may have two open,
+        // and the one you were handed is not necessarily the one it meets first.
+        //   :find is STRICT, like hafen.ui():find — nil for no match, the widget for exactly one, and a REFUSAL
+        // naming widget:all(sel)[i] for two or more. :all is the collection form: empty, never nil.
+        //   A STALE widget REFUSES at both doors, and it is the one read in this section that does not answer
+        // nil/empty (029.2). A search inside a subtree that no longer exists has no honest empty answer: "no
+        // button in this window" and "this window is gone" are different facts, and telling them apart is the
+        // whole reason to hold a widget across the lifetime of the thing you are searching.
+        m.set("find", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:find(sel) → self=arg1, sel=arg2
+                Widget w = live(handle(a.arg1(), "find"));
+                Selector sel = UiApi.selArg(Args.required(a, 2, "widget:find", "selector"), "widget:find(selector)");
+                return UiApi.scopedFind(owner, searched(w, "find"), sel);
+            }
+        });
+        m.set("all", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:all(sel) → self=arg1, sel=arg2
+                Widget w = live(handle(a.arg1(), "all"));
+                Selector sel = UiApi.selArg(Args.required(a, 2, "widget:all", "selector"), "widget:all(selector)");
+                return UiApi.scopedAll(owner, searched(w, "all"), sel);
+            }
+        });
         // at(coord) — W2: the DEEPEST Widget object under a {x=,y=} ROOT-coord point within this subtree, or nil.
         m.set("at", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:at(coord) → self=arg1, coord=arg2 (root coords)
@@ -1516,6 +1542,20 @@ public final class LuaWidget {
             n.wdg = null;                      // drop the ref so a dead subtree can be GC'd (no pin)
             return null;
         }
+        return w;
+    }
+
+    /**
+     * The receiver of a scoped search ({@code widget:find}/{@code :all}, 049.2), or the refusal. This is the one
+     * place the section does not fall back on the 029.2 nil/empty answer for a stale widget: a search of a subtree
+     * that has left the tree would report "nothing matched", which is a different fact from "there is nothing
+     * there", and the pair exists precisely to be used on a handle whose widget may have closed meanwhile.
+     */
+    private static Widget searched(Widget w, String verb) {
+        if(w == null)
+            throw new LuaError("widget:" + verb + "(selector) searches INSIDE a widget, and this one is not in the"
+                + " tree (widget:exists() is false) — nothing was searched. An empty answer here would read as"
+                + " \"no match\", which is not what happened");
         return w;
     }
 

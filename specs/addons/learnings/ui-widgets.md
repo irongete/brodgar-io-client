@@ -943,3 +943,16 @@
   remember, until a test asserts in the same breath as the builder and every lookup answers nil. Split such a
   suite in two: build, then `hafen.timer():after(0.2, checks)`. Note this is the OPPOSITE staging from
   `hafen.ui.skin{}`, which 036.2 deliberately made synchronous so that suites would NOT need a timer.
+- **(049.2) Making a singular lookup STRICT breaks callers that nothing can grep for, and the dangerous ones are
+  data-driven.** `find(sel)` went from "the first match" to "the one match, or a raise", and every shipped caller
+  had to be read by hand: a selector's arity is a property of the live tree, not of the string, so no static check
+  finds them. Frozen `hello` alone had five that raised on any normal HUD (`find("*")`, `find("window")` twice,
+  `find("@" .. inv:type())`, and two `[title=]` reads) — the API's own narration was written when "first" was the
+  contract. The class to look hardest at is a selector that does not appear in the source at all: `theme` looked
+  windows up by a key read from the theme FILE, so ambiguity depends on the user's machine, and a raise mid-loop
+  would have half-written the save. Where a key comes from data, ask `:all` and skip what names several.
+- **(049.2) A strict singular lookup and a short-circuiting walk are mutually exclusive.** `UiApi.firstMatch` —
+  the pre-order walk that stopped at the first hit — had no caller left the moment `find` had to know whether a
+  second match existed, and was deleted rather than kept "for the fast path": there is no fast path, since the
+  answer depends on the whole tree. That is the real price of the rule, and the docs line *hold your result; do
+  not re-select every frame* stops being advice at the same moment.

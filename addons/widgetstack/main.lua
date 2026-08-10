@@ -21,9 +21,9 @@
 --   * The list is SELF-VALIDATING: each candidate is resolved with hafen.ui():all() and kept only if the hovered
 --     widget is in the result. So nothing is ever offered that does not resolve -- which is exactly the claim
 --     the offered line makes.
---   * `hafen.ui():find("sel")` is offered when the widget is the FIRST match; otherwise the line is
---     `hafen.ui():all("sel")[i]`, because "first match" is what hafen.ui():find(sel) means and pretending otherwise
---     would hand you a selector that returns a different widget.
+--   * `hafen.ui():find("sel")` is offered only where the candidate matches this widget and NOTHING else;
+--     otherwise the line is `hafen.ui():all("sel")[i]`, because find() refuses an ambiguous answer rather than
+--     handing back whichever widget the walk met first.
 --   * "*" is deliberately omitted: it matches every widget, so it says nothing and it is the one walk that
 --     interns the whole tree.
 -- Click any panel row (or run `:selector`) to LOG the line -- chat-log text is selectable, which is how it
@@ -80,10 +80,11 @@ local function windowTitle(w)
   return nil
 end
 
--- The ready-to-paste line for one candidate. hafen.ui():find(sel) is the FIRST match, so it is only honest when this
--- widget IS the first one; otherwise the index form is what actually hands back this widget.
+-- The ready-to-paste line for one candidate. hafen.ui():find(sel) answers only where there IS one answer, so it is
+-- offered only when this candidate matches this widget and NOTHING else; otherwise the index form is what actually
+-- hands back this widget. Offering it for the first of several would hand the user a line that raises.
 local function pasteLine(c)
-  if c.idx == 1 then return ('hafen.ui():find("%s")'):format(c.sel) end
+  if c.count == 1 then return ('hafen.ui():find("%s")'):format(c.sel) end
   return ('hafen.ui():all("%s")[%d]'):format(c.sel, c.idx)
 end
 

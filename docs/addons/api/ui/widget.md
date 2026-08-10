@@ -14,8 +14,9 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 |---|---|
 | `hafen.ui():window()` / `hafen.ui():widget()` | a surface you [painted](custom.md) — owned |
 | one of the [control builders](controls/README.md#builders) (`:button()`, `:label()`, `:image()`, …) | a [control](controls/README.md) you built — owned, and drawn by the client |
-| `hafen.ui():find(selector)` | the **first** widget matching a [selector](selectors.md), in tree order, or `nil` |
+| `hafen.ui():find(selector)` | the **one** widget matching a [selector](selectors.md), or `nil` — [two or more raises](selectors.md#one-or-all-of-them) |
 | `hafen.ui():all(selector)` | **every** match, in tree order — an empty array, never `nil` |
+| `w:find(selector)` / `w:all(selector)` | the same two, searched inside **one widget's** subtree — see [searching inside one widget](#searching-inside-one-widget) |
 | `hafen.ui():root()` | the top of the whole client tree; walk down to any open window |
 | `hafen.ui():node(id)` | the widget for a **server widget id**, or `nil` if it does not resolve |
 | `hafen.ui():at(x, y)` | the **deepest** widget under a root-coord point — see [hit-testing](selectors.md#hit-testing) |
@@ -94,6 +95,32 @@ end)
 **`:id()` is what makes a widget *bound*.** A widget the server placed has one; one your addon built does
 not, and a message from it would be dropped — the difference [`:send`](#send-a-message-protected-actions)
 below turns on, so you send from the nearest server-bound ancestor rather than from the button itself.
+
+## Searching inside one widget
+
+| Method | Returns | Description |
+|---|---|---|
+| `:find(selector)` | Widget \| nil | the **one** match inside this widget's subtree, itself included, or `nil` |
+| `:all(selector)` | array | **every** match inside it, in tree order — an empty array, never `nil` |
+
+Same [grammar](selectors.md), same errors and the same [strictness](selectors.md#one-or-all-of-them) as the
+section's own lookups: `:find` raises where two or more match, `:all` always answers. What the widget decides
+is which widgets are *candidates* — itself and everything below it — so an ancestor step may still name a
+widget above it, as in CSS.
+
+```lua
+hafen.ui():on("window[title=Cupboard]", "appear", function(w)
+  local grid = w:find("inventory")               -- THIS cupboard's grid, whatever else is open
+  hafen.log():write(("%d item(s)"):format(#grid:items()))
+end)
+```
+
+That is what these two are for. A root-anchored `hafen.ui():find("window[title=Cupboard] inventory")` asks a
+question with no single answer while two cupboards are open; the widget the callback handed you has one.
+
+> Unlike every read above, **both refuse on a widget that has left the tree** instead of answering `nil` or
+> an empty array. "Nothing matched" and "the thing you were searching is gone" are different answers, and a
+> handle kept across a window's lifetime is where they get confused. `:exists()` is the question to ask.
 
 ## Subscribing
 

@@ -851,8 +851,9 @@ local function readWidgets(tag)
 end
 
 -- 030.4: THE SELECTOR CONTRACT, re-checked once per login (and on demand with ':hello selector'). 030 gave 029's ONE
--- entity the vocabulary to NAME one: a selector is a STRING and the section IS the lookup -- hafen.ui():find(sel) is the
--- first match in tree order, hafen.ui():all(sel) every match (an empty array, never nil), hafen.ui():root() the top. This
+-- entity the vocabulary to NAME one: a selector is a STRING and the section IS the lookup -- hafen.ui():find(sel) is THE
+-- match (nil for none, and since 049.2 an ERROR for several: never a wrong widget in place of no answer),
+-- hafen.ui():all(sel) every match (an empty array, never nil), hafen.ui():root() the top. This
 -- asserts the whole grammar in one pass against the LIVE HUD: `*`, a role, @Class, [title=], [res=], a CHAIN and a
 -- combination; the classifier's CENSUS (:role() answers what a widget IS, or an honest nil -- never a guess in place
 -- of no answer, D-067); the two rules that are easiest to get wrong ([title=] is a WINDOW's OWN caption and the SPACE
@@ -874,7 +875,8 @@ local function readSelectors(tag)
   -- `*` AND THE ROLE CENSUS. ONE walk of the whole tree (never a deep helper per node -- that is O(n^2)), asking
   -- :role() per widget: the counts below ARE the classifier's answer over a real HUD, and the nil majority is the
   -- honest one (layout containers, scroll ports, images and item icons are none of these things). `*` matches every
-  -- widget including the root, and tree order is pre-order -- so hafen.ui():find("*") IS hafen.ui():root().
+  -- widget including the root, and tree order is pre-order -- so hafen.ui():all("*")[1] IS hafen.ui():root(). Since
+  -- 049.2 that is the only door that can say it: find() REFUSES an ambiguous answer, and `*` matches everything.
   local every = hafen.ui():all("*")
   local census, classified = {}, 0
   for i = 1, #every do
@@ -883,22 +885,25 @@ local function readSelectors(tag)
   end
   local parts = {}
   for _, r in ipairs(SEL_ROLES) do parts[#parts + 1] = ("%s %d"):format(r, census[r] or 0) end
-  hafen.log():write(("[%s] selector *: %d widget(s), %d classified (%s), %d nil | ui('*')==ui()=%s interned=%s")
+  hafen.log():write(("[%s] selector *: %d widget(s), %d classified (%s), %d nil | all('*')[1]==root()=%s interned=%s")
     :format(tag, #every, classified, table.concat(parts, " "), #every - classified,
-            tostring(hafen.ui():find("*") == root), tostring(hafen.ui():all("*")[1] == every[1])))
-  -- EACH GRAMMAR ELEMENT, and the first-vs-all contract: hafen.ui():find(sel) is exactly all(sel)[1] -- never a different
-  -- widget -- and a miss is plain nil, never an error and never an empty stand-in. @Class goes through the same
+            tostring(hafen.ui():all("*")[1] == root), tostring(hafen.ui():all("*")[1] == every[1])))
+  -- EACH GRAMMAR ELEMENT, and the find-vs-all contract as 049.2 left it: hafen.ui():find(sel) answers only where
+  -- there IS one answer -- exactly one match -- and RAISES otherwise, so a selector that names several widgets (a
+  -- role, a class) is a question only :all can be asked; a miss is still plain nil, never an error and never an
+  -- empty stand-in. @Class goes through the same
   -- typeName :type() reports (Hafen builds most widgets as ANONYMOUS subclasses, so getSimpleName would match almost
   -- nothing) and is EXACT: the two counts below differ by exactly the Window SUBCLASSES open right now, which is the
   -- whole reason "any window" is the ROLE and not @Window.
   local wnds, byCls = hafen.ui():all("window"), hafen.ui():all("@Window")
   local inv = hafen.ui():inventory()
-  local invByCls = inv and hafen.ui():find("@" .. inv:type()) or nil
-  hafen.log():write(("[%s] grammar: window -> %s (#all=%d, first==all[1]=%s) | @Window -> %d (role window=%d: the rest are"
-             .. " SUBCLASSES, @Class does not walk up) | @%s -> %s (==inventory()=%s) | miss 'textentry@Label' -> %s")
-    :format(tag, tostring(hafen.ui():find("window")), #wnds, tostring(hafen.ui():find("window") == wnds[1]),
-            #byCls, #wnds, inv and inv:type() or "?", tostring(invByCls),
-            tostring((inv ~= nil) and (invByCls == inv)), tostring(hafen.ui():find("textentry@Label"))))
+  local byOwnCls, foundInv = inv and hafen.ui():all("@" .. inv:type()) or {}, false
+  for i = 1, #byOwnCls do if byOwnCls[i] == inv then foundInv = true end end
+  hafen.log():write(("[%s] grammar: window -> %s (#all=%d) | @Window -> %d (role window=%d: the rest are"
+             .. " SUBCLASSES, @Class does not walk up) | @%s -> %d (holds inventory()=%s) | miss 'textentry@Label' -> %s")
+    :format(tag, tostring(wnds[1]), #wnds,
+            #byCls, #wnds, inv and inv:type() or "?", #byOwnCls,
+            tostring((inv ~= nil) and foundInv), tostring(hafen.ui():find("textentry@Label"))))
   -- [res=] -- the STABLE key (D-063), and the honest scoping 030.1 measured in-game: NO window on this server carries
   -- a resource. What does: items (gfx/invobjs/...), the HUD meters, and the chat channels whose code ships inside a
   -- .res. So [res=] is the right key for everything item-shaped and [title=] the only one for windows -- w:res() is
@@ -927,11 +932,15 @@ local function readSelectors(tag)
     local inside = hafen.ui():all(("window[title=%s] *"):format(cap))
     local held = {}
     for i = 1, #inside do held[inside[i]] = true end
+    -- Asked through :all, because two windows CAN carry the same caption (two Cupboards) and find() refuses that
+    -- since 049.2 -- the reads below stay honest whether one is open or three are.
+    local anchors, sawIt = hafen.ui():all(("window[title=%s]"):format(cap)), false
+    for i = 1, #anchors do if anchors[i] == titled then sawIt = true end end
     hafen.log():write(("[%s] [title=%s]: %d widget(s) INSIDE that window, window itself among them=%s |"
-               .. " window[title=%s]==it=%s | window[title=%s] inventory -> %s (the GRID, one hop below)")
+               .. " window[title=%s] -> %d, this one among them=%s | window[title=%s] inventory -> %s (the GRID, one hop below)")
       :format(tag, cap, #inside, tostring(held[titled] == true), cap,
-              tostring(hafen.ui():find(("window[title=%s]"):format(cap)) == titled), cap,
-              tostring(hafen.ui():find(("window[title=%s] inventory"):format(cap)))))
+              #anchors, tostring(sawIt), cap,
+              tostring(hafen.ui():all(("window[title=%s] inventory"):format(cap))[1])))
   else
     hafen.log():write(("[%s] [title=]: no titled window open right now -- open a cupboard/chest and re-run ':hello selector'")
       :format(tag))
@@ -1489,10 +1498,13 @@ end)
 -- not twice. Since 049 [title=] is the window's OWN caption, which is why "window" is the role here; the GRID inside
 -- that same window is "window[title=Cupboard] inventory", and with a chain the late caption can land on the ANCESTOR
 -- step -- the same re-check covers it, because late() asks the whole chain.
+--   The grid below is read with w:find (049.2), SCOPED to the window this very callback was handed. The
+-- root-anchored chain would ask the client for "the Cupboard's grid" with two Cupboards open and refuse to answer
+-- -- and rightly, since it cannot know which one fired.
 for _, cap in ipairs({ "Cupboard", "Chest" }) do
   hafen.ui():on(("window[title=%s]"):format(cap), "appear", function(w)
     hafen.log():write(("030.2: [title=%s] APPEARED %s -- %d item(s) inside, grid=%s")
-      :format(cap, tostring(w), #w:items(), tostring(hafen.ui():find(("window[title=%s] inventory"):format(cap)))))
+      :format(cap, tostring(w), #w:items(), tostring(w:find("inventory"))))
   end)
   hafen.ui():on(("window[title=%s]"):format(cap), "disappear", function(w)
     hafen.log():write(("030.2: [title=%s] DISAPPEARED %s"):format(cap, tostring(w)))

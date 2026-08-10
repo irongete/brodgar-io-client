@@ -1,0 +1,9 @@
+{
+  "name": "049.2 — the lookup doors: strict find + scoped widget:find/:all",
+  "id": "049-css-selectors.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 049.2: hafen.ui():find refuses an ambiguous answer (saying how many matched and naming :all(sel)[i]), and widget:find/:all search one widget's own subtree — the only correct lookup when two windows carry the same caption.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

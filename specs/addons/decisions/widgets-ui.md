@@ -1499,3 +1499,57 @@ it too, or the wildcard is a hole straight through the declaration.**
 one spelling for them. A widget that is not a window is unaffected, since the reader only ever skipped the
 one type. The cost is one `instanceof` on a path that already reads the widget's type.
 **See.** [D-221](#d-221), [D-222](#d-222).
+
+### D-224 — A lookup that could have several answers REFUSES; it never hands back the first one
+
+**Decision.** `hafen.ui():find(sel)` (and `w:find(sel)`) answers `nil` for no match and the widget for
+exactly one, and **raises** for two or more, saying how many matched and naming `:all(sel)[i]`. It no longer
+short-circuits: it walks the whole tree, because it cannot know a match is the only one until it has. `:all`
+is untouched — the collection form always answers.
+**Rationale.** "The first match in tree order" is a defensible contract and a dangerous one: it is *correct*
+for as long as the player happens to have one Cupboard open, and silently names a different widget the moment
+they open a second. The failure needs no code change to appear, produces no error, and lands in whatever the
+addon does next — a click, a hide, a replace. This is the rule the classifier beside it has followed since
+[D-067](#d-067) — *never a wrong answer in place of no answer* — arriving at the lookup, which had been the
+one door still guessing. Generalise: **where an addressing form can name several things, the singular verb's
+honest answers are one or none; picking one is a wrong answer wearing the shape of a right one.**
+**Consequences.** Every `find` pays the full walk (measured at 0.08 ms for 625 widgets — nothing per event,
+a real slice of a frame budget sixty times a second), so *hold your result* stops being advice and becomes
+load-bearing. A shipped caller that had been leaning on "the first one" now reports itself the first time it
+runs, which is how this feature's sweep found `hello`'s five and `theme`'s data-driven key. The pressure it
+creates is the intended one: say which widget you mean — [D-221](#d-221)'s chain is what made that sayable,
+which is why strictness could not have shipped before it.
+**See.** [D-067](#d-067), [D-221](#d-221), [D-225](#d-225), [D-226](#d-226), [D-186](architecture-api.md#d-186).
+
+### D-225 — A scope narrows the CANDIDATES, not the selector
+
+**Decision.** `w:find(sel)` / `w:all(sel)` search `w`'s own subtree, `w` included. The selector is still
+matched against the whole tree, so a step to the left of the match may name an ancestor **above** the scope.
+**Rationale.** This is what `element.querySelector` does, and the alternative — re-rooting the match so
+ancestor steps only see inside the scope — quietly changes what a selector means depending on where it is
+asked from, which is the same lie [D-221](#d-221) just removed from `[title=]`. One string, one meaning; the
+receiver decides only *which widgets are offered to it*. Generalise: **a scoped query restricts the answer
+set, never the language.**
+**Consequences.** The pair is a filter over the existing walk — the same `matches(Widget)` from a different
+starting node — so the events, the stylesheet and the lookups keep sharing one matcher. Inside an
+`:on(sel, "appear", fn)` callback it is the only correct lookup: the root-anchored form asks a question that
+has no single answer while two matching windows are open (and, by [D-224](#d-224), now says so), while the
+widget the callback was handed answers it exactly. An inclusive scope also means the ambiguous selector
+resolves against each candidate window *as itself*.
+**See.** [D-224](#d-224), [D-068](#d-068), [D-221](#d-221).
+
+### D-226 — A search inside a departed subject REFUSES, where a flat read answers empty
+
+**Decision.** `w:find` and `w:all` raise on a stale widget, naming `widget:exists()`. Every other read on the
+entity keeps answering `nil`/empty on one, and every client-local write keeps being a silent chaining no-op.
+**Rationale.** The nil/empty convention works because those reads ask about the widget itself: an absent
+caption and a departed widget are both honestly "nothing". A *search* asks about a subtree, and there the two
+answers separate — "no button in this window" and "this window is gone" are different facts, and an empty
+array reports the first while meaning the second. The pair exists precisely to be used on a handle held
+across the lifetime of the thing it searches, so it is the one read where that confusion is the expected
+case, not an edge. Generalise: **a read answers `nil` where absence and departure mean the same thing, and
+refuses where they do not.**
+**Consequences.** One documented exception in a section whose uniformity is otherwise worth protecting, and
+it is stated on the page rather than left to be discovered. `:exists()` remains the question that always
+answers, so the guard is available to anyone who wants the empty-ish behaviour back.
+**See.** [D-224](#d-224), [D-225](#d-225), [D-060](architecture-api.md#d-060), [D-041](#d-041).
