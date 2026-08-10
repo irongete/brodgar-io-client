@@ -223,7 +223,7 @@ public final class LuaItem {
                 return slots(live(handle(self, "slots")));
             }
         });
-        // handle() — the server widget id, for hafen.act():raw. nil once the item is gone: the number is
+        // handle() — the server widget id, the same number widget:id() answers. nil once the item is gone: it is
         // no longer its, and the server may already have given it to something else.
         m.set("handle", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

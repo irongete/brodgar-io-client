@@ -243,3 +243,18 @@
   same catalogue (`hello` scans the action menu at every login and declares nothing), so the assertion that
   actually guards the change is *the reads still answer for this same undeclared addon, in this same run* —
   next to the refusal, not in another suite.
+
+- **(048.6) An unbound sender is dropped SILENTLY by the engine, which is why the write verb must refuse it.**
+  `UI.rawWdgmsg` looks the sender up in `rwidgets` and, on `id < 0`, issues a `Warning` and returns — no
+  exception, nothing on the wire, nothing the caller can read. So a `wdgmsg` verb on a widget handle cannot
+  just forward and let the engine complain: `widget:send` checks `wdgid() < 0` itself and refuses naming
+  `widget:id()` as the read that answers the same question ahead of the call. The general form: where the
+  engine's own failure mode is silence, the API owes a refusal, not a pass-through.
+- **(048.6) Deleting an ADDRESS SPACE is cheap exactly when every member of it is already reachable — so
+  assert that, do not argue it.** `hafen.act():raw(target, …)` carried a private target vocabulary (a bare
+  server widget id, plus the tokens `"mapview"`/`"gameui"`/`"root"` resolved through a lookup `ActApi`
+  borrowed from the hook tier). Moving the verb onto the widget makes the receiver the target, and the whole
+  vocabulary evaporates because `hafen.ui():node(id)`, `find("@MapView")`, `find("@GameUI")` and
+  `hafen.ui():root()` already name all four. That claim is a one-line suite check (each resolves, and each
+  `:id()` is a number) rather than a paragraph in a spec — and it is the check that licenses the deletion, so
+  it belongs in the task's own suite. The token lookup then had no callers left and went with it.

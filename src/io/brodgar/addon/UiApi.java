@@ -277,8 +277,9 @@ final class UiApi {
         //   :size(w, h)      -- resize the content (+ repack a window's chrome) + chain
         //   :pack()          -- shrink the chrome to fit (no-op for a bare widget) + chain
         //   :destroy()       -- remove it and drop it from the addon's owned registry
-        // Otherwise READ-ONLY: to ACT on the GAME, read a server-bound widget's :id() and pass it to the protected
-        // hafen.act():raw (D-025) — no new action surface, no new gate (reading the tree is unprotected client data).
+        // Otherwise READ-ONLY: to ACT on the GAME, send from a server-bound widget itself — the protected
+        // widget:send(msg, ...) (D-025) — no new action surface, no new gate (reading the tree is unprotected
+        // client data).
         m.set("root", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "ui", "root");
@@ -319,7 +320,7 @@ final class UiApi {
         // rect-intersect, and honours checkhit at the leaf (non-rectangular hit areas) — so it resolves EXACTLY the
         // widget a real click would hit (a naive pos..pos+size rect test is wrong under scroll / custom hit shapes).
         // Walk :parent() up from the hit for the full stack. Read-only, unprotected (client data, never reaches the
-        // server); acting still goes through the protected hafen.act():raw on a server-bound :id().
+        // server); acting still goes through the protected widget:send(msg, ...) on a server-bound widget.
         m.set("mouse", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "ui", "mouse");

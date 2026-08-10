@@ -370,7 +370,20 @@ door). Its `menugrid` sub-command stays and is what the docs point at.
 
 ---
 
-## 048.6 — `widget:send(msg, ...)`, and the death of the target tokens
+## 048.6 — `widget:send(msg, ...)`, and the death of the target tokens ✅ 10/10 + 3/3 pass, 0 fail, 2 manual confirmed
+
+> **Closed 2026-08-10.** `send` ships beside `destroy`, `hafen.act():raw` is deleted under both field reads, and
+> `HookApi.isKnownTarget`/`hookTarget` went with it — `raw` was their last caller. The verb is the one on this
+> entity a BORROWED widget is *for*, and it is the one that raises on a stale receiver instead of taking
+> LuaWidget's usual chaining no-op (**D-217**). Three things 048.7/048.8 inherit. **`msg` is checked with
+> `type() != LuaValue.TSTRING`** — a Lua NUMBER answers `isstring()`, so `send(42)` would have put `"42"` on
+> the wire as a message name; `act():raw` shipped with that hole, and the rule this adds to 039.11/047.2 is
+> *when the argument leaves the client, the coercion is never forgivable*. **An unbound sender is dropped
+> SILENTLY** (`UI.rawWdgmsg` warns and returns on `id < 0`), which is why the refusal has to be ours. And
+> **deleting an address space is a one-line assertion, not an argument**: each of the four things `target`
+> could name resolves through the ordinary grammar and answers a numeric `:id()`, asserted in the suite, which
+> is what licensed the deletion. The headless probe reached 14/14 by parenting the widget under test to a
+> recording `wdgmsg` override, so even the successful send was proven before login.
 
 **Build**
 - `widget:send(msg, ...)` — send an arbitrary `wdgmsg` from a **bound** widget. `msg` must be a

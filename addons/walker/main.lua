@@ -25,7 +25,8 @@
 --   :walker sel         -- hafen.world():select: area-select the ~3x3 tiles around you (drives tile-area tools)
 --   :walker place       -- hafen.world():place: drop the object on your cursor at your feet facing north
 --                          (no-op if you are not placing anything — the server just ignores it)
---   :walker raw         -- raw: send the same walk "click" straight to the MapView (the escape hatch)
+--   :walker send        -- widget:send: send the same walk "click" from the MapView widget itself (the escape
+--                          hatch; the receiver IS the target, so there are no target tokens any more)
 --   :walker flower <l>  -- flower: RIGHT-click the nearest object, then auto-select its petal named <l> after a
 --                          brief delay (a flower menu grabs input, so a timed pick is the only programmatic way).
 --   :walker petal <l...>|n <k>|cancel
@@ -68,8 +69,8 @@ hafen.slash():register("walker", function(args)
   local sub = args[1] or "help"
 
   if sub == "help" then
-    hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | raw | flower | petal | item | speed | craft | bar | setbar | menugrid | kin")
-    hafen.log():write("   walk=hafen.player():move  click=gob:click(3)  use=hafen.player():hand():use(p)  sel=hafen.world():select  place=hafen.world():place  raw=raw escape hatch")
+    hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | send | flower | petal | item | speed | craft | bar | setbar | menugrid | kin")
+    hafen.log():write("   walk=hafen.player():move  click=gob:click(3)  use=hafen.player():hand():use(p)  sel=hafen.world():select  place=hafen.world():place  send=widget:send escape hatch")
     hafen.log():write("   flower=hafen.act():flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
     hafen.log():write("   petal <label...>|n <k>|cancel=hafen.flowermenu():select/:cancel  arms the NEXT menu you open, picked from FlowerMenuOpened")
     hafen.log():write("   item [verb] [n]=item:use/:take/:drop(n)/:transfer(n) on your first inventory item  default take (lifts to cursor)")
@@ -129,14 +130,19 @@ hafen.slash():register("walker", function(args)
     hafen.world():place(hafen.world():snapPlace(p), 0)  -- angle 0 rad = north; no-op unless something is on your cursor
     hafen.log():write(":walker place -> hafen.world():place(snapPlace(here), 0) at your feet facing north (start building something first, else nothing happens)")
 
-  elseif sub == "raw" then
-    -- The escape hatch: send the walk "click" straight to the MapView, building the wire args by hand.
-    -- Server units = world * 1024/11 (posres = 11/1024 world-units per server-unit), floored — exactly what
-    -- moveTo does internally. So this walks ~2 tiles south too, proving raw(target, msg, ...) reaches the widget.
+  elseif sub == "send" then
+    -- 048.6: the escape hatch is a verb on the WIDGET now. The receiver IS the target, so the old private
+    -- target vocabulary ("mapview"/"gameui"/"root", or a bare widget id) is gone -- you name the widget with an
+    -- ordinary selector and send from it. Bound widgets only: widget:id() is nil on one an addon built.
+    -- Server units = world * 1024/11 (posres = 11/1024 world-units per server-unit), floored -- exactly what
+    -- hafen.player():move builds internally. So this walks ~2 tiles south too, by hand.
+    local mv = hafen.ui():find("@MapView")
+    if not mv then hafen.log():write(":walker send -> no map view (not in the world yet)"); return end
     local su = 1024 / 11
     local mc = { x = math.floor(p:x() * su), y = math.floor((p:y() + SOUTH) * su) }
-    hafen.act():raw("mapview", "click", { x = 0, y = 0 }, mc, 1, 0)
-    hafen.log():write((":walker raw -> raw('mapview','click', pc, {x=%d,y=%d}, 1, 0)  [== moveTo ~2 tiles south]"):format(mc.x, mc.y))
+    mv:send("click", { x = 0, y = 0 }, mc, 1, 0)
+    hafen.log():write((":walker send -> hafen.ui():find('@MapView'):send('click', pc, {x=%d,y=%d}, 1, 0)"
+      .. "  [widget #%s == hafen.player():move ~2 tiles south]"):format(mc.x, mc.y, tostring(mv:id())))
 
   -- 048.5: there is no ':walker menu' any more. It demonstrated hafen.act():menu(path...), the pagina-PATH
   -- door, and that door is gone rather than re-spelled -- the menu grid addresses the entries it HOLDS, so

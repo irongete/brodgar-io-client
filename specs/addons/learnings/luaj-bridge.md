@@ -315,3 +315,13 @@
   deserve different messages" — this is the harder case one step past that: the two readings deserve different
   *behaviour*, so the `type()` test is load-bearing rather than a nicety. Rule of thumb: the moment one argument
   is overloaded on type, `isstring()`/`isnumber()` are both wrong and `type()` is the only correct test.
+
+- **(048.6) The `isstring()`-coerces-a-number trap has a third shape, and it is the worst one: the argument
+  goes ON THE WIRE.** 039.11 and 047.2 cover the two known cases — a coerced number reaching a *name* lookup
+  (wrong error) and a coerced number reaching an *overloaded* argument (wrong behaviour). `widget:send(msg,
+  ...)`'s `msg` is neither: `send(42)` passes `isstring()`, coerces to `"42"` and sends a message name no
+  server knows, with no error at the call site and nothing to read afterwards. `hafen.act():raw` shipped with
+  exactly that hole. The discriminator to add to the rule of thumb: **when the argument leaves the client,
+  `type() != LuaValue.TSTRING` is mandatory** — a coerced number is a forgivable misread only where the client
+  is still the one reading it. Cheap to catch: the headless probe passed `LuaValue.valueOf(42)` and got a
+  successful send back instead of the refusal the suite was written against.

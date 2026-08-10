@@ -1,0 +1,9 @@
+{
+  "name": "048.6 — widget:send, and the death of the target tokens",
+  "id": "048-act-dissolved.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 048.6: the escape hatch is widget:send(msg, ...) on the widget itself, protected and bound-widgets-only; hafen.act():raw is gone and its private target vocabulary ('mapview'/'gameui'/'root', a bare widget id) is deleted rather than rehoused, because every one of them is already an ordinary selector.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

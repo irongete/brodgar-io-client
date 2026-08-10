@@ -61,7 +61,8 @@ import java.util.WeakHashMap;
  * addon's — BORROWED). Every read answers on both, and so do the visibility write ({@code :hide()}/{@code :show()})
  * and — since 036.1, feature E — the geometry writes ({@code :pos(x,y)}/{@code :size(w,h)}); {@code :pack()} and
  * {@code :destroy()} stay OWNED-only and raise a clear error otherwise, because destroying the client's own widget
- * is not the addon's to do. Provenance is <b>derived from the tree</b> ({@link #ownedContent}), never stored on the
+ * is not the addon's to do. The one protected verb, {@code :send(msg, ...)} (048.6), is the opposite case: a
+ * BORROWED widget is exactly what it is for, since only a server-bound one has anywhere to send. Provenance is <b>derived from the tree</b> ({@link #ownedContent}), never stored on the
  * handle, because the cache below may collect and re-mint an entity at any moment. A write on a BORROWED widget
  * records what it was first — {@code :hide()} on {@link Addon#hiddenNative}, a move or a resize on
  * {@link Addon#movedNative} — and teardown gives it back; that, and not a separate handle type, is what
@@ -540,6 +541,51 @@ public final class LuaWidget {
                 return LuaValue.NIL;
             }
         });
+        // send(msg, ...) — 048.6: send an arbitrary wdgmsg FROM this widget. The escape hatch that used to be
+        // hafen.act():raw(target, msg, ...), and the move deletes an address space rather than relocating it: the
+        // RECEIVER is the target now, so `raw`'s private target vocabulary — a numeric server widget id, or the
+        // tokens "mapview" / "gameui" / "root" — has nothing left to address. Every one of them is an ordinary
+        // handle already: hafen.ui():node(id) for an id, hafen.ui():find("@MapView") for the map view and
+        // hafen.ui():find("@GameUI") for the HUD (@Class resolves through typeName, and MapView is not
+        // subclassed in this fork). The trailing args marshal exactly as the two message streams do
+        // (LuaMarshal.toJava: a {x=,y=} table becomes a Coord; numbers, strings and booleans pass through).
+        //   PROTECTED by the per-addon "actions" permission, and the gate runs FIRST (D-213) — before the
+        // message name is looked at and before the widget is resolved, so an addon that never declared it is
+        // told THAT rather than that it mistyped an argument.
+        //   BOUND WIDGETS ONLY. A widget with no server id — one this addon built — has nothing for the server
+        // to deliver to: UI.rawWdgmsg DROPS a sender whose id is < 0 with a Warning nobody reads, so the send
+        // would silently go nowhere. It REFUSES instead, naming that; widget:id() is the read that answers the
+        // same question ahead of the call. And unlike every other write here, a STALE widget throws instead
+        // of chaining as a no-op (D-217): a message about one specific widget has nothing honest to send once
+        // that widget has left the tree. Hands the Widget back, so a send chains.
+        m.set("send", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requireActions(owner, "widget:send");
+                LuaValue msgv = Args.required(a, 2, "widget:send", "msg");
+                // TSTRING rather than isstring(): in Lua a NUMBER answers isstring() (the coercion), so the
+                // laxer test would quietly put "42" on the wire as a message name — which is exactly the
+                // silent misread this grammar refuses. A message name is a string or it is a mistake.
+                if(msgv.type() != LuaValue.TSTRING)
+                    throw new LuaError("widget:send(msg, ...): msg must be a string — the message name the"
+                        + " server knows this widget by (\"click\", \"activate\", …)");
+                Widget w = live(handle(self, "send"));
+                if(w == null)
+                    throw new LuaError("widget:send(msg, ...): this widget is gone — it left the tree"
+                        + " (widget:exists() is false). Nothing was sent.");
+                if(w.wdgid() < 0)
+                    throw new LuaError("widget:send(msg, ...): this widget is not BOUND — it has no server id"
+                        + " (widget:id() is nil), so there is no one to send to. Only a widget the SERVER"
+                        + " placed can be sent from: hafen.ui():find(\"@MapView\") is the map view and"
+                        + " hafen.ui():find(\"@GameUI\") is the HUD.");
+                int n = a.narg();
+                Object[] args = new Object[Math.max(0, n - 2)];
+                for(int i = 3; i <= n; i++)
+                    args[i - 3] = LuaMarshal.toJava(a.arg(i), "widget:send");
+                w.wdgmsg(msgv.tojstring(), args);
+                return self;
+            }
+        });
         // ---- the builder setters (039.6, spec 039-uniform-api §2.5) -----------------------------------------
         // The thirteen keys of the retired opts table, as verbs on the widget the builder handed back — each
         // with a matching bare read, so a surface's properties are readable after construction with no second
@@ -601,7 +647,8 @@ public final class LuaWidget {
         // is a DEEP traversal, so a whole window answers for its grid). Each item appears ONCE however many slots
         // it occupies. Read with the window VISIBLE and interactive: nothing is hidden, nothing is registered —
         // which is the whole point of deleting hafen.ui.adopt. Empty for a leaf, a non-container or a stale
-        // widget. Read-only: MOVING items is the gated hafen.act tier.
+        // widget. Read-only: MOVING an item is the item's own protected tier (item:take() / :drop(n) /
+        // :transfer(n)).
         m.set("items", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Widget w = live(handle(self, "items"));

@@ -106,29 +106,12 @@ final class HookApi {
         Section.install(hafen, "slash", slash);
     }
 
-    // ================================================================= shared target-token resolution
-    // (used to be L1's own; the widget-input door is gone (041.3), but hafen.act():raw still resolves the
-    // same three tokens to a live widget, so the lookup stays here rather than following input to LuaWidget)
-
-    /** Is {@code tok} a recognized hook-target token? (Distinguishes "unknown target" from "not up yet".) */
-    static boolean isKnownTarget(String tok) {
-        return "mapview".equals(tok) || "map".equals(tok)
-            || "gameui".equals(tok)  || "hud".equals(tok)
-            || "root".equals(tok);
-    }
-
-    /** Resolve a (lower-cased, already-known) hook-target token to the live {@link Widget}, or null if not up. */
-    static Widget hookTarget(String tok) {
-        if("mapview".equals(tok) || "map".equals(tok))
-            return AddonManager.view;
-        if("gameui".equals(tok) || "hud".equals(tok))
-            return AddonManager.gui();
-        if("root".equals(tok)) {
-            UI u = AddonManager.ui;
-            return (u == null) ? null : u.root;
-        }
-        return null;
-    }
+    // ================================================================= (the target tokens are gone, 048.6)
+    // This file used to carry a shared token lookup — "mapview"/"map", "gameui"/"hud", "root" → a live Widget.
+    // It was L1's own until the widget-input door left in 041.3, after which hafen.act():raw was its one
+    // remaining caller; 048.6 replaced raw with widget:send(msg, ...), where the receiver IS the target, so the
+    // vocabulary had nothing left to address and was DELETED rather than followed to LuaWidget. Each token is an
+    // ordinary handle: hafen.ui():find("@MapView"), hafen.ui():find("@GameUI"), hafen.ui():root().
 
     // ================================================================= slash commands (hafen.slash, A11)
 

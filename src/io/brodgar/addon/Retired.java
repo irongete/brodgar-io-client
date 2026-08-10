@@ -146,7 +146,7 @@ final class Retired {
             + " hafen.client():options():interface():angGran(), which also writes it (in DEGREES per step)");
 
         // ---- hafen.act: R1 throughout, and the spatial verbs take Positions ----------------------------
-        section("act", "enabled", "flower", "raw");
+        section("act", "enabled", "flower");
         // ---- 048.1: hafen.act() is being DISSOLVED -- a verb lives with WHAT IT CHANGES, not with what it -----
         // ---- costs (D-187 generalised), so the section that grouped nine unrelated verbs by their PERMISSION
         // ---- is emptying one task at a time. A moved verb is registered by act() below, under BOTH spellings:
@@ -175,6 +175,12 @@ final class Retired {
             + " hafen.menugrid():get(\"Dig\"):use(), or get(\"paginae/act/dig\"):use() by resource name. There"
             + " is no path-based door: the menu grid addresses the entries it HOLDS, and pag:use() now carries"
             + " the same \"actions\" permission this verb did");
+        act("raw", "hafen.act():raw(target, msg, ...) is now widget:send(msg, ...) — the RECEIVER is the"
+            + " target, so the target vocabulary is gone rather than rehoused: a numeric widget id is the"
+            + " widget it named (hafen.ui():node(id)), \"mapview\" is hafen.ui():find(\"@MapView\"),"
+            + " \"gameui\" is hafen.ui():find(\"@GameUI\") and \"root\" is hafen.ui():root(). Bound widgets"
+            + " only, exactly as before — widget:id() is nil on one your addon built — and the arguments"
+            + " marshal unchanged");
 
         // ---- 040.7: a text entry's content is WRITTEN through :value(s), the one door -- entry:text(s) would --
         // ---- be a second way to write the same property, which the area's one-door rule does not allow. The

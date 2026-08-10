@@ -8,8 +8,6 @@ import haven.Makewindow;
 import haven.MiniMap;
 import haven.Resource;
 import haven.Speedget;
-import haven.UI;
-import haven.Widget;
 import haven.Window;
 
 import org.luaj.vm2.LuaError;
@@ -40,7 +38,7 @@ final class ActApi {
      *
      * <p>A plain section object that is <b>emptying</b> (D-117): 048 moves every verb onto the thing it changes,
      * one task at a time, and the section stays mounted for whatever has not moved yet so that no verb ever
-     * works under two names. What is left here is {@code enabled}, {@code raw} and {@code flower};
+     * works under two names. What is left here is {@code enabled} and {@code flower};
      * 048.7 deletes the section itself once they are gone. Every spelling that has already left throws from
      * {@link Retired}, naming its new home.
      */
@@ -65,18 +63,12 @@ final class ActApi {
         // place directly beside the hafen.world():snapPlace(p) / :snapAngle(a) that exist to prepare its two
         // arguments and until now sat a whole section away from it. Same messages, same gate, on the thing
         // they change; their pure arg builders went with them.
-        // raw(target, msg, ...) — the escape hatch: send an arbitrary wdgmsg from a BOUND widget. target = a
-        // server widget id (number; e.g. widget:id()) or a token "mapview"/"gameui". The trailing args are
-        // marshalled exactly like the action/message hooks (a {x=,y=} table ↔ Coord; numbers/strings/bools
-        // direct). For power users — the typed verbs above cover the common cases; raw covers the rest.
-        act.set("raw", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "act", "raw");
-                AddonManager.requireActions(owner, "hafen.act():raw");
-                actRaw(a.subargs(2));
-                return LuaValue.NIL;
-            }
-        });
+        // 048.6: raw(target, msg, ...) has LEFT, and it took a whole ADDRESS SPACE with it rather than
+        // rehousing one. The escape hatch is widget:send(msg, ...) now, where the receiver IS the target — so
+        // raw's private target vocabulary (a numeric server widget id, or the tokens "mapview"/"gameui"/"root"
+        // resolved through a lookup this file borrowed from the hook tier) had nothing left to address. Every
+        // one of them was already an ordinary handle: hafen.ui():node(id), hafen.ui():find("@MapView"),
+        // hafen.ui():find("@GameUI"). Same wdgmsg, same "bound widgets only" rule, same marshalling.
         // 048.5: menu(path...) is GONE, and nothing took its place. 023-menugrid-oop already absorbed the
         // mechanism — hafen.menugrid() addresses the entries it holds, and hafen.menugrid():get("Dig"):use()
         // (or get("paginae/act/dig"):use() by resource name) is the door — so this was the old one D-103
@@ -215,46 +207,10 @@ final class ActApi {
     // them — still pure, still headless-testable, just beside the verbs that send them. moveClickCoord went
     // with them too: it had one caller left, and what it spelled (Coord2d.floor(OCache.posres)) is what both
     // LuaHand and WorldApi now write inline at the one line that needs it.
+    // 048.6: raw left for LuaWidget as widget:send(msg, ...), and its target resolution was DELETED rather
+    // than moved — with the receiver as the target there is nothing to resolve. The hook-token lookup it
+    // borrowed (HookApi.isKnownTarget/hookTarget) went with it: raw was its last caller.
     //
-    // -- 4d: what is left of the MapView action verbs — raw ---------------------------------------------------
-    // The escape hatch outlives the typed verbs above it because it is not about the map at all: it sends an
-    // arbitrary wdgmsg from any BOUND widget, and 048.6 moves it onto the widget itself.
-
-    /**
-     * {@code hafen.act():raw} backing — send an arbitrary wdgmsg from a bound widget. {@code a.arg1()} = the
-     * target (a numeric server widget id, or a "mapview"/"gameui"/"root" token); {@code a.arg(2)} = the message
-     * name; the rest are the message args (marshalled via {@link LuaMarshal#toJava}). "Bound widgets only" — a
-     * looked-up widget id and the core-widget tokens are all server-bound.
-     */
-    private static void actRaw(Varargs a) {
-        LuaValue msgv = a.arg(2);
-        if(!msgv.isstring())
-            throw new LuaError("hafen.act():raw(target, msg, ...): msg must be a string");
-        Widget w = rawTarget(a.arg1());
-        if(w == null)
-            throw new LuaError("hafen.act():raw: target did not resolve to a live widget"
-                + " (expected a bound widget id, \"mapview\", or \"gameui\")");
-        int n = a.narg();
-        Object[] args = new Object[Math.max(0, n - 2)];
-        for(int i = 3; i <= n; i++)
-            args[i - 3] = LuaMarshal.toJava(a.arg(i), "hafen.act():raw");
-        w.wdgmsg(msgv.tojstring(), args);
-    }
-
-    /** Resolve a {@code raw} target: a numeric server widget id ({@code UI.getwidget}), or a hook-style token. */
-    private static Widget rawTarget(LuaValue target) {
-        if(target.isnumber()) {
-            UI u = AddonManager.ui;
-            return (u == null) ? null : u.getwidget(target.toint());
-        }
-        if(target.isstring()) {
-            String tok = target.tojstring().toLowerCase();
-            if(HookApi.isKnownTarget(tok))
-                return HookApi.hookTarget(tok);  // "mapview"/"gameui"/"root" → the live bound widget (reuse 2c)
-        }
-        return null;
-    }
-
     // -- 4e: the flower verb ---------------------------------------------------------------------------
     // flower goes through the OPEN FlowerMenu's own choose (wrap-not-reimplement, D-009 — reuses the client's
     // petal selection, including its client-side petals). It runs on the UI thread (addon callback / REPL /

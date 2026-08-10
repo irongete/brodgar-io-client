@@ -2,49 +2,47 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 5 of 8** — the one section grouped by PERMISSION rather than by what it
+**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 6 of 8** — the one section grouped by PERMISSION rather than by what it
 acts on is being dissolved (**D-187** generalised as **D-215**: a verb lives with what it CHANGES, not with what it COSTS — a
 permission is not a namespace). Every verb moves onto the thing it changes ([spec.md](048-act-dissolved/spec.md) is the map),
 while `:flower`, `:menu` and `:enabled` are DELETED — 047 and 023 own those doors already (**D-103**; no path door is built).
 `gated` → **protected**. **The docs tier is 048.8's whole job**, so `docs/addons/api/act.md` still teaches verbs that moved.
 **048.1 DONE, 13/13**: `hafen.player():move(p)` and `gob:click(button, mods)` — same messages, same gate, on the things they
-change. The section stays mounted while it empties (**D-117**), a moved verb is retired under **BOTH** field reads
-(**D-216**), and a departed gob makes the click **RAISE** where every read answers nil (**D-217**).
+change. The section stays mounted while it empties (**D-117**), a moved verb is retired under **BOTH** field reads (**D-216**),
+and a departed gob makes the click **RAISE** where every read answers nil (**D-217**).
 **048.2 DONE, 29/29**: the cursor is an **object** — `hafen.player():hand()`, **nil** while you carry nothing, with `:item()`
-and the protected `:use(target, mods)` onto an Item, a Position or a **Gob** (`MapView.iteminteract`'s `clickargs` extension,
-a message no addon could send). **D-218**: the receiver must BE the message's implicit subject and absent whenever it is.
+and the protected `:use(target, mods)` onto an Item, a Position or a **Gob** (`MapView.iteminteract`'s `clickargs` extension, a
+message no addon could send). **D-218**: the receiver must BE the message's implicit subject and absent whenever it is.
 **048.3 DONE, 14/14**: what you can do TO an item is **on the item** — `item:use(mods)` (the `iact` gesture), `:take()`,
 `:drop(n)`, `:transfer(n)`: protected, chaining, each refusing a **stale** handle without sending; `act():item` deleted whole.
 **Only `:use` takes `mods`** — on a real click the keys select the COUNT (`WItem.mousedown`), so `n` IS the modifier.
 **048.4 DONE, 11/11 + 11/11**: `hafen.world():place(p, angle, button, mods)` and `:select(p1, p2, mods)` — the world's first
-protected verbs, `place` now three lines from the `snapPlace`/`snapAngle` that prepare its arguments; `moveClickCoord` died
-with them. The SUITE's lesson: a wire recorder must identify its OWN sends — `place`/`sel` are messages a *player* sends too,
-so the run **clears** the buffer and asserts an **exact count**, and no manual line asks for a fixture that pollutes it.
+protected verbs, `place` now three lines from the `snapPlace`/`snapAngle` that prepare its arguments. The SUITE's lesson: a wire
+recorder must identify its OWN sends, so the run **clears** the buffer and asserts an **exact count**.
 **048.5 DONE, 10/10**: `pag:use()` — ungated since 023 — carries the `actions` gate (**D-219**: a verb that COMMITS a real
 server action is protected wherever it lives), and `hafen.act():menu` is deleted with **no path door** anywhere. Gating a
 **shipped** verb owes a grep of every installed caller first; the gate goes on the WRITE half only, and the assertion that
-guards that is *the reads still answer this same undeclared addon in the same run*. A collection's absence THROWS, not nil.
+guards that is *the reads still answer this same undeclared addon in the same run*.
+**048.6 DONE, 10/10 + 3/3**: `widget:send(msg, ...)` — the escape hatch on the widget itself, so `act():raw`'s private
+target vocabulary (a bare id, `"mapview"`/`"gameui"`/`"root"`) is **deleted** rather than rehoused: each is already an
+ordinary handle, which the suite ASSERTS rather than argues. `HookApi`'s token lookup died with it. A message name is
+`type() != TSTRING` — **a coerced number that leaves the client is never a forgivable misread** — and an unbound sender
+must be refused by us, because `UI.rawWdgmsg` drops it in silence.
 
 **[`047-flowermenu`](047-flowermenu/) is CLOSED, 3 of 3** — `hafen.flowermenu()` **is** the open radial menu: unprotected
 `:list()`/`:count()`/`:gob()` · protected `:select(label|n)`/`:cancel()` · `FlowerMenuOpened`/`FlowerMenuClosed`. The reads
 hand back bare **strings** in ring order and answer `{}`/`0`/`nil` with no menu up; the finder moved out of `ActApi`
-(**D-103**). *Every Opened is followed by exactly one Closed* is kept **structurally** (**D-212**) — a weak map keyed on
-the menu, all three ending doors calling one `closed()` — with Opened at the **END** of `added()`, the only complete
-moment; the write half drives `FlowerMenu.choose(Petal)` and, unlike the reads, **REFUSES** (**D-213**, gate before
-argument check). **`:gob()` is a CORRELATION** (**D-214**): a press records `(gob, UI.lcc)`. 26/26 · 19/19 · 15/15.
+(**D-103**). *Every Opened is followed by exactly one Closed* is kept **structurally** (**D-212**) — a weak map keyed on the
+menu, every ending door calling one `closed()`, Opened at the **END** of `added()`. The write half drives
+`FlowerMenu.choose(Petal)` and, unlike the reads, **REFUSES** (**D-213**, gate before argument check); **`:gob()` is a
+CORRELATION** (**D-214**): a press records `(gob, UI.lcc)`. 26/26 · 19/19 · 15/15.
 
 **[`046-gob-scale`](046-gob-scale/) is CLOSED, 1 of 1** — a **native** gob answers `:scale`: client-local, purely visual, in place, and the first client-local write on a read-only handle. A `GobScale extends GAttrib implements Gob.SetupMod` propagates through `Gob.ctick`'s per-tick `GobState` compare with **zero `haven` edits**, and `Location.scale(k)` is minted once per VALUE — the mechanism, not an optimisation: `Location` has no `equals` (**D-210**). Writing `1` removes the attrib and a stopped addon leaves nothing distorted (`UiApi.teardownGobScales`). Validation is the one divergence from the vr siblings (**D-211**): they clamp, a direct argument refuses `0`/negative/non-number.
 
 **[`045-durable-places`](045-durable-places/) is CLOSED, 3 of 3** — a thing you stand at a **point** is at that point tomorrow, and after a cave. A free `hafen.vr()` entity's place is its **durable anchor** (grid id + the offset inside it) and the session coordinate a derived cache, because that space is re-based whenever the map is dropped: `:info()` is the place and `:x()` this session's answer (**D-207**); a place with no durable form is refused at both doors, one this session cannot **locate** is legal (**D-208**), and **the second event** (**D-209**, at `MiniMap.tick`) is the only edit.
 
-**[`044-spatial-ui`](044-spatial-ui/) is CLOSED, 9 of 9**: `hafen.vr():widget()` — a Widget, yours or the client's own,
-standing as a quad under the one rule **transparency**, which is why its surface is a real UI **root** it is reparented
-into (`cupboard` the example). Along the way: a thing at a POINT is in the scene only while the ground under it is DRAWN
-(**D-206**); an upward walk out of a standing panel crosses to **the record** (**D-204**); a window **announces its
-removal before it unlinks** (**D-205**); culling and input are the four projected corners (**D-203**/**D-195**).
-**A 040.10 defect is still NOT fixed**: `dropdown:size(w, h)` leaves its drop arrow outside its box. And
-[`043-vr-namespace`](043-vr-namespace/) **closed 5/5** before it — pure reorganization: `hafen.vr()` absorbed
-`hafen.ghost()`/`hafen.render()`, made the **anchor an argument**, emptied `gob:overlay()` of the world, and turned `:billboard(b)` into **`:facing(mode)`** (**D-184**–**D-190**).
+**[`044-spatial-ui`](044-spatial-ui/) is CLOSED, 9 of 9**: `hafen.vr():widget()` — a Widget, yours or the client's own, standing as a quad under the one rule **transparency**, which is why its surface is a real UI **root** it is reparented into (`cupboard` the example). Along the way: a thing at a POINT is in the scene only while the ground under it is DRAWN (**D-206**); an upward walk out of a standing panel crosses to **the record** (**D-204**); a window **announces its removal before it unlinks** (**D-205**); culling and input are the four projected corners (**D-203**/**D-195**).
+**A 040.10 defect is still NOT fixed**: `dropdown:size(w, h)` leaves its drop arrow outside its box. And [`043-vr-namespace`](043-vr-namespace/) **closed 5/5** before it — pure reorganization: `hafen.vr()` absorbed `hafen.ghost()`/`hafen.render()`, made the **anchor an argument**, emptied `gob:overlay()` of the world, and turned `:billboard(b)` into **`:facing(mode)`** (**D-184**–**D-190**).
 
 **Before that**, all DONE (detail in each `NNN-` folder, one-line summaries in `FEATURES.md`): `042-event-driven-reads` (the addon layer stopped **polling the widget tree every frame** to synthesise its `*Changed`/`*Added` events — 12 sites wired onto the four moments the client already announces a change at, then the poll stage **deleted whole** on six core taps; D-178..D-182, of which **D-181 supersedes D-091**), `041-unified-events` (one verb for every notification — `X:on(key, fn)` → a `Sub`, `hafen.hook()` deleted whole), `040-ui-controls` (18 of the client's own controls reach Lua, one builder per role), `039-uniform-api` (one grammar for 33 sections, one `position()`, the OOP migration finished), `038-gob-overlays` (`gob:overlay()` — the engine's own word for a thing attached to a gob), `037-map-database` (the RECORDED map on disk beside the live world — segments, grids, markers, masks, minimap drawings), `036-ui-layout` (position/size/anchor in the sheet, and a whole theme as a data file), `035-ui-chrome` (the sheet learns to DRAW), `034-ui-stylesheet-tree` (a tree key says WHICH widgets), `033-ui-stylesheet` (ONE table says what the client looks like), `032-replace-verb` (replacement is a verb on the entity; the `UI.NewWidget` core seam deleted), `031-window-lifecycle` (hiding a native window takes its toggle), `030-ui-selectors` (a tiny CSS-shaped grammar parsed once into a predicate), `029-widget-oop` (three objects for one widget became ONE interned entity), `028-asset-loader` (one loader for an addon's own files), `027-meters-oop`, `026-text-cache` (130 → 220-240 FPS on the harness), `025-buffs-oop`, `024-audio-oop` (the Track section was built to spec and then CUT — this server sends no MIDI), `023-menugrid-oop`, `022-actionbar-set`, `021-actionbar-oop`, `020-kin-oop`, `019-profiling`, `018-client-options`, `017-gob-oop`, and 001–016.
 

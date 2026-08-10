@@ -1523,3 +1523,16 @@
   what makes the pasted-back block readable in one pass. It also catches the Lua trap that shape invites: a
   `got` expression like `(x == nil) and "none" or x:name()` is only safe because `and`/`or` short-circuit —
   write it as a plain argument and the nil deref fires before `check()` is ever called.
+
+- **(048.6) Put a RECORDER between the fabricated widget and the fabricated root, and the wire itself becomes
+  headlessly assertable.** 036.1's recipe (`Unsafe.allocateInstance(UI.class)` + reflective `widgets`/
+  `rwidgets` + an `Unsafe`-allocated `RootWidget`, tree wired by assigning `Widget.parent`) reaches every
+  read and every refusal, but a *successful* send still dies at the top: `wdgmsg` walks UP, and the fabricated
+  root's `ui` is null. One anonymous `new Widget(sz) { public void wdgmsg(Widget sender, String msg, Object...
+  a) { record… } }` parented to the root, with the widget under test parented to IT, turns that last NPE into
+  the most valuable line the probe prints — `from #77 "click" [(3,4) <Coord>, 1 <Integer>, s <String>]`, i.e.
+  the sender id, the message name and the marshalled Java types, which is precisely what the in-game suite can
+  only observe through the action stream. 14/14 headless before the maintainer logged in, including the good
+  send. Also: run the probe under **two** manifests (`Manifest.test` declares nothing, `Manifest.internal`
+  declares everything) — with the gate first (D-213) the undeclared run proves the ORDER and the declared run
+  proves the messages, and neither can be seen from the other.
