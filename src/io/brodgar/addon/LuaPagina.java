@@ -53,13 +53,15 @@ import java.util.Set;
  * {@code Loading}-guarded to {@code nil} — never partial, and no {@code Loading} escapes into Lua — which is
  * why a scan right at {@code EnterWorld} may be <b>short</b> and fills in sub-second as resources resolve.
  *
- * <p><b>The one verb is {@code :use()}, and it takes no arguments.</b> It drives the client's own
- * {@code MenuGrid.PagButton.use} (wrap-not-reimplement, D-009) — the pure message half, which branches
+ * <p><b>The one verb is {@code :use()}, it is PROTECTED, and it takes no arguments.</b> It drives the client's
+ * own {@code MenuGrid.PagButton.use} (wrap-not-reimplement, D-009) — the pure message half, which branches
  * {@code "act"}-by-path vs {@code "use"}-by-id and so reaches an id-only pagina no path can express — rather
  * than {@code MenuGrid.use()}, the widget's click handler, which would also flip the visible page and reset
  * grid state. A <b>category</b> errors instead of sending an empty {@code "act"}, pointing at
  * {@code :children()}. There is no {@code mods} parameter because {@code PagButton.use} ignores
- * {@code Interaction.modflags} and reads {@code ui.modflags()} live, so one could only lie.
+ * {@code Interaction.modflags} and reads {@code ui.modflags()} live, so one could only lie. It commits a real
+ * server action, so since 048.5 it sits behind the per-addon {@code actions} permission like every other verb
+ * that does — the READS beside it stay open.
  *
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045), identical to its three predecessors: the handle
  * crosses as {@code LuaValue.userdataOf(luaPagina, mt)} so Lua cannot scribble on it, and the {@link Cache} on
@@ -280,7 +282,7 @@ public final class LuaPagina {
                 return snapshot(handle(self, "info").res);
             }
         });
-        // -- the verb: drive the client's own PagButton.use (D-009), return self --------------------------
+        // -- the PROTECTED verb: drive the client's own PagButton.use (D-009), return self -----------------
         // use() — exactly what a LEFT-click on that menu button does. It goes through PagButton.use, which is
         // the pure MESSAGE half and branches "act"-by-path vs "use"-by-id internally — which is how it reaches
         // an id-only pagina no path can express. NOT MenuGrid.use(btn, iact, reset): that is the WIDGET's click
@@ -289,9 +291,14 @@ public final class LuaPagina {
         // widget (src/haven/Makewindow.java:375).
         // NO ARGUMENTS on purpose: PagButton.use never reads Interaction.modflags — it builds the message from
         // ui.modflags() live — so a mods parameter could only lie about the keyboard state (plan.md has the
-        // trace). Ungated for now; the write-permission model is being restructured in its own plan.
+        // trace).
+        // 048.5: PROTECTED (D-027/D-028). This verb commits a real server action and shipped ungated only
+        // because 023 predated the tier being applied per subsystem; a verb that acts is behind the "actions"
+        // permission wherever it lives. The gate runs FIRST, before the live-entry lookup (D-213), so an addon
+        // that may not act at all is told THAT rather than "not in the menu". The menugrid READS are untouched.
         m.set("use", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
+                AddonManager.requireActions(owner, "pag:use");
                 String res = handle(self, "use").res;
                 MenuGrid.Pagina p = live(res);
                 if(p == null)

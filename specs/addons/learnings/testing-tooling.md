@@ -1506,3 +1506,20 @@
   it does hand the section back so writes chain) and the maintainer correctly saw silence. Either write the
   expectation as *no error, and nothing echoed*, or make the line an expression (`:lua tostring(f(p))`) if the
   return value is the thing under test.
+- **(048.5) With no session, a gated verb's error tells you the gate's ORDER — run the probe under two owners
+  and read which message comes back.** 048.3 ran its probe under `Manifest.test` (declares nothing) and
+  `Manifest.internal` (declares everything); the sharper use is that headlessly the *live lookup can never
+  succeed* — there is no `GameUI`, so `LuaPagina.live(res)` is null for every resource name. That turns the
+  declared owner's run into the ordering proof: if it comes back *"is not in the menu"* the gate has already
+  run and passed, and if it came back *"did not declare"* the gate would be sitting behind the lookup. Both
+  halves of D-213 from one throwaway, no client. The entity handle costs nothing to mint either — `LuaPagina
+  .of(owner, "paginae/act/dig")` is package-private, so a same-package probe fabricates a handle for a
+  resource the catalogue has never heard of and reaches the verb with no world at all.
+- **(048.5) Drive the shipping suite headlessly for what it does with NOTHING there, not only for what it
+  proves.** The 033.3 probe normally answers *does it load and register*; calling the registered `run()` on an
+  empty catalogue answers a second question worth as much — *does it degrade into `[fail]` lines, or does it
+  throw halfway and print no `[summary]` at all*. Five of 048.5's ten checks are structurally unreachable
+  without a live action menu, and confirming the other five stay green while those five report themselves is
+  what makes the pasted-back block readable in one pass. It also catches the Lua trap that shape invites: a
+  `got` expression like `(x == nil) and "none" or x:name()` is only safe because `and`/`or` short-circuit —
+  write it as a plain argument and the nil deref fires before `check()` is ever called.

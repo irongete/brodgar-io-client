@@ -233,3 +233,13 @@
   refusing an argument on `take` is not pedantry: it is the wire's own shape, stated where the caller can read
   it. Note the consequence for a suite — an argument refusal on a protected verb is **invisible** to an
   undeclared caller (the gate answers first), so it belongs on a `[manual]` `:lua` line.
+- **(048.5) Gating a SHIPPED verb is a different job from gating a new one: the callers already exist.**
+  `pag:use()` had been ungated since 023, so adding `requireActions` to it can break an installed addon at the
+  moment it acts — a failure that surfaces in-game, on someone's real character, and never at build time. The
+  cheap obligation is a grep of every installed addon for the call plus a check that each caller declares
+  (`grep -rn ":use()" addons/`; here only `walker`, which declares) — do it *before* shipping, not as a
+  post-mortem. The second half is where the gate goes: on the **write half only**. A gate wired at the section
+  would pass every refusal assertion a suite can write and silently break the read-only addons that browse the
+  same catalogue (`hello` scans the action menu at every login and declares nothing), so the assertion that
+  actually guards the change is *the reads still answer for this same undeclared addon, in this same run* —
+  next to the refusal, not in another suite.

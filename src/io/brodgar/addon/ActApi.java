@@ -40,7 +40,7 @@ final class ActApi {
      *
      * <p>A plain section object that is <b>emptying</b> (D-117): 048 moves every verb onto the thing it changes,
      * one task at a time, and the section stays mounted for whatever has not moved yet so that no verb ever
-     * works under two names. What is left here is {@code enabled}, {@code raw}, {@code menu} and {@code flower};
+     * works under two names. What is left here is {@code enabled}, {@code raw} and {@code flower};
      * 048.7 deletes the section itself once they are gone. Every spelling that has already left throws from
      * {@link Retired}, naming its new home.
      */
@@ -77,20 +77,14 @@ final class ActApi {
                 return LuaValue.NIL;
             }
         });
-        // menu(path...) — invoke a menu/pagina action by its path tokens, via GameUI.act (the "act" wdgmsg
-        // the action-bar menu grid sends when you click through a pagina tree; the client itself uses it,
-        // e.g. act("lo","cs") = log out to character select). CAVEAT (coverage-gaps C3): paginae are
-        // server-fetched and their names are content-defined / localized / versioned — this is NOT a stable
-        // address space, and a path resolves only if that page is currently loaded. Some paths COMMIT real
-        // actions (e.g. "lo" logs out), so the addon supplies the tokens deliberately.
-        act.set("menu", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "act", "menu");
-                AddonManager.requireActions(owner, "hafen.act():menu");
-                actMenu(a.subargs(2));
-                return LuaValue.NIL;
-            }
-        });
+        // 048.5: menu(path...) is GONE, and nothing took its place. 023-menugrid-oop already absorbed the
+        // mechanism — hafen.menugrid() addresses the entries it holds, and hafen.menugrid():get("Dig"):use()
+        // (or get("paginae/act/dig"):use() by resource name) is the door — so this was the old one D-103
+        // requires closing. The pagina-PATH address space goes with it by maintainer directive: a second,
+        // path-shaped way to say the same thing is exactly the dual style D-013 refuses, and paths were never
+        // a stable address space anyway (server-fetched, content-defined, resolvable only while loaded).
+        // pag:use() gained the "actions" gate in the same task, so nothing that acted behind a permission
+        // stopped doing so.
         // flower(label) — select a petal of the OPEN radial context menu (FlowerMenu) by its label (the petal
         // name, matched case-insensitively), driving the client's own FlowerMenu.choose (wrap-not-reimplement,
         // D-009: reuses the client's selection, including its client-side petals). Returns true if a matching
@@ -261,39 +255,16 @@ final class ActApi {
         return null;
     }
 
-    // -- 4e: menu + flower verbs -----------------------------------------------------------------------
-    // menu goes through GameUI.act (the "act" wdgmsg by path — what the action-bar menu grid sends); flower
-    // through the OPEN FlowerMenu's own choose (wrap-not-reimplement, D-009 — reuses the client's petal
-    // selection, including its client-side petals). Both run on the UI thread (addon callback / REPL / timer),
-    // like the MapView verbs above, and locate their target by walking the live widget tree (AddonManager.gui() /
-    // FlowerMenuApi.open(), the finder hafen.flowermenu() owns since 047.1). flower is non-throwing on "no menu /
+    // -- 4e: the flower verb ---------------------------------------------------------------------------
+    // flower goes through the OPEN FlowerMenu's own choose (wrap-not-reimplement, D-009 — reuses the client's
+    // petal selection, including its client-side petals). It runs on the UI thread (addon callback / REPL /
+    // timer), like the MapView verbs did, and locates its target by walking the live widget tree
+    // (FlowerMenuApi.open(), the finder hafen.flowermenu() owns since 047.1). It is non-throwing on "no menu /
     // no match" (returns false); reading a menu's petals, the two menu events and the 047.2 write half
     // (hafen.flowermenu():select(label|n) / :cancel(), which REFUSE naming what is open) live in that section.
-    // The two doors coexist by maintainer directive and behave exactly as they always have.
-
-    /** Build the menu path {@code String[]} from the 1-based varargs; throws on an empty path or a non-string
-     *  token (numbers coerce to their string form, like a console token). Pure/testable. */
-    static String[] menuPath(Varargs a) {
-        int n = a.narg();
-        if(n < 1)
-            throw new LuaError("hafen.act():menu(path...): at least one path token is required");
-        String[] path = new String[n];
-        for(int i = 1; i <= n; i++) {
-            LuaValue v = a.arg(i);
-            if(!v.isstring())
-                throw new LuaError("hafen.act():menu(path...): every path token must be a string");
-            path[i - 1] = v.tojstring();
-        }
-        return path;
-    }
-
-    /** {@code hafen.act():menu} backing — send the "act" menu-path message via {@link GameUI#act(String...)}. */
-    private static void actMenu(Varargs a) {
-        GameUI g = AddonManager.gui();
-        if(g == null)
-            throw new LuaError("hafen.act():menu: no game UI (not in the world yet)");
-        g.act(menuPath(a));
-    }
+    // The two doors coexist by maintainer directive until 048.7 closes this one.
+    // 048.5: the menu path builder went with act():menu — GameUI.act is the client's own by-path door and no
+    // hafen.* verb opens it any more.
 
     /** Index of the first petal name equal to {@code label} (case-insensitive), or {@code -1}. Pure/testable. */
     static int flowerPetalIndex(String[] names, String label) {

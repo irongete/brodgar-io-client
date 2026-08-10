@@ -1,0 +1,9 @@
+{
+  "name": "048.5 — pag:use() becomes protected, and act():menu is deleted",
+  "id": "048-act-dissolved.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 048.5: the action-menu entry's one verb now refuses an addon that did not declare \"actions\", every menugrid READ still answers for that same addon, and hafen.act():menu is gone with no path-shaped door beside hafen.menugrid():get(name):use().",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

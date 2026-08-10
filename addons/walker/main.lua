@@ -10,7 +10,7 @@
 -- can only send what a player click could send; the permission exists so YOU control which addons act for you.
 -- Kept SEPARATE from the always-on read-only `hello` regression harness (which declares no permissions).
 --
--- Slice 4d adds the rest of the MapView action verbs; slice 4e adds menu + flower;
+-- Slice 4d adds the rest of the MapView action verbs; slice 4e adds flower (048.5 deleted its `menu` twin);
 -- the ITEM verbs are on the Item itself (048.3: item:use/:take/:drop/:transfer); slice 4g adds the
 -- PER-SUBSYSTEM protected verbs that live in
 -- their own namespace (not hafen.act()): hafen.speed():current(n), the Craft's :make, the Slot's :use, and
@@ -26,8 +26,6 @@
 --   :walker place       -- hafen.world():place: drop the object on your cursor at your feet facing north
 --                          (no-op if you are not placing anything — the server just ignores it)
 --   :walker raw         -- raw: send the same walk "click" straight to the MapView (the escape hatch)
---   :walker menu <t...> -- menu: invoke a menu/pagina action by path (e.g. ':walker menu lo cs' = log out to
---                          character select — reversible). Path tokens are content-defined, so YOU supply them.
 --   :walker flower <l>  -- flower: RIGHT-click the nearest object, then auto-select its petal named <l> after a
 --                          brief delay (a flower menu grabs input, so a timed pick is the only programmatic way).
 --   :walker petal <l...>|n <k>|cancel
@@ -43,7 +41,7 @@
 --   :walker bar <n>     -- slot:use: activate slot n (raw 0-based index; read hafen.actionbar():get(n) first)
 --   :walker setbar <n> <res>  -- slot:res: ASSIGN the action named <res> to slot n (what a drag from the menu
 --                          grid does). Overwrites the slot; right-click it in-game to clear.
---   :walker menugrid <name>   -- pagina:use: fire an ACTION MENU entry by display name (e.g. ':walker menugrid Dig')
+--   :walker menugrid <name>   -- pag:use: fire an ACTION MENU entry by display name (e.g. ':walker menugrid Dig')
 --                          or by resource name if you pass one containing a '/'. A category errors -- it lists
 --                          its :children() instead.
 --   :walker kin add <secret>  -- hafen.kin():add: add a kin by the other player's HEARTH SECRET (wdgmsg 'bypwd')
@@ -51,7 +49,7 @@
 --                       -- kin:group/:rename a named kin (reversible), OR the two-step drop: endkin = End
 --                          kinship (stays memorized), then forget = drop the memorized kin from the list
 
-hafen.log():write("walker loaded -- write-actions demo (4d MapView verbs + 4e menu/flower + the item verbs + 4g speed/craft/bar/setbar/kin + menugrid)")
+hafen.log():write("walker loaded -- write-actions demo (4d MapView verbs + 4e flower + the item verbs + 4g speed/craft/bar/setbar/kin + menugrid)")
 
 -- At login, confirm we're granted (we only load once YOU enabled us, and we declared the permission).
 hafen.event():on("EnterWorld", function()
@@ -70,9 +68,8 @@ hafen.slash():register("walker", function(args)
   local sub = args[1] or "help"
 
   if sub == "help" then
-    hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | raw | menu | flower | petal | item | speed | craft | bar | setbar | menugrid | kin")
+    hafen.log():write(":walker sub-commands -> walk | click | use | sel | place | raw | flower | petal | item | speed | craft | bar | setbar | menugrid | kin")
     hafen.log():write("   walk=hafen.player():move  click=gob:click(3)  use=hafen.player():hand():use(p)  sel=hafen.world():select  place=hafen.world():place  raw=raw escape hatch")
-    hafen.log():write("   menu=hafen.act():menu(path...)  e.g. ':walker menu lo cs' = log out to char select (reversible)")
     hafen.log():write("   flower=hafen.act():flower(label)  e.g. ':walker flower Harvest' = right-click nearest, pick a petal")
     hafen.log():write("   petal <label...>|n <k>|cancel=hafen.flowermenu():select/:cancel  arms the NEXT menu you open, picked from FlowerMenuOpened")
     hafen.log():write("   item [verb] [n]=item:use/:take/:drop(n)/:transfer(n) on your first inventory item  default take (lifts to cursor)")
@@ -141,18 +138,9 @@ hafen.slash():register("walker", function(args)
     hafen.act():raw("mapview", "click", { x = 0, y = 0 }, mc, 1, 0)
     hafen.log():write((":walker raw -> raw('mapview','click', pc, {x=%d,y=%d}, 1, 0)  [== moveTo ~2 tiles south]"):format(mc.x, mc.y))
 
-  elseif sub == "menu" then
-    -- Menu paths are content-defined / localized (not a stable address space, see docs) and some COMMIT
-    -- real actions, so YOU supply the tokens. With none given we just show the guaranteed client example.
-    if not args[2] then
-      hafen.log():write(":walker menu <token...> -> invoke a menu/pagina action by path. Tokens are content-defined;")
-      hafen.log():write("   the one client-guaranteed example is  :walker menu lo cs  (log out to character select -- reversible).")
-      return
-    end
-    local path = {}
-    for i = 2, #args do path[#path + 1] = args[i] end
-    hafen.act():menu(table.unpack(path))                 -- table.unpack (Lua 5.2 / LuaJ); the sandbox has no global unpack
-    hafen.log():write((":walker menu -> hafen.act():menu(%s)"):format(table.concat(path, ", ")))
+  -- 048.5: there is no ':walker menu' any more. It demonstrated hafen.act():menu(path...), the pagina-PATH
+  -- door, and that door is gone rather than re-spelled -- the menu grid addresses the entries it HOLDS, so
+  -- ':walker menugrid <name>' below is the demo the docs point at.
 
   elseif sub == "flower" then
     -- A flower menu grabs the mouse+keyboard while open, so you can't type a command to pick a petal by hand.
@@ -310,9 +298,11 @@ hafen.slash():register("walker", function(args)
     end)
 
   elseif sub == "menugrid" then
-    -- 023: pagina:use(): fire an ACTION MENU entry -- exactly what left-clicking that button in the 4x4 grid
+    -- 023: pag:use(): fire an ACTION MENU entry -- exactly what left-clicking that button in the 4x4 grid
     -- does. The key splits by SHAPE: a '/' makes it a resource name ("paginae/act/dig"), anything else a
     -- display name ("Dig"). Display names can contain spaces, so join the rest of the args back together.
+    -- 048.5: PROTECTED now (it always committed a real action), which is why this addon declares "actions"
+    -- and is also the door that replaced hafen.act():menu(path...).
     local key = table.concat(args, " ", 2)
     if key == "" then
       hafen.log():write(":walker menugrid <name> -> fire an action-menu entry, e.g. ':walker menugrid Dig'."

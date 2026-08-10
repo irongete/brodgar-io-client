@@ -2,29 +2,28 @@
 
 > Maintained by REPLACING (max 60 lines). Branch `feature/addons`; per-feature detail: its `NNN-` folder.
 
-**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 4 of 8** — the one section grouped by PERMISSION rather than by what
-it acts on is being dissolved (**D-187** generalised as **D-215**: a verb lives with what it CHANGES, not with what it
-COSTS — a permission is not a namespace). Every verb moves onto the thing it changes ([spec.md](048-act-dissolved/spec.md)
-is the map), while `:flower`, `:menu` and `:enabled` are DELETED — 047 and 023 own those doors already (open **D-103**; no
-path door is built). `gated` → **protected**, `pag:use()` gains its gate. **The docs tier is 048.8's whole job**, so until
-then `docs/addons/api/act.md` still teaches verbs that have moved.
-**048.1 DONE, 13/13**: `hafen.player():move(p)` and `gob:click(button, mods)` ship — same messages, same gate, on the
-things they change. The section stays mounted while it empties (**D-117**) and a moved verb is retired under **BOTH**
-field reads (**D-216**). A departed gob makes the click **RAISE** where every read answers nil (**D-217**).
-**048.2 DONE, 29/29**: the cursor is an **object** — `hafen.player():hand()`, **nil** while you carry nothing, with
-`:item()` and the protected `:use(target, mods)` dispatching onto an Item, a Position or a **Gob** (that arm being
-`MapView.iteminteract`'s `clickargs` extension, a message no addon could send). What it *drops* is firing the gesture
-with an empty cursor: **D-218** — the receiver must BE the message's implicit subject (`DTarget.Interact`'s `src` IS the
-`ItemDrag`) and absent whenever the subject is. A take builds a **new** `GItem`, so no Item identity survives it.
+**ACTIVE: [`048-act-dissolved`](048-act-dissolved/), 5 of 8** — the one section grouped by PERMISSION rather than by what it
+acts on is being dissolved (**D-187** generalised as **D-215**: a verb lives with what it CHANGES, not with what it COSTS — a
+permission is not a namespace). Every verb moves onto the thing it changes ([spec.md](048-act-dissolved/spec.md) is the map),
+while `:flower`, `:menu` and `:enabled` are DELETED — 047 and 023 own those doors already (**D-103**; no path door is built).
+`gated` → **protected**. **The docs tier is 048.8's whole job**, so `docs/addons/api/act.md` still teaches verbs that moved.
+**048.1 DONE, 13/13**: `hafen.player():move(p)` and `gob:click(button, mods)` — same messages, same gate, on the things they
+change. The section stays mounted while it empties (**D-117**), a moved verb is retired under **BOTH** field reads
+(**D-216**), and a departed gob makes the click **RAISE** where every read answers nil (**D-217**).
+**048.2 DONE, 29/29**: the cursor is an **object** — `hafen.player():hand()`, **nil** while you carry nothing, with `:item()`
+and the protected `:use(target, mods)` onto an Item, a Position or a **Gob** (`MapView.iteminteract`'s `clickargs` extension,
+a message no addon could send). **D-218**: the receiver must BE the message's implicit subject and absent whenever it is.
 **048.3 DONE, 14/14**: what you can do TO an item is **on the item** — `item:use(mods)` (the `iact` gesture), `:take()`,
-`:drop(n)`, `:transfer(n)`: protected, chaining, and each refusing a **stale** handle without sending. `act():item` is
-deleted whole and names all five replacements. **Only `:use` takes `mods`** — the other three messages have no modifier
-field, because on a real click the keys select the COUNT (`WItem.mousedown`), so `n` IS the modifier.
-**048.4 DONE, 11/11 + 11/11**: `hafen.world():place(p, angle, button, mods)` and `:select(p1, p2, mods)` — the world's
-first protected verbs, `place` now three lines from the `snapPlace`/`snapAngle` that prepare its arguments. Both chain;
-`moveClickCoord` died with them. The lasting lesson is the SUITE's: a wire recorder must identify its OWN sends —
-`place`/`sel` are messages a *player* sends too, so "the last two recorded" asserted against a building placed by hand.
-The run **clears** the buffer and asserts an **exact count**; a manual line must not ask for a fixture that pollutes it.
+`:drop(n)`, `:transfer(n)`: protected, chaining, each refusing a **stale** handle without sending; `act():item` deleted whole.
+**Only `:use` takes `mods`** — on a real click the keys select the COUNT (`WItem.mousedown`), so `n` IS the modifier.
+**048.4 DONE, 11/11 + 11/11**: `hafen.world():place(p, angle, button, mods)` and `:select(p1, p2, mods)` — the world's first
+protected verbs, `place` now three lines from the `snapPlace`/`snapAngle` that prepare its arguments; `moveClickCoord` died
+with them. The SUITE's lesson: a wire recorder must identify its OWN sends — `place`/`sel` are messages a *player* sends too,
+so the run **clears** the buffer and asserts an **exact count**, and no manual line asks for a fixture that pollutes it.
+**048.5 DONE, 10/10**: `pag:use()` — ungated since 023 — carries the `actions` gate (**D-219**: a verb that COMMITS a real
+server action is protected wherever it lives), and `hafen.act():menu` is deleted with **no path door** anywhere. Gating a
+**shipped** verb owes a grep of every installed caller first; the gate goes on the WRITE half only, and the assertion that
+guards that is *the reads still answer this same undeclared addon in the same run*. A collection's absence THROWS, not nil.
 
 **[`047-flowermenu`](047-flowermenu/) is CLOSED, 3 of 3** — `hafen.flowermenu()` **is** the open radial menu: unprotected
 `:list()`/`:count()`/`:gob()` · protected `:select(label|n)`/`:cancel()` · `FlowerMenuOpened`/`FlowerMenuClosed`. The reads

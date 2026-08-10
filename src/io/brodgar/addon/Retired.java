@@ -146,7 +146,7 @@ final class Retired {
             + " hafen.client():options():interface():angGran(), which also writes it (in DEGREES per step)");
 
         // ---- hafen.act: R1 throughout, and the spatial verbs take Positions ----------------------------
-        section("act", "enabled", "menu", "flower", "raw");
+        section("act", "enabled", "flower", "raw");
         // ---- 048.1: hafen.act() is being DISSOLVED -- a verb lives with WHAT IT CHANGES, not with what it -----
         // ---- costs (D-187 generalised), so the section that grouped nine unrelated verbs by their PERMISSION
         // ---- is emptying one task at a time. A moved verb is registered by act() below, under BOTH spellings:
@@ -171,6 +171,10 @@ final class Retired {
             + " still in RADIANS");
         act("select", "hafen.act():select(p1, p2, mods) is now hafen.world():select(p1, p2, mods) — p1 and p2"
             + " are still Positions, and the selection is still the tile rectangle they span");
+        act("menu", "hafen.act():menu(path...) is gone: a menu action is invoked through the entry itself —"
+            + " hafen.menugrid():get(\"Dig\"):use(), or get(\"paginae/act/dig\"):use() by resource name. There"
+            + " is no path-based door: the menu grid addresses the entries it HOLDS, and pag:use() now carries"
+            + " the same \"actions\" permission this verb did");
 
         // ---- 040.7: a text entry's content is WRITTEN through :value(s), the one door -- entry:text(s) would --
         // ---- be a second way to write the same property, which the area's one-door rule does not allow. The

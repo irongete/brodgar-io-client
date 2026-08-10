@@ -308,7 +308,19 @@ Move `ActApi.placeArgs` / `placeAngle` / `selArgs` with the verbs; they are pure
 
 ---
 
-## 048.5 — `pag:use()` becomes protected, and `act():menu` is deleted
+## 048.5 — `pag:use()` becomes protected, and `act():menu` is deleted ✅ 10/10 pass, 0 fail, 1 manual confirmed
+
+> **Closed 2026-08-10.** `pag:use()` carries the `actions` gate (**D-219**), `hafen.act():menu` is deleted whole
+> under both field reads, `menuPath` died with it, and `walker`'s `menu` sub-command was removed rather than
+> re-spelled. Two things the next tasks inherit. **`hafen.menugrid():use` cannot read `nil`** — a collection has
+> a CLOSED vocabulary (**D-125**), so the field read *throws* `has no verb 'use'`; when a task's proof is *"the
+> door we refused was not quietly added"*, assert the throw the engine actually raises, not the `nil` the plan
+> imagined. And **gating a SHIPPED verb has an obligation a new one does not**: its callers already exist, and
+> the failure lands in-game on a real character, so the grep of every installed addon comes before the build,
+> not after. The gate goes on the write half ONLY, and the assertion that guards that is *the reads still
+> answer for this same undeclared addon in this same run* — sitting next to the refusal, in one suite.
+> The headless probe reached 13/13 including both halves of the gate order, because with no session the live
+> lookup can never succeed and the declared owner's error is therefore itself the ordering proof.
 
 **No path door is built.** `hafen.menugrid()` addresses the entries it holds — by resource name
 (`"paginae/act/dig"`) or by display name (`"Dig"`) — and `hafen.menugrid():get(name):use()` is

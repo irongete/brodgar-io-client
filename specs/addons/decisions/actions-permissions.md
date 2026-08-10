@@ -113,3 +113,32 @@ hears about its manifest and never about "no menu open" — [D-027](#d-027)'s ow
 applied at a second door.
 **See.** [D-027](#d-027), [D-072](architecture-api.md#d-072), [D-009](widgets-ui.md#d-009),
 [D-212](architecture-api.md#d-212), [047-flowermenu](../047-flowermenu/spec.md).
+
+---
+
+### D-219 — a verb that COMMITS a real server action is protected wherever it lives ✅ (048.5, 2026-08-10)
+**Decision.** `pag:use()` — the action-menu entry's one verb, shipped by 023 and **ungated** ever since, with
+`docs/addons/api/menugrid.md` saying so in bold — now requires the per-addon `actions` permission. The gate
+lands on the **write half only**: every `hafen.menugrid()` read (`:list()`, `:count()`, `:get(name)`,
+`pag:name()`, `:res()`, `:exists()`, `:children()`, `:info()`) still answers an addon that declares nothing.
+This is a delta on **D-028**'s *surface*, not on its model: the declaration string, the consent dialog and the
+default-disabled policy are untouched.
+**Rationale.** The tier is a property of what a verb DOES, not of where it sits. That was invisible while every
+write lived in one section named for the permission — the section was the tier — and it becomes load-bearing
+the moment [D-215](architecture-api.md#d-215) disperses those verbs onto the things they change: once
+`hafen.act()` is gone, "protected" has to be carried by each verb or it is carried by nothing. `pag:use()` had
+been the one hole in that: it drives `MenuGrid.PagButton.use`, which puts the client's own `"act"`-by-path /
+`"use"`-by-id message on the wire — **the same message** the gated `hafen.act():menu(path...)` sent. Deleting
+`menu` in the same task without gating `use` would have turned a dissolution into a permission *downgrade*: the
+one door left onto that message would be the free one.
+**Consequences.** An installed addon that fires `pag:use()` without declaring `"actions"` breaks — so gating a
+**shipped** verb carries an obligation the greenfield ones do not: grep every installed addon for the call and
+confirm each caller declares, before shipping (here only `walker`, which does). The read/write split is what
+keeps the change safe for the browsing addons (`hello` reads the catalogue at every login and declares
+nothing), and it is asserted in the same run as the refusal rather than reasoned about. The gate runs FIRST,
+before the live-entry lookup — [D-213](#d-213)'s order, so an addon that may not act at all is told THAT and
+not *"not in the menu"*. `pag:use()` still takes **no arguments**: `PagButton.use` reads `ui.modflags()` live,
+so a `mods` parameter could only lie about the keys physically held.
+**See.** [D-028](#d-028), [D-213](#d-213), [D-215](architecture-api.md#d-215),
+[D-103](architecture-api.md#d-103) (the absorbed mechanism whose old door, `hafen.act():menu`, this task
+closed), [048-act-dissolved](../048-act-dissolved/spec.md), [023-menugrid-oop](../023-menugrid-oop/spec.md).
