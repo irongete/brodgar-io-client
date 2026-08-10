@@ -163,7 +163,7 @@ final class Sheet {
     static final class Rule {
         final String site;        // a Fonts.SCOPES name ("default" for the `*` key), or null on a tree rule
         final Selector sel;       // the parsed key a tree rule matches widgets with, or null on a site rule
-        final int rank;           // a tree rule's SPECIFICITY (030): role 1 · @Class 2 · [title=] 4 · [res=] 8
+        final int rank;           // a tree rule's SPECIFICITY (030, summed over the chain since 049)
         final FontHandle font;    // the rule's `font` property, or null (a rule may carry only a colour)
         final Color color;        // the rule's `color` property, or null (a rule may carry only a font)
         final Chrome.Bg bg;       // the rule's `bg` property (035.1), or null
@@ -175,9 +175,7 @@ final class Sheet {
         Rule(String site, Selector sel, Props p) {
             this.site = site;
             this.sel = sel;
-            this.rank = (sel == null) ? 0
-                : (((sel.role != null) ? 1 : 0) + ((sel.cls != null) ? 2 : 0)
-                   + ((sel.title != null) ? 4 : 0) + ((sel.res != null) ? 8 : 0));
+            this.rank = (sel == null) ? 0 : sel.specificity();
             this.font = p.font;
             this.color = p.color;
             this.bg = p.bg;
@@ -381,17 +379,19 @@ final class Sheet {
 
     /**
      * The {@link Fonts} scope a parsed key fills, or {@code null} when it is a <b>tree key</b>: resolved against
-     * the live tree, C1b). A refiner can only ever be answered by a widget, so any of them makes the key a tree
-     * one; a refiner-less selector with no role can only have been written {@code *}, the twin of the
+     * the live tree, C1b). A render site is ONE bare word, so a chain (049) is always a tree key, and so is any
+     * class or refiner — those can only ever be answered by a widget. A bare selector with no role can only have
+     * been written {@code *}, the twin of the
      * {@code "default"} scope; and of the bare roles only those the font provider knows name a render site
      * ({@code window} and {@code inventory} are widget roles with no site behind them).
      */
     static String siteOf(Selector sel) {
-        if((sel.cls != null) || (sel.title != null) || (sel.res != null))
+        if(!sel.bare())
             return null;
-        if(sel.role == null)
+        String role = sel.role();
+        if(role == null)
             return "default";
-        return Fonts.isScope(sel.role) ? sel.role : null;
+        return Fonts.isScope(role) ? role : null;
     }
 
     /**

@@ -5,7 +5,7 @@ appear, and `widget:replace` stands your own window in its place. Both are unpro
 when your addon goes away. The bundled **`bags`** addon is this pair end to end.
 
 ```lua
-hafen.ui():on("inventory[title=Inventory]", "appear", function(inv)
+hafen.ui():on("window[title=Inventory] inventory", "appear", function(inv)
   local view = hafen.ui():window():title("Bags"):size(200, 120)
   view:on("Draw", function(ev) ev:g():text(#inv:items() .. " items", 6, 6) end)
   inv:replace(view)
@@ -47,7 +47,8 @@ Three things are worth knowing:
   keep the data you need from there.
 
 A `[title=]` or `[res=]` selector still fires exactly once for a window whose caption arrives a tick after
-the window itself — such a candidate is re-checked for a short while rather than dropped.
+the window itself — such a candidate is re-checked for a short while rather than dropped. That covers a
+chain too, where the late caption lands on an ancestor step rather than on the widget you asked for.
 
 These are widget subscriptions rather than bus events: there is no `WidgetCreated` on
 [`hafen.event()`](../event.md), because you say *which* widget you care about.

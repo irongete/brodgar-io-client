@@ -103,7 +103,7 @@ reachable at all: input on a widget you found by selector goes through the same 
 built.
 
 ```lua
-local sub = hafen.ui():find("inventory[title=Cupboard]"):on("MouseDown", function(ev)
+local sub = hafen.ui():find("window[title=Cupboard] inventory"):on("MouseDown", function(ev)
   if ev:button() == 3 then ev:preventDefault() end    -- right-click disabled on this cupboard only
 end)
 sub:off()

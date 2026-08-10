@@ -917,3 +917,29 @@
   stored reference is a value someone else can move under you, and `UI.lcc` starts life *as* `Coord.z`. Same
   class as the 036.1 note about recording a widget's `c`: `equals` is by value and is the right comparison, but
   the thing you keep must be `new Coord(c)`.
+- **(049.1) A combinator that splits on whitespace must not split INSIDE a `[ ]` value — a shipped addon already
+  depended on it.** `theme`'s sheet carries the key `window[title=Character Sheet]`, and captions with spaces are
+  ordinary (`Character Sheet`, `Ancestral Shrine`). A naive `split(" ")` would have turned one step into two and
+  broken an installed stylesheet the day the combinator landed, with an error pointing at the grammar rather than
+  at the caption. The parser tracks bracket depth and only treats depth-0 whitespace as the combinator. Generalise:
+  before adding a separator to a grammar, grep the shipped data for that character INSIDE the existing values.
+- **(049.1) Greedy right-to-left matching is provably enough for descendant-only chains — no backtracking.** Test
+  the last step against the widget, then for each step leftward walk up to the NEAREST ancestor satisfying it and
+  continue strictly above that one. Greedy can never pick wrong: if the nearest satisfying ancestor has no valid
+  chain above it, neither does a farther one, whose own ancestors are a **subset** of its. The proof needs the
+  inner walk to use the FULL step predicate, not its structural half — skipping to "the nearest ancestor with the
+  right role" and only then testing the caption is the version that is wrong (a nearer `window` with the wrong
+  caption would veto a farther one that matches). A `>` child combinator breaks the subset argument and would need
+  real backtracking, which is a second reason it stayed out.
+- **(049.1) A `Window`'s own chrome carries a close `IButton`, so "the button inside my window" is never one
+  widget.** Writing a suite that built a window plus one probe button, `find("window[title=X] button")` came back
+  with the decoration's close button, not the probe — the `button` role covers `Button` *and* `IButton`, and the
+  deco is a child of the window like anything else (the same fact that makes hovering a frame miss the window).
+  Give a probe widget text nothing else can carry and match on it; do not assume a freshly built container holds
+  only what you put in it.
+- **(049.1) A widget built by a builder IS NOT IN THE TREE until the next tick, so a suite cannot assert on what
+  it just built.** `hafen.ui():window()` arms the add (`UiApi.armPending`) rather than performing it, which is
+  what stops a half-configured widget being drawn or hit-tested — a property of the shape, not a rule to
+  remember, until a test asserts in the same breath as the builder and every lookup answers nil. Split such a
+  suite in two: build, then `hafen.timer():after(0.2, checks)`. Note this is the OPPOSITE staging from
+  `hafen.ui.skin{}`, which 036.2 deliberately made synchronous so that suites would NOT need a timer.

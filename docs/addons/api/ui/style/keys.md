@@ -36,8 +36,8 @@ stay native under one rule. [surfaces](surfaces.md) describes each one and its g
 
 ## Tree keys
 
-Any other valid selector — `@Class`, `[title=…]`, `[res=…]`, or a role that classifies a *widget* rather
-than a site (`window`, `inventory`) — is a **tree key**. Every tree rule that matches a widget is folded
+Any other valid selector — `@Class`, `[title=…]`, `[text=…]`, `[res=…]`, a chain of steps, or a role that
+classifies a *widget* rather than a site (`window`, `inventory`) — is a **tree key**. Every tree rule that matches a widget is folded
 into one style, and [`widget:style()`](README.md#restyle-one-widget) reads the result back, `nil` when
 nothing names it.
 
@@ -63,13 +63,14 @@ including text drawn by the game's own resource code.
 Three rules decide what one widget resolves to:
 
 - **The more specific rule wins, per property.** Specificity is the [selector](../selectors.md)'s parts
-  added up — role 1, `@Class` 2, `[title=]` 4, `[res=]` 8 — so `window[title=Cupboard]` outranks `window`
-  on the window it names while `window` still answers everywhere else. It is folded property by property: a
+  added up — role 1, `@Class` 2, `[title=]`/`[text=]` 4, `[res=]` 8 — and a chain adds up every step, so
+  `window[title=Cupboard]` outranks `window` on the window it names while `window` still answers everywhere
+  else. It is folded property by property: a
   specific rule that sets only `color` does not take the `font` a broader one set. Equal specificity goes to
   the rule applied last, addons included.
-- **A refiner alone reaches everything *inside* that window.** `[title=Cupboard]` matches every widget whose
-  nearest enclosing window is captioned `Cupboard` — the same
-  [enclosing-window rule](../selectors.md#two-rules-that-are-easy-to-get-wrong) every selector follows —
+- **A chain reaches everything *inside* that window.** `window[title=Cupboard] *` matches every widget below
+  a window captioned `Cupboard` — the same
+  [descendant combinator](../selectors.md#the-grammar) every selector uses —
   while `window[title=Cupboard]` matches only the window itself.
 - **A site key is not a widget's style.** `*` and the other site keys resolve where they *draw*, so
   `widget:style()` never reports one: a window contains buttons, labels and chat, each drawn at its own
@@ -120,7 +121,7 @@ window-less panels:
 | `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches `window.frame` **and** `panel`, each subject to its own row here. Text surfaces ignore it entirely and stay stock |
 | every other site key | **inert** | **inert** | **inert** | a text site has no surface of its own to paint and no layout of its own to move. Nothing is refused and nothing warns |
 | a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |
-| a tree key **matching a panel** | per panel | yes | **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `[title=…]` themes those panels alone. `bg` follows the same two panel rows above |
+| a tree key **matching a panel** | per panel | yes | **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `["window[title=…] @Frame"]` themes those panels alone. `bg` follows the same two panel rows above |
 | a tree key matching anything else | **inert** | **inert** | **inert** | readable back through `widget:style()`, but nothing else in the client wears chrome |
 | `widget:rule()` | per surface | per surface | per surface | exactly as the rows above, one widget at a time: on a window it dresses that window's frame, on a panel that panel's box, anywhere else it is inert |
 

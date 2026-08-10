@@ -5,31 +5,45 @@ need a piece of the client's UI — to read it, to move it, to replace it, or as
 [stylesheet](style/keys.md) rule.
 
 ```lua
-hafen.ui():find("window[title=Cupboard]")     -- the first match, or nil
-hafen.ui():all("inventory")                   -- every open container, in tree order
-hafen.ui():find("inventory[title=Cupboard]")  -- the grid inside that window
-hafen.ui():find("@Equipory")                  -- by widget class
-hafen.ui():find("[res=gfx/hud/meter/hp]")     -- by resource name
-hafen.ui():root()                             -- no selector at all: the root of the whole tree
+hafen.ui():find("window[title=Cupboard]")             -- the first match, or nil
+hafen.ui():all("inventory")                           -- every open container, in tree order
+hafen.ui():find("window[title=Cupboard] inventory")   -- the grid inside that window
+hafen.ui():find("window[title=Foo] button[text=Close]")  -- one exact widget, named in one string
+hafen.ui():find("@Equipory")                          -- by widget class
+hafen.ui():all("*[res*=gfx/hud/meter]")               -- by resource name, matched as a substring
+hafen.ui():root()                                     -- no selector at all: the root of the whole tree
 ```
 
 ## The grammar
 
-The grammar is deliberately tiny and CSS-shaped, and there are **no descendant selectors** —
-`window[title=X] button` is not a thing.
+It is CSS. A selector is one or more **steps** separated by spaces, and each step is a role (or `*`)
+followed by any of the refiners, in any order and each at most once.
 
 | Part | Meaning |
 |---|---|
 | `*` | any widget, including one no role classifies |
 | a **role** | what the widget *is* — see [the table below](#roles) |
 | `@Class` | its class name, the same string `:type()` reports |
-| `[title=…]` | the caption of the **nearest enclosing window** — an **exact** match |
-| `[res=…]` | a **substring** of its resource name (`:res()`) |
+| `[title=…]` | a **window's own caption**; only valid in a step whose role is `window` |
+| `[text=…]` | the words a widget **displays** — a button's caption, a label, an entry's contents |
+| `[res=…]` | its resource name (`:res()`) |
 
-A selector is a role (or `*`) followed by any of the refiners, in any order, each at most once:
-`inventory@Inventory[title=Cupboard]`. Anything else raises an error naming the offending part and, for a
-bad role, listing every valid one. The same error comes back when an invalid selector is used as a
-[sheet key](style/keys.md).
+**A space is the descendant combinator**, exactly as in CSS: `window[title=Cupboard] inventory` is the
+container grid *anywhere* below the Cupboard window, however many layout wrappers sit in between. That is
+how you name one exact widget in one string, and it is the only thing that looks upward — every refiner
+tests the widget its own step is written on. There is no `>` (direct child).
+
+**Every refiner takes one of four operators**, so a selector says which test it is doing:
+
+| Operator | Matches when the value |
+|---|---|
+| `=` | is exactly this |
+| `*=` | contains this |
+| `^=` | starts with this |
+| `$=` | ends with this |
+
+Anything else raises an error naming the offending part and, for a bad role, listing every valid one. The
+same error comes back when an invalid selector is used as a [sheet key](style/keys.md).
 
 ## Roles
 
@@ -54,14 +68,17 @@ nothing.
 
 Most widgets have **no** role — layout containers, scroll ports, images, item icons. That is the rule
 working, not a gap: an unrecognised widget answers `nil` rather than being guessed into the nearest role.
-Reach those with `*`, `@Class` or `[res=]`.
+Reach those with `*`, `@Class`, `[res=]`, or by anchoring a chain on the window they sit in.
 
 ## Two rules that are easy to get wrong
 
-- **`[title=]` is the *enclosing window's* caption, not the widget's own text.** The client wraps bare
-  widgets in titled windows — the inventory grid itself has no caption — so `inventory[title=Cupboard]`
-  matches the **grid inside** the Cupboard window and `window[title=Cupboard]` matches the window. Both
-  work; that is the point.
+- **`[title=]` is the window's *own* caption, and the space is what reaches inside it.** The client wraps
+  bare widgets in titled windows — the inventory grid itself has no caption — so the grid inside the
+  Cupboard window is `window[title=Cupboard] inventory`, and the window itself is `window[title=Cupboard]`.
+  Writing the refiner on the inner step instead (`inventory[title=Cupboard]`) is **refused**, and the error
+  hands you the spelling above: under CSS rules it would parse and then silently never match, which is a
+  worse answer than an error. For the same reason `[text=]` is refused *on* a `window` — a window's words
+  are its caption, and that is `[title=]`.
 - **`@Class` is the class name, not a base class.** `@Window` matches a plain `Window`, not a `CharWnd`.
   Use the `window` role for "any window". The client builds most widgets as anonymous subclasses, and both
   `@Class` and `:type()` report the nearest **named** class, so this is the name you actually see.
@@ -73,6 +90,9 @@ can. But only some widgets have one — **items** (`gfx/invobjs/…`), **meters*
 widgets whose code ships inside a resource (`ui/rchan`, `ui/vlg`). **Windows do not**: the client's windows
 are plain Java classes with no resource behind them. So in practice, `[res=]` for items and meters,
 `[title=]` for windows. [`w:res()`](widget.md#read) tells you what a widget actually carries.
+
+A resource name is a path, so `*=` is usually the operator you want: `[res*=gfx/hud/meter]` catches every
+meter, where `[res=gfx/hud/meter]` matches nothing, because no widget's resource name is *exactly* that.
 
 ## The inspector
 
@@ -91,8 +111,8 @@ re-hovers.
 
 > **Hovering a window's frame does not give you the window.** The chrome — border, title bar, close button
 > — is the window's *decoration*, a child widget of its own, so the hover resolves to that (`@DefaultDeco`,
-> role `nil`) and not to the `Window`. `[title=]` still resolves through it, so the deco is addressable;
-> but for the window itself, click one level up in the stack, or write `window[title=…]`.
+> role `nil`) and not to the `Window`. Address the deco with a chain, `window[title=…] @DefaultDeco`; for
+> the window itself, click one level up in the stack, or write `window[title=…]`.
 
 ## Hold the result
 

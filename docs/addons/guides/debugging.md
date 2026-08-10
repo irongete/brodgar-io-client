@@ -40,7 +40,7 @@ point of the console, and the reason to keep `:reload` in reach.
 
 Selectors are guessed wrong more often than anything else in the API, so do not guess. Enable the bundled
 **`widgetstack`** addon and hover: it reports the widget's [role](../api/ui/selectors.md#roles), its class,
-its `[title=]` and its `[res=]`, then offers **every selector that matches it**, most specific first, each
+the caption of the window it sits in and its `[res=]`, then offers **every selector that matches it**, most specific first, each
 one resolved before it is shown and ready to paste into `:lua`. Its `freeze` hotkey holds the stack still
 while you move the mouse over to read it.
 

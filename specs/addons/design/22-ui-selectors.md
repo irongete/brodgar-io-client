@@ -1,5 +1,14 @@
 # UI Selectors (one way to point at a part of the UI)
 
+> **GRAMMAR SUPERSEDED by [049-css-selectors](../049-css-selectors/spec.md)**, which reverses two of the
+> scope lines below. *"No descendant selectors, no attribute operators beyond `=`"* is gone: a **space** is
+> the CSS descendant combinator, and every refiner takes `=`/`*=`/`^=`/`$=`. With a combinator to carry the
+> ancestor test, the *"`[title=]` matches the nearest enclosing window"* rule below — reasoned out at length
+> in **Two matching rules that are easy to get wrong** — is **deleted** (D-221): an attribute tests the widget
+> its own step is written on, `[title=]` is a `window`-only key, `[text=]` is new, and `inventory[title=X]`
+> is now a **parse error** naming `window[title=X] inventory` (D-222). Everything else here — the role
+> vocabulary, the classifier, the event semantics, the inspector, the cost model — still holds.
+>
 > **SPELLINGS SUPERSEDED by [25-uniform-api.md](25-uniform-api.md)** (shipped as 039-uniform-api): the
 > selector grammar below is untouched and every selector string still means what it says here, but the three
 > doors it is reached through are now colon verbs on the section object — `hafen.ui():find(sel)`,

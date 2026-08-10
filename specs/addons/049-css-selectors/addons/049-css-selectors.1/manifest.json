@@ -1,0 +1,9 @@
+{
+  "name": "049.1 — the CSS selector grammar",
+  "id": "049-css-selectors.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 049.1: the descendant combinator, the four attribute operators, the new [text=] refiner, and the parse-time refusals that keep [title=] and [text=] from meaning each other.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

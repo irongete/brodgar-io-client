@@ -97,8 +97,8 @@ Three properties make it a convention rather than a lookup helper:
 - **The verb says how many**: `hafen.ui():find(sel)` is one widget, `hafen.ui():all(sel)` is all of them,
   and `hafen.ui():root()` is the root of the tree.
 
-The grammar, the role table and the two rules worth knowing first — `[title=]` resolves against the
-*enclosing window*, and you hold your result rather than re-selecting every frame — are in
+The grammar, the role table and the two rules worth knowing first — a space is the *descendant
+combinator*, and you hold your result rather than re-selecting every frame — are in
 [selectors](ui/selectors.md), where the bundled **`widgetstack`** addon also
 [names one by hovering](ui/selectors.md#the-inspector).
 

@@ -34,10 +34,11 @@ hafen.log():write("bags loaded -- assign the 'toggle' hotkey in Options > Keybin
   .. " (once replaced, Tab and the inventory menu button drive the CUSTOM window)")
 
 -- The selector that names the MAIN inventory and nothing else (032.1, measured in-game with `widgetstack`'s
--- self-validating inspector: 1 match, first in tree order). The role part is load-bearing — [title=Inventory] alone
--- matches every widget INSIDE the wrapper, since [title=] resolves against the nearest ENCLOSING window — and so is
--- the refiner: `inventory` alone also matches the equipory and any open container.
-local SEL = "inventory[title=Inventory]"
+-- self-validating inspector: 1 match, first in tree order). Both halves are load-bearing: the combinator scopes it
+-- to the wrapper window the client builds around the grid (049 — [title=] is a window's OWN caption now, so it is
+-- said on a `window` step and the space is what reaches inside), and the `inventory` role is what narrows to the
+-- grid, since `inventory` alone would also match the equipory and any open container.
+local SEL = "window[title=Inventory] inventory"
 
 local CELL = 34             -- px per inventory cell in the custom view
 local watch                 -- the hafen.ui():on subscription while ARMED (nil = disarmed)

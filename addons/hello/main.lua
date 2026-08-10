@@ -853,10 +853,10 @@ end
 -- 030.4: THE SELECTOR CONTRACT, re-checked once per login (and on demand with ':hello selector'). 030 gave 029's ONE
 -- entity the vocabulary to NAME one: a selector is a STRING and the section IS the lookup -- hafen.ui():find(sel) is the
 -- first match in tree order, hafen.ui():all(sel) every match (an empty array, never nil), hafen.ui():root() the top. This
--- asserts the whole grammar in one pass against the LIVE HUD: `*`, a role, @Class, [title=], [res=] and a combination;
--- the classifier's CENSUS (:role() answers what a widget IS, or an honest nil -- never a guess in place of no answer,
--- D-067); the two rules that are easiest to get wrong ([title=] resolves against the nearest ENCLOSING WINDOW, so it
--- reaches the widgets INSIDE it; @Class is an EXACT typeName, not a superclass walk); the five promoted font-scope
+-- asserts the whole grammar in one pass against the LIVE HUD: `*`, a role, @Class, [title=], [res=], a CHAIN and a
+-- combination; the classifier's CENSUS (:role() answers what a widget IS, or an honest nil -- never a guess in place
+-- of no answer, D-067); the two rules that are easiest to get wrong ([title=] is a WINDOW's OWN caption and the SPACE
+-- is what reaches inside it; @Class is an EXACT typeName, not a superclass walk); the five promoted font-scope
 -- names that are valid grammar and classify NOTHING; the parse-error catalogue; an hafen.ui():on() ROUND TRIP, whose
 -- point is D-068 -- registration SCANS the live tree, so `appear` fires for what is ALREADY open, synchronously,
 -- inside the on() call, handing back the very entity a lookup gives; interning, which is why "hold your result" is
@@ -902,31 +902,36 @@ local function readSelectors(tag)
   -- [res=] -- the STABLE key (D-063), and the honest scoping 030.1 measured in-game: NO window on this server carries
   -- a resource. What does: items (gfx/invobjs/...), the HUD meters, and the chat channels whose code ships inside a
   -- .res. So [res=] is the right key for everything item-shaped and [title=] the only one for windows -- w:res() is
-  -- how you find out which you are holding, never a client-side alias list.
-  local withRes, meters = 0, hafen.ui():all("[res=gfx/hud/meter]")
+  -- how you find out which you are holding, never a client-side alias list. 049: the operator now SAYS which test it
+  -- is -- `=` is exact and `*=` the substring a res path actually wants (also `^=` and `$=`).
+  local withRes, meters = 0, hafen.ui():all("[res*=gfx/hud/meter]")
   for i = 1, #every do if every[i]:res() then withRes = withRes + 1 end end
-  hafen.log():write(("[%s] [res=]: %d of %d widget(s) carry one | [res=gfx/hud/meter] -> %d (first res=%s) | windows with a"
+  hafen.log():write(("[%s] [res=]: %d of %d widget(s) carry one | [res*=gfx/hud/meter] -> %d (first res=%s) | windows with a"
              .. " res: %d (that is why [title=] is the key for windows)")
     :format(tag, withRes, #every, #meters, meters[1] and tostring(meters[1]:res()) or "none",
             (function() local n = 0; for i = 1, #wnds do if wnds[i]:res() then n = n + 1 end end; return n end)()))
-  -- [title=] RESOLVES AGAINST THE NEAREST ENCLOSING WINDOW, not the widget's own text. That is the single easiest way
-  -- to ship a selector engine that looks right and never matches: a bare widget the engine wraps in a titled window
-  -- (an Inventory inside a Hidewnd) has NO caption of its own, so inventory[title=Cupboard] -- the most obvious
-  -- selector anyone will write -- would silently never match. Proof, taken from whatever titled window is open right
-  -- now: the refiner-only selector [title=<cap>] matches the window AND everything INSIDE it, the window first (tree
-  -- order), and window[title=<cap>] narrows back to the window itself.
+  -- [title=] IS A WINDOW'S OWN CAPTION, and the SPACE reaches inside it (049). Until then [title=] walked UP to the
+  -- nearest enclosing Window, because a bare widget the client wraps in a titled window (an Inventory inside a
+  -- Hidewnd) has NO caption of its own, and without a combinator inventory[title=Cupboard] -- the most obvious
+  -- selector anyone will write -- had nowhere else to be said. Now it is said with a space, and the attribute tests
+  -- the widget its own step is written on, exactly as CSS says. Writing the old spelling is a PARSE ERROR that hands
+  -- back the new one, because under CSS semantics it would still parse and merely never match. Proof, taken from
+  -- whatever titled window is open right now: the chain reaches everything INSIDE the window (the window itself is
+  -- not one of its own descendants), and window[title=<cap>] alone is the window.
   local titled, cap
   for i = 1, #wnds do
     local t = wnds[i]:text()
     if t and t ~= "" then titled, cap = wnds[i], t; break end
   end
   if titled then
-    local scoped = hafen.ui():all(("[title=%s]"):format(cap))
-    hafen.log():write(("[%s] [title=%s]: %d widget(s) inside that window's scope, first==the window itself=%s |"
-               .. " window[title=%s]==it=%s | inventory[title=%s] -> %s (the GRID, one hop below)")
-      :format(tag, cap, #scoped, tostring(scoped[1] == titled), cap,
+    local inside = hafen.ui():all(("window[title=%s] *"):format(cap))
+    local held = {}
+    for i = 1, #inside do held[inside[i]] = true end
+    hafen.log():write(("[%s] [title=%s]: %d widget(s) INSIDE that window, window itself among them=%s |"
+               .. " window[title=%s]==it=%s | window[title=%s] inventory -> %s (the GRID, one hop below)")
+      :format(tag, cap, #inside, tostring(held[titled] == true), cap,
               tostring(hafen.ui():find(("window[title=%s]"):format(cap)) == titled), cap,
-              tostring(hafen.ui():find(("inventory[title=%s]"):format(cap)))))
+              tostring(hafen.ui():find(("window[title=%s] inventory"):format(cap)))))
   else
     hafen.log():write(("[%s] [title=]: no titled window open right now -- open a cupboard/chest and re-run ':hello selector'")
       :format(tag))
@@ -1481,12 +1486,13 @@ end)
 -- The same, with a [title=] REFINER -- the case the bounded re-check exists for. A caption arrives by uimsg, so a
 -- window can be placed a tick or two BEFORE it is titled; a candidate that matches the selector's structure but
 -- not yet its refiner is re-offered for a bounded number of ticks, so this fires exactly ONCE, not zero times and
--- not twice. Remember: [title=] resolves against the nearest enclosing Window (030.1), which is why "window" is
--- the role here and "inventory[title=Cupboard]" would hand you the GRID inside that same window.
+-- not twice. Since 049 [title=] is the window's OWN caption, which is why "window" is the role here; the GRID inside
+-- that same window is "window[title=Cupboard] inventory", and with a chain the late caption can land on the ANCESTOR
+-- step -- the same re-check covers it, because late() asks the whole chain.
 for _, cap in ipairs({ "Cupboard", "Chest" }) do
   hafen.ui():on(("window[title=%s]"):format(cap), "appear", function(w)
     hafen.log():write(("030.2: [title=%s] APPEARED %s -- %d item(s) inside, grid=%s")
-      :format(cap, tostring(w), #w:items(), tostring(hafen.ui():find(("inventory[title=%s]"):format(cap)))))
+      :format(cap, tostring(w), #w:items(), tostring(hafen.ui():find(("window[title=%s] inventory"):format(cap)))))
   end)
   hafen.ui():on(("window[title=%s]"):format(cap), "disappear", function(w)
     hafen.log():write(("030.2: [title=%s] DISAPPEARED %s"):format(cap, tostring(w)))
@@ -2392,7 +2398,7 @@ hafen.slash():register("hello", function(args)
   elseif sub == "selector" then
     -- 030.4: re-run the whole selector contract on demand (it also runs once per login and at +3s -- see
     -- readSelectors above). Worth re-running with a TITLED CONTAINER OPEN: open a cupboard or a chest and the
-    -- [title=] block below reports the real enclosing-window scope, the window first and its grid one hop below.
+    -- [title=] block below reports what the CHAIN reaches inside that window, and its grid one hop below.
     -- To learn a selector for something you are LOOKING at, enable the 'widgetstack' addon and hover it: the
     -- inspector names the widget's role/class/title/res and offers only selectors it has already resolved.
     readSelectors("cmd")

@@ -1446,3 +1446,56 @@ put-back. Ten clicks, ten dead windows, surviving a `:reload`.
 drain — instead of only the one the fix was first written for. Free when nothing stands (the live-surface
 count is the fast path) and flag-only, so it is safe on whichever thread reached `remove()`.
 **See.** [D-201](#d-201), [D-070](#d-070), [widgets](../../codebase/widgets.md).
+
+### D-221 — The COMBINATOR owns the ancestor test, so every attribute tests the widget its own step is written on
+
+**Decision.** The selector grammar gains the CSS descendant combinator (a space), and with it every refiner
+reverts to testing the widget it is written on. `Selector.windowTitle` — the upward walk hidden inside
+`[title=]` — is deleted. The container grid of a titled window is `window[title=Cupboard] inventory`; the
+window is `window[title=Cupboard]`.
+**Rationale.** [D-067](#d-067)'s grammar shipped CSS-shaped but not CSS: `[title=]` resolved against the
+nearest *enclosing* `Window`, an attribute that looked upward, which no CSS reader would predict. That was
+the right call at the time and for a good reason — a bare widget the client wraps in a titled window has no
+caption of its own, so testing the widget's own caption would have made `inventory[title=Cupboard]`, the
+first selector anyone writes, silently match nothing, and without a combinator there was nowhere else to say
+it. A combinator gives it somewhere else to be said, so the exception stops paying for itself. Generalise:
+**an attribute that reaches past its own subject is a missing relation operator wearing a disguise** — add
+the operator and the attribute becomes honest.
+**Consequences.** One string now names one exact nested widget, which is what the addressing form was for;
+the positional `all(sel)[i]` stops being the only way down. Specificity sums over the chain, so a chain
+outranks the bare step it ends with. Matching is greedy right-to-left and needs no backtracking while every
+combinator is descendant — the nearest satisfying ancestor can never be the wrong choice, because a farther
+one's ancestors are a subset of its. A child combinator would break exactly that property, which is one more
+reason it is not here: the client interposes layout wrappers, so it would fail almost always anyway.
+**See.** [D-067](#d-067), [D-222](#d-222), [D-223](#d-223), [ui-widgets](../learnings/ui-widgets.md).
+
+### D-222 — A retired spelling that would still PARSE is refused at parse time, never left to miss silently
+
+**Decision.** `[title=]` is accepted only in a step whose role is `window`. `inventory[title=X]`, `*[title=X]`
+and a bare `[title=X]` are **parse errors**, and the message hands back `window[title=X] inventory`.
+**Rationale.** Every other retirement in this API is a name that no longer exists, so the refusal is
+automatic — the call throws because there is nothing to call. This one is different: under the new semantics
+the old spelling is still *grammatical*. It parses, it resolves, and it matches nothing, forever, for a
+reason invisible at the call site. That is precisely the failure [D-067](#d-067)'s ancestor rule was written
+to avoid, arriving through the door that removed it. Generalise: **when a migration changes what a spelling
+MEANS rather than whether it exists, the grammar has to refuse it, because the runtime no longer can.**
+**Consequences.** The migration is loud: every shipped addon and page carrying the old spelling reports
+itself the first time it runs, instead of quietly matching nothing. It costs a role check in the parser and
+one rewritten error message. The one spelling this cannot cover is `[res=]`, which changed from an implicit
+substring to exact: it still parses, still resolves, and matches less. Nothing can catch that but the sweep.
+**See.** [D-221](#d-221), [D-085](process.md#d-085).
+
+### D-223 — Two keys that would read the same field are made disjoint at BOTH ends, not just in the grammar
+
+**Decision.** `[title=]` is a `window`-only key and `[text=]` is refused *on* a `window`; and beyond that,
+`[text=]`'s reader skips a `Window` outright.
+**Rationale.** The parse-time rule alone looks sufficient and is not. `[text=]` rides the same best-effort
+text reader every widget answers, and that reader returns a `Window`'s caption — so `*[text=Cupboard]`, which
+names no role and is therefore perfectly legal, would still have matched the window and given the two keys
+one overlapping meaning. A grammar rule can only constrain what the author *wrote*; it cannot constrain what
+a wildcard later resolves to. Generalise: **where two keys are declared disjoint, the reader has to enforce
+it too, or the wildcard is a hole straight through the declaration.**
+**Consequences.** "One canonical way" holds for real: a window's words are its caption and there is exactly
+one spelling for them. A widget that is not a window is unaffected, since the reader only ever skipped the
+one type. The cost is one `instanceof` on a path that already reads the widget's type.
+**See.** [D-221](#d-221), [D-222](#d-222).
