@@ -58,8 +58,8 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:id()` | int \| nil | server widget id, or `nil` when the widget is not server-bound |
 | `:children()` | array | child Widgets in tree order; empty for a leaf |
 | `:parent()` | Widget \| nil | the enclosing widget, or `nil` at the root |
-| `:position()` | `{x=, y=}` | position within the parent, in widget-local px — [`:position(x, y)` moves it](native.md) |
-| `:size()` | `{x=, y=}` | size; for a window its **outer** box |
+| `:position()` | `{x=, y=}` | position within the parent, in widget-local [design pixels](pixels.md) — [`:position(x, y)` moves it](native.md) |
+| `:size()` | `{x=, y=}` | size, in [design pixels](pixels.md); for a window its **outer** box |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, CheckBox, Window, TextEntry), else `nil` — [`:text(s)` writes it on a control you built](controls/README.md#setters) |
 | `:tooltip()` | string \| nil | the line that appears when the pointer rests on it, or `nil` — [`:tooltip(s)` writes it on a control you built](#tooltips-and-focus) |
@@ -77,7 +77,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
 | `:walk(fn)` | self | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |
 | `:at(coord)` | Widget \| nil | the deepest widget under a `{x=, y=}` **root-coord** point within this subtree |
-| `:rootPos()` | `{x=, y=}` \| nil | its top-left in **root coords**; with `:size()` that is the rectangle to outline it |
+| `:rootPos()` | `{x=, y=}` \| nil | its top-left in **root coords**, the same [unit](pixels.md) as `:size()`; the two together are the rectangle that outlines it |
 | `:replacement()` | Widget \| nil | the view **you** put in place of this widget's window, or `nil` — see [replace](replace.md) |
 | `:style()` | table \| nil | the style this widget [resolves to](style/README.md#the-cascade), or `nil` when nothing names it |
 | `:rule()` | Rule | **your own** [level of the cascade](style/README.md#restyle-one-widget) on this widget: its properties are setters, `:info()` reads them back and `:remove()` drops them |
@@ -132,7 +132,7 @@ sub:off()
 | `Wheel` | `:x()` `:y()` `:amount()` `:preventDefault()` | yes | the wheel turns over it |
 | `Destroy` | — | no | it leaves the tree |
 
-`ev:x()`/`:y()` are widget-local pixels; `ev:button()` is 1 for left and 3 for right, present on
+`ev:x()`/`:y()` are widget-local [design pixels](pixels.md); `ev:button()` is 1 for left and 3 for right, present on
 `MouseDown` and `MouseUp` only; `ev:amount()` is the wheel delta. `ev:preventDefault()` stops the input
 reaching the widget's own handling and any child under it — there is no separate propagation verb, and no
 handler's return value is ever read. **Two handlers fire independently**: either one calling
@@ -192,8 +192,9 @@ Provenance comes from the tree, not from how you obtained the object: find your 
 `hafen.ui():at(x, y)` and you get the very same value `hafen.ui():window()` returned, writes and all. Addon B
 looking at addon A's window holds a *borrowed* widget, which is the correct answer.
 
-**A widget's place is on the screen, not in the world.** `:position()` and `:rootPos()` answer in pixels
-and hand back a plain `{x=, y=}` table, never a [Position](../world.md#the-position-type). The verb is the
+**A widget's place is on the screen, not in the world.** `:position()` and `:rootPos()` answer in
+[design pixels](pixels.md) and hand back a plain `{x=, y=}` table, never a
+[Position](../world.md#the-position-type). The verb is the
 same word because the question is the same one — *where is this thing, in the space it lives in* — and the
 object says which space, so [`hafen.player():move`](../player.md#write-protected) refuses a
 widget's coordinates instead of walking you somewhere that merely has the same two numbers.
@@ -249,6 +250,7 @@ way to do what clicking already does.
 
 ## See also
 
+- [the pixel](pixels.md) — the unit every coordinate and size here is measured in
 - [the mouse](mouse.md) — the pointer, what is under it, and the grab that makes a drag yours
 - [controls](controls/README.md) — the client's own controls, built and owned by your addon
 - [lists](lists.md) — the row-source controls, a scrolling list among them

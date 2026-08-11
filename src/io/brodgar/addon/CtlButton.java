@@ -41,7 +41,7 @@ import haven.GOut;
  * the protected tier — the write verbs on the things they change, each behind its own permission.
  */
 final class CtlButton extends Button implements Owned.Control, Controls.Press {
-    /** The client's own look with no caption: a plain button, at a width {@code :size(w, h)} overrides. */
+    /** The client's own look with no caption: a plain button, at a DESIGN-pixel width {@code :size(w, h)} overrides. */
     static final int DEF_W = 100;
 
     private final Owned.State own;

@@ -251,7 +251,7 @@ final class UiApi {
         //   :id()            -- server widget id (int), or nil if the widget is NOT server-bound (client-only)
         //   :children()      -- array of child Widget objects, in tree order (empty if a leaf)
         //   :parent()        -- parent Widget object, or nil at the root
-        //   :position()      -- {x=,y=} position within the parent (widget-local PX -- not a Position, §2.7)
+        //   :position()      -- {x=,y=} position within the parent (widget-local DESIGN px -- not a Position, §2.7)
         //   :size()          -- {x=,y=}
         //   :visible()       -- boolean (and :visible(b) writes it, 039.5)
         //   :text()          -- best-effort text for text-bearing widgets (Label/Button/Window/TextEntry), else nil
@@ -323,6 +323,8 @@ final class UiApi {
             }
         });
         // hafen.ui():mouse() / :at(x,y) — W2 hit-testing, the WoW /framestack enabler (spec 20 §W2, D-042).
+        // Both speak DESIGN PIXELS (058.1), the same space :position()/:size() do — which is what makes
+        // hafen.ui():at(m:x(), m:y()) == m:over() true rather than nearly true on a scaled client.
         // mouse() is the POINTER ENTITY (041.5, LuaMouse) — :x()/:y() the cursor in root coords (public UI.mc),
         // :over() the deepest Widget under it, :shift()/:ctrl()/:alt() the live modifiers, :grab() a modal drag
         // capture — a per-addon singleton like hafen.player(), not a {x=,y=} table any more. at(x,y) = the
@@ -374,6 +376,25 @@ final class UiApi {
         // carries one). The text is w:tooltip() on what comes back. It resolves the way the client itself does,
         // panels standing in the 3D world first — which is what makes it the read that says a tooltip on a
         // standing widget is the standing widget's, not the map's.
+        // :scale() — 058.1: THE RUNNING DEVICE FACTOR, and a read only. Every coordinate and every size this
+        // section takes or gives is a DESIGN pixel — the space the client's own art is authored in — so this is
+        // not a unit and nothing in an addon multiplies by it: it is here to be PRINTED, in a log line or a
+        // diagnostic, when you want to know what the client is running at.
+        //   It is the factor IN FORCE, read off the live UI. hafen.client():options():interface():scale() is a
+        // different number and stays where it is: that one is the persisted preference, defaulting to 1.0 where
+        // the client's own default is derived from the display's density, unclamped by the display's maximum,
+        // and it takes a restart. A write here is REFUSED naming that verb — the scale is the user's, set in
+        // their Options, and a second door onto it would be the dual style the grammar removes.
+        m.set("scale", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "scale");
+                if(Args.passed(a, 2))
+                    throw new LuaError("hafen.ui():scale() READS the UI scale in force and does not write it —"
+                        + " hafen.client():options():interface():scale(v) is the setting, and it takes a client"
+                        + " restart. Every coordinate here is a design pixel, so there is nothing to multiply.");
+                return LuaValue.valueOf(Px.factor());
+            }
+        });
         m.set("tipAt", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "ui", "tipAt");
@@ -384,7 +405,7 @@ final class UiApi {
                 UI u = ui;
                 if((u == null) || (u.root == null))
                     return LuaValue.NIL;
-                Widget from = LuaWidget.tipAt(u, new Coord(x.toint(), y.toint()));
+                Widget from = LuaWidget.tipAt(u, Px.in(new Coord(x.toint(), y.toint())));   // design px, like :at
                 return (from == null) ? LuaValue.NIL : LuaWidget.of(owner, from);
             }
         });
@@ -802,13 +823,13 @@ final class UiApi {
                 + (window ? ":title(\"…\")" : "") + ":size(w, h):position(x, y):onDraw(fn)");
         UI u = requireUi(what);
 
-        final AddonWidget content = new AddonWidget(owner, Coord.of(DEF_W, DEF_H));
+        final AddonWidget content = new AddonWidget(owner, Px.in(Coord.of(DEF_W, DEF_H)));
         final Widget rootw;
         if(window) {
             // ANONYMOUS on purpose: the chrome must skip its own draw while the content is unarmed, and
             // LuaWidget.typeName climbs past an anonymous subclass — so w:type() still reads "Window" and every
             // selector, deco and toggle that names one keeps matching. A named subclass would rename the widget.
-            final Window win = new Window(Coord.of(DEF_W, DEF_H), "") {
+            final Window win = new Window(Px.in(Coord.of(DEF_W, DEF_H)), "") {
                 public void draw(GOut g) {
                     if(!content.pending())
                         super.draw(g);
@@ -849,7 +870,7 @@ final class UiApi {
      */
     static LuaValue attach(UI u, Addon owner, Owned c) {
         Widget rootw = c.rootw();
-        rootw.c = Coord.of(DEF_X, DEF_Y);   // the client's own default place, movable before it is ever painted
+        rootw.c = Px.in(Coord.of(DEF_X, DEF_Y));   // the default place, movable before it is ever painted
         u.root.add(rootw);                  // add() locks on ui; :parent(w) re-homes it while it is still pending
         owner.widgets.add(c);
         synchronized(unarmed) { unarmed.add(c); }
@@ -902,7 +923,12 @@ final class UiApi {
 
     // ---------------------------------------------------- the arming tick (039.6, spec 039-uniform-api §2.5)
 
-    /** The client's own defaults for a bare surface: what a window is before any setter touches it. */
+    /**
+     * The client's own defaults for a bare surface: what a window is before any setter touches it. <b>Design
+     * pixels</b> (058.1), like every other box in this section — put through {@link Px#in} where the widget is
+     * built, so a bare {@code hafen.ui():window()} reads back this very pair at every UI scale and looks the
+     * same size beside the client's own windows.
+     */
     private static final int DEF_W = 200, DEF_H = 140, DEF_X = 100, DEF_Y = 100;
 
     /** Surfaces and controls built since the last tick and not yet drawing. Drained on the UI thread only. */
@@ -1643,7 +1669,9 @@ final class UiApi {
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         Widget hit;
-        synchronized(u) { hit = LuaWidget.hitTest(u.root, new Coord(xv.toint(), yv.toint())); }
+        // DESIGN PIXELS in, exactly like widget:position/:size (058.1) — so hafen.ui():at(m:x(), m:y()) is the
+        // widget the pointer is over, and an addon's own hit rectangle is the box it drew.
+        synchronized(u) { hit = LuaWidget.hitTest(u.root, Px.in(new Coord(xv.toint(), yv.toint()))); }
         return (hit == null) ? LuaValue.NIL : LuaWidget.of(owner, hit);
     }
 

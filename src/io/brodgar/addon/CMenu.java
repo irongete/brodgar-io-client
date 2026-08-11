@@ -39,7 +39,7 @@ import java.util.List;
  */
 final class CMenu extends SListMenu<LuaRows.Row, Widget> implements Owned.Control, Controls.Rows,
         Controls.RowHeight, Controls.Select {
-    /** A default box; {@code :size(w, h)} overrides it, same as every other control here. */
+    /** A default box, in DESIGN pixels; {@code :size(w, h)} overrides it, same as every other control here. */
     static final Coord DEF_SZ = new Coord(160, 120);
 
     private final Owned.State own;

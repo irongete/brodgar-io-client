@@ -32,6 +32,7 @@ lookup instead of a search.
 | [the render backend](render-gl.md) | the scene counters `:stats on` reads, where a frame's draw calls are submitted, and the 2D blit path |
 | [several sessions at once](multi-session.md) | one process holding several logged-in sessions with one on screen: the drawn-UI split, what a session that is not drawn stops doing, aligning two sessions' coordinate frames, ordering one that is not drawn, and the merged scene |
 | [text and fonts](text-and-fonts.md) | `Text.Foundry` and every named surface that bakes one, `RichText`, DPI scaling, custom TTF loading |
+| [UI scaling](ui-scaling.md) | the one factor the whole 2D interface is drawn at: `UI.scalef` and its converters, where the number comes from, art that is scaled at load, and the round-trip that is exact in only one direction |
 | [services](services.md) | console, keybindings, `Resource` and code adoption, prefs and Options, audio, chat, combat, buffs, kin, vitals, study, quests, crafting, the action menu, minimap icons |
 
 ## Client-wide gotchas

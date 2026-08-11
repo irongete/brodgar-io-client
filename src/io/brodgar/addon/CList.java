@@ -39,7 +39,7 @@ import java.util.List;
  */
 final class CList extends SListBox<LuaRows.Row, Widget> implements Owned.Control, Controls.Rows, Controls.Value,
         Controls.Change, Controls.RowHeight {
-    /** A default box; {@code :size(w, h)} overrides it, same as every other control here. */
+    /** A default box, in DESIGN pixels; {@code :size(w, h)} overrides it, same as every other control here. */
     static final Coord DEF_SZ = new Coord(200, 160);
 
     private final Owned.State own;

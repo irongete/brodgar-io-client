@@ -202,7 +202,7 @@ final class Controls {
             throw new LuaError("hafen.ui():button() takes no arguments — it is built bare and configured by"
                 + " chained setters: hafen.ui():button():text(\"Go\"):position(x, y):parent(w):onPress(fn)");
         UI u = UiApi.requireUi("button");
-        return UiApi.attach(u, owner, new CtlButton(owner, CtlButton.DEF_W));
+        return UiApi.attach(u, owner, new CtlButton(owner, Px.in(CtlButton.DEF_W)));
     }
 
     /**
@@ -356,7 +356,7 @@ final class Controls {
             throw new LuaError("hafen.ui():list() takes no arguments — it is built bare and configured by"
                 + " chained setters: hafen.ui():list():rowHeight(20):rows{\"A\", \"B\"}:onChange(fn)");
         UI u = UiApi.requireUi("list");
-        return UiApi.attach(u, owner, new CList(owner, CList.DEF_SZ, CList.defaultItemHeight()));
+        return UiApi.attach(u, owner, new CList(owner, Px.in(CList.DEF_SZ), CList.defaultItemHeight()));
     }
 
     /**
@@ -371,7 +371,7 @@ final class Controls {
                 + " chained setters: hafen.ui():dropdown():rowHeight(18):rows{\"A\", \"B\"}:onChange(fn)");
         UI u = UiApi.requireUi("dropdown");
         return UiApi.attach(u, owner,
-            new CDropdown(owner, CDropdown.DEF_W, CDropdown.DEF_LISTH, CDropdown.defaultItemHeight()));
+            new CDropdown(owner, Px.in(CDropdown.DEF_W), Px.in(CDropdown.DEF_LISTH), CDropdown.defaultItemHeight()));
     }
 
     /**
@@ -385,7 +385,7 @@ final class Controls {
             throw new LuaError("hafen.ui():menu() takes no arguments — it is built bare and configured by"
                 + " chained setters: hafen.ui():menu():rows{\"A\", \"B\"}:onSelect(fn)");
         UI u = UiApi.requireUi("menu");
-        return UiApi.attach(u, owner, new CMenu(owner, CMenu.DEF_SZ, CMenu.defaultItemHeight()));
+        return UiApi.attach(u, owner, new CMenu(owner, Px.in(CMenu.DEF_SZ), CMenu.defaultItemHeight()));
     }
 
     /**
@@ -401,7 +401,7 @@ final class Controls {
             throw new LuaError("hafen.ui():grid() takes no arguments — it is built bare and configured by"
                 + " chained setters: hafen.ui():grid():cell(48, 48):rows(items):onCell(fn)");
         UI u = UiApi.requireUi("grid");
-        return UiApi.attach(u, owner, new CGrid(owner, CGrid.DEF_SZ, CGrid.DEF_CELL));
+        return UiApi.attach(u, owner, new CGrid(owner, Px.in(CGrid.DEF_SZ), CGrid.DEF_CELL));
     }
 
     /**
@@ -417,7 +417,7 @@ final class Controls {
                 + " chained setters: hafen.ui():table():columns{...}:rows(items)");
         UI u = UiApi.requireUi("table");
         return UiApi.attach(u, owner,
-            CTable.create(owner, CTable.DEF_SZ, CTable.defaultItemHeight(), Collections.<CTable.ColDef>emptyList(),
+            CTable.create(owner, Px.in(CTable.DEF_SZ), CTable.defaultItemHeight(), Collections.<CTable.ColDef>emptyList(),
                 null));
     }
 

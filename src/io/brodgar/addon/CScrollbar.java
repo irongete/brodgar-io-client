@@ -22,13 +22,13 @@ import org.luaj.vm2.LuaValue;
  * fires-nothing re-clamp on {@code :range(min, max)}.
  */
 final class CScrollbar extends Scrollbar implements Owned.Control, Controls.Value, Controls.Change, Controls.Range {
-    /** A default track length; {@code :size(w, h)} overrides it, the width stays the engine's own. */
+    /** A default track length in DESIGN pixels; {@code :size(w, h)} overrides it, the width stays the engine's own. */
     static final int DEF_H = 100;
 
     private final Owned.State own;
 
     CScrollbar(Addon owner) {
-        super(DEF_H, 0, 0);
+        super(Px.in(DEF_H), 0, 0);
         this.own = new Owned.State(owner, this);
     }
 

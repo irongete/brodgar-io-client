@@ -1,0 +1,9 @@
+{
+  "name": "058.1 — the unit at the widget boundary",
+  "id": "058-ui-design-pixels.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 058.1: every number hafen.ui takes or gives for a coordinate or a size is a design pixel. It writes a size and a position on a surface, a control and the client's own widgets and reads back the very pair it wrote; it proves the pointer, the hit test and the layout box are one space; and it prints the running UI scale beside a bare button's height, which is the same integer at every scale. Declares no permissions and restores everything it touches.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

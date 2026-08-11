@@ -68,7 +68,7 @@ refuses one outside `0..1`, naming the rule, while a [slider or scrollbar](inter
 CLAMPS a write outside its own `:range` to the nearer bound — because that range is something you set
 yourself with `:range(min, max)` and can narrow at any time, not a fixed contract the value can violate.
 
-**Sizing.** `:size(w, h)` sets the box like anywhere else, in raw pixels. A bare button already comes at the
+**Sizing.** `:size(w, h)` sets the box like anywhere else, in [design pixels](../pixels.md). A bare button already comes at the
 client's own button height, so setting only a width you like and leaving the height alone is usually what
 you want — and a caption wider than the box is drawn clipped, not wrapped. A button with a picture comes at
 the size of that picture and normally wants no `:size` at all.

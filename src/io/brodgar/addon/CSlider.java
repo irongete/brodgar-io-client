@@ -31,13 +31,13 @@ import org.luaj.vm2.LuaValue;
  * keeps the engine's own height, caching nothing keyed on the box.
  */
 final class CSlider extends HSlider implements Owned.Control, Controls.Value, Controls.Change, Controls.Range {
-    /** A default width; {@code :size(w, h)} overrides it, the height stays the engine's own ({@code sflarp}'s). */
+    /** A default DESIGN width; {@code :size(w, h)} overrides it, the height stays the engine's own ({@code sflarp}'s). */
     static final int DEF_W = 140;
 
     private final Owned.State own;
 
     CSlider(Addon owner) {
-        super(DEF_W, 0, 100, 0);
+        super(Px.in(DEF_W), 0, 100, 0);
         this.own = new Owned.State(owner, this);
     }
 

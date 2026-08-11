@@ -24,13 +24,13 @@ import org.luaj.vm2.LuaValue;
  * {@link Owned#pending() pending}.
  */
 final class CProgress extends Progress implements Owned.Control, Controls.Value {
-    /** The client's own default width, at the engine's own {@link Progress#defh} height. */
+    /** A default DESIGN width, at the engine's own {@link Progress#defh} height. */
     static final int DEF_W = 100;
 
     private final Owned.State own;
 
     CProgress(Addon owner) {
-        super(DEF_W);
+        super(Px.in(DEF_W));
         this.own = new Owned.State(owner, this);
     }
 

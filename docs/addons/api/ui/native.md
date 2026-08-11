@@ -34,7 +34,7 @@ logout *and* while you play. What it writes is always **what the user last place
 put it. So uninstalling your addon leaves the HUD exactly as its owner had arranged it, which is the whole
 point: nothing you do here is a change they have to undo by hand.
 
-**Reading back.** `w:position()` answers within the parent, in widget-local px — a window's coordinate is
+**Reading back.** `w:position()` answers within the parent, in widget-local [design pixels](pixels.md) — a window's coordinate is
 relative to whatever contains it, and the HUD is not the root, so use
 [`:rootPos()`](widget.md#read) when you need screen coords. `w:size()` reads a window's **outer** box while
 `w:size(w, h)` sets its **content** size, which is the same asymmetry a window you built has: the chrome is
@@ -116,3 +116,4 @@ behaving exactly as stock.
 - [style/geometry](style/geometry.md) — saying the same placement as a rule instead of a verb
 - [selectors](selectors.md) — naming the widget you are about to move
 - [style/chrome](style/chrome.md#pad) — `pad`, the other property that moves a window
+- [the pixel](pixels.md) — what the two numbers in `:position(x, y)` and `:size(w, h)` mean

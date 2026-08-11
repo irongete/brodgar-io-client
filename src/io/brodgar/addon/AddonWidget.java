@@ -50,9 +50,9 @@ import org.luaj.vm2.LuaValue;
  * <p>The {@code "Draw"} ev's {@code :g()} is {@link #gwrap}, the shared {@link LuaGOut} wrapper over the live
  * {@link GOut} — bound for the duration of one fire and inert otherwise, so an addon that stashes {@code ev}
  * (or {@code ev:g()}) and uses it later cannot corrupt the client's draw pipeline. Coordinates are the
- * widget's own pixel space (top-left = {@code 0,0}); {@code ev:w()}/{@code :h()} give the widget size. UI
- * scaling ({@code UI.scale}) is <b>not</b> applied in 2a — sizes and draw coords are raw pixels (a later
- * slice may add a scale option).
+ * widget's own pixel space (top-left = {@code 0,0}); {@code ev:w()}/{@code :h()} give the widget size. The
+ * unit is the <b>design pixel</b> ({@link Px}), converted at the Lua edge and nowhere below it, so a surface
+ * measures the same on every client whatever the user's interface scale.
  *
  * <p><b>Drop target (D-038).</b> An AddonWidget {@link DropTarget implements DropTarget}, so the client's own
  * drag gesture can drop a "thing" onto it: the engine walks the widget tree and calls {@link #dropthing}

@@ -49,7 +49,7 @@ import java.util.List;
  */
 abstract class CTable extends TableBox<CTable.TRow> implements Owned.Control, Controls.Rows, Controls.RowHeight,
         Controls.Columns {
-    /** A default box; {@code :size(w, h)} overrides it, same as every other control here. */
+    /** A default box, in DESIGN pixels; {@code :size(w, h)} overrides it, same as every other control here. */
     static final Coord DEF_SZ = new Coord(200, 160);
 
     /** One resolved column: its heading, pixel width, and the Lua accessor {@code of(row)} names. */

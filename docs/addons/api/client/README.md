@@ -47,12 +47,15 @@ pass it — an option has no undo for the refusal to cost anything against.
 
 | Method | Type | Description |
 |---|---|---|
-| `scale()` / `scale(v)` | number | UI scale, `1.0` is native. **Requires a restart**, so read it once at startup |
+| `scale()` / `scale(v)` | number | the **stored** UI scale preference, `1.0` is native. **Requires a restart** |
 | `posGran()` / `posGran(v)` | number | object fine-placement position granularity: subdivisions per tile, `2`..`17`, or `0` for unsnapped. Applies live |
 | `angGran()` / `angGran(deg)` | number | object fine-placement angle granularity, **in degrees** per step. Applies live |
 
 `scale` is the one option here that a restart gates: the write is persisted immediately, exactly like the
-panel's own slider, and the client picks it up on the next launch. `angGran` crosses this API as degrees —
+panel's own slider, and the client picks it up on the next launch. So it is the scale that *will* apply and
+not the one in force — those differ until the next launch, and they differ on a fresh install, where this
+reads `1.0` while the client picks its own starting scale from the display. What the client is drawing at
+right now is [`hafen.ui():scale()`](../ui/pixels.md#read); nothing your addon measures in needs either. `angGran` crosses this API as degrees —
 the value the Options panel displays — not the divisor the client stores internally.
 
 ```lua

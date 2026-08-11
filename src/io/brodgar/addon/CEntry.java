@@ -39,13 +39,13 @@ import org.luaj.vm2.LuaValue;
  * {@link haven.SIWidget}, and its own {@code resize(int)} already redraws itself.
  */
 final class CEntry extends TextEntry implements Owned.Control, Controls.Value, Controls.Change, Controls.Submit {
-    /** A default width, at the engine's own height ({@code mext}'s); {@code :size(w, h)} overrides the width. */
+    /** A default DESIGN width, at the engine's own height ({@code mext}'s); {@code :size(w, h)} overrides it. */
     static final int DEF_W = 160;
 
     private final Owned.State own;
 
     CEntry(Addon owner) {
-        super(DEF_W, "");
+        super(Px.in(DEF_W), "");
         this.own = new Owned.State(owner, this);
     }
 

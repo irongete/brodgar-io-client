@@ -36,7 +36,7 @@ size it did not choose — and every property is a setter on the [Widget](widget
 |---|---|---|
 | `:title(s)` | `:title()` | window caption; a bare widget has no chrome to write it on and refuses |
 | `:parent(w)` | `:parent()` | which widget it hangs under; the default is `hafen.ui():root()` |
-| `:position(x, y)` | `:position()` | place within the parent, in pixels |
+| `:position(x, y)` | `:position()` | place within the parent, in [design pixels](pixels.md) |
 | `:size(w, h)` | `:size()` | content size; a window's chrome is fitted around it |
 | `:font(h)` | `:font()` | default font for this widget's `g:text`/`g:atext` draws, not for the title bar |
 
@@ -45,8 +45,9 @@ so nothing you configured needs a variable of its own to be readable later. All 
 surface **your** addon painted — a native widget has nowhere to put a caption of yours, and neither does
 a [control](controls/README.md), which the client draws and drives.
 
-Sizes and positions are raw pixels, not DPI-scaled. `:position` is within the parent; on a window `:size`
-is the **content** size, so the outer box it reads back is that plus the chrome.
+Sizes and positions are [design pixels](pixels.md): what you write is what you read back, on every client
+whatever the user's interface scale. `:position` is within the parent; on a window `:size` is the
+**content** size, so the outer box it reads back is that plus the chrome.
 
 ## Subscribing
 

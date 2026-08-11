@@ -17,11 +17,11 @@
 -- wall-clock instant it is DUE, not the seconds left on it, so one that was running comes back still
 -- running -- and one that ran out while you were logged off comes back finished, silently.
 --
--- EVERY HEIGHT AND EVERY COLUMN BELOW IS MEASURED, not chosen. widget:size(w, h) is raw pixels and is
--- NOT scaled for you (docs/addons/api/ui/custom.md), while the client's own controls are as big as their
--- art, which IS loaded scaled -- Button's height is Button.hs = bl.getHeight() of a scaled image. So a
--- 20 that looks right at one UI scale clips the button's bottom border off at another, because
--- Button.draw rasterises into a box of exactly sz and puts that border at hs. The fix is not a bigger
+-- EVERY HEIGHT AND EVERY COLUMN BELOW IS MEASURED, not chosen. widget:size(w, h) is in design pixels
+-- (docs/addons/api/ui/pixels.md), so the numbers here mean the same thing on every client -- but a
+-- control's own height is its ART's, and that is a number this addon has no way to guess. A 20 that is
+-- too small clips the button's bottom border off, because the button rasterises into a box of exactly
+-- the size it was given and draws that border at the bottom of its own picture. The fix is not a bigger
 -- number: it is to ask a bare control how tall the client makes it, and lay the rows out from that.
 
 local ALARM = "sfx/hud/mmap/bell3"                    -- one of the client's own notification blips

@@ -6,7 +6,7 @@ capture that makes a drag yours. It is not a [Widget](widget.md): `:mouse()` han
 
 ```lua
 local m = hafen.ui():mouse()
-m:x()  m:y()                  -- where the cursor is, in root coords
+m:x()  m:y()                  -- where the cursor is, in root coords (design pixels)
 m:over()                      -- the deepest Widget under it, or nil
 m:shift() m:ctrl() m:alt()    -- the live modifier keys
 ```
@@ -17,13 +17,15 @@ Reading the mouse is unprotected client-side data.
 
 | Verb | Returns |
 |---|---|
-| `m:x()` / `m:y()` | the cursor position, in root coords |
+| `m:x()` / `m:y()` | the cursor position, in root coords — [design pixels](pixels.md), like every other coordinate here |
 | `m:over()` | the deepest [Widget](widget.md#read) under the cursor, or `nil` |
 | `m:shift()` / `m:ctrl()` / `m:alt()` | whether that modifier key is down, right now |
 | `m:grab()` | take the pointer — see [the grab](#the-grab) |
 
 `hafen.ui():at(x, y)` still answers for an arbitrary point; `m:over()` is exactly `hafen.ui():at(m:x(),
-m:y())`, kept as one call for the case every addon reaches for.
+m:y())`, kept as one call for the case every addon reaches for. The two are the same widget by
+construction, not by coincidence: `m:over()` answers for the point this object *reports*, so the pair you
+read and the pair you hit-test with are one pair.
 
 ## The grab
 
@@ -63,6 +65,7 @@ Pair it with [`hafen.world():screenToWorld`](../world.md#screen-to-world-and-pla
 
 ## See also
 
+- [the pixel](pixels.md) — the unit the pointer, the hit test and a widget's box share
 - [the Widget object](widget.md) — what `m:over()` hands you, and the keys you can subscribe on it
 - [selectors](selectors.md#hit-testing) — hit-testing, and naming the widget under a point
 - [gizmo](../vr/gizmo.md) — the drag handles the grab is built for

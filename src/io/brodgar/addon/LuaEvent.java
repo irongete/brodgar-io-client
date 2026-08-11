@@ -117,7 +117,9 @@ public final class LuaEvent {
     private final Object[][] rewritten;
     /** INPUT: widget-local pixels (both keys), the button (down/up only, else {@code null}) and the wheel
      * amount ({@code Wheel} only, else {@code null}) — the fields {@link Widget.PointerEvent} subclasses carry
-     * only some of, so a shape that does not apply reads {@code nil} rather than throwing (EXAMPLES §1.1). */
+     * only some of, so a shape that does not apply reads {@code nil} rather than throwing (EXAMPLES §1.1).
+     * <b>Stored as the engine gave them — DEVICE pixels</b>; {@link #px()}/{@link #py()} are the one place they
+     * become the design pixels Lua reads (058.1). */
     private final int x, y;
     private final Integer button, amount;
     /** GRAB_MOVE/GRAB_UP: the live modifier keys ({@code UI.modflags()} bits) at the moment of the fire. */
@@ -248,6 +250,24 @@ public final class LuaEvent {
         this.nat = false;
         this.wx = 0;
         this.wy = 0;
+    }
+
+    /**
+     * <b>The {@code x}/{@code y} pair as Lua sees it: design pixels</b> (058.1) — the one conversion site for
+     * every shape that carries a screen measurement in those two fields, which is {@code INPUT}'s and
+     * {@code DROP}'s pointer, {@code GRAB_MOVE}/{@code GRAB_UP}'s pointer, and {@code DRAW}/{@code CELL}'s
+     * {@code w}/{@code h}. Five vocabularies, one pair, one conversion.
+     *
+     * <p>The two shapes that do <b>not</b> go through it are the two that never held a screen measurement:
+     * {@code SLIDER} parks its value in {@code x}, and {@code CLICKED}'s {@code :x()}/{@code :y()} are the
+     * world coordinate a click resolved to, which is not a pixel at all.
+     */
+    private int px() {
+        return Px.out(x);
+    }
+
+    private int py() {
+        return Px.out(y);
     }
 
     /** {@code tostring(ev)} → {@code Event(action:click)}, or {@code Event(draw)} for a shape with no message. */
@@ -465,7 +485,7 @@ public final class LuaEvent {
     }
 
     /**
-     * The input half (041.3): {@code ev:x()}/{@code :y()} (widget-local pixels, always present),
+     * The input half (041.3): {@code ev:x()}/{@code :y()} (widget-local design pixels, always present),
      * {@code ev:button()} (down/up only) and {@code ev:amount()} (wheel only) — the two answer {@code nil}
      * where they do not apply, rather than throwing, since which fields a concrete gesture carries is a
      * property of the DATA and not a typo (§1.1's per-key table already says which).
@@ -473,12 +493,12 @@ public final class LuaEvent {
     private static void input(LuaTable m) {
         m.set("x", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(self(a.arg1(), Shape.INPUT, "x").x);
+                return LuaValue.valueOf(self(a.arg1(), Shape.INPUT, "x").px());
             }
         });
         m.set("y", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(self(a.arg1(), Shape.INPUT, "y").y);
+                return LuaValue.valueOf(self(a.arg1(), Shape.INPUT, "y").py());
             }
         });
         m.set("button", new VarArgFunction() {
@@ -498,9 +518,10 @@ public final class LuaEvent {
 
     /**
      * {@code w:on("Draw", fn)} (041.4): three things to say, so an {@code ev} — {@code :g()} the bound
-     * {@link LuaGOut} wrapper, {@code :w()}/{@code :h()} the area to paint. Uncancelable: {@code Draw} carries
-     * no {@code preventDefault}, so an unlisted verb (including that one) throws naming the vocabulary — the
-     * "throws on :preventDefault()" the suite asserts falls straight out of D-125's closed-shape refusal.
+     * {@link LuaGOut} wrapper, {@code :w()}/{@code :h()} the area to paint, in design pixels. Uncancelable:
+     * {@code Draw} carries no {@code preventDefault}, so an unlisted verb (including that one) throws naming
+     * the vocabulary — the "throws on :preventDefault()" the suite asserts falls straight out of D-125's
+     * closed-shape refusal.
      */
     private static void draw(LuaTable m) {
         m.set("g", new VarArgFunction() {
@@ -510,12 +531,12 @@ public final class LuaEvent {
         });
         m.set("w", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(self(a.arg1(), Shape.DRAW, "w").x);
+                return LuaValue.valueOf(self(a.arg1(), Shape.DRAW, "w").px());
             }
         });
         m.set("h", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(self(a.arg1(), Shape.DRAW, "h").y);
+                return LuaValue.valueOf(self(a.arg1(), Shape.DRAW, "h").py());
             }
         });
     }
@@ -534,30 +555,30 @@ public final class LuaEvent {
         });
         m.set("w", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(self(a.arg1(), Shape.CELL, "w").x);
+                return LuaValue.valueOf(self(a.arg1(), Shape.CELL, "w").px());
             }
         });
         m.set("h", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(self(a.arg1(), Shape.CELL, "h").y);
+                return LuaValue.valueOf(self(a.arg1(), Shape.CELL, "h").py());
             }
         });
     }
 
     /**
-     * {@code w:on("Drop", fn)} (041.4): {@code :x()}/{@code :y()} widget-local pixels, {@code :thing()} the
+     * {@code w:on("Drop", fn)} (041.4): {@code :x()}/{@code :y()} widget-local design pixels, {@code :thing()} the
      * neutral drop descriptor ({@code {kind=,res=}}, D-038), {@code :preventDefault()} — a truthy return no
      * longer consumes the drop (R3), a cancelled fire does.
      */
     private static void drop(LuaTable m) {
         m.set("x", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(self(a.arg1(), Shape.DROP, "x").x);
+                return LuaValue.valueOf(self(a.arg1(), Shape.DROP, "x").px());
             }
         });
         m.set("y", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(self(a.arg1(), Shape.DROP, "y").y);
+                return LuaValue.valueOf(self(a.arg1(), Shape.DROP, "y").py());
             }
         });
         m.set("thing", new VarArgFunction() {
@@ -586,7 +607,7 @@ public final class LuaEvent {
     }
 
     /**
-     * Shared by both grab shapes (041.5, spec §2.2): the pointer coordinates (window pixels, since a grab has
+     * Shared by both grab shapes (041.5, spec §2.2): the pointer coordinates (window design pixels, since a grab has
      * no single owning widget to be local to) and the three live modifier keys — the same flat booleans
      * {@code hafen.ui():mouse()} itself answers, read off the {@code mods} bits captured at fire time rather
      * than polled again (a handler must see what was true at the moment of the move, not now).
@@ -594,12 +615,12 @@ public final class LuaEvent {
     private static void grabCommon(LuaTable m, final Shape shape) {
         m.set("x", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(self(a.arg1(), shape, "x").x);
+                return LuaValue.valueOf(self(a.arg1(), shape, "x").px());
             }
         });
         m.set("y", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return LuaValue.valueOf(self(a.arg1(), shape, "y").y);
+                return LuaValue.valueOf(self(a.arg1(), shape, "y").py());
             }
         });
         m.set("shift", new VarArgFunction() {

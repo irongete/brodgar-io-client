@@ -38,7 +38,7 @@ import org.luaj.vm2.LuaValue;
  * would drop the child beside the bar instead of inside the scrolling area, and it would look almost right.
  */
 final class CScrollport extends Widget implements Owned.Control {
-    /** A default box; {@code :size(w, h)} overrides it, same as every other control here. */
+    /** A default box, in DESIGN pixels; {@code :size(w, h)} overrides it, same as every other control here. */
     static final Coord DEF_SZ = new Coord(160, 120);
 
     private final Owned.State own;
@@ -46,7 +46,7 @@ final class CScrollport extends Widget implements Owned.Control {
     final Scrollport.Scrollcont cont;
 
     CScrollport(Addon owner) {
-        super(DEF_SZ);
+        super(Px.in(DEF_SZ));
         this.own = new Owned.State(owner, this);
         this.bar = adda(new Bar(owner), sz.x, 0, 1, 0);
         this.cont = add(new Scrollport.Scrollcont(sz.sub(bar.sz.x, 0)) {
@@ -95,7 +95,7 @@ final class CScrollport extends Widget implements Owned.Control {
         private volatile LuaValue onChange;
 
         Bar(Addon owner) {
-            super(DEF_SZ.y, 0, 0);
+            super(Px.in(DEF_SZ.y), 0, 0);
             this.own = new Owned.State(owner, this);
         }
 

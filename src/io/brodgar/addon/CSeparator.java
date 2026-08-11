@@ -15,13 +15,13 @@ import haven.HRuler;
  * {@link Owned#pending() pending}.
  */
 final class CSeparator extends HRuler implements Owned.Control {
-    /** The client's own default width; {@code :size(w, h)} overrides it (the height stays the rule's own). */
+    /** A default DESIGN width; {@code :size(w, h)} overrides it (the height stays the rule's own). */
     static final int DEF_W = 100;
 
     private final Owned.State own;
 
     CSeparator(Addon owner) {
-        super(DEF_W);
+        super(Px.in(DEF_W));
         this.own = new Owned.State(owner, this);
     }
 

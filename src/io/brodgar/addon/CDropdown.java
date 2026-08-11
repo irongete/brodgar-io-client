@@ -58,7 +58,7 @@ import java.util.List;
  */
 final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Control, Controls.Rows,
         Controls.Value, Controls.Change, Controls.RowHeight {
-    /** Defaults; {@code :size(w, h)} overrides the width, {@code :rowHeight(n)} the item height (building-only). */
+    /** Defaults, in DESIGN pixels; {@code :size(w, h)} overrides the width, {@code :rowHeight(n)} the item height. */
     static final int DEF_W = 200, DEF_LISTH = 160;
 
     /** Popups queued by {@link #drop} this frame, raised by {@link #drainRaises} before the next draw. */

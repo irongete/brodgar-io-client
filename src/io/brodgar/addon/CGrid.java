@@ -42,7 +42,7 @@ import java.util.List;
  */
 final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.Rows, Controls.Cell,
         Controls.OnCell {
-    /** A default box; {@code :size(w, h)} overrides it, same as every other control here. */
+    /** A default box, in DESIGN pixels; {@code :size(w, h)} overrides it, same as every other control here. */
     static final Coord DEF_SZ = new Coord(200, 200);
     /** The client's own inventory-slot size — what a bare {@code hafen.ui():grid()} cells at until {@code :cell(w, h)}. */
     static final Coord DEF_CELL = new Coord(32, 32);

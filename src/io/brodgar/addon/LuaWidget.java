@@ -312,9 +312,13 @@ public final class LuaWidget {
             }
         });
         // position() / position(x, y) / position(nil) — ARITY IS THE VERB (the 018 options shape, 029.2; the same
-        // three arities as :size): no args READS the position within the parent as {x=,y=} (widget-local px), two
-        // numbers MOVE the widget, and nil DROPS your move and puts back what the widget was at before you first
-        // touched it. Both writes chain. :move() is hard cut.
+        // three arities as :size): no args READS the position within the parent as {x=,y=} (widget-local DESIGN
+        // px), two numbers MOVE the widget, and nil DROPS your move and puts back what the widget was at before
+        // you first touched it. Both writes chain. :move() is hard cut.
+        //
+        // THE UNIT IS THE DESIGN PIXEL (058.1) — the space the client's own art is authored in, converted at this
+        // very edge by Px and nowhere below it. w:position(30, 20) reads back {30, 20} at every UI scale, which is
+        // the whole claim: an addon's numbers are the same numbers on every client.
         //
         // SINCE 036.1 IT ANSWERS ON A NATIVE WIDGET (feature E) — it moves `c`, the very field the user's own drag
         // writes, never a draw-time offset (which would make the widget draw where it cannot be clicked). Touching
@@ -325,7 +329,7 @@ public final class LuaWidget {
         // top of the same fold a sheet's `pos` rule feeds, so it wins over every rule that merely matched the
         // widget -- and position(nil) drops back to THE RULE when one still names it, reaching the stock value
         // only when no level does. Layout.apply is what decides; this verb only says what this addon wants.
-        // position() — PIXELS within the parent, and deliberately NOT a Position (spec 039 §2.7): the verb asks
+        // position() — DESIGN PIXELS within the parent, and deliberately NOT a Position (spec 039 §2.7): the verb asks
         // "where is this thing, in the space it lives in", and a widget lives on the screen. Now that a place in
         // the world is a TYPE, handing this to hafen.player():move throws instead of walking you somewhere wrong.
         m.set("position", new VarArgFunction() {
@@ -333,7 +337,7 @@ public final class LuaWidget {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "position"));
                 if(a.narg() < 2)
-                    return ((w == null) || (w.c == null)) ? LuaValue.NIL : xyTable(w.c);
+                    return ((w == null) || (w.c == null)) ? LuaValue.NIL : xyTable(Px.out(w.c));
                 if(a.narg() < 3) {                        // w:position(nil) — undo OUR move, back to the stock value
                     if(!a.arg(2).isnil())                 // w:position(x) is a mistake, not an undo
                         throw new LuaError("widget:position(x, y) takes BOTH coordinates; widget:position() reads"
@@ -343,7 +347,7 @@ public final class LuaWidget {
                         UiApi.releaseMoved(owner, w, true);
                     return self;
                 }
-                Coord to = Coord.of(a.checkint(2), a.checkint(3));
+                Coord to = Px.in(Coord.of(a.checkint(2), a.checkint(3)));   // design → device, at the edge
                 if(w != null) {
                     UI u = AddonManager.ui;
                     synchronized(u) {
@@ -361,15 +365,17 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // size() / size(w, h) / size(nil) — same three arities. The write resizes the CONTENT and repacks the
-        // chrome around it (so a window's frame follows), which is why what :size() reads back on a window is the
-        // outer box and not the pair you passed; the undo restores that outer box exactly (LuaWidget.sizeArg).
+        // size() / size(w, h) / size(nil) — same three arities, and the same DESIGN PIXELS :position speaks
+        // (058.1). The write resizes the CONTENT and repacks the chrome around it (so a window's frame follows),
+        // which is why what :size() reads back on a window is the outer box and not the pair you passed; the undo
+        // restores that outer box exactly (LuaWidget.sizeArg — and it restores the DEVICE value it recorded, so
+        // the stock box never round-trips through design and back).
         m.set("size", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:size() → narg 1 · w:size(nil) → narg 2 · w:size(w,h) → narg 3
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "size"));
                 if(a.narg() < 2)
-                    return ((w == null) || (w.sz == null)) ? LuaValue.NIL : xyTable(w.sz);
+                    return ((w == null) || (w.sz == null)) ? LuaValue.NIL : xyTable(Px.out(w.sz));
                 if(a.narg() < 3) {                        // w:size(nil) — undo OUR resize, back to the stock value
                     if(!a.arg(2).isnil())
                         throw new LuaError("widget:size(w, h) takes BOTH dimensions; widget:size() reads the size"
@@ -378,7 +384,7 @@ public final class LuaWidget {
                         UiApi.releaseMoved(owner, w, false);
                     return self;
                 }
-                Coord to = Coord.of(a.checkint(2), a.checkint(3));
+                Coord to = Px.in(Coord.of(a.checkint(2), a.checkint(3)));   // design → device, at the edge
                 if(w != null) {
                     Owned content = ownedContent(owner, w);
                     UI u = AddonManager.ui;
@@ -947,15 +953,16 @@ public final class LuaWidget {
                 Widget w = live(handle(a.arg1(), "at"));
                 if(w == null)
                     return LuaValue.NIL;
-                Coord pt = coordArg(a.arg(2), "widget:at(coord)");
+                Coord pt = Px.in(coordArg(a.arg(2), "widget:at(coord)"));   // a point is design px, like a size
                 UI u = AddonManager.ui;
                 Widget hit;
                 synchronized(u) { hit = hitTest(w, w.rootxlate(pt)); }
                 return (hit == null) ? LuaValue.NIL : of(owner, hit);
             }
         });
-        // rootPos() — W2: {x=,y=} this widget's top-left in root coords (with :size() = a highlight box). PIXELS,
-        // like :position() and for the same reason: a widget's place is on the screen (spec 039 §2.7).
+        // rootPos() — W2: {x=,y=} this widget's top-left in root coords (with :size() = a highlight box). DESIGN
+        // PIXELS, like :position() and for the same reason: a widget's place is on the screen (spec 039 §2.7),
+        // and one space is what makes the pair a box you can draw and hit-test with (058.1).
         m.set("rootPos", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Widget w = live(handle(self, "rootPos"));
@@ -964,7 +971,7 @@ public final class LuaWidget {
                 UI u = AddonManager.ui;
                 Coord rp;
                 synchronized(u) { rp = w.rootpos(); }
-                return (rp == null) ? LuaValue.NIL : xyTable(rp);
+                return (rp == null) ? LuaValue.NIL : xyTable(Px.out(rp));
             }
         });
         // style() — 034.1/034.3: the style THIS widget RESOLVES to — { font = <handle>, color = {r=,g=,b=,a=} },
@@ -1795,9 +1802,9 @@ public final class LuaWidget {
         if(id >= 0)
             t.set("id", LuaValue.valueOf(id));
         if(w.c != null)
-            t.set("pos", xyTable(w.c));
+            t.set("pos", xyTable(Px.out(w.c)));      // the same design pixels :position()/:size() answer (058.1)
         if(w.sz != null)
-            t.set("size", xyTable(w.sz));
+            t.set("size", xyTable(Px.out(w.sz)));
         t.set("visible", LuaValue.valueOf(w.visible()));
         String tx = text(w);
         if(tx != null)
@@ -1850,7 +1857,11 @@ public final class LuaWidget {
         return from.checkhit(c) ? from : null;
     }
 
-    /** A {@code {x=,y=}} table from a {@link Coord} (widget-local px), for {@code :pos()}/{@code :size()}. */
+    /**
+     * A {@code {x=,y=}} table from a {@link Coord}, for {@code :position()}/{@code :size()} and every other pair
+     * the API hands back. It converts <b>nothing</b>: a widget's geometry is put through {@link Px#out} by the
+     * verb that reads it, and a sheet's own numbers were never anything but design pixels.
+     */
     static LuaValue xyTable(Coord c) {
         LuaTable t = new LuaTable();
         t.set("x", LuaValue.valueOf(c.x));
