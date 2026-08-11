@@ -1,0 +1,9 @@
+{
+  "name": "058.3 — the stylesheet says design pixels too",
+  "id": "058-ui-design-pixels.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 058.3: a sheet's position, size, anchor offset, pad and border slice are design pixels, and so are a list's row height and a grid's cell box -- each read back as written, and a themed window measuring exactly its content plus its own insets.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

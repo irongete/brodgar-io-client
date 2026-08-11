@@ -23,7 +23,8 @@ s:install()
 - **The rule and the verb are one cascade, not two mechanisms.** A position from the verb outranks one from
   any rule, however specific, and `w:position(nil)` drops *your level*, falling back to the rule when one
   still names the widget and only reaching the stock value when nothing does.
-- **Raw pixels**, like `pad` and a border's slice. A position is within the **parent**; `size` on a window
+- **[Design pixels](../pixels.md)**, like `pad`, a border's slice and the verb beside them: the pair a rule says
+  is the pair `:position()` reads back, on every client. A position is within the **parent**; `size` on a window
   is its **content** size, exactly as [the verb](../native.md) takes it.
 - **Applied when the sheet is, and when a widget appears** — including a window whose caption arrives a
   moment after it opens. Never per frame, and never at the draw.
@@ -66,7 +67,7 @@ s:install()
 |---|---|---|
 | `to` | `"screen"` | the screen, or any widget. A widget target is held **weakly**: when it closes the anchor stops resolving and the widget simply stays where it is — inert, never a snap back |
 | `at` | `"topleft"` | one of nine corners: `topleft`, `top`, `topright`, `left`, `center`, `right`, `bottomleft`, `bottom`, `bottomright`. Anything else is an **error** naming all nine |
-| `offset` | `{0, 0}` | `{dx, dy}`, raw pixels, added after the corners meet |
+| `offset` | `{0, 0}` | `{dx, dy}`, [design px](../pixels.md), added after the corners meet |
 
 The corner is the widget's **own** as well as the target's — `at = "bottomright"` puts its bottom-right
 corner on the target's, which is what makes `offset = {-8, -8}` read as *8 px in from the edge*.
@@ -102,6 +103,7 @@ widget actually is right now.
 ## See also
 
 - [native](../native.md) — the verb above every rule in this cascade
+- [the pixel](../pixels.md) — what a coordinate in a rule is counted in
 - [keys](keys.md#what-each-key-accepts) — why a site key may not carry these three
 - [chrome](chrome.md#pad) — `pad`, the drawing property that also moves a window
 - [style](README.md#the-cascade) — how the verb and the rules fold together

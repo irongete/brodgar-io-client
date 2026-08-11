@@ -93,10 +93,10 @@ Each is a setter that returns the rule, and each reads back with no argument.
 | `rule:color(r, g, b[, a])` | `0..255` each | also takes a colour value, the `{r = …, g = …}` table every reader hands back — see [text](text.md#color) |
 | `rule:bg(t)` | `{color = {r,g,b,a}}` **or** `{image = hafen.asset():get(…)}` | the surface something is painted on — see [chrome](chrome.md) |
 | `rule:border(t)` | `{image = hafen.asset():get(…), slice = {l, t, r, b}}` | a 9-slice frame — see [chrome](chrome.md) |
-| `rule:pad(n)` | a number of pixels, `>= 0` | the space a surface keeps between its frame and its content — see [`pad`](chrome.md#pad) |
-| `rule:position(x, y)` | raw px | where the widget sits inside its parent — **tree keys only**, see [geometry](geometry.md) |
+| `rule:pad(n)` | [design px](../pixels.md), `>= 0` | the space a surface keeps between its frame and its content — see [`pad`](chrome.md#pad) |
+| `rule:position(x, y)` | [design px](../pixels.md) | where the widget sits inside its parent — **tree keys only**, see [geometry](geometry.md) |
 | `rule:anchor(t)` | `{to =, at =, offset =}` | the same place said as a relationship — see [`anchor`](geometry.md#anchor) |
-| `rule:size(w, h)` | raw px | how big it is; a window's *content* size — **tree keys only**, see [geometry](geometry.md) |
+| `rule:size(w, h)` | [design px](../pixels.md) | how big it is; a window's *content* size — **tree keys only**, see [geometry](geometry.md) |
 
 A rule also carries `rule:selector()` (the key it was named by), `rule:sheet()` (the sheet it belongs to, so
 a whole sheet can be one expression), `rule:info()` (everything it says, or `nil` when it says nothing) and

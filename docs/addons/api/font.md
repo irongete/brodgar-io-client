@@ -60,7 +60,7 @@ name — bare it reads, with a value it writes and hands the handle back, so a v
 |---|---|---|
 | `h:derive()` | `FontHandle` | a fresh variant of this font, ready to configure |
 | `h:family()` | string | the family name — feed it to a `$font[family, size]{…}` tag for per-run mixing |
-| `h:size()` / `h:size(px)` | number \| nil | logical px, passed through the client's UI scale. `nil` means the stock size of whatever surface it is applied to |
+| `h:size()` / `h:size(px)` | number \| nil | [design px](ui/pixels.md), the same unit every coordinate takes. `nil` means the stock size of whatever surface it is applied to |
 | `h:aa()` / `h:aa(b)` | boolean \| nil | antialias. `nil` inherits the surface's stock setting |
 | `h:bold()` / `h:bold(b)` | boolean | style, baked into the font |
 | `h:italic()` / `h:italic(b)` | boolean | style, baked into the font |

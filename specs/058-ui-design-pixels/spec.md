@@ -91,3 +91,6 @@ New: `docs/client/ui-scaling.md` — the upstream scale system nothing maps toda
 - `docs/addons/api/ui/**` (`pixels.md` is where the unit is stated; every other page links to it),
   `docs/addons/api/vr/{sprites,widgets}.md`, `docs/addons/api/client/README.md`,
   `docs/client/{widgets,text-and-fonts}.md`, `DOCUMENTATION.md` — 2, 3, 4 (each task its own pages)
+- `docs/client/ui-chrome.md` — a window's geometry, mapped: `Deco.iresize`/`contarea`, the stock
+  `content + mrgn*2 + tlm + brm` formula, and `Widget.pack` = `resize(contentsz())` with `Window.contentsz()`
+  skipping the deco — which is where a widget sized to its content is decided — 4

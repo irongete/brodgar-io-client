@@ -19,7 +19,7 @@ s:install()
 |---|---|---|
 | `rule:bg(t)` | `{color = {r,g,b,a}}` **or** `{image = hafen.asset():get(…)}` | the surface something is painted on: a flat fill, alpha included, or a tiled image. One or the other, never both |
 | `rule:border(t)` | `{image = hafen.asset():get(…), slice = {l, t, r, b}}` | a 9-slice frame: the four corners draw at their own size and the four edges stretch between them |
-| `rule:pad(n)` | a number of pixels, `>= 0` | the space a surface keeps between its frame and its content |
+| `rule:pad(n)` | [design px](../pixels.md), `>= 0` | the space a surface keeps between its frame and its content |
 
 Each reads back bare: `rule:bg()`, `rule:border()`, `rule:pad()`.
 
@@ -38,9 +38,10 @@ A border's centre is never painted — that is `bg`'s job, so the two compose.
 - **A restyled window still behaves like a window.** The chrome is *replaced*, not bypassed: dragging,
   resizing, the close button, focus and the caption all keep working, and the caption is still rendered
   through the `window.title` rule.
-- **Slice insets are in the image's own pixels and are not DPI-scaled**, like every other image your addon
-  draws. On a scaled client an 8 px border therefore reads *thinner* than the stock chrome it replaced;
-  author the image at the weight you want to see.
+- **Slice insets are in the image's own pixels, and those are [design pixels](../pixels.md)** — the same unit
+  everything else your addon draws is measured in. So a `slice` of `{8, 8, 8, 8}` is 8 pixels of the weight the
+  client's own chrome is drawn at, on every client: author the image at the weight you want to see and the
+  interface scale carries it, exactly as it carries the art the client ships.
 - **A window whose chrome is its own is left alone.** A few build a decoration for a reason — an item's
   hover window, for one — and a rule never overrides that.
 - **Painting chrome runs no Lua.** Your rule is parsed **once** into plain data — a colour, an image, four
@@ -64,7 +65,7 @@ than carrying a window's decoration, and `panel` is the key for all of them.
   On those, `bg` is **inert** and `border` is what you style with. Nothing is refused and nothing warns.
 - **A panel never moves.** Its size, and where its contents sit, were decided when it was built, and no
   rule re-runs that. So [`pad`](#pad) is inert here, and so are your **border's own insets**: the art is
-  drawn *into* the room the stock frame had, not around it. The stock boxes are about **5 px** of edge, so
+  drawn *into* the room the stock frame had, not around it. The stock boxes are about **5 design px** of edge, so
   author your image to roughly that weight; a much fatter one overlaps the panel's contents rather than
   pushing them aside. This is the opposite of `window.frame`, where the insets *are* the margins, because a
   window re-lays itself out and a panel cannot.
@@ -94,8 +95,9 @@ hafen.ui():sheet():rule("window.frame"):pad(6)   -- every window keeps 6 px more
   roomy as its image says, and nothing is added behind your back — including room for the caption. **A
   theme that wants a title bar puts it in its own top inset**: the caption is drawn a little way down, so a
   shallow top inset leaves it sitting over the content.
-- **Pixels are raw pixels**, like a border's slice and like a window's own [`:size(w, h)`](../custom.md).
-  `pad` is not DPI-scaled. A font's `size` is, because a type size is not a coordinate.
+- **Pixels are [design pixels](../pixels.md)**, like a border's slice, a `font`'s `size` and a window's own
+  [`:size(w, h)`](../custom.md). A `pad` of `6` is 6 of the pixels the client's own margins are written in, so a
+  padded window keeps the same proportions at every interface scale.
 - **`:pad(0)` is the same as no pad**, so it alone never restyles anything.
 - **Removing the rule restores the exact numbers it found** — the same size, the same position, down to the
   pixel.
@@ -106,6 +108,7 @@ own layout cannot honour one, so nothing is refused and nothing warns. That incl
 
 ## See also
 
+- [the pixel](../pixels.md) — the unit a `pad` and a slice are counted in
 - [keys](keys.md#what-each-key-accepts) — which keys honour these three, and which are inert
 - [surfaces](surfaces.md) — what a panel and a window frame are on screen
 - [geometry](geometry.md) — the other way a rule moves something, and the only one that moves a widget

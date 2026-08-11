@@ -347,17 +347,17 @@ public final class LuaWidget {
                         UiApi.releaseMoved(owner, w, true);
                     return self;
                 }
-                Coord to = Px.in(Coord.of(a.checkint(2), a.checkint(3)));   // design → device, at the edge
+                Coord to = Coord.of(a.checkint(2), a.checkint(3));          // DESIGN pixels, as written
                 if(w != null) {
                     UI u = AddonManager.ui;
                     synchronized(u) {
                         if(ownedContent(owner, w) == null) {
                             Moved rec = recordMoved(owner, w);     // BORROWED: name the level, then resolve it
                             rec.wantPos = Layout.Anchor.at(to);    // 036.3: the parent's top-left, plus (x, y)
-                            rec.posSeq = Layout.nextSeq();
-                            Layout.apply(w);
+                            rec.posSeq = Layout.nextSeq();         // 058.3: the level speaks the sheet's own space,
+                            Layout.apply(w);                       //   and Anchor.resolve is where it converts
                         } else {
-                            w.move(to);                            // your own widget: no layer, no cascade...
+                            w.move(Px.in(to));                     // your own widget: no layer, no cascade...
                             Layout.moved(w);                       // ...but an anchor may still hang off it (036.3)
                         }
                     }
@@ -384,7 +384,7 @@ public final class LuaWidget {
                         UiApi.releaseMoved(owner, w, false);
                     return self;
                 }
-                Coord to = Px.in(Coord.of(a.checkint(2), a.checkint(3)));   // design → device, at the edge
+                Coord to = Coord.of(a.checkint(2), a.checkint(3));          // DESIGN pixels, as written
                 if(w != null) {
                     Owned content = ownedContent(owner, w);
                     UI u = AddonManager.ui;
@@ -392,10 +392,10 @@ public final class LuaWidget {
                         if(content == null) {             // BORROWED (036.1): the layer remembers, then resizes
                             Moved rec = recordMoved(owner, w);
                             rec.wantSize = to;            // 036.2: ...and the resize is the cascade's to make
-                            rec.sizeSeq = Layout.nextSeq();
+                            rec.sizeSeq = Layout.nextSeq();   // 058.3: in design px, like the rule beneath it
                             Layout.apply(w);
                         } else {
-                            content.widget().resize(to);
+                            content.widget().resize(Px.in(to));
                             if(content.widget() != w)     // a window: refit the chrome around the resized content
                                 w.pack();
                             Layout.moved(w);              // 036.3: a corner anchor reads the box that just changed
@@ -840,7 +840,7 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // rowHeight(n) / rowHeight() — 040.9: the ROW HEIGHT of a model-backed list, in pixels — defaults to
+        // rowHeight(n) / rowHeight() — 040.9: the ROW HEIGHT of a model-backed list, in DESIGN pixels — defaults to
         // the client's own label height. Building-only, like :image() (spec 040 decision G): the client's own
         // SListBox fixes its row height at construction, so choosing a different one rebuilds the widget under
         // the same Lua handle exactly as a face setter does. A control with no rows reads nil on this and a
@@ -858,7 +858,7 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // cell(w, h) / cell() — 040.11: a GRID's cell box, in pixels. Building-only, like :rowHeight(n)
+        // cell(w, h) / cell() — 040.11: a GRID's cell box, in DESIGN pixels. Building-only, like :rowHeight(n)
         // (spec 040 §5's shape again): the client's own GridList fixes a group's cell box (Group.itemsz) at
         // construction, so choosing a different one rebuilds the widget under the same Lua handle. The bare
         // read hands back {w=, h=}; a control with no cells reads nil on this and a write there throws naming
@@ -1306,6 +1306,12 @@ public final class LuaWidget {
      * {@code csz()}, not its {@code sz} — see {@link #sizeArg}. Recording the argument rather than the result
      * makes the restore the exact inverse of the write for a window and a bare widget alike.
      *
+     * <p><b>Two units live here, and which is which is the point.</b> {@link #pos}/{@link #size} are the
+     * <i>client's</i> own numbers and stay <b>device</b>: rounding them into design and back would make the restore
+     * inexact and hand the user a window a pixel off. {@link #wantPos}/{@link #wantSize} are what an <i>addon</i>
+     * asked for and are <b>design</b> (058.3), the same space the rule below them in the cascade carries — so
+     * {@link Layout} folds the two levels without converting between them and writes once, at the edge.
+     *
      * <p>{@link #id} is the server widget id ({@code -1} for a client-only widget), so the restore can use the
      * same two-branch death test the hide records use ({@link UiApi#stillMovable}).
      */
@@ -1313,8 +1319,8 @@ public final class LuaWidget {
         final Addon owner;
         final Widget wdg;
         final int id;
-        Coord pos;       // the stock c   — null: this addon's layer is not standing on the position
-        Coord size;      // the stock size ARGUMENT (a Window's content size) — null: nor on the size
+        Coord pos;       // the stock c, DEVICE — null: this addon's layer is not standing on the position
+        Coord size;      // the stock size ARGUMENT (a Window's content size), DEVICE — null: nor on the size
         /**
          * This addon's <b>hand-named</b> position (036.2) — what {@code widget:position(x, y)} asked for, and the top
          * level of the layout cascade ({@link Layout}). Separate from {@link #pos} because they answer different
@@ -1328,7 +1334,7 @@ public final class LuaWidget {
          * same, which is what makes "the verb wins" a statement about a fold rather than about two mechanisms.
          */
         Layout.Anchor wantPos;
-        /** This addon's hand-named size — see {@link #wantPos}. */
+        /** This addon's hand-named size, in design pixels — see {@link #wantPos}. */
         Coord wantSize;
         /** When each half was named, so the latest hand-named level wins between two addons ({@link Layout#nextSeq}). */
         long posSeq, sizeSeq;

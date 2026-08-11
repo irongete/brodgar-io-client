@@ -165,11 +165,12 @@ final class Layout {
      * {-8, -8}} read as "8 px in from the edge" rather than "the widget is mostly off-screen". Nine corners, the
      * three positions on each axis, so {@code "center"} is available and needs no separate concept.
      *
-     * <p><b>The offset is raw pixels</b> (D-081, one property along from {@code pad} and a border's {@code slice}):
-     * a coordinate you write is a pixel you get. That is also what makes an anchor survive a rescale rather than
-     * making a second thing that has to: the <i>derivation</i> is what tracks the change, because every quantity it
-     * reads — the root's size, the target's box, the widget's own size — is already in the pixels the client is
-     * currently drawing in.
+     * <p><b>The offset is DESIGN pixels</b> (058.3, one property along from {@code pad} and a border's
+     * {@code slice}): the space the whole of {@code hafen.ui} measures in, so {@code offset = {-8, -8}} is 8 of the
+     * same pixels {@code widget:position(x, y)} takes, on every client. It is held in that space and converted
+     * once, in {@link #resolve} — the one place it meets the client's own geometry, which is device throughout (the
+     * root's size, the target's box, the widget's own size). So the <i>derivation</i> is what tracks a resize, and
+     * the offset is the only term in it with a unit to convert.
      *
      * <p>Immutable, and the widget target is held <b>weakly</b>: an installed rule outlives the windows it names,
      * and an anchor to a window that closed is inert (the widget stays where it is) rather than a pin or a snap.
@@ -194,7 +195,10 @@ final class Layout {
             this.plain = plain;
         }
 
-        /** {@code widget:position(x, y)} and a rule's own {@code position}: the parent's top-left, plus that offset. */
+        /**
+         * {@code widget:position(x, y)} and a rule's own {@code position}: the parent's top-left, plus that offset,
+         * in the design pixels both of them are written in.
+         */
         static Anchor at(Coord c) {
             return new Anchor(PARENT, null, 0, 0, c, true);
         }
@@ -215,11 +219,16 @@ final class Layout {
          * deliberately <b>inert</b>: the widget stays where it is, because snapping it back to stock the moment its
          * anchor's target closed would be a worse answer than leaving it, and the next tick places it again if the
          * target comes back. Caller holds the {@code ui} monitor.
+         *
+         * <p><b>The answer is DEVICE pixels</b>, because it is a coordinate the client's own {@code c} takes: this
+         * is where {@link #offset} — the one design number in the derivation — converts (058.3), and every other
+         * term is read off the tree in the space the tree is laid out in.
          */
         Coord resolve(UI u, Widget w) {
+            Coord off = Px.in(offset);        // design → device, once: everything below is the client's own space
             Widget p = w.parent;
             if(plain && (p == null))
-                return offset;                // a plain pos is a coordinate, not a relationship: it needs no
+                return off;                   // a plain pos is a coordinate, not a relationship: it needs no
                                               // target, so a parentless widget (the root) keeps 036.1's answer
             if((u == null) || (u.root == null) || (p == null) || (w.sz == null) || (p.sz == null))
                 return null;
@@ -246,8 +255,8 @@ final class Layout {
                 return null;
             // The target's aligned corner, then back off the widget's own — so "bottomright" means corner ON
             // corner. Root coordinates throughout, converted to the parent-relative c the client itself keeps.
-            Coord want = Coord.of(tp.x + ((tsz.x * ax) / 2) + offset.x - ((w.sz.x * ax) / 2),
-                                  tp.y + ((tsz.y * ay) / 2) + offset.y - ((w.sz.y * ay) / 2));
+            Coord want = Coord.of(tp.x + ((tsz.x * ax) / 2) + off.x - ((w.sz.x * ax) / 2),
+                                  tp.y + ((tsz.y * ay) / 2) + off.y - ((w.sz.y * ay) / 2));
             return want.sub(pp);
         }
 
@@ -359,6 +368,13 @@ final class Layout {
      * One half of one widget's layout: the winning value from the cascade (a tree rule, then the hand-named verb
      * on top), written through the same call the verb makes — or, when no level names this half any more, the
      * stock value handed back and the record's half forgotten. Caller holds the {@code ui} monitor.
+     *
+     * <p><b>Both levels of the cascade carry DESIGN pixels</b> (058.3) — a rule's {@code size} as it was parsed,
+     * the verb's as it was written — and each half converts at the one line where it meets the client: an
+     * {@link Anchor} inside {@link Anchor#resolve}, since the rest of that derivation is the tree's own device
+     * geometry, and a size right here, on its way into {@link Widget#resize}. The <b>stock</b> values are the
+     * client's own and stay device throughout ({@link LuaWidget.Moved}), so a restore never round-trips through
+     * design and back.
      */
     private static void applyHalf(UI u, Widget w, Sheet.Resolved r, boolean pos) {
         Anchor place = null;
@@ -378,11 +394,13 @@ final class Layout {
         if(pos) {
             track(w, place);                          // 036.3: is this widget's place DERIVED from something?
             if(place != null) {
-                want = place.resolve(u, w);
+                want = place.resolve(u, w);           // ...and it comes back in the client's own device pixels
                 if(want == null)
                     return;                           // an anchor that cannot be resolved right now is INERT
                 want = fit(u, w, want);               // ...and the client's own clamp has the last word
             }
+        } else if(want != null) {
+            want = Px.in(want);                       // design → device, where a rule's size meets Widget.resize
         }
         if(want != null) {
             LuaWidget.Moved rec = LuaWidget.recordMoved(owner, w);
@@ -665,8 +683,10 @@ final class Layout {
      * a hand-written rule and a {@code theme.json} say, the keyed form is what {@code widget:position()} and
      * {@code widget:style()} hand back, so a read round-trips into a write unchanged.
      *
-     * <p><b>Raw pixels</b> (D-081): a coordinate you write is a pixel you get, exactly as {@code pad}, a border's
-     * slice and {@code ui.window{size=}} already are.
+     * <p><b>Design pixels</b> (058.3), like every other number {@code hafen.ui} takes: the pair is kept exactly as
+     * the rule said it, and converts once at the edge where it is applied — {@link #applyHalf} for a size,
+     * {@link Anchor#resolve} for a place. Which is also what makes the read round-trip: {@code rule:size()} and
+     * {@code widget:style()} answer the numbers that were written, on every client.
      */
     static Coord parseCoord(String ctx, String prop, LuaValue v) {
         boolean size = "size".equals(prop);

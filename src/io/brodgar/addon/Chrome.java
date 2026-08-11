@@ -110,12 +110,15 @@ final class Chrome {
      * in this engine ({@code IBox.Scaled}, the window-less panels' own border). The centre is <b>not</b> painted:
      * that is {@link Bg}'s job, so the two properties compose instead of overwriting each other.
      *
-     * <p>The insets are in the image's own pixels and are <b>not</b> UI-scaled: an addon's PNG draws at its
-     * natural size everywhere else in this API ({@code g:image}, {@code render.sprite}), and a border that
-     * silently grew on a hi-dpi client would be the one place that disagreed.
+     * <p><b>The insets are in the image's own pixels, which are DESIGN pixels</b> (058.3) — the same space
+     * {@code g:image} blits that PNG in and the same one {@code pad} and a rule's {@code position} are written in.
+     * So the four numbers are validated against the image exactly as they are read, and it is the <b>draw</b> that
+     * carries the scale: {@link #box} wraps each slice at the size it is drawn, so an 8 px border reads at 8 design
+     * pixels of weight on every client instead of thinning out as the user scales up.
      */
     static final class Border {
         final LuaImage image;
+        /** The four insets, in the image's own — design — pixels. {@link #tlIn}/{@link #brIn} are the drawn room. */
         final int l, t, r, b;
         private IBox box;              // built on first draw from TexSI views -- no second upload, nothing to free
 
@@ -125,8 +128,29 @@ final class Chrome {
         }
 
         /**
+         * The left/top and right/bottom insets in <b>device</b> pixels — the room the drawn slices actually take,
+         * and what a window's chrome lays its content out against ({@link SkinDeco#iresize}). It is
+         * {@link Px#in(Coord)} over the same pair {@link #box} scales each corner by, so the frame the draw paints
+         * and the frame the layout reserves are the same rectangle by construction.
+         */
+        Coord tlIn() {
+            return Px.in(Coord.of(l, t));
+        }
+
+        /** The right/bottom insets in device pixels — see {@link #tlIn}. */
+        Coord brIn() {
+            return Px.in(Coord.of(r, b));
+        }
+
+        /**
          * The 9-slice box over the addon's image. Built lazily and once: it is nine {@link TexSI} windows onto the
          * same texture, so this allocates eight small objects and <b>no</b> GPU memory.
+         *
+         * <p><b>Each slice is cut in the image's own pixels and then viewed at the size it is drawn</b> (058.3): the
+         * {@code TexSI} rectangles are the design numbers the rule said, and {@link Px#in(Tex)} wraps each one so
+         * {@code IBox.Scaled} — which measures its corners and stretches its edges from {@code Tex.sz()} — draws the
+         * whole frame in device pixels. Cutting a scaled texture instead would put the slice lines at fractional
+         * source pixels and blur the corners; the scale is read once at class init, so wrapping once here is enough.
          */
         IBox box() {
             IBox c = this.box;
@@ -146,7 +170,7 @@ final class Chrome {
         }
 
         private static Tex sub(Tex tx, int x, int y, int w, int h) {
-            return new TexSI(tx, Coord.of(x, y), Coord.of(x + w, y + h));
+            return Px.in(new TexSI(tx, Coord.of(x, y), Coord.of(x + w, y + h)));
         }
 
         /**
@@ -157,7 +181,8 @@ final class Chrome {
         void draw(GOut g, Coord ul, Coord sz) {
             if((image == null) || image.dead)
                 return;
-            if((sz.x < l + r) || (sz.y < t + b))
+            Coord tl = tlIn(), br = brIn();          // the DRAWN corners: sz is the client's own device box
+            if((sz.x < tl.x + br.x) || (sz.y < tl.y + br.y))
                 return;
             box().draw(g, ul, sz);
         }
@@ -392,13 +417,13 @@ final class Chrome {
     }
 
     /**
-     * Parse a rule's {@code pad = 6} — the space a surface keeps between its frame and its content, in <b>raw</b>
-     * px and a single number for all four sides (one canonical way per operation).
+     * Parse a rule's {@code pad = 6} — the space a surface keeps between its frame and its content, in
+     * <b>design</b> px and a single number for all four sides (one canonical way per operation).
      *
-     * <p><b>Raw, not {@code UI.scale}d.</b> It is a coordinate, and every coordinate this API takes is raw: an
-     * addon's window is {@code size = {90, 40}} of real pixels, a border's slice is the image's own pixels, and
-     * {@code g:image} draws where it is told. Only a {@code font}'s {@code size} is scaled, because a type size is
-     * not a coordinate. A scaled {@code pad} would be the one number in a rule that did not mean what it said.
+     * <p><b>Design pixels, converted where it is spent</b> (058.3): {@link SkinDeco#iresize} adds it to
+     * {@code Window.dlmrgn}/{@code dsmrgn}, which are themselves {@code UI.scale}d, so an unconverted {@code pad}
+     * was the one term in that sum meaning something different from the others. Kept as written, so
+     * {@code rule:pad()} reads back the number the rule said on every client.
      */
     static Integer parsePad(String ctx, LuaValue v) {
         // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (the 028

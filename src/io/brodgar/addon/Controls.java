@@ -145,7 +145,7 @@ final class Controls {
      * already has for a button's face.
      */
     interface RowHeight {
-        /** The row height in pixels, as it stands right now. */
+        /** The row height as the client's own widget holds it — DEVICE px; {@link Controls#rowHeight(Owned)} converts. */
         int rowHeight();
     }
 
@@ -165,7 +165,7 @@ final class Controls {
      * and goes through a rebuild in {@link Controls#cell}, the same shape {@link #rowHeight} already has.
      */
     interface Cell {
-        /** The current cell box, in pixels. */
+        /** The cell box as {@code GridList} holds it — DEVICE px; {@link Controls#cell(Owned)} converts. */
         Coord cell();
     }
 
@@ -401,7 +401,7 @@ final class Controls {
             throw new LuaError("hafen.ui():grid() takes no arguments — it is built bare and configured by"
                 + " chained setters: hafen.ui():grid():cell(48, 48):rows(items):onCell(fn)");
         UI u = UiApi.requireUi("grid");
-        return UiApi.attach(u, owner, new CGrid(owner, Px.in(CGrid.DEF_SZ), CGrid.DEF_CELL));
+        return UiApi.attach(u, owner, new CGrid(owner, Px.in(CGrid.DEF_SZ), Px.in(CGrid.DEF_CELL)));
     }
 
     /**
@@ -809,11 +809,16 @@ final class Controls {
 
     // ------------------------------------------------------------------ the rowHeight verb (040.9)
 
-    /** {@code widget:rowHeight()} — the row height in pixels, or {@code nil} on a control with no rows. */
+    /**
+     * {@code widget:rowHeight()} — the row height in design pixels, or {@code nil} on a control with no rows.
+     * Converted out of the client's own space (058.3), so a height this API was given reads back unchanged and a
+     * stock one — the client's label height, which grows with the UI scale — reads as the same design number on
+     * every client.
+     */
     static LuaValue rowHeight(Owned c) {
         if(!(c instanceof RowHeight))
             return LuaValue.NIL;
-        return LuaValue.valueOf(((RowHeight)c).rowHeight());
+        return LuaValue.valueOf(Px.out(((RowHeight)c).rowHeight()));
     }
 
     /**
@@ -833,9 +838,10 @@ final class Controls {
                 + " one — " + LuaWidget.typeName(w) + " has none.");
         if(!v.isnumber())
             throw new LuaError("widget:rowHeight(n) — n must be a NUMBER of pixels, got " + v.typename());
-        int n = v.toint();
-        if(n <= 0)
-            throw new LuaError("widget:rowHeight(n) — n must be a POSITIVE number of pixels, got " + n);
+        int des = v.toint();                  // DESIGN px, as written: checked, reported and only then converted
+        if(des <= 0)
+            throw new LuaError("widget:rowHeight(n) — n must be a POSITIVE number of pixels, got " + des);
+        int n = Px.in(des);                   // 058.3: the client's own row widgets measure in device px
         if(!c.pending())
             throw new LuaError("widget:rowHeight(n) chooses a list's ROW HEIGHT while the control is being"
                 + " BUILT, and this one is already on screen — the client's own row-list widget fixes its row"
@@ -877,11 +883,15 @@ final class Controls {
 
     // ------------------------------------------------------------------ the cell verb (040.11)
 
-    /** {@code widget:cell()} — the current cell box {@code {w=, h=}}, or {@code nil} on a control with no cells. */
+    /**
+     * {@code widget:cell()} — the current cell box {@code {w=, h=}} in design pixels, or {@code nil} on a control
+     * with no cells. Converted out like {@link #rowHeight}: a bare grid's stock box reads {@code 32x32} — the
+     * client's own inventory slot, in the pixels its art was drawn at — on every client.
+     */
     static LuaValue cell(Owned c) {
         if(!(c instanceof Cell))
             return LuaValue.NIL;
-        Coord sz = ((Cell)c).cell();
+        Coord sz = Px.out(((Cell)c).cell());
         LuaTable t = new LuaTable();
         t.set("w", LuaValue.valueOf(sz.x));
         t.set("h", LuaValue.valueOf(sz.y));
@@ -903,7 +913,7 @@ final class Controls {
             throw new LuaError("widget:cell(w, h) — w must be a NUMBER of pixels, got " + wv.typename());
         if(!hv.isnumber())
             throw new LuaError("widget:cell(w, h) — h must be a NUMBER of pixels, got " + hv.typename());
-        int cw = wv.toint(), ch = hv.toint();
+        int cw = wv.toint(), ch = hv.toint();          // DESIGN px, as written: checked and reported in that space
         if((cw <= 0) || (ch <= 0))
             throw new LuaError("widget:cell(w, h) — both must be POSITIVE numbers of pixels, got " + cw + "x" + ch);
         if(!c.pending())
@@ -911,7 +921,7 @@ final class Controls {
                 + " and this one is already on screen — the client's own grid widget fixes its cell box at"
                 + " construction, so set it in the same statement that builds the control.");
         CGrid old = (CGrid)c;
-        CGrid nu = new CGrid(owner, old.sz, new Coord(cw, ch));
+        CGrid nu = new CGrid(owner, old.sz, Px.in(new Coord(cw, ch)));   // 058.3: GridList measures in device px
         if(old.rows() != null)
             nu.rows(old.rows());
         UiApi.rebuild(owner, old, nu);

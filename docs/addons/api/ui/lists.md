@@ -54,7 +54,8 @@ list:value("Stone")        --> selects it; refused if "Stone" is not one of the 
 re-enters it, so driving the selection from a script and reacting to the user changing it never loop into
 each other.
 
-`:rowHeight(n)` sets the height of a row, in pixels, defaulting to the client's own label height. Like a
+`:rowHeight(n)` sets the height of a row, in [design pixels](pixels.md), defaulting to the client's own label
+height — which reads back as the same number at every interface scale, like every other size here. Like a
 [button's face](controls/interactive.md#a-caption-or-a-picture), it is chosen while the control is being
 built: it refuses once the list is on screen.
 
@@ -105,9 +106,9 @@ the cell's box, drawn at `(0,0)`, its own top-left, and `:item()` the row `:rows
 handler that errors costs only that cell's line; the rest of the grid still draws, that frame and every one
 after it.
 
-`:cell(w, h)` is the cell box, in pixels, defaulting to the client's own inventory-slot size (32×32); like a
-[list's row height](#list), it is chosen while the control is being built and refuses once the grid is on
-screen. A grid answers no `:value()` and no `Changed` — it holds nothing, the same as a [menu](#menu) —
+`:cell(w, h)` is the cell box, in [design pixels](pixels.md), defaulting to the client's own inventory-slot
+size — `32×32`, the same box at every interface scale; like a [list's row height](#list), it is chosen while the
+control is being built and refuses once the grid is on screen. A grid answers no `:value()` and no `Changed` — it holds nothing, the same as a [menu](#menu) —
 and an empty `:rows{}` draws nothing rather than erroring.
 
 ## Table

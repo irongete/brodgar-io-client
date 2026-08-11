@@ -44,9 +44,17 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
         Controls.OnCell {
     /** A default box, in DESIGN pixels; {@code :size(w, h)} overrides it, same as every other control here. */
     static final Coord DEF_SZ = new Coord(200, 200);
-    /** The client's own inventory-slot size — what a bare {@code hafen.ui():grid()} cells at until {@code :cell(w, h)}. */
+    /**
+     * The client's own inventory-slot size, in DESIGN pixels — what a bare {@code hafen.ui():grid()} cells at until
+     * {@code :cell(w, h)}, and the same integer {@code :cell()} reads back at every UI scale.
+     */
     static final Coord DEF_CELL = new Coord(32, 32);
-    /** The engine's own even-spread-across-the-width margin ({@code SkillGrid}/{@code ExpGrid}): no fixed x gap, 5px y. */
+    /**
+     * The engine's own even-spread-across-the-width margin ({@code SkillGrid}/{@code ExpGrid}): no fixed x gap, and
+     * <b>5 DESIGN px</b> of row gap, converted at the one place it is spent (the constructor below). The {@code -1}
+     * is {@code GridList}'s sentinel for "spread the columns", tested as {@code marg.x >= 0} — a number, not a
+     * length, so it is the one term here that must not be scaled.
+     */
     private static final Coord MARG = new Coord(-1, 5);
 
     private final Owned.State own;
@@ -60,7 +68,8 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
     CGrid(Addon owner, Coord sz, Coord cellSz) {
         super(sz);
         this.cellSz = cellSz;
-        this.group = new Group(cellSz, MARG, null, Collections.<LuaValue>emptyList());
+        this.group = new Group(cellSz, Coord.of(MARG.x, Px.in(MARG.y)), null,
+                               Collections.<LuaValue>emptyList());
         this.own = new Owned.State(owner, this);
     }
 

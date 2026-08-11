@@ -47,6 +47,17 @@ win:on("Draw", function(ev)
 end)
 ```
 
+**A [stylesheet](style/README.md) says the same space.** A rule's `position` and `size`, an
+[`anchor`](style/geometry.md#anchor)'s `offset`, a [`pad`](style/chrome.md#pad) and a `border`'s four `slice`
+insets are all design pixels, and so are a [list's](lists.md#list) `:rowHeight(n)` and a
+[grid's](lists.md#grid) `:cell(w, h)`. Each reads back the number the rule wrote, so a theme is a set of numbers
+that means one thing on every client:
+
+```lua
+hafen.ui():sheet():rule("window[title=Equipment]"):position(40, 200):install()
+hafen.ui():find("window[title=Equipment]"):position()   -- {x = 40, y = 200}, at any scale
+```
+
 **An image you ship is measured in it too.** A 32×32 PNG is 32×32 to
 [`img:size()`](../asset.md#image) and covers 32 design pixels when drawn, so your art and the client's
 sit at the same size at every scale.
@@ -79,4 +90,5 @@ this verb is what the client is drawing at right now.
 - [mouse](mouse.md) — the pointer, in these coordinates
 - [custom](custom.md) — a surface you paint, and the size its `Draw` reports
 - [drawing](drawing.md) — the `g:` verbs, which take these numbers
+- [style](style/README.md) — a rule's own coordinates, sizes and insets
 - [`hafen.font`](../font.md) — a type size, in the same space

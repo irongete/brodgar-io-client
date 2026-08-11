@@ -34,7 +34,7 @@
       `[manual]`: at scale 1.5, the addon's own PNG is the same visual size as the client's icon beside it,
       and a `g:rect` traced at `0, 0, ev:w(), ev:h()` sits on the window's edge with no gap.
 
-- [ ] **058.3 — the stylesheet says design pixels too.** `Layout.Anchor`'s parsed `offset`; `SkinDeco`'s
+- [x] **058.3 — the stylesheet says design pixels too.** `Layout.Anchor`'s parsed `offset`; `SkinDeco`'s
       `pad`, which is added to `Window.dlmrgn`/`dsmrgn` and is today the only unscaled term in that sum;
       `Chrome.Border`'s four slice insets, cut in the image's own — now design — pixels, with the *draw*
       carrying the scale and the existing slice-vs-image validation unchanged; and `Controls`'

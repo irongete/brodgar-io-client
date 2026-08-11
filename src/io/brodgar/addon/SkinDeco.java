@@ -74,6 +74,12 @@ final class SkinDeco extends Window.DefaultDeco {
      *       engine adds no hidden minimum, which is what keeps every number here predictable from the rule alone.</li>
      * </ul>
      *
+     * <p><b>Every term of this sum is device</b>, which is why the two the rule contributes convert on the way in
+     * (058.3): the stock margins and insets are {@code UI.scale}d constants, so a {@code pad} or a slice inset left
+     * in the design pixels the rule wrote them in would be the one summand meaning something else — and the frame
+     * would then reserve less room than the draw paints. {@link Chrome.Border#tlIn} is the very conversion the draw
+     * scales each corner by, so the two cannot drift apart.
+     *
      * <p><b>{@code isz} is the CONTENT size.</b> So padding a window grows it <i>outward</i> around fixed content;
      * it never shrinks the content to fit. Everything else — {@code contarea()} answering {@code aa}, the close
      * button at the top right, the sizer inside {@code ca} — is stock and inherited, so a themed window resizes,
@@ -81,13 +87,13 @@ final class SkinDeco extends Window.DefaultDeco {
      */
     public void iresize(Coord isz) {
         Chrome.Border b = this.border;
-        int p = this.pad;
+        int p = Px.in(this.pad);                                   // 058.3: the rule said design px; this sum is device
         Coord ftl, fbr, mrgn;
         if(b == null) {
             ftl = Window.tlm; fbr = Window.brm;                    // the stock art still owns the frame insets
             mrgn = (lg ? Window.dlmrgn : Window.dsmrgn).add(p, p); // ...and pad simply widens its margin
         } else {
-            ftl = Coord.of(b.l, b.t); fbr = Coord.of(b.r, b.b);    // our 9-slice owns them instead
+            ftl = b.tlIn(); fbr = b.brIn();                        // our 9-slice owns them instead, at drawn size
             mrgn = Coord.of(p, p);                                 // ...and pad IS the whole margin
         }
         Coord csz = isz.add(mrgn.mul(2));

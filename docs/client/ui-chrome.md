@@ -12,6 +12,7 @@
 | Who builds their own | `Window.makedeco()` (**`protected`**) · `MapWnd` `DefaultDeco(true).dragsize(true)`, and `compact()` sets it **null** · `GItem.ContentsWindow` swaps `HoverDeco`/`DefaultDeco` per state |
 | Geometry flows one way | `resize2` — `deco.iresize(sz)`, `deco.c = contarea().ul.inv()`, `this.sz = deco.sz`. **The ctor's `sz` is the CONTENT size**; `ca()`/`csz()`/`xlate` all read `contarea()` |
 | The stock layout formula | `DefaultDeco.iresize` — `content + mrgn*2 + tlm + brm`: an inner **margin** (`dlmrgn` 23x14 / `dsmrgn` 9x9, all `UI.scale`d) and outer **frame insets** (`tlm` 18x30, `brm` 13x22). `ca` = the bg box, `aa` = `contarea()`, `cbtn` pinned to the top right |
+| Packing one | `Widget.pack()` is `resize(contentsz())`, and `Window.contentsz()` is the same max-child-bottom-right as the base one **with the `deco` skipped** — so packing a window measures its children, feeds that to `resize` as the CONTENT size, and the outer `sz` is re-derived by `iresize`. The deco's own `c` is negative (`contarea().ul.inv()`), which is why it cannot be one of the children measured |
 
 **`chdeco` destroys what it displaces** (`reqdestroy()`), so a swap can never put the *same* object back; it reads
 the old `contarea()` first, re-runs the layout, and folds the difference into the **window's own `c`** — so a

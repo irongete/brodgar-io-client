@@ -2,7 +2,7 @@ package io.brodgar.addon;
 
 import haven.Coord;
 import haven.ScaledTex;
-import haven.TexI;
+import haven.Tex;
 import haven.UI;
 
 /**
@@ -12,9 +12,11 @@ import haven.UI;
  *
  * <p><b>One seam, and it is greppable.</b> Nothing else in the bridge converts a coordinate that <i>crosses</i>
  * into Lua: {@code grep -rn "UI\.scale\|UI\.unscale" src/io/brodgar/addon/} answers this file, {@code FontHandle}
- * (a <i>type</i> size, which was always design), {@code CScrollport} (a wheel step, which is device by nature)
- * and {@code UiApi.fitc} (the client's own graspability margin, re-derived in the client's own space, below this
- * seam and never above it). A crossing that skips this class is the bug it exists to make visible.
+ * (a <i>type</i> size, which was always design), {@code CScrollport} (a wheel step, which is device by nature),
+ * {@code UiApi.fitc} (the client's own graspability margin, re-derived in the client's own space, below this seam
+ * and never above it) and the {@code io.brodgar.addon.ui} panels (our own Options and consent windows — client
+ * Java laying out client widgets, where a literal is spelled {@code UI.scale} exactly as {@code haven} spells it,
+ * and no number reaches Lua at all). A crossing that skips this class is the bug it exists to make visible.
  *
  * <p><b>The round-trip is exact, and that is the whole guarantee.</b> {@code UI.scalef} is clamped to
  * {@code >= 1.0} ({@code UI.loadscale}), so for every {@code n} and every scale {@code s >= 1}:
@@ -55,8 +57,13 @@ final class Px {
      * addon's own PNG is authored in design pixels, so this is what makes {@code g:image} cover the
      * {@code img:size()} the addon read — and the client's own {@code .res} art needs it not at all, being
      * device-sized from the moment it loaded ({@code Resource.Image.scaled()}).
+     *
+     * <p>A <b>view</b>, not a copy: it uploads nothing and owns nothing, so a slice of an addon's image
+     * ({@code Chrome.Border}'s nine {@code TexSI} windows) is wrapped exactly like the whole one — which is what
+     * makes a themed border's slice insets the image's own pixels while the <i>draw</i> carries the scale. Never
+     * hand it a {@code ScaledTex}: the wrap is idempotent in {@code UI} but not through this generic call.
      */
-    static ScaledTex<TexI> in(TexI tex) {
+    static <T extends Tex> ScaledTex<T> in(T tex) {
         return (tex == null) ? null : UI.scale(tex);
     }
 
