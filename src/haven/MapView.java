@@ -46,6 +46,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public Coord2d cc;
     private final Glob glob;
     private int view = 2;
+
     private Collection<Delayed> delayed = new LinkedList<Delayed>();
     private Collection<Delayed> delayed2 = new LinkedList<Delayed>();
     public Camera camera = restorecam();
@@ -260,9 +261,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
     static {camtypes.put("worse", SimpleCam.class);}
 
     public class FreeCam extends Camera {
-	private float dist = 50.0f, tdist = dist;
-	private float elev = (float)Math.PI / 4.0f, telev = elev;
-	private float angl = 0.0f, tangl = angl;
+	/* rts: (F4) where the camera looks -- see OrthoCam.camcc(). */
+	protected Coord3f camcc() {
+	    return(getcc().invy());
+	}
+
+	/* rts: (F4) protected, not private -- FleetCam drives the same controls from the keyboard and
+	 * sizes its frustum from the distance. */
+	protected float dist = 50.0f, tdist = dist;
+	protected float elev = (float)Math.PI / 4.0f, telev = elev;
+	protected float angl = 0.0f, tangl = angl;
 	private Coord dragorig = null;
 	private float elevorig, anglorig;
 	private final float pi2 = (float)(Math.PI * 2);
@@ -281,7 +289,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    dist = dist + ((tdist - dist) * cf);
 	    if(Math.abs(tdist - dist) < 0.0001) dist = tdist;
 
-	    Coord3f mc = getcc().invy();
+	    Coord3f mc = camcc();   // rts: (F4) -- was getcc().invy()
 	    if((cc == null) || (Math.hypot(mc.x - cc.x, mc.y - cc.y) > 250))
 		cc = mc;
 	    else
@@ -328,8 +336,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	private float anglorig;
 	protected Coord3f cc, jc;
 
+	/* rts: (F4, specs/rts/plan.md) where the camera looks. Every shipped camera looks at the
+	 * player and at nothing else, and this is the one line that said so -- factored out so that a
+	 * camera can look somewhere else without reimplementing the smoothing, the isometric snap and
+	 * the pixel-exact correction below. */
+	protected Coord3f camcc() {
+	    return(getcc().invy());
+	}
+
 	public void tick2(double dt) {
-	    this.cc = getcc().invy();
+	    this.cc = camcc();
 	}
 
 	public void tick(double dt) {
@@ -413,7 +429,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void tick2(double dt) {
 	    dt *= tf;
 	    float cf = 1f - (float)Math.pow(500, -dt);
-	    Coord3f mc = getcc().invy();
+	    Coord3f mc = camcc();   // rts: (F4) -- was getcc().invy()
 	    if((cc == null) || (Math.hypot(mc.x - cc.x, mc.y - cc.y) > 250))
 		cc = mc;
 	    else if(!exact || (mc.dist(cc) > 2))
@@ -484,6 +500,191 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
     static {camtypes.put("ortho", SOrthoCam.class);}
 
+    // rts: (F4) centre the view on the selection -- the RTS gesture, through the client's own
+    // rebindable binding system rather than a hard-wired key.
+    public static KeyBinding kb_rtsfocus = KeyBinding.get("rts-focus", KeyMatch.forcode(KeyEvent.VK_SPACE, 0));
+    // rts: (F5) hand the screen to the next session -- the only way to reach another character's HUD.
+    public static KeyBinding kb_rtsnext = KeyBinding.get("rts-next-anchor", KeyMatch.forcode(KeyEvent.VK_TAB, 0));
+
+    /* rts: (F4, specs/rts/plan.md) the fleet camera. It is an SOrthoCam in every respect -- the same
+     * isometric snap, the same wheel zoom, the same rotation on the arrow keys -- except that it has a
+     * centre of its own instead of being bolted to the player. That is the whole difference between a
+     * camera you play a character with and one you command a group with.
+     *
+     * The middle button pans instead of rotating: rotation is on the arrow keys already, and an RTS
+     * without panning is not one. The pan solves the screen delta back into world units through the
+     * view's OWN projection (three probes and a 2x2 inverse) rather than by rebuilding the camera's
+     * trigonometry -- so it stays exact at any angle, elevation or zoom, and cannot drift out of
+     * agreement with what is actually on screen. */
+    public class FleetCam extends FreeCam {
+	private Coord2d center = null;      // null = follow the player, exactly as FreeCam does
+	private Coord2d dragorig = null;
+	private Coord dragsc = null;
+	private boolean rotating = false;
+
+	public FleetCam(String... args) {
+	    super();
+	}
+
+	private float lastz = 0;
+
+	protected Coord3f camcc() {
+	    Coord2d c = this.center;
+	    if(c == null)
+		return(super.camcc());
+	    /* This must NOT throw Loading. MapView.draw turns a camera Loading into a black screen and
+	     * "Waiting for map data...", which is right for a camera bolted to a character -- it cannot
+	     * be anywhere the player has not been. A free camera can, and routinely is: panned over a
+	     * merged patch, the ANCHOR has no map there at all and never will. So ask the session that
+	     * does have that ground, and failing that keep the last height rather than the whole view. */
+	    try {
+		Coord3f p = glob.map.getzp(c);
+		lastz = p.z;
+		return(p.invy());
+	    } catch(Loading e) {
+		lastz = (float)io.brodgar.rts.Fleet.groundz(c, lastz);
+		return(new Coord3f((float)c.x, -(float)c.y, lastz));
+	    }
+	}
+
+	/** Where the camera is looking now, whether or not it has been panned. */
+	public Coord2d center() {
+	    Coord2d c = this.center;
+	    if(c != null)
+		return(c);
+	    try {
+		Coord3f p = getcc();
+		return(Coord2d.of(p.x, p.y));
+	    } catch(Loading e) {
+		return(null);
+	    }
+	}
+
+	public void focus(Coord2d c) {this.center = c;}
+	public void follow()         {this.center = null;}
+
+	public boolean click(Coord sc) {
+	    /* Shift keeps FreeCam's own gesture -- rotate and elevate -- because this camera is that
+	     * camera in every other respect and there is nowhere else to put it. Bare drag pans. */
+	    rotating = (ui.modflags() & UI.MOD_SHIFT) != 0;
+	    if(rotating)
+		return(super.click(sc));
+	    dragsc = sc;
+	    dragorig = center();
+	    return(true);
+	}
+
+	public void drag(Coord sc) {
+	    if(rotating) {
+		super.drag(sc);
+		return;
+	    }
+	    Coord2d o = dragorig;
+	    if((o == null) || (dragsc == null))
+		return;
+	    Coord2d d = unproject(o, sc.sub(dragsc));
+	    if(d != null)
+		this.center = o.sub(d);   // the ground follows the cursor, so the centre moves against it
+	}
+
+	public void release() {
+	    if(rotating)
+		super.release();
+	    rotating = false;
+	}
+
+	/** The world delta that would move a point at {@code at} by {@code dsc} pixels on this screen. */
+	private Coord2d unproject(Coord2d at, Coord dsc) {
+	    Coord3f p0 = screenxf(at), px = screenxf(at.add(1, 0)), py = screenxf(at.add(0, 1));
+	    if((p0 == null) || (px == null) || (py == null))
+		return(null);
+	    double a = px.x - p0.x, b = py.x - p0.x, c = px.y - p0.y, d = py.y - p0.y;
+	    double det = (a * d) - (b * c);
+	    if(Math.abs(det) < 1e-9)
+		return(null);
+	    return(Coord2d.of(((d * dsc.x) - (b * dsc.y)) / det,
+			      ((a * dsc.y) - (c * dsc.x)) / det));
+	}
+
+	/* rts: (F4) the frustum follows the distance.
+	 *
+	 * Camera.resized() fixes the far plane at 2000, which is generous for a camera bolted to a
+	 * character and is the entire world for one that is not: pull back past it and everything --
+	 * ground included -- is clipped, and the screen goes black. It is not a culling setting
+	 * anywhere, it is the projection, so no amount of draw-distance tuning would have touched it.
+	 * The near plane rises with the distance too, or the depth buffer would lose all its precision
+	 * to the first ten metres. */
+	private void setproj() {
+	    float aspect = ((float)sz.y) / ((float)sz.x);
+	    float near = Math.max(1f, dist / 200f);
+	    /* The frustum rectangle is given AT THE NEAR PLANE -- makefrustum's scale term is
+	     * 2*near/(right-left) -- so `field` is not an angle, it is a size, and holding it fixed
+	     * while the near plane moves changes the field of view by exactly that ratio. Scaling it
+	     * with `near` is what keeps the angle constant; the shipped cameras get away with the
+	     * constant 0.5f only because their near plane never moves off 1. */
+	    float field = 0.5f * near;
+	    float far = (dist * 4f) + 5000f;
+	    proj = Projection.frustum(-field, field, -aspect * field, aspect * field, near, far);
+	}
+
+	public void resized() {
+	    super.resized();
+	    setproj();
+	}
+
+	public void tick(double dt) {
+	    super.tick(dt);
+	    setproj();
+	}
+
+	/* Proportional, not a fixed step: 25 units a notch is a shove up close and imperceptible far
+	 * out, which is what makes pulling back feel like it has a wall in front of it. */
+	public boolean wheel(MouseWheelEvent ev) {
+	    zoom((float)Math.pow(1.15, ev.s));
+	    return(true);
+	}
+
+	private void zoom(float f) {
+	    tdist = Math.max(5f, Math.min(tdist * f, 20000f));
+	}
+
+	public boolean keydown(KeyDownEvent ev) {
+	    if(kb_rtsfocus.key().match(ev)) {
+		io.brodgar.rts.Control.focus(MapView.this);
+		return(true);
+	    }
+	    if(kb_camreset.key().match(ev)) {
+		follow();
+		return(true);
+	    }
+	    /* FreeCam has no keyboard at all -- its rotation is a drag and nothing else. An RTS camera
+	     * needs turning without giving up the mouse, and these are the client's own rebindable
+	     * camera bindings, so they are where a player would already look for it. */
+	    if(kb_camleft.key().match(ev)) {
+		tangl -= (float)(Math.PI / 8);
+		return(true);
+	    }
+	    if(kb_camright.key().match(ev)) {
+		tangl += (float)(Math.PI / 8);
+		return(true);
+	    }
+	    if(kb_camin.key().match(ev)) {
+		zoom(1f / 1.4f);
+		return(true);
+	    }
+	    if(kb_camout.key().match(ev)) {
+		zoom(1.4f);
+		return(true);
+	    }
+	    return(super.keydown(ev));
+	}
+
+	public String stats() {
+	    return(String.format("%.0f %.2f%s", dist, angl / Math.PI, (center == null) ? " follow" : " free"));
+	}
+    }
+    static {camtypes.put("fleet", FleetCam.class);}
+
     @RName("mapview")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
@@ -502,13 +703,73 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	this.cc = cc;
 	this.plgob = plgob;
 	basic.add(new Outlines(false));
-	basic.add(this.gobs = new Gobs());
-	basic.add(this.terrain = new Terrain());
+	this.gobs = new Gobs();
+	this.terrain = new Terrain();
 	this.clickmap = new ClickMap();
-	clmaptree.add(clickmap);
 	setcanfocus(true);
-	io.brodgar.voice.Voice.attach(this);   // brodgar voice: connect on entering the game
-	io.brodgar.addon.AddonManager.attach(this);   // addon: capture the live view for the engine
+	/* rts: a fleet member's view is built but never enters the render tree (F0, specs/rts/plan.md).
+	 * That is not cosmetic. MapRaster.Grid.tick() is a no-op while its node has no slot, and Gobs
+	 * registers its OCache callback only when it is added -- so this one branch is the whole
+	 * difference between a dormant session costing network and one meshing terrain, building gob
+	 * sprites and rasterizing a click-map for a picture nobody will ever look at. The voice channel
+	 * and the addon engine are the client's one live pair for the same reason: they follow the view
+	 * that is drawn. Promoting a member to anchor (F5) is what will need the inverse of this. */
+	this.dormant = io.brodgar.rts.Fleet.dormant(glob);
+	if(!dormant) {
+	    attachscene();
+	    io.brodgar.voice.Voice.attach(this);   // brodgar voice: connect on entering the game
+	    io.brodgar.addon.AddonManager.attach(this);   // addon: capture the live view for the engine
+	}
+    }
+
+    // rts: (F0) the scene's own slots, so that not attaching them is expressible -- and (F5) reversible.
+    private boolean dormant;
+    private RenderTree.Slot s_gobs = null, s_terrain = null, s_clickmap = null;
+
+    private void attachscene() {
+	if(s_gobs == null)     s_gobs = basic.add(gobs);
+	if(s_terrain == null)  s_terrain = basic.add(terrain);
+	if(s_clickmap == null) s_clickmap = clmaptree.add(clickmap);
+    }
+
+    private void detachscene() {
+	/* The merged fleet patches are the anchor's business and nobody else's: a dormant view has no
+	 * frame of reference to hang them in and nothing to draw them to. Dropped whole; fleettick()
+	 * builds them again from scratch if this view is ever promoted back. */
+	for(FleetView fv : fleetviews.values())
+	    fv.remove();
+	fleetviews.clear();
+	if(s_gobs != null)     {s_gobs.remove();     s_gobs = null;}
+	if(s_terrain != null)  {s_terrain.remove();  s_terrain = null;}
+	if(s_clickmap != null) {s_clickmap.remove(); s_clickmap = null;}
+    }
+
+    /** rts: is this the view of a session the client holds but does not draw? (F0) */
+    public boolean dormant() {
+	return(dormant);
+    }
+
+    /**
+     * rts: (F5) become, or stop being, the view that is drawn.
+     *
+     * <p>The scene is torn out and rebuilt rather than hidden, because "in a render tree" is exactly
+     * what decides whether terrain is meshed at all — the same fact that makes a dormant session cheap
+     * (F0) is what makes this switch cost something. Promotion re-meshes everything in view, which is
+     * the hitch this phase exists to measure.
+     *
+     * <p>Deliberately does <em>not</em> move the addon engine or the voice channel. Both are
+     * single-session static hubs bound at the main session's own view, and rebinding them is
+     * {@code AddonManager.init} — a full teardown and reload of every addon, which is not what a key
+     * press should do. They stay where they are until F6 makes them per-session.
+     */
+    public void dormant(boolean d) {
+	if(d == dormant)
+	    return;
+	dormant = d;
+	if(d)
+	    detachscene();
+	else
+	    attachscene();
     }
     
     protected void envdispose() {
@@ -522,7 +783,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public void dispose() {
 	io.brodgar.voice.Voice.detach(this);   // brodgar voice: stop instantly on logout
 	io.brodgar.addon.AddonManager.detach(this);   // addon:
-	gobs.slot.remove();
+	if(s_gobs != null) {   // rts: a dormant view never attached its scene (F0)
+	    s_gobs.remove();
+	    s_gobs = null;
+	}
 	clmaplist.dispose();
 	clobjlist.dispose();
 	super.dispose();
@@ -552,10 +816,29 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     private final Gobs gobs;
     private class Gobs implements RenderTree.Node, OCache.ChangeCallback {
-	final OCache oc = glob.oc;
+	/* rts: (F7, specs/rts/plan.md) the Glob is a constructor argument now -- it was `glob`, this
+	 * view's own, and nothing else. A fleet member's objects are rendered into this same scene by a
+	 * second instance reading the member's Glob, so the field had to stop being a constant. */
+	final Glob g;
+	final OCache oc;
 	final Map<Gob, Loader.Future<?>> adding = new HashMap<>();
 	final Map<Gob, RenderTree.Slot> current = new HashMap<>();
 	RenderTree.Slot slot;
+
+	Gobs() {this(glob);}
+
+	Gobs(Glob g) {
+	    this.g = g;
+	    this.oc = g.oc;
+	}
+
+
+	/* rts: (F7) a gob this instance must not draw. Always false for the view's own objects; a fleet
+	 * member's instance uses it to yield anything the anchor is already drawing, so the overlap
+	 * between two sessions' worlds is rendered once, not twice. */
+	boolean skipgob(Gob ob) {
+	    return(false);
+	}
 
 	private void addgob(Gob ob) {
 	    RenderTree.Slot slot = this.slot;
@@ -565,6 +848,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		synchronized(this) {
 		    if(!adding.containsKey(ob))
 			return;
+		}
+		if(skipgob(ob)) {   // rts: (F7)
+		    synchronized(this) {adding.remove(ob);}
+		    return;
 		}
 		RenderTree.Slot nslot;
 		try {
@@ -589,8 +876,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    throw(new RuntimeException());
 		this.slot = slot;
 		synchronized(oc) {
-		    for(Gob ob : oc)
-			adding.put(ob, glob.loader.defer(() -> addgob(ob), null));
+		    for(Gob ob : oc) {
+			if(!skipgob(ob))   // rts: (F7)
+			    adding.put(ob, g.loader.defer(() -> addgob(ob), null));
+		    }
 		    oc.callback(this);
 		}
 	    }
@@ -611,10 +900,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 
 	public void added(Gob ob) {
+	    if(skipgob(ob))   // rts: (F7)
+		return;
 	    synchronized(this) {
 		if(current.containsKey(ob))
-		    throw(new RuntimeException());
-		adding.put(ob, glob.loader.defer(() -> addgob(ob), null));
+		    return;
+		adding.put(ob, g.loader.defer(() -> addgob(ob), null));
 	    }
 	}
 
@@ -653,9 +944,24 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private class MapRaster extends RenderTree.Node.Track1 {
-	final MCache map = glob.map;
+	/* rts: (F7) an argument, for the same reason as Gobs.g above -- a fleet member's ground is
+	 * rasterized into this scene out of the member's own MCache. */
+	final MCache map;
 	Area area;
 	Loading lastload = new Loading("Initializing map...");
+
+	MapRaster() {this(glob.map);}
+
+	MapRaster(MCache map) {
+	    this.map = map;
+	}
+
+	/* rts: (F7) a cut this raster must not draw. A fleet member's ground overlaps the anchor's
+	 * wherever the two are near each other, and two identical meshes in one place is z-fighting,
+	 * not a merge -- so the member yields every cut the anchor is already drawing. */
+	boolean skipcut(Coord cc) {
+	    return(false);
+	}
 
 	abstract class Grid<T> extends RenderTree.Node.Track1 {
 	    final Map<Coord, Pair<T, RenderTree.Slot>> cuts = new HashMap<>();
@@ -676,6 +982,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    return;
 		Loading curload = null;
 		for(Coord cc : area) {
+		    if(MapRaster.this.skipcut(cc)) {   // rts: (F7)
+			Pair<T, RenderTree.Slot> cur = cuts.remove(cc);
+			if(cur != null)
+			    cur.b.remove();
+			continue;
+		    }
 		    try {
 			T cut = getcut(cc);
 			Pair<T, RenderTree.Slot> cur = cuts.get(cc);
@@ -734,6 +1046,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     public final Terrain terrain;
     public class Terrain extends MapRaster {
+	/* Computed once per tick and shared by both grids below, so the frustum test runs 25 times a
+	 * frame rather than 50 -- and so that the ground and the grass on it can never disagree about
+	 * which cuts are there. */
+	final Set<Coord> vis = new HashSet<>();
+
 	final Grid main = new Grid<MapMesh>() {
 		MapMesh getcut(Coord cc) {
 		    return(map.getcut(cc));
@@ -751,9 +1068,28 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	void tick() {
 	    super.tick();
 	    if(area != null) {
+		vis.clear();
+		if(culling()) {
+		    for(Coord cc : area) {
+			if(cutvisible(cc))
+			    vis.add(cc);
+		    }
+		}
 		main.tick();
 		flavobjs.tick();
 	    }
+	}
+
+	boolean skipcut(Coord cc) {
+	    return(culling() && !vis.contains(cc));
+	}
+
+	/* rts: the Video option. A fleet patch is culled unconditionally -- it is somewhere else and
+	 * routinely off screen altogether, and it casts no shadow either way -- but the ground around
+	 * the player sits inside the shadow map's own box, so culling it there is a trade the player
+	 * makes rather than one the client makes for them. */
+	private boolean culling() {
+	    return((ui != null) && ui.gprefs.cullterrain.val);
 	}
 
 	public void added(RenderTree.Slot slot) {
@@ -772,6 +1108,406 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		return(ret);
 	    return(null);
 	}
+    }
+
+    /* rts: (F7, specs/rts/plan.md) the merged view.
+     *
+     * Up to here the project rested on the characters being near enough that the anchor's own session
+     * already saw all of them. Separate them and that stops being true -- the anchor streams neither
+     * the ground under the others nor their gobs, so they simply vanish, and an RTS whose units
+     * disappear when they spread out is not one.
+     *
+     * A member's surroundings are therefore rasterized into THIS scene, out of the member's own MCache
+     * and OCache, under one translation: F1's offset, which is exactly what makes two login-relative
+     * frames addressable in one space. The member is still never drawn as a view -- it has no camera
+     * and no click-map. What is added here are nodes in the anchor's tree that happen to read another
+     * session's data.
+     *
+     * Both halves yield to the anchor where the two worlds overlap: the same ground drawn twice is
+     * z-fighting and the same tree drawn twice is a double tree, so the anchor wins every cut and every
+     * gob it already has, and the member fills in only what is missing. */
+    private class FleetTerrain extends MapRaster {
+	final Glob mglob;
+	final long mplgob;
+	final Coord cutoff;   // member cut coords -> anchor cut coords: subtract
+	FleetView fv;
+
+	final Grid main = new Grid<MapMesh>() {
+		MapMesh getcut(Coord cc) {
+		    return(map.getcut(cc));
+		}
+	    };
+	FleetTerrain(Glob mglob, long mplgob, Coord cutoff) {
+	    super(mglob.map);
+	    this.mglob = mglob;
+	    this.mplgob = mplgob;
+	    this.cutoff = cutoff;
+	}
+
+	void tick() {
+	    /* Centred on the MEMBER's character, in the MEMBER's tile coords -- this raster reads that
+	     * session's map, so it must be addressed in that session's frame. The translation on the
+	     * slot above is what puts the result in the right place on screen. */
+	    area = fleetarea(mglob, mplgob, this);
+	    if(area != null)
+		main.tick();
+	}
+
+	boolean skipcut(Coord cc) {
+	    return(!fv.mine.contains(cc));
+	}
+
+	public void added(RenderTree.Slot slot) {
+	    slot.add(main);
+	    super.added(slot);
+	}
+    }
+
+    private class FleetGobs extends Gobs {
+	private double lastdedupe = 0;
+	private final Coord2d fvoff;
+	FleetView fv;
+
+	FleetGobs(Glob mglob, Coord2d fvoff) {
+	    super(mglob);
+	    this.fvoff = fvoff;
+	}
+
+	/* One object, one copy -- the same rule the ground got, and it was missing here.
+	 *
+	 * Asking only the anchor was enough while there was one member. With two, both of them see the
+	 * trees standing between them and both drew them: coincident geometry, z-fighting, and two
+	 * Drawables animating out of phase, which is what "the trees are dancing" looks like.
+	 *
+	 * Ownership is positional rather than claimed: a gob belongs to the FIRST view, in a stable
+	 * order, whose session can see it. That needs no shared set and no agreement about who ran
+	 * first, which matters because this is called from Loader threads as well as from the tick --
+	 * hence the immutable snapshot rather than the live map. */
+	boolean skipgob(Gob ob) {
+	    if(glob.oc.getgob(ob.id) != null)
+		return(true);
+	    FleetView[] order = fvorder;
+	    for(int i = 0; i < order.length; i++) {
+		if(order[i] == fv)
+		    return(false);
+		if(order[i].mglob.oc.getgob(ob.id) != null)
+		    return(true);
+	    }
+	    return(false);
+	}
+
+	/* A member's OCache holds everything the server has told it about -- every tree, bush and animal
+	 * around it -- and none of that was being culled, only its ground was. Off-screen objects are as
+	 * free to leave the scene as off-screen ground, and there are far more of them. */
+	private boolean vis(Gob ob) {
+	    try {
+		return(gobvisible(ob.rc.sub(fvoff)));
+	    } catch(RuntimeException e) {
+		return(true);   /* if it cannot be placed, keep it rather than blink it out */
+	    }
+	}
+
+	/* The dedupe boundary moves as the characters walk toward and away from each other, and neither
+	 * OCache fires anything when it does -- a gob the anchor gains was never removed from the
+	 * member. So the two sets are reconciled on a slow timer rather than per frame: the boundary
+	 * moves at walking pace and this is a few hundred map lookups. No two monitors are held at once
+	 * anywhere in here. */
+	void tick() {
+	    double now = Utils.rtime();
+	    if(now - lastdedupe < 0.25)
+		return;
+	    lastdedupe = now;
+	    List<Gob> all = new ArrayList<>();
+	    synchronized(oc) {
+		for(Gob ob : oc)
+		    all.add(ob);
+	    }
+	    List<Gob> mine;
+	    synchronized(this) {
+		mine = new ArrayList<>(current.keySet());
+	    }
+	    for(Gob ob : mine) {
+		if(skipgob(ob) || !vis(ob))
+		    removed(ob);
+	    }
+	    for(Gob ob : all) {
+		if(skipgob(ob) || !vis(ob))
+		    continue;
+		boolean have;
+		synchronized(this) {
+		    have = current.containsKey(ob) || adding.containsKey(ob);
+		}
+		if(!have)
+		    added(ob);
+	    }
+	}
+    }
+
+    /* rts: (F7) the member's ground in the CLICK tree. Without this the merged terrain is scenery:
+     * visible, and completely unclickable, because the pick pass tests against clmaptree alone -- which
+     * is exactly why an order only landed while the anchor stood near the ground being clicked. */
+    private class FleetClickMap extends ClickMap {
+	final Glob mglob;
+	final long mplgob;
+	final Coord cutoff;
+	FleetView fv;
+
+	FleetClickMap(Glob mglob, long mplgob, Coord cutoff) {
+	    super(mglob.map);
+	    this.mglob = mglob;
+	    this.mplgob = mplgob;
+	    this.cutoff = cutoff;
+	}
+
+	void tick() {
+	    area = fleetarea(mglob, mplgob, this);
+	    if(area != null)
+		grid.tick();
+	}
+
+	boolean skipcut(Coord cc) {
+	    return(!fv.mine.contains(cc));
+	}
+    }
+
+    /* rts: is any part of this cut on screen? The renderer does no frustum culling of its own --
+     * States.Facecull is back-face, per triangle, and nothing in RenderList or DrawList tests
+     * visibility -- so every node in the tree is submitted every frame whether or not it can be seen.
+     * For the client's own terrain that hardly matters: it is a small square around the camera and
+     * almost all of it is in view. A fleet patch is somewhere else entirely and is routinely off
+     * screen altogether, and paying full price for it is what makes a second character expensive.
+     *
+     * Conservative on purpose. The test is per-plane -- a cut is dropped only when all four corners
+     * fall outside the SAME side of the frustum, never merely when none of them is inside, which is
+     * the classic way to make a quad larger than the screen vanish. The corners are pushed outward by
+     * a whole cut and the height range is generous, so ground rising into view at the edge is kept
+     * rather than popped. Anything behind the camera has no meaningful projection at all, so a cut is
+     * dropped for that only when every corner is behind it. */
+    private boolean cutvisible(Coord anc) {
+	Coord2d csz = new Coord2d(MCache.cutsz).mul(tilesz);
+	Coord2d ul = new Coord2d(anc.mul(MCache.cutsz)).mul(tilesz).sub(csz);
+	return(boxvisible(ul, ul.add(csz.mul(3))));
+    }
+
+    /** rts: the same test for a single object -- a couple of tiles across, tall enough for a tree. */
+    private boolean gobvisible(Coord2d rc) {
+	Coord2d m = tilesz.mul(3);
+	return(boxvisible(rc.sub(m), rc.add(m)));
+    }
+
+    private boolean boxvisible(Coord2d ul, Coord2d br) {
+	float zlo = -50, zhi = 100;
+	try {
+	    Coord3f cc = getcc();
+	    zlo = cc.z - 100;
+	    zhi = cc.z + 100;
+	} catch(Loading e) {
+	}
+	boolean left = true, right = true, down = true, up = true, behind = true;
+	for(int i = 0; i < 8; i++) {
+	    double x = ((i & 1) == 0) ? ul.x : br.x;
+	    double y = ((i & 2) == 0) ? ul.y : br.y;
+	    float z = ((i & 4) == 0) ? zlo : zhi;
+	    HomoCoord4f h = clipxf(new Coord3f((float)x, (float)y, z), false);
+	    if(h.w > 0)
+		behind = false;
+	    if(!(h.x < -h.w)) left = false;
+	    if(!(h.x >  h.w)) right = false;
+	    if(!(h.y < -h.w)) down = false;
+	    if(!(h.y >  h.w)) up = false;
+	}
+	return(!(behind || left || right || up || down));
+    }
+
+    /** rts: (F7) the cut rectangle around a member's character, in that member's own tile coords. */
+    private Area fleetarea(Glob mglob, long mplgob, MapRaster raster) {
+	try {
+	    Gob pl = mglob.oc.getgob(mplgob);
+	    if(pl == null)
+		return(null);
+	    Coord cc = new Coord2d(pl.getc()).floor(tilesz).div(MCache.cutsz);
+	    raster.lastload = null;
+	    /* One ring wider than the anchor draws of itself. The member already REQUESTS this much
+	     * ground (the dormant branch of tick(), below), so the cuts are in its cache either way and
+	     * this only meshes them -- and it is the cheapest cut of the gap between the two patches
+	     * there is. Anything beyond it is ground nobody has asked the server for, and no rendering
+	     * setting can draw ground the client does not have. */
+	    int r = view + 1;
+	    return(new Area(cc.sub(r, r), cc.add(r, r).add(1, 1)));
+	} catch(Loading l) {
+	    l.boostprio(5);
+	    raster.lastload = l;
+	    return(null);
+	}
+    }
+
+    /** rts: (F7) one fleet member's ground and objects, hanging in this scene under F1's offset. */
+    private class FleetView {
+	final Glob mglob;
+	final long mplgob;
+	final Coord2d off;
+	final FleetTerrain fterrain;
+	final FleetGobs fgobs;
+	final FleetClickMap fclick;
+	final RenderTree.Slot slot, clslot;
+	final Coord cutoff;
+	/* Which cuts THIS view is the one to draw, in its own cut coords. Recomputed each fleettick and
+	 * consulted by both of its rasters, so the terrain, the flavour layer and the click geometry
+	 * always agree about what belongs to whom. */
+	final Set<Coord> mine = new HashSet<>();
+
+	FleetView(Glob mglob, long mplgob, Coord2d off) {
+	    this.mglob = mglob;
+	    this.mplgob = mplgob;
+	    this.off = off;
+	    Coord toff = Coord.of((int)Math.round(off.x / tilesz.x), (int)Math.round(off.y / tilesz.y));
+	    this.cutoff = toff.div(MCache.cutsz);
+	    this.fterrain = new FleetTerrain(mglob, mplgob, cutoff);
+	    this.fgobs = new FleetGobs(mglob, off);
+	    this.fclick = new FleetClickMap(mglob, mplgob, cutoff);
+	    fterrain.fv = this;
+	    fclick.fv = this;
+	    fgobs.fv = this;
+	    /* The scene negates y, so a world offset (ox, oy) is a scene offset (ox, -oy) -- and we are
+	     * subtracting it, hence (-ox, +oy). One translation for the whole member: everything below
+	     * it can go on speaking its own session's coordinates, which is exactly what it does.
+	     *
+	     * lockstate() is not optional. A slot whose state is locked -- and the render tree locks
+	     * plenty of them: every map cut's click geometry, every composited gob -- may not depend on
+	     * an ancestor whose state could still change, and it throws rather than risk a stale bake.
+	     * Nothing above these two ever defined a Location before, so nothing was ever that ancestor;
+	     * introducing one is what makes the declaration necessary. It is also simply true: the offset
+	     * is fixed for this member, and a FleetView is rebuilt whole if it ever changes. */
+	    /* ShadowMap.maskshadow keeps this whole patch out of the shadow pass, which is a second full
+	     * render of every triangle in it. The shadow map is a 750-unit box around the ANCHOR's
+	     * character, so a patch far enough away to need merging at all contributes nothing to it and
+	     * is being rasterized for no pixels; and when the two characters are close enough for it to
+	     * matter, the anchor has claimed that ground and this patch is drawing almost none of it. It
+	     * still receives shadows -- only casting into the map is given up. */
+	    Pipe.Op xl = Pipe.Op.compose(Location.xlate(new Coord3f((float)-off.x, (float)off.y, 0)),
+					 ShadowMap.maskshadow);
+	    this.slot = basic.add((RenderTree.Node)null, xl);
+	    slot.lockstate();
+	    slot.add(fterrain);
+	    slot.add(fgobs);
+	    this.clslot = clmaptree.add((RenderTree.Node)null, xl);
+	    clslot.lockstate();
+	    clslot.add(fclick);
+	}
+
+	void tick(Set<Coord> claimed) {
+	    mine.clear();
+	    Area a = fleetarea(mglob, mplgob, fterrain);
+	    if(a != null) {
+		for(Coord cc : a) {
+		    Coord anc = cc.sub(cutoff);
+		    /* First claim wins, and the anchor's own ground is claimed before any of this runs.
+		     * Two sessions standing together see the SAME ground and the same objects; drawing
+		     * it once per session is not a merge, it is the same picture stacked on itself --
+		     * z-fighting, doubled trees and twice the geometry for no pixels gained. */
+		    if(!claimed.add(anc))
+			continue;
+		    if(!cutvisible(anc))
+			continue;
+		    mine.add(cc);
+		}
+	    }
+	    fterrain.tick();
+	    fgobs.tick();
+	    fclick.tick();
+	}
+
+	/* rts: a rendered gob needs gtick() EVERY frame -- that is what uploads its animated pose, and
+	 * a Drawable whose pose is never refreshed is drawn from whatever happened to be in its buffers,
+	 * which is why merged trees jittered in position and height. Glob.gtick was deliberately not
+	 * called for fleet sessions in F0, and that was right then: nothing of theirs was in a render
+	 * tree. The merged view made it wrong and nothing said so.
+	 *
+	 * Only the gobs this view actually put in the scene, not the member's whole OCache -- the culled
+	 * ones have no pose to upload and iterating them all would undo the culling's saving. */
+	void gtick(Render out) {
+	    List<Gob> obs;
+	    synchronized(fgobs) {
+		obs = new ArrayList<>(fgobs.current.keySet());
+	    }
+	    for(Gob ob : obs) {
+		try {
+		    synchronized(ob) {
+			ob.gtick(out);
+		    }
+		} catch(RuntimeException e) {
+		    /* one gob's failure is not the frame's */
+		}
+	    }
+	}
+
+	void remove() {
+	    slot.remove();
+	    clslot.remove();
+	}
+    }
+
+    private final Map<String, FleetView> fleetviews = new LinkedHashMap<>();
+    /* An immutable snapshot of fleetviews in a stable order, safe to walk from a Loader thread. */
+    private volatile FleetView[] fvorder = new FleetView[0];
+    private double lastreq = 0, lastfleet = 0;
+
+    /* rts: every frame, unlike fleettick() -- an animated pose that is 200ms stale is a visible jump. */
+    public void gtick(Render out) {
+	super.gtick(out);
+	if(dormant || fleetviews.isEmpty())
+	    return;
+	for(FleetView fv : fleetviews.values())
+	    fv.gtick(out);
+    }
+
+    private void fleettick() {
+	/* The cut set under a member changes when it walks across a cut boundary, which at running pace
+	 * is a few times a second at most -- and maintaining it means a getcut() and a map lookup for
+	 * every cut of a 7x7 patch, three times over (terrain, flavour objects, click geometry), per
+	 * member, per frame. Five times a second delays a new cut appearing by 200ms and nothing else. */
+	double now = Utils.rtime();
+	if((now - lastfleet) < 0.2)
+	    return;
+	lastfleet = now;
+	fleettick2();
+    }
+
+    private void fleettick2() {
+	List<io.brodgar.rts.Fleet.View> vs = io.brodgar.rts.Fleet.views();
+	if(vs.isEmpty() && fleetviews.isEmpty())
+	    return;
+	/* The anchor's own terrain claims its ground before anyone else is asked, so a member never
+	 * draws over the session that is actually on screen. */
+	Set<Coord> claimed = new HashSet<>();
+	Area own = terrain.area;
+	if(own != null) {
+	    for(Coord cc : own)
+		claimed.add(cc);
+	}
+	Set<String> live = new HashSet<>();
+	for(io.brodgar.rts.Fleet.View v : vs) {
+	    live.add(v.user);
+	    FleetView fv = fleetviews.get(v.user);
+	    /* A relog gives the member a new Glob and a new frame: the old node is not adjustable, it
+	     * is wrong. Drop it and build again. */
+	    if((fv != null) && ((fv.mglob != v.glob) || !fv.off.equals(v.offset))) {
+		fv.remove();
+		fleetviews.remove(v.user);
+		fv = null;
+	    }
+	    if(fv == null)
+		fleetviews.put(v.user, fv = new FleetView(v.glob, v.plgob, v.offset));
+	    fv.tick(claimed);
+	}
+	for(Iterator<Map.Entry<String, FleetView>> i = fleetviews.entrySet().iterator(); i.hasNext();) {
+	    Map.Entry<String, FleetView> e = i.next();
+	    if(!live.contains(e.getKey())) {
+		e.getValue().remove();
+		i.remove();
+	    }
+	}
+	fvorder = fleetviews.values().toArray(new FleetView[0]);
     }
 
     public class Overlay extends MapRaster {
@@ -924,6 +1660,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     private final ClickMap clickmap;
     private class ClickMap extends MapRaster {
+	ClickMap() {super();}
+	ClickMap(MCache map) {super(map);}   // rts: (F7)
+
 	final Grid grid = new Grid<MapMesh>() {
 		MapMesh getcut(Coord cc) {
 		    return(map.getcut(cc));
@@ -1471,10 +2210,20 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    void ckdone(int fl) {
 		synchronized(this) {
 		    if((dfl |= fl) == 3) {
-			if(cut == null)
+			if(cut == null) {
 			    cb.accept(null);
-			else
-			    cb.accept(new Coord2d(cut.ul).add(pos.mul(new Coord2d(cut.sz))).mul(tilesz));
+			} else {
+			    Coord2d wc = new Coord2d(cut.ul).add(pos.mul(new Coord2d(cut.sz))).mul(tilesz);
+			    /* rts: (F7) the coordinate is derived from the CUT, so it comes out in the frame
+			     * of whichever session's map that cut belongs to -- the scene translation above
+			     * it does not touch this arithmetic at all. A cut from a merged fleet view is
+			     * brought back into the anchor's frame here, once, so that everything downstream
+			     * (an order, a move, a placement) goes on speaking one coordinate system. */
+			    Coord2d off = io.brodgar.rts.Fleet.offsetfor(cut.map);
+			    if(off != null)
+				wc = wc.sub(off);
+			    cb.accept(wc);
+			}
 		    }
 		}
 	    }
@@ -1698,6 +2447,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    undelay(delayed2, g);
 	    poldraw(g);
 	    partydraw(g);
+	    io.brodgar.rts.Control.draw(this, g);   // rts: (F3) selection brackets and the marquee
 	    glob.map.reqarea(cc.floor(tilesz).sub(MCache.cutsz.mul(view + 1)),
 			     cc.floor(tilesz).add(MCache.cutsz.mul(view + 1)));
 	} catch(Loading e) {
@@ -1735,6 +2485,30 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     public void tick(double dt) {
 	super.tick(dt);
+	if(dormant) {
+	    /* rts: what a dormant view still owes its session (F0, specs/rts/plan.md). draw() is where a
+	     * live view asks the server for the ground around it -- sendreqs() at the top, reqarea() at
+	     * the bottom -- so a view that is never drawn would never request a single grid, and both
+	     * F1's cross-session offset and any order that needs a destination rest on the member having
+	     * loaded the ground it is standing on. Everything below this line builds a picture, and a
+	     * member makes none: no camera, no shadow map, no weather, no click-map. */
+	    /* reqarea() calls getcut() once per cut of the rectangle -- eighty-odd calls -- and this ran
+	     * every frame, per dormant session. The server answers on its own schedule and sendreqs()
+	     * already rate-limits each grid to one request a second, so asking sixty times a second was
+	     * only ever costing us. */
+	    double now = Utils.rtime();
+	    if((now - lastreq) < 0.25)
+		return;
+	    lastreq = now;
+	    glob.map.sendreqs();
+	    try {
+		Coord tc = new Coord2d(getcc()).floor(tilesz);
+		glob.map.reqarea(tc.sub(MCache.cutsz.mul(view + 2)), tc.add(MCache.cutsz.mul(view + 2)));
+	    } catch(Loading e) {
+		/* No player yet, or no ground under them: there is nothing to centre a request on. */
+	    }
+	    return;
+	}
 	io.brodgar.voice.Voice.tick();   // brodgar voice: per-frame spatialization, like the game's positional audio
 	SpeakerIcon.sweep(this);   // brodgar voice: colour-coded speaker icon above each player
 	checkload();
@@ -1756,6 +2530,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	updweather();
 	synchronized(glob.map) {
 	    terrain.tick();
+	    fleettick();   // rts: (F7) the fleet members' ground and objects, merged into this scene
 	    oltick();
 	    if(gridlines != null)
 		gridlines.tick();
@@ -2134,6 +2909,25 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
     
+    /* rts: (F3, specs/rts/plan.md) an order's destination, resolved by the client's OWN pick pass --
+     * the same machinery a real click uses, so a fleet order lands exactly where a click would have.
+     * It sends nothing itself: it hands the resolved point, and the id of any gob under it, to the RTS
+     * controller, which decides who receives it and rebuilds the arguments in each recipient's frame. */
+    public class FleetClick extends Hittest {
+	private final int btn, mods;
+
+	public FleetClick(Coord c, int btn, int mods) {
+	    super(c);
+	    this.btn = btn;
+	    this.mods = mods;
+	}
+
+	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
+	    Gob cg = clickedgob(inf);
+	    io.brodgar.rts.Control.hit(MapView.this, pc, mc, (cg == null) ? -1 : cg.id, btn, mods);
+	}
+    }
+
     public void grab(Grabber grab) {
 	this.grab = grab;
     }
@@ -2167,6 +2961,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    if(placing.lastmc != null)
 		wdgmsg("place", placing.rc.floor(posres), (int)Math.round(placing.a * 32768 / Math.PI), ev.b, ui.modflags());
 	} else if((grab != null) && grab.mmousedown(ev.c, ev.b)) {
+	} else if(io.brodgar.rts.Control.mousedown(this, ev)) {   // rts: (F3) alt starts a marquee, and a click with units selected is theirs -- everything else falls through to Click below, unchanged
 	} else {
 	    new Click(ev.c, ev.b).run();
 	}
@@ -2184,6 +2979,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Loader.Future<Plob> placing_l = this.placing;
 	if(camdrag != null) {
 	    camera.drag(ev.c);
+	} else if(io.brodgar.rts.Control.mousemove(this, ev)) {   // rts: (F3) the marquee being dragged
 	} else if((placing_l != null) && placing_l.done()) {
 	    Plob placing = placing_l.get();
 	    if((placing.lastmc == null) || !placing.lastmc.equals(ev.c)) {
@@ -2206,6 +3002,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    }
 	} else if(grab != null) {
 	    grab.mmouseup(ev.c, ev.b);
+	} else {
+	    io.brodgar.rts.Control.mouseup(this, ev);   // rts: (F3) closes the marquee started above
 	}
 	return(true);
     }
@@ -2274,6 +3072,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    io.brodgar.voice.Voice.setPushToTalk(true);   // brodgar voice: push-to-talk pressed
 	    return(true);
 	}
+	if(io.brodgar.rts.Control.keydown(this, ev))   // rts: (F5) the anchor switch, while RTS mode is on
+	    return(true);
 	if(camera.keydown(ev))
 	    return(true);
 	return(super.keydown(ev));

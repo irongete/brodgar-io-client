@@ -20,6 +20,15 @@
 | **The camera, outside a render pass** | `MapView.camera` → `MapView.Camera`'s `protected view` (`haven.render.Camera extends Transform`) + `proj`; `camera.view.fin(Matrix4f.id)` is render→eye, so `invert()` (null when singular) gives the camera's axes as its first three **columns** (`m[col*4+row]`) and the eye point as the fourth. Fork: `MapView.camview()` (`// addon:`) — `Placer.getr` has no `Pipe`, so `Homo3D.obj2view` is not available there |
 | **Which ground is DRAWN — the terrain display list** | `MapView.MapRaster` (private inner) → the public `Terrain` and its `Grid main`/`flavobjs`. `MapRaster.tick` sets `area = Area(cc - view, cc + view + 1)` around the player's CUT (`getcc().floor(tilesz).div(MCache.cutsz)`, `view = 2`, `cutsz = 25×25` tiles) ⇒ the drawn terrain is only **~50–75 tiles** across from you; `Grid.tick` then adds/removes one scene slot per cut, keyed in `Grid.cuts`, which therefore holds a cut **exactly while that cut's mesh is in the scene**. ⚠️ That is a GRID smaller than `MCache.grids`: map data is dropped only when the server says so (`invalblob` type 1 → `MCache.trim`, which has **no caller inside the client**), so "the grid is loaded" is true well past the visible edge — test `cuts` when the claim is about what the player SEES. Fork: `MapView.grounddrawn(Coord2d)` (`// addon:`) + a `groundChanged()` tap at `Grid.tick`'s two mutation points, which is how a client-only gob stops drawing over the void |
 
+**Gotcha — the camera's frustum is two traps, and neither is a draw-distance setting.** `Camera.resized`
+builds `Projection.frustum(-field, field, …, 1, 2000)`: the far plane is fixed at **2000**, so a camera
+pulled back past that clips the scene away entirely, ground included, and no rendering option reaches it —
+a camera meant to pull further sets its own projection per tick. The second is subtler: `makefrustum`'s
+scale term is `2*near/(right-left)`, so `field` is a **size given at the near plane**, not an angle, and
+the field of view is `field/near`. Move the near plane (to buy depth precision at distance) with `field`
+held at the shipped `0.5f` and the view narrows by exactly the factor the distance widened it — the
+camera moves and the image does not, which reads as a zoom that is stuck.
+
 ## Ground overlays — who decides one is drawn
 
 | What | Where |

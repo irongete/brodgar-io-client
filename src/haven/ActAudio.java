@@ -108,10 +108,24 @@ public class ActAudio extends State {
 	private Audio.VolAdjust volc = null;
 	private Audio.Mixer mixer = null;
 
+	/* rts: (F6, specs/rts/plan.md) muted because its session is not the one on screen. Separate
+	 * from `volume`, which is the user's setting and is written to a pref -- a session going quiet
+	 * because nobody is looking at it must not be mistaken for the user turning the sound down, and
+	 * must not survive into the next launch. */
+	private boolean muted = false;
+
 	private RootChannel(String name, Audio.Mixer rootmixer) {
 	    this.name = name;
 	    this.rootmixer = rootmixer;
 	    this.volume = Double.parseDouble(Utils.getpref("sfxvol-" + name, "1.0"));
+	}
+
+	public void mute(boolean m) {
+	    if(m == muted)
+		return;
+	    muted = m;
+	    if(volc != null)
+		volc.vol = m ? 0.0 : volume;
 	}
 
 	public Audio.Mixer mixer() {
@@ -120,7 +134,7 @@ public class ActAudio extends State {
 		synchronized(this) {
 		    if((ret = this.mixer) == null) {
 			this.volc = new Audio.VolAdjust(ret = this.mixer = new Audio.Mixer(true));
-			this.volc.vol = volume;
+			this.volc.vol = muted ? 0.0 : volume;   // rts: (F6)
 			rootmixer.add(this.volc);
 		    }
 		}
@@ -130,7 +144,7 @@ public class ActAudio extends State {
 
 	public void setvolume(double volume) {
 	    if(volc != null)
-		volc.vol = volume;
+		volc.vol = muted ? 0.0 : volume;   // rts: (F6) the user's setting, still not audible while muted
 	    this.volume = volume;
 	    Utils.setpref("sfxvol-" + name, Double.toString(volume));
 	}
@@ -183,6 +197,13 @@ public class ActAudio extends State {
 	public void clear() {
 	    pos.clear();
 	    amb.clear();
+	}
+
+	/** rts: (F6) silence, or restore, every channel of one session. */
+	public void mute(boolean m) {
+	    aui.mute(m);
+	    pos.mute(m);
+	    amb.mute(m);
 	}
 
 	public String stats() {

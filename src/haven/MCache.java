@@ -926,6 +926,36 @@ public class MCache implements MapSource {
 	return(getgrid(tc.div(cmaps)));
     }
 
+    /* rts: how much ground this session has actually loaded (F0, specs/rts/plan.md). A fleet member is
+     * never drawn, and draw() is where a live view asks the server for map data -- so this number is
+     * how the maintainer sees whether a dormant session is streaming at all. It is also the door F1
+     * grows into: a Grid carries both `gc` (this session's, login-relative) and `id` (the server's),
+     * which is what lets two sessions' frames be aligned. */
+    public int numgrids() {
+	synchronized(grids) {
+	    return(grids.size());
+	}
+    }
+
+    /* rts: the cross-session anchor (F1, specs/rts/plan.md). A Grid carries BOTH coordinates it has: `gc`,
+     * which is this session's and means nothing in another one, and `id`, which is the server's and is the
+     * same number in every client that has ever loaded that grid. Intersecting two sessions' id sets and
+     * differencing the two `gc`s is what pins one login-relative frame against the other.
+     *
+     * A snapshot, taken under the grids lock and handed out detached: `grids` is mutated on the Connection
+     * worker, and `Grid.id` is written by fill() when the "m" layer arrives -- so a grid exists, briefly,
+     * with no id yet. Those are skipped; an unfilled grid has nothing to say about where it is. */
+    public Map<Long, Coord> gridids() {
+	synchronized(grids) {
+	    Map<Long, Coord> ret = new HashMap<Long, Coord>(grids.size());
+	    for(Grid g : grids.values()) {
+		if(!g.removed && (g.id != 0))
+		    ret.put(g.id, g.gc);
+	    }
+	    return(ret);
+	}
+    }
+
     public int gettile(Coord tc) {
 	Grid g = getgridt(tc);
 	return(g.gettile(tc.sub(g.ul)));

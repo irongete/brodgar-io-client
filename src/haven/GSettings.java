@@ -170,6 +170,14 @@ public class GSettings extends State implements Serializable {
     public IntSetting shadowres = new IntSetting("sres") {
 	    public Integer defval() {return(0);}
 	};
+    /* rts: the renderer has no visibility test of its own -- every node in the tree is submitted every
+     * frame -- so the ground around the player is drawn in full whichever way the camera points. Off,
+     * that is what happens; on, a cut whose corners all fall outside the same side of the frustum is
+     * left out. The cost of leaving it out is that ground behind the camera also stops casting into
+     * the shadow map, which is why this is a setting and not a constant. */
+    public BoolSetting cullterrain = new BoolSetting("cullter") {
+	    public Boolean defval() {return(true);}
+	};
     public BoolSetting vsync = new BoolSetting("vsync") {
 	    public Boolean defval() {return(true);}
 	};

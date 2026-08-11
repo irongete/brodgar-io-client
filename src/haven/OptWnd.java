@@ -126,6 +126,20 @@ public class OptWnd extends Window {
 			    a = val;
 			}
 		    }, Coord.z);
+		prev = add(new CheckBox("Cull off-screen terrain") {   // rts:
+			{a = prefs.cullterrain.val;}
+
+			public void set(boolean val) {
+			    try {
+				GSettings np = prefs.update(null, prefs.cullterrain, val);
+				ui.setgprefs(prefs = np);
+			    } catch(GSettings.SettingException e) {
+				error(e.getMessage());
+				return;
+			    }
+			    a = val;
+			}
+		    }, prev.pos("bl").adds(0, 5));
 		prev = add(new Label("Render scale"), prev.pos("bl").adds(0, 5));
 		{
 		    Label dpy = new Label("");

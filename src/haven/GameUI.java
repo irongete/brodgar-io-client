@@ -893,7 +893,18 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	return(opt);
     }
 
+    /* rts: (F6, specs/rts/plan.md) is this the session on screen? Several GameUIs now exist at once
+     * and they all persist window geometry to the SAME keys. The conflict is not that they want
+     * different layouts -- it is that a session nobody has touched writes back the positions it loaded,
+     * undoing what the user just did in the session they were actually looking at. The one on screen
+     * owns the layout; the rest keep their geometry and say nothing about it. */
+    private boolean onscreen() {
+	return((ui != null) && (ui == io.brodgar.rts.Fleet.anchor()));
+    }
+
     private void savewndpos() {
+	if(!onscreen())
+	    return;
 	/* addon: what gets written down is what the USER placed. AddonWidgets.stockc/stockcsz answer the widget's
 	 * own geometry unless an AddOn's layout is standing on it, and then the value it had before that addon
 	 * touched it — otherwise the client would persist the addon's position as the user's own preference, and
@@ -1003,7 +1014,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			}
 		    }
 		    public void destroy() {
-			Utils.setprefc("makewndc", makewndc = AddonWidgets.stockc(this));	// addon: see savewndpos
+			if(onscreen())   // rts: (F6)
+			    Utils.setprefc("makewndc", makewndc = AddonWidgets.stockc(this));	// addon: see savewndpos
 			super.destroy();
 		    }
 		};
@@ -1141,7 +1153,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    String wndid = wndids.reverse().get((Window)w);
 	    if(wndid != null) {
 		wndids.remove(wndid);
-		Utils.setprefc(String.format("wndc-misc/%s", wndid), AddonWidgets.stockc(w));	// addon: see savewndpos
+		if(onscreen())   // rts: (F6)
+		    Utils.setprefc(String.format("wndc-misc/%s", wndid), AddonWidgets.stockc(w));	// addon: see savewndpos
 	    }
 	}
 	if(w instanceof GItem) {

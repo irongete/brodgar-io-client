@@ -30,6 +30,7 @@ lookup instead of a search.
 | [the minimap](minimap.md) | the live ⇄ recorded coordinate bridge (`sessloc`), `resolve`'s `tryLock` rule, and how a grid becomes a picture |
 | [the 3D world](world-3d.md) | the `MapView` scene, client-only gobs, placement and snapping, the pick pass and click intercept, ground overlays, materials, billboards, glTF, render-to-texture, and which ground is actually drawn |
 | [the render backend](render-gl.md) | the scene counters `:stats on` reads, where a frame's draw calls are submitted, and the 2D blit path |
+| [several sessions at once](multi-session.md) | one process holding several logged-in sessions with one on screen: the drawn-UI split, what a session that is not drawn stops doing, aligning two sessions' coordinate frames, ordering one that is not drawn, and the merged scene |
 | [text and fonts](text-and-fonts.md) | `Text.Foundry` and every named surface that bakes one, `RichText`, DPI scaling, custom TTF loading |
 | [services](services.md) | console, keybindings, `Resource` and code adoption, prefs and Options, audio, chat, combat, buffs, kin, vitals, study, quests, crafting, the action menu, minimap icons |
 
