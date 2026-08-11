@@ -1,83 +1,66 @@
 # /end — close a task after the maintainer's verification
 
-Usage:
-- `/end <area>` → everything verified OK in that area.
-- `/end <area> <note>` → OK with nuances; incorporate the note before closing.
+Usage: `/end` → the maintainer has verified the task, and it closes here.
 
-The area is **always** stated.
-
-## Area resolution (ALWAYS step 0)
-
-**The area is never assumed. There is no "current area" state anywhere** — several features may
-be in flight in different areas at once, so every invocation names its own.
-
-1. Take `<area>` from the command's first token when it matches a folder under `specs/`
-   (ignoring `_`-prefixed ones); drop it from the note.
-2. **If the area is missing, ambiguous, or matches no folder, STOP and ask the maintainer**
-   which area this is, listing the ones that currently have a `HANDOFF.md` pending. Never guess
-   and never fall back to a default — this command COMMITS, and the wrong area stages the wrong
-   paths and closes the wrong task.
-3. **Read `specs/<area>/AREA.md`.** It declares the docs tier, the test protocol and the commit
-   paths used below. Everything area-specific comes from there — this command never assumes them.
-4. **Read the area's test protocol file**, if `AREA.md` declares one (for `addons`,
-   `specs/addons/TESTING.md`). It defines what the task's tests are and, if the protocol says so,
-   where their artifacts belong once the task closes (for `addons`: a per-task suite is archived
-   out of the client's live `addons/` into the task's spec folder).
-5. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
-
-## Common rules (non-negotiable)
-
-- **NEVER `git push`.** Everything stays local.
-- **A close is not done until every deletion in step 5 is VERIFIED**, not merely attempted —
-  see step 5's `bin/addons` note.
-- **This command makes THE task's commit** (step 7): code, docs, specs and the area's own
-  trees in ONE commit. Running `/end` IS the approval — the maintainer only runs it after
-  verifying, so do not ask for permission again.
-- `specs/`, `docs/`, `src/` and the area's own trees all live in the project repo.
-- **Everything in English** — the conversation, the files, the code and its comments.
-- Respect the area's rebuild/restart rules as stated in `AREA.md`.
-- **Read NOTHING outside what this command lists**, unless a task/spec lists it or the
-  maintainer names it explicitly. **`/archive` is NEVER read.**
+**This command makes THE task's commit** — code, docs, specs and addons in ONE. Running `/end` IS
+the approval: the maintainer only runs it after verifying, so do not ask again. Never `git push`.
 
 ## Procedure
 
-1. **Read ONLY `specs/<area>/AREA.md` and `specs/<area>/HANDOFF.md`** (+ the maintainer's
-   note). If HANDOFF.md does not exist, say so and do nothing.
-2. If the note describes a problem that requires code, **do NOT close**: propose fixing it
-   within the same task or add a new task to the feature's `tasks.md`, and stop. The same holds
-   for the task's test run: **a `[fail]` line, or a `[manual]` line whose answer does not match
-   the expected result, is a problem** — read the pasted log before closing anything. If the
-   task shipped no tests where the area's test protocol requires them, it is not closed either.
-3. **Document in ONE tier only — exactly the docs tier `AREA.md` declares**, including the index
-   / overview files it names when a new section first ships. **Never create per-task narrative
-   notes; no devlog exists.** A new design decision → append the full entry to its
-   `specs/<area>/decisions/<category>.md` file (a brand-new category also gets its line in
-   `specs/<area>/DECISIONS.md`). Gotchas/learnings → append to the matching
-   `specs/<area>/learnings/*.md` file (see that area's LEARNINGS.md index; add an index line
-   only for a brand-new category).
-4. **Pay the coverage toll.** If `HANDOFF.md` lists **uncovered source**, write or extend the
-   matching `specs/codebase/<subsystem>.md` (max 70 lines: `file:line` anchors + the gotchas
-   that cost you time) and add its one-line row to `specs/codebase-map.md` if the file is new.
-   A task that read uncovered `haven` code and left no subsystem file is NOT closed.
-5. **Close:** check the task off in `tasks.md` · update `specs/<area>/STATE.md` (REPLACING,
-   max 60 lines) · learnings appended (step 3) · coverage paid (step 4) · if the code
-   structure changed, update the affected `specs/codebase/<subsystem>.md` ·
-   **archive the task's test artifacts** if the protocol read in step 4 says to (for `addons`: move
-   `addons/<NNN>-<feature>.<X>/` to `specs/addons/<NNN>-<feature>/addons/<NNN>-<feature>.<X>/`,
-   THEN delete `bin/addons/<NNN>-<feature>.<X>/` — this is the directory the running client actually
-   reads (TESTING.md explains why). **Verify the delete**: list `bin/addons/` and confirm the folder
-   is gone before treating this step as done. If it is still there, the client has it open — STOP,
-   tell the maintainer to close it, then delete and re-verify. Do not close the task on an unverified
-   deletion.) ·
-   delete `specs/<area>/HANDOFF.md`.
-6. **If it was the last task:** mark the feature DONE in `specs/<area>/FEATURES.md` with its
-   one-line summary and reflect it in `specs/<area>/STATE.md`. The `NNN-` folder STAYS where
-   it is (folders are never archived).
-7. **Commit the whole task — always the LAST step.** First run `git status --short` and
-   report anything that is NOT part of this task; never sweep a stray file into the commit.
-   Then stage the area's **commit paths** as declared in `AREA.md` — `-A` so new files are
-   included — and make ONE commit:
-   `git add -A <commit paths from AREA.md> && git commit -m "NNN.X: <task title>"`
-   Add any other path the task genuinely touched (e.g. `build.xml`). This lands the code, the
-   docs and the specs together — including the feature's spec/plan/tasks if this is its first
-   `/end`. No approval needed, and never push.
+1. **`/end` closes a task THIS context implemented.** Everything it needs is already here: the
+   `spec.md` and `tasks.md` `/implement` read, the files it wrote, the suite log the maintainer
+   pasted. **If this context holds no `/implement` run, STOP and say so** — `git status` cannot tell
+   this task's work from anything else in the tree, and a blind `/end` would sweep the lot into one
+   commit. Read nothing new.
+
+2. **Read the pasted test log, and check that it is the current one.** The log must be **later than
+   your last edit**: if you changed a file after the log the maintainer pasted, this task is
+   unverified — name what you changed, ask for another `:t<NNN>-<X>` run, and stop. The last thing
+   in this context before `/end` is a log, never an edit of yours.
+
+   A `[fail]` line, or a `[manual]` line whose answer does not match its expected result, **is a
+   problem, and by default it is this task's**: fix it here, have the maintainer re-run, and the
+   task does not close. Add a task to `tasks.md` only for a defect the suite exposed that lies
+   **outside** what this task claims, and say which of the two you chose and why. Either way, stop.
+   A task that shipped no suite is not closed either, and neither is one whose maintainer described
+   anything needing code.
+
+3. **No page may teach a name that already throws.** Derive the refusal table from the engine
+   (`Retired.NAMES`/`KEYS`) and grep `docs/`. If a retired spelling survives, this closes only when
+   the NEXT task in `tasks.md` is the sweep that removes it; with no such task, it does not close.
+
+   The same for the map: if the task read upstream `haven` that no `docs/client/` page covered and
+   left no page behind, **it is not closed**. Check it for line numbers and for anything about
+   `io.brodgar` — both are refused there.
+
+4. **Close:**
+   - Check the task off in `tasks.md`.
+   - **Leave `Context files:` describing the tree as it now is.** Where this task moved a file,
+     split one, or added one a later task needs, correct the list in `spec.md`. The next task opens
+     what the list names, so a path that stopped being true costs it a search.
+   - **Archive the suite in the state it shipped in**: diff its `manifest.json` against what
+     `/implement` wrote — a `[manual]` that had the maintainer add or misspell a key must have put
+     it back, or the archived proof no longer loads. Then move `addons/<NNN>-<feature>.<X>/` into
+     `specs/<NNN>-<feature>/addons/`, and delete `bin/addons/<NNN>-<feature>.<X>/`.
+
+5. **If it was the last task of the feature**, every acceptance criterion in `spec.md` is claimed by
+   a task and every claiming task is checked off. **A criterion no task claims stops the close.** The
+   `NNN-` folder then stays exactly where it is and is frozen — nothing is appended, nothing is
+   archived, no index is updated. It is done because no box is unchecked, which is derived.
+
+6. **Commit — always the LAST step.** Run `git status --short` first and **report anything that is
+   NOT part of this task; never sweep a stray file in.** Then:
+
+   ```bash
+   git add -A src docs addons specs && git commit
+   ```
+
+   plus any other path the task genuinely touched (e.g. `build.xml`). Subject line
+   `NNN.X: <task title>`; the body says **what shipped, and where it went differently from the
+   plan** — written from what you did in this context, not from a summary of it. End with the
+   `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` trailer.
+
+   If a line of `specs/ROADMAP.md` was fixed along the way, remove it here.
+
+   This lands the code, the docs and the specs together — including the feature's spec/plan/tasks if
+   this is its first `/end`. No approval needed, and never push.

@@ -1,0 +1,27 @@
+# ROADMAP — future work and open findings
+
+> **One line each**, and every line ends with `(filed: NNN)` — the feature that raised it. `/plan`
+> removes the line it picks up. This is the ONLY place open work lives: a finding never sits in
+> another tree, and never in a feature folder, which is frozen.
+
+## Defects
+
+- `dropdown:size(w, h)` leaves its drop arrow outside its box (filed: 040)
+- `ev:resend()` / `ev:send(t)` reach the server through `UI.rawWdgmsg` with no permission check while their siblings have one (filed: 055)
+- a numeric **string** passes `v.isnumber()` in LuaJ, so `place`, `item:drop` and `widget:send` coerce one through (filed: 055)
+- `LuaWorldEntity`'s javadoc calls five retired verbs "the common handle verbs" (filed: 055)
+- `UiApi`'s comment gives `:text()`'s roster without the `CheckBox` arm shipped in 040.4 (filed: 055)
+- the layout half of the caption seam takes no widget, so a late-captioned window never lays its descendants out (filed: 049)
+
+## Candidates
+
+- **Sandbox hardening**: per-env string metatable, an addon-folder-only `require`, and the draw-time CPU budget gap (filed: 005)
+- **Hook priority and L4**: integer priority with first-cancel-wins, and method replacement through a factory seam (filed: 007)
+- **Lifecycle conveniences**: single-addon `:reload <id>`, and enable/disable without a full layer reload (filed: 005)
+- **Finer events**: per-slot equipment changes and a skills-changed event (filed: 003)
+- **World-space text**: a label standing in the world with perspective and occlusion, instead of a whole widget (filed: 043)
+- **World-space shapes**: lines, polylines and filled areas in the world, which `planner` fakes with sprites today (filed: 043)
+- **`dependencies` are parsed and never read**: either drop the manifest fields or order the load and refuse a missing one (filed: 051)
+- **Package layout**: finish the tier-3 split — the serializer, the glTF parser and its mesh primitives (filed: 019)
+- **Allocation profiling**: who costs GARBAGE, bracketing the seams 019 already brackets (filed: 019)
+- **Minor client subsystems**: screenshots, custom cursors, graphics settings, polity, news, calendar, server-published windows, the party HUD (filed: 009)

@@ -1,82 +1,94 @@
 # /plan — plan a feature
 
-Usage: `/plan <area> <feature description>` — the area is **always** stated.
+Usage: `/plan <feature description>`
 
-Plan ONE feature as a new `specs/<area>/NNN-<feature>/` folder. **/plan implements NOTHING.**
+Plan ONE feature as a new `specs/NNN-<feature>/` folder. **/plan implements NOTHING and commits
+NOTHING** — it writes the three files and stops for review. They reach the repo with the feature's
+first `/end`.
 
-## Area resolution (ALWAYS step 0)
+## 1. Read — in this order, and nothing else
 
-**The area is never assumed. There is no "current area" state anywhere** — several features may
-be in flight in different areas at once, so every invocation names its own.
+1. **`docs/addons/**` — the pages of every surface this feature touches.** For anything that
+   already ships, **the shipped reference IS the contract and the only current model.** There is no
+   prose summary of it anywhere; do not go looking for one.
+2. **`specs/ROADMAP.md`** — is this already filed as a defect or a candidate?
+3. **`docs/client/`** — `ls` it, then the 1–2 subsystem pages this feature touches. That is the map
+   of upstream `haven`, and it is where you start rather than in `src/`.
+4. **The source**, where the feature needs engine behaviour neither tier states. `grep` `src/` for
+   the seam; read the class, not the tree. Then, **if no `docs/client/` page covered what you had
+   to read, `plan.md` MUST list that page under "files to create/modify"** — the reading is paid
+   once, by the task that pays it, and the next feature finds it in `docs/client/`.
+5. **Prior art — only if this feature revisits settled ground.**
+   `grep -rln "<topic>" specs/[0-9]*/plan.md` finds the *Discarded alternatives* of the feature that
+   decided it. Everything in a `NNN-` folder is history by construction: it says what was rejected
+   and why, never what is in force. **What is in force is `docs/` and `src/`.**
+6. **`DOCUMENTATION.md`**, if the feature writes pages — which it does.
 
-1. Take `<area>` from the command's first token when it matches a folder under `specs/`
-   (ignoring `_`-prefixed ones); drop it from the feature description.
-2. **If the area is missing, ambiguous, or matches no folder, STOP and ask the maintainer**
-   which area this is, listing the existing ones. Never guess, never fall back to a default,
-   never infer it from the feature description alone.
-3. If the maintainer names an area that does not exist yet, **ask** whether to create it. With
-   the OK, copy `specs/_area-template/` to `specs/<area>/`, fill its `AREA.md`, and **STOP for
-   approval of that AREA.md** before planning anything.
-4. **Read `specs/<area>/AREA.md`.** It declares the docs tier, build check, verification,
-   test protocol, design rules and commit paths for this area. Everything area-specific comes
-   from there — this command never assumes them. Below, "the docs tier", "the build check",
-   "the test protocol" mean whatever `AREA.md` says.
-5. **Read the area's test protocol file** (`AREA.md`'s *Test protocol* — for `addons`,
-   `specs/addons/TESTING.md`). It defines how a task is tested and how its result is reported;
-   the acceptance criteria you write must be verifiable exactly that way. Skip only if the area
-   declares `none`.
-6. **Open your reply with `[area: <area>]`** so the maintainer always sees which area is in play.
+## 2. Write `specs/NNN-<feature>/` — the next free number
 
-## Common rules (non-negotiable)
+**`spec.md`** (MAX 900 words):
 
-- **NEVER `git push`.** Everything stays local.
-- **/plan commits NOTHING.** It writes the specs and stops for review; there is always
-  something to fix. The specs reach the repo with the feature's first `/end`, which commits
-  the whole task at once. Only `git commit` here if the maintainer explicitly asks.
-- `specs/`, `docs/`, `src/` and the area's own trees all live in the project repo.
-- **Everything in English** — the conversation, the files, the code and its comments.
-- Respect the area's rebuild/restart rules as stated in `AREA.md`.
-- **Read NOTHING outside what this command lists**, unless a task/spec lists it or the
-  maintainer names it explicitly. **`/archive` is NEVER read.**
+- **What & why** · **acceptance criteria**, each verifiable in-game through the task's own suite ·
+  **out of scope**.
+- **`Docs impact:`** the pages that will be written, **plus the derived impact set** — grep the
+  prose names of this surface across the whole of `docs/` and write the command *and its result*.
+  *This exists because a feature documents the pages it opens, while the stale sentence sits in a
+  page it never opened, written in the negative, invisible to every grep aimed at the new syntax.*
+- **`Context files:`** the exact files `/implement` may load, **each tagged with the tasks that need
+  it** — `src/io/brodgar/addon/Manifest.java — 1, 2`. The list is the budget and the promise that it
+  is enough; the tags are what keep a docs-only task from loading twelve Java files it will never
+  open. An untagged line is read by every task, so tag everything that is not.
 
-## Procedure
+**→ STOP HERE and get the maintainer's approval.** Only then write:
 
-1. **Read ONLY:** `specs/<area>/AREA.md`, the test protocol file it names, `STATE.md`,
-   `ROADMAP.md`, `FEATURES.md`,
-   `DECISIONS.md` (all under `specs/<area>/`). From those, identify and read the relevant
-   `specs/<area>/design/` docs (normally 1–3).
-   - **Codebase detail: `specs/codebase-map.md` is an INDEX** — read it and open ONLY the 1–2
-     `specs/codebase/<subsystem>.md` files your feature touches. Never open the tree wholesale.
-   - **If no subsystem file covers the code you need**, you may read the source — and then the
-     feature's `plan.md` MUST list the new/extended `specs/codebase/<subsystem>.md` under
-     "Files to create / modify" so `/end` writes it. The reading is paid for once.
-   - If the maintainer names prior work ("this extends virtual entities") or `FEATURES.md`
-     shows a clearly related folder, open that `NNN-` folder (spec/plan/tasks) as context.
-   - For a specific decision: `DECISIONS.md` says which `decisions/<category>.md` file holds
-     it — open only that entry (the `### D-xxx` headers are the one-liners).
-2. **Create `specs/<area>/NNN-<feature>/`** (next free number in that area) from the area's
-   `_template/` (`specs/<area>/_template/`):
-   - **spec.md** (MAX 80 lines): what & why · acceptance criteria **verifiable the way
-     `AREA.md` defines verification** · out of scope · **"Context files"** — the feature's
-     context budget (design docs, sources, docs-tier pages, related prior `NNN-` folders).
-   - **plan.md** (MAX 100 lines): approach · files to create/modify · risks & gotchas
-     (prior art: open `specs/<area>/LEARNINGS.md` — the index — pick the 1-2 relevant
-     `learnings/*.md` files and grep them; never read the whole set) · discarded
-     alternatives, one line each. If the design already lives in `design/`, reference it and
-     land only deltas.
-   - **tasks.md** (MAX 60 lines): checklist `NNN.1`, `NNN.2`, … One task = one session,
-     self-contained, verifiable on its own **through the area's test protocol** (each task
-     carries its own tests, so say what its suite must prove — and what can only be `[manual]`);
-     a task may carry its own "extra context" line.
-     If it does not fit the limits, do NOT stretch them: propose splitting the feature.
-     The limits are ceilings, not targets.
-3. **Register it**: mark it the active feature in `specs/<area>/STATE.md`, add its line
-   (ACTIVE) to `specs/<area>/FEATURES.md`, and remove it from `specs/<area>/ROADMAP.md` if it
-   came from there.
-4. **STOP after spec.md** and ask for the maintainer's approval. With the OK, write
-   plan.md and tasks.md. /plan does not implement.
-5. **STOP for review — and do not commit, ever.** Report the area and the files written
-   (spec.md, plan.md, tasks.md + the STATE/FEATURES/ROADMAP updates). The maintainer reviews
-   everything and may request changes to any of them; apply them and report again. Stay in
-   this review loop as long as needed — then hand over to `/implement`. The specs stay
-   uncommitted in the working tree until the feature's first `/end`.
+**`plan.md`** (MAX 1200 words):
+
+- **Approach** · **files to create/modify**, `docs/` pages included · **risks & gotchas**, **naming
+  the classes and members you read in `src/`**, so the implementing context knows where to look
+  instead of searching for the seam again.
+- **`Discarded alternatives:`** one line each, **with the reason it was rejected.** *This is the
+  feature's decision record and the only one. Write the reason so it still argues its case years
+  later: name the thing, not a number ("a per-target listener is not the hot path a global hook
+  would be").*
+
+**`tasks.md`** (MAX 900 words) — a checklist `NNN.1`, `NNN.2`, … **One task = one session**,
+self-contained and verifiable on its own. **Every acceptance criterion in `spec.md` is named by at
+least one task**: a criterion no task claims is a decomposition that is not finished, and the
+feature's last close is far too late to find it.
+
+> **These three files are everything that crosses a context boundary.** `/plan` writes them; a
+> fresh `/implement` reads them, builds, verifies with the maintainer and closes — one unbroken
+> context, and no second pass to rescue a thin line. Write each task for a reader who has never seen
+> this conversation, because they have not.
+
+A task carries the parts the template shows, and **the suite is designed here, not there**: naming
+the assertion is what proves the task was decomposed at all. **~170 words each is the working density**; the budget
+holds four or five.
+
+```markdown
+- [ ] **NNN.1 — <the title, which becomes the commit subject>.** <What it changes, in the
+      vocabulary of the thing itself: the names it adds, the sites it touches, what is retired
+      with it.>
+      *Its suite* <what it declares and drives, and why THAT proves the claim — the assertion,
+      never the subject. A refusal it must raise, and the text that refusal has to name.>
+      `[manual]`: <only what a program cannot observe, worded as the maintainer will read it back.>
+      <!-- extra context: <a file this task alone needs, beyond the spec's tagged list> -->
+```
+
+If it does not fit the limits, do NOT stretch them: propose splitting the feature.
+
+**A task may build a fourth file in the folder** — a census, an audit, an inventory — **when a later
+task of the same feature works from it and it edits nothing else.** Name it in the task that builds
+it and in the tasks that read it. It freezes with the folder, like everything else there.
+
+## 3. Register and stop
+
+- Remove the line from `specs/ROADMAP.md` if the feature came from there.
+- **Write nothing else** — the three files, and nothing that records state. The feature is *active*
+  because its `tasks.md` has unchecked boxes, which is derived.
+- **STOP for review, and do not commit.** Report the files written and the `ROADMAP.md` line
+  removed. Stay in the review loop as long as it takes.
+- **Every decision the review reaches goes back into the three files before you hand over** — the
+  approach into `plan.md`, what the maintainer rejected into *Discarded alternatives* with its
+  reason, the scope into `spec.md`. The conversation ends here and `/implement` reads the files and
+  nothing else, so anything only said out loud was not said.

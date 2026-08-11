@@ -1,0 +1,133 @@
+# Controls: lists, text and scrolling
+
+> The model-backed and text controls `haven` ships. The simple ones (buttons, checkboxes, labels)
+> are ui-controls.md; the tree itself is widgets.md.
+
+## `HSlider` and `Scrollbar` — public fields, and a two-call vs one-call split
+
+Both are plain `Widget` subclasses (no `SIWidget` cache, nothing to `redraw()`). `val`/`min`/`max` are
+`public int` on each — the adapter reads and writes them directly, with its own clamp.
+
+| What | Where |
+|---|---|
+| The drag-in-progress hook | `HSlider.changed()` — empty by default, called from `update(Coord)` on every step of a drag that actually moves `val` |
+| The release hook | `HSlider.fchanged()` — called ONCE from `mouseup` whenever a grab was active (`drag != null`), even if `val` never changed during it |
+| `Scrollbar` has only the first half | `Scrollbar.changed()` fires from the same `update(Coord)` shape; `mouseup` only releases the grab — **no `fchanged()` equivalent exists** |
+
+> **`Scrollbar(int h, Scrollable ctl)` — the constructor `Scrollport` uses — makes `draw()` overwrite
+> `min`/`max`/`val` from `ctl` EVERY FRAME.** `Scrollbar.draw` starts
+> `if(ctl != null) { min = ctl.scrollmin(); … }` before painting. A bare control must use the OTHER
+> constructor, `Scrollbar(int h, int min, int max)`, which leaves `ctl` `null` — otherwise an addon's own
+> `:range`/`:value` writes read back correctly for one tick and silently revert on the next drawn frame.
+
+## `TextEntry` and its `ReadLine` buffer
+
+`TextEntry` is a plain `Widget` (no `SIWidget` cache) that owns a
+`ReadLine` buffer rather than holding its string directly — `PCLine`/`EmacsLine`
+are the two implementations, chosen once by the `"editmode"` pref; either way the notify shape below is
+`ReadLine.Base`'s and identical.
+
+| What | Where |
+|---|---|
+| Per-edit notify | `Base.key` calls `owner.changed(this)` only when the edit actually changed the buffer (`seq` moved) — a no-op keypress (e.g. Left at column 0) fires nothing |
+| Enter | `key2` matches `Widget.key_act` and calls `owner.done(this)` — **not** `changed`; `TextEntry.done` → `activate(buf.line())`, gated stock-side by `canactivate` (`false` off a bare ctor, so the stock class sends no `wdgmsg` either) |
+| The silent write | `TextEntry.rsettext(String)` replaces `buf` with a brand-new `ReadLine` (`ReadLine.make`, mirroring the constructor) — `Base`'s plain `line(String)` setter it goes through calls nothing, unlike `settext`/`Base.setline` below |
+| The noisy write | `TextEntry.settext(String)` → `buf.setline(text)` → `Base.setline`/`PCLine.setline`, which calls `owner.changed(this)` whenever the line actually differs |
+
+> **A control's own `:value(v)` write has to go through `rsettext`, never `settext`.** The stock class uses
+> `settext` for everything (construction included calls `rsettext`, but every later native caller uses
+> `settext`), and that path notifies `changed` — so writing a value the "obvious" way re-enters an adapter's
+> own change handler, exactly the feedback loop every other value-bearing control in this catalogue also has
+> to avoid, just reached from a buffer object instead of a field.
+
+## `Scrollport` — composition over `Scrollbar` + `Scrollcont`, and a sealed bar
+
+`Scrollport` is not extended by an adapter: its constructor builds `bar`
+ as a **fixed anonymous `Scrollbar`** whose only override is
+`changed()` (`cont.sy = bar.val`), so a subclass has no seam to make that same object notify Lua too. An
+adapter instead rebuilds the shape from `Scrollport`'s own public pieces.
+
+| What | Where |
+|---|---|
+| The inner container | `Scrollcont`, `public static` — reusable directly; its clip+scroll draw is `draw(GOut)`, offsetting each child by `-sy` via `xlate` and skipping one whose translated box misses the port entirely |
+| The bar's range, auto-derived | `Scrollcont.update()` (the constructor's override) sets `bar.max = max(0, contentsz().y + 10 - sz.y)` — runs from `Scrollcont.add` only, **not** from a later `resize()` on an existing child, so a child's final size must be set before it is added |
+| The wire-protocol redirect | `Scrollport.addchild` forwards into `cont.addchild` — **`Widget.add` does NOT call `addchild`**, so any Java caller adding straight into a `Scrollport` (not through this override) drops the child beside the bar instead of inside `cont` |
+| Wheel + resize | `mousewheel` is `bar.ch(ev.s * UI.scale(15))`; `resize` re-anchors `bar` to the right edge and resizes `cont` to `sz` minus the bar's width |
+
+> **The `:parent(w)` write is the one Java call site outside `Scrollport` itself that adds a child into one.**
+> It goes through `Widget.add(child, Coord)`, never `addchild`, so a parent-shaped like `Scrollport` needs its
+> OWN `instanceof` branch there redirecting into `cont` — the addchild override above does not cover it.
+
+## `SListWidget`/`SListBox` — the model-backed contract
+
+`SListWidget<I, W>` demands exactly two overrides —
+`items()` and `makeitem(I, int, Coord)` —
+and `sel` (`public I`) plus `change(I)`
+(`this.sel = item`, nothing else) are the whole selection state. `SListBox<I, W>` adds scrolling over that.
+
+| What | Where |
+|---|---|
+| Row widgets are built LAZILY | `SListBox.update()`, called from `tick(dt)` every frame — **not** from `items()`/`change()` directly, so a row from `:rows(t)` does not exist as a widget until the next tick |
+| The ready-made rows | `TextItem.of(sz, Supplier<String>)` and `IconText.of(sz, Supplier<BufferedImage>, Supplier<String>)` — both plain `Widget`s, neither wired to `change()` on their own |
+| The click-to-select wrapper | `ItemWidget<I>` — its `mousedown` calls `list.change(item)` directly; `makeitem` must wrap a bare `TextItem`/`IconText` in one (added as its own child) for a click to select anything |
+| Deselect on empty click | `SListBox.unselect(button)` calls `change(null)` for button 1 when `mousedown` finds no `slotclick` — a REAL interaction, not one an adapter's own `:value(v)` should suppress |
+
+> **A programmatic write must not call `change(I)`.** It is the single hook BOTH a real click
+> (`ItemWidget.mousedown`) and the click-away deselect reach, with no lower-level "just set `sel`, don't
+> notify" seam — so a control's `:value(v)` writes the `sel` field directly and only a
+> real click's `ItemWidget.mousedown` → `change(item)` path fires the Lua `:onChange` handler.
+
+## `SDropBox`/`SListMenu` — neither is an `SListWidget` itself, and neither wants an `ItemWidget` back
+
+Both extend/wrap `SListWidget`'s contract one level removed, which is why the same `makeitem` result
+(`SListWidget.TextItem`/`IconText`) is wrapped in an `ItemWidget` for `SListBox` but must NOT be for either
+of these — the wrap happens inside their OWN inner list class instead.
+
+| What | Where |
+|---|---|
+| `SDropBox<I, W>` IS an `SListWidget<I, W>` | but its `makeitem` must return the BARE `W`, not an `ItemWidget` — `SDropList.Item` (the popup's own row wrapper) and `SDropBox.change` (the closed-box widget) each wrap it themselves |
+| `SDropList.makeitem` | `new Item(item, SDropBox.this.makeitem(item, idx, sz))` — the outer `makeitem` supplies content, the inner list supplies the click wrapper |
+| `change(I)` does DOUBLE duty here | `SDropBox.change` sets `sel` **and** rebuilds the closed-box widget (`curitem`, destroyed and re-`makeitem`'d) — unlike `SListBox`, there is no lower-level "just set `sel`" seam at all; a caller must run the SAME method's logic to keep the closed-box display in sync, so a control's own `:value(v)` calls `change(I)` directly and skips only its own notify wrapper (not the field write) |
+| `makeitem(null, …)` is a REAL call | `SDropBox.change` calls `makeitem(item, -1, …)` with whatever it is given, including `null` (no selection) — an adapter's `makeitem` must handle it |
+| `SListMenu` is NOT an `SListWidget` at all | it wraps one, `InnerList extends SListBox` as a private field (`box`) — `SListMenu.makeitem`'s result is wrapped in `InnerList.Item` the same one-level-removed way `SDropList` wraps `SDropBox`'s |
+| `added()` grabs input UNCONDITIONALLY | `SListMenu.added()` — `ui.grab`/`ui.grabkeys`, gated only by the public `grab` field (default `true`); `nograb()` is the documented opt-out, meant for exactly this: a menu that is not a modal popup |
+| Window raise vs. popup add-order | `Window.mousedown` raises itself AFTER `ev.propagate` returns — so a click that opens an `SDropBox`'s popup (added to `ui.root` DURING that propagate) is always followed by the enclosing window re-topping itself over it, same frame |
+
+## `GridList` — DRAWS cells, does not build row widgets
+
+`GridList<T>` is the one model-backed control with no `items()`/`makeitem()` —
+its only abstract method is `drawitem(GOut, T)`, called straight from `draw`,
+so an adapter never touches `SListWidget` at all. Layout is one or more `Group`,
+a **non-static inner class whose constructor self-registers** (`groups.add(this)`,)
+— there is no removal, so a different `itemsz` needs a whole new `GridList`, not a mutated `Group`.
+
+| What | Where |
+|---|---|
+| `itemsz`/`marg` are `final` on `Group` |  — a cell-size change is D-113's "rebuild", the same shape a list's `:rowHeight(n)` already has |
+| `marg.x < 0` means EVEN SPREAD | `adjx` spaces items across the full row width instead of a fixed gap when `marg.x` is negative — the engine's own icon-grid shape (`SkillWnd.SkillGrid`/`ExpGrid` both pass `(-1, 5)`) |
+| `drawitem` runs for EVERY item, every frame, unconditionally | `draw(GOut)`'s item loop runs `sr*rw` to `items.size()-1` with **no per-item bound check against `sz.y`** — an item below the visible box still gets `drawitem` called, just clipped on screen; only `Group`-level visibility (`grp.ey - yo < 0`) skips a whole group |
+| A `Loading` from one cell does not aim the whole draw | `draw` catches `Loading` PER ITEM and blits a placeholder — a wrapping addon callback (`drawitem` override) that raises anything else propagates to whatever calls it |
+| Selection exists but is native-only | `change(T)`/`itemclick` set `sel` and draw a highlight (`drawsel`) on a real click — no Lua verb reads it (spec 040 ships no `:value()` on a grid) |
+
+## `TableBox` — the fifth model-backed control, and a constructor-order trap of its own
+
+`TableBox<I>` demands `items()`/`spec()`/`itemh()` — all called from ITS OWN
+constructor, before an adapter subclass's own field initializers run, so
+a plain `this.x = x` in the subclass constructor body reads back its default the one time `spec()`/`itemh()`
+actually need it.
+
+| What | Where |
+|---|---|
+| Columns are fixed at construction | `cols`/`main` are `public final`, built once from `spec()` — the same "no live setter" shape [row height](#slistwidgetslistbox-the-model-backed-contract)/[cell box](#gridlist-draws-cells-does-not-build-row-widgets) already have |
+| A cell is built PER COLUMN, per row | `Row`'s constructor calls `ColSpec.makecell` once for every column; `MainList`, an inner `SListBox`, is what runs it — lazily, from the same uncaught per-frame tick the model-backed contract's row-widget note above already covers |
+| `widths()` skips its own flex math at `flexw=0` | `widths()` redistributes stretch space by `ColSpec.flexw()`; with every column's `flexw` at `0` (this bridge's own choice — no stretch columns), `c.w` reduces to exactly `fixw()`, independent of the widget's own `:size()` |
+| `MainList` carries its own `Scrollbar` | `MainList extends SListBox` inherits its auto-scrollbar, so a suite walking its children for "the row widgets" must filter `type()=="Scrollbar"` out, same as any bare `:list()` |
+
+> **The constructor-order trap.** `spec()`/`itemh()` run on `this` while `TableBox`'s OWN constructor is
+> still executing — before control ever returns to the adapter's own constructor body. The fix costs no
+> `haven` edit: the adapter's factory method returns an ANONYMOUS subclass overriding both, capturing the
+> column spec and row height as locals of that factory — the compiler assigns an anonymous class's
+> captured-variable fields before it calls its OWN super-constructor, which is exactly early enough for
+> `TableBox`'s constructor, one level up, to see them. Confirmed with a throwaway, `haven`-free Java repro
+> before trusting it in the real adapter.
+

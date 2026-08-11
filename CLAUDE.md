@@ -1,76 +1,115 @@
 # brodgar-io-client — Project Instructions
 
-Customized Haven & Hearth ("Hafen") client, a fork of `dolda2000/hafen-client`. Active work: a
-**World-of-Warcraft-style Lua (LuaJ) AddOn system** living in `src/io/brodgar/addon/`, on branch
+Customized Haven & Hearth ("Hafen") client, forked from `dolda2000/hafen-client`. Active work: a
+World-of-Warcraft-style Lua (LuaJ) AddOn system in `src/io/brodgar/addon/`, on branch
 **`feature/addons`**.
+
+## The tree — the places there are, and no others
+
+| Path | What it holds |
+|---|---|
+| `docs/addons/**` | **The contract.** What the API *is*, always current. The only model `/plan` and `/implement` need |
+| `docs/client/**` | **The map of the upstream `haven` engine**: where each subsystem lives, what owns what, and the gotchas that cost time. Written only by the task that had to read that source anyway |
+| `src/` | The `haven` engine (upstream) and `src/io/brodgar/**` (ours) |
+| `addons/` | The demo addons, and the one task suite in flight |
+| `bin/addons/` | What the running client actually scans, beside the jar. A suite is copied here to be run, and gitignored |
+| `specs/ROADMAP.md` | The only queue: open defects and candidates |
+| `specs/NNN-<feature>/` | `spec.md` · `plan.md` (its *Discarded alternatives* are the decision record) · `tasks.md`, plus the archived suites. Written once, then frozen |
+| `DOCUMENTATION.md` | How a page under `docs/` is written |
+
+**If a fact is true of the API today, it lives in `docs/` and `src/` — nowhere else.** `ls specs/`
+is the index, and a second copy of a live fact is the copy that goes stale. While a feature is in
+flight its `spec.md` and `tasks.md` carry what its own later tasks need, and freeze with it.
+
+`docs/client/` is the one exception, and it earns it: it maps **upstream `haven` only**, where the
+sole other copy is 100k lines of unannotated Java. **Nothing about `io.brodgar` is ever written
+there** — that is already said by `docs/addons/` and by your own code, and the third copy is the
+one that claims a class deleted two features ago. It is a **map, not an authority**: when it
+disagrees with `src/`, `src/` wins and the task that found the discrepancy fixes the page.
+
+A `NNN-` folder is **frozen**: never swept, never re-read unless a plan names it as prior art. It
+tells you what was rejected and why — never what is in force. It also cites paths and numbers from
+the day it was written, so **take the reason, never the pointer**: never follow a path out of a
+frozen folder. If the reason does not stand on its own words, it is not prior art.
 
 ## Rules (obey always)
 
-- **NEVER `git push`.** Everything stays **local**. Pushing is forbidden unless the maintainer
-  explicitly asks.
-- **The ONLY self-driven commit is `/end`'s**, and it lands the whole task at once — code, docs,
-  specs and the area's own trees — **after** the maintainer's verification. `/plan` and
-  `/implement` commit nothing; outside `/end`, run `git commit` only when the maintainer
-  explicitly says so.
-- **Documentation is ONE tier**, whichever the working area's `AREA.md` declares (for `addons`: the
-  user-facing reference under **`docs/addons/**`** — nested where a namespace is a directory, plus
-  `runtime.md` and `examples.md` — with its `api/README.md` index and the top
-  `docs/addons/README.md` "API at a glance" table when a new section first ships). There are no
-  per-task narrative notes.
-- **An area whose docs tier lives under `docs/` writes to area `docs`'s standard**, which that area
-  owns and maintains. Read it BEFORE writing a page, not after: `specs/docs/design/style-guide.md`
-  — **§12 is the checklist every docs task runs and reports** (links and anchors falsified both
-  ways, `wc -l` <= 300, headings, the retired-name greps, every `hafen.*` name found in `src/`) —
-  and the one-liners from `grep "^### D-" specs/docs/decisions/docs-standard.md`. A page that does
-  not meet the standard when the task ends is a page a later review has to rewrite. **`docs/` never
-  mentions `specs/`, task or feature numbers, decision ids, `src/` paths or measured figures** — a
-  reader of `docs/` cannot tell that `specs/` exists.
-- **`specs/`, `docs/`, `src/` and the area's own trees all live in the project repo** and ride the
-  same `/end` commit. A feature's specs (written by `/plan`) land with the first `/end` of that
-  feature. Nothing is ever pushed. **`/archive` is a frozen backup — NEVER read it.**
-- **Everything in English** — the conversation, the docs, the specs, and code comments.
-- API design: **one canonical way** per operation (no dual styles); **namespaced `hafen.*`**;
-  reference-based accessors (`hafen.gob.health(ref)`).
-- Core edits to `haven` stay minimal and **centralized**, tagged `// addon:`. Invasiveness is
-  allowed where it clearly enables better features (decision D-011) — but prefer new code in
-  `src/io/brodgar/addon/` + few one-liners.
-- Java compiles at `source/target 1.8` (no `var`, `Files.readString`, switch-expressions, …) and
-  runs on Java 23. **Java (engine) changes require `ant` rebuild + a full client restart** — the JVM
-  does not hot-reload classes. Only Lua addon *files* reload live (`:reload`).
+- **NEVER `git push`.** Everything stays local.
+- **`/end` makes the only self-driven commit**, and it lands the whole task at once — code, docs,
+  specs, addons — *after* the maintainer's verification. `/plan` and `/implement` commit nothing.
+- **Everything in English**: the docs, the specs, the code and its comments.
+- **`/archive` is a frozen backup — NEVER read it.**
+- Core edits to `haven` stay minimal, centralized, and tagged `// addon:`.
+- Read nothing outside what the running command lists, unless the maintainer names it.
+- **No command looks for information in the history.** What is in force is in `docs/` and `src/`,
+  and within a feature still in flight, in its own `spec.md` and `tasks.md`.
+- These four files are written the way `docs/` is: present tense, no note of what a rule used to be.
 
-## Build
+## Build and verification
 
-`ant get-luaj` (fetch deps) · `ant hafen-client` (compile) · `ant bin` (package) · `ant run` (launch).
-Verify with `ant hafen-client` → `BUILD SUCCESSFUL`, then stop for the maintainer's in-game test.
+- `ant hafen-client` → `BUILD SUCCESSFUL`. `ant get-luaj` fetches dependencies, `ant bin` packages,
+  `ant run` launches.
+- An incremental build hides a symbol that moved between files — `rm -rf build/classes` first for a
+  true compile check.
+- Java compiles at source/target **1.8** (no `var`, no `Files.readString`, no switch expressions)
+  and runs on Java 23.
+- **A Java change needs an `ant` rebuild AND a full client restart.** Only Lua addon *files* reload
+  live, with `:reload`.
+- Pre-check logic headlessly where you can: `jshell`, or the in-game `:lua` REPL.
+- Final verification is in-game, by the maintainer, through the task's own suite.
 
-## How to continue the work
+## The API grammar — invariant, every feature obeys it
 
-**The cycle is `/plan <feature>` (design, review, no commit) → `/implement` (one task; iterate with
-the maintainer until it passes verification) → `/end` (document, close and commit everything).**
-Each command states exactly what to read — read nothing else.
+- **One canonical way** per operation, no dual styles. Namespaced `hafen.*`. Nothing is released,
+  so a replaced API is **hard-cut**: no deprecation alias, and every retired spelling throws naming
+  its replacement.
+- A **section** is called and is a per-addon singleton; everything after it is a **colon verb**;
+  **arity is the verb**; a set is a **collection**.
+- **Reference-based accessors**: a read takes the thing it reads and hands back a **live interned
+  object**, with `:info()` as its only snapshot. An explicit `nil` raises, except where a page
+  documents a meaning for it.
+- **One notification verb**: `X:on(key, fn)` → a `Sub`, ended with `sub:off()`. The address picks
+  the door — hold the object, subscribe on it; otherwise on the bus.
+- A **builder** is constructed bare and configured by chained setters. A place is a **Position**.
+- **Protected tier**: a write verb sits behind a **per-verb permission key**, declared exactly or as
+  a `<prefix>.*` group, with enable-time consent and no global switch. Everything else observes, or
+  writes client-local only.
 
-**Work is organized in AREAS**, one folder per area under `specs/` (today: `specs/addons/`).
-Each area owns a `specs/<area>/AREA.md` manifest — docs tier, build check, verification, test
-protocol, design rules, commit paths — and everything area-specific comes from there.
-**The area is always stated explicitly** — `/plan <area> <desc>`, `/implement <area> [NNN.X]`,
-`/end <area> [note]` — and each command echoes `[area: <name>]` first. There is no "current
-area" state: several features can be in flight in different areas at once, so nothing is ever
-assumed. If a command cannot tell which area it is, it stops and asks. A new area is scaffolded
-from `specs/_area-template/`.
+## Testing — one task, one self-checking suite
 
-Shared across areas: **`specs/codebase-map.md`** — an INDEX only, one line per
-`specs/codebase/<subsystem>.md`. Open the 1–2 subsystems your feature touches, never the tree.
-Reading `haven` source that no subsystem file covers is allowed, but then `/end` writes or
-extends that file: coverage is paid for once, not re-derived every task.
+Every task ships its own addon at `addons/<NNN>-<feature>.<X>/` (task `033.2` of
+`specs/033-ui-stylesheet/` → `addons/033-ui-stylesheet.2/`; the folder name IS the manifest `id`).
+It asserts **through the very API the task just shipped** and prints one verdict line per check:
 
-Key paths inside an area: `STATE.md` (what works + the active feature), `ROADMAP.md` (future
-work), `FEATURES.md` (one line per `NNN-` feature folder), `DECISIONS.md` (→ `decisions/`),
-`LEARNINGS.md` (index of grep-able `learnings/*.md`). The area's public contract is its docs
-tier — for `addons`, `docs/addons/api/` is the `hafen.*` contract; there is no second copy.
+```text
+[pass] the sheet accepts a positional colour
+[fail] an unknown property is refused -- got: <no error>
+[manual] open the chat and read a line -- expect: grey-blue text, font unchanged
+[summary] 12 pass, 1 fail, 2 manual
+```
 
-**Area `addons` — testing is governed by `specs/addons/TESTING.md`. READ IT** before writing or
-verifying a task's tests. In short: every task ships its own **self-checking addon**
-(`addons/<NNN>-<feature>.<X>/`) that asserts through the `hafen.*` API it just shipped and prints
-one `[pass]` / `[fail]` / `[manual]` line per check, which the maintainer pastes straight back into
-the conversation. Past suites stay installed and re-run on every login, so one login is still the
-full regression. The details, the output format and the copy-paste skeleton live in that file.
+The maintainer runs `:t<NNN>-<X>`, writes the observed result on each `[manual]` line, and pastes
+the whole block back. Nothing needs interpreting — that round trip is the format's point.
+
+- **A suite stands ALONE.** Its one command is the whole verification of that task. Where its proof
+  rests on something an older suite also checks, it **duplicates the assertion** — assume no other
+  suite is ever run. Needing a second command is a missing assertion, never a request to make.
+- **Automate everything the API can read back.** A refusal is a check too: `pcall` the bad call and
+  assert it failed *and* said why. `[manual]` is only for what a program cannot **observe** — a
+  keypress, a judgement of how something looks, a server-side effect. Not for what it cannot cause:
+  where a check needs a receiver only the server can produce, retry on a timer for a bounded window
+  and score over what the run reached.
+- **A suite never starts itself** (no login hook, no timer), never mutates persistent state, and
+  stays around ≤ 15 output lines. More than that means it was two tasks.
+- `/implement` copies it to `bin/addons/` to be run, and re-copies it after every fix round. `/end`
+  archives it into `specs/NNN-<feature>/addons/` and deletes the copy.
+- **An addon is a suite when its folder name reads `<NNN>-<feature>.<X>`, and only then.** Every
+  other folder under `addons/` is a demo: never archived, never deleted, never grown to carry a
+  proof — fixed when a change breaks it, and that is all. `ls addons/` is its only list.
+
+## The cycle
+
+**`/plan <feature>`** (design, review, no commit) → **`/implement`** (one task; iterate with the
+maintainer until it passes) → **`/end`** (verify, close, commit everything).
+
+Each command states exactly what to read. Read nothing else.
