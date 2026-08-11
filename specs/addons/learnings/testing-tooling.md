@@ -1703,3 +1703,18 @@
   due/reschedule/one-shot arithmetic runs — so the probe measures the window the suite actually has (60 ticks
   in, 60 ticks out) instead of a pulse count that only approximates it. `AddonManager.tick(dt)` is the wrong
   door here: it drags in the whole frame (reload queue, arming, profiling, event drains) and wants a live `UI`.
+- **(050.4) Where one table is spelled in TWO places, the first check is the two transcriptions against each
+  other — and it needs no engine at all.** The catalogue now lives both in the guide's own table and again as a
+  `Key` column beside each verb on its page, which is exactly the arrangement that drifts. Carrying *both*
+  spellings in each suite row (`guideKey`, `pageKey`, transcribed separately from the two sides) buys a check
+  that runs before any receiver exists, prints instantly, and localises a mismatch by PAGE NAME — where the
+  engine check that follows can only say "this verb refused something else". Generalises: a reference that
+  states one fact twice earns a row with two columns and an equality, not one column read from whichever copy
+  was nearer.
+- **(050.4) A suite cannot both prove a GRANT and prove a key is REAL — the manifest is static, so pick by
+  what the task is about.** Proving `<prefix>.*` covers a nested key needs a declaration (D-213: the argument
+  refusal, reached, is the grant); proving a printed key exists needs the *absence* of one (the permission
+  refusal naming it back). Declaring `player.*` here would have bought one documented group row and forfeited
+  two of the 22 "names its key back" checks that were this task's whole subject, so the suite declares nothing
+  and 22/22 name themselves. Write down in `HANDOFF.md` which documented row the chosen shape cannot reach and
+  why — an unreachable row stated is a boundary; an unreachable row unmentioned reads as coverage.

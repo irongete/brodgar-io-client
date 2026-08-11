@@ -1,0 +1,9 @@
+{
+  "name": "050.4 — the docs teach the catalogue",
+  "id": "050-granular-permissions.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 050.4: every permission key the reference now prints -- in the guide's catalogue table and again beside its verb on the page that owns it -- is driven through the gate, so a key the docs invented, misspelled or drifted onto the wrong verb reddens a line naming its page. It also checks the guide's group table against the grouping the engine's own refusals reveal. It declares no permissions: every check is a refusal, so nothing is sent.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

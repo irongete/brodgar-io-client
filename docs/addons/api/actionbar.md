@@ -62,13 +62,14 @@ cooldown ticking, which would be every frame; read `:cooldown()` live off the ob
 
 ## Write (protected)
 
-| Method | Description |
-|---|---|
-| `slot:use(mods)` | activate the slot, exactly as a left-click on that button does |
-| `slot:res(name)` | assign an action to the slot **by resource name**, exactly as dragging it off the menu grid does |
+| Method | Key | Description |
+|---|---|---|
+| `slot:use(mods)` | `actionbar.use` | activate the slot, exactly as a left-click on that button does |
+| `slot:res(name)` | `actionbar.res` | assign an action to the slot **by resource name**, exactly as dragging it off the menu grid does |
 
-Both return the `Slot`, so they chain. Called from an addon that did not declare the permission, each
-raises an error; see [the permission model](conventions.md#the-permission-model). `mods` is the
+Both return the `Slot`, so they chain. Each needs its own permission key declared in your manifest — or the
+group `actionbar.*`, which covers both — and called from an addon that did not declare it, each raises an
+error naming that key; see [the permission model](conventions.md#the-permission-model). `mods` is the
 optional modifier bitfield — Shift = 1, Ctrl = 2, Alt = 4.
 
 `use` raises an error on an empty slot, so check `:empty()` first. A ground-targeted ability enters

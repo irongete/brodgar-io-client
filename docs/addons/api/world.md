@@ -231,7 +231,9 @@ ghost:rotate(a)
 ## Write (protected)
 
 Two verbs change the world rather than read it, and both send exactly the message the matching mouse
-gesture sends. Each hands the section back, so a run of writes chains.
+gesture sends. Each hands the section back, so a run of writes chains. Each also needs its own
+[permission key](../guides/permissions.md) declared in your manifest — `world.place` and `world.select`, or
+the group `world.*` for both — and raises an error naming that key when it was not declared.
 
 ### `hafen.world():place(p, angle, button, mods)`
 

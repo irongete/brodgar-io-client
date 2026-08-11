@@ -27,11 +27,11 @@ rather than a shorthand for it.
 
 ## Write (protected)
 
-| Method | Description |
-|---|---|
-| `hafen.speed():current(n)` | select speed `n`, `0..3`; returns the section, so writes chain |
+| Method | Key | Description |
+|---|---|---|
+| `hafen.speed():current(n)` | `speed.current` | select speed `n`, `0..3`; returns the section, so writes chain |
 
-Called from an addon that did not declare the permission, it raises an error; see
+Called from an addon that did not declare the `speed.current` key, it raises an error naming that key; see
 [the permission model](conventions.md#the-permission-model). It also raises one for an `n` outside
 `0..3`, and before the speed selector exists. Within that range it drives the client's own control and
 sends exactly what a click would, so

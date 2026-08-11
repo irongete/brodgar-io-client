@@ -207,6 +207,9 @@ would have sent, from the widget the server knows. `msg` must be a **string**: a
 than coerced, because a message name leaving the client is not a thing to guess at. Trailing arguments
 marshal the way an [`action`](../event.md#intercepting-an-outbound-action) `ev:args()` is read: a
 `{x=, y=}` table becomes a coordinate, and numbers, strings and booleans pass through. Returns the Widget.
+It needs the `widget.send` [permission key](../../guides/permissions.md) declared in your manifest; without
+it the call raises an error naming that key. It is the widest key in the catalogue — anything the typed
+verbs can send, this can send too — so declare it only where none of them fit.
 
 ```lua
 hafen.ui():find("@MapView"):send("click", {x = 0, y = 0}, {x = 0, y = 0}, 1, 0)

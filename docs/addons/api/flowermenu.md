@@ -82,14 +82,15 @@ client is holding.
 
 ## Write (protected)
 
-| Method | Description |
-|---|---|
-| `hafen.flowermenu():select(label)` | pick the petal captioned `label`, matched whole and case-insensitively |
-| `hafen.flowermenu():select(n)` | pick the petal at position `n` on the ring, counting from `1` |
-| `hafen.flowermenu():cancel()` | close the menu with nothing chosen, exactly as Esc does |
+| Method | Key | Description |
+|---|---|---|
+| `hafen.flowermenu():select(label)` | `flowermenu.select` | pick the petal captioned `label`, matched whole and case-insensitively |
+| `hafen.flowermenu():select(n)` | `flowermenu.select` | pick the petal at position `n` on the ring, counting from `1` |
+| `hafen.flowermenu():cancel()` | `flowermenu.cancel` | close the menu with nothing chosen, exactly as Esc does |
 
-Called from an addon that did not declare the permission, each raises an error; see
-[the permission model](conventions.md#the-permission-model).
+Picking and dismissing are separate keys, so an addon may declare one without the other; the group
+`flowermenu.*` covers both. Called from an addon that did not declare the key it needs, each raises an error
+naming that key; see [the permission model](conventions.md#the-permission-model).
 
 A string is always a caption and a number is always a position, so
 `hafen.flowermenu():select("3")` picks the petal captioned `3` and never the third one.

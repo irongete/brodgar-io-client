@@ -43,7 +43,9 @@ per-player state, so they live in [`hafen.meter`](meter.md).
 ### `hafen.player():move(p)`
 
 Walk to a [Position](world.md#the-position-type) — the click a left-click on that patch of ground sends, so
-an **off-screen destination is fine**. Returns the Player, so a move chains.
+an **off-screen destination is fine**. Returns the Player, so a move chains. It needs the `player.move`
+[permission key](../guides/permissions.md) declared in your manifest; without it the call raises an error
+naming that key, before anything is sent.
 
 `p` is required. Anything that is not a Position raises, a plain `{x, y}` table and a
 [widget's pixel position](ui/widget.md) included: a place in the world and a point on the screen are
@@ -73,7 +75,11 @@ end
 |---|---|---|
 | `hafen.player():hand()` | Hand \| nil | the cursor while something is on it, `nil` while it is empty |
 | `hand:item()` | [`Item`](ui/items.md#the-item-object) \| nil | what you are carrying |
-| `hand:use(target, mods)` | the Hand | **protected** — apply what you are carrying to `target` |
+| `hand:use(target, mods)` | the Hand | **protected**, `player.hand.use` — apply what you are carrying to `target` |
+
+`hand:use` is the one nested key in the catalogue: `player.hand.use` grants it exactly, and so does the
+group `player.*` — which grants `player.move` with it. Declare `player.hand.*` for the held-item gesture
+alone.
 
 The two reads are not protected and neither throws. `hafen.player():hand()` hands back the same object
 every call, so `==` works and there is nothing to release; it is the *cursor* rather than a snapshot of

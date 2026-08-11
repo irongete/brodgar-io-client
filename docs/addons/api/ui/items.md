@@ -60,12 +60,15 @@ empty, because where it is is exactly what it no longer has.
 What you can do **to** an item is on the item. Each sends exactly what the matching click sends, and each
 hands the Item back, so a run of verbs chains.
 
-| Method | Description |
-|---|---|
-| `item:use(mods)` | activate it: its default right-click action — eat, open, light, … |
-| `item:take()` | pick it up onto the cursor, or unequip a worn item |
-| `item:drop(n)` | drop it on the ground |
-| `item:transfer(n)` | move it to the linked container, or to your inventory |
+| Method | Key | Description |
+|---|---|---|
+| `item:use(mods)` | `item.use` | activate it: its default right-click action — eat, open, light, … |
+| `item:take()` | `item.take` | pick it up onto the cursor, or unequip a worn item |
+| `item:drop(n)` | `item.drop` | drop it on the ground |
+| `item:transfer(n)` | `item.transfer` | move it to the linked container, or to your inventory |
+
+Each needs its own [permission key](../../guides/permissions.md) declared in your manifest — or the group
+`item.*`, which covers all four — and raises an error naming that key when it was not declared.
 
 ```lua
 local first = hafen.ui():inventory():items()[1]

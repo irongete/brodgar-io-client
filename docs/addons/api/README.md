@@ -53,7 +53,8 @@ you came for from the tables below. Every page in the tree is listed here.
 
 The verbs that act are on the pages of what they change — [`hafen.player`](player.md), [Gob](gob.md),
 [`hafen.world`](world.md), [items](ui/items.md) and [the Widget object](ui/widget.md) — under a
-`Write (protected)` heading. Two catalogues have a page of their own:
+`Write (protected)` heading, each stating the permission key it needs. The whole catalogue of keys is in
+[permissions](../guides/permissions.md). Two catalogues have a page of their own:
 
 | Page | What it holds |
 |---|---|

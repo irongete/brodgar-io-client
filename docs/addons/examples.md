@@ -169,7 +169,8 @@ round-trips: read, write something different, read back, put the original value 
 ## walker
 
 The [protected write tier](guides/permissions.md) in one small addon: it declares a permission key for
-every verb it fires, so it is disabled until you enable it and confirm the consent dialog. Nothing
+every verb it fires — several of them as a `<prefix>.*` group — so it is disabled until you enable it and
+confirm the consent dialog, which lists those entries one line each. Nothing
 it does is automatic — every verb is a deliberate `:walker <sub>`, and each is met on the page of the thing
 it changes: [walking](api/player.md#write-protected) and applying what is on your cursor,
 [clicking a gob](api/gob.md#write-protected),

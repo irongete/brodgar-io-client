@@ -1,32 +1,105 @@
 # Permissions
 
-Reading the game needs no permission. **Acting** on it — walking, clicking an object, using an item,
-picking a menu entry — is the one protected tier in the API, and this guide is about getting through the
-gate and about what is on the near side of it.
+Reading the game needs no permission. **Acting** on it — walking, clicking an object, using an item, picking
+a menu entry — is **protected**: one permission key per verb, declared in your manifest and approved by the
+user when they enable your addon. This guide is the catalogue of those keys, how to ask for them, and what
+is on the near side of the gate.
 
-## What is protected, and what is not
+## The catalogue
 
-Protected is exactly one thing: starting an action the player could have performed. There is no
-section that collects those verbs — **each one lives with the thing it changes**, so you meet the
-permission on the page you looked the verb up on, under a heading reading `Write (protected)`.
-That is the whole set:
+Twenty-two keys, one per protected verb. A key is named `<section>.<verb>` after the section the verb lives
+on, because a verb lives with the thing it changes rather than in a section of its own — so `pag:use()` is
+`menugrid.use` and `slot:use()` is `actionbar.use`. The third column is what the consent dialog tells the
+user, word for word.
 
-| Verb | What it sends |
+| Key | Verb | What it lets an addon do |
+|---|---|---|
+| `player.move` | [`hafen.player():move`](../api/player.md#write-protected) | walk your character to a place |
+| `player.hand.use` | [`hafen.player():hand():use`](../api/player.md#the-hand) | use whatever it is holding on things |
+| `gob.click` | [`gob:click`](../api/gob.md#write-protected) | click objects in the world |
+| `item.use` | [`item:use`](../api/ui/items.md#write-protected) | use items |
+| `item.take` | [`item:take`](../api/ui/items.md#write-protected) | pick items up onto the cursor |
+| `item.drop` | [`item:drop`](../api/ui/items.md#write-protected) | drop items |
+| `item.transfer` | [`item:transfer`](../api/ui/items.md#write-protected) | move items between containers |
+| `world.place` | [`hafen.world():place`](../api/world.md#write-protected) | place buildings and objects |
+| `world.select` | [`hafen.world():select`](../api/world.md#write-protected) | select an area of the ground |
+| `menugrid.use` | [`pag:use`](../api/menugrid.md#use-protected) | invoke entries of the action menu |
+| `flowermenu.select` | [`hafen.flowermenu():select`](../api/flowermenu.md#write-protected) | choose from the radial menu |
+| `flowermenu.cancel` | [`hafen.flowermenu():cancel`](../api/flowermenu.md#write-protected) | dismiss the radial menu |
+| `craft.make` | [`hafen.craft():current():make`](../api/craft.md#write-protected) | press the Craft button |
+| `actionbar.use` | [`slot:use`](../api/actionbar.md#write-protected) | press your action-bar buttons |
+| `actionbar.res` | [`slot:res`](../api/actionbar.md#write-protected) | change what your action-bar buttons hold |
+| `kin.add` | [`hafen.kin():add`](../api/kin.md#write-protected) | add someone to your kin list |
+| `kin.rename` | [`kin:rename`](../api/kin.md#write-protected) | rename someone on your kin list |
+| `kin.group` | [`kin:group`](../api/kin.md#write-protected) | change someone's kin group |
+| `kin.endKin` | [`kin:endKin`](../api/kin.md#write-protected) | end kinship with someone |
+| `kin.forget` | [`kin:forget`](../api/kin.md#write-protected) | forget someone from your kin list |
+| `speed.current` | [`hafen.speed():current`](../api/speed.md#write-protected) | change your movement speed |
+| `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected) | the escape hatch: any message the client itself could send |
+
+That is the whole set. Nothing else in the API is protected, and **no key grants the tier as a whole**: an
+addon that declared `gob.click` can click objects and can do none of the other twenty-one things.
+
+## Groups
+
+A `<prefix>.*` entry stands for every key under that prefix, so one line asks for a family:
+
+| Group | Covers |
 |---|---|
-| [`hafen.player():move(p)`](../api/player.md#write-protected) | walk to a place |
-| [`hafen.player():hand():use(target, mods)`](../api/player.md#the-hand) | apply what is on your cursor to an item, a place or an object |
-| [`gob:click(button, mods)`](../api/gob.md#write-protected) | click an object, left or right |
-| [`item:use`, `:take`, `:drop`, `:transfer`](../api/ui/items.md#write-protected) | act on an item in a container |
-| [`hafen.world():place`, `:select`](../api/world.md#write-protected) | place what you are holding; area-select tiles |
-| [`pag:use()`](../api/menugrid.md#use-protected) | fire an action from the action menu |
-| [`hafen.flowermenu():select`, `:cancel`](../api/flowermenu.md#write-protected) | pick a petal of the open radial menu |
-| [`hafen.speed():current(n)`](../api/speed.md#write-protected) | change the movement speed |
-| [`craft:make`](../api/craft.md#write-protected) | press Craft in the open recipe window |
-| [`slot:use`, `slot:res(name)`](../api/actionbar.md#write-protected) | fire a hotbar slot, or assign one |
-| [the roster verbs](../api/kin.md#write-protected) | add, rename, re-group and forget a kin |
-| [`widget:send(msg, ...)`](../api/ui/widget.md#send-a-message-protected) | the escape hatch: any message, from a bound widget |
+| `item.*` | `item.use`, `item.take`, `item.drop`, `item.transfer` |
+| `kin.*` | `kin.add`, `kin.rename`, `kin.group`, `kin.endKin`, `kin.forget` |
+| `world.*` | `world.place`, `world.select` |
+| `flowermenu.*` | `flowermenu.select`, `flowermenu.cancel` |
+| `actionbar.*` | `actionbar.use`, `actionbar.res` |
+| `player.*` | `player.move`, `player.hand.use` |
+| `player.hand.*` | `player.hand.use` |
 
-Everything else writes only to your own client, and none of it is protected. That is worth stating, because
+Any key's prefix is a legal group, so `gob.*`, `menugrid.*`, `craft.*`, `speed.*` and `widget.*` parse too —
+each a longer way of writing the single key it covers.
+
+The prefix is matched on **whole dot segments**, so a group can never reach a key that merely starts with the
+same letters — and it does reach a nested one. `player.hand.use` is the only nested key: `player.*` covers it
+along with `player.move`, and `player.hand.*` covers it alone.
+
+A group is also the unit the user reads. The consent dialog prints one line per entry **as you wrote it**, so
+`item.*` is one line naming all four item verbs rather than four lines — and the panel row counts entries the
+same way.
+
+> **There is no `"*"`.** An entry that is neither a key nor a group — a typo, an invented key, a bare
+> asterisk — is a **load error**: your addon does not run and the AddOns panel row says which entry was
+> wrong and lists the whole vocabulary. A permission you misspelled fails before your first call rather than
+> at it.
+
+## Declaring it
+
+Two steps, and the second one is not yours:
+
+1. Your manifest declares a key, or a group, per verb you call.
+
+   ```json
+   "permissions": ["player.move", "gob.click", "item.*"]
+   ```
+
+2. The user enables the addon. An addon that declares anything here is **disabled the first time the client
+   sees it**, and enabling it in Options ▸ AddOns raises a consent dialog listing, one plain line each,
+   exactly the entries you wrote.
+
+So a write addon that is running is one the user knowingly turned on — there is no global switch to flip,
+and no way for an addon to grant itself a key by being installed. Its row in the panel carries a
+`[protected: N]` badge counting those entries from the moment it is discovered, with the entries themselves
+in the row tooltip, and a bulk **Enable all** skips it.
+
+> **Asking for more re-asks.** What the user approved is remembered per addon, so a version of your addon
+> that adds a key is disabled again and prompts again, with the added entries marked as new in the dialog.
+> A widened group counts as added. Dropping a key never re-prompts, and neither does an addon that declares
+> nothing.
+
+A protected verb called by an addon that did not declare its key raises an error naming the verb, the key it
+needs and the manifest line to paste. It is not a silent no-op, and it is not a crash.
+
+## What is not protected
+
+Everything else writes only to your own client, and none of it needs a key. That is worth stating, because
 several of them look like writes:
 
 | Unprotected write | What it changes |
@@ -41,39 +114,12 @@ several of them look like writes:
 | [client options](../api/client/README.md) | the settings you could have edited by hand |
 
 Subscribing, drawing and reading are not writes at all. The line is the server: if nothing leaves the
-client, there is no permission to ask for.
+client, there is no key to ask for.
 
-One pair reaches the server without the permission, which is why the line above is *starting* an action
-rather than sending one. [`ev:resend()` and `ev:send(t)`](../api/event.md#intercepting-an-outbound-action)
-re-issue a message the client was already about to send, in place of it: you choose the arguments, not
-whether it happens — the player's own click did that.
-
-## Declaring it
-
-Two steps, and the second one is not yours:
-
-1. Your manifest declares a key per verb you call. A `<prefix>.*` entry stands for every key under that
-   prefix, so the line below asks for walking, clicking, and all four item verbs.
-
-   ```json
-   "permissions": ["player.move", "gob.click", "item.*"]
-   ```
-
-2. The user enables the addon. An addon that declares a permission key is **disabled the first time the
-   client sees it**, and enabling it in Options ▸ AddOns raises a consent dialog that lists, one plain
-   line each, exactly the entries you wrote — a group as the one line you wrote it as.
-
-So a write addon that is running is one the user knowingly turned on — there is no global switch to flip,
-and no way for an addon to grant itself a key by being installed. Its row in the panel carries a
-`[protected: N]` badge counting those entries from the moment it is discovered, with the entries
-themselves in the row tooltip, and a bulk **Enable all** skips it.
-
-> **Asking for more re-asks.** What the user approved is remembered per addon, so a version of your addon
-> that adds a key is disabled again and prompts again, with the added entries marked in the dialog.
-> Dropping a key never re-prompts.
-
-A protected verb called by an addon that did not declare its key raises an error naming the verb and the
-key it needs. It is not a silent no-op, and it is not a crash.
+One pair reaches the server without a key, which is why the line above is *starting* an action rather than
+sending one. [`ev:resend()` and `ev:send(t)`](../api/event.md#intercepting-an-outbound-action) re-issue a
+message the client was already about to send, in place of it: you choose the arguments, not whether it
+happens — the player's own click did that.
 
 ## Writing an addon that acts
 
@@ -81,22 +127,25 @@ key it needs. It is not a silent no-op, and it is not a crash.
 hafen.slash():register("gotree", function()
   local tree = hafen.world():gob():nearest("terobjs/tree")
   if tree then
-    hafen.player():move(tree:position())
-    tree:click(3)                              -- and open its radial menu
+    hafen.player():move(tree:position())       -- player.move
+    tree:click(3)                              -- gob.click, and open its radial menu
   end
 end)
 ```
 
 Three habits, in the order they bite:
 
-- **Your manifest is the answer to "may I act?"** An addon that declared the permission and is running was
-  granted it, so there is nothing to test at run time and nothing to branch on. If you are writing a file
-  that may ship either way, read your own `manifest.json` rather than provoking the error.
+- **Your manifest is the answer to "may I act?"** An addon that declared a key and is running was granted
+  it, so there is nothing to test at run time and nothing to branch on. If you are writing a file that may
+  ship either way, read your own `manifest.json` rather than provoking the error.
 - **Act from `EnterWorld` onwards.** Every verb here needs a live map view or a live object and throws
   before there is one, so an action fired from a file body is an error rather than an early start.
 - **Make the user ask.** Bind actions to a [hotkey or a command](hotkeys-and-commands.md) rather than to a
   timer. An addon that acts on its own the moment it loads is the one thing a permission dialog cannot
   really warn about, and the bundled write example is deliberately built the other way round.
+
+**Declare the narrowest set that works.** The dialog is the user's whole view of what you do, so a group
+asked for out of convenience reads as four capabilities you wanted rather than the one you use.
 
 ## What the permission does not buy
 

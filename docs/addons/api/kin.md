@@ -94,17 +94,18 @@ local mine = hafen.world():gob():list(function(g) return g:kin() == k end)
 
 Each verb returns what it was called on — the `Kin`, or the collection for `add` — so they chain.
 `add` hands back the collection rather than a new `Kin`, because there is none yet: the server decides
-whether the secret is valid and the roster changes a beat later, as a `KinChanged`. Called
-from an addon that did not declare the permission, each raises an error; see
+whether the secret is valid and the roster changes a beat later, as a `KinChanged`. Each verb needs its own
+permission key declared in your manifest — or the group `kin.*`, which covers all five — and called from an
+addon that did not declare it, each raises an error naming that key; see
 [the permission model](conventions.md#the-permission-model).
 
-| Method | Description |
-|---|---|
-| `hafen.kin():add(secret)` | add a kin by the other player's hearth secret, the string the "Add kin" field takes |
-| `kin:rename(name)` | set the kin's nickname |
-| `kin:group(group)` | move the kin to group `0..254` — the write half of `kin:group()` |
-| `kin:endKin()` | end the kinship; the kin stays *memorized* in the list |
-| `kin:forget()` | drop a memorized, un-kinned kin from the list entirely |
+| Method | Key | Description |
+|---|---|---|
+| `hafen.kin():add(secret)` | `kin.add` | add a kin by the other player's hearth secret, the string the "Add kin" field takes |
+| `kin:rename(name)` | `kin.rename` | set the kin's nickname |
+| `kin:group(group)` | `kin.group` | move the kin to group `0..254` — the write half of `kin:group()` |
+| `kin:endKin()` | `kin.endKin` | end the kinship; the kin stays *memorized* in the list |
+| `kin:forget()` | `kin.forget` | drop a memorized, un-kinned kin from the list entirely |
 
 **Groups go to 254, colours stop at 8.** The server accepts `0..254` and the write validates that
 range, but the client draws eight kin colours, so a group of 8 or more has no colour and the Kin window

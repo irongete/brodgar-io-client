@@ -39,7 +39,7 @@ your own folder and rejects everything outside it. The `savedata/` tree is writt
 | `description` | string | the panel row's tooltip |
 | `api_version` | number | the API level you target; recorded, and nothing rejects a mismatch |
 | `saved_variables` | array | the tables the engine persists — see [`hafen.store`](api/store.md) |
-| `permissions` | array of strings | one key per protected verb you call — see [the permission model](api/conventions.md#the-permission-model) |
+| `permissions` | array of strings | one key per protected verb you call, or a `<prefix>.*` group — the catalogue is in [permissions](guides/permissions.md) |
 | `network` | object | `{"hosts": [...]}`, the allowlist for [`hafen.http`](api/http.md) |
 | `dependencies` | array of strings | addon ids, recorded; the loader neither orders nor requires them |
 | `optional_dependencies` | array of strings | the same |
@@ -49,9 +49,9 @@ for a dependency to import: two addons that cooperate do it through the client �
 console command — or not at all.
 
 A manifest the client cannot read is a load error naming what is wrong: bad JSON, a missing `id` or
-`files`, an id that does not match the folder, a `network` block that is not an object with a `hosts`
-array, or a `hosts` entry of `"*"`. The addon then shows an error row in the panel and runs nothing; the
-others are unaffected.
+`files`, an id that does not match the folder, a `permissions` entry that is neither a key nor a group,
+a `network` block that is not an object with a `hosts` array, or a `hosts` entry of `"*"`. The addon then
+shows an error row in the panel and runs nothing; the others are unaffected.
 
 ## When your code runs
 

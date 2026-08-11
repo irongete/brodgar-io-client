@@ -185,12 +185,16 @@ A verb that **starts an action the player could have performed** is **protected*
 if **your** addon declared that verb's own permission key in its
 [manifest](../runtime.md#the-manifest) and the user enabled it. Such an addon is disabled the first time
 the client sees it and enabling it raises a consent dialog; one that never declared the key gets an error
-naming the verb, before anything is sent.
+naming the verb and the key it needs, before anything is sent.
+
+A key is named `<section>.<verb>` after the section its verb lives on — `gob.click`, `item.transfer` — and a
+`<prefix>.*` entry asks for the family under that prefix in one line. There is no key that grants the tier
+as a whole.
 
 **A protected verb lives with the thing it changes**, never in a section of its own: walking is on the
 character, clicking is on the gob, moving an item is on the item — so the page you look a verb up on is
-where you meet the permission, under a heading reading **Write (protected)**. The whole set page
-by page, what the permission does not buy and how to write an addon that acts are in
+where you meet the permission, under a heading reading **Write (protected)**, with the key beside the verb.
+The catalogue of keys, what the permission does not buy and how to write an addon that acts are in
 [permissions](../guides/permissions.md).
 
 Everything else observes, or writes **client-local** only — a map marker, an icon flag, a sound — and

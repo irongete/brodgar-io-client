@@ -67,7 +67,9 @@ prefer the methods — they are always fresh, while a snapshot is frozen at the 
 ### `gob:click(button, mods)`
 
 Click the object — exactly the click a left- or right-click on it sends, so the server sees what it would
-have seen from the player. Returns the Gob, so a click chains.
+have seen from the player. Returns the Gob, so a click chains. It needs the `gob.click`
+[permission key](../guides/permissions.md) declared in your manifest; without it the call raises an error
+naming that key, before anything is sent.
 
 `button` is optional and defaults to `1` (left: select, interact); `3` is right, the one that opens the
 [radial menu](flowermenu.md). `mods` is optional and defaults to `0`: Shift = 1, Ctrl = 2, Alt = 4, added

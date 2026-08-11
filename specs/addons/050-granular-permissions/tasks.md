@@ -44,7 +44,7 @@
       *Its suite* transcribes the (verb → key) pairs from the pages it touched and asserts each
       refusal names that exact key — a doc that drifted from the engine reddens a line.
 
-- [ ] **050.4 — the docs teach the catalogue.** The content half: `guides/permissions.md` rebuilt around
+- [x] **050.4 — the docs teach the catalogue.** The content half: `guides/permissions.md` rebuilt around
       the 22 keys, wildcards and the enable-time consent; each protected page states the key its verb
       needs; `runtime.md`'s manifest row and badge row; `conventions.md` stating the model once;
       `api/README.md`, `guides/README.md`, `getting-started.md` and `examples.md` re-pointed. Close with

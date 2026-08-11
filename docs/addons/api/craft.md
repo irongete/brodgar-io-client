@@ -46,12 +46,12 @@ that, watch for the window with [`hafen.ui():on`](ui/replace.md): `hafen.ui():on
 
 ## Write (protected)
 
-| Method | Description |
-|---|---|
-| `c:make(all)` | craft the open recipe once; with `all = true`, press Craft All |
+| Method | Key | Description |
+|---|---|---|
+| `c:make(all)` | `craft.make` | craft the open recipe once; with `all = true`, press Craft All |
 
 It presses the recipe's own button, so it **consumes the ingredients** exactly as a click would. Called
-from an addon that did not declare the permission it raises an error naming that permission, and it also
+from an addon that did not declare the `craft.make` key it raises an error naming that key, and it also
 refuses on a recipe that is no longer the open one. It returns the Craft, so writes chain. See
 [the permission model](conventions.md#the-permission-model), and the **`walker`** addon for a demo.
 

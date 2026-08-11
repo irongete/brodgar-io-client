@@ -100,9 +100,9 @@ end
 
 ## Use (protected)
 
-| Method | Description |
-|---|---|
-| `pag:use()` | perform the action, exactly as a left-click on that menu button does |
+| Method | Key | Description |
+|---|---|---|
+| `pag:use()` | `menugrid.use` | perform the action, exactly as a left-click on that menu button does |
 
 It returns the `Pagina`, so it chains. `use` takes **no arguments**, deliberately: the client builds
 the message from the modifier keys physically held at that instant, so a `mods` parameter could only
@@ -110,7 +110,9 @@ lie about them.
 
 The reads above are not protected — enumerating the catalogue tells the server nothing. `use` commits a
 real action, so it is behind the [permission model](conventions.md#the-permission-model) like every
-other verb that does.
+other verb that does: an addon that did not declare `menugrid.use` gets an error naming that key. The key is
+named after this section rather than after the action it fires, because the entries are yours and the door
+is one.
 
 `use` raises an error on a category, on an entry that is no longer in the menu, and on one whose
 resource has not finished loading; check `:exists()` first if you are holding a stashed handle. A
