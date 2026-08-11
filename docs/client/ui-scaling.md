@@ -16,7 +16,7 @@ is why the Options panel's own slider is labelled as requiring a restart.
 | Device → design | `UI.unscale(double)` · `unscale(float)` · `unscale(int)` · `unscale(Coord)` |
 | Round a fraction | `UI.rscale(double)` · `rscale(double, double)` — `Math.round(v * scalef)`, for a factor that is not a whole design pixel |
 | A font | `UI.scale(Font, float)` → `Font.deriveFont(scale(size))`; see [text and fonts](text-and-fonts.md) |
-| A texture | `UI.scale(Tex)` → a `ScaledTex` wrapping it at `UI.scale(tex.sz())`; `scale(ScaledTex)` re-wraps in place |
+| A texture | `UI.scale(Tex)` → a `ScaledTex` wrapping it at `UI.scale(tex.sz())` — a **view**, disposing the impl; `scale(ScaledTex)` answers the same object, so the call is idempotent and cannot double-scale. See [render-gl.md](render-gl.md)'s blit path |
 | An image raster | `PUtils.uiscale(BufferedImage, Coord)` — the resampler everything above is built on |
 
 `scale(int)`/`unscale(int)` round through `float`; `Coord.mul(double)`/`Coord.div(double)` round each axis,

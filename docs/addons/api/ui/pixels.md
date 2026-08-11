@@ -36,6 +36,21 @@ local m = hafen.ui():mouse()
 hafen.ui():at(m:x(), m:y()) == m:over()          -- true: one pair, asked two ways
 ```
 
+**And for every question about drawing.** Every coordinate, width and radius a [`g:` verb](drawing.md)
+takes, the `:w()`/`:h()` a `Draw` callback reports, the `w, h` a [HUD overlay's](custom.md#overlays)
+painter is handed, and the `sx, sy` at a [gob overlay](../overlay.md) are the same unit — so the box you
+sized is the box you paint into:
+
+```lua
+win:on("Draw", function(ev)
+  ev:g():rect(0, 0, ev:w(), ev:h())              -- on the edge of the box :size(w, h) gave it
+end)
+```
+
+**An image you ship is measured in it too.** A 32×32 PNG is 32×32 to
+[`img:size()`](../asset.md#image) and covers 32 design pixels when drawn, so your art and the client's
+sit at the same size at every scale.
+
 **A font's `size` is a design pixel too**, and always was — see [`hafen.font`](../font.md). A type size is
 not a coordinate, but it lives in the same space as one, so a `14` px caption fits a `20` px row on every
 client.
@@ -63,4 +78,5 @@ this verb is what the client is drawing at right now.
 - [native](native.md) — writing the same two on a widget the client built, and taking the write back
 - [mouse](mouse.md) — the pointer, in these coordinates
 - [custom](custom.md) — a surface you paint, and the size its `Draw` reports
+- [drawing](drawing.md) — the `g:` verbs, which take these numbers
 - [`hafen.font`](../font.md) — a type size, in the same space

@@ -6,6 +6,11 @@ are the
 callback's own local pixel space: widget-local for a widget, screen for a HUD overlay, and for a gob
 overlay the `sx, sy` you were handed is that gob's projected screen point. Every method is a colon call.
 
+**Every length here is a [design pixel](pixels.md)** — a coordinate, a width, a height, a line's stroke,
+a wedge's radius. It is the same unit `:size(w, h)` and `ev:w()` speak, so the rectangle you laid out is
+the rectangle you draw into, with nothing to convert and nothing to multiply by
+[`hafen.ui():scale()`](pixels.md#read).
+
 ```lua
 local win = hafen.ui():window():title("My addon"):size(120, 60)
 win:on("Draw", function(ev)
@@ -35,6 +40,10 @@ end)
 `g` is valid **only during the draw callback**. Stashing it and drawing later does nothing — it goes inert
 rather than throwing.
 
+`g:rect`'s outline is one **screen** pixel whatever the scale, the way the client's own hairlines are — the
+box it traces is design pixels like everything else. `g:line`'s `width` is a design pixel, so a `4` px rule
+keeps the weight of the chrome beside it on a scaled client.
+
 ## Images
 
 To draw your own PNGs, load them with [`hafen.asset`](../asset.md) and blit the handle:
@@ -59,8 +68,16 @@ A `nil`, wrong-type or disposed handle **draws nothing**: the draw verbs are for
 PNG's transparency is preserved, so an icon with a transparent background composites over whatever is
 behind it, the same as the client's own art.
 
+**Your PNG's own pixels are design pixels.** A 32×32 file is 32×32 to
+[`img:size()`](../asset.md#image) and covers 32×32 in the box you drew it in, on every client — so it sits
+beside the client's own art at the same size at every interface scale, and `g:image(icon, x, y)` covers
+exactly `icon:size()` from `x, y`. Authoring for a scaled client is authoring a bigger PNG and drawing it
+into the same box.
+
 `g:resource(name, …)` draws the **client's own `.res` art** — action icons, HUD pieces, the icon of an
-action a widget received from [`Drop`](custom.md#drop-makes-a-widget-a-drop-target). It resolves the
+action a widget received from [`Drop`](custom.md#drop-makes-a-widget-a-drop-target). Its native size is
+whatever the client draws that resource at, which is already the user's scale; the `w, h` box is design
+pixels like every other box here, so give one when you want a resource at a size you chose. It resolves the
 resource asynchronously and caches it, and it is load-guarded: it draws nothing until the texture is ready,
 then blits the resource's default image layer. It draws the **static icon only**, with no live sprite or
 cooldown sweep, and a bad name simply draws nothing.
@@ -112,6 +129,7 @@ addon's cache holds and its hit rate. Rich-text markup is cached on the same ter
 
 ## See also
 
+- [the pixel](pixels.md) — the unit every coordinate here is in
 - [custom](custom.md) — the callbacks `g` arrives in
 - [`hafen.font`](../font.md) — getting a handle to pass as `font`
 - [`hafen.asset`](../asset.md) — loading the images `g:image` draws

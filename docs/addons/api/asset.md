@@ -94,7 +94,10 @@ texture. Use it only to release a large asset early.
 
 | Method | Description |
 |---|---|
-| `img:size()` | `{w, h}` — pixel dimensions |
+| `img:size()` | `{w, h}` — the file's own dimensions, in [design pixels](ui/pixels.md) |
+
+The file's pixels **are** design pixels: a 32×32 PNG answers `32, 32` and covers 32×32 wherever it is
+drawn, so it stands beside the client's own art at the same size at every interface scale.
 
 A disposed image simply **draws nothing** thereafter; the [draw verbs](ui/drawing.md) are forgiving and
 never throw.

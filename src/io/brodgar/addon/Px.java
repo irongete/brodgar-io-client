@@ -1,6 +1,8 @@
 package io.brodgar.addon;
 
 import haven.Coord;
+import haven.ScaledTex;
+import haven.TexI;
 import haven.UI;
 
 /**
@@ -8,10 +10,11 @@ import haven.UI;
  * size is a <b>design pixel</b> — the space the client's own art is authored in — and this class is the one
  * place that converts to and from the <b>device</b> pixels {@code haven} lays out and draws in.
  *
- * <p><b>One seam, and it is greppable.</b> Nothing else in the bridge calls {@link UI#scale}/{@link UI#unscale}
- * on a coordinate: {@code grep -rn "UI\.scale\|UI\.unscale" src/io/brodgar/addon/} answers this file,
- * {@code FontHandle} (a <i>type</i> size, which was always design) and {@code CScrollport} (a wheel step, which
- * is device by nature). A crossing that skips it is the bug this class exists to make visible.
+ * <p><b>One seam, and it is greppable.</b> Nothing else in the bridge converts a coordinate that <i>crosses</i>
+ * into Lua: {@code grep -rn "UI\.scale\|UI\.unscale" src/io/brodgar/addon/} answers this file, {@code FontHandle}
+ * (a <i>type</i> size, which was always design), {@code CScrollport} (a wheel step, which is device by nature)
+ * and {@code UiApi.fitc} (the client's own graspability margin, re-derived in the client's own space, below this
+ * seam and never above it). A crossing that skips this class is the bug it exists to make visible.
  *
  * <p><b>The round-trip is exact, and that is the whole guarantee.</b> {@code UI.scalef} is clamped to
  * {@code >= 1.0} ({@code UI.loadscale}), so for every {@code n} and every scale {@code s >= 1}:
@@ -36,6 +39,25 @@ final class Px {
     /** Design &rarr; device, both axes. */
     static Coord in(Coord c) {
         return (c == null) ? null : UI.scale(c);
+    }
+
+    /**
+     * Design &rarr; device, unrounded — for the draw surface's fractional lengths ({@code g:poly}'s vertices,
+     * {@code g:line}'s width), which reach the GPU as floats and have no pixel to round to. A whole design
+     * pixel still lands on the same number {@link #in(int)} gives it, so the two never disagree about a corner.
+     */
+    static double in(double n) {
+        return UI.scale(n);
+    }
+
+    /**
+     * Design &rarr; device for a whole <b>raster</b>: the same texture, viewed at the size it is drawn. An
+     * addon's own PNG is authored in design pixels, so this is what makes {@code g:image} cover the
+     * {@code img:size()} the addon read — and the client's own {@code .res} art needs it not at all, being
+     * device-sized from the moment it loaded ({@code Resource.Image.scaled()}).
+     */
+    static ScaledTex<TexI> in(TexI tex) {
+        return (tex == null) ? null : UI.scale(tex);
     }
 
     /** Device &rarr; design: what the client has, in the space the API speaks. */

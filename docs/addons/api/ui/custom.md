@@ -57,7 +57,7 @@ it is a surface with content to paint and a lifetime to report:
 
 | Key | handler receives | Cancelable | Fires |
 |---|---|---|---|
-| `Draw` | `ev` — `:g()` `:w()` `:h()` | no | every frame — see [the `g` wrapper](drawing.md) |
+| `Draw` | `ev` — `:g()` `:w()` `:h()` | no | every frame; `:w()`/`:h()` is the box you sized, in [design pixels](pixels.md) — see [the `g` wrapper](drawing.md) |
 | `Tick` | `dt` | no | every frame, before `Draw` |
 | `Drop` | `ev` — `:x()` `:y()` `:thing()` `:preventDefault()` | yes | the client's drag gesture drops something on it |
 | `Close` | — | no | the window's close button; a bare widget has none, so it never fires |
@@ -85,7 +85,7 @@ local panel = hafen.ui():widget():parent(hud):size(120, 40)
 ### `Drop` makes a widget a drop target
 
 `:on("Drop", fn)` opts the widget into the client's own drag gesture: drag a menu-grid action onto it and
-`fn(ev)` fires with `ev:x()`/`ev:y()` in widget-local pixels and `ev:thing()` a neutral descriptor,
+`fn(ev)` fires with `ev:x()`/`ev:y()` in widget-local [design pixels](pixels.md) and `ev:thing()` a neutral descriptor,
 `{ kind = "pagina", res = "<resource name>" }`. `res` is a plain resource name — draw its icon with
 [`g:resource`](drawing.md), persist it with [`hafen.store`](../store.md). It is present only for
 resource-based actions; an id-only action carries `kind` alone, which is usable in-session but not reliably
@@ -102,7 +102,7 @@ nothing in the tree.
 
 | Method | Description |
 |---|---|
-| `:onDraw(fn)` / `:onDraw()` | paint `fn(g, w, h)` on top of the HUD each frame; `w, h` is the screen size |
+| `:onDraw(fn)` / `:onDraw()` | paint `fn(g, w, h)` on top of the HUD each frame; `w, h` is the screen size, the pair `hafen.ui():root():size()` answers |
 | `:destroy()` | stop it; also done automatically on reload or disable |
 | `:exists()` | is it still painting |
 

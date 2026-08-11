@@ -73,7 +73,8 @@ New: `docs/client/ui-scaling.md` — the upstream scale system nothing maps toda
 ## Context files
 
 - `src/io/brodgar/addon/Px.java` — **the seam**, and the only place a UI coordinate converts: `in`/`out`
-  over `UI.scale`/`UI.unscale`, plus `factor()` behind `hafen.ui():scale()` — 2, 3, 4
+  over `UI.scale`/`UI.unscale` for an `int`, a `Coord` and a `double` (an unrounded length), `in(TexI)` for a
+  whole raster, plus `factor()` behind `hafen.ui():scale()` — 2, 3, 4
 - `docs/client/ui-scaling.md` — the upstream scale system, mapped: `UI.scalef` and its converters, where the
   number comes from, `Resource.Image.ssz`/`scaled()`/`tex()`, `Button.hs`, `Window.dlmrgn`/`dsmrgn` — 2, 3, 4
 - `src/haven/UI.java` (`ScaledTex`, and whatever the map above does not answer) — 2

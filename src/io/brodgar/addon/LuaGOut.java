@@ -33,9 +33,21 @@ import org.luaj.vm2.lib.VarArgFunction;
  * <p>Methods are Lua colon-calls ({@code g:text(...)}), so argument 1 is {@code self} and the real
  * parameters start at {@code arg(2)}; coercions are forgiving (a bad arg draws garbage rather than
  * throwing). Coordinates are the callback's local pixel space (widget-local for a widget, screen for a
- * HUD overlay, the gob's projected screen point for a gob overlay). Maps 1:1 to {@link GOut}. Image
- * drawing ({@code g:image}/{@code g:aimage}, R1) takes a {@code hafen.asset} image handle (a
- * {@link LuaImage}) and blits its {@link haven.TexI}; a nil/typo/disposed image simply draws nothing.
+ * HUD overlay, the gob's projected screen point for a gob overlay). Maps 1:1 to {@link GOut}.
+ *
+ * <p><b>Every length here is a DESIGN pixel</b> (058.2) — a coordinate, a width, a height, a line's stroke
+ * and a wedge's radius alike — so the rectangle an addon draws is the rectangle it laid out, in the very
+ * numbers {@code widget:size()} and {@code ev:w()} answer in. {@link Px} converts at each read, and nowhere
+ * else: {@link GOut} itself is device-space throughout, and so is everything below this wrapper.
+ *
+ * <p><b>An addon's own PNG is design-sized too.</b> {@code g:image}/{@code g:aimage} (R1) take a
+ * {@code hafen.asset} image handle (a {@link LuaImage}) and blit its <b>scaled</b> texture
+ * ({@link LuaImage#stex}, a {@link haven.ScaledTex} over the raw {@link haven.TexI}), so a 16&times;16 icon
+ * covers 16 design pixels beside the client's own 16-design-pixel art at every scale — the rule
+ * {@code hafen.vr}'s screen sprites already follow. A nil/typo/disposed image simply draws nothing.
+ * {@code g:resource} is the trap in the other direction: an engine {@code .res} texture comes from
+ * {@code Resource.Image.scaled()} and is <b>already</b> device-sized, so only its explicit {@code w, h} box
+ * converts and the blit itself does not.
  */
 final class LuaGOut {
     /**
@@ -278,7 +290,8 @@ final class LuaGOut {
         t.set("text", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                drawText(d, a.arg(2).tojstring(), a.arg(3).toint(), a.arg(4).toint(), 0.0, 0.0, a.arg(5));
+                drawText(d, a.arg(2).tojstring(), Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint())),
+                         0.0, 0.0, a.arg(5));
                 return NIL;
             }
         });
@@ -287,17 +300,18 @@ final class LuaGOut {
         t.set("atext", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                drawText(d, a.arg(2).tojstring(), a.arg(3).toint(), a.arg(4).toint(),
+                drawText(d, a.arg(2).tojstring(), Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint())),
                          a.arg(5).todouble(), a.arg(6).todouble(), a.arg(7));
                 return NIL;
             }
         });
-        // g:rect(x, y, w, h) — one-pixel outline rectangle.
+        // g:rect(x, y, w, h) — one-pixel outline rectangle. The OUTLINE stays one DEVICE pixel (GOut.rect is a
+        // LINE_STRIP at the default width), exactly like the client's own hairlines; the box it traces is design.
         t.set("rect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                d.rect(Coord.of(a.arg(2).toint(), a.arg(3).toint()),
-                       Coord.of(a.arg(4).toint(), a.arg(5).toint()));
+                d.rect(Px.in(Coord.of(a.arg(2).toint(), a.arg(3).toint())),
+                       Px.in(Coord.of(a.arg(4).toint(), a.arg(5).toint())));
                 return NIL;
             }
         });
@@ -305,18 +319,20 @@ final class LuaGOut {
         t.set("frect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                d.frect(Coord.of(a.arg(2).toint(), a.arg(3).toint()),
-                        Coord.of(a.arg(4).toint(), a.arg(5).toint()));
+                d.frect(Px.in(Coord.of(a.arg(2).toint(), a.arg(3).toint())),
+                        Px.in(Coord.of(a.arg(4).toint(), a.arg(5).toint())));
                 return NIL;
             }
         });
-        // g:line(x1, y1, x2, y2 [, width=1]) — a line.
+        // g:line(x1, y1, x2, y2 [, width=1]) — a line. The WIDTH is a design pixel too (it is a length, and a
+        // 4 px rule drawn half as thick as the chrome beside it is the very mismatch this unit exists to end).
         t.set("line", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
                 LuaValue w = a.arg(6);
-                d.line(Coord.of(a.arg(2).toint(), a.arg(3).toint()),
-                       Coord.of(a.arg(4).toint(), a.arg(5).toint()), w.isnil() ? 1.0 : w.todouble());
+                d.line(Px.in(Coord.of(a.arg(2).toint(), a.arg(3).toint())),
+                       Px.in(Coord.of(a.arg(4).toint(), a.arg(5).toint())),
+                       Px.in(w.isnil() ? 1.0 : w.todouble()));
                 return NIL;
             }
         });
@@ -332,9 +348,9 @@ final class LuaGOut {
                 int npt = (a.narg() - 1) / 2;                    // arg1 = self; then x,y pairs
                 if(npt < 3) return NIL;
                 float[] data = new float[npt * 2];
-                for(int i = 0; i < npt; i++) {
-                    data[i * 2]     = (float)(d.tx.x + a.arg(2 + (i * 2)).todouble());
-                    data[i * 2 + 1] = (float)(d.tx.y + a.arg(3 + (i * 2)).todouble());
+                for(int i = 0; i < npt; i++) {      // design px, unrounded: a vertex reaches the GPU as a float
+                    data[i * 2]     = (float)(d.tx.x + Px.in(a.arg(2 + (i * 2)).todouble()));
+                    data[i * 2 + 1] = (float)(d.tx.y + Px.in(a.arg(3 + (i * 2)).todouble()));
                 }
                 d.drawp(Model.Mode.TRIANGLE_FAN, data);
                 return NIL;
@@ -350,12 +366,14 @@ final class LuaGOut {
                 LuaImage img = LuaImage.resolve(a.arg(2));
                 if((img == null) || img.dead || (img.tex == null)) return NIL;
                 // colon call: arg1 = self, arg2 = img, arg3 = x, arg4 = y, arg5 = w, arg6 = h
-                Coord c = Coord.of(a.arg(3).toint(), a.arg(4).toint());
+                Coord c = Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint()));
                 LuaValue wv = a.arg(5), hv = a.arg(6);
+                // The PNG's own pixels are design pixels (058.2): img.stex blits it at UI scale, so the native
+                // form covers exactly the img:size() the addon read, and the w×h form covers exactly that box.
                 if(wv.isnumber() && hv.isnumber())
-                    d.image(img.tex, c, Coord.of(wv.toint(), hv.toint()));   // scaled → GOut.image(Tex,Coord,Coord)
+                    d.image(img.stex, c, Px.in(Coord.of(wv.toint(), hv.toint())));   // → GOut.image(Tex,Coord,Coord)
                 else
-                    d.image(img.tex, c);                                     // native → GOut.image(Tex,Coord)
+                    d.image(img.stex, c);                                            // → GOut.image(Tex,Coord)
                 return NIL;
             }
         });
@@ -374,12 +392,14 @@ final class LuaGOut {
                 if((name == null) || name.isEmpty()) return NIL;
                 Tex tex = resTex(name);
                 if(tex == null) return NIL;   // still Loading / failed → draw nothing this frame
-                Coord c = Coord.of(a.arg(3).toint(), a.arg(4).toint());
+                Coord c = Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint()));
                 LuaValue wv = a.arg(5), hv = a.arg(6);
+                // NOT img.stex's counterpart: an engine texture is Resource.Image.scaled() and is ALREADY device
+                // -sized, so the native blit converts nothing and only the explicit box does (058.2).
                 if(wv.isnumber() && hv.isnumber())
-                    d.image(tex, c, Coord.of(wv.toint(), hv.toint()));   // scaled
+                    d.image(tex, c, Px.in(Coord.of(wv.toint(), hv.toint())));   // scaled
                 else
-                    d.image(tex, c);                                     // native
+                    d.image(tex, c);                                            // native
                 return NIL;
             }
         });
@@ -390,7 +410,7 @@ final class LuaGOut {
                 GOut d = cur; if(d == null) return NIL;
                 LuaImage img = LuaImage.resolve(a.arg(2));
                 if((img == null) || img.dead || (img.tex == null)) return NIL;
-                d.aimage(img.tex, Coord.of(a.arg(3).toint(), a.arg(4).toint()),
+                d.aimage(img.stex, Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint())),
                          a.arg(5).todouble(), a.arg(6).todouble());          // → GOut.aimage(Tex,Coord,ax,ay)
                 return NIL;
             }
@@ -400,8 +420,8 @@ final class LuaGOut {
         t.set("prect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                int r = a.arg(4).toint();
-                d.prect(Coord.of(a.arg(2).toint(), a.arg(3).toint()),
+                int r = Px.in(a.arg(4).toint());     // a radius is a length: design px, like everything here
+                d.prect(Px.in(Coord.of(a.arg(2).toint(), a.arg(3).toint())),
                         Coord.of(-r, -r), Coord.of(r, r), a.arg(5).todouble() * Math.PI * 2.0);
                 return NIL;
             }
@@ -443,7 +463,7 @@ final class LuaGOut {
      * by inspection. On a miss we render, adopt the {@link Text} into the cache and blit it; on a hit we blit the
      * held {@link Tex}. Nothing else about the call changes — same anchors, same tint, same fallback.
      */
-    private void drawText(GOut d, String str, int x, int y, double ax, double ay, LuaValue opts) {
+    private void drawText(GOut d, String str, Coord c, double ax, double ay, LuaValue opts) {
         if(str == null)
             return;
         boolean hasOpts = (opts != null) && opts.istable();
@@ -458,7 +478,7 @@ final class LuaGOut {
         }
         if((col == null) && (fh != null))
             col = fh.color;
-        draw0(d, str, Coord.of(x, y), ax, ay, fh, col);
+        draw0(d, str, c, ax, ay, fh, col);          // c is already device: converted at the Lua read (058.2)
     }
 
     /** The cached render-and-blit itself, shared by {@link #drawText} and the Java-side {@link #label}. */

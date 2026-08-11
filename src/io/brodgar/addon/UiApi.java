@@ -1852,10 +1852,13 @@ final class UiApi {
     /**
      * Paint every addon's HUD overlays. Runs as a one-shot {@link UI.AfterDraw} (re-queued from {@link #tick})
      * after {@code root.draw}, so overlays land ON TOP of the whole HUD. The {@code g} is the full-screen
-     * root GOut (absolute screen coords); {@code w,h} are the screen size. On the UI thread (inside UI.draw).
+     * root GOut (absolute screen coords); {@code w,h} are the screen size, in <b>design</b> pixels (058.2) —
+     * the pair {@code hafen.ui():root():size()} answers, and the space every {@code g:} coordinate the painter
+     * then writes is read in. On the UI thread (inside UI.draw).
      */
     static void paintHudOverlays(GOut g) {
-        LuaValue w = LuaValue.valueOf(g.sz().x), h = LuaValue.valueOf(g.sz().y);
+        Coord sz = Px.out(g.sz());
+        LuaValue w = LuaValue.valueOf(sz.x), h = LuaValue.valueOf(sz.y);
         for(Addon a : addons) {
             if(a.hudOverlays.isEmpty())
                 continue;
@@ -1888,14 +1891,18 @@ final class UiApi {
      * {@code UI.draw}).
      */
     static void paintGobOverlays(Gob gob, List<LuaGobOverlay.Attach> recs, GOut g, LuaGOut gwrap, Coord sc) {
-        LuaValue sx = LuaValue.valueOf(sc.x), sy = LuaValue.valueOf(sc.y);
+        // 058.2: the projected point reaches Lua in DESIGN pixels, because everything the callback then draws
+        // from it is read in design pixels — and a record's own :offset(x, y) is written in them, so the label
+        // path converts it back on the way to the device-space blit. `sc` itself stays device below this line.
+        Coord dsc = Px.out(sc);
+        LuaValue sx = LuaValue.valueOf(dsc.x), sy = LuaValue.valueOf(dsc.y);
         for(LuaGobOverlay.Attach o : recs) {
             LuaTable gt = gwrap.bind(g, o.owner);
             try {
                 if(o.draw != null)
                     callLua(o.owner, Addon.C_DRAW, o.draw, gt, LuaGob.of(o.owner, gob.id), sx, sy);
                 else
-                    gwrap.label(g, o.text, sc.add(o.screenOffset()), 0.5, 1.0, o.color);
+                    gwrap.label(g, o.text, sc.add(Px.in(o.screenOffset())), 0.5, 1.0, o.color);
             } catch(RuntimeException e) {
                 /* never throw into the render pass — callLua already isolates a Lua error */
             } finally {

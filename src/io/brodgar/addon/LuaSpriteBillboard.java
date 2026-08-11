@@ -10,7 +10,6 @@ import haven.GOut;
 import haven.Gob;
 import haven.PView;
 import haven.Resource;
-import haven.UI;
 import haven.render.Homo3D;
 import haven.render.Pipe;
 
@@ -85,7 +84,7 @@ public final class LuaSpriteBillboard extends Drawable implements PView.Render2D
         float scale = (gg != null) ? gg.scale : 1f;
         if(scale <= 0f)
             return;
-        Coord base = UI.scale(img.sz);               // DPI-scaled like the rest of the HUD
+        Coord base = Px.in(img.sz);                  // the PNG's own pixels are design px (058.2), like the HUD's
         Coord sz = new Coord(Math.max(1, Math.round(base.x * scale)), Math.max(1, Math.round(base.y * scale)));
         Coord pos = new Coord(sc.x - (sz.x / 2), sc.y - sz.y);   // bottom-centre at the world point ("stands" there)
         float alpha = (gg != null) ? gg.alpha : 1f;

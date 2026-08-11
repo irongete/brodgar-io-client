@@ -75,7 +75,10 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
     haven.Drawable visual(haven.Gob gob, String mode) {
         if(VrApi.SCREEN.equals(mode))
             return new LuaSurfaceBillboard(gob, surface);
-        float[] wh = VrApi.surfaceWorldDims(surface.sz);
+        // 058.2: measured in DESIGN pixels, so a panel is the same size in the world on every client — the world
+        // is not the HUD, and how big the user likes their interface is not a fact about a thing standing in it.
+        // The "screen" facing is untouched: a blit IS the HUD, and it stays 1:1 with the surface's own texture.
+        float[] wh = VrApi.surfaceWorldDims(Px.out(surface.sz));
         haven.Sprite.Mill<SurfaceQuad> mill = SurfaceQuad.mill(surface.texture(), wh[0], wh[1]);
         return new SurfaceDrawable(gob, mill, surface, wh[0], wh[1], VrApi.CAMERA.equals(mode));
     }

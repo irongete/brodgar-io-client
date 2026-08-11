@@ -1,0 +1,9 @@
+{
+  "name": "058.2 — the draw surface measures in design pixels",
+  "id": "058-ui-design-pixels.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 058.2: a Draw callback, a HUD overlay's screen size, an addon's own PNG and a standing panel's screen map all measure in design pixels, and the draw verbs stay forgiving.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

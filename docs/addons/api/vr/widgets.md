@@ -49,13 +49,14 @@ The [shared vocabulary](README.md#one-vocabulary-four-kinds) — `:position`, `:
 |---|---|
 | `x:widget()` | the [Widget](../ui/widget.md) that is standing — the same object you passed in |
 | `x:facing()` / `x:facing(mode)` | how it meets the viewer: `"fixed"`, `"camera"` or `"screen"` — see [facing](#facing) |
-| `x:screen(wx, wy)` | where a pixel of the panel is drawn, as two screen coordinates, or `nil` — see [clicks](#clicks-are-the-widgets-own) |
+| `x:screen(wx, wy)` | where a pixel of the panel is drawn, as two screen [design pixels](../ui/pixels.md), or `nil` — see [clicks](#clicks-are-the-widgets-own) |
 
 `x:widget()` is read-only, like a ghost's resource and an object's mesh: standing another widget is another
 `hafen.vr():widget():add(w, anchor)`, and taking this one back is `hafen.vr():widget():remove(x)`.
 
-A panel's world size comes from the widget's own pixels, at **a hundred pixels to the tile**, so a default
-`hafen.ui():window()` stands about two tiles across and keeps its aspect exactly. `:scale` adjusts it from
+A panel's world size comes from the widget's own [design pixels](../ui/pixels.md), at **a hundred pixels to
+the tile**, so a default `hafen.ui():window()` stands about two tiles across on every client, whatever
+interface scale the user runs — the world is not the HUD. `:scale` adjusts it from
 there, and a string [filter](README.md#the-collections-unprotected) over the collection matches the widget's
 caption — the "Cupboard" window is found by its title, which is what anybody looking for it knows.
 
@@ -115,6 +116,10 @@ is my button on screen* and *what did the player click* can never disagree:
 |---|---|---|
 | `x:screen(wx, wy)` | `x, y` \| `nil` | where widget-local pixel `wx, wy` is drawn, in screen coordinates |
 | `hafen.vr():pointer(key, x, y [, a])` | boolean | put the pointer on whatever is standing at screen point `x, y` |
+
+Both pairs are [design pixels](../ui/pixels.md): the widget-local one is what `:size()` and `ev:x()` speak,
+the screen one what [`hafen.ui():mouse()`](../ui/mouse.md) reports. So the two calls compose — feed
+`x:screen(wx, wy)` to `hafen.vr():pointer` and the panel's own `MouseDown` lands back on `wx, wy`.
 
 `key` is one of `"MouseDown"`, `"MouseUp"`, `"MouseMove"` or `"Wheel"` — the same four keys
 [`widget:on`](../ui/widget.md#subscribing) answers to, so there is one input vocabulary and not two. `a` is

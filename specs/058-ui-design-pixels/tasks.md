@@ -18,7 +18,7 @@
       `[manual]`: run once at Interface scale 1.0 and once at 1.5, restarting between — expect two identical
       summaries, differing only in the printed scale.
 
-- [ ] **058.2 — the draw surface measures the same way, and an addon's PNG is design-sized.** Every
+- [x] **058.2 — the draw surface measures the same way, and an addon's PNG is design-sized.** Every
       coordinate `LuaGOut` reads (`text`, `atext`, `rect`, `frect`, `line`, `poly`, `prect`, `image`,
       `aimage`, `resource`) goes through `Px.in`; `LuaHudOverlay`'s `w, h` and `LuaGobOverlay`'s `sx, sy`
       through `Px.out`. `g:image` blits `UI.scale(img.tex)`, so an asset's own pixels are design pixels —

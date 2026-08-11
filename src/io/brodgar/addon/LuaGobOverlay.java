@@ -114,7 +114,12 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         volatile String text;
         /** {@code :color(…)} for a text record; null = the stock white. */
         volatile Color color;
-        /** {@code :offset(x, y)} — screen pixels from the gob's projected point, and only ever that. */
+        /**
+         * {@code :offset(x, y)} — screen pixels from the gob's projected point, and only ever that. <b>Design</b>
+         * pixels since 058.2, like every other length this API takes: it is written beside the {@code sx, sy} a
+         * draw callback is handed, and a pair the addon writes in one unit and reads in another is not a pair.
+         * The one conversion is at the label blit ({@code UiApi.paintGobOverlays}).
+         */
         volatile double offX, offY;
 
         Attach(Addon owner, String key) {

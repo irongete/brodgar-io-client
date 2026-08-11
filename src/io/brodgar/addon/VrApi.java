@@ -116,7 +116,8 @@ final class VrApi {
         });
         // pointer(key, x, y [, a]) — put the pointer on whatever is STANDING at a screen point (044.4). The key
         // is one of the four a widget already answers to, so there is one input vocabulary and not two; x, y are
-        // screen pixels, the very numbers hafen.ui():mouse() reports; a is the button (MouseDown/MouseUp,
+        // screen pixels in DESIGN space (058.2), the very numbers hafen.ui():mouse() and x:screen(wx, wy) report
+        // — this verb is that one's inverse, so the two must read the same pair; a is the button (MouseDown/MouseUp,
         // default 1) or the wheel's amount. It hands back whether a panel took it — false meaning the point was
         // on none, which is the moment the client's own world click goes on exactly as it always did. This is
         // the client's path from the map view INWARD and stops there: it cannot move the character and it never
@@ -128,7 +129,8 @@ final class VrApi {
                 int x = (int)Math.round(number(a, 3, "hafen.vr():pointer", "x"));
                 int y = (int)Math.round(number(a, 4, "hafen.vr():pointer", "y"));
                 int arg = Args.passed(a, 5) ? (int)Math.round(number(a, 5, "hafen.vr():pointer", "a")) : 1;
-                return LuaValue.valueOf(SurfaceInput.pointer(key, x, y, arg));
+                Coord p = Px.in(Coord.of(x, y));       // design → device, at the edge (058.2)
+                return LuaValue.valueOf(SurfaceInput.pointer(key, p.x, p.y, arg));
             }
         });
         Section.install(hafen, "vr", m);
@@ -1539,11 +1541,15 @@ final class VrApi {
         // reports (044.4). The exact inverse of what a click does, and the same corner map both ways, so
         // "where is my OK button on screen" and "what did the player click" can never disagree. Two numbers,
         // like every screen point in this API; nil when the panel is not being drawn or is behind the camera.
+        // Both pairs are DESIGN pixels (058.2) — the widget-local one is what widget:size() and ev:x() speak,
+        // the screen one what hafen.ui():mouse() and hafen.vr():pointer() do — and the map between them stays
+        // device, so the conversion is the two edges of this verb and nothing in between.
         x.set("screen", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 int wx = (int)Math.round(number(a, 2, "widget:screen", "x"));
                 int wy = (int)Math.round(number(a, 3, "widget:screen", "y"));
-                Coord p = SurfaceInput.screenOf(we, wx, wy);
+                Coord w = Px.in(Coord.of(wx, wy));
+                Coord p = Px.out(SurfaceInput.screenOf(we, w.x, w.y));
                 return (p == null) ? LuaValue.NIL
                     : LuaValue.varargsOf(LuaValue.valueOf(p.x), LuaValue.valueOf(p.y));
             }

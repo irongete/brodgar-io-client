@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Coord;
+import haven.ScaledTex;
 import haven.TexI;
 
 import org.luaj.vm2.LuaValue;
@@ -41,7 +42,20 @@ public final class LuaImage {
     final Addon  owner;
     final String name;      // the addon-relative path — for load-dedup, the error text, and a future filter
     final TexI   tex;       // the GPU texture (lazy upload in TexI.st()); freed by :dispose()/teardown
-    final Coord  sz;        // pixel size (tex.sz()), for :size()
+    final Coord  sz;        // DESIGN pixel size (tex.sz()), for :size() — see stex
+    /**
+     * <b>The same texture, at the size it is drawn</b> (058.2) — a {@link ScaledTex} view wrapping {@link #tex}
+     * at {@code UI.scale(sz)}. An addon's PNG is authored for the client's own design pixels, so {@link #sz} —
+     * the raster's own size — <i>is</i> the size {@code img:size()} answers and the size {@code g:image} covers,
+     * and the UI scale is applied on the way to the screen exactly as it is for the client's own art — the same
+     * rule {@code hafen.vr}'s {@code "screen"} sprites are drawn by ({@link LuaSpriteBillboard}).
+     *
+     * <p>Built once, here, rather than per draw: {@code UI.scalef} is read once at class init and never moves,
+     * so the wrapper is as constant as the texture it wraps — and a {@code g:image} in a draw callback runs
+     * every frame. It is a <b>view</b>, not a resource: {@link #tex} is the only thing disposed, and disposing
+     * this one would dispose that one twice.
+     */
+    final ScaledTex<TexI> stex;
     volatile boolean dead;  // disposed/torn down → g:image becomes a no-op (no TexI.st() re-upload)
     LuaValue handle;        // the stable Lua handle table (so a re-load of the same path returns the same one)
 
@@ -50,6 +64,7 @@ public final class LuaImage {
         this.name = name;
         this.tex = tex;
         this.sz = tex.sz();
+        this.stex = Px.in(tex);
     }
 
     /**

@@ -49,7 +49,7 @@ of them silently stops meaning anything.
 
 | Setter | Meaning |
 |---|---|
-| `ov:draw(fn)` | `fn(g, gob, sx, sy)` runs every frame at that point, painting with [`g`](ui/drawing.md) |
+| `ov:draw(fn)` | `fn(g, gob, sx, sy)` runs every frame at that point, painting with [`g`](ui/drawing.md); `sx, sy` is in [design pixels](ui/pixels.md), like everything `g` takes |
 | `ov:text(s)` | a label at that point — drawn by the engine, so it costs no Lua at the draw |
 
 Every one of them has a bare read of the same name, so what you wrote is what you can read back, and the
@@ -59,10 +59,10 @@ it.
 | Setter | Meaning |
 |---|---|
 | `ov:color(r, g, b, a)` | the label's colour, `0..255`; `a` is optional |
-| `ov:offset(x, y)` | **screen pixels** from the projected anchor point |
+| `ov:offset(x, y)` | **screen pixels** from the projected anchor point, in [design pixels](ui/pixels.md) |
 
 **`ov:offset` means exactly one thing: pixels.** An overlay is painted at a projected point, so that is the
-only unit it could be in, and a third argument raises. There is no `ov:clickable` and no `ov:onClick`:
+only unit it could be in — the same design pixel the `sx, sy` beside it is in — and a third argument raises. There is no `ov:clickable` and no `ov:onClick`:
 the thing under an overlay is the gob, and clicking a gob is
 [`gob:click`](gob.md#gobclickbutton-mods). There is no `ov:move` either: an overlay's position **is**
 its gob's, and what you set is the offset.
