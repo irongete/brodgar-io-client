@@ -60,6 +60,12 @@ public final class LuaEvent {
          * (041.3), on a widget you built, one you found by selector, or one an event handed you.
          */
         INPUT("input", "an input event answers :x() :y() :button() :amount() :preventDefault()"),
+        /**
+         * {@code w:on("Pressed"/…, fn)} on a control the addon <b>borrowed</b> (061.1) — the client is about to
+         * run its own action and is asking first, so unlike the owned half this one can be stopped
+         * ({@code :preventDefault()}) or run by the handler itself ({@code :resend()}).
+         */
+        CONTROL("control", "a control event answers :preventDefault() :resend()"),
         /** {@code w:on("Draw", fn)} — an own widget's paint (041.4): three things to say, none cancelable. */
         DRAW("draw", "a draw event answers :g() :w() :h()"),
         /** {@code grid:on("Cell", fn)} — one grid cell's paint (041.4): four things to say, none cancelable. */
@@ -148,6 +154,10 @@ public final class LuaEvent {
     private final double wx, wy;
     /** OVERLAY: the interned Gob handle, minted lazily on first {@code :gob()} (D-064-style, like {@code :sender()}). */
     private LuaValue gobObj;
+    /** CONTROL: the value the control is ABOUT to take, as the client holds it — {@code null} for a key that
+     * carries none ({@code Pressed} is an activation and holds nothing). Set by {@link #control} rather than by
+     * a constructor, since it belongs to one shape out of the twelve. */
+    private Object nval;
 
     /** OVERLAY shape (041.7): {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)}'s payload. */
     private LuaEvent(Addon owner, Shape shape, long gobId, String key, boolean nat) {
@@ -308,6 +318,19 @@ public final class LuaEvent {
     }
 
     /**
+     * The {@code ev} for one capability key on a <b>borrowed</b> control ({@code w:on("Pressed", fn)} on one of
+     * the client's own buttons, 061.1) — minted per (addon, widget, key) fire like {@link #input}, since the
+     * caller is that owner's own {@link Subs} firing. {@code w} is the widget the client is about to act on
+     * (what {@code ev:resend()} re-issues the action of), and {@code u} is captured so a resend from a LATER
+     * frame still finds a session to run in.
+     */
+    static LuaValue control(Addon owner, String key, Widget w, Object value, Subs.Cancel c) {
+        LuaEvent e = new LuaEvent(owner, Shape.CONTROL, c, key, w, null, AddonManager.ui, null);
+        e.nval = value;
+        return of(e);
+    }
+
+    /**
      * The {@code ev} for one {@code Draw} fire ({@code w:on("Draw", fn)}, 041.4) — {@code g} is the ALREADY-BOUND
      * {@link LuaGOut} wrapper table, shared by every handler of this one fire (they paint into the same frame),
      * and goes inert with it on unbind — so a stashed {@code ev} is exactly as inert as a stashed {@code g}.
@@ -414,6 +437,8 @@ public final class LuaEvent {
         LuaTable m = new LuaTable();
         if(shape == Shape.INPUT) {
             input(m);
+        } else if(shape == Shape.CONTROL) {
+            control(m);
         } else if(shape == Shape.DRAW) {
             draw(m);
         } else if(shape == Shape.CELL) {
@@ -514,6 +539,45 @@ public final class LuaEvent {
             }
         });
         preventDefault(m, Shape.INPUT);
+    }
+
+    /**
+     * The borrowed control half (061.1): {@code ev:preventDefault()} stops the client's own action, and
+     * {@code ev:resend()} runs it — implying the cancel, so the action happens exactly once however many
+     * handlers ask for it.
+     *
+     * <p><b>{@code resend} raises on a widget that has left the tree.</b> The point of re-issuing is that
+     * something happens, and a silent no-op there would lie — the same refusal {@code widget:send} gives, for
+     * the same reason. It may be called more than once and from a later frame: the seam sits after the client
+     * released its mouse grab, so no gesture state is in flight waiting for it.
+     *
+     * <p><b>There is no {@code ev:send(t)} twin</b>, so this shape spells the refusal out rather than letting
+     * it fall into the generic unknown-verb one: what is deferred here is a METHOD, not a message, so there are
+     * no arguments to rewrite.
+     */
+    private static void control(LuaTable m) {
+        preventDefault(m, Shape.CONTROL);
+        m.set("resend", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaEvent e = self(a.arg1(), Shape.CONTROL, "resend");
+                UI u = e.ui;
+                if((e.wdg == null) || (u == null) || (u.root == null) || !e.wdg.hasparent(u.root))
+                    throw new LuaError("ev:resend(): the widget this " + e.msg + " came from has LEFT THE TREE"
+                        + " (widget:exists() is false), so there is no action of its own left to run. Nothing"
+                        + " was re-sent.");
+                e.cancel.prevent();
+                Controls.replay(e.wdg, e.msg);
+                return LuaValue.NIL;
+            }
+        });
+        m.set("send", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                self(a.arg1(), Shape.CONTROL, "send");
+                throw new LuaError("ev:send(t) — there is no message here to rewrite: what this event holds"
+                    + " back is the client's own METHOD, not a wdgmsg with arguments. ev:resend() runs the"
+                    + " action the control already had, and ev:preventDefault() stops it.");
+            }
+        });
     }
 
     /**

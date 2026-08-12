@@ -138,9 +138,12 @@ reaching the widget's own handling and any child under it — there is no separa
 handler's return value is ever read. **Two handlers fire independently**: either one calling
 `preventDefault` cancels, and both still run.
 
-A [control](controls/README.md) answers these five as well — it is a Widget first — plus its own
-capability keys, and a surface you [paint](custom.md) answers four more on top. `:on(key, fn)` on a key
-a widget does not have throws, naming the ones it does:
+A [control](controls/README.md) answers these five as well — it is a Widget first — plus the capability
+keys of the thing it is, and a surface you [paint](custom.md) answers four more on top. A capability key
+belongs to **a control**, not to a control you built: `Pressed` answers on one of the client's own buttons
+the same way, and there it is **cancelable**, because there the client has an action of its own underneath
+your handler — see [edit](edit.md). `:on(key, fn)` on a key a widget does not have throws, naming the ones
+it does:
 
 ```lua
 label:on("Pressed", fn)
@@ -259,6 +262,7 @@ way to do what clicking already does.
 - [custom](custom.md) — a surface you paint, and its four extra subscription keys
 - [selectors](selectors.md) — how to name the widget you want in the first place
 - [native](native.md) — what moving and hiding a borrowed widget actually does
+- [edit](edit.md) — taking over what one of the client's own controls does
 - [replace](replace.md) — standing your own window in place of a native one
 - [items](items.md) — `:items()` and the container subscriptions
 - [style](style/README.md) — `:rule()`, `:style()` and the cascade they sit in

@@ -1096,6 +1096,11 @@ public final class LuaWidget {
                 keys.add("Selected");
             if(c instanceof Controls.OnCell)
                 keys.add("Cell");
+        } else if(w != null) {
+            // 061.1: the same question of a control the addon did NOT build — a native button answers Pressed,
+            // and the refusal has to say so or the roster and the interception seam disagree about one widget.
+            for(String k : Controls.borrowedKeys(w))
+                keys.add(k);
         }
         for(String k : UNIVERSAL_KEYS)
             keys.add(k);

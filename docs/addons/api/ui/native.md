@@ -14,6 +14,9 @@ inv:position(nil)         -- drop YOUR move: back to where the user had it
 `:pack()` and `:destroy()` stay refused on a widget you do not own: those destroy the client's work rather
 than sit on top of it. See [owned vs borrowed](widget.md#owned-vs-borrowed) for the whole table.
 
+This page is about **where** one of the client's widgets sits and whether it is on screen. Changing what
+one of them *does* — taking over a button of the client's own — is [editing](edit.md).
+
 [Standing one in the 3D world](../vr/widgets.md) is a fourth write of the same family, restoring under the
 same rule.
 
@@ -112,6 +115,7 @@ behaving exactly as stock.
 ## See also
 
 - [widget](widget.md#owned-vs-borrowed) — which writes answer on which widget
+- [edit](edit.md) — changing what one of the client's controls does
 - [replace](replace.md) — hiding a whole window and standing yours in its place
 - [style/geometry](style/geometry.md) — saying the same placement as a rule instead of a verb
 - [selectors](selectors.md) — naming the widget you are about to move

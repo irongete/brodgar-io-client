@@ -1,0 +1,11 @@
+{
+  "name": "061.1 — Pressed on a native button",
+  "id": "061-editing-native-windows.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 061.1: a capability key answers on a control the addon did not build, both handlers fire, either one cancels the client's own action, and ev:resend() runs it.",
+  "api_version": 1,
+  "files": [
+    "main.lua"
+  ]
+}

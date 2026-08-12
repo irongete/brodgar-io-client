@@ -164,6 +164,23 @@ public final class AddonWidgets {
     }
 
     /**
+     * The <b>interception seam</b> (spec {@code 061-editing-native-windows}) — asked by a control at the site
+     * where the client itself receives an input, immediately before it runs its own method: <i>does an AddOn
+     * hold this capability key on this widget, and may I proceed?</i> {@code false} = an addon cancelled, leave
+     * the action undone.
+     *
+     * <p>It goes at the INPUT site rather than at the overridable hook ({@code click()}, {@code changed()}):
+     * those are what a subclass replaces, and a notification a subclass can skip is not a seam. {@code value}
+     * is what the control is about to take, for the keys that carry one ({@code null} for an activation).
+     *
+     * <p>With no AddOn holding that key the whole call is one map lookup per loaded addon and allocates
+     * nothing, so a stock client behaves exactly as before.
+     */
+    public static boolean activate(Widget wdg, String key, Object value) {
+        return io.brodgar.addon.AddonManager.activate(wdg, key, value);
+    }
+
+    /**
      * The <b>layout-persistence seam</b> (spec {@code 036-ui-layout}, E) — the position the client should write
      * down for a window it persists ({@link GameUI}'s {@code savewndpos}, {@code cdestroy}'s {@code wndc-misc},
      * the crafting window's {@code makewndc}). Normally the widget's own {@code c}; for a widget an AddOn's

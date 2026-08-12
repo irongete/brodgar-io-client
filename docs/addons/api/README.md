@@ -77,6 +77,7 @@ The verbs that act are on the pages of what they change — [`hafen.player`](pla
 | [selectors](ui/selectors.md) | naming a widget: the grammar, the lookups, roles, hit-testing, and the inspector |
 | [items](ui/items.md) | the items inside a container, while the window stays live |
 | [native widgets](ui/native.md) | placing and hiding the client's own widgets, and the restore that comes with it |
+| [edit](ui/edit.md) | changing one part of one of the client's windows: taking over what a control does |
 | [replace](ui/replace.md) | waiting for a widget to appear, and standing your own window in its place |
 | [drawing](ui/drawing.md) | the `g` wrapper: shapes, images, text, and the cache text goes through |
 

@@ -897,6 +897,21 @@ public final class AddonManager {
     public static void chrome(Window wnd) {              SkinDeco.check(wnd);            }
 
     /**
+     * The <b>interception seam</b> (061.1) — called from {@code haven.AddonWidgets} at the sites where the
+     * client itself receives an input, immediately before it runs its own method: fire the capability
+     * {@code key} for every addon that holds it on {@code wdg} and answer whether to go on
+     * ({@link Controls#activate}). {@code value} is what the control is about to take, for the keys that carry
+     * one.
+     *
+     * <p><b>Threading.</b> UI thread, from an input pass, and it may raise Lua — which
+     * {@link Subs#fire}/{@link #callLua} already isolate per handler, so a broken addon cannot break the click.
+     * With nobody listening it is one map lookup per loaded addon and allocates nothing.
+     */
+    public static boolean activate(Widget wdg, String key, Object value) {
+        return Controls.activate(wdg, key, value);
+    }
+
+    /**
      * The <b>layout-persistence seam</b> (036.1, feature E) — called from {@code haven.AddonWidgets} wherever the
      * client writes a window's own geometry to disk ({@code GameUI.savewndpos}, {@code cdestroy}'s
      * {@code wndc-misc}, the crafting window's {@code makewndc}): what should be persisted is what the <b>user</b>

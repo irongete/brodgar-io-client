@@ -9,7 +9,7 @@
 - `ev:resend()` / `ev:send(t)` reach the server through `UI.rawWdgmsg` with no permission check while their siblings have one (filed: 055)
 - a numeric **string** passes `v.isnumber()` in LuaJ, so `place`, `item:drop` and `widget:send` coerce one through (filed: 055)
 - `LuaWorldEntity`'s javadoc calls five retired verbs "the common handle verbs" (filed: 055)
-- `UiApi`'s comment gives `:text()`'s roster without the `CheckBox` arm shipped in 040.4 (filed: 055)
+- `widget:on(key, fn)` on a STALE widget refuses naming the key as unknown, before the check that says the widget left the tree (filed: 061)
 - the layout half of the caption seam takes no widget, so a late-captioned window never lays its descendants out (filed: 049)
 - `world():screenToWorld(sx, sy)` and `player():worldToScreen(p)` speak device pixels while every other screen coordinate is a design pixel (filed: 058)
 

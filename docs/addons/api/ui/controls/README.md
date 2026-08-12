@@ -107,7 +107,7 @@ widget to the controls inside it, so the box that holds a column of rows is read
 ## Subscribing
 
 A control answers the five universal [`:on(key, fn)`](../widget.md#subscribing) keys every widget does —
-it is a Widget first — plus exactly **one** capability key of its own, the one thing that control does:
+it is a Widget first — plus exactly **one** capability key, the one thing that control does:
 
 | Builder | Key | handler receives |
 |---|---|---|
@@ -129,6 +129,11 @@ in.
 **`Changed` fires when a control's value changes — and only from a real interaction.** A `:value(v)`
 write from your own code never re-enters it, so driving a value from a script and reacting to the user
 changing it never loop into each other. Two handlers on one key both fire, in registration order.
+
+**The key belongs to the control, not to the addon that built it.** The same key answers on one of the
+client's own controls, where the handler is also given an `ev` that can stop the client's action or run it
+— [editing](../edit.md) is that page. Here your handler *is* the action, so there is nothing under it to
+cancel and nothing is handed over but the value.
 
 ## Reading order
 
@@ -153,14 +158,17 @@ hand the widget. The five universal input keys — `MouseDown`, `MouseUp`, `Mous
 A control your addon built is [owned](../widget.md#owned-vs-borrowed): the setters answer, `:destroy()` ends
 it, and a `:reload` or a disable removes it for you. The client's own controls are **borrowed** — the reads
 answer, and every setter on this page refuses, naming what to do instead (`:info().owned` is how you ask
-rather than provoke the error). Provenance comes from the tree, so a control you find again with
-`hafen.ui():at(x, y)` or a selector is the same object the builder returned, writes and all.
+rather than provoke the error). Its capability key is not a setter and answers on both:
+[subscribing to a borrowed control](../edit.md) is how you take over what it does. Provenance comes from
+the tree, so a control you find again with `hafen.ui():at(x, y)` or a selector is the same object the
+builder returned, writes and all.
 
 ## See also
 
 - [display](display.md) — the label, picture, separator and progress bar
 - [interactive](interactive.md) — the button, text entry, checkbox, radio, slider, scroll and scrollbar
 - [widget](../widget.md) — everything a control answers before it adds anything of its own
+- [edit](../edit.md) — the same capability keys, on the client's own controls
 - [custom](../custom.md) — the surfaces a control goes in, and painting one yourself instead
 - [selectors](../selectors.md) — naming a control, yours or the client's
 - [style](../style/README.md) — the rules that dress it

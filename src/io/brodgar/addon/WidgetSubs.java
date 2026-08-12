@@ -146,6 +146,23 @@ final class WidgetSubs {
         return subs.fire(key, c, evObj);
     }
 
+    // ---- the borrowed capability keys (061.1) -------------------------------------------------------
+
+    /**
+     * Fire a capability key on a widget this addon <b>borrowed</b> (061.1): the client's own activation site
+     * asked ({@link Controls#activate}), and every handler this owner holds on {@code key} runs with an
+     * {@code ev} that can stop the client's own action ({@code ev:preventDefault()}) or run it itself
+     * ({@code ev:resend()}).
+     *
+     * <p>Nothing is installed for these, exactly as for the owned half: the Java method that already runs is
+     * the emitter, and this record is only where the handlers live. What differs is the {@link Subs.Cancel} —
+     * it is the caller's, shared with every OTHER addon holding the same key on the same widget, because they
+     * are all deciding one thing.
+     */
+    void fireBorrowed(String key, Object value, Subs.Cancel c) {
+        subs.fire(key, c, LuaEvent.control(owner, key, wdg, value, c));
+    }
+
     /** {@link Subs.Idle}: the last {@code sub:off()} on {@code key} just ran — nobody is listening any more. */
     private void deafenKey(String key) {
         EventHandler<?> h = installed.remove(key);

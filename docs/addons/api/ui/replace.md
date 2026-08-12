@@ -112,11 +112,13 @@ The line between the three verbs on this page and the sheet is worth stating onc
 widget — its text, its background, its border, a window's whole chrome — is
 [the stylesheet's](style/README.md) job. **Placing** one is a write,
 [`:position(x, y)`/`:size(w, h)`](native.md), which the sheet can also
-[say as a rule](style/geometry.md). **Rearranging what a window puts inside itself** is neither: that is
-replacing it.
+[say as a rule](style/geometry.md). **Changing one part of a window** — taking over what one of its
+buttons does — is [editing](edit.md), the page beside this one. **Rearranging what a window puts inside
+itself** is none of those: that is replacing it.
 
 ## See also
 
+- [edit](edit.md) — changing one part of a window instead of standing in for the whole of it
 - [native](native.md) — hiding a widget without standing anything in its place
 - [widget](widget.md) — the object both verbs work on
 - [selectors](selectors.md) — naming the window you want to wait for

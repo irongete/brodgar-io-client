@@ -216,7 +216,9 @@ public class Button extends SIWidget {
     }
 
     public boolean gkeytype(GlobKeyEvent ev) {
-	click();
+	// addon: 061 -- the Pressed seam, where the client receives the KEY (click() is overridden all over)
+	if(AddonWidgets.activate(this, "Pressed", null))
+	    click();
 	return(true);
     }
     
@@ -270,7 +272,10 @@ public class Button extends SIWidget {
 	    redraw();
 	    if(ev.c.isect(Coord.z, sz)) {
 		unpress();
-		click();
+		// addon: 061 -- the Pressed seam, after the grab is released so a handler may cancel, defer or
+		// destroy this window without leaving a UI.Grab outstanding, and before the action runs
+		if(AddonWidgets.activate(this, "Pressed", null))
+		    click();
 	    }
 	    return(true);
 	}

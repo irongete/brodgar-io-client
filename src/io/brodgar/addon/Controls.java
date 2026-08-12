@@ -479,6 +479,117 @@ final class Controls {
             s.subs.fire(key, args);
     }
 
+    // ------------------------------------------------------------------ the borrowed capability keys (061.1)
+
+    /**
+     * <b>The keys a control the addon did NOT build answers</b> (061.1) — the borrowed half of the capability
+     * roster above, and the one place it is written down. The owned half dispatches on the marker interfaces
+     * ({@link Press}/{@link Change}/…) an adapter implements; a native widget implements none of them, so the
+     * question is asked of the {@code haven} class instead, in one {@code instanceof} chain — the same
+     * discipline {@link LuaWidget#typeName}/{@link LuaWidget#role} use for fragile upstream knowledge, so
+     * upstream churn breaks this method and nothing else.
+     *
+     * <p>It is what keeps a refusal honest: {@code widget:on(key, fn)} lists what the widget DOES answer, so a
+     * native button has to say {@code Pressed} there or the roster and the seam disagree about the same widget.
+     * Empty for anything that fires nothing — a native {@link haven.Label}, a window, a container.
+     */
+    static List<String> borrowedKeys(Widget w) {
+        if((w instanceof haven.Button) || (w instanceof haven.IButton))
+            return Collections.singletonList("Pressed");
+        return Collections.<String>emptyList();
+    }
+
+    /**
+     * <b>The interception seam</b> (061.1) — asked by the client's own activation site, through
+     * {@code haven.AddonWidgets.activate}, immediately before it runs its own method: <i>does any addon hold
+     * {@code key} on this widget, and may I proceed?</i> One helper carries every family, so each
+     * {@code // addon:} line in {@code haven} is the same one-liner and the whole decision lives here.
+     *
+     * <p><b>Every holder fires, and cancelling is OR.</b> The {@link Subs.Cancel} is minted once and shared
+     * across every addon of this one activation ({@link Subs#fire}'s existing rule), so any handler cancels,
+     * every handler still runs, and the outcome never depends on the order the addons happen to be loaded in.
+     *
+     * <p><b>An addon that OWNS the control is skipped.</b> Its own adapter already dispatches the key from the
+     * method the client calls ({@link #fire}), so without this it would receive the same press twice — a native
+     * control lives inside an addon's own controls (a {@code :dropdown()}'s arrow, a window's close button), so
+     * this is the common case rather than the odd one.
+     *
+     * <p><b>And a replay is not an activation.</b> {@code ev:resend()} runs the control's own method, which may
+     * route back through the very site that fired: the re-entrancy flag ({@link #replaying}) makes the seam
+     * skip while it does, so re-issuing cannot loop.
+     *
+     * @return whether the client should go on and run its own action.
+     */
+    static boolean activate(Widget w, String key, Object value) {
+        if((w == null) || replaying(w, key))
+            return true;
+        Subs.Cancel c = null;
+        for(Addon a : AddonManager.addons)   // a snapshot walk: a handler may disable its own addon mid-fire
+            c = offer(a, w, key, value, c);
+        c = offer(AddonManager.consoleOwner, w, key, value, c);
+        return (c == null) || !c.prevented();
+    }
+
+    /** One owner's part of {@link #activate}: fire its handlers, minting the shared {@link Subs.Cancel} lazily. */
+    private static Subs.Cancel offer(Addon a, Widget w, String key, Object value, Subs.Cancel c) {
+        if(a == null)
+            return c;
+        WidgetSubs s = a.widgetSubsOrNull(w);        // the hasSub gate: an unlistened widget costs one lookup
+        if((s == null) || !s.subs.has(key))
+            return c;
+        if(LuaWidget.ownedContent(a, w) != null)     // it built this control: Controls.fire is its door, not this
+            return c;
+        if(c == null)
+            c = new Subs.Cancel();
+        s.fireBorrowed(key, value, c);
+        return c;
+    }
+
+    /** The (widget, key) whose action {@link #replay} is running right now, or {@code null} — see {@link #activate}. */
+    private static Widget replayWdg;
+    private static String replayKey;
+
+    /** Is this activation the one {@code ev:resend()} is replaying? Then the seam is not asked again. */
+    private static boolean replaying(Widget w, String key) {
+        return (replayWdg == w) && key.equals(replayKey);
+    }
+
+    /**
+     * <b>{@code ev:resend()}'s other half</b> (061.1) — run the control's own action, the one the seam held
+     * back. Which method that is belongs to the family, so this is the mirror of {@link #borrowedKeys}: the
+     * roster says a widget answers the key, this says what the key DOES on it.
+     *
+     * <p>The previous (widget, key) is saved and restored rather than cleared, so a replay that reaches another
+     * control's seam is still seen as an activation there — only the one being re-issued is skipped.
+     */
+    static void replay(Widget w, String key) {
+        Widget pw = replayWdg;
+        String pk = replayKey;
+        replayWdg = w;
+        replayKey = key;
+        try {
+            UI u = AddonManager.ui;
+            synchronized(u) { run(w, key); }
+        } finally {
+            replayWdg = pw;
+            replayKey = pk;
+        }
+    }
+
+    /** The client's own method behind one key on one widget — {@link #replay}'s dispatch, and nothing else. */
+    private static void run(Widget w, String key) {
+        if(w instanceof haven.Button) {
+            ((haven.Button)w).click();
+            return;
+        }
+        if(w instanceof haven.IButton) {
+            ((haven.IButton)w).click();
+            return;
+        }
+        throw new LuaError("ev:resend() — a " + LuaWidget.typeName(w) + " has no '" + key + "' action of its"
+            + " own to run again.");
+    }
+
     // ------------------------------------------------------------------ the face setter (040.2)
 
     /** {@code widget:image()} — the faces this control was given, or {@code nil} where a control has none. */
