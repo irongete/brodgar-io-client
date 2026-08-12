@@ -20,6 +20,7 @@ import haven.Inventory;
 import haven.ItemInfo;
 import haven.Loading;
 import haven.MapView;
+import haven.MenuGrid;
 import haven.OCache;
 import haven.Party;
 import haven.QuestWnd;
@@ -1346,8 +1347,9 @@ final class CharApi {
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
         Resource r = actionbarResObj(s);
-        if(r != null)
-            t.set("res", LuaValue.valueOf(r.name));
+        String rn = actionbarRes(s);
+        if(rn != null)
+            t.set("res", LuaValue.valueOf(rn));
         String name = actionbarName(s, r);
         if(name != null)
             t.set("name", LuaValue.valueOf(name));
@@ -1355,6 +1357,31 @@ final class CharApi {
         if(cd != null)
             t.set("cooldown", LuaValue.valueOf(cd));
         return t;
+    }
+
+    /**
+     * The slot's resource name — the identity {@code slot:res()} answers. <b>A slot an addon is holding names
+     * the entry</b> (059.4): every custom entry is constructed over one shared stand-in resource, so reading
+     * that resource here would report the menu's paging arrow for every held slot in the bar. What it answers
+     * instead is the {@code addon/<addon id>/<id>} identity {@code pag:res()} speaks — the same string in
+     * every session, and the one {@link BeltHold} was handed.
+     */
+    static String actionbarRes(GameUI.BeltSlot s) {
+        AddonPagina p = actionbarEntry(s);
+        if(p != null)
+            return p.id;
+        Resource r = actionbarResObj(s);
+        return (r == null) ? null : r.name;
+    }
+
+    /** The custom entry a HELD slot draws, or {@code null} for every slot whose content is the server's. */
+    private static AddonPagina actionbarEntry(GameUI.BeltSlot s) {
+        if(s instanceof GameUI.PagBeltSlot) {
+            MenuGrid.Pagina p = ((GameUI.PagBeltSlot)s).pag;
+            if(p instanceof AddonPagina)
+                return (AddonPagina)p;
+        }
+        return null;
     }
 
     /** The icon {@link Resource} behind an action-bar slot (a {@code ResBeltSlot} item or a
@@ -1372,6 +1399,9 @@ final class CharApi {
 
     /** Display name of an action-bar slot: the pagina action's name, else the resource tooltip, else nil. */
     static String actionbarName(GameUI.BeltSlot s, Resource r) {
+        AddonPagina custom = actionbarEntry(s);
+        if(custom != null)
+            return custom.name();      // the RAW string the addon set, never the tip's escaped one (059.4)
         if(s instanceof GameUI.PagBeltSlot) {
             try {
                 return ((GameUI.PagBeltSlot)s).pag.button().name();

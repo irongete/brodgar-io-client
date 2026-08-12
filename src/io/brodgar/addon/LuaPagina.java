@@ -213,7 +213,7 @@ public final class LuaPagina {
                 if(v.isnumber() || !v.isstring())
                     throw new LuaError("pagina:name(text): the display name is a string — the one the grid"
                         + " paints over the button and shows in its tooltip; got " + v.typename());
-                AddonPagina p = AddonPagina.owned(owner, handle(self, "name").res, "name(text)");
+                AddonPagina p = AddonPagina.owned(owner, handle(self, "name").res, "pagina:name(text)");
                 p.name(v.tojstring());
                 return self;
             }
@@ -232,7 +232,7 @@ public final class LuaPagina {
                     LuaImage li = (p instanceof AddonPagina) ? ((AddonPagina)p).icon() : null;
                     return (li == null) ? LuaValue.NIL : AssetApi.imageFor(owner, li);
                 }
-                AddonPagina p = AddonPagina.owned(owner, res, "icon(image)");
+                AddonPagina p = AddonPagina.owned(owner, res, "pagina:icon(image)");
                 p.icon(image(v));
                 return self;
             }
@@ -273,7 +273,7 @@ public final class LuaPagina {
                 if(v.isnumber() || !v.isstring())
                     throw new LuaError("pagina:tooltip(text): the description is a string — the line the grid"
                         + " paints under the name; got " + v.typename());
-                AddonPagina p = AddonPagina.owned(owner, handle(self, "tooltip").res, "tooltip(text)");
+                AddonPagina p = AddonPagina.owned(owner, handle(self, "tooltip").res, "pagina:tooltip(text)");
                 p.tooltip(v.tojstring());
                 return self;
             }
@@ -306,7 +306,7 @@ public final class LuaPagina {
                 if(!"use".equals(key))
                     throw new LuaError("pagina:on(key, fn): a menu entry has no event '" + key + "' — it has:"
                         + " use, which fires on a left-click and on pag:use()");
-                AddonPagina p = AddonPagina.owned(owner, handle(self, "on").res, "on(\"use\", fn)");
+                AddonPagina p = AddonPagina.owned(owner, handle(self, "on").res, "pagina:on(\"use\", fn)");
                 return p.subs.on(key, fnArg);
             }
         });
@@ -353,7 +353,7 @@ public final class LuaPagina {
                 }
                 LuaValue v = a.arg(2);
                 MenuGrid.Pagina par = v.isnil() ? null : category(v);
-                AddonPagina p = AddonPagina.owned(owner, res, "parent(pagOrNil)");
+                AddonPagina p = AddonPagina.owned(owner, res, "pagina:parent(pagOrNil)");
                 p.parent(par);
                 return self;
             }

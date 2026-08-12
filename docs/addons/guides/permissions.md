@@ -106,6 +106,7 @@ several of them look like writes:
 |---|---|
 | [`hafen.map():marker():add`](../api/map/markers.md#write-unprotected) | your own map database |
 | [`hafen.menugrid():add`](../api/menugrid.md#write-unprotected) | an entry of your own in the action menu |
+| [`slot:pagina(pag)`](../api/actionbar.md#hold-a-slot-unprotected) | which of your entries the client draws over a bar slot |
 | [`cat:show(on)`](../api/map/icons.md#the-iconcat-object) | which icons your minimap draws |
 | [`w:position`, `w:size`, `w:visible`](../api/ui/native.md) | where the client's own windows sit |
 | [`w:replace(view)`](../api/ui/replace.md) | which window a client toggle opens |
@@ -117,8 +118,10 @@ several of them look like writes:
 Subscribing, drawing and reading are not writes at all. The line is the server: if nothing leaves the
 client, there is no key to ask for.
 
-An entry you put in the action menu sits on this side of it whole: naming it, drawing it and running your
-own function when the user clicks it never reach past your client. [`pag:use()`](../api/menugrid.md#use-protected)
+An entry you put in the action menu sits on this side of it whole: naming it, drawing it, putting it on the
+action bar and running your own function when the user clicks it never reach past your client. The bar slot is
+**held** rather than assigned — the server's own content stays where it is and comes back untouched — which is
+why the key `slot:res(name)` needs is not asked for here. [`pag:use()`](../api/menugrid.md#use-protected)
 is the exception, and it keeps `menugrid.use` whichever entry it names — pressing a button on the player's
 behalf is an act, and any addon can address any entry by name.
 

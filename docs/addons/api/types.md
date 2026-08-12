@@ -235,8 +235,10 @@ creature is read off its [Gob](gob.md).
 
 From [`slot:info()`](actionbar.md#read), the snapshot escape hatch; `nil` for an empty slot.
 `{ res = string?, name = string?, cooldown = number? }` — `cooldown`, 0..1, is present only for an
-ability slot with a meter, and is **not** seconds. The live reads are `slot:res()`, `:name()` and
-`:cooldown()`.
+ability slot with a meter, and is **not** seconds. On a slot
+[held](actionbar.md#hold-a-slot-unprotected) for an addon's own menu entry, `res` is that entry's
+`addon/<addon id>/<id>` identity and `name` the name the addon gave it. The live reads are `slot:res()`,
+`:name()` and `:cooldown()`.
 
 ## Pagina
 

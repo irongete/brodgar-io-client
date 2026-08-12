@@ -2,7 +2,6 @@ package io.brodgar.addon;
 
 import haven.GameUI;
 import haven.MenuGrid;
-import haven.Resource;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -55,6 +54,13 @@ import java.util.Map;
  * {@code :res(name)} sends the very {@code wdgmsg("setbelt", n, "res", name)} a drag from the menu grid sends
  * ({@code GameUI.Belt.dropthing}). Both return <b>self</b> so they chain, and {@code :res()} with no argument
  * is the read half of that one name.
+ *
+ * <p><b>{@code :pagina(pagOrNil)} is the third write, and it is UNPROTECTED</b> (059.4): it puts one of this
+ * addon's own menu entries on the bar, which reaches no server and needs no more permission than drawing a HUD
+ * overlay does. It is not an assignment but a <b>hold</b> — see {@link BeltHold} — so it lands immediately
+ * where {@code :res(name)} round-trips the server, and the slot's own content comes back untouched when the
+ * hold ends. A held slot reads as the entry throughout: {@code :res()} answers the {@code addon/…} identity
+ * ({@link CharApi#actionbarRes}), {@code :empty()} is false, and {@code ActionbarChanged} fires on both edges.
  *
  * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / slash command);
  * {@code belt[n]} is a plain array read, but the resource-backed fields behind it are {@code Loading}-guarded
@@ -208,8 +214,18 @@ public final class LuaSlot {
                 LuaValue self = a.arg1();
                 LuaValue rv = Args.written(a, 2, "slot:res", "resourceName");
                 if(rv == null) {
-                    Resource r = CharApi.actionbarResObj(belt(self, "res"));
-                    return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r.name);
+                    String rn = CharApi.actionbarRes(belt(self, "res"));
+                    return (rn == null) ? LuaValue.NIL : LuaValue.valueOf(rn);
+                }
+                // 059.4: a custom entry's identity is refused BEFORE the gate, unlike the live-entry lookup
+                // in pagina:use() (D-213). The gate answers "may this addon assign one of the game's actions";
+                // this string is not one, whoever asks — the caller wants the other verb, and that is decided
+                // at the line that wrote it rather than by what the manifest happens to declare.
+                if(rv.isstring() && !rv.isnumber() && rv.tojstring().trim().startsWith(AddonPagina.PREFIX)) {
+                    throw new LuaError("slot:res(resourceName): \"" + rv.tojstring().trim() + "\" is an entry"
+                        + " an addon added to the menu, and the server has never heard of it — this verb"
+                        + " assigns one of the game's own actions, by the name the server publishes. Hold the"
+                        + " slot for the entry instead: slot:pagina(pag).");
                 }
                 AddonManager.requirePermission(owner, Permission.ACTIONBAR_RES);
                 int n = handle(self, "res").index;
@@ -223,6 +239,38 @@ public final class LuaSlot {
                 if(g == null)
                     throw new LuaError("slot:res(): no game UI (not in the world yet)");
                 g.wdgmsg("setbelt", Integer.valueOf(n), "res", res);
+                return self;
+            }
+        });
+        // pagina() reads the entry an addon is HOLDING this slot for, nil for every slot the server owns;
+        // pagina(pag) holds it for one of THIS addon's menu entries, and pagina(nil) gives it back (059.4).
+        // Nothing is sent: the client draws over the slot and keeps what the server has there, so the write
+        // is UNPROTECTED (like a HUD overlay) and lands immediately, unlike :res(name)'s server round trip.
+        // nil is DOCUMENTED here (end the hold), so it is the write and not the read: Args.passed, never
+        // Args.written. The read half is the hold alone — a slot holding one of the game's own actions is
+        // already named by :res(), and hafen.menugrid():get(that) is the Pagina for it.
+        m.set("pagina", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                int n = handle(self, "pagina").index;
+                if(!Args.passed(a, 2)) {
+                    AddonPagina p = BeltHold.held(n);
+                    return (p == null) ? LuaValue.NIL : LuaPagina.of(owner, p.id);
+                }
+                LuaValue v = a.arg(2);
+                if(v.isnil()) {
+                    BeltHold.release(n);
+                    return self;
+                }
+                LuaPagina h = LuaPagina.resolve(v);
+                if(h == null)
+                    throw new LuaError("slot:pagina(pagOrNil): expected the Pagina object"
+                        + " hafen.menugrid():add(id) handed you, or nil to end the hold, got " + v.typename());
+                if(!h.res.startsWith(AddonPagina.PREFIX))
+                    throw new LuaError("slot:pagina(pagOrNil): \"" + h.res + "\" is the client's own entry,"
+                        + " and a slot is held for an entry your addon added (hafen.menugrid():add(id)). To"
+                        + " put one of the game's own actions on the bar, assign it: slot:res(name).");
+                BeltHold.hold(n, AddonPagina.owned(owner, h.res, "slot:pagina(pagOrNil)"));
                 return self;
             }
         });
@@ -307,8 +355,8 @@ public final class LuaSlot {
             // An EMPTY slot has no resource, and there are usually many: it matches no string filter rather
             // than refusing the filter for everybody (which a null needle would do).
             public String needle(LuaValue member) {
-                Resource r = CharApi.actionbarResObj(belt(member, "list"));
-                return (r == null) ? "" : r.name;
+                String rn = CharApi.actionbarRes(belt(member, "list"));
+                return (rn == null) ? "" : rn;
             }
 
             /** These have a name, so a string filter is a substring test over {@link #needle}. */

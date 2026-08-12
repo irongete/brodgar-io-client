@@ -324,6 +324,8 @@ public final class AddonManager {
         removedWidgets.clear();       // 042.1: and the widget-removal queue — the old session's widgets are gone
         resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
         beltSetQueue.clear();         // 042.6: and any deferred belt-write notify queued from the old session
+        BeltHold.resetSession();      // 059.4: ...and every bar slot an addon was holding — a slot index names
+                                      //   another character's bar now, and the addons above were just torn down
         resizedWidgets.clear();       // 042.10: and any resize notify queued from the old session
         markerChangeQueue.clear();    // 042.11: and any marker-change notify queued from the old session
         HttpApi.reset();              // N2a: drop stale HTTP completions (their requests were torn down above)

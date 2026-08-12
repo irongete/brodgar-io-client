@@ -92,7 +92,8 @@ Read and **discharged with the reason**: `examples.md`, `getting-started.md`,
 - `{Addon,AddonManager,Args}.java` — 1..5 · `{Subs,LuaSub,WidgetSubs}.java` — 3
 - `{LuaImage,AssetApi,Controls}.java`, `src/haven/{GSprite,Inventory}.java` — 1
 - `src/haven/GameUI.java` — 4, 5 (the belt half only: `BeltSlot`, `Belt`, the `setbelt` uimsgs)
-- `LuaSlot.java` — 4, 5 · `StoreApi.java` — 5 (all of the above under `src/io/brodgar/addon/`)
+- `LuaSlot.java` — 4, 5 · `BeltHold.java` — 5 (the holds, the displaced originals, the three `GameUI`
+  seams) · `StoreApi.java` — 5 (all of the above under `src/io/brodgar/addon/`)
 - `docs/addons/api/{menugrid,conventions}.md` — 1, 2, 3, 4 · `asset.md` — 1
 - `docs/addons/api/{types,references}.md`, `docs/addons/guides/permissions.md` — 3
 - `docs/addons/api/{actionbar,event}.md` — 4, 5 · `docs/client/services.md` — 1, 4

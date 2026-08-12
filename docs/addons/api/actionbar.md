@@ -1,6 +1,7 @@
 # hafen.actionbar: the action bar
 
-Read and activate the action bar, the F-key and number-key hotbar. `hafen.actionbar()` **is** the bar.
+Read and activate the action bar, the F-key and number-key hotbar, and put one of your own
+[menu entries](menugrid.md#write-unprotected) on it. `hafen.actionbar()` **is** the bar.
 
 ```lua
 for _, slot in ipairs(hafen.actionbar():list()) do       -- every slot, occupied or not
@@ -45,7 +46,7 @@ At login the occupied slots stream in a beat later, as a burst of `ActionbarChan
 |---|---|---|
 | `slot:index()` | number | the raw 0-based game index this Slot addresses — always answers |
 | `slot:empty()` | boolean | whether the slot has no content; also `true` before the hotbar exists |
-| `slot:res()` | string \| nil | the resource name of the slot's action or item |
+| `slot:res()` | string \| nil | the resource name of the slot's action or item — the identity of the entry, on a [held](#hold-a-slot-unprotected) slot |
 | `slot:name()` | string \| nil | the display name, once the action's data has resolved |
 | `slot:cooldown()` | number \| nil | the meter fraction, `0..1` |
 | `slot:info()` | [`ActionbarSlot`](types.md#actionbarslot) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
@@ -96,9 +97,75 @@ hafen.timer():after(0.5, function()
 end)
 ```
 
+## Hold a slot (unprotected)
+
+**One of your own [menu entries](menugrid.md#write-unprotected) sits on the bar too**, drawing its icon in
+the slot and running its Lua when that slot's key is pressed. It does not go *into* the slot: the server
+owns the bar and has never heard of your entry's name, so the client **holds** the slot instead — it draws
+over what the server has there and hands it back untouched when the hold ends.
+
+```lua
+local dig = hafen.menugrid():add("dig"):name("Auto-dig"):icon(hafen.asset():get("dig.png"))
+dig:on("use", function() hafen.log():write("dug") end)
+hafen.actionbar():get(11):pagina(dig)                    -- the entry now draws in that slot, and fires from it
+```
+
+| Method | Returns | Description |
+|---|---|---|
+| `slot:pagina()` | `Pagina` \| nil | the entry this slot is being held for; `nil` for every slot the server owns |
+| `slot:pagina(pag)` | the `Slot` | hold this slot for one of the entries your addon added |
+| `slot:pagina(nil)` | the `Slot` | end the hold, whoever took it; inert on a slot nobody is holding |
+
+Nothing reaches the server, so this needs **no permission** and it lands **immediately** — where
+`slot:res(name)` below is a round trip. [`ActionbarChanged`](event.md#character-and-status) fires on both
+edges, taking the hold and ending it.
+
+While a slot is held it reads as the entry: `slot:res()` is that entry's `addon/…` identity, `slot:name()`
+the name you gave it, `slot:empty()` is false, and pressing the slot — its key, a click, or `slot:use()` —
+runs your [`pag:on("use", fn)`](menugrid.md#a-click-runs-your-lua) handlers. It is one button in two places,
+through the same code, so the grid and the bar can never answer differently.
+
+**Dragging does the same thing.** Drag one of your entries off the action menu onto a slot and the client
+holds that slot for it, exactly as the call above does and sending nothing.
+
+The read half is the hold alone. A slot holding one of the game's own actions answers `nil` — that action is
+already named by `slot:res()`, and [`hafen.menugrid():get(name)`](menugrid.md) is the `Pagina` for it.
+
+### When a hold ends
+
+| What happened | What the slot goes back to |
+|---|---|
+| `slot:pagina(nil)` | the server's own content |
+| a **right-click** on the slot | the server's own content — the right-click is not sent, so nothing is cleared |
+| `hafen.menugrid():remove(pag)` | the server's own content |
+| your addon reloads or is disabled, or you log out | the server's own content |
+| the **server** writes that slot | what the server just wrote — that is the slot's content now |
+
+Every row but the last puts back exactly what the server has in the slot, unchanged and never having left
+it. The last row is the one that cannot: the message being handled *is* the server assigning or clearing
+that slot, so what it wrote stands and the hold simply ends. `slot:res(name)` on a slot you are holding is
+that row — your own write ends your own hold, a beat later, when the server echoes it back.
+
+> **The bar is one shared surface.** A slot belongs to nobody: the player drags what they like onto it, and
+> so does every other addon. Holding a slot another addon holds is allowed and the last write wins — what is
+> carried through the whole pile is the *server's* own content, so one release puts the game's action back
+> however many addons took that slot in turn.
+
+| What you did | What you get |
+|---|---|
+| `slot:pagina(pag)` for one of the game's own entries | that *is the client's own entry* — pointing at `slot:res(name)` |
+| `slot:pagina(pag)` for another addon's entry | it *belongs to* that addon, named |
+| `slot:pagina(pag)` for an entry you removed | that entry *is no longer in the menu* |
+| `slot:pagina(7)`, `slot:pagina("dig")` | expected the **`Pagina` object**, or `nil` |
+| `slot:res("addon/myaddon/dig")` | that *is an entry an addon added* — pointing back at `slot:pagina` |
+
+The last row is the pair's dividing line: `slot:res(name)` assigns one of the game's actions, by a name the
+server publishes and stores; `slot:pagina(pag)` holds a slot for one of yours, which the server never sees.
+One string could never mean both.
+
 ## See also
 
-- [`hafen.menugrid`](menugrid.md) — where the resource names the write takes come from
-- [permissions](../guides/permissions.md) — the permission both writes share
+- [`hafen.menugrid`](menugrid.md) — where the resource names the write takes come from, and where your own entries are added
+- [permissions](../guides/permissions.md) — the permission the two protected writes share
 - [`ActionbarSlot`](types.md#actionbarslot) — the snapshot shape `:info()` returns
 - [events](event.md#character-and-status) — `ActionbarChanged`

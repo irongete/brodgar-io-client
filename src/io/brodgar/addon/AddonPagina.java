@@ -422,6 +422,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
      */
     private static void detach(AddonPagina p) {
         p.subs.clear();
+        BeltHold.entryRemoved(p);   // 059.4: and give back every bar slot that was held for it
         synchronized(p.scm.paginae) {
             p.scm.paginae.remove(p);
             for(MenuGrid.Pagina q : p.scm.paginae) {
@@ -437,21 +438,25 @@ public final class AddonPagina extends MenuGrid.Pagina {
      * The <b>live</b> entry a write verb is addressing, or a refusal naming <i>whose</i> entry it is. An addon
      * writes the entries it added and nothing else: the client's own are the server's to describe, and another
      * addon's are that addon's.
+     *
+     * <p>{@code call} is the whole call being refused, not a bare verb name: the same check answers for
+     * {@code slot:pagina(pagOrNil)} on the action bar as for the setters here, and an error names the line
+     * that wrote it.
      */
-    static AddonPagina owned(Addon owner, String res, String verb) {
+    static AddonPagina owned(Addon owner, String res, String call) {
         for(AddonPagina p : owner.menuEntries) {
             if(p.id.equals(res))
                 return p;
         }
         String mine = PREFIX + owner.manifest.id + "/";
         if(res.startsWith(mine))
-            throw new LuaError("pagina:" + verb + ": \"" + res + "\" is no longer in the menu — this addon"
+            throw new LuaError(call + ": \"" + res + "\" is no longer in the menu — this addon"
                 + " added it and removed it again (check :exists())");
         if(res.startsWith(PREFIX)) {
-            throw new LuaError("pagina:" + verb + ": \"" + res + "\" belongs to " + other(res) + ", not to"
+            throw new LuaError(call + ": \"" + res + "\" belongs to " + other(res) + ", not to"
                 + " this addon — an addon writes only the entries it added with hafen.menugrid():add(id)");
         }
-        throw new LuaError("pagina:" + verb + ": \"" + res + "\" is the client's own entry, not one this addon"
+        throw new LuaError(call + ": \"" + res + "\" is the client's own entry, not one this addon"
             + " added — the game's catalogue is read-only, and hafen.menugrid():add(id) mints an entry of"
             + " your own that every one of these verbs writes");
     }

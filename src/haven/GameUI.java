@@ -206,8 +206,12 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    if(slot != -1) {
 		if(ev.b == 1)
 		    act(slot, new MenuGrid.Interaction(1, ui.modflags()));
-		if(ev.b == 3)
-		    GameUI.this.wdgmsg("setbelt", slot, null);
+		if(ev.b == 3) {
+		    /* addon: a right-click ends a HOLD and sends nothing (059.4) -- the clear below would clear
+		     * the server's own content in that slot, which the hold was merely drawing over. */
+		    if(!io.brodgar.addon.BeltHold.release(slot))
+			GameUI.this.wdgmsg("setbelt", slot, null);
+		}
 		return(true);
 	    }
 	    return(super.mousedown(ev));
@@ -229,6 +233,10 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    if(slot != -1) {
 		if(thing instanceof MenuGrid.Pagina) {
 		    MenuGrid.Pagina pag = (MenuGrid.Pagina)thing;
+		    // addon: an entry an addon added is HELD in the slot, not sent -- the server has never
+		    //   heard of its name and would drop the assignment silently (059.4).
+		    if(io.brodgar.addon.BeltHold.dropped(slot, pag))
+			return(true);
 		    try {
 			if(pag.id instanceof Indir)
 			    GameUI.this.wdgmsg("setbelt", slot, "res", pag.res().name);
@@ -1386,6 +1394,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    }
 	} else if(msg == "setbelt") {
 	    int slot = Utils.iv(args[0]);
+	    io.brodgar.addon.BeltHold.serverWrote(slot);   // addon: the server owns this slot again (059.4)
 	    if(args.length < 2) {
 		belt[slot] = null;
 	    } else {
@@ -1401,6 +1410,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    }
 	} else if(msg == "setbelt2") {
 	    int slot = Utils.iv(args[0]);
+	    io.brodgar.addon.BeltHold.serverWrote(slot);   // addon: the server owns this slot again (059.4)
 	    if(args.length < 2) {
 		belt[slot] = null;
 	    } else {

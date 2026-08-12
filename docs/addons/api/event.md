@@ -140,6 +140,10 @@ the raw 0-based game index. It fires on a set, a clear, a drag, or when a slot's
 **not** on `:cooldown()` ticking, which would fire every frame — read the cooldown live off the object
 instead. At login the occupied slots stream in as a burst, one fire each.
 
+A slot [held](actionbar.md#hold-a-slot-unprotected) for one of your own menu entries fires it on **both
+edges**: once when the hold takes the slot, and once when it ends and the server's own content comes back.
+The payload is the same `Slot`, and while the hold is on it `slot:res()` is the entry's identity.
+
 > For the list events — `StudyChanged`, `EquipChanged`, `KinChanged`, `WoundChanged` — the payload is
 > the **full new list**, not a delta. Read the initial state once with the section's own `:list()`
 > verb, then listen.

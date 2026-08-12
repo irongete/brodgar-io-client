@@ -1,0 +1,9 @@
+{
+  "name": "059.4 — drag it onto the action bar",
+  "id": "059-menugrid-entries.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 059.4: slot:pagina(pag) holds a bar slot for a custom menu entry, the slot reads as that entry and fires ActionbarChanged on both edges, and ending the hold gives the server's own content back.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

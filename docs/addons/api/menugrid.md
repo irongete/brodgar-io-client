@@ -237,6 +237,9 @@ function and that is the whole of it.
 An entry nobody subscribed to does nothing when it is pressed. That is not an error — a button you have not
 wired yet is a legal thing to leave in the menu.
 
+The same handlers run when the entry is pressed **on the action bar**: drag it out of the grid onto a slot, or
+put it there with [`slot:pagina(pag)`](actionbar.md#hold-a-slot-unprotected), and its key fires them too.
+
 `pag:on` refuses on an entry your addon did not add, like every write above: the handler is your code, and
 it hangs on your own button. Your subscriptions end when the addon reloads or is disabled and when you
 `:remove` the entry, so there is nothing to unsubscribe by hand and an entry you add again starts with none.
@@ -274,7 +277,7 @@ name or display name, and there is no path-shaped way in beside it.
 
 ## See also
 
-- [`hafen.actionbar`](actionbar.md) — putting one of these resource names on the hotbar
+- [`hafen.actionbar`](actionbar.md) — putting one of these resource names on the hotbar, and holding a slot for an entry of your own
 - [`hafen.asset`](asset.md) — loading the PNG a custom entry draws
 - [`Pagina`](types.md#pagina) — the snapshot shape `:info()` returns
 - [`hafen.craft`](craft.md) — the window a recipe action opens

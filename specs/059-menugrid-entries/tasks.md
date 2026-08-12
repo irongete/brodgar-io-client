@@ -45,7 +45,7 @@
       `:use()`.
       `[manual]`: left-click the button in the menu — expect one line in the log, from a real click.
 
-- [ ] **059.4 — drag it onto the action bar.** Adds `BeltHold` (the held slots, the displaced
+- [x] **059.4 — drag it onto the action bar.** Adds `BeltHold` (the held slots, the displaced
       `BeltSlot`s, `ActionbarChanged` on both edges) and `slot:pagina(pagOrNil)`; makes `slot:res(customId)`
       raise pointing at it. Adds the two `// addon:` hooks in `GameUI`: `Belt.dropthing` routing an
       addon-owned Pagina to the layer, and the `setbelt`/`setbelt2` arms ending a hold on the slot the
