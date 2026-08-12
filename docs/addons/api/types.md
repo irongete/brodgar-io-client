@@ -243,10 +243,11 @@ ability slot with a meter, and is **not** seconds. The live reads are `slot:res(
 From [`pag:info()`](menugrid.md#read) and [`hafen.menugrid():list()`](menugrid.md#read), the snapshot
 escape hatch for an action-menu entry.
 
-`{ res = string, exists = bool, name = string?, tooltip = string?, hotkey = string?, path = string[]?,
-parent = string?, isnew = bool? }` — `res` is the identity and is always present, and **`parent` is
-the parent's resource name**, not an object. Every other field is absent when the menu cannot answer
-it: the entry is gone, or its resource has not loaded. The live reads are `pag:res()`, `:name()`,
+`{ res = string, exists = bool, addon = string?, name = string?, tooltip = string?, hotkey = string?,
+path = string[]?, parent = string?, isnew = bool? }` — `res` is the identity and is always present, and
+**`parent` is the parent's resource name**, not an object. `addon` is the id of the addon that added the
+entry, and is absent on the game's own. Every other field is absent when the menu cannot answer it: the
+entry is gone, or its resource has not loaded. The live reads are `pag:res()`, `:addon()`, `:name()`,
 `:parent()`, `:isNew()` and the rest.
 
 ## Marker

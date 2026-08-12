@@ -61,7 +61,8 @@ import org.luaj.vm2.LuaValue;
  * {@code "Drop"} — {@code :x()}/{@code :y()} (widget-local px), {@code :thing()} the descriptor,
  * {@code :preventDefault()} in place of the old truthy-return consume (R3). A resource name is plain data
  * (already all over the read API), so this stays <b>unprotected</b>; firing the dropped action is out of scope
- * (the deferred menu-ability primitive).
+ * (the deferred menu-ability primitive). An entry an addon added reports the identity it was given, never its
+ * stand-in resource — see {@link #dropDescriptor}.
  *
  * <p><b>D-040's per-callback {@code mods} table is retired with the slots it rode on</b> (041.3): the input
  * {@code ev} {@code widget:on("MouseDown"/…, fn)} hands over does not carry modifier state (EXAMPLES §1.1) —
@@ -246,12 +247,21 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
      * only for a <b>resource-based</b> pagina (its {@code id} is the resource {@link Indir} itself) and only
      * once resolved — an id-only pagina ({@code fl&2}) has no stable resource name, so it carries {@code kind}
      * alone (usable in-session, not reliably persistable). Loading is swallowed (res absent until ready).
+     *
+     * <p><b>A custom entry names itself</b> (059.3), like everywhere else: its backing {@link Resource} is a
+     * stand-in shared by every one of them, so reading {@code pag.res} here would report the paging arrow to
+     * every widget in the client. Its {@code addon/<addon id>/<id>} identity is stable across a relog and is
+     * exactly what {@code pag:res()} and {@code hafen.menugrid():get(key)} speak.
      */
     private static LuaValue dropDescriptor(Object thing) {
         if(thing instanceof MenuGrid.Pagina) {
             MenuGrid.Pagina pag = (MenuGrid.Pagina)thing;
             LuaTable d = new LuaTable();
             d.set("kind", LuaValue.valueOf("pagina"));
+            if(pag instanceof AddonPagina) {
+                d.set("res", LuaValue.valueOf(((AddonPagina)pag).id));
+                return d;
+            }
             if(pag.id instanceof Indir) {          // resource-based (stable) vs. id-only (no stable res name)
                 String nm = resName(pag.res);
                 if(nm != null)

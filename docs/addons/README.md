@@ -43,7 +43,7 @@ One page per namespace, and a directory where a namespace is large. The
 | **Subsystems** | [`kin`](api/kin.md) · [`speed`](api/speed.md) · [`craft`](api/craft.md) · [`quest`](api/quest.md) · [`wound`](api/wound.md) · [`fight`](api/fight.md) · [`actionbar`](api/actionbar.md) |
 | **Acting** | [`menugrid`](api/menugrid.md) · [`flowermenu`](api/flowermenu.md), and the protected verbs on [`player`](api/player.md), [Gob](api/gob.md), [`world`](api/world.md) and [items](api/ui/items.md) |
 | **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
-| **Your own content** | [`asset`](api/asset.md) · [`vr`](api/vr/README.md) |
+| **Your own content** | [`asset`](api/asset.md) · [`vr`](api/vr/README.md) · [entries in the action menu](api/menugrid.md#write-unprotected) |
 | **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) *(protected by your manifest)* |
 | **Infrastructure** | [`event`](api/event.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash`](api/slash.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
 

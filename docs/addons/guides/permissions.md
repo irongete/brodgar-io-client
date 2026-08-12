@@ -105,6 +105,7 @@ several of them look like writes:
 | Unprotected write | What it changes |
 |---|---|
 | [`hafen.map():marker():add`](../api/map/markers.md#write-unprotected) | your own map database |
+| [`hafen.menugrid():add`](../api/menugrid.md#write-unprotected) | an entry of your own in the action menu |
 | [`cat:show(on)`](../api/map/icons.md#the-iconcat-object) | which icons your minimap draws |
 | [`w:position`, `w:size`, `w:visible`](../api/ui/native.md) | where the client's own windows sit |
 | [`w:replace(view)`](../api/ui/replace.md) | which window a client toggle opens |
@@ -115,6 +116,11 @@ several of them look like writes:
 
 Subscribing, drawing and reading are not writes at all. The line is the server: if nothing leaves the
 client, there is no key to ask for.
+
+An entry you put in the action menu sits on this side of it whole: naming it, drawing it and running your
+own function when the user clicks it never reach past your client. [`pag:use()`](../api/menugrid.md#use-protected)
+is the exception, and it keeps `menugrid.use` whichever entry it names — pressing a button on the player's
+behalf is an act, and any addon can address any entry by name.
 
 One pair reaches the server without a key, which is why the line above is *starting* an action rather than
 sending one. [`ev:resend()` and `ev:send(t)`](../api/event.md#intercepting-an-outbound-action) re-issue a

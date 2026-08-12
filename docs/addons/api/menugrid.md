@@ -70,6 +70,7 @@ The first four are called on the collection, the rest on a `Pagina`.
 | `hafen.menugrid():find(filter)` | `Pagina` \| nil | the first entry that matches |
 | `hafen.menugrid():roots()` | `Pagina[]` | the entries with no parent: what the grid shows on its root screen |
 | `pag:res()` | string | the resource name, the identity — always answers, even for a revoked entry |
+| `pag:addon()` | string \| nil | the id of the addon that added this entry; `nil` for the game's own |
 | `pag:name()` | string \| nil | the display name the grid shows |
 | `pag:icon()` | image \| nil | the [asset](asset.md) your addon gave this entry; `nil` on the game's own, whose art is not a file of yours |
 | `pag:tooltip()` | string \| nil | the description under the name, when the resource carries one |
@@ -115,12 +116,13 @@ dig:name("Auto-dig"):icon(hafen.asset():get("dig.png"))  -- writes chain, like e
 | `hafen.menugrid():add(id)` | mint an entry your addon owns and hand it back |
 | `hafen.menugrid():remove(idOrPagina)` | take one of your own back out; returns the collection, so removals chain |
 | `pag:name(text)` | the display name the grid paints and its tooltip shows |
+| `pag:tooltip(text)` | the description the tooltip paints under that name |
 | `pag:icon(image)` | the picture the button draws: an image [asset](asset.md) handle |
 | `pag:parent(pagOrNil)` | the category it hangs under; `nil` is the root screen |
 
-Nothing here reaches the server — a custom entry is drawn by this client — so it needs **no permission at
-all**, like a [HUD overlay](ui/custom.md#overlays). A custom entry also runs no action of its own: clicking
-it, and `pag:use()` on it, send nothing.
+Nothing here reaches the server — a custom entry is drawn by this client, and pressing it runs
+[your own Lua](#a-click-runs-your-lua) — so it needs **no permission at all**, like a
+[HUD overlay](ui/custom.md#overlays).
 
 Your entries are **bridge-owned**. Reloading or disabling your addon, and logging out, take every one of
 them back out, so the menu is the game's own catalogue again with nothing of yours left in it.
@@ -157,8 +159,10 @@ server's to revoke.
 ### What an entry draws
 
 `pag:name(text)` sets the label the grid paints under the pointer and sorts by; an entry you never name
-shows the id you gave it. `pag:icon(image)` takes the handle [`hafen.asset():get("dig.png")`](asset.md)
-hands you and **never a path** — the loader is one door, and a string here says so.
+shows the id you gave it. `pag:tooltip(text)` is the description under that label, which the grid paints
+once the pointer has rested on the button — an entry with none has a tooltip that is its name alone.
+`pag:icon(image)` takes the handle [`hafen.asset():get("dig.png")`](asset.md) hands you and **never a
+path** — the loader is one door, and a string here says so.
 
 An entry with no icon draws an empty cell. An image bigger than a cell is scaled down to fit, keeping its
 aspect ratio; a smaller one is drawn at its own size. Either way it is centred, and its pixels are
@@ -201,6 +205,42 @@ A cycle is refused rather than written, so the tree after the error is the tree 
 [carries a meaning](conventions.md#nil-is-an-error-unless-it-means-something), and everywhere else on this
 page an explicit `nil` raises.
 
+## A click runs your Lua
+
+`pag:on("use", fn)` runs `fn(pag)` every time one of your entries is pressed: a left-click on its button in
+the grid, and [`pag:use()`](#use-protected) from your own code. You get a subscription back, the same one
+[`hafen.event()`](event.md) hands you.
+
+```lua
+local dig = hafen.menugrid():add("dig"):name("Auto-dig")
+local sub = dig:on("use", function(pag)
+  hafen.log():write("pressed " .. pag:name())
+end)
+-- later:
+sub:off()
+```
+
+| Method | Returns | Description |
+|---|---|---|
+| `pag:on("use", fn)` | a subscription | run `fn(pag)` when this entry is pressed |
+| `sub:off()` | nothing | unsubscribe; idempotent, and also done for you on reload or disable |
+
+`use` is the **only** key an entry has, so any other name throws at the line that wrote it rather than
+reading as a handler that never fires. **Two handlers on one entry both fire**, in the order they
+registered, and `off()` on one leaves the other running. A handler that errors is isolated: the error is
+logged and it breaks neither your other handlers nor the client.
+
+The handler is handed the entry that fired, so one function can serve several buttons. Nothing is sent to
+the server, whichever way the entry was pressed, and nothing about the grid changes: the client runs your
+function and that is the whole of it.
+
+An entry nobody subscribed to does nothing when it is pressed. That is not an error — a button you have not
+wired yet is a legal thing to leave in the menu.
+
+`pag:on` refuses on an entry your addon did not add, like every write above: the handler is your code, and
+it hangs on your own button. Your subscriptions end when the addon reloads or is disabled and when you
+`:remove` the entry, so there is nothing to unsubscribe by hand and an entry you add again starts with none.
+
 ## Use (protected)
 
 | Method | Key | Description |
@@ -216,6 +256,10 @@ real action, so it is behind the [permission model](conventions.md#the-permissio
 other verb that does: an addon that did not declare `menugrid.use` gets an error naming that key. The key is
 named after this section rather than after the action it fires, because the entries are yours and the door
 is one.
+
+On an entry of your own it runs your [handlers](#a-click-runs-your-lua) and sends nothing, through the very
+button code a left-click goes through — so the two can never answer differently. It still needs the key:
+any addon can address any entry by name, so the answer must not depend on who owns the one you named.
 
 `use` raises an error on a category, on an entry that is no longer in the menu, and on one whose
 resource has not finished loading; check `:exists()` first if you are holding a stashed handle. A

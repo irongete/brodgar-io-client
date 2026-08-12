@@ -90,6 +90,14 @@
 - **Relayout has one public door.** `updlayout()` and the `recons` flag are private; `MenuGrid.change(cur)`
   is what rebuilds `curbtns` and `layout` after `paginae` is mutated outside a `"fill"` uimsg. It resets
   `curoff`, so a change made while the player is on page 2 of a category puts them back on page 1
+- **A pagina's tooltip is COMPOSED, not a string.** `PagButton.rendertt(withpg)` renders `name()` (plus the
+  bound key) and, for the long form, appends `ItemInfo.longtip(info())` — where `info()` is
+  `ItemInfo.buildinfo(this, pag.rawinfo)` plus an `ItemInfo.Pagina` built from `res.layer(Resource.pagina).text`.
+  So an entry over a stand-in resource, which has no `pagina` layer, has to override `info()` to say anything
+  at all below its name. `rendertt` **deletes from the list `info()` hands it** (`removeIf` on `ItemInfo.Name`),
+  so an override must return a fresh list rather than a cached one. `MenuGrid.tooltip` then caches the rendered
+  `Tex` per hovered button (`curttp`), and text that changes while the pointer is already on the button
+  re-renders on the next hover.
 - **`PagButton.use(Interaction)` ignores `Interaction.modflags`** — it reads `ui.modflags()` live and branches
   `"act"`-by-path vs `"use"`-by-id internally (the only route to an id-only pagina). `MenuGrid.use(btn,…)` is the
   *widget's* click handler instead: for a category it flips the visible page and resets grid state.

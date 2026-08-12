@@ -260,10 +260,54 @@ public final class LuaPagina {
         });
         // tooltip() — the pagina layer's description text (the long tip under the name), nil when the
         // resource carries none.
-        m.set("tooltip", new OneArgFunction() {
+        // tooltip(text) — 059.3: set it, on an entry THIS addon added. The grid paints it under the name once
+        // the pointer has rested on the button; an entry with none has a tip that is the name alone.
+        m.set("tooltip", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue v = Args.written(a, 2, "pagina:tooltip", "text");
+                if(v == null) {
+                    String t = tooltip(button(self, "tooltip"));
+                    return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
+                }
+                if(v.isnumber() || !v.isstring())
+                    throw new LuaError("pagina:tooltip(text): the description is a string — the line the grid"
+                        + " paints under the name; got " + v.typename());
+                AddonPagina p = AddonPagina.owned(owner, handle(self, "tooltip").res, "tooltip(text)");
+                p.tooltip(v.tojstring());
+                return self;
+            }
+        });
+        // addon() — the id of the addon that ADDED this entry, nil for the client's own. The one reader that
+        // answers "whose is this": every write verb here refuses on an entry another addon added, and this is
+        // how a handle tells the two apart before trying. Your own entries answer your own manifest id.
+        m.set("addon", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                String t = tooltip(button(self, "tooltip"));
-                return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
+                MenuGrid.Pagina p = live(handle(self, "addon").res);
+                if(!(p instanceof AddonPagina))
+                    return LuaValue.NIL;
+                return LuaValue.valueOf(((AddonPagina)p).owner.manifest.id);
+            }
+        });
+        // on(key, fn) — 059.3: run fn(pag) when this entry is clicked, and when pag:use() fires it. The one
+        // notification verb, on the object that emits it (D-100): a Sub back, sub:off() to end it, and the whole
+        // set dropped on :reload/disable or when the entry is :remove()d. The key set is CLOSED — an entry says
+        // one thing — so a misspelling throws at the line that wrote it rather than reading as a subscription
+        // that never fires. Only on an entry THIS addon added: the handlers are the owner's code, charged to the
+        // owner and torn down with it, so there is nowhere to put another addon's.
+        m.set("on", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue keyArg = Args.required(a, 2, "pagina:on", "key");
+                LuaValue fnArg = Args.required(a, 3, "pagina:on", "fn");
+                if(keyArg.isnumber() || !keyArg.isstring() || !fnArg.isfunction())
+                    throw new LuaError("pagina:on(key, fn) expects (string, function)");
+                String key = keyArg.tojstring();
+                if(!"use".equals(key))
+                    throw new LuaError("pagina:on(key, fn): a menu entry has no event '" + key + "' — it has:"
+                        + " use, which fires on a left-click and on pag:use()");
+                AddonPagina p = AddonPagina.owned(owner, handle(self, "on").res, "on(\"use\", fn)");
+                return p.subs.on(key, fnArg);
             }
         });
         // hotkey() — the single letter the grid paints over the button while Alt is held, as a string; nil
@@ -341,6 +385,8 @@ public final class LuaPagina {
         // NO ARGUMENTS on purpose: PagButton.use never reads Interaction.modflags — it builds the message from
         // ui.modflags() live — so a mods parameter could only lie about the keyboard state (plan.md has the
         // trace).
+        // On a CUSTOM entry the same call runs the addon's own on("use", fn) handlers instead, because
+        // AddonPagButton.use IS that — one door, and no branch here that could answer differently from a click.
         // 048.5: PROTECTED (D-027/D-028). This verb commits a real server action and shipped unprotected only
         // because 023 predated the tier being applied per subsystem; a verb that acts is behind the "menugrid.use"
         // permission wherever it lives. The gate runs FIRST, before the live-entry lookup (D-213), so an addon
@@ -490,9 +536,17 @@ public final class LuaPagina {
         }
     }
 
+    /**
+     * The display name — for a custom entry the <b>raw</b> string its addon set, never the escaped one the tip
+     * renders ({@code AddonPagButton.name()} quotes {@code RichText}'s markup characters so a {@code $} in a
+     * name cannot throw out of the draw thread). Every name-shaped read is this one call, so {@code :name()},
+     * {@code :info()}, the display-name lookup and the string filter all speak the string that was written.
+     */
     private static String dispname(MenuGrid.PagButton b) {
         if(b == null)
             return null;
+        if(b.pag instanceof AddonPagina)
+            return ((AddonPagina)b.pag).name();
         try {
             return b.name();
         } catch(RuntimeException e) {   // Loading etc.
@@ -671,6 +725,7 @@ public final class LuaPagina {
             t.set("hotkey", LuaValue.valueOf(hk));
         if(p instanceof AddonPagina) {
             t.set("path", new LuaTable());     // a custom entry sends nothing (059.1)
+            t.set("addon", LuaValue.valueOf(((AddonPagina)p).owner.manifest.id));   // whose entry it is (059.3)
         } else if(b != null) {
             try {
                 String[] ad = b.act().ad;

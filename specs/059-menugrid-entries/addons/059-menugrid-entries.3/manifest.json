@@ -1,0 +1,10 @@
+{
+  "name": "059.3 — the click runs your Lua",
+  "id": "059-menugrid-entries.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 059.3: pag:on(\"use\", fn) fires every handler in registration order on a click and on pag:use(), sub:off() ends one, and pag:addon()/pag:tooltip(text) answer for a custom entry.",
+  "api_version": 1,
+  "permissions": ["menugrid.use"],
+  "files": ["main.lua"]
+}

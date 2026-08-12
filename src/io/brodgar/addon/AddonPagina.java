@@ -5,16 +5,19 @@ import haven.GOut;
 import haven.GSprite;
 import haven.Indir;
 import haven.Inventory;
+import haven.ItemInfo;
 import haven.KeyBinding;
 import haven.KeyMatch;
 import haven.MenuGrid;
 import haven.Resource;
+import haven.RichText;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -35,9 +38,11 @@ import java.util.Set;
  * {@link LuaPagina} branches {@code resname}, {@code tooltip} and {@code path} onto this class for exactly
  * that reason — a custom entry names itself, by the {@link #id} the addon gave it, rather than its stand-in.
  *
- * <p><b>Nothing here reaches the server.</b> The entry is drawn by this client and a click on it runs Lua
- * (059.3), so {@link AddonPagButton#use} sends no message at all — where the stock button would send
- * {@code "act"} or {@code "use"} — and adding one needs no permission, like a HUD overlay.
+ * <p><b>Nothing here reaches the server.</b> The entry is drawn by this client and a click on it runs Lua, so
+ * {@link AddonPagButton#use} sends no message at all — where the stock button would send {@code "act"} or
+ * {@code "use"} — and adding one needs no permission, like a HUD overlay. The handlers hang on the {@link #subs}
+ * below, which is the <b>same</b> {@link Subs} every other {@code X:on(key, fn)} in the API is delivered
+ * through: hold the object, subscribe on it.
  *
  * <p><b>Ownership (P2).</b> Bridge-owned: an entry lives in its addon's owned-resource registry
  * ({@link Addon#menuEntries}) and {@link #teardownEntries} takes every one of them back out of the grid on
@@ -70,12 +75,22 @@ public final class AddonPagina extends MenuGrid.Pagina {
     final String id;
     /** The display name the grid paints, and its sort key. Never {@code null}. */
     private String name;
-    /** The description under the name, or {@code null} — the setter arrives with the click (059.3). */
+    /** The description the grid paints under the name, or {@code null} for a tip that is the name alone. */
     private String tooltip;
     /** The addon's own PNG, or {@code null} for an entry that draws an empty cell. */
     private LuaImage icon;
     /** The category this entry hangs under, or {@code null} for the root screen. Any live entry may be one. */
     private MenuGrid.Pagina parent;
+
+    /**
+     * The Lua handlers on this entry's one key, {@code "use"} — {@code pag:on("use", fn)}. One {@link Subs} per
+     * entry, on the entry, because the state belongs on the THING (D-100): an entry nobody listens to costs an
+     * empty map, and there is no registry anywhere to keep in step with {@code :remove()}.
+     *
+     * <p>It charges {@link Addon#C_WIDGET}, what a click on a button costs everywhere else in this API — the
+     * grid's own {@code MenuGrid.use} is the caller, exactly as a native {@code Button}'s {@code Pressed} is.
+     */
+    final Subs subs;
 
     private AddonPagButton button;
 
@@ -84,6 +99,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
         this.owner = owner;
         this.id = id;
         this.name = name;
+        this.subs = new Subs(owner, Addon.C_WIDGET);
     }
 
     /**
@@ -127,6 +143,28 @@ public final class AddonPagina extends MenuGrid.Pagina {
     void icon(LuaImage img) {
         this.icon = img;
         relayout();
+    }
+
+    /**
+     * The description under the name. <b>No relayout</b>, unlike every other setter here: the tip is composed at
+     * hover time from {@link AddonPagButton#info()} and nothing about the grid's layout reads it, so rebuilding
+     * would cost the player their page offset for a string they cannot even see yet.
+     */
+    void tooltip(String s) {
+        this.tooltip = s;
+    }
+
+    /**
+     * A left-click on this entry, and {@code pag:use()} — run every handler {@code pag:on("use", fn)} registered,
+     * in registration order, each one error-isolated by {@link AddonManager#callLua}. The handler is handed the
+     * entry itself, so one function can serve several buttons and still tell which was pressed. An entry nobody
+     * subscribed to does nothing at all, which is what makes a bare {@code :add(id)} a legal thing to leave in
+     * the menu.
+     */
+    void fire() {
+        if(!subs.has("use"))
+            return;
+        subs.fire("use", LuaPagina.of(owner, id));
     }
 
     /**
@@ -198,11 +236,18 @@ public final class AddonPagina extends MenuGrid.Pagina {
             return (AddonPagina)pag;
         }
 
+        /**
+         * The label the tip renders, <b>quoted</b>. What the grid paints a name into is {@code RichText}, whose
+         * {@code $}, <code>{</code> and <code>}</code> are markup: an unescaped one there is a
+         * {@code FormatException} out of {@code rendertt}, on the draw thread, the moment the pointer rests on
+         * the button — so a name an addon wrote is escaped once, here, and every reader below answers the raw
+         * string it set ({@link LuaPagina#dispname}).
+         */
         public String name() {
-            return pag().name;
+            return RichText.Parser.quote(pag().name);
         }
 
-        /** The grid sorts on this. The stock one reads {@code act()}, which a stand-in cannot answer. */
+        /** The grid sorts on this — the RAW name, not the quoted one. The stock one reads {@code act()}. */
         public String sortkey() {
             return pag().name;
         }
@@ -236,10 +281,26 @@ public final class AddonPagina extends MenuGrid.Pagina {
 
         /**
          * A click. <b>Nothing is sent</b>: a custom entry is the client's, so the stock body — which would
-         * message the server with an action path or a session id the server never issued — is replaced by
-         * doing nothing at all. The Lua handlers hang here (059.3).
+         * message the server with an action path or a session id the server never issued — is replaced by the
+         * addon's own handlers. This is the one door: the grid's {@code MenuGrid.use(btn, iact, reset)} routes a
+         * real left-click here, and {@code pag:use()} drives the same method (D-009), so the two cannot drift.
          */
         public void use(MenuGrid.Interaction iact) {
+            pag().fire();
+        }
+
+        /**
+         * What the long tooltip shows under the name. The stock body reads {@code res.layer(Resource.pagina)},
+         * and the <b>stand-in has no pagina layer</b> — so an entry that did not answer here could never say
+         * anything below its name, whatever {@code pag:tooltip(text)} was given. A <b>fresh list every call</b>,
+         * because {@code rendertt} deletes from the list it is handed.
+         */
+        public List<ItemInfo> info() {
+            List<ItemInfo> out = new ArrayList<ItemInfo>();
+            String tt = pag().tooltip;
+            if(tt != null)
+                out.add(new ItemInfo.Pagina(this, RichText.Parser.quote(tt)));   // markup, as in name()
+            return out;
         }
     }
 
@@ -355,8 +416,12 @@ public final class AddonPagina extends MenuGrid.Pagina {
      * category itself back onto the root screen, since {@code cons} walks the closure through {@code parent()}
      * and does not ask whether the parent is still in {@code paginae}. Every custom entry of every addon is in
      * this set, so one pass over it covers a child another addon hung under this category too.
+     *
+     * <p>The entry's own handlers go with it ({@link Subs#clear}, P2): the button is out of the grid, so nothing
+     * can click it again, and a re-{@code :add} of the same id mints a new entry with a {@link Subs} of its own.
      */
     private static void detach(AddonPagina p) {
+        p.subs.clear();
         synchronized(p.scm.paginae) {
             p.scm.paginae.remove(p);
             for(MenuGrid.Pagina q : p.scm.paginae) {

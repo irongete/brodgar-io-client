@@ -31,7 +31,7 @@
       `:parent` on a server entry; `:parent(7)`.
       `[manual]`: click your category in the menu — expect its children, and Back returning to the root.
 
-- [ ] **059.3 — the click runs your Lua.** Adds `pag:on("use", fn)` over a `Subs` on the `AddonPagina`,
+- [x] **059.3 — the click runs your Lua.** Adds `pag:on("use", fn)` over a `Subs` on the `AddonPagina`,
       returning a `Sub` with `:off()`, fired from `AddonPagButton.use(Interaction)`; adds
       `pag:tooltip(text)` and the reader `pag:addon()`. Writes the rest of `menugrid.md` and **discharges
       the menu half of the impact set**: `types.md`, `references.md`, `guides/permissions.md`,

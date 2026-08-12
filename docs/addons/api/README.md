@@ -58,7 +58,7 @@ The verbs that act are on the pages of what they change — [`hafen.player`](pla
 
 | Page | What it holds |
 |---|---|
-| [`hafen.menugrid`](menugrid.md) | the action menu: every action the character knows, and invoking one |
+| [`hafen.menugrid`](menugrid.md) | the action menu: every action the character knows, invoking one, and entries of your own that run your Lua |
 | [`hafen.flowermenu`](flowermenu.md) | the radial menu a right-click puts up: its petals, the object it belongs to, picking one, and when one opens and closes |
 
 ## The UI

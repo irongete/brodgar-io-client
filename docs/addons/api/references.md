@@ -36,7 +36,10 @@ position. A stashed `Slot` goes `:empty()` the moment the slot is cleared. See
 
 [`hafen.menugrid():get(key)`](menugrid.md) names one action — a `/` makes the key a resource name,
 anything else a display name — and [`hafen.sound():get(name)`](sound.md) one clip; the strings are
-**server-published**, so read them off a live client with `:res()` rather than trusting a list.
+**server-published**, so read them off a live client with `:res()` rather than trusting a list. The one
+exception is the one you write yourself: an entry your addon
+[adds to the menu](menugrid.md#write-unprotected) carries the identity you gave it,
+`addon/<your addon's id>/<the id>`, and that string is the same in every session.
 [`hafen.buff()`](buff.md) and [`hafen.meter()`](meter.md) carry **no `:get`** at all, because their
 members have no key: several bars can share one resource. There a name is a *search*, `:find(needle)`,
 and `:get` raises an error naming it — a miss is `nil`, and a **position** is an error.
