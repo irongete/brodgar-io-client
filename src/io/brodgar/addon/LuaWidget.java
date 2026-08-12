@@ -307,7 +307,7 @@ public final class LuaWidget {
                 UI u = AddonManager.ui;
                 synchronized(u) {
                     Coord at = w.c;
-                    w.remove();                           // unlink from ui.root; nothing else holds a fresh widget
+                    rehome(w);                            // detach from ui.root — a move, and NOT a death (061.7)
                     // Widget.add does NOT route through addchild, and a Scrollport-shaped parent only overrides
                     // addchild -- a plain add() here would drop the child beside the bar instead of inside the
                     // scrolling area (040.8's whole trap), so this one control redirects into its own container.
@@ -578,12 +578,22 @@ public final class LuaWidget {
         // chrome then measures the controls alone (Window.contentsz skips the deco, and now meets a 0x0 canvas),
         // and the canvas is given the content area that came out of it, so a window that BOTH paints and holds
         // controls still has its full surface to paint on afterwards.
+        //   061.7: AND IT ANSWERS ON ONE OF THE CLIENT'S OWN WINDOWS, where it is the same LEVEL :size(w, h)
+        // is — the box the pack came out at becomes this addon's size level on Moved, so :size(nil), :reload
+        // and disable all give the stock outer box back (nativePack, below). A borrowed widget that is not a
+        // window refuses: what a control's box is is the client's to choose, and the window around it is what
+        // refits. A window that packs itself around its own contents makes the call INERT, never an error —
+        // the rule :size(w, h) already carries on those same windows.
         m.set("pack", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "pack"));
                 if(w != null) {
-                    Owned content = owned(owner, w, "pack()");
+                    Owned content = ownedContent(owner, w);
+                    if(content == null) {          // BORROWED: the client's own window, refitted as a level
+                        nativePack(owner, w);
+                        return self;
+                    }
                     UI u = AddonManager.ui;
                     synchronized(u) {
                         Widget cw = content.widget();
@@ -1544,6 +1554,66 @@ public final class LuaWidget {
         owner.movedNative.add(m);
         anyMoved = true;
         return m;
+    }
+
+    /**
+     * <b>Detach {@code w} from its parent for a RE-HOME</b> (061.7) — which is a move, and not a death.
+     *
+     * <p>{@code Widget.remove()} is the client's <b>death notice</b>: it fires the removal seam, and it clears
+     * {@code canfocus} (through {@code setcanfocus(false)}), which {@code add0} never puts back. Both are wrong
+     * for {@code widget:parent(w)}, and each is wrong in a way an addon would meet immediately: a control built
+     * into one of the client's windows would have its own {@code widget:on("Destroy", fn)} fire on the next
+     * tick — while it is alive, drawn and clickable, and with every other subscription on it dropped with it —
+     * and a text entry built into one could never be typed into again.
+     *
+     * <p>So this is the re-home the engine map states: unlink, tell the old parent, clear the link, and correct
+     * that parent's focus bookkeeping by hand. {@code ui.removed} is skipped for the reason the recipe skips
+     * it — it drops the {@code UI.Grab}s a still-live widget should keep. Caller holds the {@code ui} monitor.
+     */
+    private static void rehome(Widget w) {
+        Widget p = w.parent;
+        if(p == null)
+            return;
+        if(w.canfocus)
+            p.delfocusable(w);      // ...without clearing the flag, so p.add re-registers it on the new parent
+        w.unlink();
+        p.cdestroy(w);
+        w.parent = null;
+    }
+
+    /**
+     * <b>{@code widget:pack()} on a widget this addon did not build</b> (061.7) — the client's own window,
+     * refitted around what is inside it, or the refusal that names the verb to use instead.
+     *
+     * <p><b>It is a level, not a write into the client's box.</b> The stock size is recorded first, exactly as
+     * {@code widget:size(w, h)} records it, and the box the pack came out at becomes this addon's
+     * {@link Moved#wantSize} — so one record serves both verbs, {@code widget:size(nil)} gives the stock outer
+     * box back, and {@code :reload}/disable do the same. The stock half must be taken <b>before</b> the pack:
+     * {@link Layout#applyHalf} would otherwise record the packed box as what the user had.
+     *
+     * <p><b>A window is the only borrowed widget it answers on.</b> What box one of the client's own widgets
+     * has is the client's to choose — an inventory grid packed to its items' bounding box is a grid with no
+     * empty slots left to drop into — so anything else refuses, naming the verbs that answer there. A window that
+     * packs itself around its own contents (the main inventory is one) makes the call <b>inert, never an
+     * error</b>: the pack is honoured and undone by the client before the call returns, which is the rule
+     * {@code widget:size(w, h)} already follows on those same windows.
+     */
+    private static void nativePack(Addon owner, Widget w) {
+        if(!(w instanceof Window))
+            throw new LuaError("widget:pack() refits a WINDOW around what is inside it, and " + typeName(w)
+                + " is not one — a widget the client laid out is drawn in the box the client chose, and the"
+                + " window around it is what refits. widget:size(w, h) sets a borrowed widget's box by hand,"
+                + " and widget:size(nil) gives it back.");
+        UI u = AddonManager.ui;
+        synchronized(u) {
+            Moved rec = recordMoved(owner, w);
+            if(rec.size == null)
+                rec.size = UiApi.stockSizeArg(w);      // the box the USER had, read before the pack moves it
+            w.pack();
+            rec.wantSize = Px.out(sizeArg(w));         // ...and what it came out at IS this addon's size level
+            rec.sizeSeq = Layout.nextSeq();
+            Layout.apply(w);                           // the fold, so a rule and a second addon still compete
+        }
     }
 
     /**

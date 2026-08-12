@@ -1,0 +1,9 @@
+{
+  "name": "061.7 — your own controls inside a native window",
+  "id": "061-editing-native-windows.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 061.7: widget:parent(w) builds a control into one of the client's windows, widget:pack() refits that window as a size level :size(nil) gives back, and an adopted control's Destroy fires when the window around it is destroyed.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

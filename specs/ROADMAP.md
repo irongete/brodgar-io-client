@@ -13,6 +13,7 @@
 - the layout half of the caption seam takes no widget, so a late-captioned window never lays its descendants out (filed: 049)
 - `world():screenToWorld(sx, sy)` and `player():worldToScreen(p)` speak device pixels while every other screen coordinate is a design pixel (filed: 058)
 - `hafen.ui():on(sel, event, fn)` is the one `:on` whose handle ends with `:remove()` instead of `sub:off()` (filed: 061)
+- `widget:on("Destroy", fn)` stays silent for one of the CLIENT's widgets inside a window that is destroyed: only an addon's own are reported from the disposal recursion (filed: 061)
 - the post-apply `uimsg` tap carries no args, so re-reading the widget is the only way to learn what the server wrote — a rewrite to the string a level already holds is indistinguishable from no rewrite (filed: 061)
 
 ## Candidates

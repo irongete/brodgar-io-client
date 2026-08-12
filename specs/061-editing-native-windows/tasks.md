@@ -186,7 +186,7 @@ pass.
       server-captioned window appeared within 20s`, never a silent pass.
       `[manual]`: open a cupboard, a chest or any container while the suite is waiting.
 
-- [ ] **061.7 — your own controls inside a native window, and `widget:pack()` on one.** `:pack()` answers
+- [x] **061.7 — your own controls inside a native window, and `widget:pack()` on one.** `:pack()` answers
       on a borrowed window through the same `Moved.size` record, so `:size(nil)` still restores the stock
       outer box, and it inherits `native.md`'s existing rule verbatim: a window that packs itself around
       its own contents makes this **inert, never an error**. Closes the destroy gap — `Widget.destroy()`
@@ -206,11 +206,16 @@ pass.
       `:rootPos()` returns that very button (it is inside the content area and hit-testable, not merely
       drawn), calls `:pack()` on the window and asserts `:size()` grew to contain it, then `:size(nil)`
       and asserts the stock box came back. It subscribes `Destroy` on the adopted button, and after the
-      window closes asserts the handler ran **and** `:exists()` is false — the two halves that are not
-      the same thing here. `:pack()` on the main inventory must be inert and raise nothing, and
-      `:parent(w)` on a control the addon already armed must raise naming `:position(x, y)` — the
-      build-time rule, asserted rather than only written down.
-      `[manual]`: run with the Options window open; close it when the suite says so.
+      window it is in is destroyed asserts the handler ran **and** `:exists()` is false — the two halves
+      that are not the same thing here. **The Options window cannot answer that pair**: `OptWnd.reqclose`
+      hides it and `GameUI` builds it once, so closing it destroys nothing. The suite asks it twice
+      instead — deterministically on a window it builds and destroys itself (the same chrome, the same
+      adopted child, the same `Widget.destroy()` recursion), and on a **server-placed** window over a
+      bounded timer, scored over what the run reached. `:pack()` on the main inventory must be inert and
+      raise nothing, and `:parent(w)` on a control the addon already armed must raise naming
+      `:position(x, y)` — the build-time rule, asserted rather than only written down. And the move must
+      not read as a death: adopting a control fires no `Destroy` of its own.
+      `[manual]`: run with the Options window open; open a container and close it while the suite waits.
 
 - [ ] **061.8 — `widget:value(v)` drives a native control (protected).** The one act in this feature:
       it writes through the very method the client calls, so `canactivate` and the outgoing `wdgmsg`

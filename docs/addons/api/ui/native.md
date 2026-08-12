@@ -11,12 +11,12 @@ inv:size(300, 220)        -- resize its CONTENT; the chrome repacks around it
 inv:position(nil)         -- drop YOUR move: back to where the user had it
 ```
 
-`:pack()` and `:destroy()` stay refused on a widget you do not own: those destroy the client's work rather
-than sit on top of it. See [owned vs borrowed](widget.md#owned-vs-borrowed) for the whole table.
+`:destroy()` stays refused on a widget you do not own: that destroys the client's work rather than sits on
+top of it. See [owned vs borrowed](widget.md#owned-vs-borrowed) for the whole table.
 
 This page is about **where** one of the client's widgets sits and whether it is on screen. Changing what
-one of them *says* or *does* — a caption, or taking over a button of the client's own — is
-[editing](edit.md).
+one of them *says* or *does* — a caption, a control of your own inside one of its windows, or taking over
+a button of the client's own — is [editing](edit.md).
 
 [Standing one in the 3D world](../vr/widgets.md) is a fourth write of the same family, restoring under the
 same rule.

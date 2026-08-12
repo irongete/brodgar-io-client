@@ -578,6 +578,7 @@ public class Widget {
 	for(Widget ch = child; ch != null; ch = ch.next)
 	    ch.rdispose();
 	dispose();
+	io.brodgar.addon.AddonManager.onWidgetDisposed(this);   // addon: the destroy gap (061.7)
     }
 
     public void remove() {

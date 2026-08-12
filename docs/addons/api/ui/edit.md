@@ -65,6 +65,45 @@ says is a fact about that one widget, not a rule about a kind of them.
 anything that is not a window on `:title(s)` (→ `w:text(s)`), and a widget with nothing to say at all — the
 close button on every window is three pictures and has no caption to write.
 
+## Your own controls inside one of the client's windows
+
+`w:parent(win)` builds a [control](controls/README.md) of yours into one of the client's windows, and
+`w:pack()` refits that window around what is now inside it:
+
+```lua
+local win = hafen.ui():find("window[title=Options]")
+hafen.ui():button():text("Reload"):parent(win):position(0, win:size().y)
+win:pack()
+```
+
+| Call | Does |
+|---|---|
+| `w:parent(win)` | puts the control **you are building** inside one of the client's windows; chains |
+| `w:pack()` | refits a native **window** around what is inside it, your control included; chains |
+| `w:size(nil)` | drops your level — the [stock outer box](native.md#moving-and-resizing-unprotected) comes back; chains |
+
+**Adoption is a build-time verb.** `:parent(w)` chooses where a control is born, so it answers while the
+control is still being built and refuses on one already on screen, naming `w:position(x, y)` — moving a
+widget the user is looking at is what that verb has always been. You build a control *into* one of the
+client's windows; you do not re-home one that is standing somewhere else.
+
+**A child's place is the content area**, the same space the window's own controls sit in: `(0, 0)` is under
+the caption bar, not the window's outer corner. The window's own height is therefore a place below
+everything it is showing, which is the pair above — put the control there, then `:pack()` to bring the frame
+down around it. For anything more exact, a [geometry rule](style/geometry.md) anchors your control to one of
+the window's own widgets, so it follows what it sits under instead of a pixel the client is free to move.
+
+**`:pack()` is a level over the window's box**, exactly as `:size(w, h)` is: what the pack came out at is
+what your addon is holding, and `w:size(nil)`, disabling your addon and `:reload` all give the stock outer
+box back. A window that packs itself around its own contents — the main inventory is one — takes the call
+and undoes it before it returns: **inert, never an error**, the same rule `:size(w, h)` follows there.
+Anything of the client's that is **not** a window refuses it, naming `:size(w, h)`: what box a widget the
+client laid out is drawn in is the client's to choose, and the window around it is what refits.
+
+**A control of yours dies with the window you built it into.** Its `Destroy` fires when that window is
+destroyed, `:exists()` is `false` from that moment, and there is nothing to clean up — a window the client
+merely hides has not gone anywhere, so nothing fires and your control comes back with it.
+
 ## Taking over what a control does
 
 A [control](controls/README.md)'s capability key answers on a **borrowed** control too. Same
@@ -221,6 +260,29 @@ had and never also receives it here.** A `Changed` on a dropdown you built is st
 fired the one way it always was; the arrow inside it is a separate widget with a key of its own, and you
 reach it by pointing at it. Its popup list, which is not a widget with a key of its own, is covered by
 [the address rule](#which-widget-a-lists-key-belongs-to) above rather than by this one.
+
+## Four writes to one window
+
+Everything above, on one of the client's windows, in one subscription: what it says, a control of your own
+inside it, the frame refitted around that control, and its close button doing what you say instead.
+
+```lua
+hafen.ui():on("window[title=Options]", "appear", function(win)
+  win:title("Options, edited")                    -- what the window says
+  local go = hafen.ui():button()                  -- ...a control of yours, inside the client's frame
+    :text("Reload addons")
+    :parent(win)
+    :position(0, win:size().y)                    -- below everything it is showing
+  go:on("Pressed", function() hafen.log():write("pressed") end)
+  win:pack()                                      -- ...and the frame comes down around it
+  win:find("@IButton"):on("Pressed", function(ev)
+    ev:preventDefault()                           -- ...while its X does nothing at all
+  end)
+end)
+```
+
+That is the whole argument for editing over [replacing](replace.md): the window is still the client's, it
+still fills itself, and everything above comes off again when your addon does.
 
 ## See also
 

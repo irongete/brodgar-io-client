@@ -1336,6 +1336,31 @@ public final class AddonManager {
         removedWidgets.add(w);
     }
 
+    /**
+     * The <b>disposal seam</b> — the core edit at the end of {@code Widget.rdispose()} (061.7), and the half of
+     * a destroy the removal seam above cannot see. {@code Widget.destroy()} is {@code remove()} on the widget
+     * itself plus {@code rdispose()}, which recurses {@code dispose()} <b>only</b>: everything below the widget
+     * being destroyed stays linked to its parent and never runs {@code remove()}, so a control an addon built
+     * into one of the client's windows would leave the tree with its {@code widget:on("Destroy", fn)} silent —
+     * while every read on it correctly goes stale, since {@code hasparent(ui.root)} is false the moment the
+     * widget above it unlinks.
+     *
+     * <p><b>Only a widget an addon owns is reported</b>, and the tap is otherwise nothing. A native widget's
+     * descendants keep the client's own semantics — a window closing does not mint a removal for each of the
+     * hundred widgets inside it — and the one thing this closes is the gap an addon can see from Lua, which is
+     * a widget it built and holds a subscription on.
+     *
+     * <p><b>{@code parent != null} is what keeps it from firing twice.</b> {@code remove()} nulls the parent
+     * link, so the widget {@code destroy()} was called on has already been reported by the time its own
+     * {@code dispose()} runs; every descendant still carries its parent and is reported here, exactly once.
+     * Like {@link #onWidgetRemoved} it may run on either thread and only enqueues.
+     */
+    public static void onWidgetDisposed(Widget w) {
+        if((w.parent == null) || !(w instanceof Owned))
+            return;
+        onWidgetRemoved(w);
+    }
+
     // ------------------------------------------------------------- caption changes (049.3)
 
     /**

@@ -23,11 +23,16 @@
 | **The CPU-buffered face is private, and `redraw()` is the only signal** | `SIWidget.surf` (a `Tex`, nulled by `redraw()`, rebuilt on the next `draw`). `Button` calls it on press, on arm/disarm as the pointer crosses, and on `disable` — none of which shows in the widget's place, size, visibility or caption. Fork: `SIWidget.redrawing()` (`// addon:`) |
 | **Pre-hook a widget's own event handling** | `Widget.listen`/`deafen` (a `CopyOnWriteArrayList<EventHandler.Listener<?>>`) + `Widget.handle(Event)` — runs every listener **before** `ev.shandle(this)` (the widget's own `mousedown`/etc.); a listener returning `true` short-circuits both the default handling *and* child propagation |
 | **Server → widget destroy** ← lifecycle seam | `UI.destroy(int)` (shadow-children first, then a `DstWidget` command) → `UI.destroy(Widget)` = `removeid` (recursive unbind) **then** `reqdestroy()` |
-| Leaving the tree ← the one addon seam | `Widget.destroy` → `remove` (`unlink()`, `parent.cdestroy(this)`, **`parent = null`**) → `ui.removed(this)` → `onWidgetRemoved(this)` (last statement, `// addon:`) + `rdispose()` |
+| Leaving the tree ← an addon seam | `Widget.destroy` → `remove` (`unlink()`, `parent.cdestroy(this)`, **`parent = null`**) → `ui.removed(this)` → `onWidgetRemoved(this)` (last statement, `// addon:`) + `rdispose()` |
+| **A subtree leaving with it** ← the second addon seam | `Widget.rdispose` — children first, then `dispose()` on itself, then `onWidgetDisposed(this)` (last statement, `// addon:`). `dispose()` is overridden widely, `rdispose()` **nowhere**, so this is the one call every descendant of a destroyed widget makes |
 | **The override that breaks the sequence** | `Window.reqdestroy` — starts a hide *animation* (`animst = "dest"`) instead of removing; also `Buff` |
 | **Sizing to content** | `Widget.pack()` is `resize(contentsz())`, and `contentsz()` is the max bottom-right (`c.add(sz)`) over the **visible** children — so a leaf packs to `(0, 0)`. `Window` overrides `contentsz()` (see [chrome](ui-chrome.md)). `resize` returns early on an equal box, then cascades `presize()` to the children and calls `parent.cresize(ch)` — **both are empty in `Widget`, and `Window` overrides neither**, so resizing a window's child triggers no relayout of the window |
 | **Relative placement** | `Widget.Position` (a `Coord` subclass) with `getpos(name)`/`pos(name)` — the anchors `"ul"`/`"ur"`/`"br"`/`"bl"`/`"mid"` and their content-local `"c…"` twins, `pos` throwing where `getpos` answers `null`. `Position.add`/`sub`/`x`/`y` have `adds`/`subs`/`xs`/`ys` twins that `UI.scale` the argument, which is how the client writes a design-pixel offset. `addhlp`/`addhl` lay a row of children out, vertically centred on the tallest |
 | **The UPWARD walk, and its ~30 callers** | `Widget.getparent(Class)` — a plain `w = w.parent` loop. `getparent(GameUI.class)` is how a widget finds the HUD it belongs to: `Inventory.mousewheel` (the shift-wheel bulk transfer) dereferences it **unguarded**, while `GItem`/`WItem.contparent` and `Equipory.drawslots` guard and fall back. Fork: it steps across a standing widget's surface to where that widget was |
+
+**Destroy gotcha — the subtree is not removed.** `destroy()` is `remove()` on itself plus `rdispose()`, which
+recurses `dispose()` only: no descendant is unlinked, runs `remove()`, reaches the removal seam or fires
+`cdestroy`, while `hasparent(root)` correctly goes false for all of them. `rdispose` is their one shared call.
 
 **Destroy gotcha.** Unbind and unlink are **not** simultaneous: `removeid` runs first, and for a `Window` the
 removal is deferred to the end of a fade. So a closing window has `getwidget(id) != wdg` while `hasparent(root)` is
@@ -37,13 +42,13 @@ a client-only widget, not at all sooner). **And the id goes back to the pool**: 
 after which the server may issue the same number for a different widget — so a widget id is safe to *send* and
 unsafe to *store*, because a stored one does not go stale, it silently comes to mean something else.
 
-**...and the death notice arrives BEFORE the death.** `Window.reqdestroy` fires `onWidgetRemoved` as the fade
-*starts* (the early signal), while the window is still linked and
-still full; the seam only **enqueues**, so consumers run a tick later. In that gap a dying widget passes every
-structural test — `hasparent(root)`, `parent == x`, its children — and anything that *acts* on the removal
-(rather than merely reporting it) must carry its own "on its way out" flag from the tap, not re-derive it at
-the drain. By drain time a closed container's grid and items are already unlinked, so the still-live
-window reads **0 items**: a snapshot taken from the removal handler is always empty.
+**...and the death notice arrives BEFORE the death.** `Window.reqdestroy` fires `onWidgetRemoved` as the
+fade *starts* (the early signal), while the window is still linked and still full; the seam only
+**enqueues**, so consumers run a tick later. In that gap a dying widget passes every structural test —
+`hasparent(root)`, `parent == x`, its children — and anything that *acts* on the removal (rather than merely
+reporting it) must carry its own "on its way out" flag from the tap, not re-derive it at the drain. By drain
+time a closed container's grid and items are already unlinked, so the still-live window reads **0 items**: a
+snapshot taken from the removal handler is always empty.
 
 **`cdestroy`-override gotcha (why a removal seam belongs on `remove`, not `cdestroy`).** Most `src/haven`
 classes that override `cdestroy` **never call `super.cdestroy`** — `Bufflist`, `ChatUI`, `GameUI` itself,
@@ -55,10 +60,9 @@ counter for them. `Widget.remove()` itself is overridden nowhere and runs on eve
 → `UI.destroy(Widget)` → `reqdestroy()` → `destroy()` → `remove()`, and any direct client call), so one tap
 there — placed *after* `unlink()`/`cdestroy`/`parent = null`/`ui.removed(this)`, so it sees the settled
 post-removal tree — is override-proof where a `cdestroy` tap silently loses most of those parents. A widget
-that FADES instead of unlinking immediately (`Buff.reqdestroy` sets `dest`, `Window.reqdestroy` sets
-`animst = "dest"`, both followed by a ~0.35 s animation) needs a **second** call site, at the moment the
-flag is set rather than at the eventual `remove()` — the unlink is the animation ending, not the thing
-ending.
+that FADES instead of unlinking (`Buff.reqdestroy` sets `dest`, `Window.reqdestroy` sets `animst = "dest"`,
+both ~0.35 s) needs a **second** call site at the moment the flag is set: the unlink is the animation
+ending, not the thing ending.
 
 **Listener gotcha.** `listening` is copy-on-write, so a handler may `deafen`/`listen` its OWN widget from
 inside `handle(Event)` — the current dispatch finishes against its old snapshot, and the next event sees the
@@ -134,13 +138,12 @@ re-home row above (plus `delfocusable` if `canfocus`); `ui.removed(w)` is skippe
 
 ## Per-frame allocation (garbage, not time)
 
-- **A `GOut` per visible child per frame**: `Widget.draw` `reclip(l)` →
-  `GOut.reclip2` `new GOut(this)` → ctor `def2d.copy()`
-  → `BufPipe.copy`. ≈ 0.5 kB/widget (a `State[]` of `numslots()`, ~60) ⇒
-  **~0.4 MB/frame** at ~700 widgets.
-- **Nothing 2D is cached across frames**: `drawp` builds `Model`+`VertexArray`+`float[]`
-  per call, `image(BufferedImage)` a whole `TexI`, `atext` is
-  render→tex→blit→dispose **per call** (a `Label` dodges it by holding its `Text`; immediate-mode cannot).
+- **A `GOut` per visible child per frame**: `Widget.draw` `reclip(l)` → `GOut.reclip2` `new GOut(this)` →
+  ctor `def2d.copy()` → `BufPipe.copy`. ≈ 0.5 kB/widget (a `State[]` of `numslots()`, ~60)
+  ⇒ **~0.4 MB/frame** at ~700 widgets.
+- **Nothing 2D is cached across frames**: `drawp` builds `Model`+`VertexArray`+`float[]` per call,
+  `image(BufferedImage)` a whole `TexI`, `atext` is render→tex→blit→dispose **per call** (a `Label` dodges
+  it by holding its `Text`; immediate-mode cannot).
   Still true of `haven` — **no longer true of addon text**: `LuaGOut` holds the rendered `Text` behind
   `g:text`/`g:atext` in a per-addon bounded LRU, so that path no longer calls `atext` at all.
 - Sums to <1 MB/frame while `UILoop.framealloc` reads **~11 MB** — the bulk is **not** here. `haven/render/gl`
