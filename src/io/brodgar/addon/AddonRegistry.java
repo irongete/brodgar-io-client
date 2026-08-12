@@ -136,6 +136,10 @@ public final class AddonRegistry {
         HookApi.teardownKeyBinds(a);      // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
         UiApi.teardownSelectorWatches(a);    // 030.2: drop the selector subscriptions (no disappear — reload != destroy)
         HookApi.teardownSlashCommands(a); // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
+        AddonPagina.teardownEntries(a);   // 059.1: take every entry this addon added to the action menu back out
+                                          //   of the grid. BEFORE the asset teardown below: an entry draws one of
+                                          //   the addon's images, and a cell must stop being laid out before the
+                                          //   texture under it is disposed
         VrApi.teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
         VrApi.teardownSprites(a);           // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
         VrApi.teardownObjects(a);           // R3: destroy client-only world objects (remove the slot + free the glTF Models; before the meshes)
@@ -244,6 +248,8 @@ public final class AddonRegistry {
                                                              //   the escape hatch for a REPL line that took one
         MapImages.teardown(AddonManager.consoleOwner);       // 037.4: ...nor the map drawings it rendered (each is a
                                                              //   GL texture; the REPL owner has no other teardown)
+        AddonPagina.teardownEntries(AddonManager.consoleOwner);   // 059.1: ...nor an action-menu entry a REPL line
+                                                             //   added — :reload is its only way back out
         LuaGrab.teardownGrabs(AddonManager.consoleOwner);    // 041.5: ...nor a mouse grab a REPL line started and never
                                                              //   released — without this the pointer stays captured
                                                              //   (no camera pan, no clicks) until :release() is called

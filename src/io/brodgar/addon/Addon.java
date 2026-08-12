@@ -298,6 +298,16 @@ public final class Addon {
      */
     public final List<LuaMouseGrab> mouseGrabs = new CopyOnWriteArrayList<LuaMouseGrab>();
     /**
+     * Live <b>action-menu entries</b> this addon added ({@code hafen.menugrid():add(id)}, 059): each is an
+     * {@link AddonPagina} standing in the client's own {@code MenuGrid.paginae} set beside the entries the
+     * server granted — a client-only entry that reaches no server, so it is unprotected like a HUD overlay.
+     * Bridge-owned like every list here: teardown ({@link AddonPagina#teardownEntries}) takes each back out of
+     * the grid it was added to and relayouts, so a {@code :reload}/disable/relogin leaves the menu holding
+     * exactly the game's own catalogue. Copy-on-write: a firing handler may add or remove one.
+     */
+    public final List<AddonPagina> menuEntries = new CopyOnWriteArrayList<AddonPagina>();
+
+    /**
      * Live in-flight HTTP requests owned by this addon ({@code hafen.http():get}/{@code post}, N2a): each is a
      * {@link LuaHttpRequest} submitted to {@link HttpApi}'s shared bounded pool, whose result is drained on
      * the tick and delivered to the request's callback (the gob-delta async pattern). Bridge-owned like every

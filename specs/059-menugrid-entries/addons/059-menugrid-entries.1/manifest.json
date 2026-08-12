@@ -1,0 +1,9 @@
+{
+  "name": "059.1 — an entry of your own in the action menu",
+  "id": "059-menugrid-entries.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 059.1: hafen.menugrid():add/:remove, pag:name and pag:icon — a custom entry stands in the grid, names itself by its own id and draws the addon's PNG.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

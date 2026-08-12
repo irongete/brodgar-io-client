@@ -64,6 +64,23 @@
 - **Everything on a pagina can throw `Loading`** — `res()`, `button()`, `parent()`, `act()`. Right after login the
   set is therefore *short* and fills in sub-second. Never resolve while holding the `paginae` monitor: `res.get()`
   can block on the loader. Copy under the monitor, resolve outside.
+- **A `Pagina` can be SUBCLASSED into the grid, and `MenuGrid` needs no edit for it.** The engine reaches
+  everything about an entry through two virtuals — `Pagina.button()` and the `PagButton` it returns — so a
+  subclass pair is the whole seam: `cons` walks `paginae` plus the `parent()` closure, `updlayout` sorts on
+  `PagButton.sortkey()`, `draw` reclips to `spr().sz()` (device pixels; the cell interior is
+  `Inventory.sqsz.sub(1,1)`), and `MenuGrid.use` decides "category" by `cons(pag, sub).size() > 0`. Two
+  traps: `Pagina.button` is **private**, so the `next`/`bk` trick of pre-assigning it from an initialiser is
+  unavailable — override `button()` and cache in the subclass; and `Resource`'s constructor is **private and
+  pool-managed**, so a synthetic entry has to pass an existing resource as a stand-in and nothing may key on
+  its `res()`/`PagButton.res`.
+- **`PagButton(Pagina)` calls the virtual `binding()` from its own constructor** — after `pag` and `res`,
+  before any subclass field exists, so an override must read `pag` and nothing else (no warning). The stock
+  `binding()` reaches `hotkey()` → `act()` → `res.flayer(Resource.action)`, which **throws for a resource
+  with no action layer** (`gfx/hud/sc-next` has neither an `action` nor a `pagina` layer), so a stand-in
+  entry must override it — `KeyBinding.get(id, KeyMatch.nil)` also gives it an unbound, remappable id
+- **Relayout has one public door.** `updlayout()` and the `recons` flag are private; `MenuGrid.change(cur)`
+  is what rebuilds `curbtns` and `layout` after `paginae` is mutated outside a `"fill"` uimsg. It resets
+  `curoff`, so a change made while the player is on page 2 of a category puts them back on page 1
 - **`PagButton.use(Interaction)` ignores `Interaction.modflags`** — it reads `ui.modflags()` live and branches
   `"act"`-by-path vs `"use"`-by-id internally (the only route to an id-only pagina). `MenuGrid.use(btn,…)` is the
   *widget's* click handler instead: for a category it flips the visible page and resets grid state.

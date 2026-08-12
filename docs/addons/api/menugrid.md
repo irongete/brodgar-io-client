@@ -1,8 +1,8 @@
 # hafen.menugrid: the action menu
 
-Read and invoke the **action menu**, the grid in the corner of the HUD. It is the client's catalogue of
-everything your character can *do*: every unlocked action, or "pagina", arranged in a category tree.
-`hafen.menugrid()` **is** the catalogue.
+Read the **action menu**, invoke its entries, and put entries of your own in it. It is the client's
+catalogue of everything your character can *do*: every unlocked action, or "pagina", arranged in a category
+tree. `hafen.menugrid()` **is** the catalogue.
 
 ```lua
 local dig = hafen.menugrid():get("Dig")       -- or "paginae/act/dig" (a "/" means a resource name)
@@ -71,6 +71,7 @@ The first four are called on the collection, the rest on a `Pagina`.
 | `hafen.menugrid():roots()` | `Pagina[]` | the entries with no parent: what the grid shows on its root screen |
 | `pag:res()` | string | the resource name, the identity — always answers, even for a revoked entry |
 | `pag:name()` | string \| nil | the display name the grid shows |
+| `pag:icon()` | image \| nil | the [asset](asset.md) your addon gave this entry; `nil` on the game's own, whose art is not a file of yours |
 | `pag:tooltip()` | string \| nil | the description under the name, when the resource carries one |
 | `pag:hotkey()` | string \| nil | the letter the grid paints over the button while Alt is held |
 | `pag:path()` | string[] \| nil | the action tokens the message carries; **empty** for a category and for an id-only entry |
@@ -97,6 +98,73 @@ for _, cat in ipairs(hafen.menugrid():roots()) do
   end
 end
 ```
+
+## Write (unprotected)
+
+**An entry of your own stands in the same grid, in the same order.** `hafen.menugrid():add(id)` mints one
+your addon owns, and it is a `Pagina` like any other: every reader above answers for it, `:get` addresses
+it, `:list()` carries it and `:roots()` shows it on the root screen.
+
+```lua
+local dig = hafen.menugrid():add("dig")                  -- its identity is addon/myaddon/dig
+dig:name("Auto-dig"):icon(hafen.asset():get("dig.png"))  -- writes chain, like everywhere else
+```
+
+| Method | Description |
+|---|---|
+| `hafen.menugrid():add(id)` | mint an entry your addon owns and hand it back |
+| `hafen.menugrid():remove(idOrPagina)` | take one of your own back out; returns the collection, so removals chain |
+| `pag:name(text)` | the display name the grid paints and its tooltip shows |
+| `pag:icon(image)` | the picture the button draws: an image [asset](asset.md) handle |
+
+Nothing here reaches the server — a custom entry is drawn by this client — so it needs **no permission at
+all**, like a [HUD overlay](ui/custom.md#overlays). A custom entry also runs no action of its own: clicking
+it, and `pag:use()` on it, send nothing.
+
+Your entries are **bridge-owned**. Reloading or disabling your addon, and logging out, take every one of
+them back out, so the menu is the game's own catalogue again with nothing of yours left in it.
+
+### `hafen.menugrid():add(id)`
+
+The new `Pagina`, ready for its setters. `id` is **addon-relative**, spelled like an asset path — `"dig"`,
+`"tools/dig"` — and the identity it gets is `addon/<your addon's id>/<id>`. That string is what `:res()`
+answers and what `:get()` resolves, by the same shape rule as any other resource name, so two addons cannot
+collide and neither can collide with the game's own.
+
+The menu has to exist: add your entries from [`EnterWorld`](event.md) or later, not from `Load`.
+
+| What you did | What you get |
+|---|---|
+| `:add("dig")` twice | your addon *already has an entry with that id* — an id is unique within an addon |
+| `:add("")` | the id must be a **non-empty** string |
+| `:add("/dig")` | the id *is absolute* — an id is relative to your own addon |
+| `:add("../dig")` | the id *climbs out of your addon* with `..` |
+| `:add(7)`, `:add({})` | expected a **string** id |
+| `:add(nil)` | the id must not be `nil` — see [nil](conventions.md#nil-is-an-error-unless-it-means-something) |
+| `:add("dig")` before the HUD is up | the action menu *is not up yet* |
+
+### `hafen.menugrid():remove(idOrPagina)`
+
+Takes the `Pagina` object, or its id as a string: `"dig"` as you spelled it to `:add`, or the whole
+`addon/myaddon/dig` identity you read back from `:res()`. The entry leaves the grid at once and every handle
+to it goes `:exists() == false`.
+
+Removing one that is already gone is **inert** — a removal is a moment, not a mistake. Removing one of the
+client's own entries, or another addon's, raises naming whose it is: what the server granted is the
+server's to revoke.
+
+### What an entry draws
+
+`pag:name(text)` sets the label the grid paints under the pointer and sorts by; an entry you never name
+shows the id you gave it. `pag:icon(image)` takes the handle [`hafen.asset():get("dig.png")`](asset.md)
+hands you and **never a path** — the loader is one door, and a string here says so.
+
+An entry with no icon draws an empty cell. An image bigger than a cell is scaled down to fit, keeping its
+aspect ratio; a smaller one is drawn at its own size. Either way it is centred, and its pixels are
+[design pixels](ui/pixels.md), so a 32×32 PNG fills a cell exactly like the game's own art.
+
+Every write here refuses on an entry your addon did not add — one of the client's own, or another
+addon's — naming which it is, so a stashed handle can never write over someone else's button.
 
 ## Use (protected)
 
@@ -128,5 +196,6 @@ name or display name, and there is no path-shaped way in beside it.
 ## See also
 
 - [`hafen.actionbar`](actionbar.md) — putting one of these resource names on the hotbar
+- [`hafen.asset`](asset.md) — loading the PNG a custom entry draws
 - [`Pagina`](types.md#pagina) — the snapshot shape `:info()` returns
 - [`hafen.craft`](craft.md) — the window a recipe action opens

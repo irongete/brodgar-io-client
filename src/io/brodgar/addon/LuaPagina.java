@@ -8,7 +8,9 @@ import haven.Resource;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
@@ -197,10 +199,42 @@ public final class LuaPagina {
             }
         });
         // name() — the DISPLAY name the grid paints in the tooltip (Resource.AButton.name).
-        m.set("name", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                String n = dispname(button(self, "name"));
-                return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
+        // name(text) — 059.1: set it, on an entry THIS addon added. Arity is the verb, so the reader above is
+        // the same name with no argument; the write refuses on the client's own entries and on another
+        // addon's, naming which (the grid's own catalogue is the server's to describe).
+        m.set("name", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue v = Args.written(a, 2, "pagina:name", "text");
+                if(v == null) {
+                    String n = dispname(button(self, "name"));
+                    return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
+                }
+                if(v.isnumber() || !v.isstring())
+                    throw new LuaError("pagina:name(text): the display name is a string — the one the grid"
+                        + " paints over the button and shows in its tooltip; got " + v.typename());
+                AddonPagina p = AddonPagina.owned(owner, handle(self, "name").res, "name(text)");
+                p.name(v.tojstring());
+                return self;
+            }
+        });
+        // icon() — the image this entry draws, as your own hafen.asset handle; nil on an entry with no icon
+        // set and on every one of the client's own (their art is a .res sprite, not a file of yours).
+        // icon(image) — 059.1: draw the addon's own PNG in the cell, fitted to it. A hafen.asset image HANDLE,
+        // never a path: the loader is one door and the file is loaded once (see hafen.asset).
+        m.set("icon", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue v = Args.written(a, 2, "pagina:icon", "image");
+                String res = handle(self, "icon").res;
+                if(v == null) {
+                    MenuGrid.Pagina p = live(res);
+                    LuaImage li = (p instanceof AddonPagina) ? ((AddonPagina)p).icon() : null;
+                    return (li == null) ? LuaValue.NIL : AssetApi.imageFor(owner, li);
+                }
+                AddonPagina p = AddonPagina.owned(owner, res, "icon(image)");
+                p.icon(image(v));
+                return self;
             }
         });
         // path() — the action tokens the "act" message carries (AButton.ad), as a 1-based array. EMPTY for a
@@ -211,6 +245,8 @@ public final class LuaPagina {
                 MenuGrid.PagButton b = button(self, "path");
                 if(b == null)
                     return LuaValue.NIL;
+                if(b.pag instanceof AddonPagina)   // a custom entry sends nothing, so it has no tokens (059.1)
+                    return new LuaTable();
                 try {
                     String[] ad = b.act().ad;
                     LuaTable out = new LuaTable();
@@ -318,6 +354,49 @@ public final class LuaPagina {
         return m;
     }
 
+    /**
+     * {@code pag:icon(image)}'s argument &rarr; the loaded image. <b>One door, and it is a handle</b>: an icon
+     * is a file the addon ships, loaded once through {@code hafen.asset} and drawn many times, so a path
+     * string is refused pointing back at the loader rather than quietly loading the file again. An asset of
+     * another type says which type it is — the two calls are one file extension apart.
+     */
+    private static LuaImage image(LuaValue v) {
+        LuaImage li = LuaImage.resolve(v);
+        if(li != null) {
+            if(li.dead)
+                throw new LuaError("pagina:icon(image): this asset has been disposed — after a :dispose(),"
+                    + " hafen.asset():get(path) loads the file again as a NEW asset");
+            return li;
+        }
+        if(v.isstring() && !v.isnumber())
+            throw new LuaError("pagina:icon(image): \"" + v.tojstring() + "\" is a path, and an icon is the"
+                + " HANDLE the loader hands back — hafen.asset():get(\"" + v.tojstring() + "\"). A menu entry"
+                + " draws a file your addon ships, not one of the client's own resources.");
+        String type = assetType(v);
+        if((type == null) && (FontHandle.resolve(v) != null))
+            type = "font";                    // a BUILT-IN font is a font handle that was never an asset
+        if(type != null)
+            throw new LuaError("pagina:icon(image): that is a \"" + type + "\" handle, and an icon is an image"
+                + " — load a .png with hafen.asset():get(\"dig.png\") and pass that one");
+        throw new LuaError("pagina:icon(image): the icon is a hafen.asset image handle"
+            + " (hafen.asset():get(\"dig.png\")), got " + v.typename());
+    }
+
+    /** The {@code :type()} of an asset handle that is not an image ({@code null} when it is not one at all). */
+    private static String assetType(LuaValue v) {
+        if(!v.istable())
+            return null;
+        try {
+            LuaValue t = v.get("type");
+            if(!t.isfunction())
+                return null;
+            LuaValue r = t.call(v);
+            return r.isstring() ? r.tojstring() : null;
+        } catch(RuntimeException e) {   // a foreign table with a "type" of its own — not an asset at all
+            return null;
+        }
+    }
+
     // ---- self resolution ---------------------------------------------------------------------------
 
     /** The handle behind a method's {@code self}, or a guiding error (a dot-call passes the wrong self). */
@@ -337,13 +416,20 @@ public final class LuaPagina {
     // ---- the menu-grid funnel ----------------------------------------------------------------------
 
     /** The live action menu, or {@code null} before the HUD exists (pre-login, mid-{@code :reload}). */
-    private static MenuGrid grid() {
+    static MenuGrid grid() {
         GameUI g = AddonManager.gui();
         return (g == null) ? null : g.menu;
     }
 
-    /** A pagina's resource name, or {@code null} while its resource is still {@code Loading}. */
+    /**
+     * A pagina's resource name, or {@code null} while its resource is still {@code Loading}. <b>A custom entry
+     * names itself</b> (059.1): its backing {@link Resource} is a stand-in shared by every one of them, so the
+     * identity is the id its addon gave it — which is what makes {@code :get}, the intern cache and the
+     * catalogue's own deduplication all address a custom entry the way they address a granted one.
+     */
     private static String resname(MenuGrid.Pagina p) {
+        if(p instanceof AddonPagina)
+            return ((AddonPagina)p).id;
         try {
             Resource r = p.res();
             return (r == null) ? null : r.name;
@@ -374,6 +460,8 @@ public final class LuaPagina {
     private static String tooltip(MenuGrid.PagButton b) {
         if(b == null)
             return null;
+        if(b.pag instanceof AddonPagina)      // the stand-in's own pagina layer is not this entry's (059.1)
+            return ((AddonPagina)b.pag).tooltip();
         try {
             Resource.Pagina pg = b.res.layer(Resource.pagina);
             return (pg == null) ? null : pg.text;
@@ -538,7 +626,9 @@ public final class LuaPagina {
         String hk = hotkey(b);
         if(hk != null)
             t.set("hotkey", LuaValue.valueOf(hk));
-        if(b != null) {
+        if(p instanceof AddonPagina) {
+            t.set("path", new LuaTable());     // a custom entry sends nothing (059.1)
+        } else if(b != null) {
             try {
                 String[] ad = b.act().ad;
                 LuaTable path = new LuaTable();
@@ -612,6 +702,27 @@ public final class LuaPagina {
                     throw new LuaError("hafen.menugrid():get(key): expected a string — one with a '/' is a"
                         + " resource name, any other is a display name; got " + key.typename());
                 return find(owner, key.tojstring());
+            }
+
+            public boolean creatable() {
+                return true;
+            }
+
+            // add(id) — 059.1: mint an entry of this addon's own and hand it back for its setters (:name,
+            // :icon). It is drawn by this client and reaches no server, so it needs no permission — and it is
+            // a Pagina like any other, so every reader on this page answers for it.
+            public LuaValue addMember(Varargs a) {
+                return AddonPagina.add(owner, Args.required(a, 2, "hafen.menugrid():add", "id"));
+            }
+
+            public boolean destroyable() {
+                return true;
+            }
+
+            // remove(idOrPagina) — take one of THIS addon's entries out again. The client's own catalogue is
+            // not removable: what the server granted is the server's to revoke.
+            public void removeMember(LuaValue x) {
+                AddonPagina.remove(owner, x);
             }
         }, extra);
     }
