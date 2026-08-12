@@ -427,11 +427,22 @@ final class Retired {
             + " name too many");
         put("pagina:isnew", "pagina:isnew() is now pagina:isNew()");
 
-        // ---- hafen.speed: the get/set pair collapses onto one name whose arity is the verb ----------------
-        put("hafen.speed.get", "hafen.speed.get() is now hafen.speed():current()");
-        put("hafen.speed.set", "hafen.speed.set(n) is now hafen.speed():current(n) — one name reads the speed"
-            + " and writes it, and the write still needs the 'speed.current' permission");
-        section("speed", "max", "name");
+        // ---- hafen.speed: the section IS the collection of speeds, and a speed is an OBJECT (060) ----------
+        // The two bounds-and-numbers verbs are gone rather than re-spelled: :max() was a bound every caller
+        // turned back into a range by hand, and :name(n) read a property of a member the API can now hand you.
+        // Both spellings of each carry the row (D-216) — the pre-039 dotted field and the colon call.
+        put("hafen.speed.get", "hafen.speed.get() is now hafen.speed():current(), which hands back a Speed"
+            + " OBJECT rather than a number — sp:index() is that number, sp:name() its display name");
+        put("hafen.speed.set", "hafen.speed.set(n) is now hafen.speed():set(n), and the write needs the"
+            + " 'speed.set' permission (it was 'speed.current'). It takes a Speed, an index 0..3 or a display"
+            + " name: hafen.speed():set(hafen.speed():get(\"Run\"))");
+        moved("speed", "max", "hafen.speed():max() is gone: hafen.speed():list() IS the speeds you can pick"
+            + " right now, so there is no bound left to turn back into a range — everything it hands you is"
+            + " something :set accepts. hafen.speed():count() is how many, and sp:available() answers it for"
+            + " one speed (hafen.speed():get(3):available() is \"is sprint unlocked?\")");
+        moved("speed", "name", "hafen.speed():name(n) is now hafen.speed():get(n):name() — a speed is an"
+            + " object, and its display name is a verb on it. hafen.speed():get(\"Run\") addresses one by"
+            + " that name too, and the one you are on is hafen.speed():current():name()");
 
         // ---- hafen.store: the ONE section whose access pattern changed, not just its spelling -------------
         // A declared saved variable was a FIELD (hafen.store.cfg), so the per-owner half of this refusal is

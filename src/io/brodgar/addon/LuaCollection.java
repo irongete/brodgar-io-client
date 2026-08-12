@@ -275,6 +275,16 @@ public final class LuaCollection {
                 LuaValue m = methods.rawget(key);
                 if(!m.isnil())
                     return m;
+                // A verb this collection USED TO have throws its own message first, exactly as Section.meta
+                // does and keyed the same way ("hafen.speed():max"): a collection mounted AS a section object
+                // (§2.1) would otherwise swallow the replacement message under the generic "has no verb",
+                // which says the call is wrong without saying what is right. Additive — no collection had
+                // such a row before 060, so nothing else changes behaviour.
+                if(key.isstring()) {
+                    String msg = Retired.message(coll.name + ":" + key.tojstring());
+                    if(msg != null)
+                        throw new LuaError(msg);
+                }
                 if(key.isnumber())
                     throw new LuaError(coll.name + " is a collection, not an array: " + coll.name
                         + ":list() is the array and you index that");

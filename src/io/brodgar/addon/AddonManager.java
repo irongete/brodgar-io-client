@@ -184,7 +184,7 @@ public final class AddonManager {
 
     // -- the permissions tier (spec 12-security-and-permissions / D-010 / D-025 / D-027; refined by D-028):
     // the protected surface. Every protected verb — player:move, hand:use, gob:click, the four item verbs,
-    // world:place/:select, pag:use, widget:send, speed:current(n), craft:make, slot:use/:res, the kin writes,
+    // world:place/:select, pag:use, widget:send, speed:set, craft:make, slot:use/:res, the kin writes,
     // flowermenu:select/:cancel — DRIVES the character by sending a
     // player-action wdgmsg — it acts on the user's behalf (moves them, uses items, interacts with the world),
     // which is powerful, so each is a PER-ADDON permission granted only to an addon that DECLARED that verb's
@@ -2022,18 +2022,21 @@ public final class AddonManager {
         // with g validated 0..254 (the range the SERVER accepts; the client only draws 8 colours).
         CharApi.installKin(hafen, owner);
 
-        // hafen.speed() — movement speed (A7), read from the speed selector widget (Speedget: the four-way
-        // crawl/walk/run/sprint toggle at the bottom of the HUD). :current() returns the CURRENT speed as 0..3
-        // (0=crawl 1=walk 2=run 3=sprint), or nil if the widget isn't up yet, and :current(n) SELECTS speed n —
-        // the get/set pair collapsed onto one name whose arity is the verb (R2). The write is the PROTECTED verb
-        // (4g, "speed.current"): it drives the client's own Speedget.set (wrap-not-reimplement, D-009 →
-        // wdgmsg("set", n)), exactly what clicking/hotkeying that speed does, and it returns the section so a
-        // run of writes chains. :max() returns the highest speed currently SELECTABLE (0..3) — speeds 0..max()
-        // are available, higher ones are disabled (e.g. sprint locked); nil if not up. :name([n]) is the display
-        // name of speed n (no argument = the current one; from the widget's own tooltips), or nil. No
-        // SpeedChanged event: speed is read on demand (the classic use is a speed-toggle keybind that reads
-        // :current() then writes it), like the other gap surfaces.
-        ActApi.installSpeed(hafen, owner);
+        // hafen.speed() — movement speed (A7, re-shaped in 060), read from the speed selector widget (Speedget:
+        // the four-way crawl/walk/run/sprint toggle at the bottom of the HUD). The section contains exactly one
+        // thing, so the section object IS the collection of SPEEDS: :list(filter)/:count/:find enumerate the
+        // ones selectable right now (crawl→sprint order, empty before the selector streams in AND when the
+        // server has locked every speed), :get(key) addresses any of the four — selectable or not — by index
+        // 0..3 or by whole case-insensitive display name, and :current() is the one you are on. Each member is
+        // a Speed object, interned per addon: sp:index() :name() :available() :exists() :info(), and
+        // hafen.speed():current() == sp is the "am I on this one" test rather than a second verb.
+        //   :set(speed|index|name) is the PROTECTED verb ("speed.set"): it drives the client's own Speedget.set
+        // (wrap-not-reimplement, D-009 → wdgmsg("set", n)), exactly what clicking/hotkeying that speed does,
+        // and it returns the collection so writes chain. It refuses a speed that is not selectable, naming the
+        // ones that are — but the SERVER still has the last word, and Speedget.cur only moves when its
+        // uimsg("cur") lands, so the read-back is a round trip. No SpeedChanged event: speed is read on demand
+        // (the classic use is a speed-toggle keybind), like the other gap surfaces.
+        Section.mount(hafen, "speed", LuaSpeed.collection(owner), null);
 
         // hafen.craft() — the recipe window (A8: the Makewindow the server places under the HUD when the
         // player opens a recipe). A section of one verb: :current() is the open recipe as a Craft object, or

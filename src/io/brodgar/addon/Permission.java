@@ -48,7 +48,7 @@ public enum Permission {
     KIN_GROUP        ("kin.group",          "kin:group",                      "change someone's kin group"),
     KIN_END          ("kin.endKin",         "kin:endKin",                     "end kinship with someone"),
     KIN_FORGET       ("kin.forget",         "kin:forget",                     "forget someone from your kin list"),
-    SPEED_CURRENT    ("speed.current",      "hafen.speed():current",          "change your movement speed"),
+    SPEED_SET        ("speed.set",          "hafen.speed():set",              "change your movement speed"),
     WIDGET_SEND      ("widget.send",        "widget:send",                    "send any message the client itself could send");
 
     /** The manifest key an addon declares to be granted this verb ({@code item.transfer}). */

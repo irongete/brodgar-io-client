@@ -411,6 +411,17 @@ public final class Addon {
     final LuaSlot.Cache slots = new LuaSlot.Cache(this);
 
     /**
+     * This addon's <b>movement-Speed interning cache</b> ({@code hafen.speed():get(key)}, spec
+     * {@code 060-speed-collection}): the weak-valued {@code speed index → Speed object} map, its
+     * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. The same contract — and the same
+     * shape — as {@link #slots}, the other cache keyed by a small int: per-addon so no Lua value crosses a
+     * sandbox boundary (D-017) and the whole cache dies with this {@link Addon} on {@code :reload}/disable;
+     * nothing to tear down (weak entries, and a handle holds only the index). It is what makes
+     * {@code hafen.speed():current() == hafen.speed():get(2)} the "am I on this one" test.
+     */
+    final LuaSpeed.Cache speeds = new LuaSpeed.Cache(this);
+
+    /**
      * This addon's <b>action-menu Pagina interning cache</b> ({@code hafen.menugrid():get(key)}, spec
      * {@code 023-menugrid-oop}): the weak-valued {@code resource name → Pagina object} map, its
      * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. Same contract as {@link #gobs}, {@link #kins} and {@link #slots} — per-addon so no Lua

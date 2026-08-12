@@ -2,21 +2,22 @@ package io.brodgar.addon;
 
 import haven.GameUI;
 import haven.Makewindow;
-import haven.Speedget;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
-import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 
 /**
- * Crafting read/make ({@code hafen.craft}) + movement speed ({@code hafen.speed}) — the two sections this file
- * still installs. Each carries a protected write ({@code craft():current():make(all)},
- * {@code speed():current(n)}) behind {@code requirePermission}, each with its own declared per-addon key. No
- * lifecycle/tick/teardown state — these are invoked only from Lua callbacks. Not instantiable.
+ * Crafting read/make ({@code hafen.craft}) — the one section this file still installs. It carries a protected
+ * write ({@code craft():current():make(all)}) behind {@code requirePermission}, under its own declared
+ * per-addon key. No lifecycle/tick/teardown state — these are invoked only from Lua callbacks. Not
+ * instantiable.
+ *
+ * <p><b>Movement speed left with 060.</b> {@code hafen.speed()} is now the <i>collection</i> of the speeds you
+ * can pick ({@link LuaSpeed}), so the locator, the tooltip read and the protected send went with the section
+ * they serve — a verb lives with what it changes, and so does the code behind it.
  *
  * <p><b>{@code hafen.act()} is gone</b> (048). It was the one section grouped by PERMISSION rather than by what
  * it acts on, and 048 dissolved it verb by verb onto the things each verb changes: walking the character is
@@ -64,66 +65,6 @@ final class ActApi {
         Section.install(hafen, "craft", craft);
     }
 
-    /**
-     * Build {@code hafen.speed()} (movement-speed read + protected write, A7) for {@code owner}. From installHafen.
-     * The {@code get}/{@code set} pair collapses onto <b>one name</b> whose arity is the verb (R2):
-     * {@code :current()} reads the selected speed and {@code :current(n)} selects it and chains. The read half
-     * is unprotected and the write half keeps the permission it always had, now the {@code speed.current} key.
-     */
-    static void installSpeed(LuaTable hafen, final Addon owner) {
-        LuaTable speed = new LuaTable();
-        // current() / current(n) — the whole of the old get()/set() pair. The write is protected (D-027/D-028) and
-        // returns the section object, so a run of writes chains like every other setter in the API.
-        speed.set("current", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                Section.self(self, "speed", "current");
-                LuaValue n = Args.written(a, 2, "hafen.speed():current", "n");
-                if(n == null) {                            // the read arity
-                    Speedget s = speedget();
-                    return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s.cur);
-                }
-                AddonManager.requirePermission(owner, Permission.SPEED_CURRENT);
-                if(!n.isnumber())
-                    throw new LuaError("hafen.speed():current(n): n must be a number"
-                        + " (0=crawl 1=walk 2=run 3=sprint)");
-                actSpeedSet(n.toint());
-                return self;
-            }
-        });
-        speed.set("max", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "speed", "max");
-                Speedget s = speedget();
-                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s.max);
-            }
-        });
-        // name([n]) — the display name of a speed. n is an ADDRESS, not a value being written: with none, the
-        // one currently selected. An explicit nil is still an accident (§2.9) and is refused rather than read
-        // as "the current one", which is the silent misread the discipline exists for.
-        speed.set("name", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "speed", "name");
-                LuaValue n = Args.written(a, 2, "hafen.speed():name", "n");
-                int idx;
-                if(n != null) {
-                    if(!n.isnumber())
-                        throw new LuaError("hafen.speed():name(n): n must be a number 0..3");
-                    idx = n.toint();
-                } else {                                   // no argument → the current speed
-                    Speedget s = speedget();
-                    if(s == null)
-                        return LuaValue.NIL;
-                    idx = s.cur;
-                }
-                return speedName(idx);
-            }
-        });
-        Section.install(hafen, "speed", speed,
-                        "hafen.speed.get() is now hafen.speed():current() and hafen.speed.set(n) is"
-                        + " hafen.speed():current(n)");
-    }
-
     // ---- what the protected tier left behind (048) --------------------------------------------------
     // Nothing. The PROTECTED automation surface is still exactly what it always was — a Widget.wdgmsg from a
     // bound widget, literally what a player click would send, so the client stays server-authoritative (an addon
@@ -140,56 +81,13 @@ final class ActApi {
     // beside it. actFlower had been delegating to FlowerMenuApi since 047.1, so what stood here was the old door
     // D-103 requires closing — and its one pure helper (the case-insensitive petal lookup) moved to its single
     // remaining caller, FlowerMenuApi.petalIndex.
-    // The two surviving halves of this file — hafen.craft() and hafen.speed() — never belonged to that section:
-    // they are named for what they act on, which is the shape 048 gave the other nine verbs.
-
-    // ---- movement speed (A7: hafen.speed()) ------------------------------------------------------
-    // The speed selector is a Speedget widget (crawl/walk/run/sprint) the server places under the HUD.
-    // It has no named GameUI field, so we locate it with the 1d-1 Locator (a children(Class) subtree
-    // walk from the HUD) — the same way vitals finds its IMeters. Both fields we read (cur = current
-    // speed, max = highest currently-selectable speed) are public ints, so this is a zero-haven-edit
-    // read. All calls run on the UI thread (addon tick / REPL). Selecting a speed is :current(n), the
-    // write half of the one name that replaced the get()/set() pair, and it is the protected Phase-4 tier.
-
-    /** The (unique) movement-speed widget under the HUD, or {@code null} before it has streamed in. */
-    private static Speedget speedget() {
-        GameUI g = AddonManager.gui();
-        if(g == null)
-            return null;
-        for(Speedget s : g.children(Speedget.class))   // recursive subtree walk; take the first
-            return s;
-        return null;
-    }
-
-    /** The display name of speed {@code n} (0..3) from the widget's own tooltips, or nil if out of range. */
-    private static LuaValue speedName(int n) {
-        String[] tips = Speedget.tips;                 // "Crawl"/"Walk"/"Run"/"Sprint" (resource tooltips)
-        if((tips == null) || (n < 0) || (n >= tips.length))
-            return LuaValue.NIL;
-        String t = tips[n];
-        return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
-    }
-
-    /**
-     * {@code hafen.speed():current(n)} backing (4g, protected) — select movement speed {@code n} (0..3) via the
-     * client's own {@link Speedget#set} (wrap-not-reimplement, D-009 → {@code wdgmsg("set", n)}). The server is
-     * authoritative on whether a speed is currently allowed (e.g. sprint may be locked); this only sends the
-     * request, exactly as clicking/hotkeying that speed would. Throws for out-of-range {@code n} or before the
-     * selector exists.
-     */
-    private static void actSpeedSet(int n) {
-        if((n < 0) || (n > 3))
-            throw new LuaError("hafen.speed():current(n): n must be 0..3 (0=crawl 1=walk 2=run 3=sprint), got " + n);
-        Speedget s = speedget();
-        if(s == null)
-            throw new LuaError("hafen.speed():current(n): no speed selector (not in the world yet)");
-        s.set(n);
-    }
+    // The surviving half of this file — hafen.craft() — never belonged to that section: it is named for what
+    // it acts on, which is the shape 048 gave the other nine verbs.
 
     // ---- crafting (A8: hafen.craft) --------------------------------------------------------------
     // The crafting/recipe window is a Makewindow (@RName("make")) the server places under the HUD when
-    // the player opens a recipe. It is wrapped in GameUI.makewnd (a private Window), so — like A7's speed
-    // selector — we locate the content widget with the 1d-1 Locator (a children(Class) subtree walk from
+    // the player opens a recipe. It is wrapped in GameUI.makewnd (a private Window), so — like the speed
+    // selector LuaSpeed finds— we locate the content widget with the 1d-1 Locator (a children(Class) subtree walk from
     // the HUD), not a named GameUI field. A recipe carries: rcpnm (the recipe name), inputs (ingredient
     // slots), outputs (product slots), qmod (quality-affecting input resources) and tools (required tool
     // resources). All backings are public → zero haven edit, like A7/A6/A4/A2.

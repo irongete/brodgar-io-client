@@ -17,7 +17,7 @@
 -- calls the verb on the thing it acts on — hafen.player():move / :hand():use, gob:click, the four item verbs,
 -- hafen.world():place / :select, hafen.menugrid():get(name):use(), widget:send,
 -- hafen.flowermenu():select — beside the ones that always lived on their own subsystem
--- (hafen.speed():current(n), the Craft's :make, the Slot's :use, and the kin verbs on the Kin object:
+-- (hafen.speed():set(x), the Craft's :make, the Slot's :use, and the kin verbs on the Kin object:
 -- hafen.kin():add(secret) and kin:rename/:group/:endKin/:forget)
 -- — each behind its OWN permission key, every one of them declared in the manifest.
 -- Each is a DELIBERATE, opt-in trigger — a `:walker <sub>` command — so nothing acts unless you ask.
@@ -41,7 +41,9 @@
 --                          Default 'take' lifts it to your cursor (safe/reversible: click an empty slot to
 --                          undo). use|take|drop [n]|transfer [n] -- n = how many of the stack, all of it by
 --                          default. 'itemact' is hafen.player():hand():use(item): apply what you HOLD onto it.
---   :walker speed [n]   -- speed:current(n): select movement speed n=0..3 (crawl/walk/run/sprint; default 2=run). Reversible.
+--   :walker speed [n|name]
+--                       -- speed:set(x): select a movement speed by index 0..3 or by name (crawl/walk/run/
+--                          sprint; default 2=run). Reversible, and a locked speed is refused by name.
 --   :walker craft [all] -- craft.make: press Craft on the OPEN recipe (add 'all' for Craft All). CONSUMES ingredients!
 --   :walker bar <n>     -- slot:use: activate slot n (raw 0-based index; read hafen.actionbar():get(n) first)
 --   :walker setbar <n> <res>  -- slot:res: ASSIGN the action named <res> to slot n (what a drag from the menu
@@ -81,7 +83,7 @@ hafen.slash():register("walker", function(args)
     hafen.log():write("   item [verb] [n]=item:use/:take/:drop(n)/:transfer(n) on your first inventory item  default take (lifts to cursor)")
     hafen.log():write("   item itemact=hafen.player():hand():use(firstInvItem)  apply what you HOLD onto that item (048.2)")
     hafen.log():write("   -- 4g per-subsystem protected verbs (own namespace, same permission):")
-    hafen.log():write("   speed [n]=hafen.speed():current(n)  0..3 crawl/walk/run/sprint (default 2=run, reversible)")
+    hafen.log():write("   speed [n|name]=hafen.speed():set(x)  0..3 or Crawl/Walk/Run/Sprint (default 2=run, reversible)")
     hafen.log():write("   craft [all]=hafen.craft():current():make(all)  press Craft on the OPEN recipe (CONSUMES ingredients; 'all'=Craft All)")
     hafen.log():write("   bar <n>=hafen.actionbar():get(n):use()  activate action-bar slot n (raw 0-based index)")
     hafen.log():write("   setbar <n> <res>=hafen.actionbar():get(n):res(name)  assign an action by resource name (e.g. gfx/hud/act/mine)")
@@ -260,12 +262,21 @@ hafen.slash():register("walker", function(args)
   -- (hafen.speed/craft/actionbar/kin) — on the OBJECT itself where the subsystem is OOP (a Slot, a Kin) —
   -- which is the shape 048 then gave every verb above. Same permission model, same requirePermission gate.
   elseif sub == "speed" then
-    -- speed:current(n): pick a movement speed 0..3, the write half of the one name that reads it. Fully reversible (just set another), so a safe default is fine.
-    local n = tonumber(args[2]) or 2                   -- default 2 = run
-    local before = hafen.speed():current()
-    hafen.speed():current(n)                                 -- protected; drives the client's own Speedget.set
-    hafen.log():write((":walker speed -> hafen.speed():current(%d) [%s]  (was %s; max selectable=%s)")
-      :format(n, hafen.speed():name(n) or "?", tostring(before), tostring(hafen.speed():max())))
+    -- speed:set(x): pick a movement speed -- a Speed object, an index 0..3 or a display name. Fully reversible
+    -- (just set another), so a safe default is fine. It refuses one that is not selectable, naming the ones
+    -- that are, and the read-back is a ROUND TRIP: the server owns `cur`, so :current() below still names the
+    -- speed we came from.
+    local speed = hafen.speed()
+    local pick = speed:get(tonumber(args[2]) or args[2] or 2)  -- index, name, or the default 2 = run
+    if not pick then
+      hafen.log():write((":walker speed -> no speed '%s' (0..3, or a name: Crawl/Walk/Run/Sprint%s)")
+        :format(tostring(args[2]), speed:count() == 0 and "; the selector is not up yet" or "")); return
+    end
+    local before = speed:current()
+    speed:set(pick)                                    -- protected; drives the client's own Speedget.set
+    hafen.log():write((":walker speed -> hafen.speed():set(%s) [%d]  (was %s; selectable=%d, the server"
+      .. " answers in a moment)"):format(tostring(pick:name()), pick:index(),
+      before and tostring(before:name()) or "nil", speed:count()))
 
   elseif sub == "craft" then
     -- craft.make([all]): press the OPEN recipe's Craft (or Craft All) button. This CONSUMES ingredients like a

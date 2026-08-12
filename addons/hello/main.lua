@@ -18,9 +18,10 @@
 -- count()/position(), moves it, then LIVE-SWAPS its resource + rotates it (V3), hides & re-shows it, and removes
 -- it after 8s (the V1+V3 regression); ':hello ghost' toggles a CLICKABLE, translucent cabin at your position whose
 -- onClick live-cycles :rotate + :alpha (V2 click driving V3 look; you do NOT move — still SAFE-tier).
--- Built on gap subsystem A7: MOVEMENT SPEED — hafen.speed reads the crawl/walk/run/sprint selector
--- (get() -> current speed 0..3, max() -> highest currently-selectable, name([n]) -> display name); read-only
--- here, since changing speed is the gated Phase-4 action tier. Built on gap subsystem A6: KIN / BUDDY ROSTER —
+-- Built on gap subsystem A7: MOVEMENT SPEED — hafen.speed() IS the collection of the crawl/walk/run/sprint
+-- selector's speeds (:list() the ones selectable now, :get(key) any of the four, :current() the one you are
+-- on, each a Speed object with :index/:name/:available); read-only here, since picking one is the protected
+-- hafen.speed():set(x). Built on gap subsystem A6: KIN / BUDDY ROSTER —
 -- hafen.kin reads the Kin window and the section object IS the roster collection: hafen.kin():list() is the
 -- array of interned Kin objects (plus :count/:find/:add), :get(idOrName) is one Kin (:id/:name/:group/:color/
 -- :online/:exists/:gob/:info, with gob:kin() as :gob()'s inverse); it fires KinChanged -- the whole roster
@@ -598,19 +599,24 @@ local function readKin(tag)
     fgob and (" (g:kin()==roster[1]: %s)"):format(tostring(fgob:kin() == first)) or ""))
 end
 
--- A7: MOVEMENT SPEED via hafen.speed(). :current() returns the CURRENT speed as 0..3 (0=crawl 1=walk 2=run 3=sprint)
--- or nil if the speed selector (the crawl/walk/run/sprint toggle at the bottom of the HUD) isn't up yet;
--- :max() returns the highest speed currently SELECTABLE (speeds 0..max are available); :name([n]) returns a
--- speed's display name (default = current). Like the rest of the HUD the widget streams in a beat after
--- enter-world, so read at now (often nil) and +3s. hello is READ-ONLY here -- changing speed is the gated
--- Phase-4 action tier; the classic speed addon reads :current() in a keybind and (Phase 4) writes the next one.
+-- A7: MOVEMENT SPEED via hafen.speed() (060). The section object IS the COLLECTION of speeds: :list() is
+-- exactly the ones selectable right now, crawl->sprint (empty before the speed selector -- the toggle at the
+-- bottom of the HUD -- streams in, and empty when the server has locked every speed), :get(key) addresses any
+-- of the four by index 0..3 or by whole display name whether or not it is selectable, and :current() is the
+-- Speed you are ON -- the very member :list() holds, so `hafen.speed():current() == sp` is the "am I on this
+-- one" test. A Speed is a live object: sp:index() :name() :available() :exists() :info(). Like the rest of the
+-- HUD it streams in a beat after enter-world, so read at now (often nil) and +3s. hello is READ-ONLY here --
+-- picking a speed is the protected hafen.speed():set(x) ("speed.set"), which walker demonstrates.
 local function readSpeed(tag)
-  local cur = hafen.speed():current()
+  local speed = hafen.speed()
+  local cur = speed:current()
   if cur == nil then
     hafen.log():write(("[%s] speed: nil (selector not up yet)"):format(tag)); return
   end
-  hafen.log():write(("[%s] speed: cur=%d (%s), max=%s"):format(tag, cur,
-    tostring(hafen.speed():name()), tostring(hafen.speed():max())))
+  local picks = {}
+  for _, sp in ipairs(speed:list()) do picks[#picks + 1] = ("%d=%s"):format(sp:index(), tostring(sp:name())) end
+  hafen.log():write(("[%s] speed: %s (%d), selectable: %s%s"):format(tag, tostring(cur:name()), cur:index(),
+    table.concat(picks, " "), speed:get(3):available() and "" or "  (sprint locked)"))
 end
 
 -- A8: CRAFTING via hafen.craft(). :current() returns the OPEN recipe as a Craft object, or nil when none is

@@ -1,7 +1,7 @@
 # Cross-cutting client services
 
 > Console, keybindings, resources, prefs + the Options window (`GSettings`), audio, chat, combat,
-> buffs, kin, vitals, FEP, study, skills, quests, wounds, crafting, the action menu. Line numbers
+> buffs, kin, vitals, movement speed, FEP, study, skills, quests, wounds, crafting, the action menu. Line numbers
 > | Service | Where |
 |---|---|
 | Console commands (register only; no unregister) | `Console.setscmd`, `Directory`; input via `ConsoleHost`. **The `:` that opens the line is `RootWidget.globtype`** (`ev.c == ':'` → `entercmd()`, above the `gk` fallthrough), and `RootWidget.draw`  paints `cmdline` bottom-left — so the command line is a **root-level** facility, live on the login screen as well as in-world |
@@ -21,6 +21,7 @@
 | Kin / buddy roster | `GameUI.buddies` (`BuddyWnd`, `Iterable<Buddy>`); `iterator()` (copies under lock) / `find(int)`; `Buddy.id`/`name`/`online`/`group` (public); palette `BuddyWnd.gc`; changes via `uimsg` `add`/`rm`/`chst`/`upd`  — `serial` skips `chst`. Mutate: `wdgmsg` `rm`/`nick`/`grp` |
 | Kin ↔ gob | The buddy id is carried **on the gob**: `res/ui/obj/buddy/Buddy.id`, a `GAttrib` set/cleared by `Buddy.parse` outside the gob lifecycle. **1→N**: a kin's body *and* their hearth fire are both marked. No reverse index exists — kin→gob is an `OCache` sweep |
 | HUD meters (the "vitals" bars) | The engine's own ordered record is the `private List<Widget> meters` field of `GameUI` (relaxed to package-private, `// addon:`) — appended at the `place == "meter"` seam, dropped in `cdestroy`; prefer it over a `children(IMeter.class)` DFS, whose order is a tree artefact. Identity = `IMeter.bg`, a **server-published** `Indir<Resource>` (`Loading` until cached; observed `gfx/hud/meter/{hp,stam,nrj,häst,mount}`, the last two only while mounted). Bar contents = the `protected List<Meter>` of `LayerMeter` — genuinely multi-segment, each `Meter` a fraction `a` (0..1) + a `Color`, replaced wholesale by the `"set"`/`"col"` uimsgs. **No absolute numbers, no hunger** |
+| HUD speed selector (crawl/walk/run/sprint) | `Speedget` (`@RName("speedget")`), placed by the server under the HUD with **no `GameUI` field** → `children(Speedget.class)`. Public `int cur` (the selected speed) and `int max` (the highest currently selectable — `draw` gives `i > max` the disabled icon). Select = `Speedget.set(n)` → `wdgmsg("set", n)`, which is exactly what `mousedown` (hit-tested by icon width), `mousewheel` and the `speed-up` / `speed-down` / `speed-set/0..3` `KeyBinding`s all send. Names = the static `tips[]`, built in the class initialiser from `Resource.local().loadwait("gfx/hud/meter/rmeter/<name>-on").flayer(Resource.tooltip)` |
 | FEP / food / hunger | `CharWnd.battr` (`BAttrWnd`) `feps` (`FoodMeter.cap`/`els`, `El.res`/`a`/`ev()`) + `glut` (`GlutMeter.glut`/`lbl`/`gmod`) — all public; **the one place absolute FEP/hunger numbers exist** |
 | Study / curiosity | `CharWnd.sattr` (`SAttrWnd`) → `children(StudyInfo.class)` → `StudyInfo.study` (`children(GItem.class)`) + totals `texp`/`tw`/`tenc`; per item `resutil.Curiosity` `exp`/`mw`/`enc`/`time` (public). `time` = **total** (no countdown) |
 | Skills / credos / lore | `CharWnd.skill` (`SkillWnd`). Skills: `skg.csk`/`nsk` (`GridList.Group.items`) → `Skill.nm`/`res`/`cost`/`has` — `has` is the known/buyable flag, `nm` the server's token. Credos: `CredoGrid` `ccr`/`ncr` (`List<Credo>`), `Credo.nm`/`res`/`has`, plus the pursued one in `pcr` with `pcl`/`pclt` (level), `pcql`/`pcqlt` (quest), `pqid` (quest id) and `cost` (LP to begin one) — all public. Lore: `ExpGrid.seen.items` → `Experience.res`/`mtime`/`score`, which carries **no token** — the resource is its only identity. **Every one of these lists is replaced WHOLESALE** by its `csk`/`nsk`/`ccr`/`ncr`/`exps` uimsg, off-thread ⇒ copy before iterating, and never key anything on a record's Java identity; `pcr` is built as a **separate** `Credo` instance, so the pursued credo is not `==` its twin in `ccr`/`ncr` either |
@@ -70,6 +71,14 @@
   `belt[n]` from outside in that gap is silently replaced by a task that was queued before it existed — the
   lambda captures only `slot` and `rdt` and re-reads nothing. A writer that means to keep the slot has to
   re-assert it after the write lands, and the deferred lambda is the only place that instant is observable.
+- **`Speedget.cur`/`max` are written by nothing but their own `uimsg`s** (`"cur"`, `"max"`), so `set(n)` is a
+  **round trip**: the field still holds the old speed on the next line, and a speed the server refuses simply
+  never comes back. `max` can also be **negative** — both `mousewheel` and `globtype` guard on `max >= 0` — and
+  that is a live selector on which *nothing* is selectable, not an absent one.
+- **The speed names carry the icon's state.** `tips[i]` is the tooltip of the **`-on`** variant of the artwork,
+  so it reads `"Run On"`, and the widget's own hover text is `"Selected speed: Run On"`. The initialiser
+  `loadwait`s all four, so touching the class blocks until they load — and the names therefore exist before any
+  selector does.
 - **`GameUI.menu` is not built by `GameUI`.** It is assigned in `GameUI.addchild` when the server places a
   child with `place == "menu"`, so it is `null` for some ticks after `GameUI` itself is in the widget tree —
   the same is true of every other `place`-named panel. Anything that needs the grid has to wait for the

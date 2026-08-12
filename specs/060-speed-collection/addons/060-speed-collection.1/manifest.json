@@ -1,0 +1,10 @@
+{
+  "name": "060.1 — the speeds become a collection",
+  "id": "060-speed-collection.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 060.1: hafen.speed() IS the collection of speeds (:list/:count/:find/:get/:current), a Speed is an interned object, the protected :set(x) picks one under the 'speed.set' key, and :max()/:name(n)/:current(n) are cut.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["speed.set"]
+}
