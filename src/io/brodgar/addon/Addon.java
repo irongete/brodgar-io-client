@@ -118,6 +118,18 @@ public final class Addon {
         return widgetSubs.get(w);
     }
 
+    /**
+     * Drop this addon's subscriptions on <b>one</b> widget ({@code widget:revert()}, 061.9) — the same
+     * release {@link #teardownWidgetSubs} does for all of them, one widget at a time: every engine listener
+     * and watch-list registration goes, and each handler is marked dead so a {@code sub:off()} kept in Lua
+     * still finds nothing to end. Nothing is fired: a revert is not a destroy.
+     */
+    void dropWidgetSubs(Widget w) {
+        WidgetSubs s = widgetSubs.remove(w);
+        if(s != null)
+            s.teardown();
+    }
+
     /** Deafen every engine listener this addon's {@link WidgetSubs} installed (teardown, P2). */
     void teardownWidgetSubs() {
         for(WidgetSubs s : widgetSubs.values())

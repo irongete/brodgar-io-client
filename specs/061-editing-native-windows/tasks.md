@@ -246,7 +246,7 @@ pass.
       `[manual]`: delete `widget.value` from the suite's `manifest.json`, `:reload`, re-run — expect
       every drive line to fail with an error naming `widget.value`, and no line to fail on its arguments.
 
-- [ ] **061.9 — `widget:revert()` undoes a whole edit at once.** Last, because it gives back what all
+- [x] **061.9 — `widget:revert()` undoes a whole edit at once.** Last, because it gives back what all
       eight tasks before it install. A verb on `Widget`, not a handle: an object whose only method is
       `revert()` is an object standing in for a verb. Its scope is **this widget and its subtree, as the
       tree stands when it is called**, which is what makes the scope answerable at all — an edit is never
@@ -272,3 +272,10 @@ pass.
       rather than asserted-about.
       `[manual]`: run with the Options window open; after the run, click its X — expect it to close
       normally, which is how the reverted `Pressed` handler proves it is gone.
+      **Two things went differently.** *It does not end a `:replace(view)`* needed a guard the plan did not
+      name: a stand-in view of this addon's that a revert reaches — one adopted into the subtree being
+      reverted — is left alone, since destroying it is the worse half of ending a substitution (the window
+      stays hidden, with a dead view and its toggle swallowed). And the subscription drop has **no** in-game
+      oracle: nothing in Lua can deliver a click, so the `Pressed` handler going with the revert is exactly
+      the one `[manual]` line, and the gap is filed in `ROADMAP.md`. Everything else the verb drops is
+      asserted through a read.

@@ -31,4 +31,5 @@
 - **Package layout**: finish the tier-3 split — the serializer, the glTF parser and its mesh primitives (filed: 019)
 - **Allocation profiling**: who costs GARBAGE, bracketing the seams 019 already brackets (filed: 019)
 - **Driving an inbound message**: nothing can make the client apply a `uimsg` from Lua, so a feature riding the inbound tap has no in-game oracle at all on a server that never sends one (filed: 061)
+- **Driving an input event**: nothing can make the client deliver a click or a keypress from Lua, so anything that only happens on a real gesture — a capability key firing, and therefore a subscription's removal — can be checked by hand alone (filed: 061)
 - **Minor client subsystems**: screenshots, custom cursors, graphics settings, polity, news, calendar, server-published windows, the party HUD (filed: 009)

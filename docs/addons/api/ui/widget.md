@@ -153,9 +153,10 @@ label:on("Pressed", fn)
 -- a Label has no event 'Pressed' — it has: MouseDown, MouseUp, MouseMove, Wheel, Destroy
 ```
 
-Subscribing on a **native** widget is released the same way as anywhere else — on `:reload` or disable —
-even though the widget itself survives: the listener is yours, not the widget's, so nothing is left
-behind in client state you do not own.
+Subscribing on a **native** widget is released the same way as anywhere else — on `:reload` or disable, or
+for one widget and everything under it with [`w:revert()`](edit.md#taking-the-whole-edit-back) — even
+though the widget itself survives: the listener is yours, not the widget's, so nothing is left behind in
+client state you do not own.
 
 ## Owned vs borrowed
 
@@ -172,6 +173,7 @@ provoke the error.
 | `:pack()` | size it to what is inside it — a window's chrome or a bare widget alike — and chain | **works on a window** — [it refits, as a level that restores](edit.md#your-own-controls-inside-one-of-the-clients-windows); a control refuses |
 | `:parent(w)` | choose what it hangs under while it is being built — [one of the client's own windows included](edit.md#your-own-controls-inside-one-of-the-clients-windows) | **error** — the client's widgets hang where the client put them |
 | `:destroy()` | remove it and everything in it | **error**, same reason |
+| `:revert()` | give back everything your addon holds on it and on what is inside it | **works**, same — [the one undo for a whole edit](edit.md#taking-the-whole-edit-back) |
 | `:text(s)` | write the caption of a [control](controls/README.md) you built | **works** — [a level over what it says, and it restores](edit.md#what-a-window-says) |
 | `:title(s)` | write the caption of a window you built | **works**, same — a window's caption is this verb wherever it came from |
 | `:tooltip(s)` | write the line that appears when the pointer rests on it | **error** — those are the client's own words about its own button |

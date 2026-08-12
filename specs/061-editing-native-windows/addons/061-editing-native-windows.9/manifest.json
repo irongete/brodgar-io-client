@@ -1,0 +1,10 @@
+{
+  "name": "061.9 — widget:revert() undoes a whole edit at once",
+  "id": "061-editing-native-windows.9",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 061.9: one call gives back a caption, a size, an adopted control and a level deep in the subtree, and leaves a replacement and a driven control exactly where they are.",
+  "api_version": 1,
+  "permissions": ["widget.value"],
+  "files": ["main.lua"]
+}

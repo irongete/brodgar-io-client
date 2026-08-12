@@ -91,7 +91,7 @@ client's windows; you do not re-home one that is standing somewhere else.
 the caption bar, not the window's outer corner. The window's own height is therefore a place below
 everything it is showing, which is the pair above — put the control there, then `:pack()` to bring the frame
 down around it. For anything more exact, a [geometry rule](style/geometry.md) anchors your control to one of
-the window's own widgets, so it follows what it sits under instead of a pixel the client is free to move.
+the window's own widgets, so it follows what it sits under rather than a pixel the client is free to move.
 
 **`:pack()` is a level over the window's box**, exactly as `:size(w, h)` is: what the pack came out at is
 what your addon is holding, and `w:size(nil)`, disabling your addon and `:reload` all give the stock outer
@@ -101,7 +101,7 @@ Anything of the client's that is **not** a window refuses it, naming `:size(w, h
 client laid out is drawn in is the client's to choose, and the window around it is what refits.
 
 **A control of yours dies with the window you built it into.** Its `Destroy` fires when that window is
-destroyed, `:exists()` is `false` from that moment, and there is nothing to clean up — a window the client
+destroyed and `:exists()` is `false` from that moment, with nothing to clean up — while a window the client
 merely hides has not gone anywhere, so nothing fires and your control comes back with it.
 
 ## Taking over what a control does
@@ -122,9 +122,8 @@ A [control](controls/README.md)'s capability key answers on a **borrowed** contr
 Name the control the ordinary way, with a [selector](selectors.md). Every window carries a close button,
 so `win:find("@IButton")` is the one control you can reach without knowing what a window is made of.
 
-**A grid fires only for the button that selects.** A right-click on a cell opens the client's own menu and
-moves nothing, so it is not a selection and there is nothing there to cancel — a key that fired for it would
-let one handler swallow that menu.
+**A grid fires only for the button that selects**: a right-click on a cell opens the client's own menu and
+moves nothing, so it is no selection, and a key that fired for it would let one handler swallow that menu.
 
 **Enter is the whole of `Submitted`**, on a borrowed entry as on one you built: a keystroke that merely
 changes the text is not a submission, and there is no key for one. Cancelling it means **the server never
@@ -142,24 +141,17 @@ local vol = hafen.ui():find("window[title=Options]"):all("@HSlider")[1]
 vol:on("Changed", function(ev) hafen.log():write("now at " .. ev:value()) end)
 ```
 
-`ev:value()` is where the control landed, and `w:value()` a moment later reads the same number. Putting the
-thumb back is a write, not a cancel, so nothing here pretends to be one: a verb that silently did nothing
-would be worse than the error.
+`ev:value()` is where the control landed, and `w:value()` reads the same number a moment later. Putting the
+thumb back is a write rather than a cancel, so nothing here pretends otherwise.
 
 ## Which widget a list's key belongs to
 
 A [dropdown](lists.md#dropdown)'s rows live in a popup list of their own, and a [menu](lists.md#menu)'s in an
 inner list — neither of which is the control you hold, and a dropdown's popup is not even inside it. The key
-fires on the **control**:
-
-```lua
-local box = hafen.ui():all("@SDropBox")[1]
-box:on("Changed", function(ev) hafen.log():write("would pick " .. tostring(ev:value())) end)
-```
-
-Subscribing on the list of rows instead raises, naming the control the key fires on — the address picks the
-door, and there is exactly one door per control. A list that is a control in its own right is its own address,
-which is the ordinary case.
+fires on the **control**: `hafen.ui():all("@SDropBox")[1]:on("Changed", fn)` is where a dropdown's row
+arrives. Subscribing on the list of rows instead raises, naming the control the key fires on — the address
+picks the door, and there is exactly one door per control. A list that is a control in its own right is its
+own address, which is the ordinary case.
 
 **And on a borrowed control the key is cancelable, because there is something underneath to cancel.**
 `ev:preventDefault()` stops the client's own action: the button was pressed, and what the client would have
@@ -187,8 +179,7 @@ row is not a widget. A list's, a dropdown's, a menu's and a grid's is the row or
 `nil` where the click landed on empty space and would clear the selection. A text entry's is the line about
 to be submitted. `ev:value()` is on every control event and reads `nil` where the key carries nothing:
 `Pressed` is an activation, so there is nothing it is about to hold.
-
-[The one key that reports](#the-key-that-only-reports) is where *about to* stops applying: a slider and a
+[The one key that reports](#the-key-that-only-reports) is where *about to* stops applying — a slider and a
 scrollbar have already moved when they tell you, and `ev:value()` is where they moved to.
 
 ## Reading what a borrowed control holds
@@ -197,21 +188,12 @@ scrollbar have already moved when they tell you, and `ev:value()` is where they 
 [control you built](controls/README.md#setters) — a checkbox's boolean, a radio's row, a slider's and a
 scrollbar's number, a text field's string, a list's or dropdown's row. You point at a radio **button** and
 read the row its whole set holds, for the same reason its `Changed` carries one. A widget that holds nothing
-reads `nil` rather than raising, exactly like [`:text()`](widget.md#read):
+reads `nil` rather than raising, exactly like [`:text()`](widget.md#read).
 
-```lua
-local box = hafen.ui():find("window[title=Options]"):all("@CheckBox")[1]
-box:on("Changed", function(ev)
-  hafen.log():write(tostring(box:value()) .. " -> " .. tostring(ev:value()))
-end)
-```
-
-It is a read: unprotected, no layer, nothing to restore. It is also what makes everything on this page
-*checkable* — what a cancelled tick left the box at is a question with an answer.
-
-A row of one of the client's **own** lists is its own private thing rather than something you wrote, so it
-comes back as an opaque handle: you can hold it, compare it with `==` and tell one selection from the next,
-but there is nothing inside it to read. The rows you can read are the ones you gave a control yourself.
+It is a read: unprotected, no layer, nothing to restore — and it is what makes everything on this page
+*checkable*, since what a cancelled tick left the box at is a question with an answer. A row of one of the
+client's **own** lists comes back as an opaque handle: hold it, compare it with `==`, tell one selection from
+the next — but there is nothing inside it to read. The rows you can read are the ones you gave a control.
 
 ## Driving one (protected)
 
@@ -234,8 +216,8 @@ box:value(not box:value())             -- ticked, exactly as a click would have 
 
 It needs the `widget.value` [permission key](../../guides/permissions.md) declared in your manifest, and
 without it the call raises naming that key **before** it looks at the value you passed. It is the one
-protected verb on this page, and the line it falls on is the one stated at the top: what a widget **says**
-never leaves the client, and what a control **holds** does.
+protected verb on this page, and it falls on the line stated at the top: what a widget **says** never leaves
+the client, and what a control **holds** does.
 
 **It is an act, not a layer** — the opposite of `:text(s)` in every respect. There is no `:value(nil)`,
 nothing is recorded, and neither `:reload` nor disabling your addon puts a driven control back: the write
@@ -247,17 +229,16 @@ own write is a loop waiting to happen. Read the control back to see where it lan
 
 **What refuses**: a value of the wrong shape for the control, a row that is not in the radio's set — naming
 the rows that are — a row that is not the list's, and a widget that holds nothing at all, naming what does.
-One of the client's own progress bars refuses as well: what it draws is a value the client re-reads every
-frame, so a write there would be gone before it was seen.
+So does one of the client's own progress bars: what it draws is a value the client re-reads every frame, so
+a write there would be gone before it was seen.
 
 ## Running the action yourself
 
 `ev:resend()` runs the action the control already had — the client's own method, exactly as the gesture
-would have reached it. A button's is its click; a checkbox's is the flip, and a radio button's the pick that
-moves the whole set's selection. A list's is the selection change, run on the very list the click went
-through — so a dropdown you let through still closes its popup, and a menu still fires its own choice. A
-text entry's is the submission, run on the entry itself, so a chat line you let through leaves the client
-exactly as the player wrote it:
+would have reached it. A button's is its click; a checkbox's is the flip, and a radio button's the pick
+that moves the set's selection. A list's is the selection change, run on the very list the click went
+through, so a dropdown you let through still closes its popup and a menu still fires its own choice. A text
+entry's is the submission, run on the entry itself, so a chat line you let through goes as it was written:
 
 ```lua
 btn:on("Pressed", function(ev)
@@ -282,10 +263,10 @@ There is no `ev:send(t)` beside it — that verb exists on an
 rewrite. What is held back here is a **method**, so there is nothing to say with it, and the spelling
 refuses naming `resend`.
 
-A resent gesture does what the user's own would have done, the message the client sends the server
-included. It stays unprotected because it cannot invent one: it re-issues the gesture the user just made,
-and it only exists because they made it. That is the whole difference from [`w:value(v)`](#driving-one-protected),
-which acts from nothing and is keyed for it.
+A resent gesture does what the user's own would have done, the message the client sends the server included.
+It stays unprotected because it cannot invent one: it re-issues the gesture the user just made, and it only
+exists because they made it — the whole difference from [`w:value(v)`](#driving-one-protected), which acts
+from nothing and is keyed for it.
 
 ## A native control inside one of yours
 
@@ -293,11 +274,10 @@ A [control you built](controls/README.md) is often made of the client's own smal
 arrow is a checkbox the client builds inside it. Those read **borrowed** — `:info().owned` is `false` — and
 this page applies to them, in the middle of a control that is yours.
 
-The rule that keeps that from doubling up: **the addon that owns a control keeps the dispatch it already
-had and never also receives it here.** A `Changed` on a dropdown you built is still the row the user picked,
-fired the one way it always was; the arrow inside it is a separate widget with a key of its own, and you
-reach it by pointing at it. Its popup list, which is not a widget with a key of its own, is covered by
-[the address rule](#which-widget-a-lists-key-belongs-to) above rather than by this one.
+The rule that keeps that from doubling up: **the addon that owns a control keeps the dispatch it already had
+and never also receives it here.** A `Changed` on a dropdown you built is still the row the user picked; the
+arrow inside it is a separate widget with a key of its own, which you reach by pointing at it. Its popup
+list has no key of its own and is covered by [the address rule](#which-widget-a-lists-key-belongs-to) above.
 
 ## Four writes to one window
 
@@ -321,6 +301,45 @@ end)
 
 That is the whole argument for editing over [replacing](replace.md): the window is still the client's, it
 still fills itself, and everything above comes off again when your addon does.
+
+## Taking the whole edit back
+
+`w:revert()` gives back in one call everything **your addon** holds on a widget and on everything inside it:
+the text, the place, the size, the hide, your own [`w:rule()`](style/README.md#restyle-one-widget) level,
+every subscription you hold anywhere in that subtree, and every control you adopted into it, destroyed.
+Unprotected, like every undo of an unprotected write, and it chains.
+
+```lua
+local keys = hafen.client():options():keybindings()
+local armed = false
+
+keys:register("edit", function()               -- the user assigns the key in Options > Keybindings
+  local win = hafen.ui():find("window[title=Options]")
+  if not win then return end
+  if armed then win:revert() else win:title("Options, edited") end
+  armed = not armed
+end)
+```
+
+**The scope is that widget and everything under it, as the tree stands when you call it**, because an edit is
+never confined to one widget: [the example above](#four-writes-to-one-window) writes on the window, adopts a
+control into it and takes over its close button, which is neither of the other two. It is per widget, so an
+addon that edited two windows gives one of them back and keeps the other — and on a widget you hold nothing
+on it does nothing and raises nothing, which is what lets a toggle like the one above keep no record of what
+it wrote.
+
+**A control you adopted is destroyed rather than dropped**, so its `Destroy` fires exactly as it would have
+when the window closed; a widget you had hidden comes back under
+[the hide's own rule](native.md#hiding-a-native-widget-carries-a-restore) — as the user was seeing it.
+
+**Two things it leaves standing**, each having an undo of its own. `w:value(v)` is an act the server has
+already seen, so putting the control back is another interaction rather than an undo. And
+[replacing](replace.md) a window is the alternative to editing rather than a part of it, and
+`w:replace(nil)` ends it — a stand-in window of yours is left alone even where a revert reaches it.
+
+**It is not a small `:reload`.** Disabling your addon or reloading it gives all of this back too, because
+every undo on this page runs at teardown; `revert()` is how an addon gives one window back **while it goes on
+running**.
 
 ## See also
 

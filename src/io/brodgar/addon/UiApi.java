@@ -1688,6 +1688,104 @@ final class UiApi {
         return (m.id >= 0) ? (u.getwidget(m.id) == m.wdg) : m.wdg.hasparent(u.root);
     }
 
+    // ---- widget:revert(): one undo for a whole edit (061.9) ----------------------------------------
+
+    /**
+     * <b>Give back everything THIS addon holds on {@code w} and the widgets under it</b>
+     * ({@code widget:revert()}, 061.9) — the text level, the position and size levels, the hide record, this
+     * addon's {@code widget:rule()} level, every subscription it holds anywhere in that subtree, and every
+     * widget it adopted into it, destroyed. Every one of those already has an undo of its own; what this
+     * verb adds is undoing them <b>together</b>, at a moment the addon chooses rather than at a
+     * {@code :reload}.
+     *
+     * <p><b>The subtree is the scope, as the tree stands when it is called</b>, because an edit is never
+     * confined to one widget: a caption goes on the window, an adopted control hangs under it and the
+     * taken-over close button is neither. Per widget, so an addon that edited two windows can give back one.
+     *
+     * <p><b>Two things it deliberately does not do.</b> A {@code widget:value(v)} is an <i>act</i> — it went
+     * to the server as a real interaction, and putting the control back is another interaction rather than an
+     * undo — and a {@code widget:replace(view)} is the <i>alternative</i> to editing rather than a kind of it,
+     * so a hide record carrying a view is left standing for {@code widget:replace(nil)} to end.
+     *
+     * <p><b>An adopted widget keeps the death it would have had</b>: it is destroyed through the same
+     * {@link Owned#kill()} {@code widget:destroy()} runs, so its own {@code widget:on("Destroy", fn)} fires
+     * from the removal seam exactly as it would have when the window closed. Which is why this addon's
+     * subscriptions are dropped on every OTHER widget of the subtree and not on that one — dropping them
+     * there would silence the one notification a revert owes it.
+     */
+    static void revert(Addon owner, Widget w) {
+        UI u = ui;
+        if((u == null) || (w == null))
+            return;
+        List<Owned> adopted = new ArrayList<Owned>();
+        synchronized(u) {
+            List<Widget> sub = new ArrayList<Widget>();
+            collectSubtree(w, sub);           // a snapshot: what follows destroys widgets and writes geometry
+            for(int i = 0; i < sub.size(); i++) {
+                Widget x = sub.get(i);
+                Owned c = (x == w) ? null : LuaWidget.ownedContent(owner, x);
+                if(c != null) {
+                    if(!standingIn(owner, c))
+                        adopted.add(c);       // ours, and going away whole: its Destroy is what says so
+                    continue;
+                }
+                revertLevels(owner, x);
+                LuaWidget.Hidden h = LuaWidget.findHidden(owner, x);
+                if((h != null) && (h.view == null))
+                    releaseHidden(h);         // the same rule teardown applies: as the user was SEEING it
+                if(owner.skinNodes)
+                    Sheet.setWidgetProps(owner, x, null);
+                owner.dropWidgetSubs(x);
+            }
+            for(int i = 0; i < adopted.size(); i++) {
+                Owned c = adopted.get(i);
+                c.kill();
+                dropPending(c);               // adopted and reverted in one statement: never placed at all
+                owner.widgets.remove(c);
+            }
+        }
+    }
+
+    /**
+     * Is {@code c} one of this addon's <b>stand-in views</b> right now? Then it belongs to a substitution and
+     * not to an edit, and a revert that reached it leaves it alone: destroying the view is half of ending a
+     * {@code widget:replace(view)} — the worse half, since the window it stands in for would be left hidden
+     * with a dead view and its toggle swallowed. {@code widget:replace(nil)} is what ends one.
+     */
+    private static boolean standingIn(Addon owner, Owned c) {
+        List<LuaWidget.Hidden> hs = owner.hiddenNative;
+        for(int i = 0, n = hs.size(); i < n; i++) {
+            if(hs.get(i).view == c)
+                return true;
+        }
+        return false;
+    }
+
+    /** {@code w} and everything under it, in tree order. Caller holds the {@code ui} monitor. */
+    private static void collectSubtree(Widget w, List<Widget> out) {
+        out.add(w);
+        for(Widget c = w.child; c != null; c = c.next)
+            collectSubtree(c, out);
+    }
+
+    /**
+     * Drop this addon's text, position and size levels on one widget and let the cascade say what happens
+     * next — {@code widget:text(nil)}, {@code :position(nil)} and {@code :size(nil)} in one pass, so a sheet
+     * rule that still names the widget takes it back and only a half nothing names reaches the stock value.
+     * A widget this addon never touched is a silent no-op. Caller holds the {@code ui} monitor.
+     */
+    private static void revertLevels(Addon owner, Widget w) {
+        LuaWidget.Moved m = LuaWidget.findMoved(owner, w);
+        if(m == null)
+            return;
+        m.wantText = null;
+        m.wantPos = null;
+        m.wantSize = null;
+        Layout.apply(w);                      // the fold, three levels shorter
+        if(m.idle() && owner.movedNative.remove(m))
+            LuaWidget.recountMoved();
+    }
+
     // -------------------------------------------------- generic widget-tree introspection (hafen.ui, W1, spec 20)
 
     /**

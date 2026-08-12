@@ -608,6 +608,34 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // revert() — 061.9: GIVE BACK EVERYTHING THIS ADDON HOLDS ON THIS WIDGET AND WHAT IS INSIDE IT, in one
+        // call: the text level, the position and size levels, the hide record, this addon's w:rule() level,
+        // every subscription it holds anywhere in that subtree, and every control it adopted into it,
+        // destroyed. Each of those already has an undo of its own (:text(nil), :size(nil), sub:off(),
+        // :destroy()) and teardown runs all of them on :reload and disable; what none of them does is undo a
+        // WHOLE EDIT at a moment the addon chooses, which is what an addon that arms its edits by hotkey needs.
+        //   THE SUBTREE IS THE SCOPE, as the tree stands right now, and that is what makes the scope
+        // answerable at all: an edit is never confined to one widget — the worked example writes a caption on
+        // a window, adopts a button into it and takes over the CLOSE button, which is neither of those two.
+        // Being per-widget it also lets an addon that edited two windows give back one of them.
+        //   IT IS A VERB, NOT A HANDLE. An object whose only method is revert() is an object standing in for a
+        // verb, and it does NOT undo widget:value(v) (an act has nothing to give back) nor end a
+        // widget:replace(view) (that is the alternative to editing, and widget:replace(nil) ends it). On a
+        // widget this addon holds nothing on it is a no-op, and like every write here it chains.
+        m.set("revert", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:revert() → narg 1
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "revert"));
+                if(Args.passed(a, 2))
+                    throw new LuaError("widget:revert() gives back everything YOUR addon holds on this widget"
+                        + " and what is inside it, and takes no argument — there is one edit to undo, whatever"
+                        + " it was made of. widget:value(v) is an act and is not undone by it, and a"
+                        + " substitution is ended by widget:replace(nil).");
+                if(w != null)                             // a stale widget: the 029.2 chaining no-op
+                    UiApi.revert(owner, w);
+                return self;
+            }
+        });
         // destroy() — remove a widget this addon created (its chrome and everything in it) and drop it from the
         // owned registry. OWNED-only: a native widget is the client's, and killing it is not the addon's to do.
         m.set("destroy", new OneArgFunction() {
