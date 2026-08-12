@@ -1,0 +1,9 @@
+{
+  "name": "059.5 — the slot stays yours across a relog",
+  "id": "059-menugrid-entries.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 059.5: an action-bar hold is remembered per character, re-applied by :add alone, and forgotten only when it was ended by hand.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

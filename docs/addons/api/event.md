@@ -53,9 +53,10 @@ protocol the server can introduce, not a catalogue the client owns.
 | `Update` | `dt` (number) | every frame; `dt` is seconds since the last frame |
 | `Disable` | — | when the addon is disabled or reloaded, or the session ends |
 
-`EnterWorld` fires once the HUD exists, but much character-sheet data streams in for a few seconds
-afterwards — see [missing data returns nil](conventions.md#missing-data-returns-nil). Keep `Update`
-handlers cheap: they run on the UI thread on every frame.
+`EnterWorld` fires once the HUD exists — the [action menu](menugrid.md) included, so the entries your
+addon adds go in from there — but much character-sheet data streams in for a few seconds afterwards, see
+[missing data returns nil](conventions.md#missing-data-returns-nil). Keep `Update` handlers cheap: they
+run on the UI thread on every frame.
 
 ## World
 

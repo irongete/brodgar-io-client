@@ -64,6 +64,16 @@
   messages (`setbelt`: clear, res; `setbelt2`: clear, `"p"`, `"r"`, `"d"`), and **two of them defer** the write
   onto a `glob.loader.defer` task — `setbelt`-with-res and `setbelt2 "r"` — so those land *after* the message
   has been dispatched, on a Loader thread. `uimsg` itself runs on the message thread, not the UI thread.
+- **A deferred belt write can land arbitrarily late, and it overwrites blind.** The gap between the message
+  and its `belt[slot] = …` is a resource load, so at **login** the whole burst is dispatched around the time
+  `GameUI` is built while the resource-backed slots fill in over the following moments. Anything written into
+  `belt[n]` from outside in that gap is silently replaced by a task that was queued before it existed — the
+  lambda captures only `slot` and `rdt` and re-reads nothing. A writer that means to keep the slot has to
+  re-assert it after the write lands, and the deferred lambda is the only place that instant is observable.
+- **`GameUI.menu` is not built by `GameUI`.** It is assigned in `GameUI.addchild` when the server places a
+  child with `place == "menu"`, so it is `null` for some ticks after `GameUI` itself is in the widget tree —
+  the same is true of every other `place`-named panel. Anything that needs the grid has to wait for the
+  field, not for the HUD: the two are different instants, and nothing in `haven` announces the second.
 - **`PagBeltSlot.use` goes through `MenuGrid.use(btn, iact, false)`, not `PagButton.use`** — the *widget's*
   click handler. For an entry with children that flips the grid's visible page instead of acting, which is how
   a category on the bar behaves; for a leaf it clears `anew`/`tnew` and then calls `PagButton.use`.

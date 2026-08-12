@@ -193,6 +193,33 @@ final class StoreApi {
     }
 
     /**
+     * <b>The layer's own per-character files</b> — state the client keeps for a character that belongs to no
+     * addon, such as the action-bar slots an addon's entry is {@link BeltHold held} in. They sit in a
+     * {@code client/} folder <i>inside</i> the character's scope directory, so no addon's {@code <id>.json} can
+     * collide with one whatever the addon is called: a manifest {@code id} is a folder name beside them, and a
+     * folder never collides with a file one level down.
+     *
+     * <p>{@code null} until a character is known ({@link #restorePerChar}), because "per character" has no
+     * meaning before that — the caller keeps its own state and writes it once the scope exists.
+     */
+    static String readClientFile(String name) {
+        if(charScope == null)
+            return null;
+        return readFile(new File(clientDir(), name));
+    }
+
+    /** Write one of the layer's own per-character files. {@code false} when no character is known yet. */
+    static boolean writeClientFile(String name, String text) {
+        if(charScope == null)
+            return false;
+        return writeFile(new File(clientDir(), name), text);
+    }
+
+    private static File clientDir() {
+        return new File(new File(saveDir(), charScope), "client");
+    }
+
+    /**
      * Load one scope's saved variables from disk into the addon's {@code hafen.store} tables (filling
      * them in place, preserving table identity). Missing/malformed files leave the tables as-is. After
      * loading, the write-skip cache is primed with the canonical serialization of what we now hold, so

@@ -59,7 +59,7 @@
       `[manual]`: drag the button from the menu onto the bar and press its key — expect the log line; then
       right-click the slot to bring back what was there.
 
-- [ ] **059.5 — the slot stays yours across a relog.** Persists placements per character in a
+- [x] **059.5 — the slot stays yours across a relog.** Persists placements per character in a
       layer-owned file beside `savedata/<genus>_<char>/`, keyed by the entry's id, written on change and
       re-applied whenever an entry with that id is added — so at login the addon's own `EnterWorld` add
       restores it, after the server's belt burst. A hold released by hand is **forgotten**; one whose

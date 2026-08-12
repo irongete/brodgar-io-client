@@ -288,6 +288,10 @@ public final class AddonRegistry {
         boolean changed = enabled ? d.remove(id) : d.add(id);
         if(changed) {
             Utils.setprefsl(PREF_DISABLED, d);
+            if(!enabled)
+                BeltHold.addonDisabled(id);   // 059.5: and its action-bar slots are the player's again, for
+                                              //   good — the reload below hands each one back, and no restart
+                                              //   brings the button to it
             reloadNeeded = true;
         }
     }

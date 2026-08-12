@@ -125,6 +125,9 @@ public final class AddonManager {
     private static AddonRoot addonRoot;                 // the attached tick widget (per session)
     private static OCache.ChangeCallback ocCb;          // strong ref: OCache keeps callbacks weakly
     private static volatile boolean enterWorldPending;  // set off-thread (MapView attach), read on tick
+    private static double hudUpSince = -1;              // when GameUI entered the tree; -1 = not yet (UI thread)
+    /** How long EnterWorld waits for the server to place the action menu before firing without it. */
+    private static final double MENU_WAIT = 5.0;
     static volatile boolean reloadPending;      // set by :reload (any thread), applied on the UI tick
     static double clock;                        // seconds accumulated from tick dt (UI thread)
     private static final Queue<GobEvent> gobEvents = new ConcurrentLinkedQueue<GobEvent>();
@@ -316,6 +319,7 @@ public final class AddonManager {
 
         clock = 0;
         enterWorldPending = false;
+        hudUpSince = -1;              // 059.5: and the menu-wait clock with it — the next HUD is another session's
         gobEvents.clear();
         overlayEvents.clear();        // 038.3: and the overlay queue with it — the gobs it named are the old session's
         overlaySubs = false;          //   (loadAll below re-subscribes whoever listens, which re-arms the seams)
@@ -324,6 +328,8 @@ public final class AddonManager {
         removedWidgets.clear();       // 042.1: and the widget-removal queue — the old session's widgets are gone
         resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
         beltSetQueue.clear();         // 042.6: and any deferred belt-write notify queued from the old session
+        BeltHold.flush();             // 059.5: persist the placements while the OLD charScope is still set (as
+                                      //   the teardown above flushes saved vars) — they name the bar just left
         BeltHold.resetSession();      // 059.4: ...and every bar slot an addon was holding — a slot index names
                                       //   another character's bar now, and the addons above were just torn down
         resizedWidgets.clear();       // 042.10: and any resize notify queued from the old session
@@ -553,12 +559,30 @@ public final class AddonManager {
             //    fires the tick after the HUD mounts, so ui.root windows land on top. enterWorldPending is
             //    reset per session in init(), so it can't stick. (GameUI-backed reads still stream in a beat
             //    later — read them on a timer, not synchronously here.)
+            //    059.5: ...and the ACTION MENU with it. GameUI.menu is not built by GameUI — it is a child the
+            //    server places ("menu"), so it arrives some ticks AFTER the HUD is in the tree. Firing between
+            //    the two hands every addon an EnterWorld in which hafen.menugrid():add(id) refuses with "the
+            //    action menu is not up yet", which is the one call an addon's own entries — and the action-bar
+            //    slots held for them — come back through at login. Waiting for it is what makes "add your
+            //    entries from EnterWorld or later" true rather than a race an addon has to code around.
+            //    BOUNDED, because nothing here can prove the server always sends one: after MENU_WAIT seconds
+            //    EnterWorld fires anyway, with a log line saying the menu never came, so a session that has no
+            //    action menu at all still gets everything else.
             if(enterWorldPending) {
                 GameUI hud = gui();
                 if((hud != null) && (hud.parent != null)) {
-                    enterWorldPending = false;
-                    StoreApi.restorePerChar();     // now <genus>_<char> is known → load per-char saved vars BEFORE
-                    fire("EnterWorld");    // the handler runs, so it can read hafen.store (spec 1e)
+                    if(hudUpSince < 0)
+                        hudUpSince = clock;
+                    boolean late = (clock - hudUpSince) >= MENU_WAIT;
+                    if((hud.menu != null) || late) {
+                        if(late && (hud.menu == null))
+                            log("EnterWorld: no action menu after " + MENU_WAIT + "s — firing without it");
+                        enterWorldPending = false;
+                        StoreApi.restorePerChar(); // now <genus>_<char> is known → load per-char saved vars BEFORE
+                        BeltHold.restore();        // 059.5: ...and this character's action-bar placements, so the
+                                                   //   first :add an addon makes puts its button straight back
+                        fire("EnterWorld");    // the handler runs, so it can read hafen.store (spec 1e)
+                    }
                 }
             }
 
@@ -580,6 +604,8 @@ public final class AddonManager {
             //    an unclean exit; a relog also flushes via teardown. flush() skips unchanged files, so
             //    this is cheap when nothing changed. On the UI thread → no races reading the Lua tables.
             StoreApi.autosave(clock);
+            BeltHold.flush();       // 059.5: and the action-bar placements, if one changed since the last tick
+                                    //   (a no-op otherwise — the message thread only ever marks them dirty)
 
             // 6. Soft per-tick CPU budget (D-018 layer 2): auto-disable an addon that has been over budget
             //    for too many consecutive ticks — a sustained runaway the hard per-call cap doesn't catch.
@@ -1467,6 +1493,9 @@ public final class AddonManager {
             if(slot == null)
                 break;
             try {
+                BeltHold.writeLanded(slot);   // 059.5: a deferred server write lands here, one tick after the
+                                              //   message — re-assert a hold taken in between, BEFORE the
+                                              //   notify, so the slot the handler reads is the slot on screen
                 CharApi.dispatchBeltSet(slot);
             } catch(RuntimeException e) {
                 log("belt-set dispatch error: " + e);

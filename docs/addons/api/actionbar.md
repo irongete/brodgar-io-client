@@ -133,13 +133,14 @@ already named by `slot:res()`, and [`hafen.menugrid():get(name)`](menugrid.md) i
 
 ### When a hold ends
 
-| What happened | What the slot goes back to |
-|---|---|
-| `slot:pagina(nil)` | the server's own content |
-| a **right-click** on the slot | the server's own content — the right-click is not sent, so nothing is cleared |
-| `hafen.menugrid():remove(pag)` | the server's own content |
-| your addon reloads or is disabled, or you log out | the server's own content |
-| the **server** writes that slot | what the server just wrote — that is the slot's content now |
+| What happened | What the slot goes back to | The slot is |
+|---|---|---|
+| `slot:pagina(nil)` | the server's own content | forgotten |
+| a **right-click** on the slot | the server's own content — the right-click is not sent, so nothing is cleared | forgotten |
+| `hafen.menugrid():remove(pag)` | the server's own content | remembered |
+| your addon reloads, or you log out | the server's own content | remembered |
+| your addon is **disabled** | the server's own content | forgotten |
+| the **server** writes that slot | what the server just wrote — that is the slot's content now | forgotten |
 
 Every row but the last puts back exactly what the server has in the slot, unchanged and never having left
 it. The last row is the one that cannot: the message being handled *is* the server assigning or clearing
@@ -150,6 +151,40 @@ that row — your own write ends your own hold, a beat later, when the server ec
 > so does every other addon. Holding a slot another addon holds is allowed and the last write wins — what is
 > carried through the whole pile is the *server's* own content, so one release puts the game's action back
 > however many addons took that slot in turn.
+
+### A hold is remembered
+
+**The slot stays yours across a relog.** The client keeps, per character, which entry belongs in which slot,
+and puts it back the moment that entry exists again — so a button the player dragged onto the bar last night
+is on the bar tonight, and neither you nor they have to place it a second time.
+
+The call that re-applies it is [`hafen.menugrid():add(id)`](menugrid.md#hafenmenugridaddid), the one your
+addon already makes:
+
+```lua
+hafen.event():on("EnterWorld", function()
+  local dig = hafen.menugrid():add("dig"):name("Auto-dig"):icon(hafen.asset():get("dig.png"))
+  dig:on("use", function() hafen.log():write("dug") end)
+end)                                         -- if it was on the bar, it is on the bar again
+```
+
+Nothing about that is timed, and you wait for nothing: the entry lands in its slot inside the `add`, so the
+line after it already reads `slot:pagina()`. Your addon stores nothing — this is not
+[saved variables](store.md), it is the client's own record of a slot, and a `slot:pagina(pag)` call is
+remembered exactly as a drag is.
+
+**The two ways a hold ends are remembered differently**, as the table above says. Ending it by hand —
+`slot:pagina(nil)`, a right-click, the server taking the slot — says the entry no longer belongs there, and
+the record goes with it. The entry merely *going away* — `:remove`, a reload, a logout — says nothing about
+the slot, so the slot waits. A `:reload` therefore puts every one of your buttons straight back, while a
+player who right-clicked one off the bar keeps it off.
+
+**Disabling an addon takes its buttons off the bar for good.** The slots go back to the server's own content
+as the addon is torn down, and no later restart brings them back: an addon the player switched off leaves
+nothing of itself on the bar, and enabling it again starts with an empty bar and the entries you add.
+
+The record is the character's rather than the addon's: the same entry can stand in a different slot on
+another character, and a slot you hold on one is not held on the next.
 
 | What you did | What you get |
 |---|---|

@@ -373,6 +373,8 @@ public final class AddonPagina extends MenuGrid.Pagina {
         }
         owner.menuEntries.add(p);
         p.relayout();
+        BeltHold.entryAdded(p);     // 059.5: and back onto every bar slot this entry is placed in — at login
+                                    //   this call IS the restore, run from the addon's own EnterWorld
         return LuaPagina.of(owner, id);
     }
 
