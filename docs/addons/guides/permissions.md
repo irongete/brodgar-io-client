@@ -34,7 +34,7 @@ user, word for word.
 | `kin.group` | [`kin:group`](../api/kin.md#write-protected) | change someone's kin group |
 | `kin.endKin` | [`kin:endKin`](../api/kin.md#write-protected) | end kinship with someone |
 | `kin.forget` | [`kin:forget`](../api/kin.md#write-protected) | forget someone from your kin list |
-| `speed.current` | [`hafen.speed():current`](../api/speed.md#write-protected) | change your movement speed |
+| `speed.set` | [`hafen.speed():set`](../api/speed.md#write-protected) | change your movement speed |
 | `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected) | the escape hatch: any message the client itself could send |
 
 That is the whole set. Nothing else in the API is protected, and **no key grants the tier as a whole**: an

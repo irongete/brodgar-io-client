@@ -177,6 +177,16 @@ live [`Kin` objects](kin.md), not this table.
 | `color` | [Color](#color) | the group's colour; **absent for a group of 8 or higher** — the client draws eight |
 | `online` | bool | whether the kin is online |
 
+## Speed
+
+From [`sp:info()`](speed.md#the-speed-object), the snapshot escape hatch for one movement speed.
+`hafen.speed()` hands out live [`Speed` objects](speed.md#the-speed-object), not this table.
+
+`{ index = number, name = string, available = bool, current = bool }` — `index` is the wire number `0..3`
+and the speed's identity, `available` says whether it can be picked right now, and `current` whether it is
+the one your character is on. The live reads are `sp:index()`, `:name()` and `:available()`; whether you are
+on it is `hafen.speed():current() == sp`, since the objects are interned.
+
 ## Quest and Condition
 
 What `q:info()` and `c:info()` hand back on [`hafen.quest`](quest.md)'s objects; the reads themselves

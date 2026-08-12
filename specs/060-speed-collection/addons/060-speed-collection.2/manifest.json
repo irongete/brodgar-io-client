@@ -1,0 +1,9 @@
+{
+  "name": "060.2 — the speed pages say what the API is",
+  "id": "060-speed-collection.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 060.2: every spelling the rewritten hafen.speed page shows is walked against the client, and -- declaring no permission at all -- the write refuses naming the key speed.set and no retired one.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

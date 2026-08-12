@@ -1,8 +1,9 @@
 # Cross-cutting client services
 
 > Console, keybindings, resources, prefs + the Options window (`GSettings`), audio, chat, combat,
-> buffs, kin, vitals, movement speed, FEP, study, skills, quests, wounds, crafting, the action menu. Line numbers
-> | Service | Where |
+> buffs, kin, vitals, movement speed, FEP, study, skills, quests, wounds, crafting, the action menu.
+
+| Service | Where |
 |---|---|
 | Console commands (register only; no unregister) | `Console.setscmd`, `Directory`; input via `ConsoleHost`. **The `:` that opens the line is `RootWidget.globtype`** (`ev.c == ':'` → `entercmd()`, above the `gk` fallthrough), and `RootWidget.draw`  paints `cmdline` bottom-left — so the command line is a **root-level** facility, live on the login screen as well as in-world |
 | Keybinding registry (remappable, persisted) | `KeyBinding.get` (id → binding, process-global), `set`, `key()`, `all()` (fork addition), `Bindable`; stored as `keybind/<id>` |

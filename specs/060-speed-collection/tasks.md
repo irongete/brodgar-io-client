@@ -26,7 +26,7 @@
       `[manual]`: no speed was locked this run — re-run while sprint is locked and expect: refused,
       listing the selectable speeds.
 
-- [ ] **060.2 — the pages say what the API now is.** Rewrites `docs/addons/api/speed.md` whole around
+- [x] **060.2 — the pages say what the API now is.** Rewrites `docs/addons/api/speed.md` whole around
       the collection: the six verbs, the Speed object, the one rule that reconciles them (*the
       collection enumerates what you can pick; `:get` addresses a speed by its key*), the write's
       `speed.set` key and every error it raises, and the note that `Speedget.max` can leave nothing
