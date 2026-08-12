@@ -285,20 +285,33 @@ public final class LuaPagina {
         });
         // parent() — the CATEGORY this entry sits under, as a Pagina object; nil for a root entry (and while
         // the parent's own resource is still Loading).
-        m.set("parent", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                MenuGrid.Pagina p = live(handle(self, "parent").res);
-                if(p == null)
-                    return LuaValue.NIL;
-                try {
-                    MenuGrid.Pagina par = p.parent();
-                    if(par == null)
+        // parent(pagOrNil) — 059.2: hang one of THIS addon's entries under a category. The two kinds share one
+        // tree, so the parent is any entry in the menu — one of your own, or one of the client's own — and a
+        // category is simply an entry that has children. nil is DOCUMENTED here (the root screen), so it is the
+        // write and not the read: Args.passed, never Args.written.
+        m.set("parent", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                String res = handle(self, "parent").res;
+                if(!Args.passed(a, 2)) {
+                    MenuGrid.Pagina p = live(res);
+                    if(p == null)
                         return LuaValue.NIL;
-                    String rn = resname(par);
-                    return (rn == null) ? LuaValue.NIL : of(owner, rn);
-                } catch(RuntimeException e) {   // Loading etc.
-                    return LuaValue.NIL;
+                    try {
+                        MenuGrid.Pagina par = p.parent();
+                        if(par == null)
+                            return LuaValue.NIL;
+                        String rn = resname(par);
+                        return (rn == null) ? LuaValue.NIL : of(owner, rn);
+                    } catch(RuntimeException e) {   // Loading etc.
+                        return LuaValue.NIL;
+                    }
                 }
+                LuaValue v = a.arg(2);
+                MenuGrid.Pagina par = v.isnil() ? null : category(v);
+                AddonPagina p = AddonPagina.owned(owner, res, "parent(pagOrNil)");
+                p.parent(par);
+                return self;
             }
         });
         // children() — the entries this one is the parent of, i.e. exactly the buttons the grid shows after
@@ -382,6 +395,30 @@ public final class LuaPagina {
             + " (hafen.asset():get(\"dig.png\")), got " + v.typename());
     }
 
+    /**
+     * {@code pag:parent(pagOrNil)}'s argument &rarr; the <b>live</b> category. It is a Pagina object and not a
+     * key: a parent is a place in the menu rather than a name, so it is addressed the way every reference-based
+     * verb in this API addresses one, and a string is refused pointing at {@code :get(key)} — which is also the
+     * only answer to "it is not in the menu", the case a key could never tell apart from a typo.
+     */
+    private static MenuGrid.Pagina category(LuaValue v) {
+        LuaPagina h = resolve(v);
+        if(h == null) {
+            if(v.isstring() && !v.isnumber())
+                throw new LuaError("pagina:parent(pagOrNil): \"" + v.tojstring() + "\" is a key, and a parent is"
+                    + " the Pagina object — hafen.menugrid():get(\"" + v.tojstring() + "\"), or nil for the root"
+                    + " screen");
+            throw new LuaError("pagina:parent(pagOrNil): the parent is a Pagina object (hafen.menugrid():get(key),"
+                + " hafen.menugrid():add(id)) or nil for the root screen, got " + v.typename());
+        }
+        MenuGrid.Pagina p = live(h.res);
+        if(p == null)
+            throw new LuaError("pagina:parent(pagOrNil): \"" + h.res + "\" is not in the menu — an entry can"
+                + " only hang under one that is there (check :exists()), since a screen nothing reaches draws"
+                + " nothing");
+        return p;
+    }
+
     /** The {@code :type()} of an asset handle that is not an image ({@code null} when it is not one at all). */
     private static String assetType(LuaValue v) {
         if(!v.istable())
@@ -436,6 +473,12 @@ public final class LuaPagina {
         } catch(RuntimeException e) {   // Loading etc.
             return null;
         }
+    }
+
+    /** One entry as an error message names it: its identity in quotes, or a phrase when it has no name yet. */
+    static String label(MenuGrid.Pagina p) {
+        String rn = resname(p);
+        return (rn == null) ? "that entry" : ("\"" + rn + "\"");
     }
 
     /** A pagina's drawn button (the name/act/hotkey carrier), or {@code null} while it is {@code Loading}. */

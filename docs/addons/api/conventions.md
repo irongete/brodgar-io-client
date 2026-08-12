@@ -75,9 +75,10 @@ nothing else does; every shape it returns is in [data types](types.md).
 ### nil is an error unless it means something
 
 An explicit `nil` argument raises. Arity is the verb, so a value you meant to write but that arrived
-as `nil` would otherwise turn the write into a read, silently. Two meanings are documented, each on
-the page that carries it: **undo your layer** (`w:position(nil)`, `w:size(nil)`, `w:replace(nil)`) and
-**none** (a `tint(nil)`). Everywhere else it is an accident, and there is nothing to undo.
+as `nil` would otherwise turn the write into a read, silently. The meanings it does carry are
+documented on the page that carries each: **undo your layer** (`w:position(nil)`, `w:size(nil)`,
+`w:replace(nil)`), **none** (a `tint(nil)`) and **the root screen** (`pag:parent(nil)`). Everywhere
+else it is an accident, and there is nothing to undo.
 
 ```lua
 w:position(x, y)          -- with an x you forgot to compute, this raises

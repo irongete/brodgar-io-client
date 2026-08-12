@@ -116,6 +116,7 @@ dig:name("Auto-dig"):icon(hafen.asset():get("dig.png"))  -- writes chain, like e
 | `hafen.menugrid():remove(idOrPagina)` | take one of your own back out; returns the collection, so removals chain |
 | `pag:name(text)` | the display name the grid paints and its tooltip shows |
 | `pag:icon(image)` | the picture the button draws: an image [asset](asset.md) handle |
+| `pag:parent(pagOrNil)` | the category it hangs under; `nil` is the root screen |
 
 Nothing here reaches the server — a custom entry is drawn by this client — so it needs **no permission at
 all**, like a [HUD overlay](ui/custom.md#overlays). A custom entry also runs no action of its own: clicking
@@ -165,6 +166,40 @@ aspect ratio; a smaller one is drawn at its own size. Either way it is centred, 
 
 Every write here refuses on an entry your addon did not add — one of the client's own, or another
 addon's — naming which it is, so a stashed handle can never write over someone else's button.
+
+### A category is an entry that has children
+
+`pag:parent(cat)` hangs one of your entries under another entry; `pag:parent(nil)` puts it back on the root
+screen. There is no separate call that declares a category, because a category **is** an entry with something
+under it: clicking it opens its children, and Back returns to where you came from.
+
+```lua
+local mg    = hafen.menugrid()
+local tools = mg:add("tools"):name("Tools"):icon(hafen.asset():get("tools.png"))
+mg:add("tools/dig"):name("Auto-dig"):parent(tools)       -- under your own category
+mg:add("harvest"):parent(mg:get("paginae/act/craft"))    -- under one of the client's own
+```
+
+**Your entries and the client's own are one tree.** The parent is any `Pagina` that is in the menu, so an
+entry of yours can sit under one of the game's categories, beside the actions the server granted, and a
+category of yours can hold entries of your own. Reading it back is the same verb with no argument, and
+`cat:children()` lists what hangs under it.
+
+Taking a category out with `:remove` puts its children back on the root screen — a category that leaves
+takes nothing with it.
+
+| What you did | What you get |
+|---|---|
+| `pag:parent(pag)` | that entry *cannot hang under itself* |
+| a cycle in two steps or more | the entry it would hang under *already hangs under this one* |
+| `pag:parent(7)` | the parent is a **`Pagina` object**, or `nil` |
+| `pag:parent("Tools")` | that *is a key*: pass the object `:get(key)` hands you |
+| a parent that is no longer in the menu | that entry *is not in the menu* — check `:exists()` |
+
+A cycle is refused rather than written, so the tree after the error is the tree before it. `nil` here
+**means the root screen** — one of the few places it
+[carries a meaning](conventions.md#nil-is-an-error-unless-it-means-something), and everywhere else on this
+page an explicit `nil` raises.
 
 ## Use (protected)
 

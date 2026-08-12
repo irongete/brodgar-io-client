@@ -14,6 +14,8 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * <b>An entry an addon added to the action menu</b> ({@code hafen.menugrid():add(id)}, spec
@@ -72,6 +74,8 @@ public final class AddonPagina extends MenuGrid.Pagina {
     private String tooltip;
     /** The addon's own PNG, or {@code null} for an entry that draws an empty cell. */
     private LuaImage icon;
+    /** The category this entry hangs under, or {@code null} for the root screen. Any live entry may be one. */
+    private MenuGrid.Pagina parent;
 
     private AddonPagButton button;
 
@@ -93,9 +97,14 @@ public final class AddonPagina extends MenuGrid.Pagina {
         return button;
     }
 
-    /** The category this entry hangs under, or {@code null} for the root screen (059.2 writes it). */
+    /**
+     * The category this entry hangs under, or {@code null} for the root screen. <b>Read live, never cached</b>:
+     * the stock {@code PagButton.parent()} memoises the parent it derived from {@code act().parent}, and a
+     * parent that an addon can rewrite cannot go through a memo — so both this and {@link AddonPagButton#parent()}
+     * answer from the field on every call, which is what {@code MenuGrid.cons} then walks.
+     */
     public MenuGrid.Pagina parent() {
-        return null;
+        return parent;
     }
 
     String name() {
@@ -117,6 +126,40 @@ public final class AddonPagina extends MenuGrid.Pagina {
 
     void icon(LuaImage img) {
         this.icon = img;
+        relayout();
+    }
+
+    /**
+     * Hang this entry under {@code par} — one of the addon's own, one of the client's own, or {@code null} for
+     * the root screen. <b>The two kinds share one tree</b>: a parent is any live entry, since {@code cons}
+     * reaches a category through {@code parent()} alone and does not care which kind answered.
+     *
+     * <p><b>A cycle is refused before it is written.</b> The walk up from {@code par} is the whole test: an
+     * entry that is its own ancestor draws in no screen at all (the closure reaches it, no screen's {@code cons}
+     * ever emits it), and the {@code anew} walk at the head of {@code cons} — an unguarded parent chain — would
+     * hang outright if a new discovery ever led into one. It is bounded twice over: by that refusal, and by the
+     * {@code seen} set here, so a chain can never be walked twice whatever it holds.
+     */
+    void parent(MenuGrid.Pagina par) {
+        Set<MenuGrid.Pagina> seen = new HashSet<MenuGrid.Pagina>();
+        for(MenuGrid.Pagina up = par; up != null; ) {
+            if(up == this) {
+                if(par == this)
+                    throw new LuaError("pagina:parent(pagOrNil): \"" + id + "\" cannot hang under itself — a"
+                        + " category is simply an entry that has children, and nothing is its own child");
+                throw new LuaError("pagina:parent(pagOrNil): \"" + id + "\" cannot hang under "
+                    + LuaPagina.label(par) + ", because that entry already hangs under this one — a cycle"
+                    + " takes both of them out of the menu, since neither is reachable from the root screen");
+            }
+            if(!seen.add(up))
+                break;
+            try {
+                up = up.parent();
+            } catch(RuntimeException e) {    // Loading — the chain above this point is not readable yet
+                break;
+            }
+        }
+        this.parent = par;
         relayout();
     }
 
@@ -305,10 +348,21 @@ public final class AddonPagina extends MenuGrid.Pagina {
             scm.change(scm.cur);        // one relayout for the whole sweep
     }
 
-    /** Drop one entry out of the grid it was added to (its own, never {@code AddonManager.gui()}'s). */
+    /**
+     * Drop one entry out of the grid it was added to (its own, never {@code AddonManager.gui()}'s), and
+     * <b>re-root whatever hung under it</b>: a category that leaves takes no child with it, so the children go
+     * back to the root screen rather than under a parent no screen reaches — which would draw the removed
+     * category itself back onto the root screen, since {@code cons} walks the closure through {@code parent()}
+     * and does not ask whether the parent is still in {@code paginae}. Every custom entry of every addon is in
+     * this set, so one pass over it covers a child another addon hung under this category too.
+     */
     private static void detach(AddonPagina p) {
         synchronized(p.scm.paginae) {
             p.scm.paginae.remove(p);
+            for(MenuGrid.Pagina q : p.scm.paginae) {
+                if((q instanceof AddonPagina) && (((AddonPagina)q).parent == p))
+                    ((AddonPagina)q).parent = null;
+            }
         }
     }
 

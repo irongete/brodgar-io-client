@@ -78,6 +78,15 @@
   `binding()` reaches `hotkey()` → `act()` → `res.flayer(Resource.action)`, which **throws for a resource
   with no action layer** (`gfx/hud/sc-next` has neither an `action` nor a `pagina` layer), so a stand-in
   entry must override it — `KeyBinding.get(id, KeyMatch.nil)` also gives it an unbound, remappable id
+- **`PagButton.parent()` MEMOISES** the `paginafor(act().parent)` it derived, into a private field, and
+  `Pagina.parent()` is just `button().parent()` — so a parent that is not fixed by the resource has to be
+  answered by an override on both, from state read live, or the first call freezes the tree.
+- **`cons` reaches a category through `parent()` alone** and never asks whether that parent is still in
+  `paginae`. A parent taken out of the set is therefore still emitted onto whatever screen *its* parent names:
+  removing a category without re-rooting its children draws the removed category itself back on the root
+  screen. Its BFS does tolerate a **cycle** (the `close`/`open` sets absorb one), but the `anew`/`tnew` walk at
+  the head of the same method is an unguarded `for(p; p != null; p = p.parent())` — one new discovery whose
+  chain leads into a cycle hangs the client.
 - **Relayout has one public door.** `updlayout()` and the `recons` flag are private; `MenuGrid.change(cur)`
   is what rebuilds `curbtns` and `layout` after `paginae` is mutated outside a `"fill"` uimsg. It resets
   `curoff`, so a change made while the player is on page 2 of a category puts them back on page 1

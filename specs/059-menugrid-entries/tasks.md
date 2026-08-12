@@ -18,7 +18,7 @@
       client's.
       `[manual]`: open the action menu — expect your PNG on the root screen, tooltip "Auto-dig".
 
-- [ ] **059.2 — the tree: a category is an entry that has children.** Adds `pag:parent(pagOrNil)`, the
+- [x] **059.2 — the tree: a category is an entry that has children.** Adds `pag:parent(pagOrNil)`, the
       cycle refusal, and the relayout through `MenuGrid.change`. A custom entry may hang under a custom
       entry or under one of the game's own categories; `:parent(nil)` is the root screen. Documents the
       tree half of `menugrid.md`.

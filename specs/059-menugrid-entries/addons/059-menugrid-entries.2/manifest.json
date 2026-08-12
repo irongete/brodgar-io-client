@@ -1,0 +1,9 @@
+{
+  "name": "059.2 — a category is an entry that has children",
+  "id": "059-menugrid-entries.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 059.2: pag:parent(pagOrNil) — a custom entry hangs under a custom category or under one of the client's own, :parent(nil) is the root screen, and a cycle is refused.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
