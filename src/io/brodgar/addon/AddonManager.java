@@ -973,6 +973,18 @@ public final class AddonManager {
     public static Coord stockSize(Widget w) {            return UiApi.stockSizeArg(w);   }
 
     /**
+     * The <b>re-layout seam</b> (062) — the one {@code // addon:} line at the end of {@code GameUI.resize},
+     * which re-places {@code chat}, {@code beltwdg}, {@code prog} and the map unconditionally on every screen
+     * resize. Every hand-named level over one of that widget's own children goes back on top of what the
+     * client just wrote, so a window the user dragged stays where they put it.
+     *
+     * <p>It runs <b>after</b> the client's own placement (it is the last line of that method), so it
+     * overwrites rather than the reverse. Idempotent, and bounded by the held records: with no addon laying
+     * anything out the whole call is one volatile read.
+     */
+    public static void relayout(Widget parent) {         Layout.reapply(parent);         }
+
+    /**
      * The <b>radial-menu seams</b> (047.1) — the four {@code // addon:} lines in {@link FlowerMenu} that turn
      * the client's own context menu into {@code FlowerMenuOpened}/{@code FlowerMenuClosed} and feed
      * {@code hafen.flowermenu()}. {@link FlowerMenuApi} holds the rules; these are the door haven calls

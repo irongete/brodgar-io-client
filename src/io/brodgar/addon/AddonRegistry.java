@@ -155,6 +155,10 @@ public final class AddonRegistry {
                                                 //   AFTER the objects above, R3b), then the intern cache itself. Fonts own
                                                 //   nothing releasable; FontApi.teardownFonts below reverts their overrides.
         LuaGrab.teardownGrabs(a);     // 041.5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
+        Gesture.teardown(a);          // 062: ...and every widget:draggable(h) binding — ending a drag that is
+                                      //   running right now, and deafening the last listener on each handle.
+                                      //   BEFORE teardownMoved below: what a gesture WROTE is a layout level,
+                                      //   and it is that sweep which gives the place back
         HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
         a.teardownWaitings();         // 042.1: cancel every pending Resolve registration (a value still loading) —
                                       //   same shape as the HTTP requests above, for the same reason
@@ -252,6 +256,8 @@ public final class AddonRegistry {
                                                              //   GL texture; the REPL owner has no other teardown)
         AddonPagina.teardownEntries(AddonManager.consoleOwner);   // 059.1: ...nor an action-menu entry a REPL line
                                                              //   added — :reload is its only way back out
+        Gesture.teardown(AddonManager.consoleOwner);         // 062: ...nor a widget a REPL line armed for the user
+                                                             //   to drag — :reload is that line's only way back
         LuaGrab.teardownGrabs(AddonManager.consoleOwner);    // 041.5: ...nor a mouse grab a REPL line started and never
                                                              //   released — without this the pointer stays captured
                                                              //   (no camera pan, no clicks) until :release() is called

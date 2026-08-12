@@ -18,6 +18,7 @@
 - the post-apply `uimsg` tap carries no args, so re-reading the widget is the only way to learn what the server wrote — a rewrite to the string a level already holds is indistinguishable from no rewrite (filed: 061)
 - `widget:range()` reads `nil` on a BORROWED slider or scrollbar, so `widget:value(v)` can drive one but nothing can read the bounds it clamps into (filed: 061)
 - a `haven.Progress` is only ever server-placed, so `widget:value(v)`'s refusal on one has no target a suite can reach (filed: 061)
+- `widget:position(x, y)` writes through `Widget.move` and reads back `c`, so on a widget that overrides `move` — the chat, whose argument is its BASE — the pair does not round-trip and a drag lands its own height off (filed: 062)
 
 ## Candidates
 

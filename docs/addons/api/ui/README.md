@@ -42,8 +42,9 @@ screen point, `hafen.ui():at(x, y)` is what is under it and
 [`hafen.ui():tipAt(x, y)`](widget.md#tooltips-and-focus) is whose tooltip would speak for it. All of them,
 and every box below, are measured in [design pixels](pixels.md).
 
-**Change the client's UI** — [native](native.md) moves and hides one, [edit](edit.md) changes one part of
-a window and leaves the rest, [replace](replace.md) waits for a window and puts yours in its place.
+**Change the client's UI** — [native](native.md) moves one, hides it or hands it to the user to drag,
+[edit](edit.md) changes one part of a window and leaves the rest, [replace](replace.md) waits for a window
+and puts yours in its place.
 
 **Restyle it** — [style](style/README.md) is the sheet: one table of rules for fonts, colours, chrome
 and layout.
@@ -60,7 +61,7 @@ and layout.
 | [items](items.md) | the items inside a container, and the three subscriptions on it |
 | [mouse](mouse.md) | the pointer: where it is, what is under it, the modifiers, and the grab |
 | [pixels](pixels.md) | the unit every coordinate and size is measured in, and the scale in force |
-| [native](native.md) | moving and hiding the client's own widgets, and what comes back |
+| [native](native.md) | moving and hiding the client's own widgets, letting the user drag one, and what comes back |
 | [edit](edit.md) | taking over what one of the client's own controls does |
 | [replace](replace.md) | watching for a widget, and standing your own window in its place |
 | [drawing](drawing.md) | the `g` wrapper: text, shapes, images, and the raster cache behind them |

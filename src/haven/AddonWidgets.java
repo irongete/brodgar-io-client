@@ -301,4 +301,21 @@ public final class AddonWidgets {
     public static Coord stockcsz(Window wnd) {
         return io.brodgar.addon.AddonManager.stockSize(wnd);
     }
+
+    /**
+     * The <b>re-layout seam</b> (spec {@code 062-drag-handles}) — asked at the end of {@link GameUI#resize},
+     * which re-places {@code chat}, {@code beltwdg}, {@code prog} and the map <i>unconditionally</i> on every
+     * screen resize: put back every place an AddOn (or, through one of its handles, the user) has named on a
+     * child of that widget.
+     *
+     * <p>It is the last line of the method, so it overwrites the client's own placement rather than the
+     * reverse, and it is idempotent — a widget already where the addon layer says gets no write at all — so
+     * a resize it makes cannot come back round through this seam.
+     *
+     * <p>With no AddOn laying anything out the whole call is one {@code volatile} read and allocates nothing,
+     * so a stock client resizes exactly as before.
+     */
+    public static void relayout(Widget parent) {
+        io.brodgar.addon.AddonManager.relayout(parent);
+    }
 }

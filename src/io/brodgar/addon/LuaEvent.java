@@ -92,6 +92,13 @@ public final class LuaEvent {
         /** {@code g:on("Up", fn)} — a mouse grab's release (041.5): {@code GRAB_MOVE} plus which button ended it. */
         GRAB_UP("grabup", "a grab's Up event answers :x() :y() :shift() :ctrl() :alt() :button()"),
         /**
+         * {@code w:on("Dragged", fn)} — the user finished dragging a widget by a handle
+         * {@code widget:draggable(h)} armed (062). Two things to say, and they are where the widget
+         * <b>landed</b>: the numbers {@code widget:position()} reads in that same frame, the client's own
+         * off-screen clamp included. Uncancelable — it reports a gesture that is already over.
+         */
+        GESTURE("gesture", "a gesture event answers :x() :y()"),
+        /**
          * {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)} — 038.3's payload, objectified
          * (041.7): three things to say, so an {@code ev} rather than the plain {@code {gob, key, native}} table
          * it was before this feature reached it.
@@ -395,6 +402,17 @@ public final class LuaEvent {
     }
 
     /**
+     * The {@code ev} for one {@code Dragged} fire ({@code w:on("Dragged", fn)}, 062) — {@code x}/{@code y} are
+     * the widget's own parent-relative coordinate <b>as it landed</b>, in the client's device pixels like
+     * every other pair in this class, so {@link #px()}/{@link #py()} hand Lua exactly the numbers
+     * {@code widget:position()} reads. Minted per (addon, widget) fire, like {@link #input}: the caller is
+     * that owner's own {@link Subs} firing, so there is no gate left to skip minting for.
+     */
+    static LuaValue gesture(Addon owner, int x, int y) {
+        return of(new LuaEvent(owner, Shape.GESTURE, (Subs.Cancel)null, (String)null, x, y, null, null));
+    }
+
+    /**
      * The {@code ev} for one {@code GobOverlayAdded}/{@code GobOverlayRemoved} fire (038.3's payload,
      * objectified 041.7) — {@code owner} is the one addon this event is being minted for (per-addon interning,
      * D-045), same as {@link AddonManager#fireGobOverlay} already required of its table.
@@ -480,6 +498,8 @@ public final class LuaEvent {
             grabMove(m);
         } else if(shape == Shape.GRAB_UP) {
             grabUp(m);
+        } else if(shape == Shape.GESTURE) {
+            gesture(m);
         } else if(shape == Shape.OVERLAY) {
             overlay(m);
         } else if(shape == Shape.CLICKED) {
@@ -773,6 +793,24 @@ public final class LuaEvent {
             public Varargs invoke(Varargs a) {
                 Integer b = self(a.arg1(), Shape.GRAB_UP, "button").button;
                 return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.intValue());
+            }
+        });
+    }
+
+    /**
+     * {@code w:on("Dragged", fn)} (062): where the widget landed, and nothing else. No modifiers — a drop is
+     * a place, and which keys were held while it happened is a question about the pointer
+     * ({@code hafen.ui():mouse()}) rather than about the widget that moved.
+     */
+    private static void gesture(LuaTable m) {
+        m.set("x", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.GESTURE, "x").px());
+            }
+        });
+        m.set("y", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), Shape.GESTURE, "y").py());
             }
         });
     }

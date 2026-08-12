@@ -28,6 +28,17 @@ to its content **before your call returns** (`pack()` = `resize(contentsz())`). 
 
 **This store belongs to what the USER placed** — the one thing an addon cannot undo in memory, since a `setprefc` outlives it. The writes are *unconditional*: no dirty flag, no "only if it changed".
 
+## `GameUI.resize` re-places four of its children, unconditionally, on every screen resize
+
+| What | Where |
+|---|---|
+| The four it writes | `GameUI.resize(Coord)` — `chat.resize(w)` + `chat.move(bottom-left)`, `map.resize(sz)`, `prog.move(centred)`, and `beltwdg.c` **assigned directly**. No condition, no memory of where anything was: whatever placed them before is gone |
+| ⚠️ **`ChatUI` overrides `move(Coord)`** | `ChatUI.move` — `this.c = (this.base = base).add(0, visible ? -sz.y : 0)`. So the argument is the chat's **base** (its bottom edge) and `c` is derived from it: `move(c)` is **not** the identity there, and anything that moves the chat by writing `c` and reads it back gets a different pair while the chat is expanded |
+| The fork's seam | `AddonWidgets.relayout(this)` (`// addon:`), the **last** line of `resize` — so a place the addon layer holds goes back on top of what the four writes above just did, rather than under it |
+
+`Widget.move` itself is **not** hooked anywhere, and deliberately: it is on every drag of every window in the
+client. This one method is the whole of the screen-resize case.
+
 ## The toggle path (one private method, seven call sites)
 
 | What | Where |
@@ -67,7 +78,7 @@ to its content **before your call returns** (`pack()` = `resize(contentsz())`). 
 `cap` is **not** the `Deco`-rendered `Text` — that is `Deco.cap`, re-rendered by
 `checkcap` on `cap.text != wnd.cap` ([ui-chrome.md](ui-chrome.md)).
 
-## The addon seams (031, 035, 036)
+## The addon seams (031, 035, 036, 062)
 
 All `// addon:` edits sit **inside existing method bodies** — no visibility change, no new call site — and go
 through `AddonWidgets`, so `haven` keeps one file that knows the addon
@@ -78,4 +89,7 @@ the fading corpse from [widgets.md](widgets.md#core-tree), and that record carri
 ([ui-chrome.md](ui-chrome.md)). **is a SUBSTITUTION, not a call**: every `Utils.setprefc(key, w.c)` in the
 three writers above reads `AddonWidgets.stockc(w)` instead (`stockcsz` for `wndsz-map`) — the widget's own value
 unless an addon's layout stands on it. It substitutes rather than restores because `savewndpos` also runs on that
-60 s tick — putting the widgets back around the write would snap a laid-out HUD once a minute.
+60 s tick — putting the widgets back around the write would snap a laid-out HUD once a minute. 062's
+`relayout(this)` is the fourth, and the only one that is a plain **call** rather than a question or a
+substitution: it goes last in `resize` so it overwrites, and it is idempotent so a `resize` it makes
+cannot come back round through the same line.

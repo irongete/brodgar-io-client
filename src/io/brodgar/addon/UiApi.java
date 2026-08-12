@@ -802,6 +802,7 @@ final class UiApi {
         if(consoleOwner != null) {
             consoleOwner.hiddenNative.clear();   // 029.2: last session's widgets are gone; nothing left to restore
             consoleOwner.movedNative.clear();    // 036.1: ...nor is there anything left to put back where it was
+            consoleOwner.gestures.clear();       // 062: ...nor is anything of the old tree left armed to drag
             consoleOwner.widgetSubs.clear();     // 041.3/041.4: ...and so is every widget:on() subscription
             consoleOwner.selectorWatches.clear();// 030.2: ...and the selectors it was watching for
         }
@@ -809,6 +810,7 @@ final class UiApi {
         LuaWidget.recountHidden();               // 031.1: nothing is hidden in a session that has not started
         LuaWidget.recountMoved();                // 036.1: ...and nothing is laid out in one either
         Layout.resetSession();                   // 036.2: ...and no widget of the old tree is awaiting its caption
+        Gesture.resetSession();                  // 062: ...nor is one of them armed for the user to drag
     }
 
     /**
@@ -1730,6 +1732,7 @@ final class UiApi {
                     continue;
                 }
                 revertLevels(owner, x);
+                Gesture.release(owner, x);    // 062: ...and the widget stops being the user's to drag
                 LuaWidget.Hidden h = LuaWidget.findHidden(owner, x);
                 if((h != null) && (h.view == null))
                     releaseHidden(h);         // the same rule teardown applies: as the user was SEEING it

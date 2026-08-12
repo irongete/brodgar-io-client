@@ -1,14 +1,16 @@
-# hafen.ui: placing and hiding the client's own widgets
+# hafen.ui: placing, hiding and handing over the client's own widgets
 
-Three writes answer on a widget you do not own: `:position(x, y)` moves it, `:size(w, h)` resizes it and
-`:visible(false)` takes it off screen. All three are **unprotected** — client-side placement, not an
-action — and all three record what they found, so everything is given back when your addon goes away.
+Four writes answer on a widget you do not own: `:position(x, y)` moves it, `:size(w, h)` resizes it,
+`:visible(false)` takes it off screen, and `:draggable(h)` hands the move to the **user**. All four are
+**unprotected** — client-side placement, not an action — and all four record what they found, so
+everything is given back when your addon goes away.
 
 ```lua
 local inv = hafen.ui():find("window[title=Inventory]")
 inv:position(40, 200)     -- move it
 inv:size(300, 220)        -- resize its CONTENT; the chrome repacks around it
 inv:position(nil)         -- drop YOUR move: back to where the user had it
+inv:draggable(grip)       -- ...or let the user move it, by pressing a widget of yours
 ```
 
 `:destroy()` stays refused on a widget you do not own: that destroys the client's work rather than sits on
@@ -59,6 +61,80 @@ screen, and each addon restores what *it* found.
 [`pos` and `size` rules](style/geometry.md), matched rather than named, and the verb sits above whatever a
 rule resolved — so `w:position(nil)` drops *your* level and falls back to the rule when one still names
 the widget, reaching the stock value only when nothing does.
+
+## Letting the user drag it (unprotected)
+
+`w:draggable(h)` says **this widget can be dragged, and here is what the user presses to drag it**. The
+client gives that gesture to one kind of widget only — a window, by its caption — so almost nothing else
+on screen moves at all: not the chat, not the belt, not the panels down the sides of the HUD.
+
+```lua
+local chat = hafen.ui():find("@ChatUI")
+local grip = hafen.ui():image():source(hafen.asset():get("grip.png")):parent(chat)
+
+chat:draggable(grip)      -- pressing the grip drags the chat
+chat:draggable()          -- the grip back, the same Widget object you passed
+chat:draggable(nil)       -- the chat stops being draggable
+```
+
+**The handle is a widget**, which is what keeps this one verb instead of a vocabulary of edges and zones.
+Pass the target itself and the whole thing drags; pass a grip you [adopted](edit.md) into it with
+`:parent(w)` and it drags from there alone; pass a button of yours somewhere else entirely and that works
+too. The one handle a window refuses is **itself** — its caption already does exactly that, and two drags
+on one press would move it twice. Any other handle on a window is accepted.
+
+**A drag writes your `:position` level, and nothing beside it.** So `w:position()` reads where the user
+dropped it, `w:position(nil)` puts back the stock place, `:reload` and disable do the same, and the
+client's position store still writes down what the *user* placed rather than where a drag of yours left
+it. Everything on this page's [first section](#moving-and-resizing-unprotected) is true of a drag, because
+a drag is that write with a person's hand on it.
+
+**It cannot be lost off screen.** A dragged widget goes through the client's own graspability rule — at
+least 100 [design pixels](pixels.md) of it, or the whole of it when it is smaller, stays inside its
+parent — the same clamp the client applies when it places one of its own windows.
+
+**A drag survives the pointer outrunning the handle**, and the pointer leaving the game window: the
+gesture holds the pointer from the press to the release, so the widget follows wherever it goes and
+nothing underneath is clicked on the way.
+
+**The press belongs to the drag.** Pressing a handle starts the gesture and does nothing else — the same
+rule a window's caption follows — so a widget you arm as a handle stops being clickable for anything else
+while the binding stands. Give a widget a grip of its own rather than arming it as its own handle when it
+has clicks of its own to answer.
+
+**It survives the client re-laying the screen out**, too. Resizing the game window re-places the chat, the
+belt and the map; a place you or the user named goes back on top of that, and `w:position(nil)` afterwards
+still yields the stock value.
+
+**Two addons may arm one widget**, exactly as two may hold a position on it. One drag moves it **once**,
+both levels take the place it landed at — so a `nil` from either addon is invisible on screen — and each
+`nil` drops only its own binding.
+
+| Call | Does |
+|---|---|
+| `w:draggable()` | the handle **your** addon armed on it, or `nil`; never another addon's |
+| `w:draggable(h)` | arm it: pressing `h` drags `w`. Arming again is a change of handle, not a second binding; chains |
+| `w:draggable(nil)` | drop your binding; chains |
+
+`w:revert()` drops the binding too, along with everything else your addon holds on that widget — see
+[taking the whole edit back](edit.md#taking-the-whole-edit-back). A handle that is not a widget, or one
+that has left the tree, raises; a target that has left the tree is a silent no-op, like every other write
+here.
+
+### Knowing when one was dragged
+
+`w:on("Dragged", fn)` fires **once, on release**, and `ev:x()`/`ev:y()` answer where the widget landed —
+the same numbers `w:position()` reads in that frame, the clamp above included.
+
+```lua
+chat:on("Dragged", function(ev)
+  hafen.log():write("chat dropped at " .. ev:x() .. ", " .. ev:y())
+end)
+```
+
+It is not cancelable: the gesture is over by the time you hear about it. And it does **not** fire for your
+own `w:position(x, y)`, so a handler cannot drive itself. When two addons have armed one widget, both
+handlers fire.
 
 ## Hiding a native widget carries a restore
 

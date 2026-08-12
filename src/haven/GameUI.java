@@ -1685,6 +1685,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	if(prog != null)
 	    prog.move(sz.sub(prog.sz).mul(0.5, 0.35));
 	beltwdg.c = new Coord(blpw + UI.scale(10), sz.y - beltwdg.sz.y - UI.scale(5));
+	AddonWidgets.relayout(this);	// addon: ...and a place an AddOn or the user named survives that (062)
     }
     
     public void presize() {

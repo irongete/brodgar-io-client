@@ -208,6 +208,16 @@ public final class Addon {
      */
     public final List<LuaWidget.Moved> movedNative = new CopyOnWriteArrayList<LuaWidget.Moved>();
     /**
+     * Widgets this addon has handed to the <b>user</b> to drag ({@code widget:draggable(h)}, 062) — one entry
+     * per (target, handle) pair, and one per target, since arming a target again is a change of handle rather
+     * than a second binding. What a gesture then <i>writes</i> is the layout level above ({@link #movedNative}),
+     * so this list holds the arming and nothing else: {@code widget:draggable(nil)} and
+     * {@code widget:revert()} drop an entry, and {@link Gesture#teardown} drops the rest on {@code :reload}/
+     * disable — ending a drag that is running at that moment and deafening the last listener on each handle.
+     * Copy-on-write like the lists above: a {@code Dragged} handler may arm or drop one.
+     */
+    public final List<Gesture.Bind> gestures = new CopyOnWriteArrayList<Gesture.Bind>();
+    /**
      * Live addon slash commands owned by this addon ({@code hafen.slash():register}, gap subsystem A11): each routes
      * a console command {@code :name} to a Lua handler. Unlike the hook lists, the engine's {@link haven.Console}
      * dispatcher for a name is <b>engine-lifetime</b> and is deliberately <b>not</b> removed on teardown (coverage-

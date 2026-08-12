@@ -30,7 +30,10 @@ read and the pair you hit-test with are one pair.
 ## The grab
 
 A modal press-drag-release capture: while it is held the map view neither pans nor clicks, so a drag
-leaves the camera put. It is what the [gizmo](../vr/gizmo.md) is built on.
+leaves the camera put. It is what the [gizmo](../vr/gizmo.md) is built on, and it is the same capture
+[`w:draggable(h)`](native.md#letting-the-user-drag-it-unprotected) takes for you — reach for the grab when
+you want the whole press-move-release loop in your own hands, and for `:draggable(h)` when what you want
+is a widget the user can move.
 
 ```lua
 local g = hafen.ui():mouse():grab()   -- bare: from here the pointer is yours
@@ -68,6 +71,8 @@ Pair it with [`hafen.world():screenToWorld`](../world.md#screen-to-world-and-pla
 - [the pixel](pixels.md) — the unit the pointer, the hit test and a widget's box share
 - [the Widget object](widget.md) — what `m:over()` hands you, and the keys you can subscribe on it
 - [selectors](selectors.md#hit-testing) — hit-testing, and naming the widget under a point
-- [gizmo](../vr/gizmo.md) — the drag handles the grab is built for
+- [gizmo](../vr/gizmo.md) — the world-space handles the grab is built for
+- [native](native.md#letting-the-user-drag-it-unprotected) — the same capture, wrapped as a widget the
+  user can drag
 - [screen to world](../world.md#screen-to-world-and-placement-snapping) — turning a drag into a place
   on the ground

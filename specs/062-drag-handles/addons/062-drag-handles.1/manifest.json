@@ -1,0 +1,9 @@
+{
+  "name": "062.1 — a handle drags one of the client's widgets",
+  "id": "062-drag-handles.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 062.1: widget:draggable(h) arms, reads back by identity and drops; a drag writes the position level, clamped by the client's own rule; and Dragged never fires for your own write.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

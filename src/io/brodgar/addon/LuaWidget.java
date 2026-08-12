@@ -454,6 +454,58 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // draggable() / draggable(h) / draggable(nil) — 062: HAND THIS WIDGET TO THE USER, and say what they
+        // press to move it. Arity is the verb, the same three the placement verbs have: the bare call reads the
+        // handle YOUR addon armed (nil when it armed none), one argument arms, and nil drops it. Both writes
+        // chain, and the read hands back the very Widget object you passed, so `w:draggable() == grip` holds.
+        //
+        // THE HANDLE IS A WIDGET, which is what keeps this one verb instead of a vocabulary of edges and zones:
+        // the target itself drags the whole thing, a grip adopted into it (widget:parent(w) takes any widget in
+        // the tree) drags only from there, and so does a button of yours somewhere else entirely.
+        //
+        // WHAT A DRAG WRITES IS YOUR :position LEVEL — not a field beside it. So the verbs read where it landed,
+        // widget:position(nil), widget:revert(), :reload and disable all give the stock place back, the client's
+        // own off-screen clamp has the last word, and GameUI's position store goes on writing what the USER
+        // placed. Unprotected, like every other thing an addon says about where the client's own widgets sit.
+        //
+        // TWO ADDONS MAY ARM ONE TARGET (a position is not a toggle): the gesture moves it ONCE and writes both
+        // levels, so a nil from either is invisible on screen, each nil drops only its own, and both Dragged
+        // handlers fire. A STALE target is the 029.2 silent chaining no-op; a stale HANDLE is an argument you
+        // passed, so it raises.
+        m.set("draggable", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {        // :draggable() → narg 1 · (nil)/(h) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "draggable"));
+                if(!Args.passed(a, 2)) {
+                    Widget h = (w == null) ? null : Gesture.handleOf(owner, w);
+                    return (h == null) ? LuaValue.NIL : of(owner, h);
+                }
+                LuaValue v = a.arg(2);
+                if(v.isnil()) {                       // w:draggable(nil) — drop OUR binding, and only ours
+                    if(w != null)                     // a stale widget: the 029.2 chaining no-op
+                        Gesture.drop(owner, w);
+                    return self;
+                }
+                LuaWidget hh = resolve(v);
+                if(hh == null)
+                    throw new LuaError("widget:draggable(h) expects a Widget — the handle the user presses to"
+                        + " drag this one. widget:draggable() reads it, widget:draggable(nil) drops it");
+                Widget hw = live(hh);
+                if(hw == null)
+                    throw new LuaError("widget:draggable(h): that handle has left the tree");
+                if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                // The ONE handle a Window refuses is the window itself — its caption already drags it, and two
+                // drags on one press would move it twice. Any OTHER handle on a Window is the case this feature
+                // exists for, so it is accepted.
+                if((hw == w) && (w instanceof Window))
+                    throw new LuaError("widget:draggable(h) with the window ITSELF is what a Window's caption"
+                        + " already does — pass a handle of your own (build one with :parent(win)) to drag it"
+                        + " from somewhere else");
+                Gesture.arm(owner, w, hw);
+                return self;
+            }
+        });
         // visible() / visible(b) — A BOOLEAN PROPERTY IS A PROPERTY (spec 039 §2.2, R6): the read says whether it is
         // currently drawn (false once stale) and the write says what it should be. :show() and :hide() are a HARD
         // CUT — two spellings for one write is the dual style the grammar removes, and they were the last pair in
@@ -1166,8 +1218,14 @@ public final class LuaWidget {
 
     // ---- widget:on(key, fn)'s vocabulary (041.3/041.4) --------------------------------------------------
 
-    /** The five keys every LIVE widget answers — the universal four inputs (041.3) plus Destroy (041.4). */
-    private static final String[] UNIVERSAL_KEYS = { "MouseDown", "MouseUp", "MouseMove", "Wheel", "Destroy" };
+    /**
+     * The keys every LIVE widget answers — the universal four inputs (041.3), Destroy (041.4), and the
+     * gesture key {@code widget:draggable(h)} arms (062). {@code Dragged} is here rather than beside a
+     * control's own capability keys because being dragged is a fact about a widget's <i>place</i>, and every
+     * widget has one.
+     */
+    private static final String[] UNIVERSAL_KEYS =
+        { "MouseDown", "MouseUp", "MouseMove", "Wheel", "Destroy", "Dragged" };
     /** The four keys ONLY an addon's own surface answers ({@code hafen.ui():widget()}/{@code :window()}). */
     private static final String[] SURFACE_KEYS = { "Draw", "Tick", "Drop", "Close" };
 
@@ -1562,6 +1620,36 @@ public final class LuaWidget {
         if(!any && (c != null))
             any = !c.movedNative.isEmpty();
         anyMoved = any;
+    }
+
+    /**
+     * <b>The widgets some addon holds a layout level on, directly inside {@code parent}</b> (062) — each once,
+     * however many owners are standing on it. It backs {@link Layout#reapply}, which is what a hand-named
+     * place needs to survive {@code GameUI} re-placing its own children on a screen resize.
+     *
+     * <p>The record list is the bound, not the tree: a client with nothing laid out answers on one volatile
+     * read, and one with two laid-out windows walks two entries.
+     */
+    static List<Widget> movedUnder(Widget parent) {
+        List<Widget> out = new ArrayList<Widget>(2);
+        if(!anyMoved)
+            return out;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            movedUnderIn(as.get(i), parent, out);
+        movedUnderIn(AddonManager.consoleOwner, parent, out);
+        return out;
+    }
+
+    private static void movedUnderIn(Addon a, Widget parent, List<Widget> out) {
+        if(a == null)
+            return;
+        List<Moved> ms = a.movedNative;
+        for(int i = 0, n = ms.size(); i < n; i++) {
+            Moved m = ms.get(i);
+            if((m.wdg.parent == parent) && !out.contains(m.wdg))
+                out.add(m.wdg);
+        }
     }
 
     /**

@@ -742,6 +742,30 @@ final class Layout {
             apply(ws.get(i));
     }
 
+    /**
+     * <b>The client just re-laid its own screen out</b> (062) — {@code GameUI.resize} re-places {@code chat},
+     * {@code beltwdg}, {@code prog} and the map unconditionally on every screen resize, so put every
+     * hand-named level over one of its children back on top of what it wrote.
+     *
+     * <p>It is a separate entry rather than a case of {@link #dispatchResized} because a hand-named level is
+     * <b>not</b> in {@link #derived}: that map holds anchors, and neither the {@code Anchor.WIDGET} filter nor
+     * the {@code Anchor.SCREEN} one names a plain {@code position}. {@code Widget.move} is not hooked either,
+     * and deliberately so — it is on every drag of every window in the client.
+     *
+     * <p><b>It runs after the client's own placement</b> (the call is the last line of that method), so it
+     * overwrites rather than the reverse, and it cannot recurse: {@link #apply} is idempotent — a widget
+     * already where the cascade says gets no write at all — so a {@code resize} it makes cannot come back
+     * round and ask for another. Bounded by the held set, and one volatile read on a client with nothing
+     * laid out, which is every client until an addon lays something out.
+     */
+    static void reapply(Widget parent) {
+        if(!LuaWidget.anyMoved || (parent == null))
+            return;
+        List<Widget> ws = LuaWidget.movedUnder(parent);
+        for(int i = 0; i < ws.size(); i++)
+            apply(ws.get(i));
+    }
+
     /** Is a pending candidate still the same live widget? (Server-bound: by id; client-only: by reachability.) */
     static boolean alive(UI u, Widget w, int id) {
         return (id >= 0) ? (u.getwidget(id) == w) : w.hasparent(u.root);

@@ -346,5 +346,5 @@ running**.
 - [replace](replace.md) — the other thing you can do to one of the client's windows
 - [widget](widget.md#subscribing) — `:on(key, fn)`, the `ev`, and which writes answer on a borrowed widget
 - [controls](controls/README.md) — the same capability keys on a control your addon built
-- [native](native.md) — moving and hiding one of the client's widgets
+- [native](native.md) — moving and hiding one of the client's widgets, and letting the user drag it
 - [selectors](selectors.md) — naming the control you are about to take over

@@ -61,6 +61,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:position()` | `{x=, y=}` | position within the parent, in widget-local [design pixels](pixels.md) — [`:position(x, y)` moves it](native.md) |
 | `:size()` | `{x=, y=}` | size, in [design pixels](pixels.md); for a window its **outer** box |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
+| `:draggable()` | Widget \| nil | the handle **your** addon armed for the user to drag it by, or `nil` — [`:draggable(h)` arms it](native.md#letting-the-user-drag-it-unprotected) |
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, CheckBox, Window, TextEntry), else `nil` — `:text(s)` writes it, on [a control you built](controls/README.md#setters) or [one of the client's](edit.md#what-a-window-says) |
 | `:tooltip()` | string \| nil | the line that appears when the pointer rests on it, or `nil` — [`:tooltip(s)` writes it on a control you built](#tooltips-and-focus) |
 | `:focused()` | boolean | whether a keystroke would reach this widget — see [focus](#tooltips-and-focus) |
@@ -113,7 +114,7 @@ the refusal on a widget that has left the tree — is stated once, under
 ## Subscribing
 
 **Any** widget — one you built, one you found by [selector](selectors.md), one an event handed you —
-answers `:on(key, fn)` for the five keys below. This is what makes the widget half of `hafen.ui`
+answers `:on(key, fn)` for the keys below. This is what makes the widget half of `hafen.ui`
 reachable at all: input on a widget you found by selector goes through the same door as input on one you
 built.
 
@@ -131,6 +132,7 @@ sub:off()
 | `MouseMove` | `:x()` `:y()` `:preventDefault()` | yes | the mouse moves over it |
 | `Wheel` | `:x()` `:y()` `:amount()` `:preventDefault()` | yes | the wheel turns over it |
 | `Destroy` | — | no | it leaves the tree |
+| `Dragged` | `:x()` `:y()` | no | the user finished [dragging it](native.md#knowing-when-one-was-dragged) by a handle you armed |
 
 `ev:x()`/`:y()` are widget-local [design pixels](pixels.md); `ev:button()` is 1 for left and 3 for right, present on
 `MouseDown` and `MouseUp` only; `ev:amount()` is the wheel delta. `ev:preventDefault()` stops the input
@@ -138,7 +140,7 @@ reaching the widget's own handling and any child under it — there is no separa
 handler's return value is ever read. **Two handlers fire independently**: either one calling
 `preventDefault` cancels, and both still run.
 
-A [control](controls/README.md) answers these five as well — it is a Widget first — plus the capability
+A [control](controls/README.md) answers all of these as well — it is a Widget first — plus the capability
 keys of the thing it is, and a surface you [paint](custom.md) answers four more on top. A capability key
 belongs to **a control**, not to a control you built: `Pressed` answers on one of the client's own buttons,
 `Changed` on one of its checkboxes or [lists](lists.md) and `Submitted` on one of its text entries the same
@@ -150,7 +152,7 @@ a borrowed [slider or scrollbar](controls/interactive.md#slider)'s `Changed` can
 
 ```lua
 label:on("Pressed", fn)
--- a Label has no event 'Pressed' — it has: MouseDown, MouseUp, MouseMove, Wheel, Destroy
+-- a Label has no event 'Pressed' — it has: MouseDown, MouseUp, MouseMove, Wheel, Destroy, Dragged
 ```
 
 Subscribing on a **native** widget is released the same way as anywhere else — on `:reload` or disable, or
@@ -186,6 +188,7 @@ provoke the error.
 | `:cell(w, h)` | set a [grid](lists.md#grid)'s cell box while it is being built | **error**, same reason |
 | `:columns(t)` | name a [table](lists.md#table)'s columns while it is being built | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
+| `:draggable(h)` | hand the move to the user, by a handle they press | **works** — [and what a drag writes is your position level](native.md#letting-the-user-drag-it-unprotected) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |
 
@@ -195,9 +198,10 @@ One of these writes is protected, and it is the one that is not client-side stat
 here changes only your own client, and every one of them restores.
 
 **Arity is the verb.** `w:position()` reads, `w:position(x, y)` writes and `w:position(nil)` drops your
-write; `w:size()` and `w:visible()` are the same shape — with the one-number `w:size(w)` as the arity a
-[control](controls/README.md#sizing)'s own art earns it — and so is every setter on `w:rule()`. That is why
-there is no `:move()`, no `:show()` and no `:hide()`: a value belongs in the argument, not the verb's name.
+write; `w:size()`, `w:visible()` and `w:draggable()` are the same shape — with the one-number `w:size(w)`
+as the arity a [control](controls/README.md#sizing)'s own art earns it — and so is every setter on
+`w:rule()`. That is why there is no `:move()`, no `:show()` and no `:hide()`: a value belongs in the
+argument, not the verb's name.
 
 **Replacement is the one place where the read has a name of its own.** `w:replace(view)` is an *act* and
 the thing standing in is a *replacement*, so the two do not share a spelling: `w:replacement()` reads,
@@ -271,7 +275,7 @@ way to do what clicking already does.
 - [lists](lists.md) — the row-source controls, a scrolling list among them
 - [custom](custom.md) — a surface you paint, and its four extra subscription keys
 - [selectors](selectors.md) — how to name the widget you want in the first place
-- [native](native.md) — what moving and hiding a borrowed widget actually does
+- [native](native.md) — what moving, hiding and handing over a borrowed widget actually does
 - [edit](edit.md) — taking over what one of the client's own controls does
 - [replace](replace.md) — standing your own window in place of a native one
 - [items](items.md) — `:items()` and the container subscriptions
