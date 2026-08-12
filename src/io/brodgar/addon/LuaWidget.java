@@ -1631,6 +1631,36 @@ public final class LuaWidget {
     }
 
     /**
+     * <b>What the widget says right now becomes the stock caption</b> (061.6) — every owner standing on
+     * {@code w} re-records it, which is how a text level survives the server rewriting what is under it and
+     * still gives back the <i>server's</i> latest value rather than the one from before the update.
+     *
+     * <p>Called at the one instant where that re-read is honest: the drain after the update landed, before
+     * this addon's level goes back on top ({@link Layout#serverWroteText}). The inbound tap carries no
+     * arguments, so reading the widget back at exactly that moment <i>is</i> having had them.
+     */
+    static void restockText(Widget w) {
+        if(!anyMoved)
+            return;
+        Cap now = readCap(w);
+        if(now == null)
+            return;                                   // nothing to read back: leave every record as it stands
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            restockTextIn(as.get(i), w, now);
+        restockTextIn(AddonManager.consoleOwner, w, now);
+    }
+
+    private static void restockTextIn(Addon a, Widget w, Cap now) {
+        if(a == null)
+            return;
+        for(Moved m : a.movedNative) {
+            if((m.wdg == w) && (m.text != null))
+                m.text = now;
+        }
+    }
+
+    /**
      * No level names this half of {@code w} any more: forget the stock value every owner recorded for it, dropping
      * a record that has nothing left. Answers whether anything was actually being held — which is what tells
      * {@link Layout} whether there is a value to give back or the widget was never ours to begin with.
@@ -1952,6 +1982,26 @@ public final class LuaWidget {
         if(w instanceof Window)                    // ...and a window's is widget:title(s)'s half of the level
             return new Cap(((Window)w).cap, null, 0);
         return null;
+    }
+
+    /**
+     * <b>Is this server update one that rewrites a caption a level can stand on?</b> (061.6) — a {@link Label}'s
+     * {@code "set"}, a {@link Button}'s {@code "ch"} and a {@link Window}'s {@code "cap"} are the three the
+     * server has, one per arm of {@link #readCap} that it can reach at all (a {@link CheckBox}'s label is
+     * written by the client that built it and by nothing on the wire).
+     *
+     * <p>The class <b>and</b> the message, never either alone: {@code "ch"} is also how a checkbox is told its
+     * state and {@code "set"} how a meter is told its bar, and this gates the client's hottest inbound path.
+     * One method, like the switches above, so upstream renaming one of them breaks this and nothing else.
+     */
+    static boolean rewritesText(Widget w, String msg) {
+        if(w instanceof Label)
+            return "set".equals(msg);
+        if(w instanceof Button)
+            return "ch".equals(msg);
+        if(w instanceof Window)
+            return "cap".equals(msg);
+        return false;
     }
 
     /** Put a stock caption back, through the arm it came from. Caller holds the {@code ui} monitor. */

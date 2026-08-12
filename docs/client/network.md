@@ -28,6 +28,7 @@
 | Item take/drop/transfer/iact | `WItem.mousedown` — `take {cc}`; `drop`/`transfer` `{cc, n}`, where the **modifier keys select `n`** (shift = transfer 1, shift+ctrl = all, ctrl = drop 1, ctrl+meta = drop all), so those three carry **no** modifier field at all; `iact {cc, modflags}` |
 | ⚠️ `itemact` names **no held item** — three senders, one meaning | The subject is implicit: `DTarget.Interact`'s `src` **is** the `ItemDrag`, so the bytes mean *whatever is on the cursor*. `WItem.iteminteract` = `{modflags}` (1 arg, onto another item); `MapView.iteminteract` = `{pc, mc.floor(posres), modflags}` (3, bare ground), **extended with `inf.clickargs()`** when the hit resolves to an object (8). Arg count alone tells the three apart |
 | Server → widget update | `Widget.uimsg`, dispatched via `UI.uimsg` |
+| ⚠️ The **post-apply** tap runs outside the monitor | `UI.UiMessage.run` closes its `synchronized(UI.this)` **before** the fork's post-apply `// addon:` line, and reaches it only when the update was actually applied (a swallowed one skips it). So anything hung there is on a Loader thread with no lock held: record the widget, read it on the tick |
 
 ## Connection counters (the `Connection:` HUD line)
 

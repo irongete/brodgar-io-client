@@ -156,6 +156,11 @@ public final class AddonManager {
     // as onWidgetRemoved), so the tap only enqueues; tick() drains one frame's worth (D-106) and offers each
     // to Layout.dispatchResized, which re-derives whatever hangs off it and is free when nothing does.
     private static final Queue<Widget> resizedWidgets = new ConcurrentLinkedQueue<Widget>();
+    // 061.6: the text level's re-apply queue — a server update that rewrites a Label's, a Button's or a
+    // Window's caption may have painted over a level an addon holds (widget:text(s)/:title(s)). The tap that
+    // sees it (onUimsg) runs on a Loader thread OUTSIDE the ui monitor, and text rasterisation belongs on the
+    // UI thread anyway, so it only records the widget; tick() re-reads and re-applies, same shape as above.
+    private static final Queue<Widget> textRewrites = new ConcurrentLinkedQueue<Widget>();
     // 042.11: marker-change notify — MapFile.markerseq bumps from add/remove/update on the processor thread
     // or the UI thread, and from segment merges on the loader thread. The notify is marshalled onto the tick
     // to avoid deadlock with the map DB's RW lock. Only the count is queued (041.1).
@@ -333,6 +338,8 @@ public final class AddonManager {
         BeltHold.resetSession();      // 059.4: ...and every bar slot an addon was holding — a slot index names
                                       //   another character's bar now, and the addons above were just torn down
         resizedWidgets.clear();       // 042.10: and any resize notify queued from the old session
+        textRewrites.clear();         // 061.6: and any caption rewrite queued from the old session — the levels
+                                      //   it would re-apply went with the teardown above
         markerChangeQueue.clear();    // 042.11: and any marker-change notify queued from the old session
         HttpApi.reset();              // N2a: drop stale HTTP completions (their requests were torn down above)
         addonRoot = null;
@@ -496,6 +503,12 @@ public final class AddonManager {
             //         resizing, a window packing itself, or the screen changing all funnel through this one
             //         seam, and it is free (derived.isEmpty()) for a client with nothing anchored.
             drainResizedWidgets();
+
+            // 1b'''''. Caption rewrites (061.6) recorded off-thread by the inbound-uimsg tap → re-read and
+            //          re-applied on the UI thread, one frame's worth (D-106). BEFORE the caption-driven
+            //          drains below: each of those re-offers a widget to Layout.apply, which would put the
+            //          level back on before this one has read what the server actually wrote.
+            drainTextRewrites();
 
             // 1c. Replacements (032.1, event-driven since 042.8): the server destroying a window an addon
             //     replaced with widget:replace(view) is a removal, so it is offered at the removal seam
@@ -744,6 +757,12 @@ public final class AddonManager {
      */
     public static void onUimsg(Widget w, String msg) {
         CharApi.dispatchUimsg(w, msg);
+        // 061.6: the server may have just painted over a text level (widget:text(s) / widget:title(s)). Record
+        // the widget and nothing else — this thread holds no monitor, and the level goes back on at the tick
+        // ({@link #drainTextRewrites}). One volatile read for a client nobody is holding anything on; a client
+        // being laid out but not captioned enqueues a widget the drain then finds nothing standing on.
+        if(LuaWidget.anyMoved && LuaWidget.rewritesText(w, msg))
+            textRewrites.add(w);
     }
 
     /**
@@ -1604,6 +1623,26 @@ public final class AddonManager {
                 Layout.dispatchResized(w);
             } catch(RuntimeException e) {
                 log("widget-resize dispatch error: " + e);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------- the text level's re-apply (061.6)
+
+    /**
+     * Re-apply the text levels the server painted over since the last tick, one frame's worth (D-106) — the
+     * same bound and the same shape as the queues above, and the body is {@link Layout#serverWroteText}: the
+     * stock caption becomes what the widget is showing, and this addon's level goes back on top of it.
+     */
+    private static void drainTextRewrites() {
+        for(int n = textRewrites.size(); n > 0; n--) {
+            Widget w = textRewrites.poll();
+            if(w == null)
+                break;
+            try {
+                Layout.serverWroteText(w);
+            } catch(RuntimeException e) {
+                log("text re-apply error: " + e);
             }
         }
     }

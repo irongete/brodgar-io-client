@@ -1,0 +1,9 @@
+{
+  "name": "061.6 — a text level survives the server rewriting it",
+  "id": "061-editing-native-windows.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 061.6: a text level holds against everything the server sends, and is re-applied over an update that rewrites what it stands on, which then becomes the value it gives back.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -45,6 +45,15 @@ you can put back yourself. A **second write replaces your level rather than stac
 is always enough however many times you wrote. Two addons may each hold a caption on one widget: the last
 one wins on screen and each gives back what *it* found, the same rule [placing one](native.md) follows.
 
+**The server rewriting the text does not take your level off.** When an update from the server writes what
+one of these widgets says — a window's caption, a label, a button's — your level goes back on within a
+frame of it landing, and what `:text(nil)` or `:title(nil)` gives back afterwards is the **server's latest**
+value rather than the one it replaced. So a caption of yours does not vanish minutes later from a message
+nobody saw, and dropping a level hands the user the text they are meant to be reading, never a stale one.
+
+What you write is held on the **widget**, and [the client reuses its windows](native.md#the-client-reuses-its-windows):
+a caption can outlive what the window it sits on means.
+
 Both verbs are **unprotected**, and the reason is the line this whole page turns on: what a widget **says**
 never leaves the client. What a control **holds** is `w:value(v)`, and the server sees that — which is why
 `:text(s)` on one of the client's text entries refuses, naming it.

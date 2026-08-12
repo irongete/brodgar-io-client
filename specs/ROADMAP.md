@@ -12,6 +12,8 @@
 - `widget:on(key, fn)` on a STALE widget refuses naming the key as unknown, before the check that says the widget left the tree (filed: 061)
 - the layout half of the caption seam takes no widget, so a late-captioned window never lays its descendants out (filed: 049)
 - `world():screenToWorld(sx, sy)` and `player():worldToScreen(p)` speak device pixels while every other screen coordinate is a design pixel (filed: 058)
+- `hafen.ui():on(sel, event, fn)` is the one `:on` whose handle ends with `:remove()` instead of `sub:off()` (filed: 061)
+- the post-apply `uimsg` tap carries no args, so re-reading the widget is the only way to learn what the server wrote — a rewrite to the string a level already holds is indistinguishable from no rewrite (filed: 061)
 
 ## Candidates
 
@@ -24,4 +26,5 @@
 - **`dependencies` are parsed and never read**: either drop the manifest fields or order the load and refuse a missing one (filed: 051)
 - **Package layout**: finish the tier-3 split — the serializer, the glTF parser and its mesh primitives (filed: 019)
 - **Allocation profiling**: who costs GARBAGE, bracketing the seams 019 already brackets (filed: 019)
+- **Driving an inbound message**: nothing can make the client apply a `uimsg` from Lua, so a feature riding the inbound tap has no in-game oracle at all on a server that never sends one (filed: 061)
 - **Minor client subsystems**: screenshots, custom cursors, graphics settings, polity, news, calendar, server-published windows, the party HUD (filed: 009)

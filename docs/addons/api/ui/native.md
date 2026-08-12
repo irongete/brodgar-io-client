@@ -113,6 +113,23 @@ itself.
 is per window: hiding the inventory leaves equipment, the character sheet, kin, options and the map
 behaving exactly as stock.
 
+## The client reuses its windows
+
+Everything you hold on one of the client's widgets is held on **that widget**, not on what it currently
+means. The client reuses its windows — the frame one container came in is the frame the next one gets — so
+a place, a size or a [caption](edit.md#what-a-window-says) you put on one is still there when it comes back
+as something else. That is the same rule that makes the restore reliable, seen from its awkward side.
+
+Watch for the widget rather than holding it, and you decide what happens each time it appears:
+
+```lua
+hafen.ui():on("window", "appear", function(win)
+  win:title(nil)          -- whatever this frame was last used for, it is not that any more
+end)
+```
+
+Dropping a level on a widget you are holding nothing on is a no-op, so the callback needs no test of its own.
+
 ## See also
 
 - [widget](widget.md#owned-vs-borrowed) — which writes answer on which widget

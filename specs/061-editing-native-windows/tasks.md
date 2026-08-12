@@ -164,7 +164,7 @@ pass.
       expect `061.5 was here`, in the client's own caption font, and the stock title back at the end of
       the run.
 
-- [ ] **061.6 — a text level survives the server rewriting it.** `AddonManager.onUimsg(wdg, msg)` already
+- [x] **061.6 — a text level survives the server rewriting it.** `AddonManager.onUimsg(wdg, msg)` already
       runs post-apply, after an L3 `hafen.event():message()` handler could have swallowed the update (a
       swallowed one never reaches the tap, and never landed either — the right answer); it runs on a
       **Loader thread** outside the `ui` monitor, so this task marks there and re-applies in the

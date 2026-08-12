@@ -474,6 +474,33 @@ final class Layout {
     }
 
     /**
+     * <b>The server rewrote what {@code w} says</b> (061.6) — the UI-thread half of the inbound tap
+     * ({@link AddonManager#onUimsg}, which runs on a Loader thread outside the {@code ui} monitor and so may
+     * only record the widget). Two writes, in this order and in this one frame: what the widget is showing
+     * becomes the <b>stock</b> caption every standing owner gives back, and then this addon's level goes on
+     * top of it again. So an addon's caption does not vanish minutes later from a message nobody saw, and
+     * {@code widget:text(nil)} afterwards hands back the server's <i>latest</i> value rather than a stale one.
+     *
+     * <p><b>A widget already saying what the level says is left alone</b>, and that guard is the whole safety
+     * of the re-read: between the update landing and this drain, a placement or a sweep may have put the level
+     * back on already, and re-reading then would record <i>our own</i> caption as the user's. The cost is the
+     * degenerate case where the server sends exactly the string the level holds, which changes nothing on
+     * screen and leaves the stock at the value that update replaced.
+     */
+    static void serverWroteText(Widget w) {
+        UI u = AddonManager.ui;
+        if((u == null) || (w == null))
+            return;
+        synchronized(u) {
+            LuaWidget.Moved top = LuaWidget.topWantText(w);
+            if((top == null) || top.wantText.equals(LuaWidget.text(w)))
+                return;                               // nothing of ours here, or nothing landed on top of it
+            LuaWidget.restockText(w);                 // what it says at THIS instant is the server's own value
+            textHalf(w);                              // ...and this addon's level goes back over it
+        }
+    }
+
+    /**
      * Start (or stop) re-deriving {@code w}'s place on its target's own events — see {@link #derived}. Under
      * the {@code ui} monitor.
      */
