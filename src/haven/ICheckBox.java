@@ -94,7 +94,10 @@ public class ICheckBox extends ACheckBox {
 
     public boolean mousedown(MouseDownEvent ev) {
 	if((ev.b == 1) && checkhit(ev.c)) {
-	    click();
+	    // addon: 061 -- the Changed seam, where the client receives the CLICK, before its own click().
+	    // The value is what the box is ABOUT to take, so cancelling means it never flipped.
+	    if(AddonWidgets.activate(this, "Changed", AddonWidgets.checkValue(this)))
+		click();
 	    return(true);
 	}
 	return(super.mousedown(ev));

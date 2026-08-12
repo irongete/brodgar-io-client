@@ -206,6 +206,8 @@ becomes per family **and** per provenance) · `ui/custom.md` (`:title(s)` may na
 - `src/io/brodgar/addon/WidgetSubs.java` — 1, 2, 3, 4, 9
 - `src/io/brodgar/addon/LuaEvent.java` — 1, 2, 3, 4
 - `src/io/brodgar/addon/Subs.java` — 1, 2, 3, 4
+- `src/io/brodgar/addon/LuaMarshal.java` — 2, 3, 4, 8 (the one Java→Lua marshal `ev:value()` and a
+  borrowed control's own `:value()` go through, a native list's arbitrary row included)
 - `src/io/brodgar/addon/Controls.java` — 1, 2, 3, 4, 5, 8, 9
 - `src/io/brodgar/addon/CCheck.java`, `CICheck.java`, `CRadio.java` — 2, 8
 - `src/io/brodgar/addon/CList.java`, `CDropdown.java`, `CMenu.java`, `CGrid.java` — 3, 8

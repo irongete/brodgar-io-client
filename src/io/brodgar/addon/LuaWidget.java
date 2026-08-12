@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.ACheckBox;
 import haven.Button;
 import haven.ChatUI;
 import haven.CheckBox;
@@ -7,12 +8,17 @@ import haven.Coord;
 import haven.Equipory;
 import haven.FlowerMenu;
 import haven.FromResource;
+import haven.HSlider;
 import haven.IButton;
 import haven.IMeter;
 import haven.Inventory;
 import haven.Label;
 import haven.MenuGrid;
+import haven.Progress;
+import haven.RadioGroup;
 import haven.Resource;
+import haven.SListWidget;
+import haven.Scrollbar;
 import haven.Text;
 import haven.TextEntry;
 import haven.UI;
@@ -830,13 +836,23 @@ public final class LuaWidget {
         // label, a separator, a picture). The write dispatches to the control's own Value implementation,
         // which does its own type/range check and throws naming it — 040.3 ships the first of them,
         // hafen.ui():progress(), whose value is a number in 0..1.
+        //   061.2: THE READ ANSWERS ON A BORROWED CONTROL TOO. It routed through the owned adapter alone,
+        // so it read nil on every one of the client's own controls — and with it nothing an addon does to
+        // one of them was observable: what a cancelled tick left the box at, what value a drag arrived at.
+        // It gains the second half :text()'s read has always had (LuaWidget.value(Widget) below): a
+        // best-effort class switch tried when there is no owned adapter, nil where a widget holds nothing,
+        // never throwing. Still a read — unprotected, no layer, nothing to restore.
         m.set("value", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:value() → narg 1 · w:value(v) → narg 2
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "value"));
                 LuaValue v = Args.written(a, 2, "widget:value", "v");
-                if(v == null)
-                    return Controls.value((w == null) ? null : ownedContent(owner, w));
+                if(v == null) {
+                    if(w == null)
+                        return LuaValue.NIL;
+                    Owned c = ownedContent(owner, w);
+                    return (c == null) ? value(w) : Controls.value(c);
+                }
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
                 Controls.value(owned(owner, w, "value(v)"), w, v);
@@ -1789,6 +1805,44 @@ public final class LuaWidget {
             return (t == null) ? null : t.text;
         }
         return null;
+    }
+
+    /**
+     * <b>Best-effort value for a control the addon did NOT build</b> ({@code widget:value()} on a borrowed
+     * widget, 061.2) — the second half {@link #text(Widget)} has always had, and the same discipline: one
+     * {@code instanceof} chain in one method, {@code nil} on a widget that holds nothing, never throwing, so
+     * upstream churn breaks this method and nothing else.
+     *
+     * <p><b>A radio button answers its GROUP's row, not its own tick.</b> What a radio holds is <i>which row
+     * is checked</i>, and the group that holds it is not a widget to point at — so the button is the address
+     * and the row is the answer, which is also what its {@code "Changed"} says it is about to become.
+     *
+     * <p>A native list's row is an arbitrary Java object, so it goes through the one canonical marshal
+     * ({@link LuaMarshal#toLua}): a plain value crosses as itself, anything else as an opaque handle that
+     * still compares {@code ==} and can be handed straight back.
+     */
+    static LuaValue value(Widget w) {
+        try {
+            if(w instanceof RadioGroup.RadioButton) {
+                String row = ((RadioGroup.RadioButton)w).checked();
+                return (row == null) ? LuaValue.NIL : LuaValue.valueOf(row);
+            }
+            if(w instanceof ACheckBox)             // CheckBox and ICheckBox alike: what the tick says
+                return LuaValue.valueOf(((ACheckBox)w).state());
+            if(w instanceof HSlider)
+                return LuaValue.valueOf(((HSlider)w).val);
+            if(w instanceof Scrollbar)
+                return LuaValue.valueOf(((Scrollbar)w).val);
+            if(w instanceof TextEntry)
+                return LuaValue.valueOf(((TextEntry)w).text());
+            if(w instanceof SListWidget)           // a list, a dropbox and a menu's inner list: the picked row
+                return LuaMarshal.toLua(((SListWidget<?, ?>)w).sel);
+            if(w instanceof Progress)
+                return LuaValue.valueOf(((Progress)w).fraction());
+        } catch(RuntimeException e) {
+            return LuaValue.NIL;   // a Supplier still Loading, say: a read answers nil rather than throwing
+        }
+        return LuaValue.NIL;
     }
 
     /**

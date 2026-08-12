@@ -63,9 +63,10 @@ public final class LuaEvent {
         /**
          * {@code w:on("Pressed"/…, fn)} on a control the addon <b>borrowed</b> (061.1) — the client is about to
          * run its own action and is asking first, so unlike the owned half this one can be stopped
-         * ({@code :preventDefault()}) or run by the handler itself ({@code :resend()}).
+         * ({@code :preventDefault()}) or run by the handler itself ({@code :resend()}). {@code :value()} is
+         * what the control is about to take where the key carries one (061.2), {@code nil} where it does not.
          */
-        CONTROL("control", "a control event answers :preventDefault() :resend()"),
+        CONTROL("control", "a control event answers :value() :preventDefault() :resend()"),
         /** {@code w:on("Draw", fn)} — an own widget's paint (041.4): three things to say, none cancelable. */
         DRAW("draw", "a draw event answers :g() :w() :h()"),
         /** {@code grid:on("Cell", fn)} — one grid cell's paint (041.4): four things to say, none cancelable. */
@@ -556,6 +557,16 @@ public final class LuaEvent {
      * no arguments to rewrite.
      */
     private static void control(LuaTable m) {
+        // ev:value() — what the control is ABOUT to take (061.2), read through the one canonical
+        // Java→Lua marshal: a checkbox's boolean, a radio's row, a native list's own row object as an
+        // opaque handle that still compares ==. nil where the key carries none — a Pressed is an
+        // activation and holds nothing — the same "the data decides, not a typo" rule Shape.INPUT's
+        // :button()/:amount() already have.
+        m.set("value", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaMarshal.toLua(self(a.arg1(), Shape.CONTROL, "value").nval);
+            }
+        });
         preventDefault(m, Shape.CONTROL);
         m.set("resend", new VarArgFunction() {
             public Varargs invoke(Varargs a) {

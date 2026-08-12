@@ -24,6 +24,7 @@ A [control](controls/README.md)'s capability key answers on a **borrowed** contr
 | Key | Fires on | `ev` answers |
 |---|---|---|
 | `Pressed` | a button of the client's own — from a click, and from its keybinding | `:preventDefault()` `:resend()` |
+| `Changed` | a checkbox or a radio button of the client's own — from a click, and from its keybinding | `:value()` `:preventDefault()` `:resend()` |
 
 Name the control the ordinary way, with a [selector](selectors.md). Every window carries a close button,
 so `win:find("@IButton")` is the one control you can reach without knowing what a window is made of.
@@ -37,10 +38,49 @@ handler *is* the action, so there is nothing under it to stop. One key, two prov
 Cancelling is **OR across every handler and every addon** of one press: any one of them cancels, all of
 them still run, and the outcome never depends on which addon loaded first.
 
+## What the control is about to hold
+
+`ev:value()` is the value the control would take **if the client goes on** — read *before* the change, which
+is what makes cancelling mean *it did not happen* rather than *it happened and was undone*:
+
+```lua
+box:on("Changed", function(ev)
+  if ev:value() == true then ev:preventDefault() end   -- this box may be cleared, never ticked
+end)
+```
+
+A checkbox's is the flipped tick, and a radio button's is **the row the selection is about to move to** —
+because what a radio holds is a row, and it is the button you point at only because the set that holds the
+row is not a widget. `ev:value()` is on every control event and reads `nil` where the key carries nothing:
+`Pressed` is an activation, so there is nothing it is about to hold.
+
+## Reading what a borrowed control holds
+
+`w:value()` answers on one of the client's own controls, the same verb it answers with on a
+[control you built](controls/README.md#setters) — a checkbox's boolean, a radio's row, a slider's and a
+scrollbar's number, a text field's string, a list's or dropdown's row. You point at a radio **button** and
+read the row its whole set holds, for the same reason its `Changed` carries one. A widget that holds nothing
+reads `nil` rather than raising, exactly like [`:text()`](widget.md#read):
+
+```lua
+local box = hafen.ui():find("window[title=Options]"):all("@CheckBox")[1]
+box:on("Changed", function(ev)
+  hafen.log():write(tostring(box:value()) .. " -> " .. tostring(ev:value()))
+end)
+```
+
+It is a read: unprotected, no layer, nothing to restore. It is also what makes everything on this page
+*checkable* — what a cancelled tick left the box at is a question with an answer.
+
+A row of one of the client's **own** lists is its own private thing rather than something you wrote, so it
+comes back as an opaque handle: you can hold it, compare it with `==` and tell one selection from the next,
+but there is nothing inside it to read. The rows you can read are the ones you gave a control yourself.
+
 ## Running the action yourself
 
-`ev:resend()` runs the action the control already had — the client's own method, exactly as the press
-would have reached it:
+`ev:resend()` runs the action the control already had — the client's own method, exactly as the gesture
+would have reached it. A button's is its click; a checkbox's is the flip, and a radio button's the pick that
+moves the whole set's selection:
 
 ```lua
 btn:on("Pressed", function(ev)
@@ -65,9 +105,20 @@ There is no `ev:send(t)` beside it — that verb exists on an
 rewrite. What is held back here is a **method**, so there is nothing to say with it, and the spelling
 refuses naming `resend`.
 
-A resent press does what the user's own press would have done, the message the client sends the server
+A resent gesture does what the user's own would have done, the message the client sends the server
 included. It stays unprotected because it cannot invent one: it re-issues the gesture the user just made,
 and it only exists because they made it.
+
+## A native control inside one of yours
+
+A [control you built](controls/README.md) is often made of the client's own smaller ones: a dropdown's drop
+arrow is a checkbox the client builds inside it. Those read **borrowed** — `:info().owned` is `false` — and
+this page applies to them, in the middle of a control that is yours.
+
+The rule that keeps that from doubling up: **the addon that owns a control keeps the dispatch it already
+had and never also receives it here.** A `Changed` on a dropdown you built is still the row the user picked,
+fired the one way it always was; the arrow inside it is a separate widget with a key of its own, and you
+reach it by pointing at it.
 
 ## See also
 

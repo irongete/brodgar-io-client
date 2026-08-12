@@ -496,6 +496,8 @@ final class Controls {
     static List<String> borrowedKeys(Widget w) {
         if((w instanceof haven.Button) || (w instanceof haven.IButton))
             return Collections.singletonList("Pressed");
+        if(w instanceof haven.ACheckBox)   // 061.2: a CheckBox, an ICheckBox and a RadioGroup.RadioButton alike
+            return Collections.singletonList("Changed");
         return Collections.<String>emptyList();
     }
 
@@ -584,6 +586,15 @@ final class Controls {
         }
         if(w instanceof haven.IButton) {
             ((haven.IButton)w).click();
+            return;
+        }
+        if(w instanceof haven.RadioGroup.RadioButton) {   // 061.2: BEFORE the checkbox arm — a radio is one
+            haven.RadioGroup.RadioButton rb = (haven.RadioGroup.RadioButton)w;
+            rb.group().check(rb);   // ...and its own activation moves the GROUP's selection, not just its tick
+            return;
+        }
+        if(w instanceof haven.ACheckBox) {
+            ((haven.ACheckBox)w).click();
             return;
         }
         throw new LuaError("ev:resend() — a " + LuaWidget.typeName(w) + " has no '" + key + "' action of its"

@@ -54,7 +54,7 @@ pass.
       `[manual]`: click the X on the `061.1` window — expect it to stay open.
       `[manual]`: click the X again — expect it to close.
 
-- [ ] **061.2 — `Changed` answers on a native checkbox and radio button, and `widget:value()` reads one.**
+- [x] **061.2 — `Changed` answers on a native checkbox and radio button, and `widget:value()` reads one.**
       Both halves of the same spine, which is why they are one task: `Changed` is already defined as *the
       notification half of the `:value()` spine*, and today the read half answers `nil` on every native
       control (it routes through `ownedContent`, and a borrowed widget has no owned adapter) — so without

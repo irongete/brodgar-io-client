@@ -70,6 +70,13 @@ public class Progress extends Widget {
     public Progress text(Supplier<?> text) {return(text(a -> text.get(), String::valueOf));}
     public Progress percent() {return(text(a -> (int)Math.floor(a * 100), p -> String.format("%d%%", p)));}
 
+    // addon: 061 -- the fraction this bar DRAWS, for widget:value() on a borrowed one: the installed
+    // Supplier's when there is one, `a` otherwise (`a` alone is stale the moment a Supplier is installed).
+    // Exactly draw(GOut)'s own first line, which is the only other place the two are folded.
+    public float fraction() {
+	return((val == null) ? this.a : val.get());
+    }
+
     private Tex rt = null;
     private Object pt;
     public void draw(GOut g) {

@@ -86,6 +86,8 @@ of these — the wrap happens inside their OWN inner list class instead.
 | What | Where |
 |---|---|
 | `SDropBox<I, W>` IS an `SListWidget<I, W>` | but its `makeitem` must return the BARE `W`, not an `ItemWidget` — `SDropList.Item` (the popup's own row wrapper) and `SDropBox.change` (the closed-box widget) each wrap it themselves |
+| The drop arrow is a real `ICheckBox` | `makedrop()` mints one and the constructor `adda`s it as a CHILD, with `state`/`set` replaced by lambdas (`dl != null` / `drop(boolean)`) — so it opens the popup and never runs `changed` |
+| ...and a click on the BOX opens the list without touching it | `SDropBox.mousedown` falls through `ev.propagate(this)` to `drop.click()` **directly**, so only a click that actually lands on the arrow's own picture reaches `ICheckBox.mousedown` — two input sites for one activation, and the box one is the ordinary way a dropdown is opened |
 | `SDropList.makeitem` | `new Item(item, SDropBox.this.makeitem(item, idx, sz))` — the outer `makeitem` supplies content, the inner list supplies the click wrapper |
 | `change(I)` does DOUBLE duty here | `SDropBox.change` sets `sel` **and** rebuilds the closed-box widget (`curitem`, destroyed and re-`makeitem`'d) — unlike `SListBox`, there is no lower-level "just set `sel`" seam at all; a caller must run the SAME method's logic to keep the closed-box display in sync, so a control's own `:value(v)` calls `change(I)` directly and skips only its own notify wrapper (not the field write) |
 | `makeitem(null, …)` is a REAL call | `SDropBox.change` calls `makeitem(item, -1, …)` with whatever it is given, including `null` (no selection) — an adapter's `makeitem` must handle it |
@@ -118,7 +120,7 @@ actually need it.
 
 | What | Where |
 |---|---|
-| Columns are fixed at construction | `cols`/`main` are `public final`, built once from `spec()` — the same "no live setter" shape [row height](#slistwidgetslistbox-the-model-backed-contract)/[cell box](#gridlist-draws-cells-does-not-build-row-widgets) already have |
+| Columns are fixed at construction | `cols`/`main` are `public final`, built once from `spec()` — the same "no live setter" shape [row height](#slistwidgetslistbox--the-model-backed-contract)/[cell box](#gridlist--draws-cells-does-not-build-row-widgets) already have |
 | A cell is built PER COLUMN, per row | `Row`'s constructor calls `ColSpec.makecell` once for every column; `MainList`, an inner `SListBox`, is what runs it — lazily, from the same uncaught per-frame tick the model-backed contract's row-widget note above already covers |
 | `widths()` skips its own flex math at `flexw=0` | `widths()` redistributes stretch space by `ColSpec.flexw()`; with every column's `flexw` at `0` (this bridge's own choice — no stretch columns), `c.w` reduces to exactly `fixw()`, independent of the widget's own `:size()` |
 | `MainList` carries its own `Scrollbar` | `MainList extends SListBox` inherits its auto-scrollbar, so a suite walking its children for "the row widgets" must filter `type()=="Scrollbar"` out, same as any bare `:list()` |

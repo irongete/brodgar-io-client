@@ -63,7 +63,9 @@ answers on any text-bearing widget, `:text(s)` writes only on one you own.
 
 **`:value()` is the one verb for what a control holds**, whatever shape that is — a
 [progress bar](display.md#progress-bar)'s is a fraction, and a control with nothing to hold reads `nil`
-rather than throwing. A write is checked by the control it lands on: a [progress bar](display.md#progress-bar)
+rather than throwing. The **read** answers on one of the client's own controls too, where the write does not:
+what a native checkbox is ticked at is a fact about the client's UI, and changing it is
+[editing](../edit.md). A write is checked by the control it lands on: a [progress bar](display.md#progress-bar)
 refuses one outside `0..1`, naming the rule, while a [slider or scrollbar](interactive.md#slider) instead
 CLAMPS a write outside its own `:range` to the nearer bound — because that range is something you set
 yourself with `:range(min, max)` and can narrow at any time, not a fixed contract the value can violate.
@@ -134,6 +136,11 @@ changing it never loop into each other. Two handlers on one key both fire, in re
 client's own controls, where the handler is also given an `ev` that can stop the client's action or run it
 — [editing](../edit.md) is that page. Here your handler *is* the action, so there is nothing under it to
 cancel and nothing is handed over but the value.
+
+**A control you built is often made of the client's own smaller ones**, and those are borrowed: a
+dropdown's drop arrow is one of the client's checkboxes, with a `Changed` of its own. Your `Changed` on the
+dropdown is still the row the user picked — the key you own fires the one way it always did, and you never
+receive the arrow's as well.
 
 ## Reading order
 

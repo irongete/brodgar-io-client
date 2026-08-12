@@ -168,7 +168,13 @@ public abstract class SDropBox<I, W extends Widget> extends SListWidget<I, W> {
 	if(ev.propagate(this))
 	    return(true);
 	if(ev.b == 1) {
-	    drop.click();
+	    // addon: 061 -- the Changed seam of the DROP ARROW, whose click() this reaches directly: a click
+	    // anywhere on the closed box opens the list without ever passing through ICheckBox.mousedown, so
+	    // the seam one level down would be silent on the ordinary way a dropdown is opened. It addresses
+	    // `drop`, the widget an addon holds the key on; a click that DID land on the arrow was already
+	    // consumed by ev.propagate above, so exactly one of the two paths ever runs.
+	    if(AddonWidgets.activate(drop, "Changed", AddonWidgets.checkValue(drop)))
+		drop.click();
 	    return(true);
 	}
 	return(super.mousedown(ev));

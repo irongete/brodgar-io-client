@@ -65,7 +65,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:tooltip()` | string \| nil | the line that appears when the pointer rests on it, or `nil` — [`:tooltip(s)` writes it on a control you built](#tooltips-and-focus) |
 | `:focused()` | boolean | whether a keystroke would reach this widget — see [focus](#tooltips-and-focus) |
 | `:image()` | table \| nil | the faces of a [control](controls/interactive.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |
-| `:value()` | varies \| nil | what a [control](controls/README.md#setters) holds, or `nil` where it holds nothing — [`:value(v)` writes it](controls/README.md#setters) |
+| `:value()` | varies \| nil | what a [control](controls/README.md#setters) holds — the client's own included, a checkbox's boolean through a text field's string — or `nil` where it holds nothing; [`:value(v)` writes it on one you built](controls/README.md#setters) |
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls/display.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls/display.md#picture) |
 | `:rows()` | array \| nil | the row source a [radio](controls/interactive.md#radio) or a [list, dropdown, menu, grid or table](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows-list-dropdown-menu) |
 | `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls/interactive.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls/interactive.md#slider) |
@@ -141,9 +141,9 @@ handler's return value is ever read. **Two handlers fire independently**: either
 A [control](controls/README.md) answers these five as well — it is a Widget first — plus the capability
 keys of the thing it is, and a surface you [paint](custom.md) answers four more on top. A capability key
 belongs to **a control**, not to a control you built: `Pressed` answers on one of the client's own buttons
-the same way, and there it is **cancelable**, because there the client has an action of its own underneath
-your handler — see [edit](edit.md). `:on(key, fn)` on a key a widget does not have throws, naming the ones
-it does:
+and `Changed` on one of its checkboxes the same way, and there they are **cancelable**, because there the
+client has an action of its own underneath your handler — see [edit](edit.md). `:on(key, fn)` on a key a
+widget does not have throws, naming the ones it does:
 
 ```lua
 label:on("Pressed", fn)

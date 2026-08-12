@@ -181,6 +181,23 @@ public final class AddonWidgets {
     }
 
     /**
+     * What an {@link ACheckBox} is <b>about to</b> hold, for the {@code "Changed"} half of the interception
+     * seam (spec {@code 061-editing-native-windows}) — the value the client would write if it goes on, so
+     * cancelling means <i>it did not happen</i> rather than <i>it happened and was undone</i>.
+     *
+     * <p>A {@link RadioGroup.RadioButton} carries its <b>row</b> and everything else the flipped state, and
+     * it is one method because a {@code RadioButton} <i>is</i> a {@link CheckBox} and does not override
+     * {@code gkeytype}: a keybound radio arrives at the {@link ACheckBox} seam too, so the dispatch has to be
+     * on the widget or one key would mean two shapes on one widget depending on whether the player used the
+     * mouse.
+     */
+    public static Object checkValue(ACheckBox box) {
+        if(box instanceof RadioGroup.RadioButton)
+            return(((RadioGroup.RadioButton)box).row());
+        return(Boolean.valueOf(!box.state()));
+    }
+
+    /**
      * The <b>layout-persistence seam</b> (spec {@code 036-ui-layout}, E) — the position the client should write
      * down for a window it persists ({@link GameUI}'s {@code savewndpos}, {@code cdestroy}'s {@code wndc-misc},
      * the crafting window's {@code makewndc}). Normally the widget's own {@code c}; for a widget an AddOn's

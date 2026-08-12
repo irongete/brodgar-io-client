@@ -1,0 +1,11 @@
+{
+  "name": "061.2 — Changed on a native checkbox, and widget:value() reading one",
+  "id": "061-editing-native-windows.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 061.2: widget:value() answers on a borrowed control, Changed fires on one of the client's own checkboxes carrying the value it is about to take, cancelling leaves it unflipped, ev:resend() flips it, and an addon that owns the enclosing control never receives the key twice.",
+  "api_version": 1,
+  "files": [
+    "main.lua"
+  ]
+}

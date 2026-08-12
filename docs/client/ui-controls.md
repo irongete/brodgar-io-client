@@ -57,6 +57,8 @@ Neither subclass extends `SIWidget` — both blit/draw fresh every frame, no `re
 | State + click | `ACheckBox.a` `public boolean`; `click` → `set(!state())`, which flips `a` and calls `changed(a)` **only on an actual flip** (stock `changed` sends `wdgmsg` only `if(canactivate)`, `false` off a bare ctor) |
 | `CheckBox.lbl` | was package-private, no setter — `// addon:` made it `public` + added `settext(String)` (mirrors `Label.settext`) |
 | `ICheckBox` faces | `up/down/hoverup/hoverdown` are `Tex`, not `BufferedImage` — it blits, doesn't rasterise; `checkhit` samples `up`'s alpha bounded by `sz` |
+| The three activation sites | `CheckBox.mousedown` and `ICheckBox.mousedown` each call `click()`; `ACheckBox.gkeytype` is the keyboard's, shared by both **and by `RadioGroup.RadioButton`**, which overrides `mousedown` but not this |
+| `state`/`set`/`changed`/`click` are all **public fields** | so a caller may replace any of them — `SDropBox` replaces `state`/`set` on its own drop arrow, which is why that arrow never runs `changed` at all |
 
 > **A checkbox's click runs during `mousedown`** (unlike `Button`, whose activation is the last thing
 > `mouseup` does). `Window.mousedown` still runs `parent.setfocus(this)` on ITSELF after `ev.propagate`
@@ -69,6 +71,17 @@ Neither subclass extends `SIWidget` — both blit/draw fresh every frame, no `re
  and owned by nobody. Every window carries one, which makes it the
 reliable answer to *"find a control this addon did not build"* without depending on which client windows
 happen to be open. The rest of the deco is [ui-chrome.md](ui-chrome.md).
+
+## `OptWnd` — panels built on first visit, and one that rebuilds itself
+
+The other window always reachable, and the one with a control of every kind in it. Two things about it cost
+time before they are known:
+
+| What | Where |
+|---|---|
+| A panel is not in the tree until it is opened | `OptWnd.PButton.click` does `actual = add(tgt.get())` the **first** time and caches it; a panel nobody has visited matches no selector at all, and after one visit it stays added with `visible = false` while another shows |
+| `VideoPanel` throws its whole column away whenever a graphics preference moves | `VideoPanel.draw` runs `if((curcf == null) \|\| (ui.gprefs != curcf.prefs)) resetcf(ui)`, and `resetcf` destroys `curcf` and builds a fresh one — so the very checkbox a click just flipped is a **different widget** on the next frame, and anything held on the old one is holding a widget that has left the tree |
+| Its own controls override the value hook, not the input | e.g. `new CheckBox("Vertical sync") {public void set(boolean val) {…}}` — an anonymous subclass replacing `set`, which is exactly what a seam placed on an overridable hook would have missed |
 
 ## Tree operations a control adapter uses
 

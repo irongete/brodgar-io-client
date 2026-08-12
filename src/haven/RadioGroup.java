@@ -50,9 +50,20 @@ public class RadioGroup {
 	public boolean mousedown(MouseDownEvent ev) {
 	    if(a || ev.b != 1)
 		return(false);
-	    check(this);
+	    // addon: 061 -- the Changed seam. This method calls check(this) directly, which is the one
+	    // activation path the CheckBox.mousedown seam never sees.
+	    if(AddonWidgets.activate(this, "Changed", AddonWidgets.checkValue(this)))
+		check(this);
 	    return(true);
 	}
+
+	/* addon: 061 -- the three reads the AddOn seam needs and the group keeps to itself: this button's own
+	 * ROW (the value "Changed" carries), the row the GROUP currently holds (what widget:value() answers on
+	 * a borrowed radio button -- what a radio holds is a row, and the group is not a widget to point at),
+	 * and the group itself, so ev:resend() can run its check(this). */
+	public String row() {return(rmap.get(this));}
+	public String checked() {return((RadioGroup.this.checked == null) ? null : rmap.get(RadioGroup.this.checked));}
+	public RadioGroup group() {return(RadioGroup.this);}
 
 	public void changed(boolean val) {
 	    a = val;

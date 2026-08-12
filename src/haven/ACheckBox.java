@@ -61,7 +61,11 @@ public abstract class ACheckBox extends Widget {
     public void click() {click.run();}
 
     public boolean gkeytype(GlobKeyEvent ev) {
-	click();
+	// addon: 061 -- the Changed seam, where the client receives the KEY. A RadioGroup.RadioButton is a
+	// CheckBox and does NOT override this, so a keybound radio lands here too; checkValue dispatches on
+	// the widget, so one key never means two shapes depending on whether the player used the mouse.
+	if(AddonWidgets.activate(this, "Changed", AddonWidgets.checkValue(this)))
+	    click();
 	return(true);
     }
 
