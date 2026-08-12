@@ -65,7 +65,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:tooltip()` | string \| nil | the line that appears when the pointer rests on it, or `nil` — [`:tooltip(s)` writes it on a control you built](#tooltips-and-focus) |
 | `:focused()` | boolean | whether a keystroke would reach this widget — see [focus](#tooltips-and-focus) |
 | `:image()` | table \| nil | the faces of a [control](controls/interactive.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |
-| `:value()` | varies \| nil | what a [control](controls/README.md#setters) holds — the client's own included, a checkbox's boolean through a text field's string — or `nil` where it holds nothing; [`:value(v)` writes it on one you built](controls/README.md#setters) |
+| `:value()` | varies \| nil | what a [control](controls/README.md#setters) holds — the client's own included, a checkbox's boolean through a text field's string — or `nil` where it holds nothing; `:value(v)` writes it on [one you built](controls/README.md#setters) and, protected, on [one of the client's](edit.md#driving-one-protected) |
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls/display.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls/display.md#picture) |
 | `:rows()` | array \| nil | the row source a [radio](controls/interactive.md#radio) or a [list, dropdown, menu, grid or table](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows-list-dropdown-menu) |
 | `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls/interactive.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls/interactive.md#slider) |
@@ -176,7 +176,7 @@ provoke the error.
 | `:title(s)` | write the caption of a window you built | **works**, same — a window's caption is this verb wherever it came from |
 | `:tooltip(s)` | write the line that appears when the pointer rests on it | **error** — those are the client's own words about its own button |
 | `:image(up, down [, hover])` | give a [control](controls/interactive.md#a-caption-or-a-picture) you are building its pictures | **error**, same reason |
-| `:value(v)` | write what a [control](controls/README.md#setters) holds | **error**, same reason |
+| `:value(v)` | write what a [control](controls/README.md#setters) holds | **works, and it is the one PROTECTED write here** — [driving the client's own control](edit.md#driving-one-protected) is what the user would have done, and the server sees it |
 | `:source(h)` | give a [picture control](controls/display.md#picture) its content | **error**, same reason |
 | `:rows(t)` | give a [radio](controls/interactive.md#radio) or a [list, dropdown, menu, grid or table](lists.md#rows-list-dropdown-menu) its rows | **error**, same reason |
 | `:range(min, max)` | set the bounds of a [slider or scrollbar](controls/interactive.md#slider) you built | **error**, same reason |
@@ -187,7 +187,10 @@ provoke the error.
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |
 
-None of these writes is protected: they are client-side state, and every one of them restores.
+One of these writes is protected, and it is the one that is not client-side state: `:value(v)` on a
+**borrowed** control drives it as the user would, so the server sees it, and it needs the `widget.value`
+[key](../../guides/permissions.md) — like [`:send`](#send-a-message-protected) below. Every other write
+here changes only your own client, and every one of them restores.
 
 **Arity is the verb.** `w:position()` reads, `w:position(x, y)` writes and `w:position(nil)` drops your
 write; `w:size()` and `w:visible()` are the same shape — with the one-number `w:size(w)` as the arity a

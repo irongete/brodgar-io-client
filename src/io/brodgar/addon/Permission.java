@@ -49,7 +49,9 @@ public enum Permission {
     KIN_END          ("kin.endKin",         "kin:endKin",                     "end kinship with someone"),
     KIN_FORGET       ("kin.forget",         "kin:forget",                     "forget someone from your kin list"),
     SPEED_SET        ("speed.set",          "hafen.speed():set",              "change your movement speed"),
-    WIDGET_SEND      ("widget.send",        "widget:send",                    "send any message the client itself could send");
+    WIDGET_SEND      ("widget.send",        "widget:send",                    "send any message the client itself could send"),
+    WIDGET_VALUE     ("widget.value",       "widget:value",                   "flip the client's own controls — a box it ticks,"
+                                                                              + " a field it types into — which the server sees");
 
     /** The manifest key an addon declares to be granted this verb ({@code item.transfer}). */
     public final String key;

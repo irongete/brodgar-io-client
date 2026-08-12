@@ -15,6 +15,7 @@ Both are plain `Widget` subclasses (no `SIWidget` cache, nothing to `redraw()`).
 | `Scrollbar` has only the first half | `Scrollbar.changed()` fires from the same `update(Coord)` shape; `mouseup` only releases the grab — **no `fchanged()` equivalent exists** |
 | Where the value is actually WRITTEN | `HSlider.update(Coord)` (the drag) is the only one; a `Scrollbar` has **two** — `update(Coord)` for the thumb, and `ch(int)` for the wheel and the step buttons (`ch(double)` accumulates a fraction and calls `ch(int)`). Each writes `val` and THEN calls `changed()`, so anything riding the hook is told after the fact |
 | Who calls `ch` | `Scrollport.mousewheel` (`bar.ch(ev.s * UI.scale(15))`), `SListBox`'s own wheel handling, and the step buttons of the widgets that draw them |
+| Neither has an ABSOLUTE setter | `HSlider.update(Coord)` and `Scrollbar.update(Coord)` are both `private`, so the only public way in is `Scrollbar.ch(int)` — a **delta**, clamped as `val + a` into `min..max` and silent when that does not move. Reaching a given value means writing the step it needs, and since `ch` is also one of the two places `val` is written, anything riding that write sees a programmatic step exactly as it sees the wheel |
 
 > **`Scrollbar(int h, Scrollable ctl)` makes `draw()` overwrite `min`/`max`/`val` from `ctl` EVERY FRAME.**
 > `Scrollbar.draw` starts `if(ctl != null) { min = ctl.scrollmin(); … }` before painting. `SListBox` is what

@@ -1,0 +1,10 @@
+{
+  "name": "061.8 — widget:value(v) drives a native control",
+  "id": "061-editing-native-windows.8",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 061.8: driving one of the client's own controls through widget:value(v), the widget.value key that gates it, and the reads that prove a programmatic write is not an interaction.",
+  "api_version": 1,
+  "permissions": ["widget.value"],
+  "files": ["main.lua"]
+}

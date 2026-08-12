@@ -236,7 +236,8 @@ becomes per family **and** per provenance) · `ui/custom.md` (`:title(s)` may na
 - `docs/addons/api/ui/edit.md` — 5, 7, 8, 9 (created by 1; each of these adds its own section)
 - `docs/addons/api/ui/replace.md` — 1, 5, 7, 9
 - `docs/addons/api/ui/custom.md` — 5, 7
-- `docs/addons/guides/permissions.md` — 8
+- `docs/addons/guides/permissions.md` — 8, 9 (9's suite declares `widget.value` to prove `revert()` leaves a
+  driven control alone, and the key is spelled there)
 - `docs/client/ui-controls.md` — 1, 2, 3, 4, 8
 - `docs/client/ui-lists.md` — 3, 4, 8 (every list, slider and scrollbar funnel this feature seams, and where
   the one always-reachable native list is)

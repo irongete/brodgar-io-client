@@ -882,12 +882,21 @@ public final class LuaWidget {
         // It gains the second half :text()'s read has always had (LuaWidget.value(Widget) below): a
         // best-effort class switch tried when there is no owned adapter, nil where a widget holds nothing,
         // never throwing. Still a read — unprotected, no layer, nothing to restore.
+        //   061.8: AND THE WRITE ANSWERS ON ONE TOO — the one ACT in the editing surface, and the only
+        // PROTECTED verb in it ("widget.value"). It drives the control through the very method the client's
+        // own gesture ends in (Controls.drive), so the server sees exactly what it would have seen from the
+        // user: which is why writing what a control HOLDS is keyed where writing what a widget SAYS
+        // (widget:text(s)) is not. It is an act and not a layer — nothing is recorded, there is no
+        // :value(nil), and neither :reload nor disable puts a driven control back.
+        //   The gate is the FIRST statement on that path (D-213), before the value is looked at, so an
+        // addon that declared nothing is told THAT rather than that its argument was the wrong type. It
+        // cannot come earlier than the provenance: a control the addon BUILT is its own UI, and writing
+        // what your own progress bar holds has never left the client.
         m.set("value", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:value() → narg 1 · w:value(v) → narg 2
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "value"));
-                LuaValue v = Args.written(a, 2, "widget:value", "v");
-                if(v == null) {
+                if(!Args.passed(a, 2)) {                  // w:value() — the read, on either provenance
                     if(w == null)
                         return LuaValue.NIL;
                     Owned c = ownedContent(owner, w);
@@ -895,7 +904,14 @@ public final class LuaWidget {
                 }
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
-                Controls.value(owned(owner, w, "value(v)"), w, v);
+                Owned c = ownedContent(owner, w);
+                if(c == null) {                           // BORROWED: the act, and its gate
+                    AddonManager.requirePermission(owner, Permission.WIDGET_VALUE);
+                    Controls.drive(w, Args.written(a, 2, "widget:value", "v"));
+                    WidgetSurface.touch(w);               // 044.1: standing in the world? its picture moved
+                    return self;
+                }
+                Controls.value(c, w, Args.written(a, 2, "widget:value", "v"));
                 return self;
             }
         });

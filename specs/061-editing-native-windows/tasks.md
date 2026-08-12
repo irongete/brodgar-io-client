@@ -217,7 +217,7 @@ pass.
       not read as a death: adopting a control fires no `Destroy` of its own.
       `[manual]`: run with the Options window open; open a container and close it while the suite waits.
 
-- [ ] **061.8 — `widget:value(v)` drives a native control (protected).** The one act in this feature:
+- [x] **061.8 — `widget:value(v)` drives a native control (protected).** The one act in this feature:
       it writes through the very method the client calls, so `canactivate` and the outgoing `wdgmsg`
       behave exactly as a real interaction — `ACheckBox.set`, `RadioGroup.check`, `HSlider`'s value write,
       `Scrollbar`'s (`ch` is *relative*, so driving to an absolute value writes the step it needs),

@@ -213,6 +213,43 @@ A row of one of the client's **own** lists is its own private thing rather than 
 comes back as an opaque handle: you can hold it, compare it with `==` and tell one selection from the next,
 but there is nothing inside it to read. The rows you can read are the ones you gave a control yourself.
 
+## Driving one (protected)
+
+`w:value(v)` writes what one of the client's own controls holds, by doing what the user would do: it runs
+the control through the very method their gesture ends in, so what the client sends the server it sends,
+and whatever that particular control was built to do is what happens.
+
+```lua
+local box = hafen.ui():find("window[title=Options]"):all("@CheckBox")[1]
+box:value(not box:value())             -- ticked, exactly as a click would have ticked it
+```
+
+| Control | `v` is | The drive |
+|---|---|---|
+| a checkbox | a boolean | ticks it or clears it |
+| a radio button | one of its group's row labels | moves the whole group's selection to that row |
+| a slider, a scrollbar | a number | moves it there, clamped into the bounds the control carries |
+| a text entry | a string | replaces the line in the field |
+| a list, a dropdown | a row **of that list** | picks it |
+
+It needs the `widget.value` [permission key](../../guides/permissions.md) declared in your manifest, and
+without it the call raises naming that key **before** it looks at the value you passed. It is the one
+protected verb on this page, and the line it falls on is the one stated at the top: what a widget **says**
+never leaves the client, and what a control **holds** does.
+
+**It is an act, not a layer** — the opposite of `:text(s)` in every respect. There is no `:value(nil)`,
+nothing is recorded, and neither `:reload` nor disabling your addon puts a driven control back: the write
+went to the server as a real interaction, and putting the box back is another interaction, not an undo.
+
+**And a write is not an interaction, so it fires nothing.** No `Changed` of yours runs from a `:value(v)`,
+whichever control it lands on — the capability keys report what the *user* did, and a handler woken by your
+own write is a loop waiting to happen. Read the control back to see where it landed.
+
+**What refuses**: a value of the wrong shape for the control, a row that is not in the radio's set — naming
+the rows that are — a row that is not the list's, and a widget that holds nothing at all, naming what does.
+One of the client's own progress bars refuses as well: what it draws is a value the client re-reads every
+frame, so a write there would be gone before it was seen.
+
 ## Running the action yourself
 
 `ev:resend()` runs the action the control already had — the client's own method, exactly as the gesture
@@ -247,7 +284,8 @@ refuses naming `resend`.
 
 A resent gesture does what the user's own would have done, the message the client sends the server
 included. It stays unprotected because it cannot invent one: it re-issues the gesture the user just made,
-and it only exists because they made it.
+and it only exists because they made it. That is the whole difference from [`w:value(v)`](#driving-one-protected),
+which acts from nothing and is keyed for it.
 
 ## A native control inside one of yours
 

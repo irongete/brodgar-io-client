@@ -64,15 +64,16 @@ outright, and on [one of the client's](../edit.md#what-a-window-says) it is a le
 
 **`:value()` is the one verb for what a control holds**, whatever shape that is — a
 [progress bar](display.md#progress-bar)'s is a fraction, and a control with nothing to hold reads `nil`
-rather than throwing. The **read** answers on one of the client's own controls too, where the write does not:
-what a native checkbox is ticked at is a fact about the client's UI, and changing it is
-[editing](../edit.md). A write is checked by the control it lands on: a [progress bar](display.md#progress-bar)
+rather than throwing. Both halves answer on one of the client's own controls as well, but the write means
+something else there — [driving](../edit.md#driving-one-protected) a control the user is looking at, which
+the server sees, so that one is protected. A write is checked by the control it lands on: a [progress bar](display.md#progress-bar)
 refuses one outside `0..1`, naming the rule, while a [slider or scrollbar](interactive.md#slider) instead
 CLAMPS a write outside its own `:range` to the nearer bound — because that range is something you set
 yourself with `:range(min, max)` and can narrow at any time, not a fixed contract the value can violate.
 
-None of this is protected: a control is your own UI, just as [a surface you paint](../custom.md) is —
-every setter above is client-side state, and every one of it restores with your addon.
+None of this is protected on a control **you** built: it is your own UI, just as
+[a surface you paint](../custom.md) is — every setter above is client-side state, and every one of it
+restores with your addon.
 
 ## Sizing
 

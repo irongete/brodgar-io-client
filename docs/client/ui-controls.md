@@ -110,7 +110,7 @@ none need the `redraw()`-on-resize fix above.
 | `Img`'s content | `setimg(Tex)` is a live, public, post-construction setter — unlike an `IButton` face, replacing it needs no D-113 rebuild |
 | `Label`'s caption | `settext(String)` returns early when the text is equal, re-renders through the label's own `f` and **`resize`s to the new raster** — so unlike a `Button`, a `Label`'s box follows what it says. It renders through `f.render`, never `renderwrap`, so a **wrapped** label (`new Label(text, w)`, whose width is kept in the fork's `fontwrapw`) comes back on one line through it; `settext(String, int)` + `wrapw()` (`// addon:`) are the pair that keep the wrap |
 | `Label`'s server write | `uimsg "set"` → `settext(Utils.sv(args[0]))` — the **plain** arm, so the server rewriting a wrapped label unwraps it; `"col"` → `setcolor` is the only other one it takes |
-| `Progress`'s fraction | `Progress.a`, `public float`, read directly by `draw` when no `Supplier` is installed |
+| `Progress`'s fraction | `Progress.a`, `public float`, is what `draw` reads **only while no `Supplier` is installed**: `val(Supplier<Float>)` installs one and from then on `a` is dead weight, the supplier being re-read every frame — so a value written into either field is overwritten before it is next drawn. `fraction()` (`// addon:`) is that fold, the line `draw` itself opens with |
 
 > **`ILabel` is NOT an image variant, despite the `I` prefix `IButton`/`ICheckBox` set.**
 > `ILabel(String, Text.Furnace)` carries no picture at all — its `Furnace` is a

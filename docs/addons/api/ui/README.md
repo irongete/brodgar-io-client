@@ -15,10 +15,11 @@ every one, and `hafen.ui():root()` is the top of the whole client tree. That sam
 is the key of a [stylesheet](style/README.md) rule, so there is one vocabulary for "which part of the UI",
 not two.
 
-Everything here is client-side and **unprotected**, and everything is bridge-owned: a window you create, an
-overlay you install, a sheet you apply and a widget you moved are all given back on `:reload` or disable.
-Client-side UI cannot send actions to the server; the one door that does is the protected
-[`widget:send`](widget.md#send-a-message-protected).
+Almost everything here is client-side and **unprotected**, and everything is bridge-owned: a window you
+create, an overlay you install, a sheet you apply and a widget you moved are all given back on `:reload` or
+disable. Two doors reach past the client, and both are protected: [`widget:send`](widget.md#send-a-message-protected)
+sends a message the server acts on, and [`widget:value(v)`](edit.md#driving-one-protected) drives one of the
+client's own controls the way the user would.
 
 ```lua
 local clock = hafen.ui():window():title("Clock"):size(160, 40):position(50, 50)

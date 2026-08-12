@@ -625,14 +625,31 @@ final class Controls {
      * (widget, key) is saved and restored rather than cleared, so a replay that reaches another control's seam
      * is still seen as an activation there — only the one being re-issued is skipped.
      */
-    static void replay(Widget w, Widget actor, String key, Object value) {
+    static void replay(final Widget w, final Widget actor, final String key, final Object value) {
+        unseamed(w, key, new Runnable() {
+            public void run() {
+                UI u = AddonManager.ui;
+                synchronized(u) { Controls.run(actor, key, value); }
+            }
+        });
+    }
+
+    /**
+     * Run {@code body} with the seam for one (widget, key) <b>suppressed</b> — the flag {@link #replaying}
+     * reads, saved and restored rather than cleared, so a call that reaches another control's seam is still
+     * seen as an activation there.
+     *
+     * <p>Two callers, and they are the same claim from two sides: {@code ev:resend()} re-issues an action the
+     * seam held back, and {@link #drive} writes a value nobody gestured for. Neither is a user interaction,
+     * so neither may be reported as one.
+     */
+    private static void unseamed(Widget w, String key, Runnable body) {
         Widget pw = replayWdg;
         String pk = replayKey;
         replayWdg = w;
         replayKey = key;
         try {
-            UI u = AddonManager.ui;
-            synchronized(u) { run(actor, key, value); }
+            body.run();
         } finally {
             replayWdg = pw;
             replayKey = pk;
@@ -881,10 +898,170 @@ final class Controls {
             WidgetSurface.touch(w);   // 044.1: a value is what a signature over the tree cannot see
             return;
         }
-        throw new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
-            + " holds nothing — hafen.ui():progress(), hafen.ui():check(), hafen.ui():radio(),"
-            + " hafen.ui():slider(), hafen.ui():scrollbar(), hafen.ui():entry(), hafen.ui():list() and"
-            + " hafen.ui():dropdown() are the builders that do, in this feature so far.");
+        throw noValue(w);
+    }
+
+    /**
+     * <b>Nothing here holds a value</b> — one refusal for both arms of {@code widget:value(v)} (061.8). It
+     * names <i>what holds one</i> rather than the builders that make one: the write answers on a control the
+     * client built exactly as on one the addon did, so a message listing only the builders would send the
+     * author of {@code label:value(true)} looking for the wrong mistake.
+     */
+    static LuaError noValue(Widget w) {
+        return new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
+            + " holds nothing — a checkbox, a radio button, a slider, a scrollbar, a text entry, a list and"
+            + " a dropdown are what hold one, whether the client built it or you did (hafen.ui():check(),"
+            + " :radio(), :slider(), :scrollbar(), :entry(), :list(), :dropdown() — and :progress(), which"
+            + " holds one on a bar you built).");
+    }
+
+    // ------------------------------------------------------------------ driving a borrowed control (061.8)
+
+    /**
+     * <b>{@code widget:value(v)} on a control the addon did NOT build</b> (061.8) — the one <b>act</b> of the
+     * editing surface, and the mirror of {@link LuaWidget#value(Widget)}, which reads the same families back.
+     *
+     * <p><b>It drives the funnel, not the input.</b> Each arm calls the very method the client's own gesture
+     * ends in — {@code ACheckBox.set}, {@code RadioGroup.check}, a slider's value write and its
+     * {@code changed}/{@code fchanged} hooks, {@code Scrollbar.ch}, {@code TextEntry.settext},
+     * {@code SListWidget.change} — so {@code canactivate} and the outgoing {@code wdgmsg} behave exactly as
+     * they do when the user does it, and a subclass's own override is what runs.
+     *
+     * <p><b>A write is not an interaction, so it fires nothing.</b> The capability seams sit where the client
+     * <i>receives</i> input, which no arm below goes through — except a scrollbar, whose {@code ch(int)} is
+     * both its value write and one of its two seams, so that one arm marks itself ({@link #unseamed}). One
+     * rule for all seven families: driving a control never dispatches its own {@code Changed}.
+     *
+     * <p>Gated by {@code widget.value} at the call site, before this is reached (D-213).
+     */
+    static void drive(Widget w, LuaValue v) {
+        UI u = AddonManager.ui;
+        if(w instanceof haven.Progress)
+            throw new LuaError("widget:value(v) on a progress bar of the client's own — what it draws is a"
+                + " Supplier the client re-reads every frame, so a value written here would be gone before"
+                + " it was seen. widget:value() reads the fraction it is showing.");
+        if(w instanceof haven.RadioGroup.RadioButton) {   // BEFORE the checkbox arm — a radio button is one
+            haven.RadioGroup.RadioButton rb = (haven.RadioGroup.RadioButton)w;
+            haven.RadioGroup.RadioButton tgt = row(rb, str(v, "a radio button", "the LABEL of one of its"
+                + " group's rows"));
+            synchronized(u) { rb.group().check(tgt); }
+            return;
+        }
+        if(w instanceof haven.ACheckBox) {                // a CheckBox and an ICheckBox alike
+            if(!v.isboolean())
+                throw new LuaError("widget:value(v) on a checkbox is a BOOLEAN, got " + v.typename());
+            boolean b = v.toboolean();
+            synchronized(u) { ((haven.ACheckBox)w).set(b); }
+            return;
+        }
+        if(w instanceof haven.HSlider) {
+            final haven.HSlider s = (haven.HSlider)w;
+            int to = clamp(num(v, "a slider"), s.min, s.max);
+            synchronized(u) {
+                if(to != s.val) {     // ...and driving one to what it already holds does nothing at all
+                    s.val = to;
+                    s.changed();      // the drag's own hook, then the release's: a drive is the whole gesture
+                    s.fchanged();
+                }
+            }
+            return;
+        }
+        if(w instanceof haven.Scrollbar) {
+            final haven.Scrollbar s = (haven.Scrollbar)w;
+            int to = clamp(num(v, "a scrollbar"), s.min, s.max);
+            synchronized(u) {
+                final int step = to - s.val;              // ch(int) is RELATIVE: there is no absolute setter
+                if(step != 0) {
+                    unseamed(s, "Changed", new Runnable() {
+                        public void run() { s.ch(step); }
+                    });
+                }
+            }
+            return;
+        }
+        if(w instanceof haven.TextEntry) {
+            String s = str(v, "a text entry", "a STRING");
+            synchronized(u) { ((haven.TextEntry)w).settext(s); }
+            return;
+        }
+        if(w instanceof haven.SListWidget) {              // a list, and a dropdown, which is one
+            haven.SListWidget<?, ?> l = (haven.SListWidget<?, ?>)w;
+            if(!v.isuserdata())
+                throw new LuaError("widget:value(v) on one of the client's own lists takes a ROW OF THAT"
+                    + " LIST — the opaque value widget:value() and ev:value() hand you. Its rows are the"
+                    + " client's own objects, so there is nothing here to build one out of: hold the row you"
+                    + " were given, and hand it back.");
+            Object row = v.touserdata();
+            if(!haven.AddonWidgets.listHas(l, row))
+                throw new LuaError("widget:value(v) — that row is not in this list. A row is only ever the"
+                    + " one this list handed you, and the client rebuilds its own rows on its own schedule,"
+                    + " so one kept across a refill is a row this list no longer has.");
+            synchronized(u) { haven.AddonWidgets.listChange(l, row); }
+            return;
+        }
+        throw noValue(w);
+    }
+
+    /** {@code v} as the number a slider or a scrollbar holds, or the refusal naming what it is. */
+    private static int num(LuaValue v, String what) {
+        if(!v.isnumber())
+            throw new LuaError("widget:value(v) on " + what + " is a NUMBER within its range, got "
+                + v.typename());
+        return v.toint();
+    }
+
+    /**
+     * {@code v} as a string. <b>{@code TSTRING} rather than {@code isstring()}</b>, the test
+     * {@code widget:send} already uses: in Lua the two coercions run BOTH ways, so a number answers
+     * {@code isstring()} <i>and</i> a string that scans as a number answers {@code isnumber()} — and the
+     * idiom that tests both refuses {@code "061.8"} and {@code "42"}, which are ordinary strings. The type
+     * is the question here, so the type is what is asked.
+     */
+    private static String str(LuaValue v, String what, String is) {
+        if(v.type() != LuaValue.TSTRING)
+            throw new LuaError("widget:value(v) on " + what + " is " + is + ", got " + v.typename());
+        return v.tojstring();
+    }
+
+    /** A value into the bounds the control itself carries — clamped, exactly as a control you built is. */
+    private static int clamp(int v, int min, int max) {
+        return (v < min) ? min : ((v > max) ? max : v);
+    }
+
+    /**
+     * The button of {@code rb}'s own group carrying {@code row}, or the refusal listing the rows it has. A
+     * {@link haven.RadioGroup} is not a widget, so the set is read off the buttons themselves: every one of
+     * them is added into the one {@code parent} the group was built on, and each answers whose group it is.
+     */
+    private static haven.RadioGroup.RadioButton row(haven.RadioGroup.RadioButton rb, String row) {
+        StringBuilder rows = new StringBuilder();
+        for(haven.RadioGroup.RadioButton b : siblings(rb)) {
+            String r = b.row();
+            if(row.equals(r))
+                return b;
+            if(rows.length() > 0)
+                rows.append(", ");
+            rows.append('"').append(r).append('"');
+        }
+        throw new LuaError("widget:value(v) — this radio has no row named \"" + row + "\"; its rows are "
+            + ((rows.length() == 0) ? "not readable from here" : rows.toString()) + ".");
+    }
+
+    /** Every button of {@code rb}'s group, in tree order, taken under the {@code ui} monitor. */
+    private static List<haven.RadioGroup.RadioButton> siblings(haven.RadioGroup.RadioButton rb) {
+        List<haven.RadioGroup.RadioButton> out = new java.util.ArrayList<haven.RadioGroup.RadioButton>();
+        Widget p = rb.parent;
+        if(p == null)
+            return out;
+        UI u = AddonManager.ui;
+        synchronized(u) {
+            for(Widget c : p.children()) {
+                if((c instanceof haven.RadioGroup.RadioButton)
+                   && (((haven.RadioGroup.RadioButton)c).group() == rb.group()))
+                    out.add((haven.RadioGroup.RadioButton)c);
+            }
+        }
+        return out;
     }
 
     // ------------------------------------------------------------------ the source setter (040.3)

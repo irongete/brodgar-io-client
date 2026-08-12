@@ -7,10 +7,10 @@ is on the near side of the gate.
 
 ## The catalogue
 
-Twenty-two keys, one per protected verb. A key is named `<section>.<verb>` after the section the verb lives
-on, because a verb lives with the thing it changes rather than in a section of its own — so `pag:use()` is
-`menugrid.use` and `slot:use()` is `actionbar.use`. The third column is what the consent dialog tells the
-user, word for word.
+One key per protected verb, and the table below is all of them. A key is named `<section>.<verb>` after the
+section the verb lives on, because a verb lives with the thing it changes rather than in a section of its
+own — so `pag:use()` is `menugrid.use` and `slot:use()` is `actionbar.use`. The third column is what the
+consent dialog tells the user, word for word.
 
 | Key | Verb | What it lets an addon do |
 |---|---|---|
@@ -36,9 +36,10 @@ user, word for word.
 | `kin.forget` | [`kin:forget`](../api/kin.md#write-protected) | forget someone from your kin list |
 | `speed.set` | [`hafen.speed():set`](../api/speed.md#write-protected) | change your movement speed |
 | `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected) | the escape hatch: any message the client itself could send |
+| `widget.value` | [`widget:value`](../api/ui/edit.md#driving-one-protected) | flip the client's own controls — a box it ticks, a field it types into — which the server sees |
 
 That is the whole set. Nothing else in the API is protected, and **no key grants the tier as a whole**: an
-addon that declared `gob.click` can click objects and can do none of the other twenty-one things.
+addon that declared `gob.click` can click objects and none of the other things on that list.
 
 ## Groups
 
@@ -53,9 +54,10 @@ A `<prefix>.*` entry stands for every key under that prefix, so one line asks fo
 | `actionbar.*` | `actionbar.use`, `actionbar.res` |
 | `player.*` | `player.move`, `player.hand.use` |
 | `player.hand.*` | `player.hand.use` |
+| `widget.*` | `widget.send`, `widget.value` |
 
-Any key's prefix is a legal group, so `gob.*`, `menugrid.*`, `craft.*`, `speed.*` and `widget.*` parse too —
-each a longer way of writing the single key it covers.
+Any key's prefix is a legal group, so `gob.*`, `menugrid.*`, `craft.*` and `speed.*` parse too — each a
+longer way of writing the single key it covers.
 
 The prefix is matched on **whole dot segments**, so a group can never reach a key that merely starts with the
 same letters — and it does reach a nested one. `player.hand.use` is the only nested key: `player.*` covers it
@@ -125,10 +127,13 @@ why the key `slot:res(name)` needs is not asked for here. [`pag:use()`](../api/m
 is the exception, and it keeps `menugrid.use` whichever entry it names — pressing a button on the player's
 behalf is an act, and any addon can address any entry by name.
 
-One pair reaches the server without a key, which is why the line above is *starting* an action rather than
-sending one. [`ev:resend()` and `ev:send(t)`](../api/event.md#intercepting-an-outbound-action) re-issue a
-message the client was already about to send, in place of it: you choose the arguments, not whether it
-happens — the player's own click did that.
+Re-issuing reaches the server without a key, which is why the line above is *starting* an action rather
+than sending one. [`ev:resend()` and `ev:send(t)`](../api/event.md#intercepting-an-outbound-action) re-issue
+a message the client was already about to send, in place of it, and
+[`ev:resend()` on one of the client's own controls](../api/ui/edit.md#running-the-action-yourself) re-runs
+the action the user's own gesture just triggered. Either way you choose what happens to a gesture, not
+whether there was one — that is exactly what `widget.value` above does not have, which is why it is keyed
+and these are not.
 
 ## Writing an addon that acts
 

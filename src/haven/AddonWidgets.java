@@ -250,6 +250,30 @@ public final class AddonWidgets {
     }
 
     /**
+     * Is {@code item} one of {@code list}'s own rows? (spec {@code 061-editing-native-windows}) — asked
+     * before {@code widget:value(v)} drives one of the client's own lists, so a row that is not in it is a
+     * refusal rather than a selection the list cannot draw. Identity, because that is what a row IS to an
+     * addon: the opaque value it was handed back.
+     *
+     * <p>It lives here because {@code items()} is {@code protected} — package access is what the bridge does
+     * not have. A list that cannot answer right now (a model still {@code Loading}) lets the drive through:
+     * "I could not tell" must not read as "no".
+     */
+    public static boolean listHas(SListWidget<?, ?> list, Object item) {
+	if(item == null)
+	    return(false);
+	try {
+	    for(Object i : list.items()) {
+		if(i == item)
+		    return(true);
+	    }
+	} catch(RuntimeException e) {
+	    return(true);
+	}
+	return(false);
+    }
+
+    /**
      * The <b>layout-persistence seam</b> (spec {@code 036-ui-layout}, E) — the position the client should write
      * down for a window it persists ({@link GameUI}'s {@code savewndpos}, {@code cdestroy}'s {@code wndc-misc},
      * the crafting window's {@code makewndc}). Normally the widget's own {@code c}; for a widget an AddOn's
