@@ -236,6 +236,8 @@ becomes per family **and** per provenance) · `ui/custom.md` (`:title(s)` may na
 - `docs/addons/api/ui/custom.md` — 5, 7
 - `docs/addons/guides/permissions.md` — 8
 - `docs/client/ui-controls.md` — 1, 2, 3, 4, 8
+- `docs/client/ui-lists.md` — 3, 4, 8 (every list, slider and scrollbar funnel this feature seams, and where
+  the one always-reachable native list is)
 - `docs/client/ui-chrome.md` — 9 (what a window's close button actually runs, which its suite takes over)
 - `docs/client/widget-input.md` — 3
 - `docs/client/widgets.md` — 7

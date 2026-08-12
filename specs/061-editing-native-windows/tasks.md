@@ -83,7 +83,7 @@ pass.
       not to change.
       `[manual]`: tick it again — expect it to change this time.
 
-- [ ] **061.3 — `Changed` and `Selected` answer on a native list, dropdown, menu and grid.** One
+- [x] **061.3 — `Changed` and `Selected` answer on a native list, dropdown, menu and grid.** One
       `// addon:` line at `SListWidget.ItemWidget.mousedown` (before `list.change(item)`) serves all
       three list families, because `SDropBox`'s popup rows and `SListMenu.InnerList`'s rows both wrap
       through that same `ItemWidget`; a second at `SListBox.unselect`'s `change(null)` path, which is a

@@ -75,6 +75,12 @@ public abstract class SDropBox<I, W extends Widget> extends SListWidget<I, W> {
 	    dl = null;
 	}
 
+	// addon: 061 -- the popup is not the widget an addon holds; the box it dropped out of is, and it is
+	// not even this list's parent (see add() above). See SListWidget.slistowner().
+	public Widget slistowner() {
+	    return(SDropBox.this);
+	}
+
 	public void change(I item) {
 	    SDropBox.this.change(item);
 	    reqdestroy();

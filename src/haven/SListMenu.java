@@ -73,6 +73,12 @@ public abstract class SListMenu<I, W extends Widget> extends Widget {
 	    return(new Item(item, SListMenu.this.makeitem(item, idx, sz)));
 	}
 
+	// addon: 061 -- the inner list is not the widget an addon holds; the menu around it is. See
+	// SListWidget.slistowner().
+	public Widget slistowner() {
+	    return(SListMenu.this);
+	}
+
 	public void change(I item) {
 	    choice(item);
 	}

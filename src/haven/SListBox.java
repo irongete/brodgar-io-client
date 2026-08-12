@@ -205,7 +205,10 @@ public abstract class SListBox<I, W extends Widget> extends SListWidget<I, W> im
     }
 
     protected boolean unselect(int button) {
-	if(button == 1)
+	// addon: 061 -- the click-away is a REAL selection change (see the model-backed contract in
+	// docs/client/ui-lists.md), so it fires the same key a row click does, one row up, carrying the null
+	// the list is about to hold.
+	if((button == 1) && AddonWidgets.listActivate(this, null))
 	    change(null);
 	return(true);
     }

@@ -230,10 +230,16 @@ public abstract class GridList<T> extends Widget {
 	if(ev.propagate(this) || super.mousedown(ev))
 	    return(true);
 	T item = itemat(ev.c);
-	if((item == null) && (ev.b == 1))
-	    change(null);
-	else if(item != null)
-	    itemclick(item, ev.b);
+	// addon: 061 -- the Cell seam, on the SELECTING button only. itemclick moves `sel` for button 1 alone,
+	// so a seam above this line would fire for a right-click that selects nothing and let a cancel eat the
+	// client's own context menu. The click-away below is the same selection change SListBox.unselect makes.
+	if((item == null) && (ev.b == 1)) {
+	    if(AddonWidgets.activate(this, "Cell", null))
+		change(null);
+	} else if(item != null) {
+	    if((ev.b != 1) || AddonWidgets.activate(this, "Cell", item))
+		itemclick(item, ev.b);
+	}
 	return(true);
     }
 

@@ -48,6 +48,15 @@ public abstract class SListWidget<I, W extends Widget> extends Widget {
 	this.sel = item;
     }
 
+    /* addon: 061 -- WHOSE selection a row click is. The list a row funnels through is not always the control
+     * an addon holds: a dropdown's rows live in its popup (which adds itself to ui.root and is not even a
+     * child of the box) and a menu's in its own inner list. Those two override this to name the enclosing
+     * control; every other list is its own owner. One accessor, three families, no upward walk that a
+     * root-parented popup would break. */
+    public Widget slistowner() {
+	return(this);
+    }
+
     public static class ItemWidget<I> extends Widget {
 	public final SListWidget<I, ?> list;
 	public final I item;
@@ -60,6 +69,11 @@ public abstract class SListWidget<I, W extends Widget> extends Widget {
 
 	public boolean mousedown(MouseDownEvent ev) {
 	    if(ev.propagate(this) || super.mousedown(ev))
+		return(true);
+	    // addon: 061 -- the Changed/Selected seam, where the client RECEIVES the click and before its own
+	    // change(): SListWidget.change is overridden by SDropBox and by a menu's inner list without calling
+	    // super, so a seam there is one a subclass can skip. This one site serves all three families.
+	    if(!AddonWidgets.listActivate(list, item))
 		return(true);
 	    list.change(item);
 	    return(true);

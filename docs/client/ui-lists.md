@@ -71,6 +71,8 @@ and `sel` (`public I`) plus `change(I)`
 | The ready-made rows | `TextItem.of(sz, Supplier<String>)` and `IconText.of(sz, Supplier<BufferedImage>, Supplier<String>)` — both plain `Widget`s, neither wired to `change()` on their own |
 | The click-to-select wrapper | `ItemWidget<I>` — its `mousedown` calls `list.change(item)` directly; `makeitem` must wrap a bare `TextItem`/`IconText` in one (added as its own child) for a click to select anything |
 | Deselect on empty click | `SListBox.unselect(button)` calls `change(null)` for button 1 when `mousedown` finds no `slotclick` — a REAL interaction, not one an adapter's own `:value(v)` should suppress |
+| The one native list always reachable | `MenuSearch.Results` — the action search (`GameUI.srchwnd`, `kb_srch` = Ctrl+Z), which the client keeps in the tree and merely `hide()`s. Its rows are anonymous `ItemWidget` subclasses that call `super.mousedown(ev)` before their own double-click-to-use logic, so anything riding that method sees them |
+| Fork: whose selection a row click is | `// addon:` `SListWidget.slistowner()` returns `this`, overridden in `SDropBox.SDropList` and `SListMenu.InnerList` to name the enclosing control — `ItemWidget.list` is the INNER list in both cases, and a popup is not even a child of its box |
 
 > **A programmatic write must not call `change(I)`.** It is the single hook BOTH a real click
 > (`ItemWidget.mousedown`) and the click-away deselect reach, with no lower-level "just set `sel`, don't
@@ -110,6 +112,7 @@ a **non-static inner class whose constructor self-registers** (`groups.add(this)
 | `drawitem` runs for EVERY item, every frame, unconditionally | `draw(GOut)`'s item loop runs `sr*rw` to `items.size()-1` with **no per-item bound check against `sz.y`** — an item below the visible box still gets `drawitem` called, just clipped on screen; only `Group`-level visibility (`grp.ey - yo < 0`) skips a whole group |
 | A `Loading` from one cell does not aim the whole draw | `draw` catches `Loading` PER ITEM and blits a placeholder — a wrapping addon callback (`drawitem` override) that raises anything else propagates to whatever calls it |
 | Selection exists but is native-only | `change(T)`/`itemclick` set `sel` and draw a highlight (`drawsel`) on a real click — no Lua verb reads it (spec 040 ships no `:value()` on a grid) |
+| Only button 1 selects, and `mousedown` does not know it | `mousedown` routes EVERY button through `itemclick(item, ev.b)`, whose whole body is `if(button == 1) change(item)` — so a right-click reaches the same method, changes nothing and goes on to the client's own context menu. The click-away is a separate branch in `mousedown` itself (`item == null && b == 1` → `change(null)`), not a call to `itemclick` |
 
 ## `TableBox` — the fifth model-backed control, and a constructor-order trap of its own
 

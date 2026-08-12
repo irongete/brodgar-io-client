@@ -136,8 +136,15 @@ the table is on screen.
 holds nothing, the same as a [menu](#menu) or a [grid](#grid) — and an empty `:rows{}` is a table with
 nothing in it rather than an error.
 
+## The client's own lists
+
+`Changed`, `Selected` and `Cell` answer on a list, dropdown, menu or grid the **client** built too, where they
+carry an `ev` that can stop the pick or run it — [editing](edit.md) is that page. It also says which widget
+the key is addressed to when a control keeps its rows in a list of its own.
+
 ## See also
 
+- [edit](edit.md) — the same keys on one of the client's own lists
 - [controls](controls/README.md) — the direct controls, and the vocabulary this page shares with them
 - [widget](widget.md) — everything a control answers before it adds anything of its own
 - [selectors](selectors.md) — naming a control, yours or the client's

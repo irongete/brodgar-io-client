@@ -498,7 +498,38 @@ final class Controls {
             return Collections.singletonList("Pressed");
         if(w instanceof haven.ACheckBox)   // 061.2: a CheckBox, an ICheckBox and a RadioGroup.RadioButton alike
             return Collections.singletonList("Changed");
+        if(w instanceof haven.SListMenu)   // 061.3: a menu holds nothing, so a pick is Selected, not Changed
+            return Collections.singletonList("Selected");
+        if(w instanceof haven.SListWidget) {
+            // ...and a list one level INSIDE a control answers nothing: the seam addresses slistowner(), so a
+            // dropdown's popup and a menu's inner list would otherwise be listed for a key that never fires
+            // there. See keyElsewhere, which is where the author of that mistake is told where the key went.
+            if(((haven.SListWidget<?, ?>)w).slistowner() != w)
+                return Collections.<String>emptyList();
+            return Collections.singletonList("Changed");
+        }
+        if(w instanceof haven.GridList)    // 061.3: a grid paints its cells, and a pick is one of them
+            return Collections.singletonList("Cell");
         return Collections.<String>emptyList();
+    }
+
+    /**
+     * <b>The one case where the key is real and the ADDRESS is wrong</b> (061.3) — appended to
+     * {@code widget:on(key, fn)}'s refusal, and empty for every other widget. A dropdown's popup list and a
+     * menu's inner list are the inside of a control rather than the control, so {@link #borrowedKeys} does not
+     * list their rows' key on them; without this the refusal would read <i>a list has no 'Changed'</i>, which
+     * is the one thing an author would not believe, and they would go looking for a bug rather than for the
+     * widget the key belongs to.
+     */
+    static String keyElsewhere(Widget w, String key) {
+        if(!(w instanceof haven.SListWidget))
+            return "";
+        Widget o = ((haven.SListWidget<?, ?>)w).slistowner();
+        if((o == w) || !borrowedKeys(o).contains(key))
+            return "";
+        String noun = (o instanceof haven.SListMenu) ? "menu" : "dropdown";
+        return ". A " + noun + "'s rows live in a list of their own, and '" + key + "' fires on the " + noun
+            + " itself — hold that widget and subscribe there.";
     }
 
     /**
@@ -520,20 +551,25 @@ final class Controls {
      * route back through the very site that fired: the re-entrancy flag ({@link #replaying}) makes the seam
      * skip while it does, so re-issuing cannot loop.
      *
+     * <p><b>And the widget an addon holds is not always the one the client acts on</b> (061.3). A dropdown's
+     * rows live in a popup that is not even its child and a menu's in its own inner list, so {@code w} is the
+     * address — where the handlers are and what the roster answers for — while {@code actor} is what
+     * {@code ev:resend()} runs the held-back method on. Everywhere else they are one widget.
+     *
      * @return whether the client should go on and run its own action.
      */
-    static boolean activate(Widget w, String key, Object value) {
+    static boolean activate(Widget w, Widget actor, String key, Object value) {
         if((w == null) || replaying(w, key))
             return true;
         Subs.Cancel c = null;
         for(Addon a : AddonManager.addons)   // a snapshot walk: a handler may disable its own addon mid-fire
-            c = offer(a, w, key, value, c);
-        c = offer(AddonManager.consoleOwner, w, key, value, c);
+            c = offer(a, w, actor, key, value, c);
+        c = offer(AddonManager.consoleOwner, w, actor, key, value, c);
         return (c == null) || !c.prevented();
     }
 
     /** One owner's part of {@link #activate}: fire its handlers, minting the shared {@link Subs.Cancel} lazily. */
-    private static Subs.Cancel offer(Addon a, Widget w, String key, Object value, Subs.Cancel c) {
+    private static Subs.Cancel offer(Addon a, Widget w, Widget actor, String key, Object value, Subs.Cancel c) {
         if(a == null)
             return c;
         WidgetSubs s = a.widgetSubsOrNull(w);        // the hasSub gate: an unlistened widget costs one lookup
@@ -543,7 +579,7 @@ final class Controls {
             return c;
         if(c == null)
             c = new Subs.Cancel();
-        s.fireBorrowed(key, value, c);
+        s.fireBorrowed(key, actor, value, c);
         return c;
     }
 
@@ -561,17 +597,19 @@ final class Controls {
      * back. Which method that is belongs to the family, so this is the mirror of {@link #borrowedKeys}: the
      * roster says a widget answers the key, this says what the key DOES on it.
      *
-     * <p>The previous (widget, key) is saved and restored rather than cleared, so a replay that reaches another
-     * control's seam is still seen as an activation there — only the one being re-issued is skipped.
+     * <p>The flag is the ADDRESS ({@code w}), which is what the seam asks with, while the method runs on
+     * {@code actor} — the two differ only for a list one level inside a control (061.3). The previous
+     * (widget, key) is saved and restored rather than cleared, so a replay that reaches another control's seam
+     * is still seen as an activation there — only the one being re-issued is skipped.
      */
-    static void replay(Widget w, String key) {
+    static void replay(Widget w, Widget actor, String key, Object value) {
         Widget pw = replayWdg;
         String pk = replayKey;
         replayWdg = w;
         replayKey = key;
         try {
             UI u = AddonManager.ui;
-            synchronized(u) { run(w, key); }
+            synchronized(u) { run(actor, key, value); }
         } finally {
             replayWdg = pw;
             replayKey = pk;
@@ -579,7 +617,7 @@ final class Controls {
     }
 
     /** The client's own method behind one key on one widget — {@link #replay}'s dispatch, and nothing else. */
-    private static void run(Widget w, String key) {
+    private static void run(Widget w, String key, Object value) {
         if(w instanceof haven.Button) {
             ((haven.Button)w).click();
             return;
@@ -595,6 +633,14 @@ final class Controls {
         }
         if(w instanceof haven.ACheckBox) {
             ((haven.ACheckBox)w).click();
+            return;
+        }
+        if(w instanceof haven.SListWidget) {   // 061.3: virtually, so a popup closes and a menu fires its choice
+            haven.AddonWidgets.listChange((haven.SListWidget<?, ?>)w, value);
+            return;
+        }
+        if(w instanceof haven.GridList) {      // ...and a grid's is the selecting button's own click
+            haven.AddonWidgets.gridClick((haven.GridList<?>)w, value);
             return;
         }
         throw new LuaError("ev:resend() — a " + LuaWidget.typeName(w) + " has no '" + key + "' action of its"

@@ -198,6 +198,45 @@ public final class AddonWidgets {
     }
 
     /**
+     * The <b>list family's</b> half of {@link #activate} (spec {@code 061-editing-native-windows}) — asked
+     * where the client receives a row click ({@code SListWidget.ItemWidget.mousedown}) and where it receives a
+     * click on empty space ({@code SListBox.unselect}), immediately before its own {@code change}.
+     *
+     * <p>Two things belong to the family rather than to the call site, so both live here: <b>who the key is
+     * addressed to</b> — {@link SListWidget#slistowner}, since a dropdown's popup and a menu's inner list are
+     * one level removed from the control an addon holds — and <b>which key it is</b>: a menu has no value to
+     * report a change against, so a pick there is {@code "Selected"} and everywhere else {@code "Changed"}.
+     * {@code list} is passed on as the widget {@code ev:resend()} acts on, so a replay runs the very
+     * {@code change} this held back, virtually — and a dropdown's popup still closes itself.
+     */
+    public static boolean listActivate(SListWidget<?, ?> list, Object item) {
+        Widget owner = list.slistowner();
+        String key = (owner instanceof SListMenu) ? "Selected" : "Changed";
+        return(io.brodgar.addon.AddonManager.activate(owner, list, key, item));
+    }
+
+    /**
+     * {@code ev:resend()}'s list arm — the {@code change} the seam above held back, called on the list the
+     * click went through so a subclass's own override (a popup closing itself, a menu firing its choice) is
+     * what runs. The raw call is here rather than in the bridge because the row type is the list's own.
+     */
+    @SuppressWarnings("unchecked")
+    public static void listChange(SListWidget<?, ?> list, Object item) {
+        ((SListWidget<Object, ?>)list).change(item);
+    }
+
+    /**
+     * {@code ev:resend()}'s grid arm — {@code GridList.itemclick} on the selecting button, which is the whole
+     * of what the {@code "Cell"} seam holds back (a {@code null} item is the click-away, and that method
+     * routes it to {@code change(null)} itself). It lives here because {@code itemclick} is {@code protected}:
+     * package access is what the bridge does not have.
+     */
+    @SuppressWarnings("unchecked")
+    public static void gridClick(GridList<?> grid, Object item) {
+        ((GridList<Object>)grid).itemclick(item, 1);
+    }
+
+    /**
      * The <b>layout-persistence seam</b> (spec {@code 036-ui-layout}, E) — the position the client should write
      * down for a window it persists ({@link GameUI}'s {@code savewndpos}, {@code cdestroy}'s {@code wndc-misc},
      * the crafting window's {@code makewndc}). Normally the widget's own {@code c}; for a widget an AddOn's

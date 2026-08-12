@@ -908,7 +908,17 @@ public final class AddonManager {
      * With nobody listening it is one map lookup per loaded addon and allocates nothing.
      */
     public static boolean activate(Widget wdg, String key, Object value) {
-        return Controls.activate(wdg, key, value);
+        return Controls.activate(wdg, wdg, key, value);
+    }
+
+    /**
+     * The same seam where <b>the widget an addon holds is not the widget the client acts on</b> (061.3): a
+     * dropdown's rows live in a popup that is not even its child, and a menu's in its own inner list, so the
+     * key is addressed to {@code wdg} while {@code ev:resend()} must run the held-back method on {@code actor}.
+     * Everywhere else the two are one widget and the three-argument form above says so.
+     */
+    public static boolean activate(Widget wdg, Widget actor, String key, Object value) {
+        return Controls.activate(wdg, actor, key, value);
     }
 
     /**

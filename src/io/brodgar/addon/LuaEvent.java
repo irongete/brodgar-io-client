@@ -159,6 +159,10 @@ public final class LuaEvent {
      * carries none ({@code Pressed} is an activation and holds nothing). Set by {@link #control} rather than by
      * a constructor, since it belongs to one shape out of the twelve. */
     private Object nval;
+    /** CONTROL: the widget whose own method {@code ev:resend()} runs — {@link #wdg} itself everywhere but the
+     * list family, where the click funnels through a popup or an inner list belonging to the control one level
+     * up (061.3). Set by {@link #control} alongside {@link #nval}. */
+    private Widget actor;
 
     /** OVERLAY shape (041.7): {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)}'s payload. */
     private LuaEvent(Addon owner, Shape shape, long gobId, String key, boolean nat) {
@@ -321,13 +325,15 @@ public final class LuaEvent {
     /**
      * The {@code ev} for one capability key on a <b>borrowed</b> control ({@code w:on("Pressed", fn)} on one of
      * the client's own buttons, 061.1) — minted per (addon, widget, key) fire like {@link #input}, since the
-     * caller is that owner's own {@link Subs} firing. {@code w} is the widget the client is about to act on
-     * (what {@code ev:resend()} re-issues the action of), and {@code u} is captured so a resend from a LATER
-     * frame still finds a session to run in.
+     * caller is that owner's own {@link Subs} firing. {@code w} is the widget this addon holds the key on,
+     * {@code actor} the one whose own method {@code ev:resend()} re-issues (the same widget everywhere but the
+     * list family, 061.3), and {@code u} is captured so a resend from a LATER frame still finds a session to
+     * run in.
      */
-    static LuaValue control(Addon owner, String key, Widget w, Object value, Subs.Cancel c) {
+    static LuaValue control(Addon owner, String key, Widget w, Widget actor, Object value, Subs.Cancel c) {
         LuaEvent e = new LuaEvent(owner, Shape.CONTROL, c, key, w, null, AddonManager.ui, null);
         e.nval = value;
+        e.actor = actor;
         return of(e);
     }
 
@@ -572,12 +578,15 @@ public final class LuaEvent {
             public Varargs invoke(Varargs a) {
                 LuaEvent e = self(a.arg1(), Shape.CONTROL, "resend");
                 UI u = e.ui;
-                if((e.wdg == null) || (u == null) || (u.root == null) || !e.wdg.hasparent(u.root))
+                // Both halves have to still be there: the widget the handler holds, and — for a list one
+                // level inside a control (061.3) — the popup or inner list whose change() is what runs.
+                if((e.wdg == null) || (u == null) || (u.root == null) || !e.wdg.hasparent(u.root)
+                   || (e.actor == null) || !e.actor.hasparent(u.root))
                     throw new LuaError("ev:resend(): the widget this " + e.msg + " came from has LEFT THE TREE"
                         + " (widget:exists() is false), so there is no action of its own left to run. Nothing"
                         + " was re-sent.");
                 e.cancel.prevent();
-                Controls.replay(e.wdg, e.msg);
+                Controls.replay(e.wdg, e.actor, e.msg, e.nval);
                 return LuaValue.NIL;
             }
         });

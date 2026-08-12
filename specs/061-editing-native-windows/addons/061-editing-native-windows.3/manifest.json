@@ -1,0 +1,11 @@
+{
+  "name": "061.3 — Changed and Selected on a native list, dropdown, menu and grid",
+  "id": "061-editing-native-windows.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 061.3: a row click on one of the client's own lists fires Changed carrying the row and cancelling leaves the selection untouched, the key is addressed to the control an addon holds rather than to the list of rows inside it, a native grid answers Cell, and an addon that owns a list never receives the key twice.",
+  "api_version": 1,
+  "files": [
+    "main.lua"
+  ]
+}

@@ -25,9 +25,31 @@ A [control](controls/README.md)'s capability key answers on a **borrowed** contr
 |---|---|---|
 | `Pressed` | a button of the client's own — from a click, and from its keybinding | `:preventDefault()` `:resend()` |
 | `Changed` | a checkbox or a radio button of the client's own — from a click, and from its keybinding | `:value()` `:preventDefault()` `:resend()` |
+| `Changed` | a [list or dropdown](lists.md) of the client's own — a row picked, or the selection cleared by a click on empty space | `:value()` `:preventDefault()` `:resend()` |
+| `Selected` | a [menu](lists.md#menu) of the client's own | `:value()` `:preventDefault()` `:resend()` |
+| `Cell` | a [grid](lists.md#grid) of the client's own, **for the selecting button only** | `:value()` `:preventDefault()` `:resend()` |
 
 Name the control the ordinary way, with a [selector](selectors.md). Every window carries a close button,
 so `win:find("@IButton")` is the one control you can reach without knowing what a window is made of.
+
+**A grid fires only for the button that selects.** A right-click on a cell opens the client's own menu and
+moves nothing, so it is not a selection and there is nothing there to cancel — a key that fired for it would
+let one handler swallow that menu.
+
+## Which widget a list's key belongs to
+
+A [dropdown](lists.md#dropdown)'s rows live in a popup list of their own, and a [menu](lists.md#menu)'s in an
+inner list — neither of which is the control you hold, and a dropdown's popup is not even inside it. The key
+fires on the **control**:
+
+```lua
+local box = hafen.ui():all("@SDropBox")[1]
+box:on("Changed", function(ev) hafen.log():write("would pick " .. tostring(ev:value())) end)
+```
+
+Subscribing on the list of rows instead raises, naming the control the key fires on — the address picks the
+door, and there is exactly one door per control. A list that is a control in its own right is its own address,
+which is the ordinary case.
 
 **And on a borrowed control the key is cancelable, because there is something underneath to cancel.**
 `ev:preventDefault()` stops the client's own action: the button was pressed, and what the client would have
@@ -51,8 +73,10 @@ end)
 
 A checkbox's is the flipped tick, and a radio button's is **the row the selection is about to move to** —
 because what a radio holds is a row, and it is the button you point at only because the set that holds the
-row is not a widget. `ev:value()` is on every control event and reads `nil` where the key carries nothing:
-`Pressed` is an activation, so there is nothing it is about to hold.
+row is not a widget. A list's, a dropdown's, a menu's and a grid's is the row or cell the click landed on, and
+`nil` where the click landed on empty space and would clear the selection. `ev:value()` is on every control
+event and reads `nil` where the key carries nothing: `Pressed` is an activation, so there is nothing it is
+about to hold.
 
 ## Reading what a borrowed control holds
 
@@ -80,7 +104,8 @@ but there is nothing inside it to read. The rows you can read are the ones you g
 
 `ev:resend()` runs the action the control already had — the client's own method, exactly as the gesture
 would have reached it. A button's is its click; a checkbox's is the flip, and a radio button's the pick that
-moves the whole set's selection:
+moves the whole set's selection. A list's is the selection change, run on the very list the click went
+through — so a dropdown you let through still closes its popup, and a menu still fires its own choice:
 
 ```lua
 btn:on("Pressed", function(ev)
@@ -118,7 +143,8 @@ this page applies to them, in the middle of a control that is yours.
 The rule that keeps that from doubling up: **the addon that owns a control keeps the dispatch it already
 had and never also receives it here.** A `Changed` on a dropdown you built is still the row the user picked,
 fired the one way it always was; the arrow inside it is a separate widget with a key of its own, and you
-reach it by pointing at it.
+reach it by pointing at it. Its popup list, which is not a widget with a key of its own, is covered by
+[the address rule](#which-widget-a-lists-key-belongs-to) above rather than by this one.
 
 ## See also
 

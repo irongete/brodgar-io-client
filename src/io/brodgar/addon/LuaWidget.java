@@ -512,7 +512,8 @@ public final class LuaWidget {
                 List<String> keys = widgetKeys(owner, w);
                 if(!keys.contains(key)) {
                     throw new LuaError("widget:on(key, fn): a " + ((w == null) ? "Widget" : typeName(w))
-                        + " has no event '" + key + "' — it has: " + join(keys));
+                        + " has no event '" + key + "' — it has: " + join(keys)
+                        + Controls.keyElsewhere(w, key));   // 061.3: the key is real, the address is not
                 }
                 if(w == null)
                     throw new LuaError("widget:on(key, fn) — this widget is no longer in the tree");

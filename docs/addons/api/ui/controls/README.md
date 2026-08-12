@@ -140,7 +140,7 @@ cancel and nothing is handed over but the value.
 **A control you built is often made of the client's own smaller ones**, and those are borrowed: a
 dropdown's drop arrow is one of the client's checkboxes, with a `Changed` of its own. Your `Changed` on the
 dropdown is still the row the user picked — the key you own fires the one way it always did, and you never
-receive the arrow's as well.
+receive the arrow's as well, nor the one its popup list of rows carries for it.
 
 ## Reading order
 

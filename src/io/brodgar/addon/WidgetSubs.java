@@ -158,9 +158,13 @@ final class WidgetSubs {
      * the emitter, and this record is only where the handlers live. What differs is the {@link Subs.Cancel} —
      * it is the caller's, shared with every OTHER addon holding the same key on the same widget, because they
      * are all deciding one thing.
+     *
+     * <p>{@code actor} is the widget whose method {@code ev:resend()} runs, which is {@link #wdg} itself for
+     * every family but the lists, where a dropdown's popup and a menu's inner list carry the click for a
+     * control one level up (061.3).
      */
-    void fireBorrowed(String key, Object value, Subs.Cancel c) {
-        subs.fire(key, c, LuaEvent.control(owner, key, wdg, value, c));
+    void fireBorrowed(String key, Widget actor, Object value, Subs.Cancel c) {
+        subs.fire(key, c, LuaEvent.control(owner, key, wdg, actor, value, c));
     }
 
     /** {@link Subs.Idle}: the last {@code sub:off()} on {@code key} just ran — nobody is listening any more. */
