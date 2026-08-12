@@ -175,7 +175,13 @@ public class TextEntry extends Widget implements ReadLine.Owner {
     }
 
     public void done(ReadLine buf) {
-	activate(buf.line());
+	// addon: 061 -- the Submitted seam, where the client RECEIVES the Enter. NOT activate(String): that one
+	// is public and ChatUI's own entry overrides it without calling super, so a seam there would be silent
+	// on the one text entry every player types into. Cancelling here means the server hears nothing, and a
+	// resend calls activate VIRTUALLY, so that override is what sends the line.
+	String line = buf.line();
+	if(AddonWidgets.activate(this, "Submitted", line))
+	    activate(line);
     }
 
     public void changed(ReadLine buf) {
@@ -184,7 +190,10 @@ public class TextEntry extends Widget implements ReadLine.Owner {
     }
 
     public boolean gkeytype(GlobKeyEvent ev) {
-	activate(buf.line());
+	// addon: 061 -- the Submitted seam, the keybinding's half of done() above and for the same reason
+	String line = buf.line();
+	if(AddonWidgets.activate(this, "Submitted", line))
+	    activate(line);
 	return(true);
     }
 

@@ -71,6 +71,11 @@ public class HSlider extends Widget {
 	int nval = (int)Math.round(a * (max - min)) + min;
 	if(val != nval) {
 	    val = nval;
+	    // addon: 061 -- the Changed seam, where the client WRITES the value (changed() below is an empty
+	    // hook meant for overriding, so it is no seam at all). It reports rather than asks: the value is
+	    // already written one line up, so there is nothing left to hold back and the AddOn's own
+	    // preventDefault raises. A drag emits one of these per step that actually moves.
+	    AddonWidgets.report(this, "Changed", Integer.valueOf(val));
 	    changed();
 	}
     }

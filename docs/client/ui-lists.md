@@ -13,11 +13,14 @@ Both are plain `Widget` subclasses (no `SIWidget` cache, nothing to `redraw()`).
 | The drag-in-progress hook | `HSlider.changed()` — empty by default, called from `update(Coord)` on every step of a drag that actually moves `val` |
 | The release hook | `HSlider.fchanged()` — called ONCE from `mouseup` whenever a grab was active (`drag != null`), even if `val` never changed during it |
 | `Scrollbar` has only the first half | `Scrollbar.changed()` fires from the same `update(Coord)` shape; `mouseup` only releases the grab — **no `fchanged()` equivalent exists** |
+| Where the value is actually WRITTEN | `HSlider.update(Coord)` (the drag) is the only one; a `Scrollbar` has **two** — `update(Coord)` for the thumb, and `ch(int)` for the wheel and the step buttons (`ch(double)` accumulates a fraction and calls `ch(int)`). Each writes `val` and THEN calls `changed()`, so anything riding the hook is told after the fact |
+| Who calls `ch` | `Scrollport.mousewheel` (`bar.ch(ev.s * UI.scale(15))`), `SListBox`'s own wheel handling, and the step buttons of the widgets that draw them |
 
-> **`Scrollbar(int h, Scrollable ctl)` — the constructor `Scrollport` uses — makes `draw()` overwrite
-> `min`/`max`/`val` from `ctl` EVERY FRAME.** `Scrollbar.draw` starts
-> `if(ctl != null) { min = ctl.scrollmin(); … }` before painting. A bare control must use the OTHER
-> constructor, `Scrollbar(int h, int min, int max)`, which leaves `ctl` `null` — otherwise an addon's own
+> **`Scrollbar(int h, Scrollable ctl)` makes `draw()` overwrite `min`/`max`/`val` from `ctl` EVERY FRAME.**
+> `Scrollbar.draw` starts `if(ctl != null) { min = ctl.scrollmin(); … }` before painting. `SListBox` is what
+> uses that constructor (`new Scrollbar(0, this)`); `Scrollport`'s bar does **not** — it takes the bare
+> `Scrollbar(int h, int min, int max)` and overrides `changed()` to push `bar.val` into `cont.sy`, so its
+> `val` stays where a drag left it. A bare control must use the bare constructor too, or an addon's own
 > `:range`/`:value` writes read back correctly for one tick and silently revert on the next drawn frame.
 
 ## `TextEntry` and its `ReadLine` buffer
@@ -31,6 +34,8 @@ are the two implementations, chosen once by the `"editmode"` pref; either way th
 |---|---|
 | Per-edit notify | `Base.key` calls `owner.changed(this)` only when the edit actually changed the buffer (`seq` moved) — a no-op keypress (e.g. Left at column 0) fires nothing |
 | Enter | `key2` matches `Widget.key_act` and calls `owner.done(this)` — **not** `changed`; `TextEntry.done` → `activate(buf.line())`, gated stock-side by `canactivate` (`false` off a bare ctor, so the stock class sends no `wdgmsg` either) |
+| The keybinding's half | `TextEntry.gkeytype` calls the same `activate(buf.line())` — so the two paths into a submission are `done` and `gkeytype`, and **neither is overridden anywhere in `haven`** |
+| ...but `activate(String)` IS | `public`, and `ChatUI.EntryChannel`'s anonymous entry overrides it **without calling `super`** (it sends the line itself and clears the field) — so it looks like the funnel, holding both the `canactivate` gate and the `wdgmsg`, while being the one method a subclass replaces on the entry every player types into |
 | The silent write | `TextEntry.rsettext(String)` replaces `buf` with a brand-new `ReadLine` (`ReadLine.make`, mirroring the constructor) — `Base`'s plain `line(String)` setter it goes through calls nothing, unlike `settext`/`Base.setline` below |
 | The noisy write | `TextEntry.settext(String)` → `buf.setline(text)` → `Base.setline`/`PCLine.setline`, which calls `owner.changed(this)` whenever the line actually differs |
 

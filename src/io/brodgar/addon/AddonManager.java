@@ -922,6 +922,18 @@ public final class AddonManager {
     }
 
     /**
+     * The <b>reporting</b> half of the same seam (061.4) — called where the client has ALREADY written the
+     * value it is announcing (a slider's drag, a scrollbar's drag, wheel and step), so there is nothing to
+     * answer and the {@code ev} refuses both verbs that would pretend otherwise ({@link Controls#report}).
+     *
+     * <p><b>Threading.</b> As above, and from a per-{@code mousemove} path while a drag is in flight — which is
+     * why nobody is asked anything here: a cancel would mean revert-and-repaint, a different verb entirely.
+     */
+    public static void report(Widget wdg, String key, Object value) {
+        Controls.report(wdg, key, value);
+    }
+
+    /**
      * The <b>layout-persistence seam</b> (036.1, feature E) — called from {@code haven.AddonWidgets} wherever the
      * client writes a window's own geometry to disk ({@code GameUI.savewndpos}, {@code cdestroy}'s
      * {@code wndc-misc}, the crafting window's {@code makewndc}): what should be persisted is what the <b>user</b>

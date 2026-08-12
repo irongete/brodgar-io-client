@@ -135,7 +135,10 @@ changing it never loop into each other. Two handlers on one key both fire, in re
 **The key belongs to the control, not to the addon that built it.** The same key answers on one of the
 client's own controls, where the handler is also given an `ev` that can stop the client's action or run it
 — [editing](../edit.md) is that page. Here your handler *is* the action, so there is nothing under it to
-cancel and nothing is handed over but the value.
+cancel and nothing is handed over but the value. **Cancelling is therefore a question of provenance, not of
+the key**: one `Changed` is cancelable on the client's own checkbox and not on yours, and on a
+[slider or scrollbar](interactive.md#slider) it is cancelable on neither — that control writes its value
+before it reports it, whoever built it.
 
 **A control you built is often made of the client's own smaller ones**, and those are borrowed: a
 dropdown's drop arrow is one of the client's checkboxes, with a `Changed` of its own. Your `Changed` on the

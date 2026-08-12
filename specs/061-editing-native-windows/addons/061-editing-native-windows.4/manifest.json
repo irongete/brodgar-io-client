@@ -1,0 +1,9 @@
+{
+  "name": "061.4 — Submitted on a native entry, uncancelable Changed on a native slider",
+  "id": "061-editing-native-windows.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 061.4: Submitted fires on the chat entry and cancelling it keeps the line out of the client's own hands; Changed fires on a native slider and scrollbar carrying the new value, and preventDefault there raises.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

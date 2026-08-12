@@ -44,6 +44,14 @@ import org.luaj.vm2.lib.VarArgFunction;
  */
 public final class LuaEvent {
     /**
+     * <b>Why a slider's and a scrollbar's {@code Changed} cannot be held back</b> (061.4) — the opening of both
+     * refusals, so an author who tried either verb is told the same thing once and where they wrote it.
+     */
+    private static final String MOVED = "a slider's and a scrollbar's 'Changed' is a REPORT, not a question:"
+        + " the client writes the new value and tells you afterwards, so by the time your handler runs the"
+        + " value has already moved.";
+
+    /**
      * What an event object can say — and therefore which methods table answers on it. One shape per payload
      * kind, not per emitter: the two message streams differ only in the noun for the widget ({@code sender}
      * for what sent an action, {@code target} for what is about to receive a message) and in what may be done
@@ -65,6 +73,10 @@ public final class LuaEvent {
          * run its own action and is asking first, so unlike the owned half this one can be stopped
          * ({@code :preventDefault()}) or run by the handler itself ({@code :resend()}). {@code :value()} is
          * what the control is about to take where the key carries one (061.2), {@code nil} where it does not.
+         *
+         * <p>One family is the exception, and it is the same shape from the other side (061.4): a slider's and
+         * a scrollbar's {@code Changed} is a <b>report</b> — the client wrote the value first — so both of
+         * those verbs raise there rather than lying about what they did. See {@link #MOVED}.
          */
         CONTROL("control", "a control event answers :value() :preventDefault() :resend()"),
         /** {@code w:on("Draw", fn)} — an own widget's paint (041.4): three things to say, none cancelable. */
@@ -163,6 +175,10 @@ public final class LuaEvent {
      * list family, where the click funnels through a popup or an inner list belonging to the control one level
      * up (061.3). Set by {@link #control} alongside {@link #nval}. */
     private Widget actor;
+    /** CONTROL: <b>the value has already moved</b> (061.4) — a slider and a scrollbar tell the client their
+     * value after writing it, so this fire is a report rather than a question: both {@code preventDefault} and
+     * {@code resend} raise naming that, instead of pretending to hold back something that already happened. */
+    private boolean moved;
 
     /** OVERLAY shape (041.7): {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)}'s payload. */
     private LuaEvent(Addon owner, Shape shape, long gobId, String key, boolean nat) {
@@ -329,11 +345,17 @@ public final class LuaEvent {
      * {@code actor} the one whose own method {@code ev:resend()} re-issues (the same widget everywhere but the
      * list family, 061.3), and {@code u} is captured so a resend from a LATER frame still finds a session to
      * run in.
+     *
+     * <p>{@code moved} is the one family where this event is a <b>report</b> (061.4): a slider and a scrollbar
+     * write their value and say so afterwards, so there is nothing left to hold back and both verbs that would
+     * pretend otherwise raise instead.
      */
-    static LuaValue control(Addon owner, String key, Widget w, Widget actor, Object value, Subs.Cancel c) {
+    static LuaValue control(Addon owner, String key, Widget w, Widget actor, Object value, Subs.Cancel c,
+                            boolean moved) {
         LuaEvent e = new LuaEvent(owner, Shape.CONTROL, c, key, w, null, AddonManager.ui, null);
         e.nval = value;
         e.actor = actor;
+        e.moved = moved;
         return of(e);
     }
 
@@ -561,6 +583,10 @@ public final class LuaEvent {
      * <p><b>There is no {@code ev:send(t)} twin</b>, so this shape spells the refusal out rather than letting
      * it fall into the generic unknown-verb one: what is deferred here is a METHOD, not a message, so there are
      * no arguments to rewrite.
+     *
+     * <p><b>And one family reports rather than asks</b> (061.4): a slider and a scrollbar write their value
+     * before they tell anyone, so both verbs above raise on those, naming that the value has already moved.
+     * That is why {@code preventDefault} is spelled out here instead of coming from {@link #preventDefault}.
      */
     private static void control(LuaTable m) {
         // ev:value() — what the control is ABOUT to take (061.2), read through the one canonical
@@ -573,10 +599,21 @@ public final class LuaEvent {
                 return LuaMarshal.toLua(self(a.arg1(), Shape.CONTROL, "value").nval);
             }
         });
-        preventDefault(m, Shape.CONTROL);
+        m.set("preventDefault", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaEvent e = self(a.arg1(), Shape.CONTROL, "preventDefault");
+                if(e.moved)
+                    throw new LuaError(MOVED + " ev:preventDefault() would have nothing to stop: read"
+                        + " ev:value() and act on where the control now is.");
+                e.cancel.prevent();
+                return LuaValue.NIL;
+            }
+        });
         m.set("resend", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaEvent e = self(a.arg1(), Shape.CONTROL, "resend");
+                if(e.moved)
+                    throw new LuaError(MOVED + " ev:resend() has no held-back action of its own to run.");
                 UI u = e.ui;
                 // Both halves have to still be there: the widget the handler holds, and — for a list one
                 // level inside a control (061.3) — the popup or inner list whose change() is what runs.

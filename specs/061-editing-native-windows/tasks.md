@@ -104,7 +104,7 @@ pass.
       `Changed`, and `Cell` on a native list must raise naming the keys a list has.
       `[manual]`: open the action search, type a letter and click a result — expect nothing to be picked.
 
-- [ ] **061.4 — `Submitted` on a native text entry, and an uncancelable `Changed` on a native slider and
+- [x] **061.4 — `Submitted` on a native text entry, and an uncancelable `Changed` on a native slider and
       scrollbar.** Two `// addon:` lines at `TextEntry.done(ReadLine)` (Enter, through `ReadLine`) and
       `TextEntry.gkeytype`, each before its `activate(buf.line())` — **not** at `activate(String)`, which
       looks like the funnel and is not one: it is `public`, and `ChatUI.EntryChannel`'s entry overrides

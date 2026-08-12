@@ -181,6 +181,19 @@ public final class AddonWidgets {
     }
 
     /**
+     * The <b>reporting</b> half of {@link #activate} (spec {@code 061-editing-native-windows}) — asked by a
+     * control that has already written the value it is announcing, so it answers nothing: a slider and a
+     * scrollbar move {@code val} first and call their own hook afterwards, and a drag emits a stream of these.
+     *
+     * <p>Cancelling here would mean revert-and-repaint, which is a different verb, so the {@code ev} an AddOn
+     * receives refuses both {@code preventDefault} and {@code resend} naming that the value has moved — rather
+     * than a call that quietly does nothing. Same cost as {@link #activate} with nobody listening.
+     */
+    public static void report(Widget wdg, String key, Object value) {
+        io.brodgar.addon.AddonManager.report(wdg, key, value);
+    }
+
+    /**
      * What an {@link ACheckBox} is <b>about to</b> hold, for the {@code "Changed"} half of the interception
      * seam (spec {@code 061-editing-native-windows}) — the value the client would write if it goes on, so
      * cancelling means <i>it did not happen</i> rather than <i>it happened and was undone</i>.

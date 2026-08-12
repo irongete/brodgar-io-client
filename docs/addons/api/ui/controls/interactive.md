@@ -53,6 +53,9 @@ e:value()          --> "gonzalo"
 carrying the whole text — a programmatic `:value(v)` fires neither one. While it has focus, a keystroke
 goes to the field only, never also to your character, a hotkey, or the chat line.
 
+`Submitted` answers on the client's **own** entries as well, the chat line included, and there it can be
+stopped: cancelling one means the server never hears it. [Editing](../edit.md) is that page.
+
 ## Checkbox
 
 `hafen.ui():check()` is a boolean toggle. `:value(v)` holds the tick and `Changed` fires when the user
@@ -119,6 +122,10 @@ user did, so it does not fire `Changed`. `:range(nil)` is refused like any other
 the missing bound; there is no "undo" meaning for a control's own bounds the way `:position(nil)` undoes a
 layer.
 
+The client's own sliders report the same key — one of the options window's volume sliders is a `Changed` you
+can subscribe to — and there it is the one capability key that **cannot** be cancelled, because this control
+writes its value before it says anything: [editing](../edit.md) is where that is written down.
+
 ## Scroll
 
 `hafen.ui():scroll()` is a scrolling container: give it a size, and anything `:parent()`'d into it lands in
@@ -139,6 +146,10 @@ sb:on("Changed", function(v) firstRow = v end)
 
 `Changed` hands over the bare value here, `fn(v)` — a bare scrollbar has no separate "drag ended" moment
 to report, so every step just reports where it is now.
+
+One of the client's own scrollbars reports the same key, and reports it from **both** of its value writes:
+the thumb drag, and the wheel and step buttons that move it a notch. Like a slider's, it cannot be
+cancelled — see [editing](../edit.md).
 
 ## See also
 

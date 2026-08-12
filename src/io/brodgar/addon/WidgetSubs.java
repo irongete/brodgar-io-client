@@ -161,10 +161,12 @@ final class WidgetSubs {
      *
      * <p>{@code actor} is the widget whose method {@code ev:resend()} runs, which is {@link #wdg} itself for
      * every family but the lists, where a dropdown's popup and a menu's inner list carry the click for a
-     * control one level up (061.3).
+     * control one level up (061.3). {@code moved} says the client has ALREADY written the value it is
+     * reporting (a slider, a scrollbar — 061.4), which is what makes both of those verbs raise on this
+     * {@code ev} rather than pretend.
      */
-    void fireBorrowed(String key, Widget actor, Object value, Subs.Cancel c) {
-        subs.fire(key, c, LuaEvent.control(owner, key, wdg, actor, value, c));
+    void fireBorrowed(String key, Widget actor, Object value, Subs.Cancel c, boolean moved) {
+        subs.fire(key, c, LuaEvent.control(owner, key, wdg, actor, value, c, moved));
     }
 
     /** {@link Subs.Idle}: the last {@code sub:off()} on {@code key} just ran — nobody is listening any more. */

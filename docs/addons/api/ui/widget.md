@@ -140,9 +140,12 @@ handler's return value is ever read. **Two handlers fire independently**: either
 
 A [control](controls/README.md) answers these five as well — it is a Widget first — plus the capability
 keys of the thing it is, and a surface you [paint](custom.md) answers four more on top. A capability key
-belongs to **a control**, not to a control you built: `Pressed` answers on one of the client's own buttons
-and `Changed` on one of its checkboxes or [lists](lists.md) the same way, and there they are **cancelable**,
-because there the client has an action of its own underneath your handler — see [edit](edit.md).
+belongs to **a control**, not to a control you built: `Pressed` answers on one of the client's own buttons,
+`Changed` on one of its checkboxes or [lists](lists.md) and `Submitted` on one of its text entries the same
+way, and there they are **cancelable**, because there the client has an action of its own underneath your
+handler — see [edit](edit.md). The exception is the one family that writes its value before it reports it:
+a borrowed [slider or scrollbar](controls/interactive.md#slider)'s `Changed` cannot be cancelled, and
+`ev:preventDefault()` raises there rather than doing nothing.
 `:on(key, fn)` on a key a widget does not have throws, naming the ones it does:
 
 ```lua

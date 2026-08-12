@@ -82,6 +82,10 @@ public class Scrollbar extends Widget {
 	int val = (int)Math.round(a * (max - min)) + min;
 	if(val != this.val) {
 	    this.val = val;
+	    // addon: 061 -- the Changed seam, the THUMB DRAG's value write (reached from mousedown and
+	    // mousemove). A seam on ch(int) alone would say nothing at all while the user drags the bar.
+	    // It reports rather than asks, exactly as HSlider's does: the value is already written above.
+	    AddonWidgets.report(this, "Changed", Integer.valueOf(val));
 	    changed();
 	}
     }
@@ -125,6 +129,9 @@ public class Scrollbar extends Widget {
 	    val = min;
 	if(this.val != val) {
 	    this.val = val;
+	    // addon: 061 -- the Changed seam, this control's OTHER value write: the wheel and the step buttons
+	    // (ch(double) accumulates into this one, so it is covered here too).
+	    AddonWidgets.report(this, "Changed", Integer.valueOf(val));
 	    changed();
 	}
     }

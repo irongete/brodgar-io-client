@@ -510,6 +510,10 @@ final class Controls {
         }
         if(w instanceof haven.GridList)    // 061.3: a grid paints its cells, and a pick is one of them
             return Collections.singletonList("Cell");
+        if(w instanceof haven.TextEntry)   // 061.4: Enter, and only Enter — a keystroke is not a submission
+            return Collections.singletonList("Submitted");
+        if((w instanceof haven.HSlider) || (w instanceof haven.Scrollbar))   // 061.4: ...and uncancelable
+            return Collections.singletonList("Changed");
         return Collections.<String>emptyList();
     }
 
@@ -559,17 +563,36 @@ final class Controls {
      * @return whether the client should go on and run its own action.
      */
     static boolean activate(Widget w, Widget actor, String key, Object value) {
+        return dispatch(w, actor, key, value, false);
+    }
+
+    /**
+     * <b>The half of the seam that reports rather than asks</b> (061.4) — the two controls that write their
+     * value before they say anything ({@code HSlider}'s drag, {@code Scrollbar}'s drag, wheel and step). The
+     * client is past the point of being stopped, so this answers nothing and the {@code ev} it hands the
+     * handlers raises on both {@code preventDefault} and {@code resend}, naming that the value has moved.
+     *
+     * <p>Everything else is {@link #activate}'s: the same holders, the same owned-control skip, the same
+     * one-lookup cost for a widget nobody listens to.
+     */
+    static void report(Widget w, String key, Object value) {
+        dispatch(w, w, key, value, true);
+    }
+
+    /** Both halves of the seam, in one walk — {@code moved} is what tells the {@code ev} which one it is. */
+    private static boolean dispatch(Widget w, Widget actor, String key, Object value, boolean moved) {
         if((w == null) || replaying(w, key))
             return true;
         Subs.Cancel c = null;
         for(Addon a : AddonManager.addons)   // a snapshot walk: a handler may disable its own addon mid-fire
-            c = offer(a, w, actor, key, value, c);
-        c = offer(AddonManager.consoleOwner, w, actor, key, value, c);
+            c = offer(a, w, actor, key, value, c, moved);
+        c = offer(AddonManager.consoleOwner, w, actor, key, value, c, moved);
         return (c == null) || !c.prevented();
     }
 
-    /** One owner's part of {@link #activate}: fire its handlers, minting the shared {@link Subs.Cancel} lazily. */
-    private static Subs.Cancel offer(Addon a, Widget w, Widget actor, String key, Object value, Subs.Cancel c) {
+    /** One owner's part of {@link #dispatch}: fire its handlers, minting the shared {@link Subs.Cancel} lazily. */
+    private static Subs.Cancel offer(Addon a, Widget w, Widget actor, String key, Object value, Subs.Cancel c,
+                                     boolean moved) {
         if(a == null)
             return c;
         WidgetSubs s = a.widgetSubsOrNull(w);        // the hasSub gate: an unlistened widget costs one lookup
@@ -579,7 +602,7 @@ final class Controls {
             return c;
         if(c == null)
             c = new Subs.Cancel();
-        s.fireBorrowed(key, actor, value, c);
+        s.fireBorrowed(key, actor, value, c, moved);
         return c;
     }
 
@@ -641,6 +664,10 @@ final class Controls {
         }
         if(w instanceof haven.GridList) {      // ...and a grid's is the selecting button's own click
             haven.AddonWidgets.gridClick((haven.GridList<?>)w, value);
+            return;
+        }
+        if(w instanceof haven.TextEntry) {     // 061.4: VIRTUALLY, so the chat's own override does the sending
+            ((haven.TextEntry)w).activate((value == null) ? "" : String.valueOf(value));
             return;
         }
         throw new LuaError("ev:resend() — a " + LuaWidget.typeName(w) + " has no '" + key + "' action of its"

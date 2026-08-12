@@ -28,6 +28,8 @@ A [control](controls/README.md)'s capability key answers on a **borrowed** contr
 | `Changed` | a [list or dropdown](lists.md) of the client's own — a row picked, or the selection cleared by a click on empty space | `:value()` `:preventDefault()` `:resend()` |
 | `Selected` | a [menu](lists.md#menu) of the client's own | `:value()` `:preventDefault()` `:resend()` |
 | `Cell` | a [grid](lists.md#grid) of the client's own, **for the selecting button only** | `:value()` `:preventDefault()` `:resend()` |
+| `Submitted` | a [text entry](controls/interactive.md#text-entry) of the client's own, when Enter is pressed in it | `:value()` `:preventDefault()` `:resend()` |
+| `Changed` | a [slider or scrollbar](controls/interactive.md#slider) of the client's own — a drag step, and a scrollbar's wheel and steps | `:value()` |
 
 Name the control the ordinary way, with a [selector](selectors.md). Every window carries a close button,
 so `win:find("@IButton")` is the one control you can reach without knowing what a window is made of.
@@ -35,6 +37,26 @@ so `win:find("@IButton")` is the one control you can reach without knowing what 
 **A grid fires only for the button that selects.** A right-click on a cell opens the client's own menu and
 moves nothing, so it is not a selection and there is nothing there to cancel — a key that fired for it would
 let one handler swallow that menu.
+
+**Enter is the whole of `Submitted`**, on a borrowed entry as on one you built: a keystroke that merely
+changes the text is not a submission, and there is no key for one. Cancelling it means **the server never
+hears the line** — the client's own handling of that entry does not run at all, so the chat line stays in
+the field rather than being sent and cleared.
+
+## The key that only reports
+
+A slider and a scrollbar are the one family that writes its value **before** it says anything, and a drag
+emits a stream of these. So their `Changed` is a report rather than a question: `ev:preventDefault()` and
+`ev:resend()` both **raise** there, naming that the value has already moved.
+
+```lua
+local vol = hafen.ui():find("window[title=Options]"):all("@HSlider")[1]
+vol:on("Changed", function(ev) hafen.log():write("now at " .. ev:value()) end)
+```
+
+`ev:value()` is where the control landed, and `w:value()` a moment later reads the same number. Putting the
+thumb back is a write, not a cancel, so nothing here pretends to be one: a verb that silently did nothing
+would be worse than the error.
 
 ## Which widget a list's key belongs to
 
@@ -74,9 +96,12 @@ end)
 A checkbox's is the flipped tick, and a radio button's is **the row the selection is about to move to** —
 because what a radio holds is a row, and it is the button you point at only because the set that holds the
 row is not a widget. A list's, a dropdown's, a menu's and a grid's is the row or cell the click landed on, and
-`nil` where the click landed on empty space and would clear the selection. `ev:value()` is on every control
-event and reads `nil` where the key carries nothing: `Pressed` is an activation, so there is nothing it is
-about to hold.
+`nil` where the click landed on empty space and would clear the selection. A text entry's is the line about
+to be submitted. `ev:value()` is on every control event and reads `nil` where the key carries nothing:
+`Pressed` is an activation, so there is nothing it is about to hold.
+
+[The one key that reports](#the-key-that-only-reports) is where *about to* stops applying: a slider and a
+scrollbar have already moved when they tell you, and `ev:value()` is where they moved to.
 
 ## Reading what a borrowed control holds
 
@@ -105,7 +130,9 @@ but there is nothing inside it to read. The rows you can read are the ones you g
 `ev:resend()` runs the action the control already had — the client's own method, exactly as the gesture
 would have reached it. A button's is its click; a checkbox's is the flip, and a radio button's the pick that
 moves the whole set's selection. A list's is the selection change, run on the very list the click went
-through — so a dropdown you let through still closes its popup, and a menu still fires its own choice:
+through — so a dropdown you let through still closes its popup, and a menu still fires its own choice. A
+text entry's is the submission, run on the entry itself, so a chat line you let through leaves the client
+exactly as the player wrote it:
 
 ```lua
 btn:on("Pressed", function(ev)
