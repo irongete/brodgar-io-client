@@ -254,7 +254,10 @@ final class UiApi {
         //   :position()      -- {x=,y=} position within the parent (widget-local DESIGN px -- not a Position, §2.7)
         //   :size()          -- {x=,y=}
         //   :visible()       -- boolean (and :visible(b) writes it, 039.5)
-        //   :text()          -- best-effort text for text-bearing widgets (Label/Button/Window/TextEntry), else nil
+        //   :text()          -- best-effort text for text-bearing widgets (Label/Button/CheckBox/Window/TextEntry),
+        //                       else nil. :text(s) WRITES a control's caption, on one you built and (061.5, as a
+        //                       restoring level) on one of the client's; :text(nil) drops the level. A window's
+        //                       caption is :title(s)/:title(nil), the same level through the verb that owns it.
         //   :exists()        -- is it still in the tree? (the one read that always answers)
         //   :info()          -- the snapshot escape hatch {type,role,res,id,pos,size,visible,text,owned}
         //   :walk(fn)        -- depth-first: fn(widget, depth); return false to PRUNE the subtree
@@ -1511,6 +1514,8 @@ final class UiApi {
         if(!stillMovable(u, m))
             return;
         try {
+            if(m.text != null)                    // 061.5: what it SAYS goes back first — a caption resizes a
+                LuaWidget.writeCap(m.wdg, m.text);   //   Label, and an explicit size level must have the last word
             if(size && (m.size != null))
                 m.wdg.resize(m.size);
             if(pos && (m.pos != null))
@@ -1545,6 +1550,66 @@ final class UiApi {
         } else {
             act.run();
         }
+    }
+
+    /**
+     * The live undo behind {@code widget:text(nil)} / {@code widget:title(nil)} (061.5): drop this addon's text
+     * level and let {@link Layout#applyText} say what happens next — another addon's level takes the widget back
+     * at once, and only when nothing names its caption at all does the stock one return and the record's half go
+     * with it. A widget this addon never wrote on is a silent no-op; so is one it built, which carries no level
+     * (the write went straight to the control, and there is nothing recorded to give back).
+     */
+    static void releaseText(Addon owner, Widget w) {
+        LuaWidget.Moved m = LuaWidget.findMoved(owner, w);
+        if(m == null)
+            return;
+        UI u = ui;
+        Runnable act = () -> {
+            m.wantText = null;
+            Layout.applyText(w);                 // the fold again, one level shorter
+            if(m.idle() && owner.movedNative.remove(m))
+                LuaWidget.recountMoved();
+        };
+        if(u != null) {
+            synchronized(u) { act.run(); }
+        } else {
+            act.run();
+        }
+    }
+
+    /**
+     * <b>The caption the text level must give back</b> (061.5) — the stock one recorded at the layer's first
+     * touch, and the widget's own where no addon is standing on it. {@link #stockPos}'s answer one property
+     * along, and it is what makes a second addon's record hold what the <i>user</i> had rather than what the
+     * first addon wrote.
+     */
+    static LuaWidget.Cap stockText(Widget w) {
+        LuaWidget.Moved m = movedTextOwner(w);
+        return (m != null) ? m.text : LuaWidget.readCap(w);
+    }
+
+    /** The first live owner holding a stock caption for {@code w}, or {@code null} ({@link #movedOwner}'s twin). */
+    private static LuaWidget.Moved movedTextOwner(Widget w) {
+        if(!LuaWidget.anyMoved || (w == null))
+            return null;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++) {
+            LuaWidget.Moved m = movedTextIn(as.get(i), w);
+            if(m != null)
+                return m;
+        }
+        Addon c = consoleOwner;
+        return (c == null) ? null : movedTextIn(c, w);
+    }
+
+    private static LuaWidget.Moved movedTextIn(Addon a, Widget w) {
+        List<LuaWidget.Moved> ms = a.movedNative;
+        for(int i = 0, n = ms.size(); i < n; i++) {
+            LuaWidget.Moved m = ms.get(i);
+            if((m.wdg == w) && (m.text != null))
+                return m;
+        }
+        return null;
     }
 
     /**

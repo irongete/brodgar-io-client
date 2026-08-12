@@ -318,6 +318,7 @@ final class Layout {
         if(u == null)
             return;
         synchronized(u) {
+            textHalf(w);                              // 061.5: WHAT it says, before the box it says it in
             Sheet.Resolved r = Sheet.styleOf(w);      // ONE fold, read once and used for both halves
             applyHalf(u, w, r, false);
             applyHalf(u, w, r, true);
@@ -426,6 +427,50 @@ final class Layout {
         } else if(!stock.equals(LuaWidget.sizeArg(w))) {
             w.resize(stock);
         }
+    }
+
+    /**
+     * <b>What a widget SAYS</b> (061.5) — the text level, resolved the way the two geometry halves above are and
+     * with one level fewer: there is no rule beneath it, because content is not style. The winning level is the
+     * latest one any addon named ({@link LuaWidget#topWantText}); when none is left the stock caption goes back
+     * and every owner's record forgets it.
+     *
+     * <p><b>The stock half is recorded at the LAYER's first touch</b> and read through {@link UiApi#stockText},
+     * so a second addon writing over the first records what the <i>user</i> had rather than what the first addon
+     * wrote — the same answer {@code stockPos} gives one property along.
+     *
+     * <p>Idempotent, like the halves below: a widget already saying what the cascade says gets no write at all,
+     * which is what lets the placement seam and the sweep call {@link #apply} freely — a {@code Button} rebuilds
+     * its raster on every {@code change(String)}, so the comparison is not an optimisation but the thing that
+     * keeps a caption off the per-placement path. Caller holds the {@code ui} monitor.
+     */
+    private static void textHalf(Widget w) {
+        if(!LuaWidget.anyMoved)
+            return;                                   // nobody is holding anything: one volatile read, and out
+        LuaWidget.Moved top = LuaWidget.topWantText(w);
+        if(top != null) {
+            LuaWidget.Moved rec = LuaWidget.recordMoved(top.owner, w);
+            if(rec.text == null)
+                rec.text = UiApi.stockText(w);        // what the user had, whoever asks about it later
+            if(!top.wantText.equals(LuaWidget.text(w)))
+                LuaWidget.writeText(w, top.wantText);
+            return;
+        }
+        LuaWidget.Cap stock = UiApi.stockText(w);     // READ before the records are dropped
+        if(!LuaWidget.dropStockText(w))
+            return;                                   // nothing of ours was standing here: not our business
+        LuaWidget.writeCap(w, stock);
+    }
+
+    /**
+     * The text level on its own, for the verb that names it and the one that drops it — {@code widget:text(s)} /
+     * {@code :text(nil)} and {@code widget:title(s)} / {@code :title(nil)}. Takes the {@code ui} monitor itself.
+     */
+    static void applyText(Widget w) {
+        UI u = AddonManager.ui;
+        if((u == null) || (w == null))
+            return;
+        synchronized(u) { textHalf(w); }
     }
 
     /**

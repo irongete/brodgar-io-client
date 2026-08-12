@@ -29,6 +29,9 @@ blit thereafter**. `CheckBox`/`ICheckBox` do **not** — see below.
 | The activation | `click()` runs `action` (public field, or the `action(Runnable)` chainer). `gkeytype` calls it too — **it is not a mouse event** |
 |...and the order that matters | `mouseup` does `d.remove(); redraw();` and calls `click()` **last**, so a handler may destroy the window it is sitting in |
 | The caption, post-construction | `change(String)` / `change(String, Color)` — re-render + `redraw()` |
+| A caption is **three** fields, not a string | fork: `rtext` + `rcol` + `rwrap` (public), and `change(String)` sets `rcol = null`, `rwrap = 0` — so a coloured caption, or a wrapped one (`wrapped(w, text)`, the `ltbtn` factory), put back through it comes back rendered wrong. `caption(String, Color, int)` (`// addon:`) is the one write that takes all three |
+| A caption never resizes the button | `sz` is the constructor's `w` × `hs`/`hl`; `change`/`render` re-rasterise the face and nothing else, so a longer caption is centred and clipped rather than widening the box |
+| A caption may be **absent** | `Button(int, Text)` and `Button(int, BufferedImage)` set `cont` directly and leave `rtext` null — the face was rendered by the caller, and there is nothing to render back |
 | Short vs large | `largep(w)` — `w >= bl+bm+br` **on the UI-scaled images**, so the same width is not the same button on every client. The `lg` constructors () say it outright |
 | The server-sending default | `Button(int, String)` → sets `action = () -> wdgmsg("activate")`. The `Runnable` overloads () do not |
 | The font seam | `checkfont`/`render` — the caption goes through the `"button"` scope provider and re-renders in `draw(GOut)` when `Fonts.gen()` moves |
@@ -104,6 +107,7 @@ none need the `redraw()`-on-resize fix above.
 | What | Where |
 |---|---|
 | `Img`'s content | `setimg(Tex)` is a live, public, post-construction setter — unlike an `IButton` face, replacing it needs no D-113 rebuild |
+| `Label`'s caption | `settext(String)` returns early when the text is equal, re-renders through the label's own `f` and **`resize`s to the new raster** — so unlike a `Button`, a `Label`'s box follows what it says. It renders through `f.render`, never `renderwrap`, so a **wrapped** label (`new Label(text, w)`, whose width is kept in the fork's `fontwrapw`) comes back on one line through it; `settext(String, int)` + `wrapw()` (`// addon:`) are the pair that keep the wrap |
 | `Progress`'s fraction | `Progress.a`, `public float`, read directly by `draw` when no `Supplier` is installed |
 
 > **`ILabel` is NOT an image variant, despite the `I` prefix `IButton`/`ICheckBox` set.**

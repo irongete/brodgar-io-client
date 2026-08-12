@@ -132,7 +132,7 @@ pass.
       `[manual]`: open Options → **Audio settings** and drag "Master audio volume" a little.
       `[manual]`: open Options → **Keybindings** and drag its scrollbar a little.
 
-- [ ] **061.5 — `widget:text(s)` writes a native caption, and `widget:title(s)` a native window's.**
+- [x] **061.5 — `widget:text(s)` writes a native caption, and `widget:title(s)` a native window's.**
       Two verbs, because the API already splits them and the split stands: *a title is a window's `cap`,
       text is everything else*, and the two refusals in the tree already point at each other. `:text(s)`
       answers on a native `Label` (`Label.settext`), a `Button` caption (`Button.change(String)`, which

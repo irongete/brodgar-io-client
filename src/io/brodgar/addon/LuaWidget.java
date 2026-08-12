@@ -26,6 +26,8 @@ import haven.WItem;
 import haven.Widget;
 import haven.Window;
 
+import java.awt.Color;
+
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -665,14 +667,17 @@ public final class LuaWidget {
         // callbacks are things an AddonWidget HAS, and a native widget has nowhere to put them. The reads
         // answer nil on a borrowed widget rather than throwing, which is what every other read here does.
         //
-        // title() / title(s) — a window's caption. A bare :widget() has no chrome to write it on, so the write
-        // refuses naming the builder that does; the read answers nil there.
+        // title() / title(s) / title(nil) — a window's caption. A bare :widget() has no chrome to write it on, so
+        // the write refuses naming the builder that does; the read answers nil there.
+        //   061.5: IT ANSWERS ON ONE OF THE CLIENT'S OWN WINDOWS TOO, and there it is the same LEVEL :text(s) is
+        // on a control — one record, because a widget is a window or it is a control and never both. The split
+        // is the one the API already has: a TITLE is a window's caption, TEXT is everything else, and the two
+        // refusals go on pointing at each other rather than one verb learning to write both.
         m.set("title", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:title() → narg 1 · w:title(s) → narg 2
+            public Varargs invoke(Varargs a) {            // w:title() → narg 1 · w:title(s)/(nil) → narg 2
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "title"));
-                LuaValue v = Args.written(a, 2, "widget:title", "s");
-                if(v == null) {
+                if(!Args.passed(a, 2)) {
                     if((w == null) || !(w instanceof Window))
                         return LuaValue.NIL;
                     String cap = ((Window)w).cap;
@@ -680,13 +685,22 @@ public final class LuaWidget {
                 }
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
-                owned(owner, w, "title(s)");
+                LuaValue v = a.arg(2);
+                if(v.isnil()) {                           // w:title(nil) — drop OUR level, back to the stock cap
+                    UiApi.releaseText(owner, w);
+                    return self;
+                }
                 if(!(w instanceof Window))
                     throw new LuaError("widget:title(s) is a WINDOW's caption, and " + typeName(w) + " has no"
-                        + " chrome to write it on — hafen.ui():window() is the builder that does. A control's"
-                        + " own caption is widget:text(s).");
-                UI u = AddonManager.ui;
-                synchronized(u) { ((Window)w).chcap(v.tojstring()); }
+                        + " chrome to write it on — hafen.ui():window() is the builder that makes one. A"
+                        + " control's own caption is widget:text(s), on one of the client's controls exactly as"
+                        + " on one you built.");
+                if(ownedContent(owner, w) != null) {
+                    UI u = AddonManager.ui;
+                    synchronized(u) { ((Window)w).chcap(v.tojstring()); }
+                    return self;
+                }
+                recordText(owner, w, v.tojstring());      // BORROWED: the caption is a level, and it restores
                 return self;
             }
         });
@@ -737,12 +751,17 @@ public final class LuaWidget {
         // content has exactly one door to WRITE it through. The read stays exactly as above (best-effort,
         // never throwing) — retiring it too would have broken the very contract this comment documents for
         // every OTHER widget, on the one type this feature happens to touch.
+        //   061.5: AND IT ANSWERS ON A BORROWED CONTROL — a native Label, a Button's caption, a CheckBox's
+        // label. There it is a LEVEL rather than a write: the stock caption is recorded at the first touch
+        // (LuaWidget.Cap on Moved, the record :position/:size already use), a second write REPLACES the level
+        // rather than stacking, and :text(nil) drops it and gives the stock one back — as do :reload and
+        // disable. Unprotected, like every other thing an addon says about a widget rather than does to one:
+        // what a widget SAYS never leaves the client, and what a control HOLDS is widget:value(v).
         m.set("text", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:text() → narg 1 · w:text(s) → narg 2
+            public Varargs invoke(Varargs a) {            // w:text() → narg 1 · w:text(s)/(nil) → narg 2
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "text"));
-                LuaValue v = Args.written(a, 2, "widget:text", "s");
-                if(v == null) {
+                if(!Args.passed(a, 2)) {
                     if(w == null)
                         return LuaValue.NIL;
                     String t = text(w);
@@ -750,9 +769,19 @@ public final class LuaWidget {
                 }
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
+                LuaValue v = a.arg(2);
+                if(v.isnil()) {                           // w:text(nil) — drop OUR level, back to the stock text
+                    UiApi.releaseText(owner, w);
+                    return self;
+                }
                 if(w instanceof CEntry)
                     throw new LuaError(Retired.message("entry:text"));
-                Controls.text(owned(owner, w, "text(s)"), w, v.tojstring());
+                Owned c = ownedContent(owner, w);
+                if(c != null) {
+                    Controls.text(c, w, v.tojstring());
+                    return self;
+                }
+                nativeText(owner, w, v.tojstring());      // BORROWED: the text level, or the refusal
                 return self;
             }
         });
@@ -1431,8 +1460,16 @@ public final class LuaWidget {
         Layout.Anchor wantPos;
         /** This addon's hand-named size, in design pixels — see {@link #wantPos}. */
         Coord wantSize;
+        /**
+         * The stock caption (061.5), recorded at the text level's first touch — {@code null}: this addon's level
+         * is not standing on what the widget says. One slot serves {@code widget:text(s)} and
+         * {@code widget:title(s)} alike, since a widget is a window or a control and never both.
+         */
+        Cap text;
+        /** This addon's hand-named caption — what {@code widget:text(s)}/{@code :title(s)} asked for. */
+        String wantText;
         /** When each half was named, so the latest hand-named level wins between two addons ({@link Layout#nextSeq}). */
-        long posSeq, sizeSeq;
+        long posSeq, sizeSeq, textSeq;
 
         Moved(Addon owner, Widget wdg, int id) {
             this.owner = owner;
@@ -1442,7 +1479,8 @@ public final class LuaWidget {
 
         /** Nothing of ours left on this widget ⇒ the record is dropped. */
         boolean idle() {
-            return (pos == null) && (size == null) && (wantPos == null) && (wantSize == null);
+            return (pos == null) && (size == null) && (text == null)
+                && (wantPos == null) && (wantSize == null) && (wantText == null);
         }
     }
 
@@ -1534,6 +1572,62 @@ public final class LuaWidget {
                 best = m;
         }
         return best;
+    }
+
+    /**
+     * The winning <b>hand-named</b> caption on {@code w} (061.5), or {@code null} when no addon is standing on
+     * what this widget says — {@link #topWant}'s shape one property along, and the same tie-break: the latest
+     * level wins, since two addons may each write a caption and neither is a toggle.
+     */
+    static Moved topWantText(Widget w) {
+        Moved best = null;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            best = topWantTextIn(as.get(i), w, best);
+        return topWantTextIn(AddonManager.consoleOwner, w, best);
+    }
+
+    private static Moved topWantTextIn(Addon a, Widget w, Moved best) {
+        if(a == null)
+            return best;
+        List<Moved> ms = a.movedNative;
+        for(int i = 0, n = ms.size(); i < n; i++) {
+            Moved m = ms.get(i);
+            if((m.wdg != w) || (m.wantText == null))
+                continue;
+            if((best == null) || (m.textSeq > best.textSeq))
+                best = m;
+        }
+        return best;
+    }
+
+    /** {@link #dropStock} for the text half — no level says what {@code w} says any more (061.5). */
+    static boolean dropStockText(Widget w) {
+        if(!anyMoved)
+            return false;
+        boolean held = false;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            held |= dropStockTextIn(as.get(i), w);
+        held |= dropStockTextIn(AddonManager.consoleOwner, w);
+        if(held)
+            recountMoved();
+        return held;
+    }
+
+    private static boolean dropStockTextIn(Addon a, Widget w) {
+        if(a == null)
+            return false;
+        boolean held = false;
+        for(Moved m : a.movedNative) {
+            if((m.wdg != w) || (m.text == null))
+                continue;
+            m.text = null;
+            held = true;
+            if(m.idle())
+                a.movedNative.remove(m);
+        }
+        return held;
     }
 
     /**
@@ -1806,6 +1900,122 @@ public final class LuaWidget {
             return (t == null) ? null : t.text;
         }
         return null;
+    }
+
+    // ---- the text level (061.5): what a BORROWED widget says, and giving it back ---------------------
+
+    /**
+     * <b>A stock caption, as the client holds it</b> (061.5) — the stock half of the text level, and
+     * deliberately <b>not</b> a {@link String}. A {@link Button}'s caption is three fields ({@link Button#rtext},
+     * {@link Button#rcol}, {@link Button#rwrap}) and {@code change(String)} zeroes the last two, so a coloured
+     * or a wrapped ({@code ltbtn}) caption given back through it comes back rendered wrong; a {@link Label}'s
+     * wrap width is the same story one class along. The record keeps what the arm it came from needs, and
+     * {@link #writeCap} goes back through that same arm.
+     *
+     * <p>{@link #wrap} is kept <b>exactly as the widget's own field holds it</b> — a {@code Button} means
+     * {@code 0} by "no wrap" and a {@code Label} means {@code -1} — because a {@code Cap} is only ever written
+     * back to the widget it was read from, and normalising it here would be a second convention to get wrong.
+     */
+    static final class Cap {
+        final String text;
+        final Color col;      // a Button's rcol; null on every other arm
+        final int wrap;
+
+        Cap(String text, Color col, int wrap) {
+            this.text = text;
+            this.col = col;
+            this.wrap = wrap;
+        }
+    }
+
+    /**
+     * <b>What {@code w} says, in the form that puts it back</b> — {@code null} on a widget with nothing to say,
+     * which is what {@code widget:text(s)} refuses on. One {@code instanceof} chain in one method, the same
+     * discipline {@link #text(Widget)} and {@link #value(Widget)} use for fragile upstream knowledge.
+     *
+     * <p>A {@link Button} built from a {@link Text} or a picture has no {@code rtext} at all: its face was
+     * rendered by whoever made it and there is nothing to render back, so it reads as having nothing to say.
+     */
+    static Cap readCap(Widget w) {
+        if(w instanceof Label) {
+            Label l = (Label)w;
+            return new Cap(l.texts, null, l.wrapw());
+        }
+        if(w instanceof Button) {
+            Button b = (Button)w;
+            return (b.rtext == null) ? null : new Cap(b.rtext, b.rcol, b.rwrap);
+        }
+        if(w instanceof CheckBox) {                // an ICheckBox is a picture, and is not one of these
+            Text t = ((CheckBox)w).lbl;
+            return new Cap((t == null) ? "" : t.text, null, 0);
+        }
+        if(w instanceof Window)                    // ...and a window's is widget:title(s)'s half of the level
+            return new Cap(((Window)w).cap, null, 0);
+        return null;
+    }
+
+    /** Put a stock caption back, through the arm it came from. Caller holds the {@code ui} monitor. */
+    static void writeCap(Widget w, Cap c) {
+        if((w == null) || (c == null))
+            return;
+        if(w instanceof Label)
+            ((Label)w).settext(c.text, c.wrap);
+        else if(w instanceof Button)
+            ((Button)w).caption(c.text, c.col, c.wrap);
+        else if(w instanceof CheckBox)
+            ((CheckBox)w).settext(c.text);
+        else if(w instanceof Window)
+            ((Window)w).chcap(c.text);
+        WidgetSurface.touch(w);                    // 044.1: standing in the world? its picture is out of date
+    }
+
+    /**
+     * Write <b>this addon's level</b> onto {@code w} — a plain string, which is all a level is. A wrapped
+     * {@link Label} keeps its wrap (the level is what it says, not how it is laid out); a {@link Button} goes
+     * through {@code change(String)}, which re-renders <i>and</i> {@code redraw()}s, because an
+     * {@code SIWidget} keeps its old raster otherwise. Caller holds the {@code ui} monitor.
+     */
+    static void writeText(Widget w, String s) {
+        if(w instanceof Label)
+            ((Label)w).settext(s, ((Label)w).wrapw());
+        else if(w instanceof Button)
+            ((Button)w).change(s);
+        else if(w instanceof CheckBox)
+            ((CheckBox)w).settext(s);
+        else if(w instanceof Window)
+            ((Window)w).chcap(s);
+        WidgetSurface.touch(w);
+    }
+
+    /**
+     * {@code widget:text(s)} on a widget this addon did not build — the level, or the refusal that names the
+     * verb to use instead. The two refusals that already pointed at each other keep pointing: a text entry's
+     * content is what it HOLDS, and a window's caption is its own verb.
+     */
+    private static void nativeText(Addon owner, Widget w, String s) {
+        if(w instanceof TextEntry)
+            throw new LuaError("widget:text(s) writes what a widget SAYS, and a text entry's content is what it"
+                + " HOLDS — widget:value(v) is the one door that writes it, and the server sees what you typed."
+                + " widget:text() still reads the line back.");
+        if(w instanceof Window)
+            throw new LuaError("widget:text(s) writes a CONTROL's caption, and " + typeName(w) + " is a window —"
+                + " a window's caption is widget:title(s), on one of the client's exactly as on one you built.");
+        if(readCap(w) == null)
+            throw new LuaError("widget:text(s) writes what a widget says, and " + typeName(w) + " has nothing to"
+                + " say — a Label, a Button's caption and a CheckBox's label are what carry text. A button whose"
+                + " face is a PICTURE has no caption at all, and neither has a checkbox that shows one.");
+        recordText(owner, w, s);
+    }
+
+    /** Name this addon's text level on a borrowed widget, and let {@link Layout} resolve what is on screen. */
+    private static void recordText(Addon owner, Widget w, String s) {
+        UI u = AddonManager.ui;
+        synchronized(u) {
+            Moved rec = recordMoved(owner, w);
+            rec.wantText = s;
+            rec.textSeq = Layout.nextSeq();        // the latest hand-named level wins, as it does for a position
+            Layout.applyText(w);
+        }
     }
 
     /**

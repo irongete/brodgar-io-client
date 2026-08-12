@@ -16,6 +16,46 @@ hafen.ui():on("window[title=Options]", "appear", function(win)
 end)
 ```
 
+## What a window says
+
+`w:text(s)` writes what one of the client's own widgets says — a label, a button's caption, a checkbox's
+label — and `w:title(s)` writes a window's caption. It is the split you already use on a widget you built:
+a **title** is a window's caption, **text** is everything else, and each verb refuses on the other's widget
+naming the one that answers there.
+
+```lua
+local win = hafen.ui():find("window[title=Options]")
+win:title("Options, edited")
+win:all("@Button")[1]:text("Go")
+```
+
+| Call | Does |
+|---|---|
+| `w:text()` | reads what a widget says, best-effort, on any widget at all; `nil` where it says nothing |
+| `w:text(s)` | writes a label, a button's caption or a checkbox's label; chains |
+| `w:text(nil)` | drops **your** level — the stock text comes back; chains |
+| `w:title()` | reads a window's caption, `nil` on anything that is not a window |
+| `w:title(s)` | writes a window's caption; chains |
+| `w:title(nil)` | drops your level, exactly as `:text(nil)` does; chains |
+
+**It is a level over the client's text, never a write into it.** The first time you write, what the widget
+said is recorded; `:text(nil)`, `:title(nil)`, disabling your addon and `:reload` all give it back —
+including the colour and the wrapping a caption was rendered with, which are part of it and not decoration
+you can put back yourself. A **second write replaces your level rather than stacking on it**, so one `nil`
+is always enough however many times you wrote. Two addons may each hold a caption on one widget: the last
+one wins on screen and each gives back what *it* found, the same rule [placing one](native.md) follows.
+
+Both verbs are **unprotected**, and the reason is the line this whole page turns on: what a widget **says**
+never leaves the client. What a control **holds** is `w:value(v)`, and the server sees that — which is why
+`:text(s)` on one of the client's text entries refuses, naming it.
+
+Nothing here is style. There is no `text` property in the [stylesheet](style/README.md): what one widget
+says is a fact about that one widget, not a rule about a kind of them.
+
+**What refuses, and what each refusal names**: a text entry (→ `w:value(v)`), a window (→ `w:title(s)`),
+anything that is not a window on `:title(s)` (→ `w:text(s)`), and a widget with nothing to say at all — the
+close button on every window is three pictures and has no caption to write.
+
 ## Taking over what a control does
 
 A [control](controls/README.md)'s capability key answers on a **borrowed** control too. Same

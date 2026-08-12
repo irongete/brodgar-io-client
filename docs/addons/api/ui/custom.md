@@ -34,16 +34,18 @@ size it did not choose — and every property is a setter on the [Widget](widget
 
 | Setter | Read | Meaning |
 |---|---|---|
-| `:title(s)` | `:title()` | window caption; a bare widget has no chrome to write it on and refuses |
+| `:title(s)` | `:title()` | window caption — a bare widget has no chrome to write it on and refuses; it answers on [one of the client's windows](edit.md#what-a-window-says) too |
 | `:parent(w)` | `:parent()` | which widget it hangs under; the default is `hafen.ui():root()` |
 | `:position(x, y)` | `:position()` | place within the parent, in [design pixels](pixels.md) |
 | `:size(w, h)` | `:size()` | content size; a window's chrome is fitted around it |
 | `:font(h)` | `:font()` | default font for this widget's `g:text`/`g:atext` draws, not for the title bar |
 
 Every setter returns the widget, so a whole surface is one expression; every one has a matching bare read,
-so nothing you configured needs a variable of its own to be readable later. All five answer only on a
-surface **your** addon painted — a native widget has nowhere to put a caption of yours, and neither does
-a [control](controls/README.md), which the client draws and drives.
+so nothing you configured needs a variable of its own to be readable later. They answer on a surface
+**your** addon painted, with `:title(s)` the one that reaches further: it writes
+[one of the client's windows](edit.md#what-a-window-says) as well, where it is a level that restores. A
+native widget has nowhere to put a default font of yours, and neither does a
+[control](controls/README.md), which the client draws and drives.
 
 Sizes and positions are [design pixels](pixels.md): what you write is what you read back, on every client
 whatever the user's interface scale. `:position` is within the parent; on a window `:size` is the

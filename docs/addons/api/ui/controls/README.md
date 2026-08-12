@@ -59,7 +59,8 @@ it moves by `:position(x, y)`. A row-source control has its own page: [lists](..
 | `:range(min, max)` | `:range()` | the value bounds of a [slider or scrollbar](interactive.md#slider) |
 
 Every setter returns the Widget, so a control is one expression, and each has a matching bare read: `:text()`
-answers on any text-bearing widget, `:text(s)` writes only on one you own.
+answers on any text-bearing widget, and so does `:text(s)` — on a control you built it writes the caption
+outright, and on [one of the client's](../edit.md#what-a-window-says) it is a level that restores.
 
 **`:value()` is the one verb for what a control holds**, whatever shape that is — a
 [progress bar](display.md#progress-bar)'s is a fraction, and a control with nothing to hold reads `nil`

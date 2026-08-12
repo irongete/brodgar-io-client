@@ -15,7 +15,8 @@ inv:position(nil)         -- drop YOUR move: back to where the user had it
 than sit on top of it. See [owned vs borrowed](widget.md#owned-vs-borrowed) for the whole table.
 
 This page is about **where** one of the client's widgets sits and whether it is on screen. Changing what
-one of them *does* — taking over a button of the client's own — is [editing](edit.md).
+one of them *says* or *does* — a caption, or taking over a button of the client's own — is
+[editing](edit.md).
 
 [Standing one in the 3D world](../vr/widgets.md) is a fourth write of the same family, restoring under the
 same rule.

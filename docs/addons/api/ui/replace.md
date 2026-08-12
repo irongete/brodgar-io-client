@@ -104,15 +104,15 @@ in for), one of your *own* windows, and a window another addon already holds.
 
 ## Where replacing ends
 
-A widget's own state is otherwise read-only — mutating it would desync the client from the server. So
-`:text()` is a best-effort read rather than a write, and which child of a native window is a price and
-which is a spacer is knowledge your Lua supplies, not something the tree declares.
+What a native window *holds* stays the client's and the server's: which child of it is a price and which is
+a spacer is knowledge your Lua supplies, not something the tree declares, so a view of your own is how you
+present a container differently.
 
 The line between the three verbs on this page and the sheet is worth stating once. **Restyling** a native
-widget — its text, its background, its border, a window's whole chrome — is
+widget — its font and colour, its background, its border, a window's whole chrome — is
 [the stylesheet's](style/README.md) job. **Placing** one is a write,
 [`:position(x, y)`/`:size(w, h)`](native.md), which the sheet can also
-[say as a rule](style/geometry.md). **Changing one part of a window** — taking over what one of its
+[say as a rule](style/geometry.md). **Changing one part of a window** — its caption, or what one of its
 buttons does — is [editing](edit.md), the page beside this one. **Rearranging what a window puts inside
 itself** is none of those: that is replacing it.
 

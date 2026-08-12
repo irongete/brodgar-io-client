@@ -6,9 +6,11 @@ import org.luaj.vm2.Varargs;
 
 /**
  * The <b>nil discipline</b> of the uniform grammar (spec {@code 039-uniform-api} §2.9): <b>an explicit
- * {@code nil} argument is an ERROR unless the verb documents a meaning for it</b>. Two meanings are
- * documented in the whole API — <i>undo your layer</i> ({@code w:position(nil)}) and <i>none</i>
- * ({@code ov:tint(nil)}) — and everywhere else a {@code nil} is an accident with nothing to undo.
+ * {@code nil} argument is an ERROR unless the verb documents a meaning for it</b>. The meanings documented in
+ * the API are <i>undo your layer</i> ({@code w:position(nil)}, {@code w:size(nil)}, {@code w:text(nil)},
+ * {@code w:title(nil)}) and <i>none</i> ({@code ov:tint(nil)}) — and everywhere else a {@code nil} is an
+ * accident with nothing to undo. A verb whose {@code nil} means something reads its own argument (the
+ * {@link #passed} arity test) rather than calling {@link #written}, which is what refuses one.
  *
  * <p><b>Why it earns its keep.</b> Arity is the verb: {@code x:name()} reads and {@code x:name(v)} writes.
  * So a {@code v} that is accidentally {@code nil} does not fail — it silently becomes a <i>read</i>, and the

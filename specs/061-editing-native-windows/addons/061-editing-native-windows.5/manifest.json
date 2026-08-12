@@ -1,0 +1,9 @@
+{
+  "name": "061.5 — a text level on the client's own widgets",
+  "id": "061-editing-native-windows.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 061.5: widget:text(s) writes a native label, button caption and checkbox label, widget:title(s) a native window's caption, and both give the stock value back on nil.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -61,7 +61,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:position()` | `{x=, y=}` | position within the parent, in widget-local [design pixels](pixels.md) — [`:position(x, y)` moves it](native.md) |
 | `:size()` | `{x=, y=}` | size, in [design pixels](pixels.md); for a window its **outer** box |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
-| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, CheckBox, Window, TextEntry), else `nil` — [`:text(s)` writes it on a control you built](controls/README.md#setters) |
+| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, CheckBox, Window, TextEntry), else `nil` — `:text(s)` writes it, on [a control you built](controls/README.md#setters) or [one of the client's](edit.md#what-a-window-says) |
 | `:tooltip()` | string \| nil | the line that appears when the pointer rests on it, or `nil` — [`:tooltip(s)` writes it on a control you built](#tooltips-and-focus) |
 | `:focused()` | boolean | whether a keystroke would reach this widget — see [focus](#tooltips-and-focus) |
 | `:image()` | table \| nil | the faces of a [control](controls/interactive.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |
@@ -171,7 +171,8 @@ provoke the error.
 | `:size(w)` | set the width and keep the height a [control](controls/README.md#sizing)'s own art gives it | **error** — the client's widget has no art of yours to ask |
 | `:pack()` | size it to what is inside it — a window's chrome or a bare widget alike — and chain | **error** — that is not yours to do |
 | `:destroy()` | remove it and everything in it | **error**, same reason |
-| `:text(s)` | write the caption of a [control](controls/README.md) you built | **error** — that caption is the client's |
+| `:text(s)` | write the caption of a [control](controls/README.md) you built | **works** — [a level over what it says, and it restores](edit.md#what-a-window-says) |
+| `:title(s)` | write the caption of a window you built | **works**, same — a window's caption is this verb wherever it came from |
 | `:tooltip(s)` | write the line that appears when the pointer rests on it | **error** — those are the client's own words about its own button |
 | `:image(up, down [, hover])` | give a [control](controls/interactive.md#a-caption-or-a-picture) you are building its pictures | **error**, same reason |
 | `:value(v)` | write what a [control](controls/README.md#setters) holds | **error**, same reason |

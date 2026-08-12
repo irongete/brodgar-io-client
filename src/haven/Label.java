@@ -118,6 +118,23 @@ public class Label extends Widget {
 	resize(this.text.sz());
     }
 
+    /* addon: 061 -- the wrap width this label renders at (< 0 = unwrapped), and the caption write that keeps it.
+     * settext(String) above renders through f.render, never renderwrap, so a WRAPPED label written and then
+     * given back through it comes back on one line; an addon's text level records the width and puts it back
+     * with the text. */
+    public int wrapw() {
+	return(fontwrapw);
+    }
+
+    public void settext(String text, int w) {
+	if(text.equals(this.text.text) && (w == fontwrapw))
+	    return;
+	this.text.dispose();
+	this.fontwrapw = w;
+	this.text = (w >= 0) ? f.renderwrap(texts = text, col, w) : f.render(texts = text, col);
+	resize(this.text.sz());
+    }
+
     public void setcolor(Color color) {
 	if(color.equals(col))
 	    return;

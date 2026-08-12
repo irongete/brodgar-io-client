@@ -72,9 +72,11 @@ public class Button extends SIWidget {
     static Text.Furnace nfont() {checkfont(); return(bnf);}
     // addon: how THIS button's caption was rendered, so it can be re-rendered when the override moves.
     // `rtext` null = the caption came from the caller as a Text/BufferedImage (not ours to restyle).
-    private String rtext = null;
-    private Color rcol = null;    // non-null -> the plain tfont() path (change(text, col)); null -> the nfont() blur
-    private int rwrap = 0;        // >0 -> the renderwrap path (wrapped())
+    // Public since 061: a caption is these THREE fields, and an addon's text level records all three so it can
+    // give the stock one back exactly -- see caption(String, Color, int) below.
+    public String rtext = null;
+    public Color rcol = null;     // non-null -> the plain tfont() path (change(text, col)); null -> the nfont() blur
+    public int rwrap = 0;         // >0 -> the renderwrap path (wrapped())
     private int contgen = -1;     // Fonts.gen() at the last caption render
     private boolean a = false, dis = false;
     private UI.Grab d = null;
@@ -193,6 +195,16 @@ public class Button extends SIWidget {
     public void change(String text) {
 	this.rtext = text; this.rcol = null; this.rwrap = 0;  // addon:
 	render();                                            // addon: was `nf.render(text)`
+	redraw();
+    }
+
+    // addon: 061 -- put a caption back EXACTLY as it was found. change(String) sets rcol = null and rwrap = 0,
+    // so a coloured or a wrapped (ltbtn) caption restored through it comes back rendered wrong; this is the one
+    // write that takes all three fields. Re-renders and redraw()s, like change() does, because an SIWidget
+    // keeps its old raster otherwise.
+    public void caption(String text, Color col, int wrap) {
+	this.rtext = text; this.rcol = col; this.rwrap = wrap;
+	render();
 	redraw();
     }
 

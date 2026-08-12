@@ -219,13 +219,15 @@ becomes per family **and** per provenance) · `ui/custom.md` (`:title(s)` may na
 - `src/io/brodgar/addon/Sheet.java` — 9
 - `src/io/brodgar/addon/UiApi.java` — 5, 7, 9
 - `src/haven/AddonWidgets.java` — 1, 2, 3, 4
-- `src/haven/Button.java`, `src/haven/IButton.java` — 1
-- `src/haven/ACheckBox.java`, `CheckBox.java`, `ICheckBox.java`, `RadioGroup.java` — 2, 8
+- `src/haven/Button.java` — 1, 5, 6 (its caption is `rtext` + `rcol` + `rwrap`, and `caption(String, Color, int)`
+  is the write that takes all three) · `src/haven/IButton.java` — 1
+- `src/haven/ACheckBox.java`, `CheckBox.java`, `ICheckBox.java`, `RadioGroup.java` — 2, 5, 8
 - `src/haven/SListWidget.java`, `SListBox.java`, `SDropBox.java`, `SListMenu.java`, `GridList.java` — 2, 3, 8
 - `src/haven/TextEntry.java`, `HSlider.java`, `Scrollbar.java`, `Scrollport.java`, `Progress.java` — 2, 4, 8
 - `src/haven/ChatUI.java` — 4 (its entry overrides `activate` without `super`: the seam's proof)
 - `src/haven/OptWnd.java` — 2, 4, 5, 7, 8, 9 (every suite's native target, and which panel holds it)
-- `src/haven/Label.java` — 5
+- `src/haven/Label.java` — 5, 6 (`settext(String, int)` + `wrapw()`: the plain `settext` renders unwrapped)
+- `src/io/brodgar/addon/Args.java` — 5 (the nil discipline `:text(nil)` / `:title(nil)` had to join)
 - `src/haven/Window.java` — 5, 6, 7
 - `src/haven/UI.java` — 6
 - `src/haven/Widget.java` — 7
