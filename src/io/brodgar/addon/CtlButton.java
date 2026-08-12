@@ -59,6 +59,21 @@ final class CtlButton extends Button implements Owned.Control, Controls.Press {
     }
 
     /**
+     * <b>The box the button's own art needs</b> (058.4) — {@link Button#hs}, the height of the end-cap image
+     * {@link Button#draw(java.awt.image.BufferedImage) draw} puts the bottom border at ({@code hs - bb.getHeight()}),
+     * and the two caps' widths, between which the middle is stretched. {@link Button#largep} picks {@code hl}
+     * instead for the tall decorated face, so the {@code lg} arm is read rather than assumed — even though this
+     * adapter's constructor always builds the short one.
+     *
+     * <p>It is the same DESIGN number on every client ({@code 24 x 24}): the art is loaded through
+     * {@code Resource.Image.scaled()}, whose {@code ssz} is the artist's own pre-scale size put through
+     * {@code UI.scale} — see {@code docs/client/ui-scaling.md}.
+     */
+    public Coord minsz() {
+        return Coord.of(bl.getWidth() + br.getWidth(), lg ? hl : hs);
+    }
+
+    /**
      * The button fired ({@link Button#click}) — a mouse release inside its box, or the keyboard. Fires
      * {@code "Pressed"} on this widget's {@link WidgetSubs} ({@link Controls#fire}), N subscribers, exactly
      * like every other addon callback (watchdog-armed, error-isolated, CPU-accounted).

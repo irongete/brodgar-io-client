@@ -49,6 +49,16 @@ Sizes and positions are [design pixels](pixels.md): what you write is what you r
 whatever the user's interface scale. `:position` is within the parent; on a window `:size` is the
 **content** size, so the outer box it reads back is that plus the chrome.
 
+**A surface has no art of its own**, so the one-number `:size(w)` a [control](controls/README.md#sizing)
+takes refuses here, naming the two-number write and `:pack()` — which sizes a window or a bare widget to
+the controls inside it, so a panel's box is read rather than added up:
+
+```lua
+local win = hafen.ui():window():title("Harvest"):position(80, 120)
+hafen.ui():button():parent(win):position(0, 0):size(120):text("Go")
+win:pack()                                       -- the window is now exactly that button
+```
+
 ## Subscribing
 
 A window or a bare widget answers the five universal [`:on(key, fn)`](widget.md#subscribing) keys every

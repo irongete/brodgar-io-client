@@ -58,6 +58,10 @@ hafen.ui():sheet():rule("window[title=Equipment]"):position(40, 200):install()
 hafen.ui():find("window[title=Equipment]"):position()   -- {x = 40, y = 200}, at any scale
 ```
 
+**A control's own height is not a number you write at all.** It is a fact of the client's pictures — a
+button is as tall as its art — so [`:size(w)`](controls/README.md#sizing) takes the width alone and leaves
+the height to it, and [`:pack()`](widget.md#owned-vs-borrowed) sizes the box around a column of them.
+
 **An image you ship is measured in it too.** A 32×32 PNG is 32×32 to
 [`img:size()`](../asset.md#image) and covers 32 design pixels when drawn, so your art and the client's
 sit at the same size at every scale.

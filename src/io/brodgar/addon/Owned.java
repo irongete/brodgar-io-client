@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.Widget;
 
 /**
@@ -15,12 +16,14 @@ import haven.Widget;
  * {@code :destroy()}, the builder setters and the whole owned half would have refused on the addon's own
  * button. The test is now {@code instanceof Owned}: the same test, against a wider type, in one file.
  *
- * <p><b>Seven methods, and each is a thing the bridge already does to an owned widget.</b> The first three are
+ * <p><b>Eight methods, and each is a thing the bridge already does to an owned widget.</b> The first three are
  * the provenance triple {@code isOwn} asks for; {@link #kill()} is what teardown does to every entry of
  * {@link Addon#widgets} (which is why the registry can be a list of this type at all); {@link #pending()} /
  * {@link #armed()} are the arming rule of D-112/D-119 (<i>attached inert, completed on the tick after the
- * statement that built it</i>), which a control obeys exactly as a surface does; and {@link #widget()} is the
- * one place that says the obvious — <b>an owned thing IS a widget</b> — so the geometry writes need no cast.
+ * statement that built it</i>), which a control obeys exactly as a surface does; {@link #widget()} is the
+ * one place that says the obvious — <b>an owned thing IS a widget</b> — so the geometry writes need no cast;
+ * and {@link #minsz()} (058.4) is the box the thing's own art needs, which is the one fact about a control an
+ * addon has no way to find out and used to measure by hand.
  *
  * <p>{@link AddonWidget} implements it with the methods it already had. Every control adapter implements
  * {@link Control}, which is the same contract over one shared {@link State} object, so an adapter's whole
@@ -51,6 +54,28 @@ interface Owned {
 
     /** The widget itself — the content leaf, which for a control is the control. */
     Widget widget();
+
+    /**
+     * <b>The smallest box this widget's art fits in</b> (058.4), in <b>DEVICE</b> pixels — the engine's own
+     * numbers, like {@link LuaWidget.Moved#pos}, converted at the Lua edge by {@link Px} and nowhere below it.
+     * {@code null} means <i>there is no art to ask</i>: an addon's own painted {@link AddonWidget} surface has
+     * none, and neither has a control the client draws to whatever box it is given.
+     *
+     * <p>It answers the one question about a control an addon <b>cannot</b> answer for itself — a button is as
+     * tall as its bottom border says it is — and that is what {@code widget:size(w)} is built on: the width is
+     * the addon's, the height is this. A {@code widget:size(w, h)} under it <b>raises</b>, because a box the art
+     * will not fit in draws a button with no bottom edge and teaches nobody why.
+     *
+     * <p><b>{@code 0} in an axis means the art does not constrain that axis</b>, and is not the same as
+     * {@code null}: a slider is exactly as tall as its knob and as wide as you like, so it answers
+     * {@code (0, knob)} — it has a height to give {@code :size(w)}, and no width to refuse.
+     *
+     * <p>Answered from the art at the moment it is asked, never cached: a checkbox's box grows with its
+     * caption, and the number an addon reads must be the one in force.
+     */
+    default Coord minsz() {
+        return null;
+    }
 
     /**
      * The ownership state one control adapter carries. It exists because the adapters cannot share a base class

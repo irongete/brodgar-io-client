@@ -17,15 +17,21 @@
 -- wall-clock instant it is DUE, not the seconds left on it, so one that was running comes back still
 -- running -- and one that ran out while you were logged off comes back finished, silently.
 --
--- EVERY HEIGHT AND EVERY COLUMN BELOW IS MEASURED, not chosen. widget:size(w, h) is in design pixels
--- (docs/addons/api/ui/pixels.md), so the numbers here mean the same thing on every client -- but a
--- control's own height is its ART's, and that is a number this addon has no way to guess. A 20 that is
--- too small clips the button's bottom border off, because the button rasterises into a box of exactly
--- the size it was given and draws that border at the bottom of its own picture. The fix is not a bigger
--- number: it is to ask a bare control how tall the client makes it, and lay the rows out from that.
+-- NOTHING BELOW GIVES A CONTROL A HEIGHT. widget:size(w) -- one number -- sets the width and leaves the
+-- height to the control's own art (docs/addons/api/ui/pixels.md), which is the one measurement an addon
+-- cannot make: a button's bottom border is drawn at the bottom of its own picture, so a box an art-height
+-- short simply loses it. The COLUMNS are still measured, and for the opposite reason: they are text, and
+-- font metrics are not linear in anything.
 
 local ALARM = "sfx/hud/mmap/bell3"                    -- one of the client's own notification blips
 local NAME_COLS = 24                                  -- the name column, in characters at the current scale
+
+-- The row grid, in DESIGN pixels: the same integers on every client at every interface scale, which is
+-- what makes writing them down honest. They are the client's own art heights -- a button 24, a text field
+-- 20 -- and they are here to lay the rows out AROUND those controls, never to be handed to one.
+local BTN, ENTRY = 24, 20
+local ROW = BTN + 6                                   -- the row grid: a button, and air around it
+local HEAD = BTN + 14                                 -- the header strip, above the first row
 
 local db = hafen.store():get("timers")                -- account scope: filled before this file runs
 db.list = db.list or {}                               -- { { name =, secs =, endAt =, fired = }, … }
@@ -39,26 +45,11 @@ local winH                                            -- the content height the 
 
 local openDialog, layout                              -- mutually recursive with the row handlers below
 
--- ------------------------------------------------------------------ the client's own measurements
+-- ------------------------------------------------------------------ the columns, which ARE measured
 
 local M = {}                                          -- filled once, on the first window we open
 
--- The delete button wears the client's OWN close box -- a string face is the game's art, taken at the
--- scale every IButton the client builds takes it, so the row matches the window it sits in. A face is
--- chosen while the control is being built, and the rebuild it triggers re-keys the Lua handle, so `b`
--- below is still the button afterwards. If that resource ever moves, the row falls back to a caption
--- rather than the whole list failing to draw.
-local function deleteButton(parent)
-  local b = hafen.ui():button()
-  if parent then b:parent(parent) end
-  local ok = pcall(function()
-    b:image("gfx/hud/wnd/lg/cbtnu", "gfx/hud/wnd/lg/cbtnd", "gfx/hud/wnd/lg/cbtnh")
-  end)
-  if not ok then b:size(M.btn or 20, M.btn or 20):text("X") end
-  return b
-end
-
--- A label's box is exactly its rendered text, so a throwaway one is the ruler for both dimensions. It is
+-- A label's box is exactly its rendered text, so a throwaway one is the ruler for a string's width. It is
 -- built, read and destroyed inside one statement sequence, and a surface draws nothing until the tick
 -- after the statement that built it -- so none of these is ever seen.
 local function textSize(s)
@@ -68,42 +59,33 @@ local function textSize(s)
   return box
 end
 
-local function measure()
-  if M.btn then return end
+-- The column grid. Every number here is TEXT -- a name, a countdown, two captions -- and text is the one
+-- thing a design pixel does not make constant: a glyph's advance is the font's, and a stylesheet may put
+-- a different font behind any of it. So the columns are measured, and the heights above are not.
+local function columns()
+  if M.w then return end
 
-  local b = hafen.ui():button()
-  M.btn = b:size().y                                  -- the client's own button height, at this UI scale
-  b:destroy()
-
-  local e = hafen.ui():entry()
-  M.entry = e:size().y
-  e:destroy()
-
-  local d = deleteButton(nil)
-  M.del = d:size()
-  d:destroy()
-
-  M.label = textSize("0").y
+  M.label = textSize("0").y                           -- one line of the stock label font
   M.time = textSize("00:00.00").x
   M.name = textSize(string.rep("n", NAME_COLS)).x
   M.start = math.max(textSize("Start").x, textSize("Stop").x) + 24
   M.edit = textSize("Edit").x + 24
 
-  M.row = M.btn + 6                                   -- the row grid: a button, and air around it
-  M.head = M.btn + 14
   M.timeX = 10 + M.name + 10
   M.startX = M.timeX + M.time + 10
   M.editX = M.startX + M.start + 6
   M.delX = M.editX + M.edit + 6
-  M.w = M.delX + M.del.x + 10
+  M.w = M.delX + BTN + 10
 
-  hafen.log():write(("timers: laid out for this UI scale -- button %dpx, entry %dpx, close box %dx%d,"
-    .. " row %dpx, window %dpx wide"):format(M.btn, M.entry, M.del.x, M.del.y, M.row, M.w))
+  hafen.log():write(("timers: columns laid out -- name %dpx, time %dpx, row %dpx, window %dpx wide")
+    :format(M.name, M.time, ROW, M.w))
 end
 
--- Centre a control against the row's button height, whatever the client makes each of them.
-local function centred(w, y)
-  return y + math.floor((M.btn - ((w:size() or {}).y or M.btn)) / 2)
+-- A line of text is shorter than a button, so it is centred against the row rather than sitting on the
+-- row's own top edge. Both numbers are known: the row is BTN tall by construction, and the line is what
+-- the ruler above just read.
+local function textY(y)
+  return y + math.floor((BTN - M.label) / 2)
 end
 
 -- ------------------------------------------------------------------ the timers themselves
@@ -162,9 +144,11 @@ local function buildRow(t)
   local row = {}
   row.name = hafen.ui():label():parent(win)
   row.time = hafen.ui():label():parent(win)
-  row.start = hafen.ui():button():parent(win):size(M.start, M.btn)
-  row.edit = hafen.ui():button():parent(win):size(M.edit, M.btn):text("Edit")
-  row.del = deleteButton(win)
+  -- Three buttons, three widths, and not one height between them: :size(w) says the column and the
+  -- client's own art says the rest.
+  row.start = hafen.ui():button():parent(win):size(M.start)
+  row.edit = hafen.ui():button():parent(win):size(M.edit):text("Edit")
+  row.del = hafen.ui():button():parent(win):size(BTN):text("X")
   row.del:tooltip("Delete this timer")
 
   row.start:on("Pressed", function()
@@ -195,13 +179,14 @@ local function paint(row, t)
   if row.lastStart ~= caption then row.start:text(caption); row.lastStart = caption end
 end
 
--- Called after paint, never before: a label is as tall as the text it is currently holding.
+-- The row's five controls, on one grid: the three buttons sit on the row's own line, the two labels are
+-- centred against it.
 local function place(row, y)
-  row.name:position(10, centred(row.name, y))
-  row.time:position(M.timeX, centred(row.time, y))
+  row.name:position(10, textY(y))
+  row.time:position(M.timeX, textY(y))
   row.start:position(M.startX, y)
   row.edit:position(M.editX, y)
-  row.del:position(M.delX, centred(row.del, y))
+  row.del:position(M.delX, y)
 end
 
 -- ------------------------------------------------------------------ the list window
@@ -225,12 +210,12 @@ layout = function(list)
       rows[t] = row
     end
     paint(row, t)
-    place(row, M.head + ((i - 1) * M.row))
+    place(row, HEAD + ((i - 1) * ROW))
   end
   empty:visible(#list == 0)
   order = list
 
-  local h = M.head + (math.max(#list, 1) * M.row) + 4
+  local h = HEAD + (math.max(#list, 1) * ROW) + 4
   if winH ~= h then
     win:size(M.w, h)
     winH = h
@@ -257,27 +242,27 @@ local function closeList()
 end
 
 local function buildList()
-  measure()
-  winH = M.head + M.row + 4
+  columns()
+  winH = HEAD + ROW + 4
   win = hafen.ui():window():title("Timers"):size(M.w, winH):position(60, 60)
   rows, order = {}, {}
   -- the chrome close button destroys the window for us, so this only drops what we were holding of it
   win:on("Close", forgetList)
 
   local add = hafen.ui():button():parent(win):position(10, 6)
-    :size(textSize("Add").x + 24, M.btn):text("Add")
+    :size(textSize("Add").x + 24):text("Add")
   add:on("Pressed", function() openDialog(nil) end)
 
   -- a checkbox is as wide as its own caption, so it is placed from the right edge rather than at a
-  -- column that only holds at one scale
+  -- column that only holds for one font
   local alarm = hafen.ui():check():parent(win):text("Sound Alarm"):value(db.sound)
-  alarm:position(M.w - (alarm:size().x or 100) - 10, centred(alarm, 6))
+  alarm:position(M.w - (alarm:size().x or 100) - 10, textY(6))
   alarm:on("Changed", function(on)
     db.sound = on
     hafen.store():flush()
   end)
 
-  empty = hafen.ui():label():parent(win):position(10, M.head + 6):text("No timers yet -- press Add.")
+  empty = hafen.ui():label():parent(win):position(10, HEAD + 6):text("No timers yet -- press Add.")
   layout(sorted())
 end
 
@@ -301,7 +286,7 @@ local NOT_NUM = "Hours and minutes are whole numbers."
 local NO_TIME = "A timer needs some time on it."
 
 openDialog = function(t)
-  measure()
+  columns()
   if dlg then dlg:destroy() end
 
   local hoursW = math.max(textSize("Hours").x, textSize("00").x + 20)
@@ -310,12 +295,12 @@ openDialog = function(t)
   local minsX = hoursX + hoursW + 8
   local yLabel = 8
   local yEntry = yLabel + M.label + 4
-  local yStatus = yEntry + M.entry + 6
+  local yStatus = yEntry + ENTRY + 6
   local yButton = yStatus + M.label + 6
   local w = math.max(minsX + minsW + 10,
     20 + textSize(NOT_NUM).x,
     30 + textSize("Cancel").x + textSize("Save").x + 48)
-  local h = yButton + M.btn + 8
+  local h = yButton + BTN + 8
 
   dlg = hafen.ui():window()
     :title(t and "Edit Timer" or "Create New Timer")
@@ -327,11 +312,11 @@ openDialog = function(t)
   hafen.ui():label():parent(dlg):position(hoursX, yLabel):text("Hours")
   hafen.ui():label():parent(dlg):position(minsX, yLabel):text("Minutes")
 
-  local name = hafen.ui():entry():parent(dlg):position(10, yEntry):size(M.name, M.entry)
+  local name = hafen.ui():entry():parent(dlg):position(10, yEntry):size(M.name)
     :value(t and (t.name or "") or "")
-  local hours = hafen.ui():entry():parent(dlg):position(hoursX, yEntry):size(hoursW, M.entry)
+  local hours = hafen.ui():entry():parent(dlg):position(hoursX, yEntry):size(hoursW)
     :value(t and tostring(math.floor((t.secs or 0) / 3600)) or "")
-  local mins = hafen.ui():entry():parent(dlg):position(minsX, yEntry):size(minsW, M.entry)
+  local mins = hafen.ui():entry():parent(dlg):position(minsX, yEntry):size(minsW)
     :value(t and tostring(math.floor(((t.secs or 0) % 3600) / 60)) or "")
 
   local status = hafen.ui():label():parent(dlg):position(10, yStatus):text("")
@@ -369,12 +354,12 @@ openDialog = function(t)
 
   local okW = textSize(t and "Save" or "Add").x + 24
   local ok = hafen.ui():button():parent(dlg):position(10, yButton)
-    :size(okW, M.btn):text(t and "Save" or "Add")
+    :size(okW):text(t and "Save" or "Add")
   ok:on("Pressed", confirm)
 
   local cancelW = textSize("Cancel").x + 24
   local cancel = hafen.ui():button():parent(dlg):position(w - cancelW - 10, yButton)
-    :size(cancelW, M.btn):text("Cancel")
+    :size(cancelW):text("Cancel")
   cancel:on("Pressed", function()
     dlg:destroy()
     dlg = nil

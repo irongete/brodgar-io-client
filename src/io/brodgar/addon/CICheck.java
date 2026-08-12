@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.GOut;
 import haven.ICheckBox;
 import haven.Tex;
@@ -32,6 +33,8 @@ import org.luaj.vm2.LuaValue;
  */
 final class CICheck extends ICheckBox implements Owned.Control, Controls.Value, Controls.Change {
     private final Owned.State own;
+    /** The up face's own box — {@code sz} at construction, which {@code widget:size(w, h)} may have moved off. */
+    private final Coord face;
     /** Exactly the values {@code :image(…)} was given — what the bare read hands back. */
     private final LuaValue upv, downv, hoverUpv, hoverDownv;
 
@@ -39,6 +42,7 @@ final class CICheck extends ICheckBox implements Owned.Control, Controls.Value, 
             LuaValue upv, LuaValue downv, LuaValue hoverUpv, LuaValue hoverDownv) {
         super(up, down, hoverUp, hoverDown);
         this.own = new Owned.State(owner, this);
+        this.face = sz;   // ICheckBox sizes itself to the up face; widget:size(w, h) may move sz off it later
         this.upv = upv;
         this.downv = downv;
         this.hoverUpv = hoverUpv;
@@ -48,6 +52,14 @@ final class CICheck extends ICheckBox implements Owned.Control, Controls.Value, 
 
     public Owned.State own() {
         return own;
+    }
+
+    /**
+     * <b>The picture is the box</b> (058.4), exactly as it is on {@link CtlIButton}: a checkbox whose face is
+     * art is that art, in both axes.
+     */
+    public Coord minsz() {
+        return face;
     }
 
     /** {@code c:image()} — the four faces as the caller named them: {up=, down=, hoverUp=, hoverDown=}. */

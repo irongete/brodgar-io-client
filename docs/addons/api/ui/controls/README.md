@@ -68,13 +68,41 @@ refuses one outside `0..1`, naming the rule, while a [slider or scrollbar](inter
 CLAMPS a write outside its own `:range` to the nearer bound — because that range is something you set
 yourself with `:range(min, max)` and can narrow at any time, not a fixed contract the value can violate.
 
-**Sizing.** `:size(w, h)` sets the box like anywhere else, in [design pixels](../pixels.md). A bare button already comes at the
-client's own button height, so setting only a width you like and leaving the height alone is usually what
-you want — and a caption wider than the box is drawn clipped, not wrapped. A button with a picture comes at
-the size of that picture and normally wants no `:size` at all.
-
 None of this is protected: a control is your own UI, just as [a surface you paint](../custom.md) is —
 every setter above is client-side state, and every one of it restores with your addon.
+
+## Sizing
+
+`:size(w)` — one number — sets the width and leaves the height to the control's own **art**. That height is
+the one measurement you cannot make: a button's bottom border is drawn at the bottom of the button's own
+picture, so a box a pixel short of it simply loses the border, and there is no number you could write
+instead that means the same thing on every client.
+
+```lua
+local go = hafen.ui():button():size(80):text("Go")
+go:size()                                          -- {x = 80, y = 24}, at any interface scale
+```
+
+The controls whose art fixes a height answer it: the button, the text entry, the checkbox, the dropdown, the
+slider and the separator. A control showing a **picture** — a button or a checkbox given `:image(...)` — is
+that picture in both directions and wants no `:size` at all.
+
+`:size(w, h)` sets both, in [design pixels](../pixels.md), and a box under the art's own **raises**, naming
+the height it needs and this verb:
+
+```lua
+hafen.ui():button():size(80, 4)
+-- widget:size(w, h) — a Button is 24 design px tall, which is its own ART's box: 4 clips it. …
+```
+
+A control the client stretches to whatever box it is given — a [list](../lists.md#list), a
+[grid](../lists.md#grid), a [table](../lists.md#table), a [picture](display.md#picture) — has no art to ask,
+so it takes `:size(w, h)` and refuses `:size(w)`, exactly as a [surface](../custom.md) does. A caption wider
+than its box is drawn clipped, not wrapped.
+
+**And you rarely add a container up.** [`:pack()`](../widget.md#owned-vs-borrowed) sizes a window or a bare
+widget to the controls inside it, so the box that holds a column of rows is read rather than computed.
+**`timers`** is a whole list laid out this way: rows of buttons on one grid, not one of them given a height.
 
 ## Subscribing
 

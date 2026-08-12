@@ -57,6 +57,15 @@ final class CtlIButton extends IButton implements Owned.Control, Controls.Press 
         return own;
     }
 
+    /**
+     * <b>The picture is the box</b> (058.4): an image button's art is its whole face, so the minimum is that
+     * face in both axes — the same {@link #face} {@link #checkhit} bounds its raster read to. A smaller box
+     * would show a corner of the picture and take clicks nowhere near it.
+     */
+    public Coord minsz() {
+        return face;
+    }
+
     /** {@code b:image()} — the three faces as the caller named them: {@code {up =, down =, hover =}}. */
     LuaValue faces() {
         LuaTable t = new LuaTable();

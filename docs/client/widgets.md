@@ -25,6 +25,8 @@
 | **Server → widget destroy** ← lifecycle seam | `UI.destroy(int)` (shadow-children first, then a `DstWidget` command) → `UI.destroy(Widget)` = `removeid` (recursive unbind) **then** `reqdestroy()` |
 | Leaving the tree ← the one addon seam | `Widget.destroy` → `remove` (`unlink()`, `parent.cdestroy(this)`, **`parent = null`**) → `ui.removed(this)` → `onWidgetRemoved(this)` (last statement, `// addon:`) + `rdispose()` |
 | **The override that breaks the sequence** | `Window.reqdestroy` — starts a hide *animation* (`animst = "dest"`) instead of removing; also `Buff` |
+| **Sizing to content** | `Widget.pack()` is `resize(contentsz())`, and `contentsz()` is the max bottom-right (`c.add(sz)`) over the **visible** children — so a leaf packs to `(0, 0)`. `Window` overrides `contentsz()` (see [chrome](ui-chrome.md)). `resize` returns early on an equal box, then cascades `presize()` to the children and calls `parent.cresize(ch)` — **both are empty in `Widget`, and `Window` overrides neither**, so resizing a window's child triggers no relayout of the window |
+| **Relative placement** | `Widget.Position` (a `Coord` subclass) with `getpos(name)`/`pos(name)` — the anchors `"ul"`/`"ur"`/`"br"`/`"bl"`/`"mid"` and their content-local `"c…"` twins, `pos` throwing where `getpos` answers `null`. `Position.add`/`sub`/`x`/`y` have `adds`/`subs`/`xs`/`ys` twins that `UI.scale` the argument, which is how the client writes a design-pixel offset. `addhlp`/`addhl` lay a row of children out, vertically centred on the tallest |
 | **The UPWARD walk, and its ~30 callers** | `Widget.getparent(Class)` — a plain `w = w.parent` loop. `getparent(GameUI.class)` is how a widget finds the HUD it belongs to: `Inventory.mousewheel` (the shift-wheel bulk transfer) dereferences it **unguarded**, while `GItem`/`WItem.contparent` and `Equipory.drawslots` guard and fall back. Fork: it steps across a standing widget's surface to where that widget was |
 
 **Destroy gotcha.** Unbind and unlink are **not** simultaneous: `removeid` runs first, and for a `Window` the
@@ -114,10 +116,6 @@ whose consumers fire a destroy notice, a selector disappearance and the end of a
 `remove(); other.add(w)` pair reports three deaths and un-focuses a widget that is alive one line later. Use the
 re-home row above (plus `delfocusable` if `canfocus`); `ui.removed(w)` is skipped on purpose, since it only drops
 `UI.Grab`s the still-live subtree should keep.
-
-*, leaving the tree, the two traversal seams and the read-only walk.
-Still over the 70-line budget: the four gotcha essays (destroy, `cdestroy`, listener, resize) are the bulk and
-are the next split, one task at a time.)*
 
 ## Introspection and hit-testing (read-only walk)
 

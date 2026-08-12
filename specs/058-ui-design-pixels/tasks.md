@@ -48,7 +48,7 @@
       still raises naming the image's size — the conversion must not swallow either check.
       `[manual]`: at 1.5, a themed `border` reads at the weight of the stock chrome beside it, not thinner.
 
-- [ ] **058.4 — a control keeps the height its art gives it, a container packs, and the workarounds go.**
+- [x] **058.4 — a control keeps the height its art gives it, a container packs, and the workarounds go.**
       `:size(w)` — one number — sets the width and leaves the height to the art; the `!a.arg(2).isnil()`
       branch that throws today becomes that write. A two-number write below a new `Owned.Control.minsz()`
       (`Button.hs`, `CDropdown`'s arrow box, `CEntry`, `CCheck`) raises. `pack()` drops its

@@ -1,0 +1,9 @@
+{
+  "name": "058.4 — a control keeps the height its art gives it",
+  "id": "058-ui-design-pixels.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 058.4: widget:size(w) takes the width and leaves the height to the control's own art, a box under that art is refused naming it, and widget:pack() sizes a window and a bare widget alike to what is inside it.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

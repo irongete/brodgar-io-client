@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.CheckBox;
+import haven.Coord;
 import haven.GOut;
 
 import org.luaj.vm2.LuaError;
@@ -40,6 +41,16 @@ final class CCheck extends CheckBox implements Owned.Control, Controls.Value, Co
 
     public Owned.State own() {
         return own;
+    }
+
+    /**
+     * <b>The tick box, and whichever of the box and the caption is taller</b> (058.4) — the very height
+     * {@link CheckBox#settext} recomputes, so a checkbox given {@code :size(w)} keeps the height its own
+     * caption gives it. The width minimum is the box ALONE, deliberately: the caption beside it is text, and a
+     * narrower box clips words rather than art.
+     */
+    public Coord minsz() {
+        return Coord.of(box.sz().x, Math.max(box.sz().y, (lbl == null) ? 0 : lbl.sz().y));
     }
 
     /** {@code c:value()} — the checked state. */

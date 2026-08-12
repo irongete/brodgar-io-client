@@ -69,8 +69,8 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls/display.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls/display.md#picture) |
 | `:rows()` | array \| nil | the row source a [radio](controls/interactive.md#radio) or a [list, dropdown, menu, grid or table](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows-list-dropdown-menu) |
 | `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls/interactive.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls/interactive.md#slider) |
-| `:rowHeight()` | int \| nil | the height of a row in a [list, dropdown, menu or table](lists.md), in pixels, or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md) |
-| `:cell()` | `{w=, h=}` \| nil | the cell box of a [grid](lists.md#grid), in pixels, or `nil` where a control has no cells — [`:cell(w, h)` writes it](lists.md#grid) |
+| `:rowHeight()` | int \| nil | the height of a row in a [list, dropdown, menu or table](lists.md), in [design pixels](pixels.md), or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md) |
+| `:cell()` | `{w=, h=}` \| nil | the cell box of a [grid](lists.md#grid), in [design pixels](pixels.md), or `nil` where a control has no cells — [`:cell(w, h)` writes it](lists.md#grid) |
 | `:columns()` | array \| nil | the column descriptors of a [table](lists.md#table), or `nil` where a control has no columns — [`:columns(t)` writes it](lists.md#table) |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
@@ -162,7 +162,8 @@ provoke the error.
 |---|---|---|
 | `:position(x, y)` | move, and chain | **works** — [it is a layer, and it restores](native.md) |
 | `:size(w, h)` | resize the content, chrome repacks around it, and chain | **works**, same |
-| `:pack()` | shrink the chrome to fit its content (a no-op on a bare widget), and chain | **error** — that is not yours to do |
+| `:size(w)` | set the width and keep the height a [control](controls/README.md#sizing)'s own art gives it | **error** — the client's widget has no art of yours to ask |
+| `:pack()` | size it to what is inside it — a window's chrome or a bare widget alike — and chain | **error** — that is not yours to do |
 | `:destroy()` | remove it and everything in it | **error**, same reason |
 | `:text(s)` | write the caption of a [control](controls/README.md) you built | **error** — that caption is the client's |
 | `:tooltip(s)` | write the line that appears when the pointer rests on it | **error** — those are the client's own words about its own button |
@@ -181,7 +182,8 @@ provoke the error.
 None of these writes is protected: they are client-side state, and every one of them restores.
 
 **Arity is the verb.** `w:position()` reads, `w:position(x, y)` writes and `w:position(nil)` drops your
-write; `w:size()` and `w:visible()` are the same shape, and so is every setter on `w:rule()`. That is why
+write; `w:size()` and `w:visible()` are the same shape — with the one-number `w:size(w)` as the arity a
+[control](controls/README.md#sizing)'s own art earns it — and so is every setter on `w:rule()`. That is why
 there is no `:move()`, no `:show()` and no `:hide()`: a value belongs in the argument, not the verb's name.
 
 **Replacement is the one place where the read has a name of its own.** `w:replace(view)` is an *act* and

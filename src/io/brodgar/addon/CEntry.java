@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.GOut;
 import haven.ReadLine;
 import haven.TextEntry;
@@ -51,6 +52,15 @@ final class CEntry extends TextEntry implements Owned.Control, Controls.Value, C
 
     public Owned.State own() {
         return own;
+    }
+
+    /**
+     * <b>The field's own art</b> (058.4): {@link TextEntry#mext}'s height — the stretched middle the
+     * constructor sizes itself to — and {@link TextEntry#wmarg}, the two end caps a narrower field would
+     * overlap. The same design pair on every client ({@code 17 x 20}).
+     */
+    public Coord minsz() {
+        return Coord.of(wmarg, mext.sz().y);
     }
 
     /** {@code e:value()} — the entry's current content. */

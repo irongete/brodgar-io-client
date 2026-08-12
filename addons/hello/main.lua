@@ -781,7 +781,8 @@ end
 -- handle from adopt/replace, and the transient WidgetNode from root/node/at -- into ONE interned entity: what you
 -- CREATE and what you FIND are the same type. This asserts the whole collapse in one pass: every door hands back
 -- that type; `==` is the identity test (which is why :same() could be cut); arity is the verb on geometry
--- (:position()/:size() read, :position(x,y)/:size(w,h) write and chain, so :move() is gone); :pack()/:destroy() answer only on
+-- (:position()/:size() read, :position(x,y)/:size(w,h) write and chain, so :move() is gone); :pack() (which since 058.4
+-- sizes a BARE widget to its content too) and :destroy() answer only on
 -- a widget THIS addon created and refuse on a native one naming the creation doors (the geometry writes used to
 -- refuse beside them, and since 036.1 they LAY A NATIVE WIDGET OUT instead -- 036-ui-layout.1 owns that coverage,
 -- and this frozen harness stopped poking the client's root with them); a stale entity reads nil/empty while a write on
@@ -815,10 +816,15 @@ local function readWidgets(tag)
   local own = hafen.ui():widget()
     :size(40, 20)
     :position(8, 8)
-  own:position(12, 14):size(48, 24):pack()                  -- arity is the verb, and every write chains on self
+  own:position(12, 14):size(48, 24)                         -- arity is the verb, and every write chains on self
   local p, s = own:position(), own:size()
-  hafen.log():write(("[%s] owned: own.owned=%s root.owned=%s | chained position(x,y)->%d,%d size(w,h)->%d,%d")
-    :format(tag, tostring((own:info() or {}).owned), tostring((root:info() or {}).owned), p.x, p.y, s.x, s.y))
+  -- 058.4: :pack() sizes a widget to what is INSIDE it -- a bare surface now as well as a window, which is
+  -- what replaced adding a container's rows up by hand. This one holds nothing, so an empty box IS the
+  -- honest answer, and it is read AFTER the pair above rather than mid-chain.
+  local packed = own:pack():size()
+  hafen.log():write(("[%s] owned: own.owned=%s root.owned=%s | chained position(x,y)->%d,%d size(w,h)->%d,%d pack()->%d,%d")
+    :format(tag, tostring((own:info() or {}).owned), tostring((root:info() or {}).owned), p.x, p.y, s.x, s.y,
+            packed.x, packed.y))
   hafen.log():write(("[%s] borrowed refusals: root:pack() -> %s"):format(tag, why(root.pack, root)))
   hafen.log():write(("[%s]                    root:destroy() -> %s"):format(tag, why(root.destroy, root)))
   -- STALENESS + the no-op write. Destroying our own widget makes every read answer nil/empty with :exists() false,

@@ -67,11 +67,11 @@ local function build()
   hafen.ui():label():parent(win):position(10, 10):text("Search")
 
   search = hafen.ui():entry()
-    :parent(win):position(10, 28):size(240, 20)
+    :parent(win):position(10, 28):size(240)
     :value("")
   search:on("Changed", function() refresh() end)
 
-  hafen.ui():separator():parent(win):position(10, 58):size(240, 1)
+  hafen.ui():separator():parent(win):position(10, 58):size(240)
 
   sort = hafen.ui():radio()
     :parent(win):position(10, 70)                     -- the stack starts HERE; rows go downward
@@ -88,7 +88,7 @@ local function build()
   qLabel = hafen.ui():label():parent(win):position(10, 158):text("Min quality: 0")
 
   minq = hafen.ui():slider()
-    :parent(win):position(10, 176):size(240, 20)
+    :parent(win):position(10, 176):size(240)
     :range(0, 100)
     :value(0)
   -- a slider's Changed hands an ev now (R4: two things to say) -- ev:value()/:final(), not two loose args.
@@ -98,7 +98,7 @@ local function build()
   end)
 
   kind = hafen.ui():dropdown()
-    :parent(win):position(10, 204):size(120, 20)
+    :parent(win):position(10, 204):size(120)
     :rows{"Backpack", "Equipment"}
     :value("Backpack")
   kind:on("Changed", function() refresh() end)
@@ -109,12 +109,12 @@ local function build()
   results:on("Changed", function(row) hafen.log():write("stockfilter: picked " .. tostring(row)) end)
 
   local refreshBtn = hafen.ui():button()
-    :parent(win):position(10, 300):size(80, 20)
+    :parent(win):position(10, 300):size(80)
     :text("Refresh")
   refreshBtn:on("Pressed", refresh)
 
   local resetBtn = hafen.ui():button()
-    :parent(win):position(96, 300):size(80, 20)
+    :parent(win):position(96, 300):size(80)
     :text("Reset")
   resetBtn:on("Pressed", function()
     search:value("")

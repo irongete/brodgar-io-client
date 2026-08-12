@@ -88,6 +88,17 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
     }
 
     /**
+     * <b>One row, and the drop arrow beside it</b> (058.4). The height is {@code itemh} — the closed box shows
+     * exactly one row, and {@code :rowHeight(n)} is what changes it — rather than the arrow's own picture,
+     * which {@link SDropBox}'s constructor centres on the box and lets overhang by design (the stock row height
+     * is the attribute font's, two design px shorter than the arrow). The width is the arrow: nothing narrower
+     * has anywhere left to draw a row.
+     */
+    public Coord minsz() {
+        return Coord.of(drop.sz.x, itemh);
+    }
+
+    /**
      * The BARE content widget, unwrapped ({@link LuaRows#content}, not {@link LuaRows#makeitem}) —
      * {@code SDropBox}'s own {@code SDropList.Item} (open list) and its {@code change()} (closed box) each do
      * their own click-wrapping around whatever this returns. {@code null} is the engine's own "nothing

@@ -365,28 +365,69 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // size() / size(w, h) / size(nil) — same three arities, and the same DESIGN PIXELS :position speaks
-        // (058.1). The write resizes the CONTENT and repacks the chrome around it (so a window's frame follows),
-        // which is why what :size() reads back on a window is the outer box and not the pair you passed; the undo
-        // restores that outer box exactly (LuaWidget.sizeArg — and it restores the DEVICE value it recorded, so
-        // the stock box never round-trips through design and back).
+        // size() / size(w) / size(w, h) / size(nil) — FOUR arities now, and the same DESIGN PIXELS :position
+        // speaks (058.1). The write resizes the CONTENT and repacks the chrome around it (so a window's frame
+        // follows), which is why what :size() reads back on a window is the outer box and not the pair you
+        // passed; the undo restores that outer box exactly (LuaWidget.sizeArg — and it restores the DEVICE value
+        // it recorded, so the stock box never round-trips through design and back).
+        //
+        // :size(w) — ONE NUMBER — IS THE HEIGHT THE ART GIVES IT (058.4), and it is the arity this whole feature
+        // exists for. A control's height is a fact of the client's own pictures: a Button is exactly `hs` tall
+        // because that is where its bottom border is drawn, and an addon that guesses 20 loses that border. So
+        // the width is the addon's and the height is Owned.minsz()'s, and a two-number write UNDER that minimum
+        // RAISES naming both the number and this arity — rather than clamping up to it, which would leave a
+        // meaningless integer in the source, or silently clipping, which is what happens today.
         m.set("size", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:size() → narg 1 · w:size(nil) → narg 2 · w:size(w,h) → narg 3
+            public Varargs invoke(Varargs a) {  // w:size() → narg 1 · w:size(nil)/(w) → narg 2 · w:size(w,h) → narg 3
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "size"));
                 if(a.narg() < 2)
                     return ((w == null) || (w.sz == null)) ? LuaValue.NIL : xyTable(Px.out(w.sz));
-                if(a.narg() < 3) {                        // w:size(nil) — undo OUR resize, back to the stock value
-                    if(!a.arg(2).isnil())
-                        throw new LuaError("widget:size(w, h) takes BOTH dimensions; widget:size() reads the size"
-                            + " and widget:size(nil) drops your addon's resize and restores the stock one");
-                    if(w != null)
-                        UiApi.releaseMoved(owner, w, false);
+                if(a.narg() < 3) {
+                    if(a.arg(2).isnil()) {                // w:size(nil) — undo OUR resize, back to the stock value
+                        if(w != null)
+                            UiApi.releaseMoved(owner, w, false);
+                        return self;
+                    }
+                    int width = a.checkint(2);            // w:size(w) — the width; the art answers for the height
+                    if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
+                        return self;
+                    Owned content = ownedContent(owner, w);
+                    Coord min = (content == null) ? null : content.minsz();
+                    if(min == null)
+                        throw new LuaError("widget:size(w) sets the width and leaves the height to the control's"
+                            + " own ART, and " + typeName(w) + " has none to ask — widget:size(w, h) sets both,"
+                            + " and widget:pack() sizes a widget to what is inside it.");
+                    Coord dmin = Px.out(min);
+                    if(width < dmin.x)
+                        throw tooSmall(w, "widget:size(w)", width, dmin.x, "wide");
+                    UI u = AddonManager.ui;
+                    synchronized(u) {
+                        // The DEVICE height, not Px.in of the design one: in(out(d)) may land a device pixel
+                        // under the art's own box, and a pixel under is a border that does not draw.
+                        content.widget().resize(Coord.of(Px.in(width), min.y));
+                        if(content.widget() != w)         // a control that is a small tree: refit what wraps it
+                            w.pack();
+                        Layout.moved(w);                  // 036.3: a corner anchor reads the box that just changed
+                    }
                     return self;
                 }
                 Coord to = Coord.of(a.checkint(2), a.checkint(3));          // DESIGN pixels, as written
                 if(w != null) {
                     Owned content = ownedContent(owner, w);
+                    Coord dev = Px.in(to);
+                    if(content != null) {
+                        Coord min = content.minsz();
+                        if(min != null) {                 // a control: the art has a box it will not fit under
+                            Coord dmin = Px.out(min);
+                            if(to.y < dmin.y)
+                                throw tooSmall(w, "widget:size(w, h)", to.y, dmin.y, "tall");
+                            if(to.x < dmin.x)
+                                throw tooSmall(w, "widget:size(w, h)", to.x, dmin.x, "wide");
+                            if(to.y == dmin.y)            // exactly the minimum ⇒ exactly the art's own height
+                                dev = Coord.of(dev.x, min.y);
+                        }
+                    }
                     UI u = AddonManager.ui;
                     synchronized(u) {
                         if(content == null) {             // BORROWED (036.1): the layer remembers, then resizes
@@ -395,7 +436,7 @@ public final class LuaWidget {
                             rec.sizeSeq = Layout.nextSeq();   // 058.3: in design px, like the rule beneath it
                             Layout.apply(w);
                         } else {
-                            content.widget().resize(Px.in(to));
+                            content.widget().resize(dev);
                             if(content.widget() != w)     // a window: refit the chrome around the resized content
                                 w.pack();
                             Layout.moved(w);              // 036.3: a corner anchor reads the box that just changed
@@ -516,17 +557,33 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // pack() — shrink the chrome to fit its content. OWNED-only; a no-op for a bare hafen.ui():widget() (a leaf has
-        // no children to fit). Chains.
+        // pack() — SIZE THIS WIDGET TO WHAT IS INSIDE IT, so an addon never computes a container's box (058.4).
+        // Window or bare: the `content.widget() != w` guard that made this a no-op on a hafen.ui():widget() is
+        // gone, and with it the only reason an addon still had to add up its own rows. OWNED-only, and chains.
+        //
+        // THE TWO CASES ARE ONE CALL, and the order is the point. Widget.pack() is resize(contentsz()), the max
+        // bottom-right over the children — so a BARE surface simply packs, its children being its content. A
+        // WINDOW's controls are children of the CHROME (widget:parent(win) adds them there), siblings of the
+        // painted canvas rather than children of it, so packing the canvas first empties it — it has no children
+        // of its own, by construction — and stops it flooring the measurement at the box it was built with. The
+        // chrome then measures the controls alone (Window.contentsz skips the deco, and now meets a 0x0 canvas),
+        // and the canvas is given the content area that came out of it, so a window that BOTH paints and holds
+        // controls still has its full surface to paint on afterwards.
         m.set("pack", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "pack"));
                 if(w != null) {
                     Owned content = owned(owner, w, "pack()");
-                    if(content.widget() != w) {
-                        UI u = AddonManager.ui;
-                        synchronized(u) { w.pack(); }
+                    UI u = AddonManager.ui;
+                    synchronized(u) {
+                        Widget cw = content.widget();
+                        cw.pack();
+                        if(cw != w) {              // a window: refit the chrome, then give the canvas what is left
+                            w.pack();
+                            cw.resize(sizeArg(w));
+                        }
+                        Layout.moved(w);           // 036.3: a corner anchor reads the box that just changed
                     }
                 }
                 return self;
@@ -1062,6 +1119,22 @@ public final class LuaWidget {
             sb.append(k);
         }
         return sb.toString();
+    }
+
+    /**
+     * <b>A box the control's art will not fit in</b> (058.4) — the refusal behind {@code widget:size(w, h)}'s
+     * minimum, and the one place its wording lives. It names three things, because an author who hit it knows
+     * none of them: the number the art needs, that the number is the <i>art's</i> and not a policy, and the
+     * arity that means <i>you do not have to know it</i>.
+     *
+     * <p>It refuses rather than clamping up to the minimum (spec 058's discarded alternative): a slider's range
+     * is something the addon set and may narrow, so pinning a value into it is honest, but an art height is a
+     * fact the addon cannot see — silence there leaves a number in the source that means nothing.
+     */
+    private static LuaError tooSmall(Widget w, String verb, int got, int min, String axis) {
+        return new LuaError(verb + " — a " + typeName(w) + " is " + min + " design px " + axis + ", which is its"
+            + " own ART's box: " + got + " clips it. A control's height is the one measurement an addon cannot"
+            + " make, so widget:size(w) takes the width alone and keeps the height the art gives it.");
     }
 
     /** The handle behind a method's {@code self}, or a guiding error (a dot-call passes the wrong self). */

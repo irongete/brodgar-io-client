@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.GOut;
 import haven.HSlider;
 
@@ -35,14 +36,31 @@ final class CSlider extends HSlider implements Owned.Control, Controls.Value, Co
     static final int DEF_W = 140;
 
     private final Owned.State own;
+    /**
+     * The thumb's own height, read off the box {@link HSlider}'s constructor sized itself to — the one number
+     * {@code :size(w)} needs and the only one this adapter cannot ask for later, since
+     * {@code widget:size(w, h)} may have moved {@code sz} off it and {@code sflarp} is not visible outside
+     * {@code haven}.
+     */
+    private final int arth;
 
     CSlider(Addon owner) {
         super(Px.in(DEF_W), 0, 100, 0);
         this.own = new Owned.State(owner, this);
+        this.arth = sz.y;
     }
 
     public Owned.State own() {
         return own;
+    }
+
+    /**
+     * <b>As tall as its thumb, as wide as you like</b> (058.4): {@code HSlider.draw} lays the chain across
+     * whatever width it is given and blits {@code sflarp} at the thumb's own size, so the height is the art's
+     * and the width is the addon's. {@code 0} says exactly that — there is no width to refuse.
+     */
+    public Coord minsz() {
+        return Coord.of(0, arth);
     }
 
     /** {@code s:value()} — the current position, within {@code :range}. */

@@ -15,6 +15,7 @@ hotkey or type their command — so having them all on costs you an untouched lo
 | [`theme`](../../addons/theme/main.lua) | a whole client look as a data file |
 | [`atlas`](../../addons/atlas/main.lua) | a live minimap panel out of the map database, painted by the engine |
 | [`stockfilter`](../../addons/stockfilter/main.lua) | a whole panel of the client's own controls, filtering your real items |
+| [`timers`](../../addons/timers/main.lua) | rows of controls on one grid, each keeping the height its art gives it |
 | [`planner`](../../addons/planner/main.lua) | your own props, images and models in the 3D world |
 | [`cupboard`](../../addons/cupboard/main.lua) | a container window standing in the world, on the thing it belongs to |
 | [`tagger`](../../addons/tagger/main.lua) | attaching things to a game object, and reading what is already on it |
@@ -87,6 +88,17 @@ client built itself. Every filter reads the real [items](api/ui/items.md) in you
 equipment — by name, by quality, by wear — so there is nothing invented to look at.
 
 `:stockfilter` opens the panel; running it again closes it. Read-only: nothing here writes to the server.
+
+## timers
+
+A countdown list built entirely from [the client's own controls](api/ui/controls/README.md): a window of
+rows, a dialog asking for a name and a time, and a Start, an Edit and a delete button on each row. It is
+the layout example — every row is on one grid, no control is ever given a height (`:size(w)` leaves that to
+the art), and the only measured numbers are the text columns, which are the one thing a
+[design pixel](api/ui/pixels.md) does not make constant. The timers themselves live in an account-wide
+[saved variable](api/store.md), and what is stored for a running one is the instant it is *due*.
+
+`:timers` opens the list; running it again closes it. Read-only: nothing here writes to the server.
 
 ## planner
 

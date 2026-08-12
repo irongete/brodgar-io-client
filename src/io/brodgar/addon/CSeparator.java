@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.GOut;
 import haven.HRuler;
 
@@ -27,6 +28,16 @@ final class CSeparator extends HRuler implements Owned.Control {
 
     public Owned.State own() {
         return own;
+    }
+
+    /**
+     * <b>The rule, and the air above and below it</b> (058.4) — {@link HRuler}'s own constructor formula,
+     * {@code (marg.y * 2) + 1}, which is where its line is drawn. A shorter box clips the line out of the
+     * widget altogether, so the separator disappears rather than merely looking thin. Any width: a rule is a
+     * line, and it is drawn to whatever box it is given.
+     */
+    public Coord minsz() {
+        return Coord.of(0, (marg.y * 2) + 1);
     }
 
     public void draw(GOut g) {
