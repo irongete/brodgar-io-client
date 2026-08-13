@@ -10,7 +10,9 @@ import haven.FlowerMenu;
 import haven.FromResource;
 import haven.HSlider;
 import haven.IButton;
+import haven.ICheckBox;
 import haven.IMeter;
+import haven.Img;
 import haven.Inventory;
 import haven.Label;
 import haven.MenuGrid;
@@ -248,6 +250,26 @@ public final class LuaWidget {
                     return LuaValue.NIL;
                 String r = resName(w);
                 return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
+            }
+        });
+        // picture() — 063.3: the resource name of the picture a widget SHOWS, or nil where it shows none. The
+        // read :res() is not: :res() names the resource a widget's own CODE came from, which is a handful of
+        // server-published widgets, while most of the client's chrome is an ordinary Java class holding an
+        // ordinary picture out of the game's art. This is that name, and it is the one line the inspector was
+        // missing on nearly every widget it hovers.
+        //   No argument, ever. A picture is CHOSEN by hafen.ui():image():source(h) and a button's faces by
+        // widget:image(up, down), so an arity here would be a third spelling of a write two verbs already own
+        // — the refusal names both rather than silently ignoring what was passed.
+        m.set("picture", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:picture() → narg 1, and there is no other arity
+                if(Args.passed(a, 2))
+                    throw new LuaError("widget:picture() takes no arguments — it NAMES the picture a widget"
+                        + " shows and does not choose it. widget:res() is the resource a widget's own code came"
+                        + " from, and widget:image(up, down) gives a button you are building its faces;"
+                        + " hafen.ui():image():source(h) is what sets a picture control's content.");
+                Widget w = live(handle(a.arg1(), "picture"));
+                String p = pictureName(w);
+                return (p == null) ? LuaValue.NIL : LuaValue.valueOf(p);
             }
         });
         // id() — the SERVER widget id, or nil for a client-only widget (the facade-safe WidgetRef, P1).
@@ -2341,6 +2363,35 @@ public final class LuaWidget {
             if(src != null)
                 return src.name();
         }
+        return null;
+    }
+
+    /**
+     * The widget's <b>picture</b> ({@code widget:picture()}) — the resource name of the art it is showing, or
+     * {@code null} where it shows none; never a throw.
+     *
+     * <p>A different question from {@link #resName}, which names the resource a widget's own <i>code</i> came
+     * out of. This one asks the widget which picture OBJECT it is holding and hands that object to
+     * {@link AddonManager#pictureName}, the registry {@link haven.Resource.Image} fills as it mints one. ONE
+     * {@code instanceof} chain in ONE method, the discipline {@link #typeName}/{@link #role}/{@link #resName}
+     * already use for fragile upstream knowledge.
+     *
+     * <p><b>The RESTING face</b>, on the two controls that carry several: a button is identified by the art it
+     * sits at, and its pressed and hovered faces are the same name with a suffix.
+     *
+     * <p><b>Three classes, and no fourth.</b> {@code Avaview} and the meters compose their picture at runtime
+     * rather than holding one that came out of a {@code .res}, so a branch for them could only ever answer
+     * {@code null} — which it already does from outside the chain, honestly, instead of claiming it was asked.
+     */
+    static String pictureName(Widget w) {
+        if(w == null)
+            return null;
+        if(w instanceof Img)                       // Img.img is private, and live: Img.img() (// addon:) reads it
+            return AddonManager.pictureName(((Img)w).img());
+        if(w instanceof IButton)
+            return AddonManager.pictureName(((IButton)w).up);
+        if(w instanceof ICheckBox)
+            return AddonManager.pictureName(((ICheckBox)w).up);
         return null;
     }
 

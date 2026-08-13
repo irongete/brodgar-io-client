@@ -33,6 +33,10 @@ Unlike a button's face, the picture is **not** chosen while the control is built
 at any time, on screen or not. The bare `:source()` reads back exactly what was named, and `nil` before the
 first `:source(h)`.
 
+[`:picture()`](../selectors.md#the-picture-is-a-different-read) is the other half, and it asks a different
+question: not what you named, but what the control is **showing**. On a client resource the two agree; on an
+asset handle of your own it is `nil`, because the name it answers is a client resource name or nothing.
+
 ## Separator
 
 `hafen.ui():separator()` is a plain horizontal rule, with no setter of its own — `:size(w, h)` is all there

@@ -130,6 +130,28 @@ own windows are plain Java classes with nothing behind them. So in practice, `[r
 A resource name is a path, so `*=` is usually the operator you want: `[res*=gfx/hud/meter]` catches every
 meter, where `[res=gfx/hud/meter]` matches nothing, because no widget's resource name is *exactly* that.
 
+### The picture is a different read
+
+`:res()` names the resource a widget's own **code** came from. Most of the client's chrome is an ordinary
+Java class showing an ordinary piece of the game's art, and that art has a name of its own:
+[`w:picture()`](widget.md#read) answers it, where `w:res()` answers `nil`.
+
+```lua
+local w = hafen.ui():window():title("Sample")
+local close = w:find("@IButton")   -- the close box: the client put it in the chrome, not you
+close:picture()                    -- "gfx/hud/wnd/lg/cbtnu"
+close:res()                        -- nil
+```
+
+The two never merge, and `:picture()` has **no selector key**: `[res=]` matches what `:res()` reads and
+nothing else, so every selector already written keeps meaning what it meant. `:picture()` answers on a
+widget that *holds* a picture — a [picture control](controls/display.md#picture), a picture button, a
+picture checkbox — and `nil` on one that composes or paints its art instead of holding one, an inventory
+square or a meter's bar among them. It also answers `nil` for a picture that came out of **your own**
+[asset](../asset.md) file rather than the client's art: the name it hands back is a client resource name or
+nothing. One picture shared by two widgets names one resource on both, which is the true answer — they are
+showing the same art. Any argument raises.
+
 ## The inspector
 
 Nobody guesses a widget's role. The bundled **`widgetstack`** addon answers it by hovering: its bottom

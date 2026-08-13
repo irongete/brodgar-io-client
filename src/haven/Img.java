@@ -64,6 +64,12 @@ public class Img extends Widget {
 	    rimg = null;
     }
 
+    // addon: 063.3 -- widget:picture() asks a widget WHICH picture object it shows, and this one is private.
+    // Read live on every call: setimg is public and the server re-points it (uimsg "ch"), so nothing caches it.
+    public Tex img() {
+	return(img);
+    }
+
     public void draw(GOut g) {
 	g.image(img, Coord.z);
     }

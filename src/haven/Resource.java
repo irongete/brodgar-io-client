@@ -1169,6 +1169,10 @@ public class Resource implements Serializable {
 	    scaled = PUtils.uiscale(img, ssz);
 	    if(false && !hasscale)
 		scaled = PUtils.monochromize(PUtils.coercergba(scaled), java.awt.Color.RED);
+	    // addon: 063.3 -- the picture registry behind widget:picture(). Filed where each object is MINTED
+	    // (here, and in the two lazy blocks below) rather than in the accessor: Resource.Image.scaled() is
+	    // read from a draw (AnimGSprite), and a map write per frame is not what this read is worth.
+	    io.brodgar.addon.AddonManager.onPicture(scaled, Resource.this.name);
 	}
 
 	public BufferedImage scaled() {
@@ -1184,6 +1188,7 @@ public class Resource implements Serializable {
 				    return("TexI(" + Resource.this.name + ", " + id + ")");
 				}
 			    };
+			io.brodgar.addon.AddonManager.onPicture(rawtex, Resource.this.name);   // addon: 063.3
 		    }
 		}
 	    }
@@ -1199,6 +1204,7 @@ public class Resource implements Serializable {
 				    return("TexI(" + Resource.this.name + ", " + id + ")");
 				}
 			    };
+			io.brodgar.addon.AddonManager.onPicture(tex, Resource.this.name);   // addon: 063.3
 		    }
 		}
 	    }

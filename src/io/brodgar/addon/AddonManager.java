@@ -2811,6 +2811,40 @@ public final class AddonManager {
         }
     }
 
+    // ------------------------------------------------------------- the picture registry (063.3)
+    /**
+     * <b>Every picture object the client ever shows, filed under the resource it came out of</b> — the
+     * whole of {@code widget:picture()}'s knowledge, and the only place it exists.
+     *
+     * <p>The identity is thrown away downstream: an {@link haven.Img} keeps a {@link haven.Tex}, an
+     * {@link haven.IButton} three {@link BufferedImage}s, and neither carries a back-reference to the
+     * {@code .res} it was decoded from. So it is recorded <b>upstream</b>, at the single place every
+     * picture in the client is minted — {@link Resource.Image}'s {@code scaled}/{@code tex}/{@code rawtex}
+     * — and the read below asks the widget which object it is holding.
+     *
+     * <p><b>Identity, not equality</b>: {@code Tex} and {@code BufferedImage} define no {@code equals}, so
+     * this map's keys compare by reference by construction. It is weak on the key, so a picture nothing
+     * shows any more leaves it with the texture. One picture shared by two widgets names one resource for
+     * both, which is the true answer — they are showing the same art.
+     */
+    private static final Map<Object, String> pictures =
+        java.util.Collections.synchronizedMap(new java.util.WeakHashMap<Object, String>());
+
+    /**
+     * File a picture under the resource it came out of. Called from {@link Resource.Image} as each object
+     * is minted — once per resource per kind, never on the repeat call, so nothing here sits on a draw path.
+     */
+    public static void onPicture(Object picture, String res) {
+        if((picture == null) || (res == null))
+            return;
+        pictures.put(picture, res);
+    }
+
+    /** The resource name a picture object was decoded from, or {@code null} for one the client composed. */
+    static String pictureName(Object picture) {
+        return (picture == null) ? null : pictures.get(picture);
+    }
+
     /** A {@code {r,g,b,a}} table (0..255) for an AWT color. */
     static LuaValue color(java.awt.Color c) {
         LuaTable t = new LuaTable();

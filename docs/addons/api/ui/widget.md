@@ -55,6 +55,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:type()` | string | class name, e.g. `"Inventory"`, `"Label"`; for an anonymous subclass, the nearest named superclass |
 | `:role()` | string \| nil | what it **is** in the [selector vocabulary](selectors.md#roles), or `nil` when nothing classifies it |
 | `:res()` | string \| nil | its [resource name](selectors.md#what-carries-a-res), e.g. `"gfx/invobjs/torch"`; `nil` for most widgets |
+| `:picture()` | string \| nil | the resource name of the **picture it shows**, e.g. `"gfx/hud/wnd/lg/cbtnu"` on a window's close button; `nil` where it holds none — [a different read from `:res()`](selectors.md#the-picture-is-a-different-read) |
 | `:id()` | int \| nil | server widget id, or `nil` when the widget is not server-bound |
 | `:children()` | array | child Widgets in tree order; empty for a leaf |
 | `:parent()` | Widget \| nil | the enclosing widget, or `nil` at the root |

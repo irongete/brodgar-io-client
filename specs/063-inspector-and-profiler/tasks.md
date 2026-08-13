@@ -36,7 +36,7 @@
       `[manual]`: the AddOns panel lists `profiler`, `widgetstack` and this suite, and nothing else.
       /implement pastes the spec's grep, re-run, returning nothing.
 
-- [ ] **063.3 — `widget:picture()` names the picture a widget shows.** `Resource.Image.tex()`,
+- [x] **063.3 — `widget:picture()` names the picture a widget shows.** `Resource.Image.tex()`,
       `rawtex()` and `scaled()` file their object under `Resource.this.name` through a new
       `AddonManager.onPicture(...)` weak identity map; `Img` gets a tagged getter for its private `img`;
       `LuaWidget` gains `:picture()` beside `resName` — `string | nil`, the **resting** face, over an

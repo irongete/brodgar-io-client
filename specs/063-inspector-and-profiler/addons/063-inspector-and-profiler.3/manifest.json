@@ -1,0 +1,9 @@
+{
+  "name": "063.3 — widget:picture()",
+  "id": "063-inspector-and-profiler.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 063.3: widget:picture() names the picture a widget shows — on one of the client's own widgets, live, and nil where it holds none.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

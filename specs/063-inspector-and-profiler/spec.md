@@ -78,7 +78,8 @@ src/io/brodgar/addon/WidgetSubs.java              — 1
 src/io/brodgar/addon/AddonWidget.java             — 1
 src/io/brodgar/addon/UiApi.java                   — 1
 src/io/brodgar/addon/LuaWidget.java               — 1, 3
-src/io/brodgar/addon/Controls.java                — 3
+src/io/brodgar/addon/Controls.java, CImg.java     — 3
+src/io/brodgar/addon/AddonManager.java            — 3 (the picture registry)
 src/haven/Window.java                             — 1
 src/haven/Widget.java                             — 1
 src/haven/Resource.java                           — 3
