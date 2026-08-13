@@ -543,7 +543,7 @@ final class AssetApi {
             }
         });
         // :info() → a small summary of what the parser produced (R3b): primitive/texture/triangle counts. Useful for
-        // an addon (or the hello harness) to confirm a model loaded textured, and for logging.
+        // an addon to confirm a model loaded textured, and for logging.
         h.set("info", new ZeroArgFunction() {
             public LuaValue call() {
                 int textured = 0, lit = 0;

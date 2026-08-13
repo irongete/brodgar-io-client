@@ -189,7 +189,7 @@ through [`hafen.client():options():interface()`](client/README.md#interface): `p
 ## Screen to world, and placement snapping
 
 These are the inverse of [`hafen.player():worldToScreen`](player.md) plus the client's own placement
-snapper — the primitives the [gizmo](vr/gizmo.md), or any drag-on-the-ground tool, is built from.
+snapper — the primitives any drag-on-the-ground tool is built from.
 
 **`screenToWorld` is asynchronous.** It reads the true terrain point from the GPU, the same pass the
 client uses to place a building, so the answer cannot come back inline: it arrives a frame later

@@ -33,7 +33,7 @@ that never fires.
 
 So **advertise a suggested key in your README instead of claiming one**:
 
-> *Suggested key: `Ctrl+H` — assign it in Options ▸ Keybindings ▸ hello.*
+> *Suggested key: `Ctrl+H` — assign it in Options ▸ Keybindings ▸ myaddon.*
 
 The user's assignment is persisted by the client and survives `:reload` and restarts; re-registering the
 same name after a reload picks the existing binding back up.

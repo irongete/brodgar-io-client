@@ -14,9 +14,10 @@ win:on("Draw", function(ev) ev:g():text("4 / 16 slots", 8, 8) end)
 hafen.vr():widget():add(win, cupboard):facing("camera"):offset(0, 0, 12)
 ```
 
-The bundled **`cupboard`** addon is this page end to end: it waits for the client's own cupboard window,
-stands it on the cupboard, swaps its own panel in when the server closes the window, and swaps back when it
-opens again.
+The shape that pays for itself is entirely event-driven:
+[`hafen.ui():on(sel, "appear", …)`](../ui/replace.md#watching-for-a-widget) is the window opening,
+`w:on("Destroy", …)` is the server closing it, and a panel of your own stands in the same place between the
+two. No timer, and no distance check.
 
 ## The rule: if it works on screen, it works in the world
 

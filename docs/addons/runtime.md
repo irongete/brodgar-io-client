@@ -186,4 +186,4 @@ your login.
 - [debugging](guides/debugging.md) — the reload loop in practice, the inspector, and reading the log
 - [`hafen.store`](api/store.md) — the saved variables the manifest declares
 - [permissions](guides/permissions.md) — the permission the manifest declares
-- [the example addons](examples.md) — installed and running already, one per part of the API
+- [the bundled addons](examples.md) — the two tools installed already, and what each is for

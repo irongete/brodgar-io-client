@@ -28,7 +28,7 @@
 - **Lifecycle conveniences**: single-addon `:reload <id>`, and enable/disable without a full layer reload (filed: 005)
 - **Finer events**: per-slot equipment changes and a skills-changed event (filed: 003)
 - **World-space text**: a label standing in the world with perspective and occlusion, instead of a whole widget (filed: 043)
-- **World-space shapes**: lines, polylines and filled areas in the world, which `planner` fakes with sprites today (filed: 043)
+- **World-space shapes**: lines, polylines and filled areas in the world, which nothing can draw but a fan of sprites (filed: 043)
 - **`dependencies` are parsed and never read**: either drop the manifest fields or order the load and refuse a missing one (filed: 051)
 - **Package layout**: finish the tier-3 split — the serializer, the glTF parser and its mesh primitives (filed: 019)
 - **Allocation profiling**: who costs GARBAGE, bracketing the seams 019 already brackets (filed: 019)

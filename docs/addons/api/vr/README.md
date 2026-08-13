@@ -224,7 +224,6 @@ which also depends on where the camera is pointing.
 | [sprites](sprites.md) | an image in the world: its facing modes, clicks |
 | [models](models.md) | glTF: the supported subset, the object's verbs, clicks |
 | [widgets](widgets.md) | a window standing in the world: its facing, its clicks, and the client's own |
-| [gizmo](gizmo.md) | the drag handles that move, rotate and scale any of them |
 
 ## See also
 

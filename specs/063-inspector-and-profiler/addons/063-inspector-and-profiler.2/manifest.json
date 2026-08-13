@@ -1,0 +1,9 @@
+{
+  "name": "063.2 — the client keeps two addons",
+  "id": "063-inspector-and-profiler.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 063.2: the only addons the client loads are profiler, widgetstack and this suite.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

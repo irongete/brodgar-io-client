@@ -2,7 +2,7 @@
 
 Two verbs, and they are meant to be used together: `hafen.ui():on` waits for a part of the client's UI to
 appear, and `widget:replace` stands your own window in its place. Both are unprotected, and both are undone
-when your addon goes away. The bundled **`bags`** addon is this pair end to end.
+when your addon goes away.
 
 ```lua
 hafen.ui():on("window[title=Inventory] inventory", "appear", function(inv)

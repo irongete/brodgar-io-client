@@ -105,8 +105,8 @@ so it takes `:size(w, h)` and refuses `:size(w)`, exactly as a [surface](../cust
 than its box is drawn clipped, not wrapped.
 
 **And you rarely add a container up.** [`:pack()`](../widget.md#owned-vs-borrowed) sizes a window or a bare
-widget to the controls inside it, so the box that holds a column of rows is read rather than computed.
-**`timers`** is a whole list laid out this way: rows of buttons on one grid, not one of them given a height.
+widget to the controls inside it, so the box that holds a column of rows is read rather than computed. A
+whole list of rows lays out this way: every row on one grid, not one of them given a height.
 
 ## Subscribing
 

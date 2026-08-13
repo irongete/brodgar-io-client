@@ -64,7 +64,7 @@ local doc = hafen.json():parse(hafen.asset():get("theme.json"):text())
 hafen.ui():sheet():load(doc.rules):install()
 ```
 
-The bundled **`theme`** example addon is exactly that: its Lua never names a surface, a font, a size, a
+That is a look whose Lua never names a surface, a font, a size, a
 colour or a pixel. Exactly two values in a rule are things JSON cannot carry, and both because they are
 **handles**: a font's face and an [image](chrome.md). Map those two and everything else — a colour array, a
 border's four slice insets, a `pad`, an [anchor's corner and offset](geometry.md#anchor) — is already the
@@ -79,9 +79,9 @@ there is no *later* to pick the winner.
 **Saving a layout is your addon's business, not the engine's**, and it is small: a layout you can read back
 with [`widget:position()`](../widget.md#read) is a table of numbers, and [`hafen.store`](../../store.md)
 already
-persists tables. `theme` demonstrates the whole of it — one command reads where its windows currently are
-and keeps them account-wide, another re-applies them over the file's own placement, a third drops them.
-There is no profile system here because a sheet is data and an addon already has a store.
+persists tables. One command reads where your windows currently are and keeps them account-wide, another
+re-applies them over the file's own placement, a third drops them. There is no profile system here because
+a sheet is data and an addon already has a store.
 
 ## Properties
 
@@ -211,7 +211,7 @@ rather than from code.
 - **A configuration UI.** No drag-to-arrange editor, no docking, no profile manager. The engine ships the
   mechanism — a layout is data, `widget:position()` reads it back and [`hafen.store`](../../store.md)
   persists
-  tables — and an addon ships the experience, as `theme` does.
+  tables — and an addon ships the experience.
 - **The 3D world.** The sheet is the UI. Terrain, objects, animations and their materials are game
   resources; what an addon adds there is [`hafen.vr`](../../vr/README.md), not a rule.
 - **Text the client baked at class-load**, and `$col[…]` markup inside a string — both

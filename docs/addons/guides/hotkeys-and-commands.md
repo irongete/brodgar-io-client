@@ -61,8 +61,8 @@ addon.
 | continuously, while watching something | [a window](custom-ui.md), and neither of these |
 
 A good default for anything with a UI is both: a hotkey to toggle the window, and a command with
-subcommands for the rest, so nothing needs a key that is only used once. That is the shape every bundled
-addon with a window has — see [the examples](../examples.md).
+subcommands for the rest, so nothing needs a key that is only used once. That is the shape both
+[bundled addons](../examples.md) have.
 
 **Dormant is polite.** An addon that draws nothing and does nothing until its key or command is used costs
 a login nothing, and the user finds out what it does when they ask. Wire the work behind the trigger rather

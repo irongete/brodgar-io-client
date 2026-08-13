@@ -90,8 +90,8 @@ local doc = hafen.json():parse(hafen.asset():get("theme.json"):text())
 hafen.ui():sheet():load(doc.rules):install()
 ```
 
-That is exactly what the bundled **`theme`** addon does, and it is why making a different theme is editing
-a file rather than writing an addon. Saving a *layout* is the same trick from the other side: window
+Once the look is a file, making a different theme is editing that file rather than writing an addon.
+Saving a *layout* is the same trick from the other side: window
 positions read back with `widget:position()` are a table of numbers, and [`hafen.store`](../api/store.md)
 persists tables.
 

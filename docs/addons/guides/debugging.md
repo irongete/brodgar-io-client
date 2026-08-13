@@ -96,4 +96,4 @@ will [auto-disable](../runtime.md#budgets-and-the-watchdog) an addon that sustai
 warning on its panel row is the last word, not the first.
 
 **Next:** [the API reference](../api/README.md) for the verb you are reaching for, or
-[the examples](../examples.md) for someone who already solved this.
+[the bundled addons](../examples.md) for the two tools that answer these questions for you.

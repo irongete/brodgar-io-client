@@ -112,8 +112,8 @@ gob**: a felled tree takes the image on it with it. It is listed at that gob by
 [`gob:overlay():list()`](../overlay.md) as a read-only entry, so "what is drawn at this gob?" has one
 complete answer — but you address it through this collection, which is the one that placed it.
 
-> **Gizmo.** A sprite is transformable by the [gizmo](gizmo.md) for free: it exposes the same `:position`,
-> `:rotate` and `:scale` a ghost does, and the gizmo drives anything that does.
+A sprite exposes the same `:position`, `:rotate` and `:scale` a ghost does, so a drag handle written for one
+drives the other unchanged.
 
 ## See also
 

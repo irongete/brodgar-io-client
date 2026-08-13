@@ -81,9 +81,9 @@ g:scale(0.5)                                  -- now half size, live
 local k = g:scale()                           -- reads back what the last write set
 ```
 
-A saved layout, or the [gizmo](gizmo.md), reads `g:position()`, `g:rotate()` and `g:scale()` and writes them
-back. A few special resource types reset their own transform — curio-style sprites, which already ignore
-ghost rotation — and those ignore scale too. Building and terrain props scale correctly.
+A saved layout, or a drag handle of your own, reads `g:position()`, `g:rotate()` and `g:scale()` and writes
+them back. A few special resource types reset their own transform — curio-style sprites, which already
+ignore ghost rotation — and those ignore scale too. Building and terrain props scale correctly.
 
 ## Clickability
 
@@ -117,9 +117,8 @@ it.
 To save a layout across sessions, keep each ghost's [Position](../world.md#the-position-type) — it is
 durable by construction, so [`hafen.store`](../store.md) keeps it and hands the same place back next session
 — and re-place the ghost there once it resolves. That is the same rule [markers](../map/markers.md) follow.
-The bundled **`planner`** addon is a small base planner built on exactly this: it places clickable blueprint
-ghosts, saves them through [`hafen.store`](../store.md), and reloads them at the same physical spot after a
-relog, retrying as the map streams in.
+A base planner is exactly this: clickable blueprint ghosts saved through [`hafen.store`](../store.md) and
+reloaded at the same physical spot after a relog, retrying as the map streams in.
 
 ## Moving ghosts on the ground
 
@@ -132,9 +131,9 @@ primitives and then `g:position(p)`:
 3. [`hafen.world():snapPlace`](../world.md#screen-to-world-and-placement-snapping) snaps it to the placement
    grid, with Shift for the fine grid.
 
-`planner` wires these into a move mode: select a ghost, take the grab, and it follows the cursor snapped
+Wired into a move mode they read: select a ghost, take the grab, and it follows the cursor snapped
 to the grid until you click to drop it. See [the grab](../ui/mouse.md#the-grab) for the drag pattern in
-full, and [the gizmo](gizmo.md) for drag handles that do the same job with no code of your own.
+full.
 
 ## See also
 

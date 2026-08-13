@@ -16,9 +16,6 @@ for _, sp in ipairs(speed:list()) do
 end
 ```
 
-**`hello`** prints that line every time it runs, and **`walker`** does the write, one `:walker speed` at a
-time.
-
 > **The collection enumerates what you can pick; `:get` addresses a speed by its key.** `:list()` is
 > *exactly* the selectable speeds, so everything it hands you is something `:set` accepts. `:get(key)` reaches
 > all four, selectable or not, which is how "is sprint unlocked yet?" has something to ask about:

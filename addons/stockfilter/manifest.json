@@ -1,9 +1,0 @@
-{
-  "name": "Stock filter",
-  "id": "stockfilter",
-  "version": "1.0.0",
-  "author": "brodgar",
-  "description": "Example addon: a whole panel built entirely from hafen.ui()'s own controls -- a label, a text entry, a separator, a radio group, a checkbox, a slider driving a live label, a dropdown and a scrolling list, laid out in one window and dressed by the stylesheet like any window the client builds itself. It filters and sorts the real items in your backpack or your equipment by name, quality and wear; nothing here writes to the server, so there is no permission to grant. :stockfilter opens and closes the panel.",
-  "api_version": 1,
-  "files": ["main.lua"]
-}

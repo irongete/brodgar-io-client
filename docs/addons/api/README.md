@@ -108,7 +108,6 @@ The verbs that act are on the pages of what they change — [`hafen.player`](pla
 | [sprites](vr/sprites.md) | a PNG in the world: its facing modes, clicks, following a gob |
 | [models](vr/models.md) | a glTF model: the subset that loads, the object's verbs, and clicks |
 | [widgets](vr/widgets.md) | a window standing in the world: its facing, its clicks, and standing the client's own |
-| [gizmo](vr/gizmo.md) | the drag handles that move, rotate and scale any of them |
 
 ## The client itself
 

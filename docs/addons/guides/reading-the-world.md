@@ -118,8 +118,8 @@ hafen.log():write(t and t.name or "not loaded yet — ask again next tick")
 
 A read that needs a grid the client has not loaded off the disk **starts the load and answers `nil`** — call
 again next tick and it answers. There is no callback and no ready event: re-asking is the whole protocol, the
-same way a rebuilt Position resolves as the map streams in. The [`atlas`](../examples.md#atlas) example
-addon is a minimap panel built on exactly that loop.
+same way a rebuilt Position resolves as the map streams in. A minimap panel is that loop and little else: a
+few-times-a-second timer that is both the retry and the "did the picture change?" test.
 
 ## What the client does not know
 

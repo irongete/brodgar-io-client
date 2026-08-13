@@ -83,12 +83,9 @@ the server. Both the per-object `:onClick(fn)` and the owner-scoped
 [`ObjectClicked`](../event.md#world-ghosts-and-sprites) event fire, and `ObjectClicked` reaches only *your*
 addon.
 
-> **Gizmo.** An object is transformable by the [gizmo](gizmo.md) for free: the same `:position`, `:rotate`
-> and `:scale` a ghost or a sprite exposes, and the gizmo drives anything that does.
-
-The bundled **`planner`** addon puts all of this together: one command stands a shipped `.glb`, and the
-same code path that handles its ghosts and sprites gives the model click-select, the gizmo, and persistence,
-so it reloads at the same spot after a relog.
+An object answers the same `:position`, `:rotate` and `:scale` a ghost or a sprite does, so one code path
+handles all three: click-select, drag on the ground, and persistence through
+[`hafen.store`](../store.md), which reloads it at the same spot after a relog.
 
 ## See also
 

@@ -109,8 +109,6 @@ You can pick from inside a `FlowerMenuOpened` handler, and that is the usual pla
 animating open at that moment — the one window a real click cannot use, because the menu swallows mouse
 input until the animation finishes.
 
-The `walker` addon arms the next menu you open and picks from it, by caption and by position.
-
 ## The two events
 
 | Event | Payload | Fires |

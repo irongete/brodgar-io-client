@@ -94,7 +94,8 @@ final class LuaGOut {
      * style's stamp, so it differs BETWEEN draw sites within a single frame. A drop-on-move cache would then
      * clear itself on every alternation -- worse than no cache. As a key component it costs the same one int and
      * is correct under F5: an override install/move/reset simply lands on fresh keys and the stale generation's
-     * entries fall out of the LRU. (`:hello node` is exactly this case, so it is not hypothetical.)
+     * entries fall out of the LRU. (An addon that draws text under a per-widget style override is exactly this
+     * case, so it is not hypothetical.)
      */
     static final class Cache {
         /*
@@ -107,8 +108,8 @@ final class LuaGOut {
          * to 8 MiB, where the two caps meet almost exactly at the measured average width. Narrow text is then
          * bounded by count, wide text by bytes, which is the whole reason for having two.
          *
-         * MAXENTRIES STAYS at 512, deliberately above the working set it needs to hold (hello's is ~40 lines a
-         * frame; the 512 it fills to are overwhelmingly dead strings from the deliberately volatile line, which
+         * MAXENTRIES STAYS at 512, deliberately above the working set it needs to hold (a text-heavy addon's is
+         * ~40 lines a frame; the 512 it fills to are overwhelmingly dead strings from a volatile line, which
          * are never looked up again). Headroom is not waste here: a cap BELOW one frame's distinct strings
          * would evict every entry before its next use, paying eviction and dispose on top of the rasterisation
          * it failed to save -- strictly worse than no cache. 512 keeps a text-heavy addon well clear of that

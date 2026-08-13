@@ -61,9 +61,9 @@ picture alive.
 > description, not a file you could load. An asset is a file your addon shipped; this is a picture the
 > client drew of the database.
 
-The [`atlas`](../../examples.md#atlas) example addon is these pages end to end: a live minimap panel whose
-picture comes from `grid:image`, whose pins come from `seg:markers()`, and which hands the handle to the
-stylesheet so the **engine** paints it — `0` draw callbacks of its own while a map is on the screen.
+A minimap panel is these pages end to end: its picture comes from `grid:image`, its pins from
+`seg:markers()`, and handing the handle to the stylesheet as `bg = { image = … }` makes the **engine**
+paint it — `0` draw callbacks of your own while a map is on the screen.
 
 ## See also
 

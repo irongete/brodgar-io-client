@@ -162,9 +162,9 @@ end)
 -- reverted automatically when the addon is reloaded or disabled, or explicitly with sheet:drop()
 ```
 
-The bundled **`theme`** example addon goes one step further: its whole look, text and
-[chrome](ui/style/chrome.md) alike, is a `theme.json` read through [`hafen.asset`](asset.md#data) and
-[`hafen.json`](json.md), so its Lua never names a font, a size, a colour, a surface or a pixel.
+A whole look goes one step further: the face, the [chrome](ui/style/chrome.md) and every colour live in a
+data file read through [`hafen.asset`](asset.md#data) and [`hafen.json`](json.md), and the Lua that installs
+it never names a font, a size, a colour, a surface or a pixel. See [theming](../guides/theming.md).
 
 ## See also
 

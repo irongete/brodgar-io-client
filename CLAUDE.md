@@ -11,7 +11,7 @@ World-of-Warcraft-style Lua (LuaJ) AddOn system in `src/io/brodgar/addon/`, on b
 | `docs/addons/**` | **The contract.** What the API *is*, always current. The only model `/plan` and `/implement` need |
 | `docs/client/**` | **The map of the upstream `haven` engine**: where each subsystem lives, what owns what, and the gotchas that cost time. Written only by the task that had to read that source anyway |
 | `src/` | The `haven` engine (upstream) and `src/io/brodgar/**` (ours) |
-| `addons/` | The demo addons, and the one task suite in flight |
+| `addons/` | The two tools — `profiler` and `widgetstack` — and the one task suite in flight |
 | `bin/addons/` | What the running client actually scans, beside the jar. A suite is copied here to be run, and gitignored |
 | `specs/ROADMAP.md` | The only queue: open defects and candidates |
 | `specs/NNN-<feature>/` | `spec.md` · `plan.md` (its *Discarded alternatives* are the decision record) · `tasks.md`, plus the archived suites. Written once, then frozen |
@@ -103,9 +103,10 @@ the whole block back. Nothing needs interpreting — that round trip is the form
   stays around ≤ 15 output lines. More than that means it was two tasks.
 - `/implement` copies it to `bin/addons/` to be run, and re-copies it after every fix round. `/end`
   archives it into `specs/NNN-<feature>/addons/` and deletes the copy.
-- **An addon is a suite when its folder name reads `<NNN>-<feature>.<X>`, and only then.** Every
-  other folder under `addons/` is a demo: never archived, never deleted, never grown to carry a
-  proof — fixed when a change breaks it, and that is all. `ls addons/` is its only list.
+- **An addon is a suite when its folder name reads `<NNN>-<feature>.<X>`, and only then.** The only
+  other folders under `addons/` are the two tools, `profiler` and `widgetstack`: never archived,
+  never deleted, never grown to carry a proof — fixed when a change breaks them, and that is all.
+  **No third folder is added.** A surface is shown by its own page's example, never by a demo.
 
 ## The cycle
 

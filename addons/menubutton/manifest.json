@@ -1,9 +1,0 @@
-{
-  "name": "Menu button",
-  "id": "menubutton",
-  "version": "1.0.0",
-  "author": "brodgar",
-  "description": "One entry of its own in the action menu, drawn with its own PNG, running its own Lua when pressed — and nothing at all about the action bar.",
-  "api_version": 1,
-  "files": ["main.lua"]
-}

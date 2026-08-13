@@ -19,7 +19,7 @@
       no Inspector.
       <!-- extra context: addons/profiler/main.lua, addons/widgetstack/main.lua — read only, to verify -->
 
-- [ ] **063.2 — The client keeps two addons.** `git rm -r` the fourteen demos (`atlas`, `bags`,
+- [x] **063.2 — The client keeps two addons.** `git rm -r` the fourteen demos (`atlas`, `bags`,
       `cupboard`, `hello`, `hogtest`, `menubutton`, `netdemo`, `optionstest`, `planner`, `stockfilter`,
       `tagger`, `theme`, `timers`, `walker`) and their `bin/addons/` copies. `bin/addons/visionpro` goes
       with them: it has no folder under `addons/`, so it is a leftover of a run nothing sources any more.
