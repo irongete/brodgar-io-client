@@ -65,8 +65,10 @@ no `items`: a snapshot of a bag would otherwise nest snapshots of bags without e
 From [`contents:info()`](ui/items.md#what-an-item-holds), the snapshot of what one item holds;
 [`item:contents()`](ui/items.md#what-an-item-holds) hands you the live object, and its
 [Item objects](ui/items.md#the-item-object) are read off that with `contents:items()`.
-`{ name = string? }` — what the server calls this inside, the caption its own window carries, absent when it
-gave none.
+`{ name = string?, text = string?, quality = number?, level = table? }` — the caption the server gave this
+inside, the line its tooltip states about what is in there, the **content's** own quality, and the fill
+meter's `{cur, max}`. A container carrying items states the first, one that states what it holds states the
+rest, so which fields are present is what tells the two apart.
 
 ## Tile
 

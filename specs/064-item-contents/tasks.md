@@ -16,7 +16,7 @@
       `[manual]`: with no stack in the inventory the suite says so and scores nothing — put a stack
       of anything in it and re-run.
 
-- [ ] **064.2 — a bucket says what it holds, which is not items.** Adopts `ui/tt/level` with
+- [x] **064.2 — a bucket says what it holds, which is not items.** Adopts `ui/tt/level` with
       `haven.Resource get-code` under `@FromResource`, version-pinned. Adds `contents:text()`,
       `:quality()` and `:level()`, read from `ItemInfo.Contents.sub` and that class; splits
       `LuaItem.quality(GItem)` so its list half serves the content's quality; completes

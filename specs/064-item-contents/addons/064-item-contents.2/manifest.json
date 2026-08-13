@@ -1,0 +1,9 @@
+{
+  "name": "064.2 — a bucket says what it holds, which is not items",
+  "id": "064-item-contents.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 064.2: contents:text(), :quality() and :level() read what a liquid container states, :items() is empty rather than nil, and a stack answers nil to the two tooltip reads.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

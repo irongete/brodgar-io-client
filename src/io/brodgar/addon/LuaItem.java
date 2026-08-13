@@ -521,6 +521,21 @@ public final class LuaItem {
     private static final Map<Class<?>, Field> qfields = new HashMap<Class<?>, Field>();
 
     /**
+     * The item's own tooltip info, or {@code null} while it is still resolving: {@link GItem#info()} throws a
+     * bare {@code Loading} while the resource streams, and that is not resolvable here. Every read that goes
+     * through the tooltip comes through this one door, and answers {@code nil} rather than a half-built value.
+     */
+    static List<ItemInfo> info(GItem it) {
+        if(it == null)
+            return null;
+        try {
+            return it.info();
+        } catch(RuntimeException e) {   // info() still Loading
+            return null;
+        }
+    }
+
+    /**
      * The item's quality, or {@code null} when it has none and while its info is still resolving.
      *
      * <p>Read <b>by class name</b>: quality is published by code that ships inside a resource
@@ -529,12 +544,16 @@ public final class LuaItem {
      * makes this answer {@code nil}, never something wrong — the same trade {@code gob:kin()} makes.
      */
     static Double quality(GItem it) {
-        List<ItemInfo> info;
-        try {
-            info = it.info();
-        } catch(RuntimeException e) {   // info() still Loading
-            return null;
-        }
+        return quality(info(it));
+    }
+
+    /**
+     * The same read over <b>one tooltip list</b>, whichever list that is — which is what lets a container's
+     * <b>content</b> answer its own quality: {@code contents:quality()} runs this over the nested tooltip a
+     * contents block carries ({@code ItemInfo.Contents.sub}), where the water in a bucket publishes its
+     * quality exactly as an item publishes its own.
+     */
+    static Double quality(List<ItemInfo> info) {
         if(info == null)
             return null;
         Double any = null;

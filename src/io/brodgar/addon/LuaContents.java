@@ -2,8 +2,10 @@ package io.brodgar.addon;
 
 import haven.GItem;
 import haven.ItemInfo;
+import haven.Text;
 import haven.UI;
 import haven.Widget;
+import haven.res.ui.tt.level.Level;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -38,7 +40,14 @@ import java.util.Map;
  * {@link GItem} children of the <b>widget</b> the server pushed ({@code GItem.contents}), and the caption is
  * {@code GItem.contentsnm}. What a bucket holds is stated by the item's own <b>tooltip info</b>
  * ({@link ItemInfo.Contents}) instead, which is also why an item carrying that block alone still holds
- * something.
+ * something: {@code :text()} is the line that block states, {@code :quality()} is the <i>content's</i> own
+ * number read out of it, and {@code :level()} is the fill meter's two counts. So a stack answers the first two
+ * reads with items and {@code nil} to the last three, a bucket does the reverse, and neither has to be told
+ * apart from the other to be read.
+ *
+ * <p><b>The substance a liquid container holds is never named to the client.</b> What arrives is a rendered
+ * line, a quality and a fill; there is no liquid type behind them, which is why the API states what the tooltip
+ * states and invents nothing above it.
  *
  * <p><b>The hover window is irrelevant to every one of them.</b> Hiding a {@code GItem.ContentsWindow} is
  * {@code chstate("hide")} and nothing else — only the contents widget being destroyed clears the fields — so
@@ -96,20 +105,13 @@ public final class LuaContents {
      * resolving</b>: {@code GItem.info()} throws a bare {@code Loading} while the resource streams, and an item
      * that cannot yet say what it holds holds nothing as far as this reads — never a half-built object.
      */
-    static ItemInfo block(GItem it) {
-        if(it == null)
-            return null;
-        List<ItemInfo> info;
-        try {
-            info = it.info();
-        } catch(RuntimeException e) {   // info() still Loading
-            return null;
-        }
+    static ItemInfo.Contents block(GItem it) {
+        List<ItemInfo> info = LuaItem.info(it);
         if(info == null)
             return null;
         for(ItemInfo inf : info) {
             if(inf instanceof ItemInfo.Contents)
-                return inf;
+                return (ItemInfo.Contents)inf;
         }
         return null;
     }
@@ -210,6 +212,32 @@ public final class LuaContents {
                 return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
             }
         });
+        // text() — what the tooltip STATES about what is inside ("5.00 l of Water"), or nil for a container that
+        // carries its contents as items instead of stating them. This is the whole of what a bucket can say: the
+        // substance itself is never sent to the client, only that rendered line.
+        m.set("text", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                String s = text(handle(self, "text").cont);
+                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
+            }
+        });
+        // quality() — the CONTENT's own quality, which is not the container's: the water in a bucket publishes a
+        // quality inside the contents block exactly as an item publishes its own, and item:quality() goes on
+        // answering the bucket's. nil when the block states none.
+        m.set("quality", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Double q = quality(handle(self, "quality").cont);
+                return (q == null) ? LuaValue.NIL : LuaValue.valueOf(q.doubleValue());
+            }
+        });
+        // level() — the fill meter's {cur, max}, read off the adopted ui/tt/level class, or nil for a container
+        // that draws none. Two ABSOLUTE counts: the engine itself only ever asks that class for the bare fraction
+        // it paints over the icon, so this is the one place the numbers behind the bar are reachable.
+        m.set("level", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return level(handle(self, "level").cont);
+            }
+        });
         // info() — the one SNAPSHOT escape hatch, and it carries NO items: a snapshot holds no live objects, so
         // a snapshot of a bag would otherwise nest snapshots of bags without end.
         m.set("info", new OneArgFunction() {
@@ -255,6 +283,93 @@ public final class LuaContents {
         return (cont == null) ? null : cont.contentsnm;
     }
 
+    /**
+     * What the tooltip <b>states</b> about what is inside, or {@code null} for a container that carries items
+     * instead of stating anything.
+     *
+     * <p>The block's payload is a <b>whole nested tooltip</b> — the {@code ui/tt/cont} factory builds it with
+     * {@code ItemInfo.buildinfo}, so what is inside describes itself with the same rows an item uses. The plain
+     * text of that nested tip is what a reader sees as the line, so it is the plain-text rows that are taken here
+     * and the structured ones ({@link #quality}, {@link #level}) that are read as themselves. Where a block states
+     * more than one line they are joined in the tooltip's own order, because dropping one silently is the worse
+     * failure of the two.
+     *
+     * <p><b>The substance is never named to the client.</b> That rendered line is the whole of what arrived; there
+     * is no liquid type behind it to answer instead, which is why this reads as text and nothing here pretends
+     * otherwise.
+     */
+    static String text(GItem cont) {
+        ItemInfo.Contents b = block(cont);
+        if((b == null) || (b.sub == null))
+            return null;
+        StringBuilder sb = new StringBuilder();
+        for(ItemInfo inf : b.sub) {
+            String ln = line(inf);
+            if((ln == null) || (ln.length() == 0))
+                continue;
+            if(sb.length() > 0)
+                sb.append('\n');
+            sb.append(ln);
+        }
+        return (sb.length() == 0) ? null : sb.toString();
+    }
+
+    /** One nested tooltip row as plain text, or {@code null} for a row that is not one. */
+    private static String line(ItemInfo inf) {
+        if(inf instanceof ItemInfo.Name)
+            return str(((ItemInfo.Name)inf).str);
+        if(inf instanceof ItemInfo.AdHoc)
+            return str(((ItemInfo.AdHoc)inf).str);
+        return null;
+    }
+
+    private static String str(Text t) {
+        return (t == null) ? null : t.text;
+    }
+
+    /**
+     * The <b>content's own</b> quality, or {@code null} when the block states none — the same read
+     * {@code item:quality()} makes, over the nested tooltip instead of the item's own, so the water answers the
+     * water's number and the bucket goes on answering the bucket's.
+     */
+    static Double quality(GItem cont) {
+        ItemInfo.Contents b = block(cont);
+        return (b == null) ? null : LuaItem.quality(b.sub);
+    }
+
+    /**
+     * The fill meter's {@code {cur, max}}, or {@code nil} for a container that draws none.
+     *
+     * <p>Read <b>by type</b>, off the local copy of the meter's own published class ({@code ui/tt/level}, pinned
+     * by version): the engine asks that class for {@code overlay()} alone — the bare fraction it paints over the
+     * icon — so the two counts behind the bar are reachable nowhere else. The class is an overlay rather than a
+     * tooltip row, so it sits in the item's <b>own</b> info list; a block that nests one instead is read too,
+     * since where the server files it is its business and an empty answer would be silent.
+     */
+    static LuaValue level(GItem cont) {
+        Level l = find(LuaItem.info(cont));
+        if(l == null) {
+            ItemInfo.Contents b = block(cont);
+            l = (b == null) ? null : find(b.sub);
+        }
+        if(l == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        t.set("cur", LuaValue.valueOf(l.cur));
+        t.set("max", LuaValue.valueOf(l.max));
+        return t;
+    }
+
+    private static Level find(List<ItemInfo> info) {
+        if(info == null)
+            return null;
+        for(ItemInfo inf : info) {
+            if(inf instanceof Level)
+                return (Level)inf;
+        }
+        return null;
+    }
+
     /** The documented {@code Contents} snapshot — every field optional, absent rather than empty. */
     static LuaValue snapshot(GItem cont) {
         if(cont == null)
@@ -263,6 +378,15 @@ public final class LuaContents {
         String n = name(cont);
         if(n != null)
             t.set("name", LuaValue.valueOf(n));
+        String s = text(cont);
+        if(s != null)
+            t.set("text", LuaValue.valueOf(s));
+        Double q = quality(cont);
+        if(q != null)
+            t.set("quality", LuaValue.valueOf(q.doubleValue()));
+        LuaValue l = level(cont);
+        if(!l.isnil())
+            t.set("level", l);
         return t;
     }
 }

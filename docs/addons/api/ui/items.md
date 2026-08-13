@@ -69,6 +69,9 @@ would answer confidently and wrongly.
 |---|---|---|
 | `contents:items()` | [`Item`](#the-item-object)`[]` | what is inside, as live objects; an **empty array**, never `nil`, for a container that states what it holds rather than carrying it |
 | `contents:name()` | string \| nil | what the server calls this inside — the caption its own window carries; `nil` when it gave none |
+| `contents:text()` | string \| nil | the line the tooltip states about what is inside; `nil` for a container carrying items |
+| `contents:quality()` | number \| nil | the **content's** own quality, which is not `item:quality()`; `nil` when none is stated |
+| `contents:level()` | table \| nil | the fill meter's `{cur, max}`; `nil` for a container that draws none |
 | `contents:info()` | table | the [snapshot](../types.md#contents), which carries no `items` |
 
 Reading is unprotected, and a `Contents` is **interned** like every other object here, so two reads of one
@@ -96,6 +99,32 @@ one stack of eight and eight loose things. So a thing inside answers `:cell()` a
 cell of its own — and you reach it by recursing through `:contents()`, picking your own depth. The protected
 verbs reach it like any other item: `:take()` on one dandelion lifts that one, and `:take()` on the stack
 lifts the whole pile in one message.
+
+### A liquid container: a stated line, a fill, and no items
+
+A bucket, a jug, a barrel holds something and carries no items, so the other three reads answer instead:
+
+```lua
+local b = hafen.ui():inventory():items()[1]        -- a jug holding water
+local c = b:contents()
+
+c:text()                   --> "4.55 l of Water"   the line its tooltip states
+c:quality()                --> the water's quality, and b:quality() is still the jug's
+c:level()                  --> { cur = 455, max = 500 }   the fill meter, in its own scale
+c:items()                  --> { }                 it states what it holds; it does not carry it
+```
+
+`c:level()` is how you ask how full something is, and the two counts are the ones behind the bar drawn on
+the item's icon — the client itself paints only the fraction of them, so this is the one place they read as
+numbers. **They are the meter's own scale and not the units the line states**: divide one by the other and
+compare fractions, rather than reading `cur` as the number in front of the `l`. A stack answers `nil` to
+`:text()` and `:level()`, and a container that states what it holds answers an empty `:items()`, so the two
+insides are told apart by asking rather than by knowing which you hold.
+
+**The substance is never named to the client.** What arrives is that rendered line, a quality and a fill:
+there is no water type behind them to ask for instead, so `c:text()` is the whole of what can be said about
+what is in there. Match on the line if you must, knowing it is a display string carrying the amount as well
+as the name.
 
 **Nothing has to be open.** The window a container pops up under the pointer is hidden rather than destroyed
 when you move away, so every read here answers the same with it down. Opening it is not something an addon can

@@ -1,7 +1,8 @@
 # State roots: the client's read surfaces
 
-> Where game state actually lives: gobs, map, player, items, character, party, time. Line
-> numbers are indicative; | What | Where |
+> Where game state actually lives: gobs, map, player, items, character, party, time.
+
+| What | Where |
 |---|---|
 | Global root | `Glob` via `ui.sess.glob` (`UI.sess`, `Session.glob`) |
 | Object cache (gobs) | `OCache`: iterate, `getgob`, `callback`/`uncallback` (/). ⚠️ **The iterator is wider than `getgob`**: it walks `objs.values()` *plus* the registered `local` collections, while `getgob` looks only in `objs` — which is a `MultiMap<Long,Gob>`, so one key may hold several gobs. And `OCache.Virtual` mints **negative** ids (`nextvirt`, from -1 down): `Skeleton` `oc.add`s a `FixedPlace` purely to carry a one-shot effect overlay, and `Gob.ctick`'s `virtual && ols.isEmpty() && no Drawable ⇒ oc.remove` drops it the tick that overlay ends. So an id the iterator just yielded can answer `null` from `getgob` immediately — never read a `nil` there as "the property is unset" |
@@ -16,7 +17,8 @@
 | The item on the cursor | `GameUI.addchild` `place == "hand"` does `add((GItem)child)` — a real **server-bound** `GItem` under the HUD, so it has a widget id like any other; `GameUI.vhand` is only the `WItem` that draws it, rebuilt by `updhand` from the `hand` list |
 | What an item holds | `GItem.contents` (the widget the server pushed), `contentsnm` (its caption), `contentsid`, `contentswnd`. All four are written by `GItem.addchild` — which does **not** add the child under the item: it puts it in a new `GItem.ContentsWindow` added to `contparent()` = `getparent(GameUI.class)`. The items inside are that widget's **`GItem` children**, which is the walk `GItem.addcontinfo` makes over `contents.children()`; `updcontinfo` invalidates the holder's own info when a child's `infoseq` moves |
 | ...and what holds it | `GItem.ContentsWindow.cont`, public final: the item that pushed the contents. Climbing `Widget.parent` from a contained `GItem` to the first `ContentsWindow` is the only back-link there is, and climbing on from there chains through a container inside a container |
-| A tooltip that states its contents | `ItemInfo.Contents extends ItemInfo.Tip`, `public final List<ItemInfo> sub` — the block a bucket carries instead of items. Built by resource code (`ui/tt/cont` on the wire), so it is matched by type; `GItem.info()` throws a bare `Loading` while the resource streams |
+| A tooltip that states its contents | `ItemInfo.Contents extends ItemInfo.Tip`, `public final List<ItemInfo> sub` — the block a bucket carries instead of items. Built by resource code (`ui/tt/cont` on the wire), so it is matched by type; `GItem.info()` throws a bare `Loading` while the resource streams. `sub` is a **whole nested tooltip** — that factory fills it with `ItemInfo.buildinfo` — so what is inside describes itself with the same rows an item uses: an `ItemInfo.Name` (or `AdHoc`) for the stated line, whose text is `Name.str.text`, and its own `QBuff` for the content's quality |
+| A fill meter | published **resource code** again: `ui/tt/level`'s `Level` (`public final double cur, max`), adopted at `res/ui/tt/level/Level.java` (`@FromResource` v21) so the two counts are reachable by type. It is an `ItemInfo` implementing `GItem.OverlayInfo<Double>`, **not** a `Tip`: the engine asks it for `overlay()` = `cur / max` alone and `WItem.draw` paints that over the icon through `itemols`, which walks the item's **own** `info()`. So nothing in `haven` reads the counts, and nothing renders this as a tooltip row |
 | Item quality | published **resource code**, not `haven`: `ui/tt/q/quality`'s `Quality extends` `ui/tt/q/qbuff`'s `QBuff` (`public double q`, `public String name`), reachable in `GItem.info()` by class name. An item may carry several `QBuff`s (gilding is one) |
 | Item metadata / name | `ItemInfo`: `Name`, `find`, `buildinfo` |
 | Character attributes | `Glob.getcattr`, `CAttr{base,comp}`; `CharWnd` (exp/enc) |
