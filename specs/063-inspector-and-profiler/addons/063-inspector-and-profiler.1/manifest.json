@@ -1,0 +1,9 @@
+{
+  "name": "063.1 — a press lands where it was painted",
+  "id": "063-inspector-and-profiler.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 063.1: the four input keys report the coordinates Draw paints in, the chrome of a window you built stays the client's to drag, and ev:preventDefault() cancels on a window that has chrome.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

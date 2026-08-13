@@ -143,6 +143,11 @@ reaching the widget's own handling and any child under it — there is no separa
 handler's return value is ever read. **Two handlers fire independently**: either one calling
 `preventDefault` cancels, and both still run.
 
+On a window you [painted](custom.md), widget-local means the **content**: the corner `Draw` paints from, with
+the chrome left to the client — see [where a press lands](custom.md#where-a-press-lands). On one of the
+client's own windows it means that window's own box, caption included — a press in its title bar arrives
+with a small `ev:y()`, and cancelling that press is what stops the client dragging the window.
+
 A [control](controls/README.md) answers all of these as well — it is a Widget first — plus the capability
 keys of the thing it is, and a surface you [paint](custom.md) answers four more on top. A capability key
 belongs to **a control**, not to a control you built: `Pressed` answers on one of the client's own buttons,

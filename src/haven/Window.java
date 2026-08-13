@@ -488,7 +488,11 @@ public class Window extends Widget {
 	if(!ev.grabbed && (ev instanceof PointerEvent)) {
 	    if(deco != null) {
 		if(checkhit(((PointerEvent)ev).c)) {
-		    super.handle(ev);
+		    /* addon: a handler that CONSUMED the event ends the dispatch here (063.1). The answer used
+		     * to be discarded and the children walked regardless, which is the one place a pointer
+		     * listener on a decorated window could not cancel anything. */
+		    if(super.handle(ev))
+			return(true);
 		    ev.propagate(this);
 		    return(true);
 		}

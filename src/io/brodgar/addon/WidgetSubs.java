@@ -23,7 +23,9 @@ import java.util.Set;
  *
  * <p><b>Four keys need an engine listener</b> ({@code MouseDown}/{@code MouseUp}/{@code MouseMove}/{@code Wheel},
  * 041.3) — {@link Widget#listen}/{@link Widget#deafen}, one {@link EventHandler} per event class, installed on
- * first subscription and released when the last {@link Subs.Idle} on that key goes.
+ * first subscription and released when the last {@link Subs.Idle} on that key goes. They are installed on the
+ * {@linkplain #inwdg input target}, which is the widget the addon PAINTS rather than the one it holds
+ * (063.1).
  *
  * <p><b>Three keys ride the placement/removal seams</b> ({@code ItemAdded}/{@code ItemRemoved}/{@code Destroy},
  * 041.4, event-driven since 042.7) — a container's items are a {@link WItem} create/{@code cdestroy}, not a
@@ -69,6 +71,26 @@ final class WidgetSubs {
 
     private final Addon owner;
     private final Widget wdg;
+    /**
+     * <b>The widget the four input listeners are installed on</b> (063.1) — the addon's own content leaf where
+     * there is one ({@link LuaWidget#ownedContent}'s {@link Owned#widget()}), and {@link #wdg} itself
+     * everywhere else.
+     *
+     * <p>It exists because a window an addon builds is TWO widgets: the Lua entity is interned on the chrome
+     * ({@link UiApi#attach}), while the surface it paints is the {@link AddonWidget} content one level down,
+     * and the two are {@code Window.contarea().ul} apart. A listener on the chrome therefore reported a press
+     * in outer pixels while {@code Draw} paints in content-local ones, and every press on the caption, the
+     * frame and the close button arrived as an addon's to handle — so a drag of the title bar was a click on
+     * whatever the addon had drawn under it. Resolving to the content instead makes {@code Draw} and the four
+     * input keys speak ONE coordinate system, and leaves the chrome to the client, whose {@code DragDeco}
+     * moves the window.
+     *
+     * <p>Resolved ONCE, at construction, and final: {@code deafen} must reach the very widget {@code listen}
+     * did even if the tree moved underneath in between. Everything but the owned-window case resolves to
+     * {@code wdg} — a borrowed widget owns no content of this addon's, a control IS its own content, and a
+     * bare {@code hafen.ui():widget()}'s root is the content — so nothing else changes address.
+     */
+    private final Widget inwdg;
     final Subs subs;
     /** {@code key → the ONE engine listener installed for it}, or absent when nobody currently subscribes. */
     private final Map<String, EventHandler<Widget.Event>> installed =
@@ -84,6 +106,8 @@ final class WidgetSubs {
     WidgetSubs(Addon owner, Widget wdg) {
         this.owner = owner;
         this.wdg = wdg;
+        Owned content = LuaWidget.ownedContent(owner, wdg);
+        this.inwdg = (content != null) ? content.widget() : wdg;
         this.subs = new Subs(owner, new Subs.Cats() {
             public int cat(String key) {   // 041.4: Draw/Cell paint, everything else here is widgets (plan.md)
                 return (key.equals("Draw") || key.equals("Cell")) ? Addon.C_DRAW : Addon.C_WIDGET;
@@ -132,7 +156,7 @@ final class WidgetSubs {
                 return fireInput(key, ev);
             }
         };
-        wdg.listen((Class<Widget.Event>)(Class<?>)cls, h);
+        inwdg.listen((Class<Widget.Event>)(Class<?>)cls, h);   // the content leaf, not the chrome (063.1)
         installed.put(key, h);
     }
 
@@ -179,7 +203,7 @@ final class WidgetSubs {
 
     private void deafenQuietly(EventHandler<?> h) {
         try {
-            wdg.deafen(h);
+            inwdg.deafen(h);   // the widget listen() reached, resolved once (063.1)
         } catch(RuntimeException e) {
             /* the widget is already gone: harmless — its own listener list went with it */
         }

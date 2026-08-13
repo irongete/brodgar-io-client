@@ -80,6 +80,40 @@ it is a surface with content to paint and a lifetime to report:
 a subscription, not the widget, so it cannot sit mid-chain or be a chain's last call. Two handlers on
 `Draw` both paint, in registration order; two on any of these both fire.
 
+### Where a press lands
+
+A window is your content inside the client's own frame, and everything you subscribe to speaks the
+**content**. `Draw` paints from its top-left corner, and `MouseDown`, `MouseUp`, `MouseMove` and `Wheel`
+call that same corner `0, 0` — so `ev:x(), ev:y()` on a press is the pixel `g:text(s, x, y)` writes at, and
+a hit test written against what you drew is right by construction:
+
+```lua
+win:on("Draw", function(ev) ev:g():frect(40, 40, 48, 48) end)
+win:on("MouseDown", function(ev)
+  if (ev:x() >= 40) and (ev:x() < 88) and (ev:y() >= 40) and (ev:y() < 88) then
+    hafen.log():write("in the square")
+  end
+  ev:preventDefault()                         -- yours now: see below
+end)
+```
+
+**A press you do not cancel falls through to the frame underneath**, which is what drags the window — so a
+surface that answers clicks at all ends its handler with `ev:preventDefault()`. Cancel it and the press is
+yours and stops there.
+
+**The caption, the frame and the close button are the client's**, not yours: a press on any of them reaches
+no handler of yours at all, and dragging the title moves the window. There is nothing to filter and nothing
+to subtract. What the close button does reach is `Close`, and `:size()` is the content box, so the frame
+never enters your arithmetic either.
+
+`MouseMove` is the one key that also fires for a pointer **outside** the box — the client hands a move to
+every widget, which is how a control un-hovers when the pointer leaves it — so its `ev:x(), ev:y()` can be
+negative or past `:size()`. Test the coordinate where that matters.
+
+A bare `:widget()` has no chrome, and a [control](controls/README.md) has none either, so the rule reads the
+same on all three. One of **the client's** widgets speaks its own coordinates, which for one of its windows
+means the outer box, caption included.
+
 ### A surface never paints half-configured
 
 A bare `:window()` is in the tree the instant it is built — `hafen.ui():at(x, y)`, a selector and an

@@ -12,6 +12,9 @@
 | **A grab is checked BEFORE the tree** | `UI.dispatch` walks `grabs` (newest first — `grab` does `add(0, g)`) and returns on the first that handles, so a grabbed pointer **never reaches the root traversal** |
 |...and it reaches its owner by `rootpos` | `PointerGrab` translates by `ev.c.add(ev.target.rootpos()).sub(wdg.rootpos())` ⇒ **`rootpos()` is the address the client uses to talk to a grabbed widget**; overriding `parentpos` on an ancestor redirects it (`xlate` would too, but that one also positions children in the draw loop) |
 | The two grab helpers | `grabmouse` (filters to `MouseDownEvent`/`MouseUpEvent`/`MouseWheelEvent`/`CursorQuery` — **not** `TooltipQuery`/`MouseHoverEvent`) · `grabkeys` |
+| **The listener hook runs BEFORE the widget's own method** | `Widget.handle` walks `listening` (`listen`/`deafen`, a `CopyOnWriteArrayList` of `EventHandler.Listener`) and **returns on the first that answers `true`**, reaching `Event.shandle` — which is what calls `mousedown`/`mouseup`/`mousemove`/`mousewheel` — only when none did |
+| ...and a listener that answers `true` ends the dispatch | `Event.dispatch` is `w.handle(this)` then `propagate(w)`: a `true` from `handle` returns straight away, so the widget's own method never runs **and its children are never walked**. That is the whole cancel mechanism; there is no second flag |
+| One `propagation` per event, and only one | `Event.propagate` clears the `propagate` flag and caches `phandled`, so a **second** `propagate(w)` on the same event re-walks nothing and simply repeats the first answer. `fpropagate` is the one that re-arms it |
 
 ## Propagation — three different walks, and they are not interchangeable
 
@@ -21,6 +24,19 @@
 | **MouseMove** | `MouseMoveEvent.propagation` — **broadcasts to every visible child with NO rect test**, handing each an out-of-box coordinate. That is how a control un-arms/un-hovers when the pointer leaves it (`IButton.mousemove` recomputes `checkhit` and `redraw()`s) |
 | **MouseHover** | `MouseHoverEvent.propagation` — dispatches to **every** child (invisible included) carrying a per-child `hovering` flag; the first that handles it while `hovering` claims it. ⚠️ its `derive` ctor leaves `hovering` **false**, so anything dispatching a derived hover by hand must set it |
 | **Focused key** | see below |
+
+**`Window.handle` is the one widget that rewrites the pointer path.** With a `deco`, an ungrabbed
+`PointerEvent` passing `checkhit` is answered `true` **whatever happens below** — a window swallows every
+press over its own box — and `super.handle(ev)` is what decides whether the children are walked at all:
+`Window.mousedown` does the `ev.propagate(this)`, and takes `parent.setfocus(this)` + `raise()` only when a
+child answered. With `deco == null` the answer is the propagation's own. So a **listener** on a decorated
+`Window` is the one place a walk to its children can be stopped, and it is also why an unhandled press over
+a window never reaches what is behind it.
+
+A `Deco` is `z(-100)` and the content sits above it, so the topmost-first `lchild→prev` walk offers the
+press to the **content first**: a press inside a `Window`'s content area never reaches the caption drag
+(`DragDeco.mousedown` → `Window.drag` → `ui.grabmouse`), and a press on the caption never reaches the
+content.
 
 ## Focus — bookkeeping, and the delivery chain that is NOT the same thing
 

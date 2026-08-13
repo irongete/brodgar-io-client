@@ -82,8 +82,8 @@ and `sel` (`public I`) plus `change(I)`
 
 > **A programmatic write must not call `change(I)`.** It is the single hook BOTH a real click
 > (`ItemWidget.mousedown`) and the click-away deselect reach, with no lower-level "just set `sel`, don't
-> notify" seam — so a control's `:value(v)` writes the `sel` field directly and only a
-> real click's `ItemWidget.mousedown` → `change(item)` path fires the Lua `:onChange` handler.
+> notify" seam — so anything selecting a row without announcing it writes the `sel` field directly, and
+> `change(item)` stays what a REAL click means.
 
 ## `SDropBox`/`SListMenu` — neither is an `SListWidget` itself, and neither wants an `ItemWidget` back
 
