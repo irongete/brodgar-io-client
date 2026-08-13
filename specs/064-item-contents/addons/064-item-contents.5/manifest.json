@@ -1,0 +1,9 @@
+{
+  "name": "064.5 - durability is the two counts, not the arc",
+  "id": "064-item-contents.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 064.5: item:durability() reads the wear row's two counts, independently of item:progress().",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

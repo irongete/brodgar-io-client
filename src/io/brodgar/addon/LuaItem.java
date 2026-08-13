@@ -78,7 +78,9 @@ import java.util.Set;
  * <p><b>Quality is read off the item's own published tooltip code, by class name.</b> The engine has no
  * quality type: the number lives in a field of a class that ships inside a resource. Reading it by name
  * (rather than pinning a local copy of that class) cannot go wrong when the resource is revised — it can
- * only stop answering, which is what {@code nil} already means everywhere else here.
+ * only stop answering, which is what {@code nil} already means everywhere else here. {@code :durability()}
+ * is read the same way and for the same reason: the two counts a worn item's tooltip prints live in fields
+ * of another such class, and nothing in the engine reaches them either.
  */
 public final class LuaItem {
     /** The item widget this handle addresses — the whole state of a handle. */
@@ -213,6 +215,14 @@ public final class LuaItem {
             public LuaValue call(LuaValue self) {
                 Double p = progress(handle(self, "progress").wdg);
                 return (p == null) ? LuaValue.NIL : LuaValue.valueOf(p.doubleValue());
+            }
+        });
+        // durability() — THE TWO COUNTS the item's tooltip prints (064.5), {cur, max}, or nil for an item that
+        // prints none. NOT the arc above: :progress() is a fraction with no units, this is two absolute numbers,
+        // and neither converts into the other — an item may answer both, and each is read on its own.
+        m.set("durability", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return durability(handle(self, "durability").wdg);
             }
         });
         // quality() — the number the tooltip shows, or nil while the item's info resolves (and for the
@@ -524,6 +534,10 @@ public final class LuaItem {
     private static final String QUALITY = "haven.res.ui.tt.q.quality.Quality";
     /** Each info class seen → its {@code q} field, or {@code null} for "this one is not a quality". */
     private static final Map<Class<?>, Field> qfields = new HashMap<Class<?>, Field>();
+    /** The class the wear row ships as, inside its own resource ({@code ui/tt/wear}). */
+    private static final String WEAR = "haven.res.ui.tt.wear.Wear";
+    /** Each info class seen → its two count fields, or {@code null} for "this one is not a wear row". */
+    private static final Map<Class<?>, Field[]> wfields = new HashMap<Class<?>, Field[]>();
 
     /**
      * The item's own tooltip info, or {@code null} while it is still resolving: {@link GItem#info()} throws a
@@ -649,6 +663,42 @@ public final class LuaItem {
         }
     }
 
+    /**
+     * {@code item:durability()} — the two counts the item's wear row prints, {@code {cur, max}}, or {@code nil}
+     * for an item that prints none (and while its info is still resolving).
+     *
+     * <p><b>Read by class name</b>, the technique {@link #quality} already uses: the row is rendered by code
+     * that ships inside a resource ({@code ui/tt/wear}), so there is no type here to compare against, and
+     * naming the class instead of pinning a local copy of it means a revised resource makes this answer
+     * {@code nil} rather than something wrong. The per-class field lookup is cached exactly as
+     * {@link #qfield} caches its own, so the reflection is paid once per info class ever seen.
+     *
+     * <p><b>The counts are handed over as the tooltip prints them</b>, {@code cur} first: the resource renders
+     * them as one row and colours it once {@code cur} reaches {@code max}, and what they measure beyond that
+     * is the server's. Nothing is derived, converted or clamped here — {@code :progress()} is the other number
+     * an item may wear, it is a fraction with no units, and an item may answer both without either being a
+     * view of the other.
+     */
+    static LuaValue durability(GItem it) {
+        List<ItemInfo> info = info(it);
+        if(info == null)
+            return LuaValue.NIL;
+        for(ItemInfo inf : info) {
+            Field[] f = wfield(inf.getClass());
+            if(f == null)
+                continue;
+            try {
+                LuaTable t = new LuaTable();
+                t.set("cur", LuaValue.valueOf(f[0].getInt(inf)));
+                t.set("max", LuaValue.valueOf(f[1].getInt(inf)));
+                return t;
+            } catch(Exception e) {
+                return LuaValue.NIL;
+            }
+        }
+        return LuaValue.NIL;
+    }
+
     /** The {@code q} field {@code c} inherits from the quality-tooltip class, or {@code null}. */
     private static synchronized Field qfield(Class<?> c) {
         if(qfields.containsKey(c))
@@ -666,6 +716,28 @@ public final class LuaItem {
             }
         }
         qfields.put(c, f);
+        return f;
+    }
+
+    /** The two count fields {@code c} inherits from the wear-tooltip class, {@code cur} first, or {@code null}. */
+    private static synchronized Field[] wfield(Class<?> c) {
+        if(wfields.containsKey(c))
+            return wfields.get(c);
+        Field[] f = null;
+        for(Class<?> k = c; k != null; k = k.getSuperclass()) {
+            if(k.getName().equals(WEAR)) {
+                try {
+                    Field cur = k.getDeclaredField("d"), max = k.getDeclaredField("m");
+                    cur.setAccessible(true);
+                    max.setAccessible(true);
+                    f = new Field[] {cur, max};
+                } catch(Exception e) {
+                    f = null;
+                }
+                break;
+            }
+        }
+        wfields.put(c, f);
         return f;
     }
 
@@ -688,6 +760,9 @@ public final class LuaItem {
         Double p = progress(it);
         if(p != null)
             t.set("progress", LuaValue.valueOf(p.doubleValue()));
+        LuaValue d = durability(it);
+        if(!d.isnil())
+            t.set("durability", d);
         Double q = quality(it);
         if(q != null)
             t.set("quality", LuaValue.valueOf(q.doubleValue()));

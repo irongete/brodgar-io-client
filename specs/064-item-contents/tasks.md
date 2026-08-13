@@ -63,7 +63,7 @@
       `[manual]`: read back the printed table of item, quantity and progress and confirm each
       number is the one on that item's icon, and that nothing showing a number reads `nil`.
 
-- [ ] **064.5 — durability is the two counts, not the arc.** Adds `item:durability()`, answering
+- [x] **064.5 — durability is the two counts, not the arc.** Adds `item:durability()`, answering
       `{cur, max}` read from the wear tooltip's published class by name — the technique
       `LuaItem.quality` uses for `QBuff` — with the per-class field lookup cached the same way, and
       `nil` for an item that prints none or whose info is still resolving.

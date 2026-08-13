@@ -38,6 +38,7 @@ local cursor = h and h:item()                  -- the item on it
 | `:name()` | string \| nil | display name, once the item's tooltip has resolved |
 | `:quantity()` | number \| nil | [how many](#the-two-numbers-on-an-icon) this one item is — the number on its icon; `nil` for one showing none |
 | `:progress()` | number \| nil | [the arc](#the-two-numbers-on-an-icon) painted over the icon, `0..1`; `nil` for one painting none |
+| `:durability()` | table \| nil | [the two counts](#durability-the-counts-a-wear-row-prints) its wear row prints, `{cur, max}`; `nil` for one printing none |
 | `:quality()` | number \| nil | the quality the tooltip shows; `nil` for an item that has none |
 | `:contents()` | [`Contents`](#what-an-item-holds) \| nil | what it holds; `nil` for an item holding nothing |
 | `:container()` | [`Item`](#the-item-object) \| nil | the item it sits **inside**; `nil` for one sitting in a container widget |
@@ -81,6 +82,31 @@ is the server's business, and an item may paint one for a craft in flight as rea
 
 > `item:progress()` **reads a number**. The [progress bar](controls/display.md#progress-bar) that
 > `hafen.ui():progress()` builds is a control you put on the screen; the two share a name and nothing else.
+
+## Durability: the counts a wear row prints
+
+`item:durability()` answers `{cur, max}` for an item whose tooltip prints a wear row, and `nil` for one
+that prints none — a piece of gear that never wears, and any item whose tooltip has not resolved yet. The
+pair is handed over exactly as the row states it, `cur` first, and the row is drawn in red once `cur`
+reaches `max`.
+
+```lua
+for _, it in ipairs(hafen.ui():equipment():items()) do
+  local d = it:durability()
+  if d then
+    hafen.log():write((it:name() or "?") .. ": worn " .. d.cur .. " of " .. d.max)
+  end
+end
+```
+
+**Durability is not the arc, and neither read is a view of the other.** `:progress()` is a fraction with no
+units — the client paints a wedge and can say how far round it went, never how many of how many — while
+these are two absolute counts, and only absolute counts let you work out what is left. An item may answer
+both, one, or neither, so ask for the one you want and guard it on its own.
+
+**What a count measures is the server's business.** The client renders the pair and colours it; it is never
+told what one point of wear costs or what happens when the two meet. Compare the numbers against
+themselves, on the same item, rather than across two kinds of gear.
 
 ## What an item holds
 

@@ -50,6 +50,7 @@ is optional.
 | `name` | string | display name |
 | `quantity` | number | how many this one item is — the [number on its icon](ui/items.md#the-two-numbers-on-an-icon) (absent for one showing none) |
 | `progress` | number | `0..1`, the [arc](ui/items.md#the-two-numbers-on-an-icon) painted over the icon (absent for one painting none) |
+| `durability` | table | the [two counts](ui/items.md#durability-the-counts-a-wear-row-prints) its wear row prints, `{cur, max}` (absent for one printing none) |
 | `quality` | number | the quality the tooltip shows (absent for an item that has none) |
 | `contents` | table | what it holds, as the [Contents](#contents) snapshot (absent for an item holding nothing) |
 | `handle` | number | its server widget id, the number it is addressed by on the wire (absent once the item is gone) |
