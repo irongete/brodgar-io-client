@@ -13,7 +13,7 @@ settings.count = (settings.count or 0) + 1
 
 ## Declare a variable
 
-Every saved variable is named in `manifest.json`, and nothing else is persisted:
+Every saved variable is named in `manifest.json`, and nothing else here is persisted:
 
 ```json
 "saved_variables": ["settings", { "name": "account", "scope": "account" }]
@@ -64,6 +64,18 @@ immediately — worth calling after a change the user would be upset to lose, an
 
 A file the engine cannot read or parse leaves your tables as they are, and the failure is logged rather
 than raised: your addon starts with empty settings instead of not starting.
+
+## The one thing saved without being declared
+
+[`w:remember(name)`](ui/native.md#remembering-where-the-user-put-it-unprotected) keeps where a widget sits
+and how big it is, and it needs no declaration and no code of yours. That is deliberate: a placement is
+saved by the *user* moving something, not by your addon deciding to write it down, so making them declare
+a variable to allow it would be asking permission for a gesture they made themselves.
+
+It lands in a file of its own beside the one above, `savedata/<genus>_<char>/<addon>.layout.json`, and is
+therefore **per character**, with the same timing: it is loaded before `EnterWorld` and there is nothing to
+put back before then. Every write here writes it too, `flush()` included, so an addon that only remembers
+places still saves on the timer and at teardown though it declares nothing at all.
 
 ## See also
 

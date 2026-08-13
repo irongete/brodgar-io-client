@@ -159,6 +159,10 @@ public final class AddonRegistry {
                                       //   gesture running right now, and deafening the last listener on each handle.
                                       //   BEFORE teardownMoved below: what a gesture WROTE is a layout level,
                                       //   and it is that sweep which gives the place back
+        LuaWidget.rememberTeardown(a);   // 062: ...and every widget:remember(name) BINDING. What each name holds
+                                         //   is left on disk untouched — the flush above wrote it — because a
+                                         //   reload is not the user changing their mind about where a window
+                                         //   goes. widget:remember(nil) is the only thing that forgets.
         HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
         a.teardownWaitings();         // 042.1: cancel every pending Resolve registration (a value still loading) —
                                       //   same shape as the HTTP requests above, for the same reason
@@ -258,6 +262,8 @@ public final class AddonRegistry {
                                                              //   added — :reload is its only way back out
         Gesture.teardown(AddonManager.consoleOwner);         // 062: ...nor a widget a REPL line armed for the user
                                                              //   to drag or resize — :reload is its only way back
+        LuaWidget.rememberTeardown(AddonManager.consoleOwner);   // 062: ...nor one it asked to be remembered (the
+                                                             //   binding; what the name holds is the character's)
         LuaGrab.teardownGrabs(AddonManager.consoleOwner);    // 041.5: ...nor a mouse grab a REPL line started and never
                                                              //   released — without this the pointer stays captured
                                                              //   (no camera pan, no clicks) until :release() is called

@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -218,6 +219,27 @@ public final class Addon {
      * {@code Dragged} or {@code Resized} handler may arm or drop one.
      */
     public final List<Gesture.Bind> gestures = new CopyOnWriteArrayList<Gesture.Bind>();
+    /**
+     * Widgets this addon has asked to <b>survive the session</b> ({@code widget:remember(name)}, 062), by the
+     * name each is remembered under — one name, one widget, which is what makes the name answerable when a
+     * second widget asks for it. This is the <b>binding</b> alone: what is actually saved sits in
+     * {@link #placements} and on disk, and the two are deliberately dropped by different things.
+     *
+     * <p><b>Dropping is not forgetting.</b> {@code widget:revert()}, {@code :reload} and disable clear the
+     * binding and leave the record standing, which is the one place this layer's <i>put everything back</i>
+     * instinct is wrong: what the user dragged a window to is theirs, and an addon reloading is not them
+     * changing their mind. Only {@code widget:remember(nil)} deletes it.
+     */
+    public final Map<String, Widget> remembered = new ConcurrentHashMap<String, Widget>();
+    /**
+     * What is saved under each of those names for the character in world right now (062) — a place, a box, or
+     * both, in design pixels. Loaded from {@code savedata/<genus>_<char>/<id>.layout.json} by
+     * {@link StoreApi#restorePerChar} before {@code EnterWorld} fires, and written back by every flush, so a
+     * remembered placement needs no {@code saved_variables} declaration and no handler of the addon's own.
+     */
+    public final Map<String, StoreApi.Placement> placements = new ConcurrentHashMap<String, StoreApi.Placement>();
+    /** The last placement JSON written for this addon, so an unchanged file is not rewritten. */
+    public String lastPlacementJson;
     /**
      * Live addon slash commands owned by this addon ({@code hafen.slash():register}, gap subsystem A11): each routes
      * a console command {@code :name} to a Lua handler. Unlike the hook lists, the engine's {@link haven.Console}

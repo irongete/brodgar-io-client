@@ -69,7 +69,7 @@ the tasks that own each half, named in each below.
       afterwards still yields the stock outer box.
       <!-- extra context: src/haven/GameUI.java `addchild` (the anonymous Hidewnd and its cresize) -->
 
-- [ ] **062.3 — `widget:remember(name)` makes a place survive the session.**
+- [x] **062.3 — `widget:remember(name)` makes a place survive the session.**
       Adds the third verb and its per-character slot: `savedata/<genus>_<char>/<id>.layout.json`, beside the
       addon's own store file, outside `saved_variables` and needing no manifest declaration. Loaded in
       `StoreApi.restorePerChar` into a per-addon map; the call applies whatever the name holds **at that

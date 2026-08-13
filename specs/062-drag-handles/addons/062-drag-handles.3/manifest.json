@@ -1,0 +1,9 @@
+{
+  "name": "062.3 — widget:remember(name) makes a place survive the session",
+  "id": "062-drag-handles.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 062.3: widget:remember(name) in three arities, the replay it performs on the call, the collision refusal, and forgetting being different from dropping.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

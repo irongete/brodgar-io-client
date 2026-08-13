@@ -550,6 +550,56 @@ public final class LuaWidget {
                 return self;
             }
         });
+        // remember() / remember(name) / remember(nil) — 062: MAKE THIS WIDGET'S PLACE SURVIVE THE SESSION, under
+        // a name of yours. The third verb of the same family and the same three arities: the bare call reads the
+        // name your addon remembers this widget under (nil when it remembers it under none), a string remembers
+        // it, and nil stops.
+        //
+        // IT APPLIES WHAT THE NAME HOLDS AT THE INSTANT IT IS CALLED, which is the whole verb: there is no
+        // second call to pair it with and no moment to schedule, because the only correct moment to put a place
+        // back is the moment you say the place is remembered. What it applies is your :position and :size
+        // LEVELS, written exactly as the two verbs write them — so everything true of those is true here, the
+        // clamp and the two nil undos included, and a widget:position(x, y) AFTER it wins by being the later
+        // level.
+        //
+        // WHAT IS SAVED IS WHERE YOUR LEVELS STAND, whenever the layer writes to disk — after a gesture, on the
+        // save timer, and at teardown. So the user dragging it is remembered with no handler of yours, and so is
+        // a place you wrote yourself. It is PER CHARACTER, like a per-character saved variable and for the same
+        // reason, so before EnterWorld there is nothing to put back and the call says so rather than applying an
+        // empty record. No manifest declaration: the slot is the layer's own file beside the addon's store.
+        //
+        // ONE NAME, ONE WIDGET, which is what makes the name answerable: a second widget under a name this addon
+        // already holds RAISES, naming the one holding it. Renaming a widget you already remember is a change of
+        // mind and is accepted, and the record the old name held stands — DROPPING IS NOT FORGETTING. That is
+        // the rule the whole verb turns on: widget:revert(), :reload and disable drop the binding and keep the
+        // record, and widget:remember(nil) is the only thing that deletes it.
+        m.set("remember", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {        // :remember() → narg 1 · (nil)/(name) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "remember"));
+                if(!Args.passed(a, 2)) {
+                    String nm = (w == null) ? null : rememberedName(owner, w);
+                    return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
+                }
+                LuaValue v = a.arg(2);
+                if(v.isnil()) {                       // w:remember(nil) — the name goes, and so does the record
+                    if(w != null)                     // a stale widget: the 029.2 chaining no-op
+                        rememberForget(owner, w);
+                    return self;
+                }
+                // TSTRING rather than isstring(): a NUMBER answers isstring() in Lua, so the laxer test would
+                // let a name that is a number through and remember a window under "42" — a key nothing in the
+                // addon would ever spell that way again.
+                if(v.type() != LuaValue.TSTRING)
+                    throw new LuaError("widget:remember(name) expects a string — the name YOUR addon saves this"
+                        + " widget's place and box under. widget:remember() reads it, and widget:remember(nil)"
+                        + " drops the name and deletes what it held");
+                if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                rememberAs(owner, w, v.tojstring());
+                return self;
+            }
+        });
         // visible() / visible(b) — A BOOLEAN PROPERTY IS A PROPERTY (spec 039 §2.2, R6): the read says whether it is
         // currently drawn (false once stale) and the write says what it should be. :show() and :hide() are a HARD
         // CUT — two spellings for one write is the dual style the grammar removes, and they were the last pair in
@@ -1790,6 +1840,146 @@ public final class LuaWidget {
             rec.sizeSeq = Layout.nextSeq();
             Layout.apply(w);                           // the fold, so a rule and a second addon still compete
         }
+    }
+
+    // ---- widget:remember(name): the placement that survives the session (062) ----------------------
+
+    /** The name THIS addon remembers {@code w} under, or {@code null} — the read arity of the verb. */
+    private static String rememberedName(Addon owner, Widget w) {
+        for(Map.Entry<String, Widget> e : owner.remembered.entrySet()) {
+            if(e.getValue() == w)
+                return e.getKey();
+        }
+        return null;
+    }
+
+    /**
+     * {@code widget:remember(name)} — bind the name, then put back whatever it holds. One name holds one
+     * widget: a <b>second</b> widget asking for a name this addon already holds raises, because the alternative
+     * is two windows sharing one saved place and each overwriting the other every time the user moves either.
+     * A name whose widget has left the tree is free again — the binding was on that widget, and it is gone.
+     *
+     * <p>Renaming a widget this addon already remembers moves the binding and <b>leaves the old record</b>:
+     * only {@code widget:remember(nil)} deletes one.
+     */
+    private static void rememberAs(Addon owner, Widget w, String name) {
+        Widget held = owner.remembered.get(name);
+        if((held != null) && (held != w) && inTree(held))
+            throw new LuaError("widget:remember(\"" + name + "\"): this addon already remembers a "
+                + typeName(held) + " under that name — one name, one widget. Pick another name, or drop that"
+                + " one with widget:remember(nil) first.");
+        String prev = rememberedName(owner, w);
+        if((prev != null) && !prev.equals(name))
+            owner.remembered.remove(prev);            // a change of NAME: the record it held is left standing
+        owner.remembered.put(name, w);
+        rememberApply(owner, w, name);
+    }
+
+    /**
+     * Put back what one name holds, <b>through the verbs' own write</b>: this addon's hand-named position and
+     * size levels, each with a fresh {@code seq}, and one {@link Layout#apply} over the fold they compete in.
+     * So the off-screen clamp, a window that packs itself around its contents, the two {@code nil} undos and
+     * {@code widget:revert()} all answer here exactly as they answer for {@code widget:position(x, y)} — and a
+     * write made <i>after</i> this one wins, being the later level.
+     *
+     * <p>A half the record does not hold is not written at all, so remembering a widget the user only ever
+     * dragged does not pin a box they never chose.
+     */
+    private static void rememberApply(Addon owner, Widget w, String name) {
+        if(!StoreApi.placementScope()) {
+            // Criterion 9: it has nothing to apply, and saying so beats applying an empty record — the addon
+            // called it too early, and the answer is a moment rather than a different verb.
+            AddonManager.log(owner, "widget:remember(\"" + name + "\"): a saved place is per CHARACTER and no"
+                + " character is in world yet, so there is nothing to put back. Call it from EnterWorld"
+                + " onwards; what happens to the widget from here is saved under that name all the same.");
+            return;
+        }
+        StoreApi.Placement p = StoreApi.placement(owner, name);
+        if(p == null)
+            return;                                   // nothing saved under it yet: the name is where it will go
+        UI u = AddonManager.ui;
+        if(u == null)
+            return;
+        synchronized(u) {
+            Moved rec = recordMoved(owner, w);
+            if(p.pos != null) {
+                rec.wantPos = Layout.Anchor.at(p.pos);
+                rec.posSeq = Layout.nextSeq();
+            }
+            if(p.size != null) {
+                rec.wantSize = p.size;
+                rec.sizeSeq = Layout.nextSeq();
+            }
+            Layout.apply(w);
+        }
+    }
+
+    /** {@code widget:remember(nil)} — drop the name AND delete the record, which is the whole difference. */
+    private static void rememberForget(Addon owner, Widget w) {
+        String nm = rememberedName(owner, w);
+        if(nm == null)
+            return;
+        owner.remembered.remove(nm);
+        StoreApi.forget(owner, nm);
+    }
+
+    /**
+     * {@code widget:revert()} reached {@code w}: this addon stops remembering it, and <b>what is saved stays
+     * saved</b>. The teardown instinct is wrong here and this is the one place it has to be said: a revert
+     * gives back what the addon took, and where the user dragged a window is not something it took.
+     */
+    static void rememberDrop(Addon owner, Widget w) {
+        String nm = rememberedName(owner, w);
+        if(nm != null)
+            owner.remembered.remove(nm);
+    }
+
+    /** Teardown ({@code :reload}/disable): the same, for every name at once — and the records stay on disk. */
+    static void rememberTeardown(Addon a) {
+        if(a != null)
+            a.remembered.clear();
+    }
+
+    /**
+     * A gesture just ended on {@code w}: save the half it drove, if this addon remembers the widget. The value
+     * is read off the widget rather than off the level, so what is saved is where it <b>landed</b> — the clamp,
+     * and a window that re-packed itself, both having had their word.
+     */
+    static void rememberLanded(Addon owner, Widget w, boolean pos) {
+        String nm = rememberedName(owner, w);
+        if(nm != null)
+            StoreApi.land(owner, nm, pos ? Px.out(w.c) : null, pos ? null : Px.out(sizeArg(w)));
+    }
+
+    /**
+     * Every remembered widget of one addon, as it stands right now — run by {@link StoreApi#flush} before it
+     * writes, which is what makes the save timer, {@code hafen.store():flush()} and teardown all record the
+     * same thing. A half this addon holds no level on is left as it was: an addon that never sized a window has
+     * nothing to say about its box, and nothing to erase either.
+     *
+     * <p><b>It does not ask whether the widget is still in the tree</b>, and that is the case it exists for: a
+     * relog tears every addon down with the <i>new</i> {@code UI} already installed, so the last session's
+     * windows answer "not in this tree" while still carrying the coordinate the user dropped them at. Reading
+     * a stale widget's last geometry is exactly right here — where it was when it went is where it was.
+     */
+    static void rememberCapture(Addon a) {
+        if((a == null) || a.remembered.isEmpty())
+            return;
+        for(Map.Entry<String, Widget> e : a.remembered.entrySet()) {
+            Widget w = e.getValue();
+            Moved rec = findMoved(a, w);
+            if(rec == null)
+                continue;                             // nothing of ours is standing on it: nothing to record
+            Coord pos = ((rec.wantPos == null) || (w.c == null)) ? null : Px.out(w.c);
+            Coord size = ((rec.wantSize == null) || (w.sz == null)) ? null : Px.out(sizeArg(w));
+            StoreApi.land(a, e.getKey(), pos, size);
+        }
+    }
+
+    /** Is this widget still hanging under the live root? (A raw {@link Widget}, so not the {@link #live} test.) */
+    private static boolean inTree(Widget w) {
+        UI u = AddonManager.ui;
+        return (u != null) && (u.root != null) && (w.parent != null) && w.hasparent(u.root);
     }
 
     /**

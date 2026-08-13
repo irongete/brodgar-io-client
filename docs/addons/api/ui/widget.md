@@ -63,6 +63,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
 | `:draggable()` | Widget \| nil | the handle **your** addon armed for the user to drag it by, or `nil` — [`:draggable(h)` arms it](native.md#letting-the-user-drag-it-unprotected) |
 | `:resizable()` | Widget \| nil | the handle **your** addon armed for the user to resize it by, or `nil` — [`:resizable(h)` arms it](native.md#letting-the-user-resize-it-unprotected) |
+| `:remember()` | string \| nil | the name **your** addon keeps its place and box under, or `nil` — [`:remember(name)` keeps them](native.md#remembering-where-the-user-put-it-unprotected) |
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, CheckBox, Window, TextEntry), else `nil` — `:text(s)` writes it, on [a control you built](controls/README.md#setters) or [one of the client's](edit.md#what-a-window-says) |
 | `:tooltip()` | string \| nil | the line that appears when the pointer rests on it, or `nil` — [`:tooltip(s)` writes it on a control you built](#tooltips-and-focus) |
 | `:focused()` | boolean | whether a keystroke would reach this widget — see [focus](#tooltips-and-focus) |
@@ -192,6 +193,7 @@ provoke the error.
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:draggable(h)` | hand the move to the user, by a handle they press | **works** — [and what a drag writes is your position level](native.md#letting-the-user-drag-it-unprotected) |
 | `:resizable(h)` | hand the box to the user, by a handle they press | **works** — [and what a resize writes is your size level](native.md#letting-the-user-resize-it-unprotected) |
+| `:remember(name)` | keep its place and box under a name of yours | **works**, same — [and it puts them back on the call](native.md#remembering-where-the-user-put-it-unprotected) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |
 
@@ -201,10 +203,12 @@ One of these writes is protected, and it is the one that is not client-side stat
 here changes only your own client, and every one of them restores.
 
 **Arity is the verb.** `w:position()` reads, `w:position(x, y)` writes and `w:position(nil)` drops your
-write; `w:size()`, `w:visible()`, `w:draggable()` and `w:resizable()` are the same shape — with `w:size(w)`
-as the arity a [control](controls/README.md#sizing)'s own art earns it — and so is every setter on
-`w:rule()`. That is why there is no `:move()`, no `:show()` and no `:hide()`: a value belongs in the
-argument, not the verb's name.
+write; `w:size()`, `w:visible()`, `w:draggable()`, `w:resizable()` and `w:remember()` are the same shape —
+with `w:size(w)` as the arity a [control](controls/README.md#sizing)'s own art earns it — and so is every
+setter on `w:rule()`. That is why there is no `:move()`, no `:show()` and no `:hide()`: a value belongs in
+the argument, not the verb's name. It is also why nothing stands beside
+[`w:remember(name)`](native.md#remembering-where-the-user-put-it-unprotected) to *apply* what it kept —
+the only moment that would be correct is the moment you name it, which is a step rather than a verb.
 
 **Replacement is the one place where the read has a name of its own.** `w:replace(view)` is an *act* and
 the thing standing in is a *replacement*, so the two do not share a spelling: `w:replacement()` reads,

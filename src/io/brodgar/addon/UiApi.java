@@ -803,6 +803,8 @@ final class UiApi {
             consoleOwner.hiddenNative.clear();   // 029.2: last session's widgets are gone; nothing left to restore
             consoleOwner.movedNative.clear();    // 036.1: ...nor is there anything left to put back where it was
             consoleOwner.gestures.clear();       // 062: ...nor is anything of the old tree left armed for the user
+            consoleOwner.remembered.clear();     // 062: ...nor remembered (the RECORDS are per character, and
+                                                 //   StoreApi.resetSession drops those with the session)
             consoleOwner.widgetSubs.clear();     // 041.3/041.4: ...and so is every widget:on() subscription
             consoleOwner.selectorWatches.clear();// 030.2: ...and the selectors it was watching for
         }
@@ -1733,6 +1735,10 @@ final class UiApi {
                 }
                 revertLevels(owner, x);
                 Gesture.release(owner, x);    // 062: ...and it stops being the user's to drag or resize
+                LuaWidget.rememberDrop(owner, x);   // 062: ...and this addon stops remembering where it was —
+                                                    //   the BINDING, never the record: a revert gives back what
+                                                    //   the addon took, and where the user put a window is not
+                                                    //   something it took. widget:remember(nil) deletes one.
                 LuaWidget.Hidden h = LuaWidget.findHidden(owner, x);
                 if((h != null) && (h.view == null))
                     releaseHidden(h);         // the same rule teardown applies: as the user was SEEING it

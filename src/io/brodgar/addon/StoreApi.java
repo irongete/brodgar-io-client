@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Coord;
 import haven.GameUI;
 import haven.UI;
 
@@ -16,6 +17,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -130,6 +133,16 @@ final class StoreApi {
     static void resetSession() {
         charScope = null;
         lastAutoSave = 0;
+        for(Addon a : addons)
+            forgetPlacements(a);                 // 062: a remembered place is per CHARACTER, and this session
+        forgetPlacements(consoleOwner);          //   has none yet — the next restorePerChar refills from disk
+    }
+
+    private static void forgetPlacements(Addon a) {
+        if(a == null)
+            return;
+        a.placements.clear();
+        a.lastPlacementJson = null;
     }
 
     /** Throttled auto-save of every addon`s saved vars (from the tick). flush() skips unchanged files. */
@@ -162,8 +175,10 @@ final class StoreApi {
         charScope = scopeKey(g.genus, g.chrid);
         if(charScope == null)
             return;
-        for(Addon a : addons)
+        for(Addon a : addons) {
             loadScope(a, false);
+            loadPlacements(a);                  // 062: ...and where this character last left what each addon
+        }                                       //   remembers, so widget:remember(name) has it to put back
     }
 
     /** Build the {@code <genus>_<char>} folder name (path-sanitized), or {@code null} if no character. */
@@ -260,9 +275,25 @@ final class StoreApi {
         if(account) a.lastAccountJson = canon; else a.lastCharJson = canon;
     }
 
-    /** Write an addon's changed saved variables to disk (both scopes). Skips unchanged files. */
+    /**
+     * Write an addon's changed data to disk: what it <b>remembers</b> ({@code widget:remember(name)}), and its
+     * saved variables in both scopes. Skips unchanged files.
+     *
+     * <p><b>The remembered placements go first, and they go whatever the manifest declares.</b> An addon that
+     * only hands a window to the user declares no saved variables at all — the whole point of the verb being
+     * that it needs no declaration and no handler — so the early return that used to stand at the top of this
+     * method would have made its file the one thing here that is silently never written.
+     */
     static void flush(Addon a) {
-        if((a == null) || (a.store == null) || a.manifest.savedVariables.isEmpty())
+        if(a == null)
+            return;
+        try {
+            LuaWidget.rememberCapture(a);               // 062: where every remembered widget stands right now...
+            writePlacements(a);                         //   ...saved beside the store file, needing no declaration
+        } catch(RuntimeException e) {
+            log(a, "store: could not save remembered placements: " + e);
+        }
+        if((a.store == null) || a.manifest.savedVariables.isEmpty())
             return;
         try {
             writeScope(a, true);                        // account (always resolvable)
@@ -271,6 +302,141 @@ final class StoreApi {
         } catch(RuntimeException e) {
             log(a, "store: flush failed: " + e);
         }
+    }
+
+    // ---- the remembered placement, a slot beside the store rather than inside it (062) ----------------
+
+    /**
+     * <b>One remembered placement</b> — the place and the box one name holds for {@code widget:remember(name)},
+     * in the DESIGN pixels the layout level speaks. A half no level stands on is {@code null} and is absent
+     * from the file: an addon that only lets the user drag a window has nothing to say about its box, and
+     * saying it anyway would pin a size the user never chose.
+     */
+    static final class Placement {
+        Coord pos;
+        Coord size;
+    }
+
+    /**
+     * Is there a character to remember a placement <b>for</b>? A placement is per character, like a
+     * per-character saved variable and for the same reason, so before {@code EnterWorld} there is nothing to
+     * put back — and {@code widget:remember(name)} says so rather than applying an empty record.
+     */
+    static boolean placementScope() {
+        return charScope != null;
+    }
+
+    /** What is saved under {@code name} for this character, or {@code null} (no character, or nothing saved). */
+    static Placement placement(Addon a, String name) {
+        return (charScope == null) ? null : a.placements.get(name);
+    }
+
+    /**
+     * Where a remembered widget <b>stands now</b>: write the halves given and leave the others holding what
+     * they held. A half arrives {@code null} when this addon has no level of that kind on the widget, and a
+     * half that is not written is not erased — an addon that stops resizing a window has not decided the user
+     * never sized it.
+     */
+    static void land(Addon a, String name, Coord pos, Coord size) {
+        if((charScope == null) || ((pos == null) && (size == null)))
+            return;
+        Placement p = a.placements.get(name);
+        if(p == null)
+            a.placements.put(name, p = new Placement());
+        if(pos != null)
+            p.pos = pos;
+        if(size != null)
+            p.size = size;
+    }
+
+    /** {@code widget:remember(nil)}: the record is <b>deleted</b>, on disk in the same call. */
+    static void forget(Addon a, String name) {
+        if(a.placements.remove(name) != null)
+            writePlacements(a);
+    }
+
+    /** The per-character placement file, beside the addon's own {@code <id>.json}. */
+    private static File placementFile(Addon a) {
+        return new File(new File(saveDir(), charScope), a.manifest.id + ".layout.json");
+    }
+
+    /** Load this character's placements for one addon, replacing whatever the last character left. */
+    private static void loadPlacements(Addon a) {
+        forgetPlacements(a);
+        if(charScope == null)
+            return;
+        String text = readFile(placementFile(a));
+        if(text != null) {
+            try {
+                Object root = Json.parse(text);
+                if(root instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> m = (Map<String, Object>)root;
+                    for(Map.Entry<String, Object> e : m.entrySet()) {
+                        Placement p = new Placement();
+                        p.pos = readCoord(e.getValue(), "pos");
+                        p.size = readCoord(e.getValue(), "size");
+                        if((p.pos != null) || (p.size != null))
+                            a.placements.put(e.getKey(), p);
+                    }
+                }
+            } catch(RuntimeException e) {
+                log(a, "store: could not read " + placementFile(a).getName() + ": " + e);
+            }
+        }
+        a.lastPlacementJson = placementsJson(a);   // prime the write-skip cache, as loadScope does
+    }
+
+    /** One {@code {"x": …, "y": …}} half of a parsed record, or {@code null} if it is absent or malformed. */
+    private static Coord readCoord(Object rec, String half) {
+        if(!(rec instanceof Map))
+            return null;
+        Object o = ((Map<?, ?>)rec).get(half);
+        if(!(o instanceof Map))
+            return null;
+        Object x = ((Map<?, ?>)o).get("x"), y = ((Map<?, ?>)o).get("y");
+        if(!(x instanceof Double) || !(y instanceof Double))
+            return null;
+        return Coord.of((int)Math.round((Double)x), (int)Math.round((Double)y));
+    }
+
+    /** Write one addon's placements, if they changed and there is a character to write them for. */
+    private static void writePlacements(Addon a) {
+        if((charScope == null) || (a.placements.isEmpty() && (a.lastPlacementJson == null)))
+            return;                                     // this addon remembers nothing and never did
+        String out = placementsJson(a);
+        if(out.equals(a.lastPlacementJson))
+            return;
+        if(writeFile(placementFile(a), out))
+            a.lastPlacementJson = out;
+    }
+
+    /**
+     * {@code {"<name>": {"pos": {x, y}, "size": {x, y}}, …}}, names in order — the order is what makes the
+     * write-skip comparison above answer on the content rather than on a hash walk.
+     */
+    private static String placementsJson(Addon a) {
+        List<String> names = new ArrayList<String>(a.placements.keySet());
+        Collections.sort(names);
+        StringBuilder b = new StringBuilder("{");
+        for(String nm : names) {
+            Placement p = a.placements.get(nm);
+            if(b.length() > 1)
+                b.append(',');
+            b.append(Json.write(LuaValue.valueOf(nm))).append(":{");
+            if(p.pos != null)
+                b.append("\"pos\":").append(xyJson(p.pos));
+            if((p.pos != null) && (p.size != null))
+                b.append(',');
+            if(p.size != null)
+                b.append("\"size\":").append(xyJson(p.size));
+            b.append('}');
+        }
+        return b.append('}').toString();
+    }
+
+    private static String xyJson(Coord c) {
+        return "{\"x\":" + c.x + ",\"y\":" + c.y + "}";
     }
 
     /** Serialize one scope's vars and write the file if it differs from the last write. */

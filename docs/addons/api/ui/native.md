@@ -1,9 +1,10 @@
 # hafen.ui: placing, hiding and handing over the client's own widgets
 
 These writes answer on a widget you do not own: `:position(x, y)` moves it, `:size(w, h)` resizes it,
-`:visible(false)` takes it off screen, and `:draggable(h)` and `:resizable(h)` hand the move and the box to
-the **user**. Every one of them is **unprotected** — client-side placement, not an action — and every one
-records what it found, so everything is given back when your addon goes away.
+`:visible(false)` takes it off screen, `:draggable(h)` and `:resizable(h)` hand the move and the box to the
+**user**, and `:remember(name)` keeps where they left it. Every one of them is **unprotected** —
+client-side placement, not an action — and every one records what it found, so everything is given back
+when your addon goes away.
 
 ```lua
 local inv = hafen.ui():find("window[title=Inventory]")
@@ -12,12 +13,14 @@ inv:size(300, 220)        -- resize its CONTENT; the chrome repacks around it
 inv:position(nil)         -- drop YOUR move: back to where the user had it
 inv:draggable(grip)       -- ...or let the user move it, by pressing a widget of yours
 inv:resizable(corner)     -- ...and size it, by pressing another
+inv:remember("bag")       -- ...and have it come back there next session
 ```
 
 `:destroy()` stays refused on a widget you do not own: that destroys the client's work rather than sits on
 top of it. See [owned vs borrowed](widget.md#owned-vs-borrowed) for the whole table.
 
-This page is about **where** one of the client's widgets sits and whether it is on screen. Changing what
+This page is about **where** one of the client's widgets sits, whether it is on screen, and who decides
+either — you, or the person playing. Changing what
 one of them *says* or *does* — a caption, a control of your own inside one of its windows, or taking over
 a button of the client's own — is [editing](edit.md).
 
@@ -200,6 +203,48 @@ end)
 
 Like `Dragged` it is not cancelable, it does not fire for your own `w:size(w, h)`, a press that never moved
 the pointer says nothing, and both addons hear it when two have armed one widget.
+
+## Remembering where the user put it (unprotected)
+
+`w:remember(name)` says **this widget's place and box are kept, under this name**. It puts back whatever
+that name holds the moment you call it, and saves where the widget stands from then on — so a HUD that
+comes back the way its owner left it is the four lines below, with no handler of yours and nothing
+declared in your manifest.
+
+```lua
+hafen.event():on("EnterWorld", function()
+  local chat = hafen.ui():find("@ChatUI")
+  chat:draggable(hafen.ui():image():source(hafen.asset():get("grip.png")):parent(chat))
+  chat:remember("chat")     -- back where it was, and saved there again after every drag
+end)
+```
+
+**It applies on the call, which is why there is nothing to pair it with**: the only correct moment to put a
+place back is the moment you say it is remembered. What it writes is your
+[`:position` and `:size` levels](#moving-and-resizing-unprotected), exactly as those two verbs write them,
+so a `w:position(x, y)` written *after* it wins, being the later write, and `w:position(nil)` still gives
+the stock place back.
+
+**What is saved is where your levels stand**, at every write to disk: after a gesture, on the save timer,
+and when your addon is disabled or reloaded — a place the user dragged it to and one you wrote yourself
+being the same thing to it. The slot is **per character**, like a
+[per-character saved variable](../store.md) and for the same reason, so calling it before you are in the
+world has nothing to put back: it says so in the log and remembers the name anyway.
+
+| Call | Does |
+|---|---|
+| `w:remember()` | the name **your** addon remembers it under, or `nil` |
+| `w:remember(name)` | remember it, and put back what that name holds; chains |
+| `w:remember(nil)` | stop remembering it, and **delete** what was saved under it; chains |
+
+**One name, one widget.** A second widget under a name your addon already holds raises: two windows sharing
+one saved place would each overwrite the other every time the user moved either. Renaming a widget you
+already remember is a change of mind, and is accepted. A name that is not a string raises; a widget that
+has left the tree is a silent no-op, like every other write here.
+
+**Dropping is not forgetting.** `w:revert()`, `:reload` and disabling your addon drop the binding and leave
+the record standing — where the user put a window is theirs, and your addon reloading is not them changing
+their mind. `w:remember(nil)` is the one thing that deletes it.
 
 ## Hiding a native widget carries a restore
 

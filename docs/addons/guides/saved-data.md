@@ -72,6 +72,25 @@ after a change the user would be annoyed to lose and unnecessary the rest of the
 A file the engine cannot parse leaves your tables empty and logs the failure rather than raising it: your
 addon starts with default settings instead of not starting.
 
+## Where a window sits is saved for you
+
+One kind of saved data needs none of the above.
+[`w:remember(name)`](../api/ui/native.md#remembering-where-the-user-put-it-unprotected) keeps a widget's
+place and box under a name of yours, puts them back the moment you call it, and saves them again after
+every time the user moves the thing:
+
+```lua
+hafen.event():on("EnterWorld", function()
+  local chat = hafen.ui():find("@ChatUI")
+  chat:draggable(hafen.ui():image():source(hafen.asset():get("grip.png")):parent(chat))
+  chat:remember("chat")
+end)
+```
+
+There is no declaration, no table and no handler, because every addon that saved a layout by hand wrote
+the same ten lines of packing a position into a table and unpacking it on load. It is per character, like
+the tables above, which is why it belongs in `EnterWorld` for the same reason they do.
+
 ## The other two kinds of file
 
 - **Files you ship** — an image, a font, a model, a data file — are read with

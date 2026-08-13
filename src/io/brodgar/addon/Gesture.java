@@ -352,9 +352,26 @@ final class Gesture extends Widget {
         if(!alive)
             return true;
         write(ev.c);
+        save();
         fire();
         release();
         return true;
+    }
+
+    /**
+     * {@code widget:remember(name)} — where each target <b>landed</b>, into the addon's own placement slot, so
+     * the next session puts it back with no handler of the addon's and no line of Lua after the arming. Only an
+     * owner that remembers this target has anything to write; a press that never moved is a click and changes
+     * nothing. The disk write itself rides the store's own throttle, and teardown flushes.
+     */
+    private void save() {
+        if(!acted)
+            return;
+        for(int i = 0, n = moves.size(); i < n; i++) {
+            Move m = moves.get(i);
+            for(int j = 0, o = m.owners.size(); j < o; j++)
+                LuaWidget.rememberLanded(m.owners.get(j), m.target, m.mode == Mode.DRAG);
+        }
     }
 
     /** Swallow any button press during the gesture (no new interaction under it). */
