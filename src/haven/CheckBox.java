@@ -81,9 +81,26 @@ public class CheckBox extends ACheckBox {
     public void draw(GOut g) {
 	if(lbl != null)
 	    g.image(lbl.tex(), loff.add(box.sz().x, (sz.y - lbl.sz().y) / 2));
-        g.image(box, Coord.z.add(0, (sz.y - box.sz().y) / 2));
-        if(state())
-            g.image(mark, Coord.z.add(0, (sz.y - mark.sz().y) / 2));
+        // addon: (065.10) the box and the tick are two keys, and each is asked for the state the box is in --
+        // so a `checked` face is what a ticked box wears, and the mark, which is drawn in no other state,
+        // always resolves that one. Null is the answer a stock client always gets, and then the two statics
+        // are blitted at exactly the coordinates they always were. Neither is an SIWidget: nothing caches
+        // this, so a changed rule lands on the next frame with nothing to invalidate.
+        String st = state() ? "checked" : null;
+        Fonts.Chrome cb = Fonts.chrome("checkbox", this, st);
+        Coord bc = Coord.z.add(0, (sz.y - box.sz().y) / 2);
+        if(cb == null)
+            g.image(box, bc);
+        else
+            cb.draw(g, bc, box.sz());
+        if(state()) {
+            Fonts.Chrome cm = Fonts.chrome("checkbox.mark", this, st);
+            Coord mc = Coord.z.add(0, (sz.y - mark.sz().y) / 2);
+            if(cm == null)
+                g.image(mark, mc);
+            else
+                cm.draw(g, mc, mark.sz());
+        }
         super.draw(g);
     }
     public boolean mousedown(MouseDownEvent ev) {

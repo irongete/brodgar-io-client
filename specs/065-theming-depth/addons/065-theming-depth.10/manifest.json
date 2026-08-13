@@ -1,0 +1,9 @@
+{
+  "name": "065.10 — checkboxes, scrollbars and sliders",
+  "id": "065-theming-depth.10",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.10: the six control keys, each resolving its own art, and the checked face a ticked box wears.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

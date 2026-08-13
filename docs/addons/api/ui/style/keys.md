@@ -26,6 +26,12 @@ These are the sites the client draws at:
 | `textentry` | text-entry fields **and** the console command line: the letters, and the **field** they are typed into |
 | `tooltip` | every tooltip — items, buffs, meters, craft, minimap, the action menu — and the **box** the client pops one up in |
 | `inventory.slot` | the empty **square** an inventory grid and the equipment window are paved with. Draws no text, so it takes `bg` and `border` |
+| `checkbox` | the **box** a checkbox ticks. Draws no text — the caption beside it is `label`'s — so it takes `bg` and `border` |
+| `checkbox.mark` | the **tick** inside that box, drawn only while it is ticked |
+| `scrollbar` | the **rail** a scroll thumb runs down |
+| `scrollbar.knob` | the **thumb** itself, wherever along that rail it currently sits |
+| `slider` | the **rail** a slider's thumb runs along |
+| `slider.knob` | that slider's own thumb |
 | `menu` | flower-menu petals and the action-menu keybind letters |
 | `chat` | the chat window — messages, channel tabs, the typed line |
 | `world.nick` | floating kin names over characters |
@@ -115,7 +121,8 @@ what the surface *does* with a property. First the two that write text:
 
 And the three that draw the chrome. The surfaces that wear them are the ones that draw a box of their own:
 the window decoration, the caption plate inside it, the window-less panels, the box a tooltip is popped up
-in, an inventory square, a button's face and a text field. A [state face](chrome.md#a-face-per-state) inside a `bg` is
+in, an inventory square, a button's face, a text field, and the boxes, rails and thumbs of the three
+controls the client blits. A [state face](chrome.md#a-face-per-state) inside a `bg` is
 worn by the surfaces that *have* that state, and ignored by the rest, exactly as the rows below say:
 
 | Key | `bg` | `border` | `padding` | Worth knowing |
@@ -128,6 +135,8 @@ worn by the surfaces that *have* that state, and ignored by the rest, exactly as
 | `inventory.slot` | yes | yes | **inert** | one square of an inventory grid, drawn at the size and pitch the client's own square has, so `padding` has nothing to move — [what the square is](surfaces.md#inventoryslot) |
 | `button` | yes | yes | **inert** | the **face** of every standard button: the `bg` stands in for the fill its caption is set on, the `border` for the four edge caps around it, and either alone leaves the other the client's own. Its box was fixed when it was built, so `padding` has nothing to move — [what a button's face is](surfaces.md#button) |
 | `textentry` | yes | yes | yes | the **field** every line is typed into: the `bg` stands in for its stretched middle, the `border` for the two end caps, and `padding` is the room between those and the text, which moves inside a width the caller still owns — [what a field is](surfaces.md#textentry) |
+| `checkbox`, `scrollbar`, `slider` | yes | yes | **inert** | the box a checkbox ticks and the two **rails** a thumb runs along, each painted over the rectangle the control was built with, so `padding` has nothing to move. A [`checked` face](chrome.md#a-face-per-state) inside a `checkbox` `bg` is what a ticked box wears, and it is the only state any of the three enters. A checkbox drawn as a single **picture** — the HUD's map and menu buttons, a dropdown's arrow — is not in this key, for the reason an icon button is not in `button` — [the three controls](surfaces.md#checkbox-scrollbar-and-slider) |
+| `checkbox.mark`, `scrollbar.knob`, `slider.knob` | yes | yes | **inert** | the tick and the two **thumbs**, each a key of its own so the part is dressed apart from the whole it sits on. A part never takes the whole's art: name both or the one you leave out stays the client's |
 | `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches every key in the rows above, each subject to its own row. Text-only surfaces ignore it entirely and stay stock |
 | every other site key | **inert** | **inert** | **inert** | a text site has no surface of its own to paint and no layout of its own to move. Nothing is refused and nothing warns |
 | a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |

@@ -176,6 +176,49 @@ leaves the other the client's own. The caret is neither, so it keeps being drawn
   match, so `["@TextEntry"]` paints a field and never re-sizes one. Install the rule before building your
   own [entries](../controls/interactive.md#text-entry) and `:size(w)` gives them the art's height.
 
+## `checkbox`, `scrollbar` and `slider`
+
+The three controls the client draws out of **blitted pictures** rather than out of a frame, and each is two
+keys: the whole, and the part that moves over it. Every one of the six takes [`bg`](chrome.md#bg) and
+[`border`](chrome.md#border) and no text — a checkbox's caption is [`label`](#label)'s.
+
+| Key | What it is | Where you see it |
+|---|---|---|
+| `checkbox` | the square a tick sits in | the Options window's rows, and radio buttons |
+| `checkbox.mark` | the tick, drawn only while the box is ticked | the same boxes, once ticked |
+| `scrollbar` | the vertical rail | any list long enough to scroll |
+| `scrollbar.knob` | the thumb that runs down it | the same bars |
+| `slider` | the horizontal rail | the volume and interface sliders in Options |
+| `slider.knob` | the thumb that runs along it | the same sliders |
+
+```lua
+local s = hafen.ui():sheet()
+s:rule("checkbox"):bg{ color = {200, 40, 40}, checked = { color = {40, 40, 200} } }
+s:rule("checkbox.mark"):bg{ asset = "img/tick.png" }
+s:rule("scrollbar"):bg{ color = {30, 60, 120} }:border{ color = {255, 255, 255}, width = 1 }
+s:install()
+```
+
+- **The whole and the part are two arts, and neither implies the other.** Name only `scrollbar` and the
+  client's own thumb still runs down your rail; name only `scrollbar.knob` and it runs down the client's own
+  chain. That split is the reason the parts are keys at all — one art on both would be one flat bar.
+- **A rule paints inside the control's own rectangle.** A rail fills the whole control the client built, a
+  thumb fills the box the client's own thumb has, and a tick the box the client's own tick has, wherever the
+  control currently puts it. So art of another size is scaled into that rectangle, the grab shape a drag is
+  measured against never moves, and `padding` has nothing to move either.
+- **`checked` is the one state a checkbox enters**, and it rides
+  [inside the value](chrome.md#a-face-per-state) like every other: `bg{ …, checked = { … } }` on `checkbox`
+  is the ticked box, and on `checkbox.mark` it is the only face the tick ever wears, the mark being drawn in
+  no other state. `hover`, `pressed` and `disabled` are never asked for here. A flat `color` on
+  `checkbox.mark` fills the tick's whole rectangle, which is the box's, and buries the face underneath — give
+  the mark a **picture**, whose transparency is what lets the box show through it.
+- **A picture checkbox is deliberately not in this key**, exactly as an icon button is not in
+  [`button`](#button): the client draws some toggles — the map and menu buttons across the HUD, a dropdown's
+  arrow — as a single image with no separate tick, where the image *is* the meaning and the click is routed by
+  sampling its own transparency. A rule replaces a surface the client already paints; it never paints over one
+  that says something. Those keep the client's own art, and so does a scrollbar whose list fits, which draws
+  nothing at all.
+
 ## `heading`
 
 The big embossed fraktur captions **inside** a window: "Base Attributes", "Food Satiations", "Abilities",

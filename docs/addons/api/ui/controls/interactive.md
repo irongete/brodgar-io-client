@@ -84,6 +84,11 @@ the cursor, all required, resolved through the same two doors a button's [face](
 is. Choosing pictures is building-only here too, and the bare `:image()` reads them back as `{up=, down=,
 hoverUp=, hoverDown=}`. `:type()` reads `"CheckBox"` or `"ICheckBox"` depending which you built.
 
+A checkbox with no picture of its own wears the theme's:
+[`checkbox`](../style/surfaces.md#checkbox-scrollbar-and-slider) is the box and `checkbox.mark` the tick. One
+you gave pictures to is dressed by neither — its faces are the ones you named, the way a picture button's
+are.
+
 ## Radio
 
 `hafen.ui():radio()` is a set of buttons where exactly one is checked at a time — one control, not one
@@ -130,6 +135,9 @@ The client's own sliders report the same key — one of the options window's vol
 can subscribe to — and there it is the one capability key that **cannot** be cancelled, because this control
 writes its value before it says anything: [editing](../edit.md) is where that is written down.
 
+A slider is two [surfaces](../style/surfaces.md#checkbox-scrollbar-and-slider): `slider` is the rail and
+`slider.knob` the thumb, and a rule on one leaves the other the client's own.
+
 ## Scroll
 
 `hafen.ui():scroll()` is a scrolling container: give it a size, and anything `:parent()`'d into it lands in
@@ -153,7 +161,8 @@ to report, so every step just reports where it is now.
 
 One of the client's own scrollbars reports the same key, and reports it from **both** of its value writes:
 the thumb drag, and the wheel and step buttons that move it a notch. Like a slider's, it cannot be
-cancelled — see [editing](../edit.md).
+cancelled — see [editing](../edit.md). Its rail and its thumb are `scrollbar` and `scrollbar.knob`, the
+[same split](../style/surfaces.md#checkbox-scrollbar-and-slider) a slider wears.
 
 ## See also
 

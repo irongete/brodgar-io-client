@@ -53,13 +53,25 @@ public class HSlider extends Widget {
     }
 
     public void draw(GOut g) {
-	int ew = sz.x + chcut, cw = schain.sz().x;
-	int n = Math.max((ew + cw - 1) / cw, 2);
-	int cy = (sflarp.sz().y - schain.sz().y) / 2;
-	for(int i = 0; i < n; i++)
-	    g.image(schain, Coord.of(((ew - cw) * i) / (n - 1), cy));
+	// addon: (065.10) the rail is the "slider" rule's, painted over this slider's own box; the same shape
+	// Scrollbar wears one axis along. Null on a stock client, and then the chain runs exactly as it did.
+	Fonts.Chrome rail = Fonts.chrome("slider", this);
+	if(rail == null) {
+	    int ew = sz.x + chcut, cw = schain.sz().x;
+	    int n = Math.max((ew + cw - 1) / cw, 2);
+	    int cy = (sflarp.sz().y - schain.sz().y) / 2;
+	    for(int i = 0; i < n; i++)
+		g.image(schain, Coord.of(((ew - cw) * i) / (n - 1), cy));
+	} else {
+	    rail.draw(g, Coord.z, sz);
+	}
 	int fx = ((sz.x - sflarp.sz().x) * (val - min)) / (max - min);
-	g.image(sflarp, new Coord(fx, 0));
+	// addon: (065.10) ...and the thumb is "slider.knob"'s, at the place and the size the client's own has.
+	Fonts.Chrome knob = Fonts.chrome("slider.knob", this);
+	if(knob == null)
+	    g.image(sflarp, new Coord(fx, 0));
+	else
+	    knob.draw(g, new Coord(fx, 0), sflarp.sz());
     }
     
     private void update(Coord c) {

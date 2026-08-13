@@ -3,7 +3,8 @@
 The [sheet](README.md) properties that **paint** rather than write, the one that moves the client's own
 content, and the ones that dress a window's ornaments. The surfaces that wear them are the ones that draw a
 box of their own — a window's chrome, the framed panels that are not windows, a tooltip, an inventory square,
-a button, a text field — and [the key table](keys.md#what-each-key-accepts) says which does what with which.
+a button, a text field, a checkbox and the two rails a thumb runs along — and
+[the key table](keys.md#what-each-key-accepts) says which does what with which.
 
 ```lua
 local s = hafen.ui():sheet()
@@ -105,8 +106,8 @@ hafen.ui():sheet():rule("button")
 A state rides **inside the value, never in the selector**: the surface drawing itself already knows which
 state it is in, so there is no hover key and nothing publishes a state to the cascade. A face is an ordinary
 background — an array of layers if you like — and carries no state of its own. **Which states a surface
-enters is [the surface's own](keys.md#what-each-key-accepts)**: a button has three, a window frame none, and
-a face nothing ever asks for costs nothing.
+enters is [the surface's own](keys.md#what-each-key-accepts)**: a button has three, a checkbox has
+`checked`, a window frame none, and a face nothing ever asks for costs nothing.
 
 ## border
 

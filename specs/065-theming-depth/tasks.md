@@ -137,7 +137,7 @@ in stage A before any surface is routed against it.
       `[manual]`: open the chat's input and the `:` command line — expect both in the theme's field art, the
       caret still where you type, and selection still highlighting the right glyphs.
 
-- [ ] **065.10 — checkboxes, scrollbars and sliders, and the parts they draw.** Six new site keys:
+- [x] **065.10 — checkboxes, scrollbars and sliders, and the parts they draw.** Six new site keys:
       `checkbox` and `checkbox.mark`, `scrollbar` and `scrollbar.knob`, `slider` and `slider.knob`, each
       taking `picture`'s art shape with `checked` where a state exists. `CheckBox`/`ICheckBox`,
       `Scrollbar` and `HSlider` blit their `Tex`es in `draw(GOut)` and simply ask first; none is an

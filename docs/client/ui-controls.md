@@ -71,6 +71,8 @@ Neither subclass extends `SIWidget` — both blit/draw fresh every frame, no `re
 | `ICheckBox` faces | `up/down/hoverup/hoverdown` are `Tex`, not `BufferedImage` — it blits, doesn't rasterise; `checkhit` samples `up`'s alpha bounded by `sz` |
 | The three activation sites | `CheckBox.mousedown` and `ICheckBox.mousedown` each call `click()`; `ACheckBox.gkeytype` is the keyboard's, shared by both **and by `RadioGroup.RadioButton`**, which overrides `mousedown` but not this |
 | `state`/`set`/`changed`/`click` are all **public fields** | so a caller may replace any of them — `SDropBox` replaces `state`/`set` on its own drop arrow, which is why that arrow never runs `changed` at all |
+| `CheckBox`'s face is **four** statics, in two sizes | `lbox`/`lmark` and `sbox`/`smark`, picked by the ctor's `lg` flag (`loff` is where the caption sits beside them). `draw(GOut)` blits `box` vertically centred on `sz.y`, then `mark` over it **only while `state()`** — so the tick has no resting art at all, and neither piece is ever drawn scaled |
+| The chrome seam, and why only one of the two has one | `CheckBox.draw(GOut)` (`// addon:`) asks `"checkbox"` for the box and `"checkbox.mark"` for the tick, each in the state `state()` names, and caches neither. `ICheckBox` is **not** routed: `GameUI.MenuCheckBox` stacks five of them at `(0, 0)`, each holding the whole menu panel's art with only its own button opaque and `checkhit` sampling `up`'s alpha to route the click — so anything filling one's `sz` paints the entire panel, once per button |
 
 > **A checkbox's click runs during `mousedown`** (unlike `Button`, whose activation is the last thing
 > `mouseup` does). `Window.mousedown` still runs `parent.setfocus(this)` on ITSELF after `ev.propagate`

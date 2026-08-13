@@ -76,6 +76,13 @@ public class ICheckBox extends ACheckBox {
 	this(Resource.loadtex(base + up), Resource.loadtex(base + down));
     }
 
+    /* addon: (065.10) DELIBERATELY not routed through the "checkbox" key, for the reason IButton is not routed
+     * through "button": a picture checkbox IS its picture -- a claim overlay, a map icon, a dropdown arrow --
+     * and a rule replaces a surface the client already paints rather than inventing one over a meaning. The
+     * geometry says the same thing twice over: GameUI.MenuCheckBox stacks five of these at (0,0), each carrying
+     * the WHOLE menu panel's art with only its own button opaque and checkhit sampling `up`'s alpha to route
+     * the click, so a fill over `sz` would paint the entire HUD panel once per button. The box-and-tick
+     * checkbox is CheckBox, and that one is routed. */
     public void draw(GOut g) {
 	if(!state())
 	    g.image(h ? hoverup : up, Coord.z);

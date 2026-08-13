@@ -95,6 +95,12 @@ public class Fonts {
         "world.nick",     // F4  — floating player/kin names
         "world.speech",   // F4  — speech bubbles
         "inventory.slot", // C2  — the empty square an inventory grid is paved with (065.7; bg/border, no text)
+        "checkbox",       // C2  — the box a checkbox draws (065.10; bg/border, no text)
+        "checkbox.mark",  // C2  — ...and the tick inside it
+        "scrollbar",      // C2  — the rail a scrollbar draws
+        "scrollbar.knob", // C2  — ...and the thumb that runs along it
+        "slider",         // C2  — the rail a slider draws
+        "slider.knob",    // C2  — ...and its thumb
     };
 
     /**

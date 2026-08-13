@@ -62,14 +62,28 @@ public class Scrollbar extends Widget {
 	    val = ctl.scrollval();
 	}
 	if(vis()) {
-	    int cx = (sflarp.sz().x / 2) - (schain.sz().x / 2);
-	    int eh = sz.y + chcut, ch = schain.sz().y;
-	    int n = Math.max((eh + ch - 1) / ch, 2);
-	    for(int i = 0; i < n; i++)
-		g.image(schain, Coord.of(cx, ((eh - ch) * i) / (n - 1)));
+	    // addon: (065.10) the rail is the "scrollbar" rule's, painted over this bar's OWN box rather than
+	    // over the narrow column the chain runs down -- a rail a theme draws is the track, not one link of
+	    // it. Null on a stock client, and then the chain is the same run of blits it always was.
+	    Fonts.Chrome rail = Fonts.chrome("scrollbar", this);
+	    if(rail == null) {
+		int cx = (sflarp.sz().x / 2) - (schain.sz().x / 2);
+		int eh = sz.y + chcut, ch = schain.sz().y;
+		int n = Math.max((eh + ch - 1) / ch, 2);
+		for(int i = 0; i < n; i++)
+		    g.image(schain, Coord.of(cx, ((eh - ch) * i) / (n - 1)));
+	    } else {
+		rail.draw(g, Coord.z, sz);
+	    }
 	    double a = (double)val / (double)(max - min);
 	    int fy = (int)((sz.y - sflarp.sz().y) * a);
-	    g.image(sflarp, new Coord(0, fy));
+	    // addon: (065.10) ...and the thumb is "scrollbar.knob"'s, at the place and the size the client's own
+	    // flarp has, so a themed bar keeps the grab shape a drag is measured against.
+	    Fonts.Chrome knob = Fonts.chrome("scrollbar.knob", this);
+	    if(knob == null)
+		g.image(sflarp, new Coord(0, fy));
+	    else
+		knob.draw(g, new Coord(0, fy), sflarp.sz());
 	}
     }
 

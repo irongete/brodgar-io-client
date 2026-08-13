@@ -25,6 +25,7 @@
 - `widget:size(w, h)` on a window writes its CONTENT size and `widget:size()` reads back `Widget.sz`, which on a window is the OUTER box the chrome draws — so the pair does not round-trip, `Window.csz()` is reachable from nothing, and the docs say content for both (filed: 065)
 - a font asset is loaded from the `File` itself, so the JVM holds that file open for the client's whole life: an addon's own `.ttf` cannot be replaced or deleted while it runs, and `:dispose()` does not release it (filed: 065)
 - `Window.DefaultDeco.drawframe` blits `cap.tex()` unguarded, so a window built with a null caption throws on its first frame — the sheet-fed deco guards the same blit and the stock one does not (filed: 065)
+- `ICheckBox`'s server-side factory loads BOTH hover faces from `args[1]`, so a resource-placed picture checkbox wears its `down` art for `hoverup` and never reads `args[2]`/`args[3]` at all (filed: 065)
 - the stock half of a layout record is an absolute value taken at the first touch, so `widget:position(nil)`/`:size(nil)` after the client has re-laid the screen out restores a place or a box fitted to the OLD screen, and it stands until the client's next re-layout (filed: 062)
 
 ## Candidates
@@ -40,6 +41,7 @@
 - **Allocation profiling**: who costs GARBAGE, bracketing the seams 019 already brackets (filed: 019)
 - **Driving an inbound message**: nothing can make the client apply a `uimsg` from Lua, so a feature riding the inbound tap has no in-game oracle at all on a server that never sends one (filed: 061)
 - **Driving an input event**: nothing can make the client deliver a click or a keypress from Lua, so anything that only happens on a real gesture — a capability key firing, and therefore a subscription's removal — can be checked by hand alone (filed: 061)
+- **Nothing reads what a SITE key resolved**: `widget:style()` answers tree levels alone, so a suite can read back only what a rule wrote and never which state face a surface actually wore — the `checked`, `hover` and `pressed` halves of every chrome rule are checkable by eye alone (filed: 065)
 - **A control's disabled state has no verb**: nothing greys a button from Lua, so the `disabled` face of a state-varying rule has no target an addon can reach at all, by hand or otherwise (filed: 065)
 - **`docs/addons/api/types.md` is at its 300-line ceiling**: the snapshot catalogue needs a split by subject, so a feature adding one shape stops pushing it over (filed: 064)
 - **`docs/addons/api/ui/style/chrome.md` is at its 300-line ceiling**: its per-surface prose (the ornaments) is what `surfaces.md` is for, so the property pages stop growing with every surface routed (filed: 065)
