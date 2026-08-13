@@ -54,6 +54,13 @@ import java.util.Set;
  * verb whose return type depends on the container. {@code :slots()} is plural because an
  * {@link Equipory} draws one worn item in as many slots as it fills — the same item, twice on screen.
  *
+ * <p><b>What it holds and what holds it are a pair</b> (064): {@code :contents()} hands back the
+ * {@link LuaContents} object for a stack, a creel or a bucket ({@code nil} for an item holding nothing), and
+ * {@code :container()} is its exact inverse — the item this one sits inside, {@code nil} for one sitting in a
+ * container widget. A contained item is <i>not</i> in that container's {@code widget:items()}: a stack is one
+ * item there because it is one cell on screen, and the caller recurses through {@code :contents()} and picks
+ * its own depth.
+ *
  * <p><b>What you can do TO an item is on the item</b> (048.3): {@code :use(mods)} activates it (the
  * {@code iact} gesture — eat, open, light), {@code :take()} lifts it onto the cursor or unequips it, and
  * {@code :drop(n)} / {@code :transfer(n)} move it, {@code n} defaulting to the whole stack. All four are
@@ -211,7 +218,28 @@ public final class LuaItem {
                 return (q == null) ? LuaValue.NIL : LuaValue.valueOf(q.doubleValue());
             }
         });
-        // cell() — the {x, y} grid cell in the container holding it, or nil (worn, on the cursor, gone).
+        // contents() — WHAT THIS ITEM HOLDS (064.1): a live Contents object, or nil for an item holding
+        // nothing. One type for both insides — a stack and a creel carry real items, a bucket carries a line
+        // its tooltip states — because the client cannot tell the two apart and a guess would be confident and
+        // wrong. Interned on this item, so two reads are ==; see LuaContents.
+        m.set("contents", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                GItem it = handle(self, "contents").wdg;
+                return LuaContents.holds(it) ? LuaContents.of(owner, it) : LuaValue.NIL;
+            }
+        });
+        // container() — the Item this one sits INSIDE, or nil for one sitting in a container widget. The exact
+        // inverse of :contents(): a:contents():items() holds b if and only if b:container() is a, and it chains
+        // (a dandelion in a stack in a creel answers the stack, and the stack answers the creel). A WHERE read,
+        // so like :cell(), :slots() and :handle() it answers nil on a stale item.
+        m.set("container", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                GItem c = container(live(handle(self, "container")));
+                return (c == null) ? LuaValue.NIL : of(owner, c);
+            }
+        });
+        // cell() — the {x, y} grid cell in the container holding it, or nil (worn, on the cursor, gone, or
+        // inside another item — where an item inside a stack is, is :container()).
         m.set("cell", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return cell(live(handle(self, "cell")));
@@ -408,9 +436,39 @@ public final class LuaItem {
         return out;
     }
 
-    /** {@code item:cell()} — the inventory grid cell, or nil for a worn / cursor / departed item. */
+    /**
+     * The {@link GItem} this one sits <b>inside</b> ({@code item:container()}), or {@code null} for an item
+     * sitting in a container widget of its own.
+     *
+     * <p>The engine already carries the link, one hop above the item: a contents widget is added to a
+     * {@code GItem.ContentsWindow} whose {@code cont} is the item that pushed it. So the walk is upward from the
+     * item until that window is met — and climbing on from there is what makes the relation chain through a
+     * container inside a container. The window hangs off the {@code GameUI} rather than off the holding item
+     * ({@code GItem.contparent}), so an item's <i>own</i> contents window is never above it and this can only
+     * ever answer the thing it is in.
+     */
+    static GItem container(GItem it) {
+        UI u = AddonManager.ui;
+        if((it == null) || (u == null))
+            return null;
+        synchronized(u) {
+            for(Widget p = it.parent; p != null; p = p.parent) {
+                if(p instanceof GItem.ContentsWindow)
+                    return ((GItem.ContentsWindow)p).cont;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * {@code item:cell()} — the inventory grid cell, or nil for a worn / cursor / departed item, <b>and for one
+     * inside another item</b>: the grid a stack's contents are drawn in is not a container the player has open,
+     * so a cell in it would read exactly like a cell of the backpack it is standing in. Where a contained item
+     * is, is {@code :container()}, and that is the one answer that holds whatever widget the server pushed as
+     * the contents.
+     */
     private static LuaValue cell(GItem it) {
-        if((it == null) || !(it.parent instanceof Inventory))
+        if((it == null) || !(it.parent instanceof Inventory) || (container(it) != null))
             return LuaValue.NIL;
         for(WItem w : wits(it))
             return AddonManager.cellPos(w);
@@ -537,6 +595,11 @@ public final class LuaItem {
         Double q = quality(it);
         if(q != null)
             t.set("quality", LuaValue.valueOf(q.doubleValue()));
+        // What it holds, as that Contents' OWN snapshot — and there is deliberately no `container` beside it:
+        // a snapshot holds no live objects, and a snapshot naming the item it sits in would nest snapshots of
+        // bags without end. Where it is, is item:container(), on the live object.
+        if(LuaContents.holds(it))
+            t.set("contents", LuaContents.snapshot(it));
         GItem l = live(it);
         int id = wdgid(l);
         if(id >= 0)

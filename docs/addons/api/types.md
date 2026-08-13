@@ -51,12 +51,22 @@ is optional.
 | `num` | number | stack count (absent for a non-stack) |
 | `wear` | number | 0..100 wear or progress percentage (absent when 0) |
 | `quality` | number | the quality the tooltip shows (absent for an item that has none) |
+| `contents` | table | what it holds, as the [Contents](#contents) snapshot (absent for an item holding nothing) |
 | `handle` | number | its server widget id, the number it is addressed by on the wire (absent once the item is gone) |
-| `cell` | table | the `{x, y}` grid cell it sits in (absent for a worn or cursor item) |
+| `cell` | table | the `{x, y}` grid cell it sits in (absent for a worn or cursor item, and for one inside another item) |
 | `slots` | string[] | the equipment slots it fills, by name (absent when it is not worn) |
 
-What a container held as an item has inside it is not exposed: the client only knows that while the
-container's own window is open, so there is nothing to read here.
+A snapshot holds no live objects. That is why there is no `container` field here, though
+[`item:container()`](ui/items.md#what-an-item-holds) reads one, and why the `contents` snapshot below carries
+no `items`: a snapshot of a bag would otherwise nest snapshots of bags without end.
+
+## Contents
+
+From [`contents:info()`](ui/items.md#what-an-item-holds), the snapshot of what one item holds;
+[`item:contents()`](ui/items.md#what-an-item-holds) hands you the live object, and its
+[Item objects](ui/items.md#the-item-object) are read off that with `contents:items()`.
+`{ name = string? }` — what the server calls this inside, the caption its own window carries, absent when it
+gave none.
 
 ## Tile
 

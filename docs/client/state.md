@@ -14,6 +14,9 @@
 | Inventory / items | `GameUI.maininv`, `Inventory.wmap`, `GItem` (`res`, `num`, `meter`, `info()`). `Inventory.addchild` builds **one `WItem` per item** at `args[0].mul(sqsz).add(1,1)`; `cdestroy` does `ui.destroy(wmap.remove(i))` **unguarded** |
 | Equipment | `GameUI.equwnd` → `Equipory.wmap` = item → a **collection** of `WItem`s: `addchild` makes one per ep index in `args`, so a two-slot item is drawn **twice** and `children(WItem.class)` returns it twice. Slot from a coord: `epat`; slot name: `etts[ep]`, filled only where `gfx/hud/equip/ep<i>` has an image layer — **23 slots, 22 names** (slot 16 has none, and the server does place items there) |
 | The item on the cursor | `GameUI.addchild` `place == "hand"` does `add((GItem)child)` — a real **server-bound** `GItem` under the HUD, so it has a widget id like any other; `GameUI.vhand` is only the `WItem` that draws it, rebuilt by `updhand` from the `hand` list |
+| What an item holds | `GItem.contents` (the widget the server pushed), `contentsnm` (its caption), `contentsid`, `contentswnd`. All four are written by `GItem.addchild` — which does **not** add the child under the item: it puts it in a new `GItem.ContentsWindow` added to `contparent()` = `getparent(GameUI.class)`. The items inside are that widget's **`GItem` children**, which is the walk `GItem.addcontinfo` makes over `contents.children()`; `updcontinfo` invalidates the holder's own info when a child's `infoseq` moves |
+| ...and what holds it | `GItem.ContentsWindow.cont`, public final: the item that pushed the contents. Climbing `Widget.parent` from a contained `GItem` to the first `ContentsWindow` is the only back-link there is, and climbing on from there chains through a container inside a container |
+| A tooltip that states its contents | `ItemInfo.Contents extends ItemInfo.Tip`, `public final List<ItemInfo> sub` — the block a bucket carries instead of items. Built by resource code (`ui/tt/cont` on the wire), so it is matched by type; `GItem.info()` throws a bare `Loading` while the resource streams |
 | Item quality | published **resource code**, not `haven`: `ui/tt/q/quality`'s `Quality extends` `ui/tt/q/qbuff`'s `QBuff` (`public double q`, `public String name`), reachable in `GItem.info()` by class name. An item may carry several `QBuff`s (gilding is one) |
 | Item metadata / name | `ItemInfo`: `Name`, `find`, `buildinfo` |
 | Character attributes | `Glob.getcattr`, `CAttr{base,comp}`; `CharWnd` (exp/enc) |
@@ -26,6 +29,13 @@
 
 - **No global world position**: `rc` is login-relative; the shareable anchor is grid id +
   within-grid offset. Grid/segment ids are 64-bit → expose as decimal strings.
+- **Hiding a `ContentsWindow` is not destroying it**: `reqclose()` is `chstate("hide")` and nothing more —
+  only `cdestroy(inv)` nulls `contents`/`contentsnm`/`contentsid`/`contentswnd` and destroys the window. So
+  everything a contents widget holds is readable with the window down. `wndshow` has exactly one caller,
+  `GItem.uimsg "contopen"`, so **no client can pin that window open** — the server decides.
+- **A contained item is under the `GameUI`, not under the container it appears to be in**: the window hangs
+  off `contparent()`, so `hasparent(inventory)` is false for it and a `children(WItem.class)` walk taken from
+  a node **above** the HUD sweeps contained items in.
 - Any read here can throw **`Loading`** — swallow to a partial/absent value or defer.
 - **A `GAttrib` dies with its gob for free**: `Gob.dispose()` disposes every
   attrib, and a gob dropped from `OCache.objs` takes them with it — so state attached to a gob needs no

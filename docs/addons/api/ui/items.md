@@ -39,6 +39,8 @@ local cursor = h and h:item()                  -- the item on it
 | `:num()` | number \| nil | stack count; `nil` for something that is not a stack |
 | `:wear()` | number \| nil | 0..100 wear or progress; `nil` when the item carries no meter |
 | `:quality()` | number \| nil | the quality the tooltip shows; `nil` for an item that has none |
+| `:contents()` | [`Contents`](#what-an-item-holds) \| nil | what it holds; `nil` for an item holding nothing |
+| `:container()` | [`Item`](#the-item-object) \| nil | the item it sits **inside**; `nil` for one sitting in a container widget |
 | `:cell()` | table \| nil | the `{x, y}` grid cell it sits in, for an item in a container that has cells |
 | `:slots()` | string[] | the equipment slots it fills, by name; empty for anything not worn |
 | `:handle()` | number \| nil | its server widget id, the number it is addressed by on the wire; `nil` once it is gone |
@@ -54,6 +56,51 @@ empty, because where it is is exactly what it no longer has.
 
 > The verbs below take the object, never the number. A stale one raises an error and sends nothing,
 > rather than moving whatever took its place.
+
+## What an item holds
+
+`item:contents()` answers a **`Contents`** object for an item that holds something, and `nil` for one that
+holds nothing. A stack of dandelions and a creel carry real items, each with its own quality and its own
+server address; a bucket carries what its tooltip states and no items at all. One object answers for both,
+because the client is never told which kind it has — the difference is the server's, and a read that guessed
+would answer confidently and wrongly.
+
+| Read | Returns | Description |
+|---|---|---|
+| `contents:items()` | [`Item`](#the-item-object)`[]` | what is inside, as live objects; an **empty array**, never `nil`, for a container that states what it holds rather than carrying it |
+| `contents:name()` | string \| nil | what the server calls this inside — the caption its own window carries; `nil` when it gave none |
+| `contents:info()` | table | the [snapshot](../types.md#contents), which carries no `items` |
+
+Reading is unprotected, and a `Contents` is **interned** like every other object here, so two reads of one
+item's contents are `==`. It answers `nil` while the item's info is still resolving, never a half-built
+object — so `nil` means "holds nothing" and an empty `:items()` means "an empty container".
+
+```lua
+for _, it in ipairs(hafen.ui():inventory():items()) do
+  local held = it:contents()
+  for _, one in ipairs(held and held:items() or {}) do
+    hafen.log():write((one:name() or "?") .. " q" .. (one:quality() or 0)   -- its own quality...
+                      .. " in " .. (it:name() or "?"))                      -- ...not the stack's
+  end
+end
+```
+
+**`item:container()` is the exact inverse.** `a:contents():items()` holds `b` if and only if `b:container()`
+is `a`, and it chains: a dandelion in a stack in a creel answers the stack, and the stack answers the creel.
+It is a **where** read, so like `:cell()`, `:slots()` and `:handle()` it answers `nil` on a stale item —
+where it is is exactly what a departed item no longer has.
+
+**A contained item is not in `widget:items()`.** A stack is one item there, as it is one cell on screen:
+flattening it would break `:cell()` and `#items` as the count of slots used, and delete the difference between
+one stack of eight and eight loose things. So a thing inside answers `:cell()` as `nil` too — it is drawn no
+cell of its own — and you reach it by recursing through `:contents()`, picking your own depth. The protected
+verbs reach it like any other item: `:take()` on one dandelion lifts that one, and `:take()` on the stack
+lifts the whole pile in one message.
+
+**Nothing has to be open.** The window a container pops up under the pointer is hidden rather than destroyed
+when you move away, so every read here answers the same with it down. Opening it is not something an addon can
+do either: the message that pins it open is the server's answer to a right-click, not anything the client
+sends.
 
 ## Write (protected)
 
@@ -131,9 +178,9 @@ global [`EquipChanged`](../event.md#character-and-status) event, which carries t
 
 ## Where the item reads end
 
-What a container holds *as an item* — a cupboard picked up with its contents inside — is not readable:
-the client only knows what is in a container while its own window is open, so the answer would be a
-guess. Open it and read that widget.
+What an item holds is what the **server** pushed with it, and it pushes it for the containers you carry: a
+stack, a creel, a bucket. An item it sent nothing for reads `nil`, and no message the client can send asks for
+one — a chest standing in the world is opened, and read as the container widget it becomes.
 
 ## See also
 

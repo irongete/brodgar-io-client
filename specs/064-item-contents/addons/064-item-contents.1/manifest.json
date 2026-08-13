@@ -1,0 +1,9 @@
+{
+  "name": "064.1 — an item says what it holds, and what holds it",
+  "id": "064-item-contents.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 064.1: item:contents() hands back an interned Contents whose :items() are live Items, and item:container() is its exact inverse — asserted both ways on a stack in your inventory.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

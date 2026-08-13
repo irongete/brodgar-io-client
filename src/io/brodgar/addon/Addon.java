@@ -564,6 +564,15 @@ public final class Addon {
      */
     final LuaItem.Cache items = new LuaItem.Cache(this);
 
+    /**
+     * This addon's <b>Contents interning cache</b> ({@code item:contents()}), keyed on the <b>owning item
+     * widget</b> — the same key {@link #items} uses, and for the same reason. What an item holds is a thing of
+     * its own rather than a field of the Item, because a stack's insides are live items and a bucket's are a
+     * stated line, and one object answers for both; see {@link LuaContents}. Weak-valued, dead with this
+     * {@link Addon} on {@code :reload}/disable, with nothing to tear down.
+     */
+    final LuaContents.Cache contents = new LuaContents.Cache(this);
+
     final LuaQuest.Cache quests = new LuaQuest.Cache(this);
     final LuaCondition.Cache conditions = new LuaCondition.Cache(this);
     final LuaWound.Cache wounds = new LuaWound.Cache(this);
