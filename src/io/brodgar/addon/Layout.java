@@ -276,12 +276,12 @@ final class Layout {
         }
     }
 
-    /** The nine corners, indexed {@code (ay * 3) + ax} — the three positions on each axis, named the CSS way. */
-    private static final String[] CORNERS = {
-        "topleft",    "top",    "topright",
-        "left",       "center", "right",
-        "bottomleft", "bottom", "bottomright",
-    };
+    /**
+     * The nine corners, indexed {@code (ay * 3) + ax}. They live in {@link Chrome} because a corner is not a
+     * layout idea: a rule's {@code anchor} picks one of a <i>widget</i>, and a surface's {@code at} picks one of
+     * the box it is painted on. One vocabulary, one error message, one place to read it from.
+     */
+    private static final String[] CORNERS = Chrome.CORNERS;
 
     /**
      * {@code w}'s top-left in root coordinates, or {@code null} when it is not in the tree. {@code parentpos} rather
@@ -860,15 +860,6 @@ final class Layout {
 
     /** One of the nine corner names, as its {@link #CORNERS} index. Anything else is a typo, and says so. */
     private static int cornerOf(String ctx, LuaValue v) {
-        String s = (v.isstring() && !v.isnumber()) ? v.tojstring() : null;
-        for(int i = 0; (s != null) && (i < CORNERS.length); i++) {
-            if(CORNERS[i].equals(s))
-                return i;
-        }
-        StringBuilder sb = new StringBuilder();
-        for(int i = 0; i < CORNERS.length; i++)
-            sb.append((i == 0) ? "" : ", ").append('"').append(CORNERS[i]).append('"');
-        throw new LuaError(ctx + ".anchor.at: expected one of " + sb + ", got "
-            + ((s == null) ? v.typename() : ("\"" + s + "\"")));
+        return Chrome.cornerOf(ctx, ".anchor.at", v);
     }
 }

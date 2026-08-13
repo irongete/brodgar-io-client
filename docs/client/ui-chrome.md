@@ -39,12 +39,39 @@ does not paint is transparent black, not a background.
 from them; `IBox.Scaled` is the only `draw` — corners at their own size, edges
 stretched between them, **centre never painted**.
 
+**The eight pieces are named by suffix, and the client spells the edges two ways.**
+`IBox.Images(String base, ctl, ctr, cbl, cbr, bl, br, bt, bb)` is `Resource.loadtex(base + "/" + suffix)`
+eight times, and every call site passes the corners as `tl`/`tr`/`bl`/`br`. The edges are
+`el`/`er`/`et`/`eb` in `ISBox.box` (`gfx/hud/bosq`) and `Speaking.sb` (`gfx/hud/emote`), but
+`extvl`/`extvr`/`extht`/`exthb` in `Window.wbox` (`gfx/hud/wnd`) — the folders carry one set or the other,
+not both, so anything resolving a box from a folder name has to try each. `loadtex` is
+`loadrimg(name).tex()`, i.e. `Resource.Image.scaled()`, so all eight arrive **device-sized**; see
+[ui-scaling.md](ui-scaling.md).
+
 | Who draws one | Where |
 |---|---|
-| The window chrome | `Window.wbox` — used by `DefaultDeco.drawframe` and by everything below (they share the object) |
+| The window chrome | `Window.wbox` — used by everything below (they share the object). **Not** by `DefaultDeco.drawframe`, which draws its own art — see below |
 | **`Frame`** — by far the widest reach | `Frame` — `public final IBox box`, `drawframe`. Built by `SAttrWnd`, `BAttrWnd`, `SkillWnd`, `QuestWnd`, `WoundWnd`, `FightWnd`, `BuddyWnd`, `MapWnd`, `Charlist`, `GobIcon`, `Fightview`, and `GameUI`'s portrait |
 | Its subclasses | `ProxyFrame` and `Partyview.MemberView` **override `drawframe`** (`g.chcolor(tint)` + `box.draw`); `MapWnd.ViewFrame` overrides `draw` but calls `super.draw` |
 | The rest | `FlowerMenu.Petal.draw` (`pbox`) · `SListMenu.draw` (`obox`, dropdowns) · `ISBox.draw` (its box also fills `bgcol`) · `DynresWindow.Image.draw` · `Speaking.draw` (`sb` — a `GAttrib` in the 3D view, **not a widget**) · `GItem.HoverDeco` (a `Window.Deco`, not a panel) |
+
+**`Window.wbox` measures smaller than it paints.** It is an anonymous subclass that subtracts `UI.scale(3, 3)`
+from `ctloff`/`cbroff` and `UI.scale(2, 2)` from `btloff`/`bbroff` (and twice that from `bisz`/`cisz`), so the
+insets every `Frame` reserves are a few pixels inside its own corner art. A box built plainly from the same
+eight textures measures its corners at their full size and therefore reserves more room.
+
+## The stock window decoration is NOT an `IBox`
+
+`DefaultDeco` paints `gfx/hud/wnd/lg/*` itself, and everything that separates it from a 9-slice is worth
+knowing before deciding a frame is one.
+
+| What | Where |
+|---|---|
+| The runs **repeat**, they do not stretch | `DefaultDeco.drawframe` — every edge is a `for` loop of `g.image(tex, mdo, Coord.z, cbr)`, one blit per tile with the run's own clip rectangle. `IBox.Scaled.draw` is the same geometry with `g.image(tex, c, sz)` instead, i.e. one scaled blit. The clip is what keeps the last tile from overrunning a corner |
+| Its background is **three layers** | `DefaultDeco.drawbg` — `bg` tiled over `ca` under `bgblend`, then `bgl` down the left edge and `bgr` down the right, each tiled vertically and clipped to `ca` |
+| A piece pinned at the end of a run | `lb`, dropped at the **foot** of the left run before `lm` tiles the rest — the only such piece in the frame |
+| The caption plate is part of the frame art | `cl` / `cm` / `cr`, with `cm` tiled across `cmw`; `checkcap` computes `cmw`, `cptl` and `cpsz` from `max(caption width, sz.x / 4)` |
+| One set of art, two margins | The statics are all `gfx/hud/wnd/lg/*` and `drawframe` uses them unconditionally; `DefaultDeco.lg` picks only between `dlmrgn` and `dsmrgn` in `iresize` |
 
 **Two traps, both cost time.**
 
@@ -61,14 +88,16 @@ stretched between them, **centre never painted**.
    do not. Exact mirror of `Deco`, where `iresize`/`contarea` *are* re-run and a replacement therefore
    can change the geometry.
 
-## The addon seam (035)
+## The addon seam
 
-`Window.tick` calls `AddonWidgets.chrome(wnd)`  — install/drop the sheet-fed
-deco; in `tick` because `chdeco` destroys a widget and re-lays out. Its only other `haven` edit is an
-**extraction**: `DefaultDeco.drawframe`'s caption block became `protected checkcap()`
- so a replacement deco renders the caption through F3a's routed furnace
-instead of duplicating it. **added no core edit at all** (it overrides `iresize` in the addon's own
-subclass; `chdeco`/`resize`/`tlm`/`dsmrgn`/`c` are already public).
-routes the panels the same way fonts are routed — `IBox box = Fonts.box("panel", this, stock)` plus
-`Fonts.drawbg(box, g, tl, sz)`, one `// addon:` line each, both returning the **stock** box / `false` when no
-rule applies, so an addon-less client is byte-for-byte unchanged.
+Three `// addon:` edits, and no fourth: everything else the sheet needs was already public.
+
+| Edit | Where |
+|---|---|
+| Install or drop the sheet-fed deco | `Window.tick` calls `AddonWidgets.chrome(wnd)` — in `tick` because `chdeco` destroys a widget and re-lays the window out |
+| An **extraction**, so a replacement deco renders the caption through the same routed furnace instead of duplicating it | `DefaultDeco.drawframe`'s caption block became `protected checkcap()` |
+| The panels, routed the way the fonts are | `IBox box = Fonts.box("panel", this, stock)` plus `Fonts.drawbg(box, g, tl, sz)` at each site, both handing back the **stock** box / `false` when no rule applies |
+
+**Replacing the geometry costs no core edit**: a deco subclass overrides `iresize` itself, and `chdeco`,
+`resize`, `tlm`, `dlmrgn`/`dsmrgn` and `Window.c` are already public. So a client with no addon runs the same
+code it always did, byte for byte.

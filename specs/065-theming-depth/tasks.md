@@ -21,7 +21,7 @@ in stage A before any surface is routed against it.
       `[manual]`: open any client window — expect its contents to sit further from the frame at the top than
       at the bottom, and the frame itself unchanged.
 
-- [ ] **065.2 — art is named, not only handed over.** One parser, `Chrome.parseArt`, behind `bg` and **every
+- [x] **065.2 — art is named, not only handed over.** One parser, `Chrome.parseArt`, behind `bg` and **every
       image slot every later task adds** — `picture`, the art in `close`/`sizer`, each `parts` entry, an
       `emboss` texture: `{color=}`, `{image=<handle>}`, `{asset="path"}`, `{res="gfx/…"}`. Naming the game's
       own art is what this buys: nothing has to be extracted from the client's resources to theme with.

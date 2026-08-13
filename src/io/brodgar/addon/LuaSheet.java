@@ -261,7 +261,7 @@ public final class LuaSheet {
 
     /** {@code sheet:load(t)}: parse the whole table, then replace every rule with what it says. */
     private void load(Addon owner, LuaValue t) {
-        List<Sheet.Parsed> rows = Sheet.parseSheet("sheet:load", t);
+        List<Sheet.Parsed> rows = Sheet.parseSheet(owner, "sheet:load", t);
         synchronized(this) {
             for(Map.Entry<String, Rec> e : rules.entrySet())
                 e.getValue().props.clear();            // ...a sheet is replaced WHOLE, never merged into

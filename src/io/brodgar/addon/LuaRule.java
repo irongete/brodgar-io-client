@@ -234,8 +234,9 @@ public final class LuaRule {
                 return self;
             }
         });
-        // bg{color=…} / bg{image=…} — the surface something is painted on (035.1). A structured VALUE, not named
-        // arguments: a background is one thing said as a table, exactly as a colour is.
+        // bg{color=…} / bg{image=…} / bg{asset=…} / bg{res=…} — the surface something is painted on (035.1), and
+        // since 065.2 an ARRAY of those, painted in order. A structured VALUE, not named arguments: a background
+        // is one thing said as a table, exactly as a colour is.
         m.set("bg", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -245,13 +246,14 @@ public final class LuaRule {
                 if(v == null)
                     return ((cur == null) || (cur.bg == null)) ? LuaValue.NIL : cur.bg.toLua(owner);
                 Sheet.Props p = r.edit(owner);
-                p.bg = Chrome.parseBg(r.where(), v);
+                p.bg = Chrome.parseBg(owner, r.where(), v);
                 r.commit(owner, p);
                 return self;
             }
         });
-        // border{image=…, slice={l,t,r,b}} — a 9-slice frame (035.1). Both fields required: an image with no
-        // slice cannot be cut into a frame, and there is no default worth guessing at.
+        // border{image=…, slice={l,t,r,b}} — a 9-slice frame (035.1), or border{box="gfx/hud/wnd"}, one of the
+        // client's own (065.2). On the slice form both fields are required: art with no slice cannot be cut into
+        // a frame, and there is no default worth guessing at.
         m.set("border", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -261,7 +263,7 @@ public final class LuaRule {
                 if(v == null)
                     return ((cur == null) || (cur.border == null)) ? LuaValue.NIL : cur.border.toLua(owner);
                 Sheet.Props p = r.edit(owner);
-                p.border = Chrome.parseBorder(r.where(), v);
+                p.border = Chrome.parseBorder(owner, r.where(), v);
                 r.commit(owner, p);
                 return self;
             }

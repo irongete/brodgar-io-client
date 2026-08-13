@@ -4,6 +4,7 @@ import haven.Coord;
 import haven.Fonts;
 import haven.GOut;
 import haven.IBox;
+import haven.Resource;
 import haven.Tex;
 import haven.TexSI;
 import haven.Widget;
@@ -14,8 +15,10 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import java.awt.Color;
+import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -27,7 +30,7 @@ import java.util.WeakHashMap;
  * <pre>
  *   hafen.ui():sheet():rule("window.frame")
  *     :bg{ color = {26, 26, 28, 240} }
- *     :border{ image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} }
+ *     :border{ box = "gfx/hud/wnd" }
  *     :padding(8, 4, 8, 8)
  * </pre>
  *
@@ -38,22 +41,32 @@ import java.util.WeakHashMap;
  * reader at its site, and <b>no edit to {@code haven}</b>. The casts back out of the bag live in one place, the
  * three accessors below, which is what keeps them honest.
  *
- * <p><b>Plain data, parsed once.</b> A rule carries no Lua and no callback: a {@link Bg} is a colour <i>or</i> an
- * image, a {@link Border} is an image plus its 9-slice insets, and the engine paints from that — the per-frame
- * Lua {@code Deco} callback was rejected on cost at design time (a frame is redrawn every frame with no raster
- * cache to amortise it) and stays rejected. It is also what lets a theme be a {@code theme.json} rather than
- * code: every field here is a number, a string or an asset handle.
+ * <p><b>One art value, four spellings</b> (065.2). {@link #parseArt} is the single parser behind every image
+ * slot in the vocabulary: {@code {color=}}, {@code {image=<handle>}}, {@code {asset="path"}} and
+ * {@code {res="gfx/…"}}. Naming the game's own art is what that buys — nothing has to be extracted from the
+ * client's resources to be themed with, and nothing may be named one way in one property and another way in
+ * the next. {@link Src} is where the two <i>spaces</i> meet: an addon's file is authored in design pixels and
+ * is scaled on the way to the screen, while a {@code .res} carries its own scale and the client has already
+ * resampled it ({@code Resource.Image.scaled()}), so a slice is written in design pixels either way and this
+ * class converts.
+ *
+ * <p><b>Plain data, parsed once.</b> A rule carries no Lua and no callback: an {@link Art} is a colour or a
+ * picture, a {@link Border} is a 9-slice or one of the client's own boxes, and the engine paints from that —
+ * the per-frame Lua {@code Deco} callback was rejected on cost at design time (a frame is redrawn every frame
+ * with no raster cache to amortise it) and stays rejected. It is also what lets a theme be a
+ * {@code theme.json} rather than code: every field here is a number, a string or an asset handle.
  *
  * <p><b>Where they resolve is the sheet's business, not this class's.</b> These values ride the same cascade
  * {@code font} and {@code color} do — folded per property by {@code Fonts.combine} (D-076), carried by a site
  * rule ({@code "window.frame"}) or a tree rule / {@code widget:rule()} alike — and this class only says what one
  * of them <i>is</i> and how it paints. The two consumers are {@link SkinDeco}, the sheet-fed window chrome
  * (035.1), and {@link SkinBox}, the sheet-fed 9-slice the window-less panels draw with (035.3) — both built
- * from the very {@link Border#box} below.
+ * from the very {@link Border#ibox} below.
  *
  * <p><b>A border costs no texture.</b> Its nine slices are {@link TexSI} views over the addon's <i>one</i>
  * uploaded image, so a border neither uploads a second copy nor owns anything to dispose — the image's own
- * {@code :dispose()}/teardown is still the whole lifetime, and a disposed image simply stops painting.
+ * {@code :dispose()}/teardown is still the whole lifetime, and a disposed image simply stops painting. A
+ * {@code {box=}} border owns nothing at all: it is the client's own eight textures, from the resource cache.
  */
 final class Chrome {
     private Chrome() {}
@@ -99,53 +112,287 @@ final class Chrome {
         return m;
     }
 
-    // ---- bg ----------------------------------------------------------------------------------------
+    // ---- the nine spots, and the two fill modes (065.2) ---------------------------------------------
 
     /**
-     * A rule's {@code bg}: a flat colour <b>or</b> a tiled image, never both (one canonical way per operation).
-     * Immutable, with value equality — the resolved style is interned on it ({@code Sheet.SKey}), and two rules
-     * that say the same thing must intern to the same style or every routed site inside them rebuilds.
+     * The nine spots, indexed {@code (ay * 3) + ax} — the three positions on each axis, named the CSS way. One
+     * vocabulary for every place in this API: a rule's {@code anchor} ({@link Layout#parseAnchor}) picks a
+     * widget's corner out of it, and an {@link Art}'s {@code at} picks the corner of the surface it is painted on.
      */
-    static final class Bg {
-        /** The flat fill, or {@code null} when this is an image background. */
-        final Color color;
-        /** The tiled image, or {@code null} when this is a colour background. */
-        final LuaImage image;
+    static final String[] CORNERS = {
+        "topleft",    "top",    "topright",
+        "left",       "center", "right",
+        "bottomleft", "bottom", "bottomright",
+    };
 
-        Bg(Color color, LuaImage image) {
-            this.color = color;
+    /** One of the nine {@link #CORNERS}, as its index. Anything else is a typo, and says so — naming all nine. */
+    static int cornerOf(String ctx, String what, LuaValue v) {
+        String s = (v.isstring() && !v.isnumber()) ? v.tojstring() : null;
+        for(int i = 0; (s != null) && (i < CORNERS.length); i++) {
+            if(CORNERS[i].equals(s))
+                return i;
+        }
+        StringBuilder sb = new StringBuilder();
+        for(int i = 0; i < CORNERS.length; i++)
+            sb.append((i == 0) ? "" : ", ").append('"').append(CORNERS[i]).append('"');
+        throw new LuaError(ctx + what + ": expected one of " + sb + ", got "
+            + ((s == null) ? v.typename() : ("\"" + s + "\"")));
+    }
+
+    /** {@code mode = "stretch"} — an axis this art does not size itself on is scaled to fill it. */
+    static final String STRETCH = "stretch";
+    /** {@code mode = "tile"} — that axis is filled by repeating the art, clipped to the run. */
+    static final String TILE = "tile";
+
+    /** {@code mode}, or {@code dflt} when the value says none. The two modes, and nothing else. */
+    private static String modeOf(String ctx, String what, LuaValue v, String dflt) {
+        if(v.isnil())
+            return dflt;
+        String s = (v.isstring() && !v.isnumber()) ? v.tojstring() : null;
+        if(STRETCH.equals(s) || TILE.equals(s))
+            return s;
+        throw new LuaError(ctx + what + ".mode: expected \"" + STRETCH + "\" (scale the art across the run) or"
+            + " \"" + TILE + "\" (repeat it), got " + ((s == null) ? v.typename() : ("\"" + s + "\"")));
+    }
+
+    // ---- where a picture's pixels come from (065.2) -------------------------------------------------
+
+    /**
+     * The raster behind a piece of art, and <b>the space its own pixels are in</b> — the one difference between
+     * a file an addon ships and a name it borrows from the client.
+     *
+     * <p>An addon's PNG is authored in <b>design</b> pixels and is scaled on the way to the screen (058.2), so
+     * its raster is design-sized and every view of it is wrapped by {@link Px#in(Tex)}. A {@code .res} image
+     * carries its own {@code scale} — the HUD art is authored at 4× — and the client has already resampled it
+     * to the running interface scale, so {@code Resource.loadtex} hands back a <b>device</b>-sized raster that
+     * must not be wrapped again. Taking the wrong one draws the frame four times too large.
+     *
+     * <p>So a {@code slice} is written in design pixels whichever spelling named the art, and {@link #sub} is
+     * the one place that knows which space it is cutting in. Cuts are made at <b>absolute</b> coordinates, so
+     * two slices that share a boundary in the source share it on screen: converting a width instead would round
+     * twice and leave a seam.
+     */
+    static final class Src {
+        /** The addon's own image, or {@code null} when this art is a client resource. */
+        final LuaImage image;
+        /** The client resource's name, or {@code null} when this art is an addon's file. */
+        final String res;
+        private final Tex raw;            // the raster in ITS OWN space
+        private final boolean design;     // ...and is that space design pixels?
+        private Tex drawn;
+
+        private Src(LuaImage image, String res, Tex raw, boolean design) {
             this.image = image;
+            this.res = res;
+            this.raw = raw;
+            this.design = design;
         }
 
-        /** Paint this background over {@code [ul, ul+sz)} — a filled rect, or the image tiled and clipped. */
+        /** An addon's own loaded file — design pixels. */
+        static Src of(LuaImage li) {
+            return new Src(li, null, li.tex, true);
+        }
+
+        /** One of the client's own images, already resampled to this client's scale — device pixels. */
+        static Src of(String name, Tex tex) {
+            return new Src(null, name, tex, false);
+        }
+
+        /** Has the image this art draws been disposed? Then it simply stops painting, as it always has. */
+        boolean dead() {
+            return (image != null) && image.dead;
+        }
+
+        /** The whole raster at the size it is drawn — device pixels. */
+        Tex drawn() {
+            Tex d = this.drawn;
+            if(d == null)
+                this.drawn = d = design ? Px.in(raw) : raw;
+            return d;
+        }
+
+        /** The raster's own size in <b>design</b> pixels — the space a {@code slice} is validated against. */
+        Coord size() {
+            return design ? image.sz : Px.out(raw.sz());
+        }
+
+        /** A window onto the raster, cut at <b>design</b> coordinates and viewed at the size it is drawn. */
+        Tex sub(int x, int y, int w, int h) {
+            if(design)
+                return Px.in(new TexSI(raw, Coord.of(x, y), Coord.of(x + w, y + h)));
+            return new TexSI(raw, Px.in(Coord.of(x, y)), Px.in(Coord.of(x + w, y + h)));
+        }
+
+        /** How this art names itself back to Lua — the spelling it was written with. */
+        void toLua(Addon reader, LuaTable t) {
+            if(image != null)
+                t.set("image", AssetApi.imageFor(reader, image));
+            else
+                t.set("res", LuaValue.valueOf(res));
+        }
+
+        public int hashCode() {
+            return (image != null) ? (System.identityHashCode(image) * 31) : res.hashCode();
+        }
+
+        public boolean equals(Object o) {
+            if(!(o instanceof Src))
+                return false;
+            Src s = (Src)o;
+            return (image == s.image) && ((res == null) ? (s.res == null) : res.equals(s.res));
+        }
+    }
+
+    // ---- the surface art: a colour or a picture, placed and filled (065.2) --------------------------
+
+    /**
+     * A <b>surface</b>: the art a {@code bg} layer paints with. A flat colour, or a picture from any of the
+     * three places one can come from, with an optional {@code at} spot, an {@code offset} and a fill
+     * {@code mode}. Immutable, with value equality — the resolved style is interned on it ({@code Sheet.SKey}),
+     * and two rules that say the same thing must intern to the same style or every routed site inside them
+     * rebuilds.
+     *
+     * <p><b>The spot says which axes the art sizes itself on.</b> A name that pins an edge on an axis
+     * ({@code left}/{@code right} for x, {@code top}/{@code bottom} for y) gives the art its own size there;
+     * {@code center} gives it its own size on both, centred; and an axis the name says nothing about is
+     * <b>filled</b> — which is what makes {@code at = "left"} a shade down the whole left side rather than one
+     * stamp in the middle of it, and what the client's own window background is three of.
+     */
+    static final class Art {
+        /** The flat fill, or {@code null} when this art is a picture. */
+        final Color color;
+        /** The picture, or {@code null} when this art is a colour. */
+        final Src src;
+        /** The spot it is pinned to, as a {@link #CORNERS} index, or {@code -1} for the whole surface. */
+        final int spot;
+        /** The offset from that spot, in design pixels, or {@code null}. */
+        final Coord offset;
+        /** {@link #STRETCH} or {@link #TILE} — what an axis this art does not size itself on is filled with. */
+        final String mode;
+
+        Art(Color color, Src src, int spot, Coord offset, String mode) {
+            this.color = color;
+            this.src = src;
+            this.spot = spot;
+            this.offset = offset;
+            this.mode = mode;
+        }
+
+        /** Paint this art over {@code [ul, ul+sz)} — device pixels, the client's own box. */
         void draw(GOut g, Coord ul, Coord sz) {
             if(color != null) {
                 g.chcolor(color);
                 g.frect(ul, sz);
                 g.chcolor();
-            } else if((image != null) && !image.dead) {
-                g.rimage(image.tex, ul, sz);
+                return;
             }
+            if((src == null) || src.dead())
+                return;
+            Tex t = src.drawn();
+            Coord nat = t.sz();
+            if((nat.x <= 0) || (nat.y <= 0))
+                return;
+            int ax = (spot < 0) ? 1 : (spot % 3), ay = (spot < 0) ? 1 : (spot / 3);
+            boolean fx = (spot < 0) || ((spot != 4) && (ax == 1));   // an axis the spot says nothing about
+            boolean fy = (spot < 0) || ((spot != 4) && (ay == 1));
+            int w = fx ? sz.x : nat.x, h = fy ? sz.y : nat.y;
+            int x = fx ? 0 : ((ax == 0) ? 0 : ((ax == 2) ? (sz.x - w) : ((sz.x - w) / 2)));
+            int y = fy ? 0 : ((ay == 0) ? 0 : ((ay == 2) ? (sz.y - h) : ((sz.y - h) / 2)));
+            Coord o = (offset == null) ? Coord.z : Px.in(offset);
+            Coord bul = ul.add(x, y).add(o), bsz = Coord.of(w, h);
+            if((w == nat.x) && (h == nat.y))
+                g.image(t, bul);
+            else if(TILE.equals(mode))
+                g.rimage(t, bul, bsz);
+            else
+                g.image(t, bul, bsz);
         }
 
         public int hashCode() {
-            return ((color == null) ? 0 : color.hashCode()) + (System.identityHashCode(image) * 31);
+            return ((color == null) ? 0 : color.hashCode()) + ((src == null) ? 0 : (src.hashCode() * 31))
+                + (spot * 7) + ((offset == null) ? 0 : (offset.hashCode() * 13)) + (mode.hashCode() * 17);
+        }
+
+        public boolean equals(Object o) {
+            if(!(o instanceof Art))
+                return false;
+            Art a = (Art)o;
+            return ((color == null) ? (a.color == null) : color.equals(a.color))
+                && ((src == null) ? (a.src == null) : src.equals(a.src))
+                && (spot == a.spot)
+                && ((offset == null) ? (a.offset == null) : offset.equals(a.offset))
+                && mode.equals(a.mode);
+        }
+
+        /** The value as {@code reader} may hold it — the spelling it was written with, and the fields it set. */
+        LuaValue toLua(Addon reader) {
+            LuaTable t = new LuaTable();
+            if(color != null) {
+                t.set("color", AddonManager.color(color));
+                return t;                       // a colour fills its surface: no spot, no offset, no mode
+            }
+            src.toLua(reader, t);
+            if(spot >= 0)
+                t.set("at", LuaValue.valueOf(CORNERS[spot]));
+            if(offset != null)
+                t.set("offset", LuaWidget.xyTable(offset));
+            t.set("mode", LuaValue.valueOf(mode));
+            return t;
+        }
+    }
+
+    // ---- bg ----------------------------------------------------------------------------------------
+
+    /**
+     * A rule's {@code bg}: the surface something is painted on — <b>one</b> {@link Art}, or a <b>list</b> of
+     * them painted in order. The list is not a new primitive: it is the value that already exists, at a
+     * different arity, and it is what the client's own window background is (a tiled field, then a shade down
+     * each side). A texture under a vignette is the same shape.
+     */
+    static final class Bg {
+        /** The layers, in paint order. Never empty: a {@code bg} that says nothing is refused where it is written. */
+        final Art[] layers;
+
+        Bg(Art[] layers) {
+            this.layers = layers;
+        }
+
+        /** Paint this background over {@code [ul, ul+sz)} — every layer, in the order the rule wrote them. */
+        void draw(GOut g, Coord ul, Coord sz) {
+            for(int i = 0; i < layers.length; i++)
+                layers[i].draw(g, ul, sz);
+        }
+
+        public int hashCode() {
+            int h = layers.length;
+            for(int i = 0; i < layers.length; i++)
+                h = (h * 31) + layers[i].hashCode();
+            return h;
         }
 
         public boolean equals(Object o) {
             if(!(o instanceof Bg))
                 return false;
             Bg b = (Bg)o;
-            return (image == b.image) && ((color == null) ? (b.color == null) : color.equals(b.color));
+            if(layers.length != b.layers.length)
+                return false;
+            for(int i = 0; i < layers.length; i++) {
+                if(!layers[i].equals(b.layers[i]))
+                    return false;
+            }
+            return true;
         }
 
-        /** {@code widget:style().bg} — the value as {@code reader} may hold it. */
+        /**
+         * {@code rule:bg()} — the value as {@code reader} may hold it, at the arity it was written: one surface
+         * is one table, several are an array in paint order. So a read round-trips into a write either way.
+         */
         LuaValue toLua(Addon reader) {
+            if(layers.length == 1)
+                return layers[0].toLua(reader);
             LuaTable t = new LuaTable();
-            if(color != null)
-                t.set("color", AddonManager.color(color));
-            else if(image != null)
-                t.set("image", AssetApi.imageFor(reader, image));
+            for(int i = 0; i < layers.length; i++)
+                t.set(i + 1, layers[i].toLua(reader));
             return t;
         }
     }
@@ -153,72 +400,87 @@ final class Chrome {
     // ---- border ------------------------------------------------------------------------------------
 
     /**
-     * A rule's {@code border}: one image plus the four insets that cut it into a 9-slice — the corners are drawn
-     * at their own size and the four edges stretch between them, which is exactly what {@link IBox} already means
-     * in this engine ({@code IBox.Scaled}, the window-less panels' own border). The centre is <b>not</b> painted:
-     * that is {@link Bg}'s job, so the two properties compose instead of overwriting each other.
+     * A rule's {@code border}: a frame drawn around a surface, said one of two ways. Either <b>your own art</b>
+     * plus the four insets that cut it into a 9-slice, or <b>one of the client's own boxes</b> named by its
+     * resource folder ({@code {box = "gfx/hud/wnd"}}) — the engine's eight-part {@link IBox}, whose insets are
+     * its corners' own sizes rather than a slice. The centre is <b>not</b> painted either way: that is
+     * {@link Bg}'s job, so the two properties compose instead of overwriting each other.
      *
-     * <p><b>The insets are in the image's own pixels, which are DESIGN pixels</b> (058.3) — the same space
-     * {@code g:image} blits that PNG in and the same one {@code padding} and a rule's {@code position} are written in.
-     * So the four numbers are validated against the image exactly as they are read, and it is the <b>draw</b> that
-     * carries the scale: {@link #box} wraps each slice at the size it is drawn, so an 8 px border reads at 8 design
-     * pixels of weight on every client instead of thinning out as the user scales up.
+     * <p><b>{@code mode} is what a 9-slice alone cannot say.</b> {@code IBox.Scaled} stretches its four edges
+     * between the corners; the client's own window decoration <i>repeats</i> them, a blit per tile clipped to
+     * the run, which is why a wide window's frame art stays at its authored weight instead of smearing. So a
+     * border says which of the two it wants, and {@link Tiled} is the second implementation.
+     *
+     * <p><b>A slice is in design pixels</b> (058.3) — the same space {@code padding} and a rule's
+     * {@code position} are written in — whichever spelling named the art; {@link Src} is where that is
+     * converted. The insets a layout reserves are the drawn corners themselves ({@link #tlIn}/{@link #brIn}
+     * read the box), so the frame the draw paints and the room {@link SkinDeco#iresize} keeps for it are the
+     * same rectangle by construction.
      */
     static final class Border {
-        final LuaImage image;
-        /** The four insets, in the image's own — design — pixels. {@link #tlIn}/{@link #brIn} are the drawn room. */
+        /** The 9-slice art, or {@code null} when this border is one of the client's own boxes. */
+        final Src src;
+        /** The client box's resource folder, or {@code null} when this border is a 9-slice of your own. */
+        final String box;
+        /** The four slice insets, in design pixels. All zero on a {@code box} border, which carries its own. */
         final int l, t, r, b;
-        private IBox box;              // built on first draw from TexSI views -- no second upload, nothing to free
+        /** {@link #STRETCH} or {@link #TILE} — what the four edges do between the corners. */
+        final String mode;
+        private final Tex[] parts;        // a box border's eight textures, resolved where the rule was written
+        private IBox ibox;                // built on first use -- no upload, nothing to free
 
-        Border(LuaImage image, int l, int t, int r, int b) {
-            this.image = image;
+        Border(Src src, String box, int l, int t, int r, int b, String mode, Tex[] parts) {
+            this.src = src;
+            this.box = box;
             this.l = l; this.t = t; this.r = r; this.b = b;
+            this.mode = mode;
+            this.parts = parts;
         }
 
         /**
-         * The left/top and right/bottom insets in <b>device</b> pixels — the room the drawn slices actually take,
-         * and what a window's chrome lays its content out against ({@link SkinDeco#iresize}). It is
-         * {@link Px#in(Coord)} over the same pair {@link #box} scales each corner by, so the frame the draw paints
-         * and the frame the layout reserves are the same rectangle by construction.
+         * The left/top insets in <b>device</b> pixels — the room the drawn corners actually take, and what a
+         * window's chrome lays its content out against ({@link SkinDeco#iresize}). It is the box's own
+         * {@code ctloff()}, which is the very corner the draw paints, so the two cannot drift apart.
          */
         Coord tlIn() {
-            return Px.in(Coord.of(l, t));
+            return ibox().ctloff();
         }
 
         /** The right/bottom insets in device pixels — see {@link #tlIn}. */
         Coord brIn() {
-            return Px.in(Coord.of(r, b));
+            return ibox().cbroff();
         }
 
         /**
-         * The 9-slice box over the addon's image. Built lazily and once: it is nine {@link TexSI} windows onto the
-         * same texture, so this allocates eight small objects and <b>no</b> GPU memory.
-         *
-         * <p><b>Each slice is cut in the image's own pixels and then viewed at the size it is drawn</b> (058.3): the
-         * {@code TexSI} rectangles are the design numbers the rule said, and {@link Px#in(Tex)} wraps each one so
-         * {@code IBox.Scaled} — which measures its corners and stretches its edges from {@code Tex.sz()} — draws the
-         * whole frame in device pixels. Cutting a scaled texture instead would put the slice lines at fractional
-         * source pixels and blur the corners; the scale is read once at class init, so wrapping once here is enough.
+         * The eight-part box this border draws with. Built lazily and once: for a 9-slice it is eight
+         * {@link TexSI} windows onto the same texture, so it allocates a handful of small objects and <b>no</b>
+         * GPU memory; for a {@code box} it is the client's own textures, straight from the resource cache.
          */
-        IBox box() {
-            IBox c = this.box;
+        IBox ibox() {
+            IBox c = this.ibox;
             if(c == null) {
-                Tex tx = image.tex;
-                int w = tx.sz().x, h = tx.sz().y;
-                this.box = c = new IBox.Scaled(sub(tx, 0,     0,     l,         t),           // ctl
-                                               sub(tx, w - r, 0,     r,         t),           // ctr
-                                               sub(tx, 0,     h - b, l,         b),           // cbl
-                                               sub(tx, w - r, h - b, r,         b),           // cbr
-                                               sub(tx, 0,     t,     l,         h - t - b),   // left edge
-                                               sub(tx, w - r, t,     r,         h - t - b),   // right edge
-                                               sub(tx, l,     0,     w - l - r, t),           // top edge
-                                               sub(tx, l,     h - b, w - l - r, b));          // bottom edge
+                Tex[] p = (parts != null) ? parts : slices();
+                this.ibox = c = TILE.equals(mode)
+                    ? new Tiled(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7])
+                    : new IBox.Scaled(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
             }
             return c;
         }
 
-        private static Tex sub(Tex tx, int x, int y, int w, int h) {
-            return Px.in(new TexSI(tx, Coord.of(x, y), Coord.of(x + w, y + h)));
+        /** The eight windows a {@code slice} cuts out of this border's art, in {@link IBox.Images} order. */
+        private Tex[] slices() {
+            Coord sz = src.size();
+            int w = sz.x, h = sz.y;
+            return new Tex[] {
+                src.sub(0,     0,     l,         t),           // ctl
+                src.sub(w - r, 0,     r,         t),           // ctr
+                src.sub(0,     h - b, l,         b),           // cbl
+                src.sub(w - r, h - b, r,         b),           // cbr
+                src.sub(0,     t,     l,         h - t - b),   // left edge
+                src.sub(w - r, t,     r,         h - t - b),   // right edge
+                src.sub(l,     0,     w - l - r, t),           // top edge
+                src.sub(l,     h - b, w - l - r, b),           // bottom edge
+            };
         }
 
         /**
@@ -227,36 +489,86 @@ final class Chrome {
          * unappliable property here follows.
          */
         void draw(GOut g, Coord ul, Coord sz) {
-            if((image == null) || image.dead)
+            if((src != null) && src.dead())
                 return;
             Coord tl = tlIn(), br = brIn();          // the DRAWN corners: sz is the client's own device box
             if((sz.x < tl.x + br.x) || (sz.y < tl.y + br.y))
                 return;
-            box().draw(g, ul, sz);
+            ibox().draw(g, ul, sz);
         }
 
         public int hashCode() {
-            return (System.identityHashCode(image) * 31) + (l * 7) + (t * 13) + (r * 17) + (b * 19);
+            return ((src == null) ? box.hashCode() : (src.hashCode() * 31))
+                + (l * 7) + (t * 13) + (r * 17) + (b * 19) + (mode.hashCode() * 23);
         }
 
         public boolean equals(Object o) {
             if(!(o instanceof Border))
                 return false;
             Border x = (Border)o;
-            return (image == x.image) && (l == x.l) && (t == x.t) && (r == x.r) && (b == x.b);
+            return ((src == null) ? (x.src == null) : src.equals(x.src))
+                && ((box == null) ? (x.box == null) : box.equals(x.box))
+                && (l == x.l) && (t == x.t) && (r == x.r) && (b == x.b) && mode.equals(x.mode);
         }
 
-        /** {@code widget:style().border} — the value as {@code reader} may hold it. */
+        /** {@code rule:border()} — the value as {@code reader} may hold it, in the shape the setter takes. */
         LuaValue toLua(Addon reader) {
             LuaTable t = new LuaTable();
-            t.set("image", AssetApi.imageFor(reader, image));
-            LuaTable s = new LuaTable();
-            s.set("l", LuaValue.valueOf(this.l));
-            s.set("t", LuaValue.valueOf(this.t));
-            s.set("r", LuaValue.valueOf(this.r));
-            s.set("b", LuaValue.valueOf(this.b));
-            t.set("slice", s);
+            if(box != null) {
+                t.set("box", LuaValue.valueOf(box));
+            } else {
+                src.toLua(reader, t);
+                LuaTable s = new LuaTable();
+                s.set("l", LuaValue.valueOf(this.l));
+                s.set("t", LuaValue.valueOf(this.t));
+                s.set("r", LuaValue.valueOf(this.r));
+                s.set("b", LuaValue.valueOf(this.b));
+                t.set("slice", s);
+            }
+            t.set("mode", LuaValue.valueOf(mode));
             return t;
+        }
+    }
+
+    /**
+     * The eight-part box whose four edges <b>repeat</b> rather than stretch — the client's own decoration read
+     * as a general shape (065.2). Geometry for geometry it is {@code IBox.Scaled}: the same corners at the same
+     * places and the same runs between them, differing only in that each run is a blit per tile <b>clipped</b>
+     * to the run. Clipping is the whole of it: a tiling box that scaled its last tile instead would draw a seam
+     * at one end of every long window.
+     */
+    static final class Tiled extends IBox.Images {
+        Tiled(Tex ctl, Tex ctr, Tex cbl, Tex cbr, Tex bl, Tex br, Tex bt, Tex bb) {
+            super(ctl, ctr, cbl, cbr, bl, br, bt, bb);
+        }
+
+        public void draw(GOut g, Coord tl, Coord sz) {
+            runh(g, bt, tl.add(ctl.sz().x, 0), sz.x - ctl.sz().x - ctr.sz().x);
+            runh(g, bb, tl.add(cbl.sz().x, sz.y - bb.sz().y), sz.x - cbl.sz().x - cbr.sz().x);
+            runv(g, bl, tl.add(0, ctl.sz().y), sz.y - ctl.sz().y - cbl.sz().y);
+            runv(g, br, tl.add(sz.x - br.sz().x, ctr.sz().y), sz.y - ctr.sz().y - cbr.sz().y);
+            g.image(ctl, tl);
+            g.image(ctr, tl.add(sz.x - ctr.sz().x, 0));
+            g.image(cbl, tl.add(0, sz.y - cbl.sz().y));
+            g.image(cbr, tl.add(sz.sub(cbr.sz())));
+        }
+
+        /** One horizontal run: {@code w} device pixels of {@code t}, repeated and clipped to the run. */
+        private static void runh(GOut g, Tex t, Coord c, int w) {
+            if((w <= 0) || (t.sz().x <= 0))
+                return;
+            Coord br = c.add(w, t.sz().y);
+            for(int x = 0; x < w; x += t.sz().x)
+                g.image(t, c.add(x, 0), c, br);
+        }
+
+        /** One vertical run — see {@link #runh}. */
+        private static void runv(GOut g, Tex t, Coord c, int h) {
+            if((h <= 0) || (t.sz().y <= 0))
+                return;
+            Coord br = c.add(t.sz().x, h);
+            for(int y = 0; y < h; y += t.sz().y)
+                g.image(t, c.add(0, y), c, br);
         }
     }
 
@@ -443,18 +755,32 @@ final class Chrome {
 
     // ---- parsing -----------------------------------------------------------------------------------
 
+    /** The four spellings a picture comes in, as every error here lists them. */
+    private static final String ART =
+        "{ color = {r,g,b[,a]} }, { image = hafen.asset():get(\"img/panel.png\") },"
+        + " { asset = \"img/panel.png\" } or { res = \"gfx/hud/wnd/lg/bg\" }";
+
     /**
-     * Parse a rule's {@code bg = { color = {r,g,b[,a]} }} or {@code bg = { image = hafen.asset("…") }}.
-     * <b>Exactly one</b> of the two: a table carrying both would have to pick a winner silently, and a table
-     * carrying neither is a typo the API can only answer with an error (D-072 — an unknown <i>key</i> here has no
-     * future meaning to wait for, unlike an unresolved selector).
+     * Parse one <b>surface</b> — {@code {color=}}, {@code {image=}}, {@code {asset=}} or {@code {res=}}, with an
+     * optional {@code at}, {@code offset} and {@code mode}. <b>Exactly one</b> of the four: a table naming two
+     * would have to pick a winner silently, and a table naming none is a typo the API can only answer with an
+     * error (D-072 — an unknown <i>key</i> here has no future meaning to wait for, unlike an unresolved
+     * selector).
+     *
+     * <p>This is the one parser behind every image slot in the vocabulary, which is what makes {@code {res=}}
+     * name the game's own art wherever a picture may go, and one error message answer for all of them. A
+     * <b>colour</b> refuses the three placement fields: it has no size of its own to place, so it fills its
+     * whole surface and there is nothing for a spot or a mode to say.
      */
-    static Bg parseBg(String ctx, LuaValue v) {
+    static Art parseArt(Addon owner, String ctx, String what, LuaValue v) {
         if(!v.istable())
-            throw new LuaError(ctx + ".bg: expected { color = {r,g,b[,a]} } or { image = hafen.asset(\"panel.png\") },"
-                + " got " + v.typename());
+            throw new LuaError(ctx + what + ": expected a surface — " + ART + ", got " + v.typename());
         Color color = null;
-        LuaImage image = null;
+        Src src = null;
+        String named = null;
+        int spot = -1;
+        Coord offset = null;
+        LuaValue mode = LuaValue.NIL;
         LuaValue k = LuaValue.NIL;
         while(true) {
             Varargs n = v.next(k);
@@ -466,38 +792,130 @@ final class Chrome {
             if("color".equals(p)) {
                 color = pv.istable() ? AddonManager.luaColor(pv, null) : null;
                 if(color == null)
-                    throw new LuaError(ctx + ".bg.color: expected a colour table with 0..255 components"
+                    throw new LuaError(ctx + what + ".color: expected a colour table with 0..255 components"
                         + " — { 26, 26, 28, 240 } or { r = 26, g = 26, b = 28, a = 240 }");
-            } else if("image".equals(p)) {
-                image = LuaImage.resolve(pv);
-                if(image == null)
-                    throw new LuaError(ctx + ".bg.image: expected an image asset handle"
-                        + " — hafen.asset(\"img/panel.png\")");
+                named = twice(ctx, what, named, "color");
+            } else if("image".equals(p) || "asset".equals(p) || "res".equals(p)) {
+                src = source(owner, ctx, what, p, pv);
+                named = twice(ctx, what, named, p);
+            } else if("at".equals(p)) {
+                spot = cornerOf(ctx, what + ".at", pv);
+            } else if("offset".equals(p)) {
+                offset = Layout.parseCoord(ctx + what, "offset", pv);
+            } else if("mode".equals(p)) {
+                mode = pv;
             } else {
-                throw new LuaError(ctx + ".bg: \"" + k.tojstring() + "\" is not a background property"
-                    + " — a bg is { color = … } or { image = … }");
+                throw new LuaError(ctx + what + ": \"" + k.tojstring() + "\" is not a surface property"
+                    + " — a surface is " + ART + ", each with an optional at, offset and mode");
             }
         }
-        if((color != null) && (image != null))
-            throw new LuaError(ctx + ".bg: a background is a colour OR an image, not both"
-                + " — draw the image over a coloured surface by putting the colour on the rule beneath it");
-        if((color == null) && (image == null))
-            throw new LuaError(ctx + ".bg: says nothing — a bg is { color = {r,g,b[,a]} } or { image = <asset> }");
-        return new Bg(color, image);
+        if((color == null) && (src == null))
+            throw new LuaError(ctx + what + ": says nothing — a surface is " + ART
+                + ", and a bg may be an ARRAY of them, painted in order");
+        if(color != null) {
+            if((spot >= 0) || (offset != null) || !mode.isnil())
+                throw new LuaError(ctx + what + ": a colour fills its whole surface, so it takes no \"at\","
+                    + " \"offset\" or \"mode\" — those say where a PICTURE goes and how it fills the room left");
+            return new Art(color, null, -1, null, STRETCH);
+        }
+        return new Art(null, src, spot, offset, modeOf(ctx, what, mode, TILE));
     }
 
     /**
-     * Parse a rule's {@code border = { image = hafen.asset("…"), slice = {l,t,r,b} }}. Both fields are required:
-     * an image with no slice cannot be cut into a frame, and there is no default worth guessing at (033.3's
-     * lesson — a guess produces a table that lies). The slice is validated against the image, so a border that
-     * could only ever draw inside out is refused where the rule is written rather than silently at every frame.
+     * The picture behind {@code image}/{@code asset}/{@code res}. The first two are the same art by two names —
+     * {@code {asset = "img/panel.png"}} loads through {@code hafen.asset}'s own interning, so a path and a
+     * handle resolve to one object and one uploaded texture. The third is the client's own, already resampled
+     * to this client's interface scale.
      */
-    static Border parseBorder(String ctx, LuaValue v) {
+    private static Src source(Addon owner, String ctx, String what, String prop, LuaValue v) {
+        if("image".equals(prop)) {
+            LuaImage li = LuaImage.resolve(v);
+            if(li == null)
+                throw new LuaError(ctx + what + ".image: expected an image asset handle"
+                    + " — hafen.asset():get(\"img/panel.png\")");
+            return Src.of(li);
+        }
+        String s = (v.isstring() && !v.isnumber()) ? v.tojstring() : null;
+        if(s == null)
+            throw new LuaError(ctx + what + "." + prop + ": expected a "
+                + ("asset".equals(prop) ? "path string, relative to your addon's folder — \"img/panel.png\""
+                                        : "resource name string — \"gfx/hud/wnd/lg/bg\"")
+                + ", got " + v.typename());
+        if("asset".equals(prop)) {
+            LuaImage li = LuaImage.resolve(AssetApi.load(owner, s));
+            if(li == null)
+                throw new LuaError(ctx + what + ".asset: \"" + s + "\" is not an image — a surface's asset is a"
+                    + " picture file (.png/.jpg/.gif/.bmp)");
+            return Src.of(li);
+        }
+        return Src.of(s, loadres(ctx, what + ".res", s));
+    }
+
+    /** One of the client's own images, or the error that names the resource rather than an engine exception. */
+    private static Tex loadres(String ctx, String what, String name) {
+        Tex tx;
+        try {
+            tx = Resource.loadtex(name);
+        } catch(Resource.NoSuchResourceException e) {
+            throw new LuaError(ctx + what + ": no such resource \"" + name + "\" — a resource name is the"
+                + " client's own, without a leading slash (e.g. \"gfx/hud/wnd/lg/bg\")");
+        } catch(RuntimeException e) {
+            throw new LuaError(ctx + what + ": \"" + name + "\" is not an image resource: " + e.getMessage());
+        }
+        if(tx == null)
+            throw new LuaError(ctx + what + ": \"" + name + "\" carries no image");
+        return tx;
+    }
+
+    /** Two spellings of the same thing in one value: the winner cannot be picked silently, so neither is. */
+    private static String twice(String ctx, String what, String had, String now) {
+        if(had != null)
+            throw new LuaError(ctx + what + ": says \"" + had + "\" AND \"" + now + "\" — a surface is one of"
+                + " " + ART + ", not several. Layer them instead: a bg may be an array, painted in order");
+        return now;
+    }
+
+    /**
+     * Parse a rule's {@code bg} — one surface, or an <b>array</b> of them painted in order. The array is what
+     * the client's own window background is, and what a texture under a vignette needs; it is no new value, only
+     * the surface at a different arity, so the two are told apart by the one thing that distinguishes them: a
+     * list's first entry is a table, a surface's is nothing.
+     */
+    static Bg parseBg(Addon owner, String ctx, LuaValue v) {
         if(!v.istable())
-            throw new LuaError(ctx + ".border: expected { image = hafen.asset(\"panel.png\"), slice = {l,t,r,b} },"
-                + " got " + v.typename());
-        LuaImage image = null;
-        LuaValue slice = null;
+            throw new LuaError(ctx + ".bg: expected a surface — " + ART + " — or an array of them, got "
+                + v.typename());
+        if(v.get(1).istable()) {
+            List<Art> ls = new ArrayList<Art>();
+            for(int i = 1; ; i++) {
+                LuaValue e = v.get(i);
+                if(e.isnil())
+                    break;
+                ls.add(parseArt(owner, ctx, ".bg[" + i + "]", e));
+            }
+            return new Bg(ls.toArray(new Art[ls.size()]));
+        }
+        return new Bg(new Art[] {parseArt(owner, ctx, ".bg", v)});
+    }
+
+    /**
+     * Parse a rule's {@code border} — a 9-slice of your own ({@code image}/{@code asset}/{@code res} plus
+     * {@code slice}), or one of the client's own boxes ({@code {box = "gfx/hud/wnd"}}). One or the other: they
+     * are two ways of saying where a frame's eight pieces come from, and a value naming both is asking one
+     * question twice.
+     *
+     * <p>On the 9-slice form both fields are required: an image with no slice cannot be cut into a frame, and
+     * there is no default worth guessing at (033.3's lesson — a guess produces a table that lies). The slice is
+     * validated against the art, so a border that could only ever draw inside out is refused where the rule is
+     * written rather than silently at every frame.
+     */
+    static Border parseBorder(Addon owner, String ctx, LuaValue v) {
+        if(!v.istable())
+            throw new LuaError(ctx + ".border: expected { image = hafen.asset():get(\"panel.png\"),"
+                + " slice = {l,t,r,b} } or { box = \"gfx/hud/wnd\" }, got " + v.typename());
+        Src src = null;
+        String named = null, box = null;
+        LuaValue slice = null, mode = LuaValue.NIL;
         LuaValue k = LuaValue.NIL;
         while(true) {
             Varargs n = v.next(k);
@@ -506,31 +924,78 @@ final class Chrome {
                 break;
             String p = key(k);
             LuaValue pv = n.arg(2);
-            if("image".equals(p)) {
-                image = LuaImage.resolve(pv);
-                if(image == null)
-                    throw new LuaError(ctx + ".border.image: expected an image asset handle"
-                        + " — hafen.asset(\"img/panel.png\")");
+            if("image".equals(p) || "asset".equals(p) || "res".equals(p)) {
+                src = source(owner, ctx, ".border", p, pv);
+                named = p;
+            } else if("box".equals(p)) {
+                box = (pv.isstring() && !pv.isnumber()) ? pv.tojstring() : null;
+                if(box == null)
+                    throw new LuaError(ctx + ".border.box: expected the resource FOLDER of one of the client's"
+                        + " own frames — { box = \"gfx/hud/wnd\" }, got " + pv.typename());
             } else if("slice".equals(p)) {
                 slice = pv;
+            } else if("mode".equals(p)) {
+                mode = pv;
             } else {
-                throw new LuaError(ctx + ".border: \"" + k.tojstring() + "\" is not a border property"
-                    + " — a border is { image = …, slice = {l,t,r,b} }");
+                throw new LuaError(ctx + ".border: \"" + k.tojstring() + "\" is not a border property — a border"
+                    + " is { image = …, slice = {l,t,r,b} } or { box = \"gfx/hud/wnd\" }, either with a mode");
             }
         }
-        if(image == null)
-            throw new LuaError(ctx + ".border: needs an image — { image = hafen.asset(\"img/panel.png\"),"
-                + " slice = {l,t,r,b} }");
+        String m = modeOf(ctx, ".border", mode, STRETCH);
+        if(box != null) {
+            if(src != null)
+                throw new LuaError(ctx + ".border: says \"" + named + "\" AND \"box\" — a border is your own"
+                    + " 9-slice art OR one of the client's own frames, not both");
+            if(slice != null)
+                throw new LuaError(ctx + ".border: a box carries its own insets — the corners of \"" + box
+                    + "\" are its slice, so drop the \"slice\"");
+            return new Border(null, box, 0, 0, 0, 0, m, loadBox(ctx, box));
+        }
+        if(src == null)
+            throw new LuaError(ctx + ".border: needs art — { image = hafen.asset():get(\"img/panel.png\"),"
+                + " slice = {l,t,r,b} }, { res = \"gfx/…\", slice = … } or { box = \"gfx/hud/wnd\" }");
         if(slice == null)
             throw new LuaError(ctx + ".border: needs a slice — the four insets {left, top, right, bottom},"
-                + " in the image's own pixels, that cut it into corners and edges");
+                + " in design pixels, that cut the art into corners and edges");
         int[] s = insets(ctx, ".border.slice", "an inset", slice);
-        int w = image.sz.x, h = image.sz.y;
-        if((s[0] + s[2] >= w) || (s[1] + s[3] >= h))
+        Coord sz = src.size();
+        if((s[0] + s[2] >= sz.x) || (s[1] + s[3] >= sz.y))
             throw new LuaError(ctx + ".border.slice: {" + s[0] + "," + s[1] + "," + s[2] + "," + s[3]
-                + "} leaves no middle in a " + w + "x" + h + " image — left+right must be under its width and"
-                + " top+bottom under its height");
-        return new Border(image, s[0], s[1], s[2], s[3]);
+                + "} leaves no middle in a " + sz.x + "x" + sz.y + " image — left+right must be under its width"
+                + " and top+bottom under its height");
+        return new Border(src, null, s[0], s[1], s[2], s[3], m, null);
+    }
+
+    /** The four corners of one of the client's own boxes — the one naming every such frame shares. */
+    private static final String[] BOX_CORNERS = {"tl", "tr", "bl", "br"};
+    /**
+     * ...and its four edges, which the client spells two ways: {@code gfx/hud/bosq} and {@code gfx/hud/emote}
+     * carry {@code el}/{@code er}/{@code et}/{@code eb}, {@code gfx/hud/wnd} carries the {@code ext} spelling.
+     * Both are tried, in order, so a theme names the folder and nothing else.
+     */
+    private static final String[][] BOX_EDGES = {
+        {"el", "er", "et", "eb"},
+        {"extvl", "extvr", "extht", "exthb"},
+    };
+
+    /**
+     * Load one of the client's own eight-part boxes, in {@link IBox.Images} order. The corners resolve first, so
+     * a folder that is not a box at all fails naming <i>itself</i> rather than naming an edge nobody wrote.
+     */
+    private static Tex[] loadBox(String ctx, String base) {
+        Tex[] p = new Tex[8];
+        for(int i = 0; i < 4; i++)
+            p[i] = loadres(ctx, ".border.box", base + "/" + BOX_CORNERS[i]);
+        for(int s = 0; s < BOX_EDGES.length; s++) {
+            try {
+                for(int i = 0; i < 4; i++)
+                    p[4 + i] = Resource.loadtex(base + "/" + BOX_EDGES[s][i]);
+                return p;
+            } catch(RuntimeException e) { /* the other spelling, then */ }
+        }
+        throw new LuaError(ctx + ".border.box: \"" + base + "\" has corners but no edges — the four edges of one"
+            + " of the client's own frames are named \"el\"/\"er\"/\"et\"/\"eb\" or"
+            + " \"extvl\"/\"extvr\"/\"extht\"/\"exthb\"");
     }
 
     /**

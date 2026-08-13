@@ -59,9 +59,10 @@ final class Px {
      * device-sized from the moment it loaded ({@code Resource.Image.scaled()}).
      *
      * <p>A <b>view</b>, not a copy: it uploads nothing and owns nothing, so a slice of an addon's image
-     * ({@code Chrome.Border}'s nine {@code TexSI} windows) is wrapped exactly like the whole one — which is what
-     * makes a themed border's slice insets the image's own pixels while the <i>draw</i> carries the scale. Never
-     * hand it a {@code ScaledTex}: the wrap is idempotent in {@code UI} but not through this generic call.
+     * ({@code Chrome.Src}'s {@code TexSI} windows, which a border is cut into) is wrapped exactly like the whole
+     * one — which is what makes a themed border's slice insets the image's own pixels while the <i>draw</i>
+     * carries the scale. Never hand it a {@code ScaledTex}: the wrap is idempotent in {@code UI} but not through
+     * this generic call.
      */
     static <T extends Tex> ScaledTex<T> in(T tex) {
         return (tex == null) ? null : UI.scale(tex);

@@ -102,6 +102,10 @@ drawn, so it stands beside the client's own art at the same size at every interf
 A disposed image simply **draws nothing** thereafter; the [draw verbs](ui/drawing.md) are forgiving and
 never throw.
 
+A [stylesheet](ui/style/chrome.md#naming-a-picture) takes the handle or the **path**: `{asset =
+"img/panel.png"}` loads through this same door and interns to this same object, so a rule in a JSON file
+reaches your art without a line of Lua that names it.
+
 ### Font
 
 A font asset **is** a [`FontHandle`](font.md) with the three asset verbs on top. See
@@ -201,6 +205,7 @@ namespace is *your files*; the table below is *the game's*.
 | Engine resource | Call |
 |---|---|
 | a `.res` image — action icons, HUD art | [`g:resource(name, x, y)`](ui/drawing.md) |
+| a `.res` image as a theme's own art | `{res = name}` in a [rule](ui/style/chrome.md#naming-a-picture)'s `bg` or `border` |
 | a minimap drawing of ground you explored | [`grid:image(lvl)`](map/drawings.md) |
 | a `.res` sound | [`hafen.sound():get(name)`](sound.md) |
 | a `.res` prop in the world | [`hafen.vr`](vr/ghosts.md) |

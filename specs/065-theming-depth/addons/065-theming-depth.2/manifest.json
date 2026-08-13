@@ -1,0 +1,9 @@
+{
+  "name": "065.2 — art is named, not only handed over",
+  "id": "065-theming-depth.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.2: one art value with four spellings, the client's own boxes named rather than shipped, a stretched edge and a tiled one, and a bg of several layers.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

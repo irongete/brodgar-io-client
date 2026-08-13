@@ -66,6 +66,11 @@ the height to it, and [`:pack()`](widget.md#owned-vs-borrowed) sizes the box aro
 [`img:size()`](../asset.md#image) and covers 32 design pixels when drawn, so your art and the client's
 sit at the same size at every scale.
 
+**The client's own art carries its own scale**, and a rule that [names one](style/chrome.md#naming-a-picture)
+still speaks this unit: the HUD is drawn from art authored several times larger, resampled once per interface
+scale, so a `{res = …}` in a `bg` or a `border` is measured — and sliced — in the same design pixels your own
+file is, while staying crisper than a file of that apparent size on a scaled-up client.
+
 **A font's `size` is a design pixel too**, and always was — see [`hafen.font`](../font.md). A type size is
 not a coordinate, but it lives in the same space as one, so a `14` px caption fits a `20` px row on every
 client.

@@ -59,7 +59,7 @@ background. A misspelt property is an error naming the ones that exist, which is
 ```lua
 s:rule("window.frame")
   :bg{ color = {26, 26, 28, 240} }
-  :border{ image = hafen.asset():get("frame.png"), slice = {12, 40, 12, 12} }
+  :border{ box = "gfx/hud/wnd", mode = "tile" }   -- ...or your own art, cut into a 9-slice
   :padding(4, 12, 4, 4)
 s:rule("window[title=Inventory]")
   :anchor{ to = "screen", at = "bottomright", offset = {-8, -8} }
@@ -81,12 +81,13 @@ Layout resolves through the same cascade with a different top: the hand-named le
 ## A theme is a file
 
 Nothing in a rule is code the client calls: a colour is three numbers, a `padding` is four, an anchor is a
-corner and an offset. So a whole look can live in a JSON file your addon ships, with the Lua doing nothing
-but reading it:
+corner and an offset, and a picture is [named](../api/ui/style/chrome.md#naming-a-picture) — the path of a
+file you ship, or the resource name of the client's own art. So a whole look can live in a JSON file your
+addon ships, with the Lua doing nothing but reading it:
 
 ```lua
 local doc = hafen.json():parse(hafen.asset():get("theme.json"):text())
--- map the two values JSON cannot carry -- a font face and an image -- to handles, then:
+-- map the one value JSON cannot carry -- a font face -- to a handle, then:
 hafen.ui():sheet():load(doc.rules):install()
 ```
 

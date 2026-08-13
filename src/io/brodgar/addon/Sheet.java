@@ -363,7 +363,7 @@ final class Sheet {
      * <p>The whole table is parsed <b>before</b> a single rule is committed, so a malformed one is an error that
      * leaves the sheet exactly as it was rather than a half-loaded document.
      */
-    static List<Parsed> parseSheet(String ctx, LuaValue t) {
+    static List<Parsed> parseSheet(Addon owner, String ctx, LuaValue t) {
         List<Parsed> out = new ArrayList<Parsed>();
         LuaValue k = LuaValue.NIL;
         while(true) {
@@ -383,7 +383,7 @@ final class Sheet {
                     + "{ font = h, color = {r,g,b} }, got " + v.typename());
             Selector sel = Selector.parse(key);           // a bad key errors exactly as it does in hafen.ui(sel)
             String scope = siteOf(sel);
-            Props p = propsOf(ctx + "[\"" + key + "\"]", v, scope, (scope == null) ? sel : null);
+            Props p = propsOf(owner, ctx + "[\"" + key + "\"]", v, scope, (scope == null) ? sel : null);
             out.add(new Parsed(key, sel, scope, p));
         }
         return out;
@@ -432,7 +432,7 @@ final class Sheet {
      * order. (Written as setters there is no order to pick from: the second call replaces the first, exactly as
      * a second {@code :position()} does.)
      */
-    private static Props propsOf(String ctx, LuaValue props, String site, Selector sel) {
+    private static Props propsOf(Addon owner, String ctx, LuaValue props, String site, Selector sel) {
         Props out = new Props();
         String posprop = null;
         LuaValue pk = LuaValue.NIL;
@@ -451,9 +451,9 @@ final class Sheet {
                     throw new LuaError(ctx + ".color: expected a colour table with 0..255"
                         + " components — { 200, 210, 200 } or { r = 200, g = 210, b = 200, a = 255 }");
             } else if("bg".equals(p)) {
-                out.bg = Chrome.parseBg(ctx, pv);
+                out.bg = Chrome.parseBg(owner, ctx, pv);
             } else if("border".equals(p)) {
-                out.border = Chrome.parseBorder(ctx, pv);
+                out.border = Chrome.parseBorder(owner, ctx, pv);
             } else if("padding".equals(p)) {
                 out.padding = Chrome.parsePadding(ctx, pv);
             } else if("position".equals(p) || "anchor".equals(p) || "size".equals(p)) {

@@ -215,7 +215,6 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `src/io/brodgar/addon/Sheet.java`, `Chrome.java`, `LuaRule.java` — 1–17
 - `src/io/brodgar/addon/SkinDeco.java` — 1, 4, 5
 - `src/io/brodgar/addon/Retired.java` — 1
-- `src/io/brodgar/addon/Layout.java` — 4, 5 (the nine-corner parse alone)
 - `src/io/brodgar/addon/Selector.java` — 4, 7, 10, 11, 13, 16, 17, 18 (`WIDGET_ROLES`/`SITE_ROLES`, where a
   new key is declared a site rather than silently becoming a tree key)
 - `src/io/brodgar/addon/UiApi.java`, `LuaWidget.java` — every task whose suite drives a widget of its own:
@@ -223,6 +222,7 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `src/io/brodgar/addon/LuaImage.java`, `AssetApi.java` — 2, 12
 - `src/io/brodgar/addon/FontApi.java`, `FontHandle.java` — 3
 - `src/haven/Window.java` — 4, 5
+- `src/haven/GOut.java` — 6, 8, 9, 10, 13 (`image`/`rimage` and the clipped blit a run is written with)
 - `src/haven/IBox.java` — 2, 11
 - `src/haven/UILoop.java` — 6
 - `src/haven/Inventory.java` — 7

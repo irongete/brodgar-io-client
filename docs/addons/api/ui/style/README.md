@@ -65,11 +65,12 @@ hafen.ui():sheet():load(doc.rules):install()
 ```
 
 That is a look whose Lua never names a surface, a font, a size, a
-colour or a pixel. Exactly two values in a rule are things JSON cannot carry, and both because they are
-**handles**: a font's face and an [image](chrome.md). Map those two and everything else — a colour array, a
-border's four slice insets, a `padding`, an [anchor's corner and offset](geometry.md#anchor) — is already the
-sheet's own shape and travels verbatim. A whole client look, windows included, with no code of its own, is
-one command away.
+colour or a pixel. One value in a rule is a thing JSON cannot carry, because it is a **handle**: a font's
+face. Map that one and everything else — a colour array, a border's four slice insets, a `padding`, an
+[anchor's corner and offset](geometry.md#anchor) — is already the sheet's own shape and travels verbatim, the
+art included: a picture is named by its [path or its resource](chrome.md#naming-a-picture), so a `bg` and a
+`border` are strings in a file like everything else. A whole client look, windows included, with no code of
+its own, is one command away.
 
 Inside a loaded table the properties are the setter names: `font`, `color`, `bg`, `border`, `padding`,
 `position`, `anchor`, `size`. An unknown one is an **error** naming the ones that exist, and so is a rule
@@ -91,8 +92,8 @@ Each is a setter that returns the rule, and each reads back with no argument.
 |---|---|---|
 | `rule:font(h)` | a [font handle](../../font.md) | `hafen.font():get(name)` or `hafen.asset():get(path)`, optionally through `:derive()` — see [text](text.md) |
 | `rule:color(r, g, b[, a])` | `0..255` each | also takes a colour value, the `{r = …, g = …}` table every reader hands back — see [text](text.md#color) |
-| `rule:bg(t)` | `{color = {r,g,b,a}}` **or** `{image = hafen.asset():get(…)}` | the surface something is painted on — see [chrome](chrome.md) |
-| `rule:border(t)` | `{image = hafen.asset():get(…), slice = {l, t, r, b}}` | a 9-slice frame — see [chrome](chrome.md) |
+| `rule:bg(t)` | one [surface](chrome.md#naming-a-picture), or an array of them | what something is painted on, one layer or several — see [chrome](chrome.md) |
+| `rule:border(t)` | `{<art>, slice = {l, t, r, b}}` **or** `{box = "gfx/hud/wnd"}` | your own 9-slice frame, or one of the client's own — see [chrome](chrome.md#border) |
 | `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, one number for all four sides or `(l, t, r, b)` — see [`padding`](chrome.md#padding) |
 | `rule:position(x, y)` | [design px](../pixels.md) | where the widget sits inside its parent — **tree keys only**, see [geometry](geometry.md) |
 | `rule:anchor(t)` | `{to =, at =, offset =}` | the same place said as a relationship — see [`anchor`](geometry.md#anchor) |
