@@ -21,7 +21,7 @@ s:install()
 [keys](keys.md) says **which** surfaces a rule reaches and which properties each one honours.
 [surfaces](surfaces.md) says what each of the client's own surfaces *is*, and how it behaves when a rule
 lands on it. Then the property pages: [text](text.md) for `font` and `color`, [chrome](chrome.md) for `bg`,
-`border` and `pad`, [geometry](geometry.md) for `position`, `size` and `anchor`. This page holds the sheet
+`border` and `padding`, [geometry](geometry.md) for `position`, `size` and `anchor`. This page holds the sheet
 itself, the per-widget level, the cascade they all resolve through, and the edge of the system.
 
 ## The sheet (unprotected)
@@ -67,11 +67,11 @@ hafen.ui():sheet():load(doc.rules):install()
 That is a look whose Lua never names a surface, a font, a size, a
 colour or a pixel. Exactly two values in a rule are things JSON cannot carry, and both because they are
 **handles**: a font's face and an [image](chrome.md). Map those two and everything else — a colour array, a
-border's four slice insets, a `pad`, an [anchor's corner and offset](geometry.md#anchor) — is already the
+border's four slice insets, a `padding`, an [anchor's corner and offset](geometry.md#anchor) — is already the
 sheet's own shape and travels verbatim. A whole client look, windows included, with no code of its own, is
 one command away.
 
-Inside a loaded table the properties are the setter names: `font`, `color`, `bg`, `border`, `pad`,
+Inside a loaded table the properties are the setter names: `font`, `color`, `bg`, `border`, `padding`,
 `position`, `anchor`, `size`. An unknown one is an **error** naming the ones that exist, and so is a rule
 that says both `position` and `anchor` — two spellings of [one property](geometry.md#anchor), and in a table
 there is no *later* to pick the winner.
@@ -93,7 +93,7 @@ Each is a setter that returns the rule, and each reads back with no argument.
 | `rule:color(r, g, b[, a])` | `0..255` each | also takes a colour value, the `{r = …, g = …}` table every reader hands back — see [text](text.md#color) |
 | `rule:bg(t)` | `{color = {r,g,b,a}}` **or** `{image = hafen.asset():get(…)}` | the surface something is painted on — see [chrome](chrome.md) |
 | `rule:border(t)` | `{image = hafen.asset():get(…), slice = {l, t, r, b}}` | a 9-slice frame — see [chrome](chrome.md) |
-| `rule:pad(n)` | [design px](../pixels.md), `>= 0` | the space a surface keeps between its frame and its content — see [`pad`](chrome.md#pad) |
+| `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, one number for all four sides or `(l, t, r, b)` — see [`padding`](chrome.md#padding) |
 | `rule:position(x, y)` | [design px](../pixels.md) | where the widget sits inside its parent — **tree keys only**, see [geometry](geometry.md) |
 | `rule:anchor(t)` | `{to =, at =, offset =}` | the same place said as a relationship — see [`anchor`](geometry.md#anchor) |
 | `rule:size(w, h)` | [design px](../pixels.md) | how big it is; a window's *content* size — **tree keys only**, see [geometry](geometry.md) |
@@ -183,7 +183,7 @@ patch.
 **What one sheet reaches.** *Which* — any render site the client draws text or chrome at (the
 [site keys](keys.md#site-keys)), any widget a [selector](../selectors.md) names, and any single widget you
 point at with `widget:rule()`. *What* — the text (`font`, `color`), the surfaces that paint (`bg`,
-`border`), the room around content (`pad`), and where a widget is and how big (`position`, `size`,
+`border`), the room around content (`padding`), and where a widget is and how big (`position`, `size`,
 `anchor`). *How* — resolved [per property](#the-cascade), applied live, owned by your addon and reversible
 to the pixel; and since a rule is only values, a whole look can [come from a **file**](#a-sheet-from-data)
 rather than from code.
@@ -192,7 +192,7 @@ rather than from code.
 
 - **The inside of a client window.** A rule places a *widget*; it does not re-flow what a window puts within
   itself — rows, columns, tabs, the order of a list. Those places are computed by that window's own code
-  when it is built, and nothing re-runs that construction, which is the same fact `pad` and a border's
+  when it is built, and nothing re-runs that construction, which is the same fact `padding` and a border's
   insets meet on a [panel](chrome.md#panels). Rearranging a window's insides is
   [**replacing**](../replace.md) it, not styling it.
 - **State-dependent looks.** There is no hover, pressed, focused or disabled selector. A rule matches what a

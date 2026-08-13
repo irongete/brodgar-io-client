@@ -1,0 +1,9 @@
+{
+  "name": "065.1 — a rule's chrome is a property bag, and padding",
+  "id": "065-theming-depth.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.1: padding is four sides and reads back, the chrome bag folds per property across the cascade, and every retired `pad` spelling refuses naming padding.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

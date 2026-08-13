@@ -15,21 +15,28 @@ import org.luaj.vm2.Varargs;
 
 import java.awt.Color;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * The <b>chrome</b> properties of a stylesheet rule (spec {@code 035-ui-chrome}, feature C2): {@code bg} and
- * {@code border}, which paint, and {@code pad}, which <b>moves</b>. Everything C1 shipped is text — {@code font}
- * and {@code color}; these are the first properties that put pixels of their own on a surface, and the first that
- * can change where the client's own content sits.
+ * The <b>chrome</b> properties of a stylesheet rule: {@code bg} and {@code border}, which paint, and
+ * {@code padding}, which <b>moves</b>. {@code font} and {@code color} are text; these are the properties that
+ * put pixels of their own on a surface, and the ones that can change where the client's own content sits.
  *
  * <pre>
  *   hafen.ui():sheet():rule("window.frame")
  *     :bg{ color = {26, 26, 28, 240} }
  *     :border{ image = hafen.asset("img/panel.png"), slice = {8, 8, 8, 8} }
- *     :pad(6)
+ *     :padding(8, 4, 8, 8)
  * </pre>
+ *
+ * <p><b>They travel as a bag</b> (065.1). A resolved style carries its chrome half as one opaque
+ * {@code Map<String, Object>} ({@code Fonts.Style#prop}), keyed by the very property names a rule is written
+ * with — {@link #BG}, {@link #BORDER}, {@link #PADDING} — and folded key by key by {@code Fonts.combine}. So a
+ * new theme property costs a parser here, a slot in {@link Sheet.Props}, a setter in {@link LuaRule} and a
+ * reader at its site, and <b>no edit to {@code haven}</b>. The casts back out of the bag live in one place, the
+ * three accessors below, which is what keeps them honest.
  *
  * <p><b>Plain data, parsed once.</b> A rule carries no Lua and no callback: a {@link Bg} is a colour <i>or</i> an
  * image, a {@link Border} is an image plus its 9-slice insets, and the engine paints from that — the per-frame
@@ -50,6 +57,47 @@ import java.util.WeakHashMap;
  */
 final class Chrome {
     private Chrome() {}
+
+    // ---- the bag: the keys a resolved style carries its chrome half under (065.1) -------------------
+
+    /** The {@code bg} property's key in a resolved style's bag. Its value is a {@link Bg}. */
+    static final String BG = "bg";
+    /** The {@code border} property's key. Its value is a {@link Border}. */
+    static final String BORDER = "border";
+    /** The {@code padding} property's key. Its value is a {@link Pad}. */
+    static final String PADDING = "padding";
+
+    /** The {@code bg} a resolved style carries, or {@code null} — for {@code null} styles too, which is the common case. */
+    static Bg bg(Fonts.Style st) {
+        return (st == null) ? null : (Bg)st.prop(BG);
+    }
+
+    /** The {@code border} a resolved style carries, or {@code null}. */
+    static Border border(Fonts.Style st) {
+        return (st == null) ? null : (Border)st.prop(BORDER);
+    }
+
+    /** The {@code padding} a resolved style carries, or {@code null}. */
+    static Pad padding(Fonts.Style st) {
+        return (st == null) ? null : (Pad)st.prop(PADDING);
+    }
+
+    /**
+     * The bag one rule's chrome properties travel in, or {@code null} when it names none — which is what keeps
+     * the provider's identity fast path intact for a sheet that says nothing about chrome.
+     */
+    static Map<String, Object> props(Bg bg, Border border, Pad padding) {
+        if((bg == null) && (border == null) && (padding == null))
+            return null;
+        Map<String, Object> m = new LinkedHashMap<String, Object>(4);
+        if(bg != null)
+            m.put(BG, bg);
+        if(border != null)
+            m.put(BORDER, border);
+        if(padding != null)
+            m.put(PADDING, padding);
+        return m;
+    }
 
     // ---- bg ----------------------------------------------------------------------------------------
 
@@ -111,7 +159,7 @@ final class Chrome {
      * that is {@link Bg}'s job, so the two properties compose instead of overwriting each other.
      *
      * <p><b>The insets are in the image's own pixels, which are DESIGN pixels</b> (058.3) — the same space
-     * {@code g:image} blits that PNG in and the same one {@code pad} and a rule's {@code position} are written in.
+     * {@code g:image} blits that PNG in and the same one {@code padding} and a rule's {@code position} are written in.
      * So the four numbers are validated against the image exactly as they are read, and it is the <b>draw</b> that
      * carries the scale: {@link #box} wraps each slice at the size it is drawn, so an 8 px border reads at 8 design
      * pixels of weight on every client instead of thinning out as the user scales up.
@@ -212,6 +260,75 @@ final class Chrome {
         }
     }
 
+    // ---- padding -----------------------------------------------------------------------------------
+
+    /**
+     * A rule's {@code padding}: the room a surface keeps between its frame and its content, on <b>each of the
+     * four sides</b> — one number for all of them, or {@code {l, t, r, b}}. It answers the same pair
+     * {@link Border} does, {@link #tlIn}/{@link #brIn}, because the two are summed side by side by the one
+     * method that lays a window out ({@link SkinDeco#iresize}): the frame's own insets and the breathing room
+     * inside them.
+     *
+     * <p><b>Design pixels, converted where they are spent</b>: {@code iresize} adds them to
+     * {@code Window.dlmrgn}/{@code dsmrgn}, which are {@code UI.scale}d, so an unconverted padding would be the
+     * one term in that sum meaning something else. Kept as written, so {@code rule:padding()} reads back the
+     * four numbers the rule said on every client.
+     *
+     * <p>Immutable, with value equality: the resolved style is interned on it ({@code Sheet.SKey}) and the
+     * window chrome compares it by value to decide whether a changed rule has to re-lay a window out.
+     */
+    static final class Pad {
+        /** The four insets, in design pixels. */
+        final int l, t, r, b;
+
+        Pad(int l, int t, int r, int b) {
+            this.l = l; this.t = t; this.r = r; this.b = b;
+        }
+
+        /** The left/top room in <b>device</b> pixels — the space a layout actually reserves. */
+        Coord tlIn() {
+            return Px.in(Coord.of(l, t));
+        }
+
+        /** The right/bottom room in device pixels — see {@link #tlIn}. */
+        Coord brIn() {
+            return Px.in(Coord.of(r, b));
+        }
+
+        /**
+         * Is this padding nothing at all? A rule saying {@code padding(0)} says the same thing as one saying no
+         * padding, so it alone never dresses a window — the chrome it would install would draw stock pixels at
+         * stock coordinates.
+         */
+        boolean zero() {
+            return (l == 0) && (t == 0) && (r == 0) && (b == 0);
+        }
+
+        public int hashCode() {
+            return (l * 7) + (t * 13) + (r * 17) + (b * 19);
+        }
+
+        public boolean equals(Object o) {
+            if(!(o instanceof Pad))
+                return false;
+            Pad p = (Pad)o;
+            return (l == p.l) && (t == p.t) && (r == p.r) && (b == p.b);
+        }
+
+        /**
+         * {@code rule:padding()} — the four numbers, keyed. The same shape a border's {@code slice} reads back
+         * as, and the same reason: it is an argument the setter takes, so a read round-trips into a write.
+         */
+        LuaValue toLua() {
+            LuaTable t = new LuaTable();
+            t.set("l", LuaValue.valueOf(this.l));
+            t.set("t", LuaValue.valueOf(this.t));
+            t.set("r", LuaValue.valueOf(this.r));
+            t.set("b", LuaValue.valueOf(this.b));
+            return t;
+        }
+    }
+
     // ---- the window-LESS panels (035.3) ------------------------------------------------------------
 
     /**
@@ -237,7 +354,7 @@ final class Chrome {
      * delegate to the box this one stands in for, because a panel decides its size and places its children when
      * it is <i>built</i> — {@code Frame}'s constructor adds {@code box.bisz()} to its content, {@code SListMenu}
      * lays its list out in its own — and nothing re-runs that when a sheet changes. A box whose insets differed
-     * from the stock ones would move a panel's frame without moving anything inside it. So {@code pad} is inert
+     * from the stock ones would move a panel's frame without moving anything inside it. So {@code padding} is inert
      * on a panel, and so are a border's own insets: a border image is drawn <i>into</i> the room the stock art
      * had. Which is the doctrine's geometry row applied honestly — a size-changing property applies only where
      * the surface owns its geometry and re-lays-out, and a panel does neither.
@@ -309,8 +426,8 @@ final class Chrome {
         Fonts.Style st = Fonts.styleFor(scope, wdg);
         if((st == null) || (stock == null))
             return null;
-        Bg bg = (Bg)st.bg();
-        Border border = (Border)st.border();
+        Bg bg = bg(st);
+        Border border = border(st);
         if((bg == null) && (border == null))
             return null;                    // nothing to paint -- hand the site its own box back
         synchronized(Chrome.class) {
@@ -407,7 +524,7 @@ final class Chrome {
         if(slice == null)
             throw new LuaError(ctx + ".border: needs a slice — the four insets {left, top, right, bottom},"
                 + " in the image's own pixels, that cut it into corners and edges");
-        int[] s = parseSlice(ctx, slice);
+        int[] s = insets(ctx, ".border.slice", "an inset", slice);
         int w = image.sz.x, h = image.sz.y;
         if((s[0] + s[2] >= w) || (s[1] + s[3] >= h))
             throw new LuaError(ctx + ".border.slice: {" + s[0] + "," + s[1] + "," + s[2] + "," + s[3]
@@ -417,25 +534,49 @@ final class Chrome {
     }
 
     /**
-     * Parse a rule's {@code pad = 6} — the space a surface keeps between its frame and its content, in
-     * <b>design</b> px and a single number for all four sides (one canonical way per operation).
+     * Parse a rule's {@code padding} — the room a surface keeps between its frame and its content, in
+     * <b>design</b> px: one number for all four sides, or the four themselves.
      *
-     * <p><b>Design pixels, converted where it is spent</b> (058.3): {@link SkinDeco#iresize} adds it to
-     * {@code Window.dlmrgn}/{@code dsmrgn}, which are themselves {@code UI.scale}d, so an unconverted {@code pad}
-     * was the one term in that sum meaning something different from the others. Kept as written, so
-     * {@code rule:pad()} reads back the number the rule said on every client.
+     * <p><b>Four sides rather than one number</b>, because that is what the client's own margins are: a window's
+     * stock breathing room is {@code 23x14} on one side and the same on the other, and a theme whose caption
+     * needs height at the top wants exactly that asymmetry. One property and one slot, so a read hands the four
+     * back and the write takes them again.
      */
-    static Integer parsePad(String ctx, LuaValue v) {
+    static Pad parsePadding(String ctx, LuaValue v) {
         // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (the 028
-        // asset lesson, and why a sheet key is type-checked the same way). `pad = "6"` is a typo, not a pad.
-        if(v.type() != LuaValue.TNUMBER)
-            throw new LuaError(ctx + ".pad: expected a number of pixels — pad = 6, the space between a surface's"
-                + " frame and its content, got " + v.typename());
-        int p = v.toint();
-        if(p < 0)
-            throw new LuaError(ctx + ".pad: padding cannot be negative (got " + p + ")"
-                + " — a rule adds space between a frame and its content, it does not take it away");
-        return Integer.valueOf(p);
+        // asset lesson, and why a sheet key is type-checked the same way). `padding = "6"` is a typo.
+        if(v.type() == LuaValue.TNUMBER) {
+            int p = v.toint();
+            int[] s = {p, p, p, p};
+            nonneg(ctx, ".padding", "padding", s);
+            return new Pad(p, p, p, p);
+        }
+        if(!v.istable())
+            throw new LuaError(ctx + ".padding: expected a number of pixels for all four sides — padding(6) — or"
+                + " the four themselves — padding(8, 4, 8, 8), got " + v.typename());
+        int[] s = insets(ctx, ".padding", "padding", v);
+        return new Pad(s[0], s[1], s[2], s[3]);
+    }
+
+    /**
+     * {@code rule:padding(…)} as the setter is written: one number, four numbers, or the {@code {l=,t=,r=,b=}}
+     * table the read hands back. Two or three numbers is the refusal that names both shapes — a padding is all
+     * four sides or one, and there is no third arity worth guessing at.
+     */
+    static Pad parsePadding(String ctx, Varargs a, int i) {
+        LuaValue first = a.arg(i);
+        if(first.istable())
+            return parsePadding(ctx, first);
+        int n = 0;
+        LuaTable t = new LuaTable();
+        for(int j = i; (j <= a.narg()) && (a.arg(j).type() == LuaValue.TNUMBER); j++)
+            t.set(++n, a.arg(j));
+        if(n == 4)
+            return parsePadding(ctx, t);
+        if(n > 1)
+            throw new LuaError(ctx + ".padding: expected one number for all four sides — padding(6) — or four,"
+                + " {left, top, right, bottom} — padding(8, 4, 8, 8), got " + n);
+        return parsePadding(ctx, first);   // one number, or none: one message, said in one place
     }
 
     /**
@@ -443,22 +584,28 @@ final class Chrome {
      * the same reason: the positional form is what a hand-written rule (and a {@code theme.json}) says, the keyed
      * form is what {@code widget:style()} hands back, so a read round-trips into a write unchanged.
      */
-    private static int[] parseSlice(String ctx, LuaValue v) {
+    private static int[] insets(String ctx, String what, String noun, LuaValue v) {
         if(!v.istable())
-            throw new LuaError(ctx + ".border.slice: expected {left, top, right, bottom}, got " + v.typename());
+            throw new LuaError(ctx + what + ": expected {left, top, right, bottom}, got " + v.typename());
         LuaValue l = v.get("l"), t = v.get("t"), r = v.get("r"), b = v.get("b");
         if(!l.isnumber() || !t.isnumber() || !r.isnumber() || !b.isnumber()) {
             l = v.get(1); t = v.get(2); r = v.get(3); b = v.get(4);
             if(!l.isnumber() || !t.isnumber() || !r.isnumber() || !b.isnumber())
-                throw new LuaError(ctx + ".border.slice: expected four numbers — {left, top, right, bottom}"
-                    + " or { l = 8, t = 8, r = 8, b = 8 }");
+                throw new LuaError(ctx + what + ": expected four numbers — {left, top, right, bottom}"
+                    + " or { l = 8, t = 4, r = 8, b = 8 }");
         }
         int[] s = {l.toint(), t.toint(), r.toint(), b.toint()};
+        nonneg(ctx, what, noun, s);
+        return s;
+    }
+
+    /** A side of a frame is a distance, so none of the four may be negative. */
+    private static void nonneg(String ctx, String what, String noun, int[] s) {
         for(int i = 0; i < s.length; i++) {
             if(s[i] < 0)
-                throw new LuaError(ctx + ".border.slice: an inset cannot be negative (got " + s[i] + ")");
+                throw new LuaError(ctx + what + ": " + noun + " cannot be negative (got " + s[i] + ")"
+                    + " — every one of the four is a distance");
         }
-        return s;
     }
 
     /** A table key as a property name, or {@code null} for anything that is not a plain string (numbers included). */

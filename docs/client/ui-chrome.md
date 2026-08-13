@@ -17,6 +17,12 @@
 | Packing one | `Widget.pack()` is `resize(contentsz())`, and `Window.contentsz()` is the same max-child-bottom-right as the base one **with the `deco` skipped** — so packing a window measures its children, feeds that to `resize` as the CONTENT size, and the outer `sz` is re-derived by `iresize`. The deco's own `c` is negative (`contarea().ul.inv()`), which is why it cannot be one of the children measured |
 | The corner sizer — the client's ONE user-driven resize | `DefaultDeco.dragsize` (off by default; `MapWnd` alone turns it on) + `szdrag`/`szdragc`. `mousedown` hit-tests a **triangle** at `ca.br` (`c.y >= ca.br.y - UI.scale(25) + (ca.br.x - c.x)`), takes `ui.grabmouse(this)` and stores `szdragc = aa.sz().sub(c)`; `mousemove` is then `((Window)parent).resize(ev.c.add(szdragc))` — the pointer plus a constant, so the window's own `c` is never touched and **a resize moves no origin**. `drawframe` paints `sizer` at `ca.br.sub(sizer.sz())` |
 
+**A window has TWO boxes and `Widget.sz` is the outer one.** `resize2` ends with `this.sz = deco.sz`, so a
+`Window`'s own `sz` is the whole decorated box while `csz()` (`= ca().sz() = deco.contarea().sz()`) is the
+content — and `resize`/the constructor take the *content* size. So on a window, and on a window alone, the
+size you write is not the field you read; measuring the frame means differencing the deco's box against what
+it frames, never against `Window.sz`.
+
 **`chdeco` destroys what it displaces** (`reqdestroy()`), so a swap can never put the *same* object back; it reads
 the old `contarea()` first, re-runs the layout, and folds the difference into the **window's own `c`** — so a
 swap anchors the *content*, not the window's corner, and an equal-geometry swap leaves `sz`, `c` and the content

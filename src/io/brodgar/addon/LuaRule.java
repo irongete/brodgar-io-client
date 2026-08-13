@@ -21,7 +21,7 @@ import java.util.WeakHashMap;
  *
  * <pre>
  *   hafen.ui():sheet():rule("chat"):font(mono):color(200, 210, 200)
- *   hafen.ui():find("window[title=Cupboard]"):rule():pad(6)
+ *   hafen.ui():find("window[title=Cupboard]"):rule():padding(6)
  * </pre>
  *
  * <p><b>Two bindings, one type.</b> A rule reached through a {@link LuaSheet} is named by a <b>selector</b> and
@@ -266,18 +266,19 @@ public final class LuaRule {
                 return self;
             }
         });
-        // pad(n) — the space a surface keeps between its frame and its content (035.2), in RAW pixels.
-        m.set("pad", new VarArgFunction() {
+        // padding(n) / padding(l, t, r, b) — the room a surface keeps between its frame and its content (065.1),
+        // in design pixels, on each of the four sides. One number says all four; the read hands the four back
+        // keyed, which is a shape the setter takes again.
+        m.set("padding", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                LuaRule r = handle(self, "pad");
+                LuaRule r = handle(self, "padding");
                 Sheet.Props cur = r.read(owner);
-                LuaValue v = Args.written(a, 2, r.where() + ":pad", "pixels");
+                LuaValue v = Args.written(a, 2, r.where() + ":padding", "pixels");
                 if(v == null)
-                    return ((cur == null) || (cur.pad == null)) ? LuaValue.NIL
-                        : LuaValue.valueOf(cur.pad.intValue());
+                    return ((cur == null) || (cur.padding == null)) ? LuaValue.NIL : cur.padding.toLua();
                 Sheet.Props p = r.edit(owner);
-                p.pad = Chrome.parsePad(r.where(), v);
+                p.padding = Chrome.parsePadding(r.where(), a, 2);
                 r.commit(owner, p);
                 return self;
             }

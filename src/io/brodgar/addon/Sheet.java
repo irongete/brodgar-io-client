@@ -84,7 +84,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 final class Sheet {
     /** The style properties a rule may carry — the whole of a rule's vocabulary, in both its shapes. */
     static final String PROPS =
-        "\"font\", \"color\", \"bg\", \"border\", \"pad\", \"position\", \"anchor\" and \"size\"";
+        "\"font\", \"color\", \"bg\", \"border\", \"padding\", \"position\", \"anchor\" and \"size\"";
 
     /**
      * <b>What one rule says</b> — the seven properties, each independently optional, and mutable because a
@@ -101,13 +101,13 @@ final class Sheet {
         Color color;              // the rule's `color` property, or null (a rule may carry only a font)
         Chrome.Bg bg;             // the rule's `bg` property (035.1), or null
         Chrome.Border border;     // the rule's `border` property (035.1), or null
-        Integer pad;              // the rule's `pad` property (035.2), or null
+        Chrome.Pad padding;       // the rule's `padding` property (065.1), or null
         Layout.Anchor pos;        // where the rule puts it — `position` or `anchor` (036.2/036.3): TREE rules only
         Coord size;               // the rule's `size` property (036.2), or null — TREE rules only
 
         /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
         boolean empty() {
-            return (font == null) && (color == null) && (bg == null) && (border == null) && (pad == null)
+            return (font == null) && (color == null) && (bg == null) && (border == null) && (padding == null)
                 && (pos == null) && (size == null);
         }
 
@@ -118,20 +118,30 @@ final class Sheet {
 
         /** ...and does it say anything the DRAW reads? A layout-only sheet must not reach the draw pass at all. */
         boolean draws() {
-            return (font != null) || (color != null) || (bg != null) || (border != null) || (pad != null);
+            return (font != null) || (color != null) || (bg != null) || (border != null) || (padding != null);
         }
 
         /** A copy — what a write takes before it changes one field, and what an apply freezes. */
         Props copy() {
             Props p = new Props();
-            p.font = font;
-            p.color = color;
-            p.bg = bg;
-            p.border = border;
-            p.pad = pad;
-            p.pos = pos;
-            p.size = size;
+            p.set(this);
             return p;
+        }
+
+        /** Say exactly what {@code p} says. The one place a property list is copied, so a new one has no second. */
+        void set(Props p) {
+            font = p.font;
+            color = p.color;
+            bg = p.bg;
+            border = p.border;
+            padding = p.padding;
+            pos = p.pos;
+            size = p.size;
+        }
+
+        /** Say nothing — a rule leaving a sheet that is being replaced whole. */
+        void clear() {
+            set(new Props());
         }
 
         /**
@@ -148,8 +158,8 @@ final class Sheet {
                 t.set("bg", bg.toLua(reader));
             if(border != null)
                 t.set("border", border.toLua(reader));
-            if(pad != null)
-                t.set("pad", LuaValue.valueOf(pad.intValue()));
+            if(padding != null)
+                t.set("padding", padding.toLua());
             if(pos != null)
                 pos.toLua(reader, t);
             if(size != null)
@@ -170,7 +180,7 @@ final class Sheet {
         final Color color;        // the rule's `color` property, or null (a rule may carry only a font)
         final Chrome.Bg bg;       // the rule's `bg` property (035.1), or null
         final Chrome.Border border;   // the rule's `border` property (035.1), or null
-        final Integer pad;        // the rule's `pad` property (035.2), or null
+        final Chrome.Pad padding; // the rule's `padding` property (065.1), or null
         final Layout.Anchor pos;  // where the rule puts it — `position` or `anchor` (036.2/036.3) — TREE only
         final Coord size;         // the rule's `size` property (036.2), or null — TREE rules only
 
@@ -182,14 +192,14 @@ final class Sheet {
             this.color = p.color;
             this.bg = p.bg;
             this.border = p.border;
-            this.pad = p.pad;
+            this.padding = p.padding;
             this.pos = p.pos;
             this.size = p.size;
         }
 
         /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
         boolean empty() {
-            return (font == null) && (color == null) && (bg == null) && (border == null) && (pad == null)
+            return (font == null) && (color == null) && (bg == null) && (border == null) && (padding == null)
                 && (pos == null) && (size == null);
         }
 
@@ -200,7 +210,7 @@ final class Sheet {
 
         /** ...and does it say anything the DRAW reads? A layout-only sheet must not reach the draw pass at all. */
         boolean draws() {
-            return (font != null) || (color != null) || (bg != null) || (border != null) || (pad != null);
+            return (font != null) || (color != null) || (bg != null) || (border != null) || (padding != null);
         }
     }
 
@@ -324,7 +334,7 @@ final class Sheet {
                        (f == null) ? null : f.font,
                        (f == null) ? null : f.size,
                        (f == null) ? null : f.aa,
-                       r.color, r.bg, r.border, r.pad);
+                       r.color, Chrome.props(r.bg, r.border, r.padding));
         }
     }
 
@@ -397,7 +407,7 @@ final class Sheet {
     }
 
     /**
-     * The properties of one rule ({@code font}, {@code color}, {@code bg}, {@code border}, {@code pad}), each
+     * The properties of one rule ({@code font}, {@code color}, {@code bg}, {@code border}, {@code padding}), each
      * {@code null} when the rule carries none. An
      * unknown property is an <b>error</b> — unlike an unresolved key, a misspelt property has no future meaning to
      * wait for, and silently doing nothing is the worst way to answer a typo (D-072). It is checked for <b>every</b>
@@ -444,8 +454,8 @@ final class Sheet {
                 out.bg = Chrome.parseBg(ctx, pv);
             } else if("border".equals(p)) {
                 out.border = Chrome.parseBorder(ctx, pv);
-            } else if("pad".equals(p)) {
-                out.pad = Chrome.parsePad(ctx, pv);
+            } else if("padding".equals(p)) {
+                out.padding = Chrome.parsePadding(ctx, pv);
             } else if("position".equals(p) || "anchor".equals(p) || "size".equals(p)) {
                 layoutable(ctx, p, site, sel);
                 if("size".equals(p)) {
@@ -463,6 +473,10 @@ final class Sheet {
                 // spelled `position` everywhere now, because the verb it pairs with is widget:position(x, y).
                 throw new LuaError(ctx + ": \"pos\" is now \"position\" — a place is spelled the same way"
                     + " everywhere, and the verb beside this rule is widget:position(x, y)");
+            } else if(Retired.message("rule:" + p) != null) {
+                // A retired PROPERTY, through the data door: the same message its setter throws, because the two
+                // are one spelling read two ways and a table has no metatable to hang the refusal off.
+                throw new LuaError(ctx + ": " + Retired.message("rule:" + p));
             } else {
                 throw new LuaError(ctx + ": \"" + pk.tojstring()
                     + "\" is not a style property — the properties this client ships are " + PROPS);
@@ -525,8 +539,8 @@ final class Sheet {
         final Chrome.Bg bg;
         /** The winning {@code border} property (035.1), or {@code null}. */
         final Chrome.Border border;
-        /** The winning {@code pad} property (035.2), or {@code null}. */
-        final Integer pad;
+        /** The winning {@code padding} property (065.1), or {@code null}. */
+        final Chrome.Pad padding;
         /**
          * Where the winning rule puts this widget (036.2/036.3) — one {@link Layout.Anchor} whether it was written
          * as {@code pos} or as {@code anchor} — or {@code null}; and the addon whose rule won it, which is who
@@ -556,14 +570,14 @@ final class Sheet {
          */
         int recheck;
 
-        Resolved(FontHandle font, Addon fontOwner, Color color, Chrome.Bg bg, Chrome.Border border, Integer pad,
-                 int gen) {
+        Resolved(FontHandle font, Addon fontOwner, Color color, Chrome.Bg bg, Chrome.Border border,
+                 Chrome.Pad padding, int gen) {
             this.font = font;
             this.fontOwner = fontOwner;
             this.color = color;
             this.bg = bg;
             this.border = border;
-            this.pad = pad;
+            this.padding = padding;
             this.gen = gen;
         }
 
@@ -577,7 +591,7 @@ final class Sheet {
          * entirely, stamp, foundry rebuild and all (036.2).
          */
         boolean drawEmpty() {
-            return (font == null) && (color == null) && (bg == null) && (border == null) && (pad == null);
+            return (font == null) && (color == null) && (bg == null) && (border == null) && (padding == null);
         }
     }
 
@@ -644,20 +658,20 @@ final class Sheet {
         final Color color;
         final Chrome.Bg bg;
         final Chrome.Border border;
-        final Integer pad;
+        final Chrome.Pad padding;
 
-        SKey(FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border, Integer pad) {
+        SKey(FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border, Chrome.Pad padding) {
             this.font = font;
             this.color = color;
             this.bg = bg;
             this.border = border;
-            this.pad = pad;
+            this.padding = padding;
         }
 
         public int hashCode() {
             return (System.identityHashCode(font) * 31) + ((color == null) ? 0 : color.hashCode())
                 + ((bg == null) ? 0 : bg.hashCode() * 7) + ((border == null) ? 0 : border.hashCode() * 13)
-                + ((pad == null) ? 0 : pad.hashCode() * 23);
+                + ((padding == null) ? 0 : padding.hashCode() * 23);
         }
 
         public boolean equals(Object o) {
@@ -668,7 +682,7 @@ final class Sheet {
                 && ((color == null) ? (k.color == null) : color.equals(k.color))
                 && ((bg == null) ? (k.bg == null) : bg.equals(k.bg))
                 && ((border == null) ? (k.border == null) : border.equals(k.border))
-                && ((pad == null) ? (k.pad == null) : pad.equals(k.pad));
+                && ((padding == null) ? (k.padding == null) : padding.equals(k.padding));
         }
     }
 
@@ -882,7 +896,7 @@ final class Sheet {
      * site every frame). Caller holds {@code Sheet.class}.
      */
     private static Fonts.Style specFor(Resolved r) {
-        SKey k = new SKey(r.font, r.color, r.bg, r.border, r.pad);
+        SKey k = new SKey(r.font, r.color, r.bg, r.border, r.padding);
         Fonts.Style s = specs.get(k);
         if(s == null) {
             FontHandle font = r.font;
@@ -892,7 +906,7 @@ final class Sheet {
                                             (font == null) ? null : font.font,
                                             (font == null) ? null : font.size,
                                             (font == null) ? null : font.aa,
-                                            r.color, r.bg, r.border, r.pad));
+                                            r.color, Chrome.props(r.bg, r.border, r.padding)));
         }
         return s;
     }
@@ -911,7 +925,7 @@ final class Sheet {
         Color color = null;
         Chrome.Bg bg = null;
         Chrome.Border border = null;
-        Integer pad = null;
+        Chrome.Pad padding = null;
         Layout.Anchor pos = null;
         Coord size = null;
         Addon posOwner = null, sizeOwner = null;
@@ -934,8 +948,8 @@ final class Sheet {
                 if((r.border != null) && (r.rank >= brank)) {
                     border = r.border; brank = r.rank;
                 }
-                if((r.pad != null) && (r.rank >= prank)) {
-                    pad = r.pad; prank = r.rank;
+                if((r.padding != null) && (r.rank >= prank)) {
+                    padding = r.padding; prank = r.rank;
                 }
                 if((r.pos != null) && (r.rank >= xrank)) {          // 036.2: the owner rides along, because a
                     pos = r.pos; posOwner = s.owner; xrank = r.rank;//   layout property is given BACK, not drawn
@@ -957,12 +971,12 @@ final class Sheet {
                 bg = s.p.bg;
             if(s.p.border != null)
                 border = s.p.border;
-            if(s.p.pad != null)
-                pad = s.p.pad;
+            if(s.p.padding != null)
+                padding = s.p.padding;
             // No layout here: widget:rule() cannot carry position/size (LuaRule refuses it). The hand-named level
             // of the LAYOUT cascade is the verb, and Layout folds it in above this whole result.
         }
-        Resolved out = new Resolved(font, fontOwner, color, bg, border, pad, treegen);
+        Resolved out = new Resolved(font, fontOwner, color, bg, border, padding, treegen);
         out.pos = pos;
         out.posOwner = posOwner;
         out.size = size;
@@ -1079,8 +1093,8 @@ final class Sheet {
             t.set("bg", r.bg.toLua(reader));
         if(r.border != null)
             t.set("border", r.border.toLua(reader));
-        if(r.pad != null)
-            t.set("pad", LuaValue.valueOf(r.pad.intValue()));
+        if(r.padding != null)
+            t.set("padding", r.padding.toLua());
         if(r.pos != null)                             // 036.2: what the SHEET says this widget's layout is — the
             r.pos.toLua(reader, t);                   //   verb above it is read with widget:position(), which answers
         if(r.size != null)                            //   where the widget actually IS. 036.3: `position` or

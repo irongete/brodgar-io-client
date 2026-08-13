@@ -30,7 +30,7 @@ inert. Each **visible** window re-renders its caption on the frame after the rul
 
 ## `window.frame` and `panel`
 
-Neither draws text. They take `bg`, `border` and — for a window only — `pad`, and both are described in
+Neither draws text. They take `bg`, `border` and — for a window only — `padding`, and both are described in
 full under [chrome](chrome.md).
 
 ## `button`

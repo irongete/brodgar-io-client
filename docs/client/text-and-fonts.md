@@ -1,7 +1,8 @@
 # Text rendering and fonts
 
-> Foundries, the named surfaces that bake them, and the custom-font paths. Line numbers are
-> indicative; | What | Where |
+> Foundries, the named surfaces that bake them, and the custom-font paths.
+
+| What | Where |
 |---|---|
 | Foundry (font+size+colour+aa) | `Text.Foundry`; `renderwrap` builds a `RichText.Foundry` |
 | **Global default** | `Text.std` = `new Foundry(sans,10)` (`public static final`); `Text.render(…)` statics; `Label` default |
@@ -23,13 +24,13 @@
 
 - A foundry is captured at construction: a site that caches its `Text` must be told to rebuild
   (generation counter) — changing the provider alone does nothing.
-- **`Fonts.gen()` is not frame-global.** While a per-instance frame is open (F5, `node:setFont` —
-  `Widget.draw`'s child loop) it XORs in that override's `Spec.stamp`, so it differs *between draw
-  sites within one frame*. Fine for the `gen != mygen` compare each site does on its own `Text`;
-  **wrong as a global "clear everything" trigger** for a cache shared by several sites, which would
-  then clear on every alternation. Use it as a key component there. Since that frame
-  also opens for any widget matching a **stylesheet tree rule**, so it is no longer only widgets an
-  addon named by hand — assume any widget may be drawing under a stamped generation.
+- **`Fonts.gen()` is not frame-global.** While a per-widget frame is open (`Widget.draw`'s child loop
+  opens one around any widget a style resolves for) it XORs in that style's `Spec.stamp`, so it differs
+  *between draw sites within one frame*. Fine for the `gen != mygen` compare each site does on its own
+  `Text`; **wrong as a global "clear everything" trigger** for a cache shared by several sites, which
+  would then clear on every alternation. Use it as a key component there. The frame opens for any widget
+  a **stylesheet tree rule** matches, not only for one an addon named by hand — so assume any widget may
+  be drawing under a stamped generation.
 - Some text surfaces live in published `.res` code, not in the fork — check before assuming a
   class exists (see the kin-names row).
 - **A foundry's `defcol` is almost never what you see**: nearly every site passes its colour *per

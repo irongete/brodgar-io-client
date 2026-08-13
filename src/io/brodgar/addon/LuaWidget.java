@@ -1317,7 +1317,7 @@ public final class LuaWidget {
         // rule() (034.3, F5 widened; 039.7's shape) — YOUR OWN level of the cascade on THIS widget and everything
         // drawn inside it, while its siblings keep the tree/site/"default" cascade. It hands back the same Rule
         // object a sheet's selectors do, so the properties are said the same way — r:font(h), r:color(r,g,b),
-        // r:bg{…}, r:border{…}, r:pad(n), each with a bare read — and r:info() is the whole level as a table.
+        // r:bg{…}, r:border{…}, r:padding(n), each with a bare read — and r:info() is the whole level as a table.
         // The undo is r:remove() (R7), and it drops only this addon's level, never another's. The layout three
         // are refused here naming widget:position(x, y): the hand-named level of THAT cascade is the verb.
         // widget:setFont/:resetFont are a HARD CUT: a font was never a special case, only the first property that

@@ -48,7 +48,7 @@ end)
 ```
 
 **A [stylesheet](style/README.md) says the same space.** A rule's `position` and `size`, an
-[`anchor`](style/geometry.md#anchor)'s `offset`, a [`pad`](style/chrome.md#pad) and a `border`'s four `slice`
+[`anchor`](style/geometry.md#anchor)'s `offset`, a [`padding`](style/chrome.md#padding) and a `border`'s four `slice`
 insets are all design pixels, and so are a [list's](lists.md#list) `:rowHeight(n)` and a
 [grid's](lists.md#grid) `:cell(w, h)`. Each reads back the number the rule wrote, so a theme is a set of numbers
 that means one thing on every client:

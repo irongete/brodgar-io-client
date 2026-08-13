@@ -23,12 +23,12 @@ s:install()
 - **The rule and the verb are one cascade, not two mechanisms.** A position from the verb outranks one from
   any rule, however specific, and `w:position(nil)` drops *your level*, falling back to the rule when one
   still names the widget and only reaching the stock value when nothing does.
-- **[Design pixels](../pixels.md)**, like `pad`, a border's slice and the verb beside them: the pair a rule says
+- **[Design pixels](../pixels.md)**, like `padding`, a border's slice and the verb beside them: the pair a rule says
   is the pair `:position()` reads back, on every client. A position is within the **parent**; `size` on a window
   is its **content** size, exactly as [the verb](../native.md) takes it.
 - **Applied when the sheet is, and when a widget appears** — including a window whose caption arrives a
   moment after it opens. Never per frame, and never at the draw.
-- **Dropping the rule restores the exact numbers it found**, the same discipline `pad` follows, and the
+- **Dropping the rule restores the exact numbers it found**, the same discipline `padding` follows, and the
   client's own saved positions stay [the user's](../native.md).
 
 ```lua
@@ -105,5 +105,5 @@ widget actually is right now.
 - [native](../native.md) — the verb above every rule in this cascade
 - [the pixel](../pixels.md) — what a coordinate in a rule is counted in
 - [keys](keys.md#what-each-key-accepts) — why a site key may not carry these three
-- [chrome](chrome.md#pad) — `pad`, the drawing property that also moves a window
+- [chrome](chrome.md#padding) — `padding`, the drawing property that also moves a window
 - [style](README.md#the-cascade) — how the verb and the rules fold together

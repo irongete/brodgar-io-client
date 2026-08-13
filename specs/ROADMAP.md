@@ -22,6 +22,7 @@
 - `widget:position(x, y)` writes through `Widget.move` and reads back `c`, so on a widget that overrides `move` — the chat, whose argument is its BASE — the pair does not round-trip and a drag lands its own height off (filed: 062)
 - the fill meter is reachable through `item:contents()` alone, and holding nothing is what makes that nil, so an EMPTY container that still states a capacity has no read for it (filed: 064)
 - `GItem.NumberInfo` is the one door for every number drawn on an icon, so nothing distinguishes an amount from a gilding count and `item:quantity()` answers both without being able to say which (filed: 064)
+- `widget:size(w, h)` on a window writes its CONTENT size and `widget:size()` reads back `Widget.sz`, which on a window is the OUTER box the chrome draws — so the pair does not round-trip, `Window.csz()` is reachable from nothing, and the docs say content for both (filed: 065)
 - the stock half of a layout record is an absolute value taken at the first touch, so `widget:position(nil)`/`:size(nil)` after the client has re-laid the screen out restores a place or a box fitted to the OLD screen, and it stands until the client's next re-layout (filed: 062)
 
 ## Candidates

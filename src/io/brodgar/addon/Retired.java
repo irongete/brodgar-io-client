@@ -332,9 +332,16 @@ final class Retired {
 
         // ---- the stylesheet: a Sheet of Rules, so a selector NAMES a rule and its properties are setters ----
         put("hafen.ui.skin", "hafen.ui.skin{…} is now hafen.ui():sheet(): s:rule(selector) hands back the rule"
-            + " for that key and its properties are setters (:font(h) :color(r,g,b) :bg{…} :border{…} :pad(n)"
-            + " :position(x, y) :anchor{…} :size(w, h)), s:load(t) takes a whole sheet as data, and"
+            + " for that key and its properties are setters (:font(h) :color(r,g,b) :bg{…} :border{…}"
+            + " :padding(n) :position(x, y) :anchor{…} :size(w, h)), s:load(t) takes a whole sheet as data, and"
             + " s:install() / s:drop() apply and remove it — hafen.ui.skin(nil) is s:drop()");
+        // ---- 065.1: a rule's room around its content is said on all FOUR sides, so the property is named for
+        // ---- what it is rather than abbreviated. It is a Rule verb, so the row hangs off LuaRule's own closed
+        // ---- __index; Sheet.propsOf consults this same table for the DATA door, where `pad = 4` is a key in a
+        // ---- plain table with no metamethod to fire.
+        put("rule:pad", "rule:pad(n) is now rule:padding(n) — the same room between a frame and its content,"
+            + " said on all four sides: padding(6) is all of them and padding(l, t, r, b) is each. It reads back"
+            + " as { l =, t =, r =, b = }, which is a shape the setter takes again");
         // hafen.ui.root is deliberately NOT here, though hafen.ui():root() now exists: 030.1 cut it, this feature
         // did not move it, and the table's rule is that it carries what THIS grammar renamed. A name nothing here
         // touched goes on reading nil, which is what keeps a feature probe (`if hafen.something then`) honest.
@@ -348,7 +355,7 @@ final class Retired {
         put("widget:hide", "widget:hide() is now widget:visible(false) — a boolean property is a property, so the"
             + " value is the argument rather than the verb's name");
         put("widget:skin", "widget:skin{…} is now widget:rule(), the same Rule object a sheet's selectors hand"
-            + " back: its properties are setters (:font(h) :color(r,g,b) :bg{…} :border{…} :pad(n)),"
+            + " back: its properties are setters (:font(h) :color(r,g,b) :bg{…} :border{…} :padding(n)),"
             + " widget:rule():info() reads your whole level back, and widget:rule():remove() drops it."
             + " widget:style() still answers what the widget RESOLVES to");
 

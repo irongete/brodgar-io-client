@@ -29,6 +29,7 @@ package haven;
 import java.awt.Color;
 import java.awt.Font;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -117,25 +118,22 @@ public class Fonts {
         /** The override's antialias flag, or {@code stock} when it carries none. */
         boolean aa(boolean stock);
         /**
-         * The rule's {@code bg} property, or {@code null} (035.1/C2). <b>Opaque</b>: it is plain parsed data the
-         * addon layer defines and only the addon layer reads back — this class never looks inside one, exactly as
-         * it never looks inside an owner token. What consumes it is the sheet-fed chrome
-         * ({@code io.brodgar.addon.SkinDeco}); every text site ignores it.
-         */
-        Object bg();
-        /** The rule's {@code border} property, or {@code null} — opaque, like {@link #bg()}. */
-        Object border();
-        /**
-         * The rule's {@code pad} property in <b>raw</b> px, or {@code null} when it names none (035.2/C2) — the
-         * space a surface keeps between its frame and its content. Unlike {@link #font(Font)}'s size this is
-         * <b>not</b> {@code UI.scale}d: it is a coordinate, and every coordinate the addon API takes is raw
-         * ({@code hafen.ui.window{size=…}}, a border's slice, {@code g:image}).
+         * The rule's <b>chrome</b> property named {@code key} — {@code "bg"}, {@code "border"},
+         * {@code "padding"} — or {@code null} when the rule names none (065.1). <b>Opaque</b>: every one of them
+         * is plain parsed data the addon layer defines and only the addon layer reads back; this class never
+         * looks inside one, exactly as it never looks inside an owner token, and it does not know the key set
+         * either. What consumes them is the sheet-fed chrome ({@code io.brodgar.addon.Chrome} and its two
+         * consumers); every text site ignores them.
          *
-         * <p>It is the first property that can <b>move</b> something, and it applies only where the surface owns
-         * its geometry and re-lays-out — the window chrome ({@code io.brodgar.addon.SkinDeco}, through
-         * {@code iresize}/{@code contarea}). Every text site ignores it, exactly as it ignores {@link #bg()}.
+         * <p><b>A bag rather than a field per property</b>, because that is what keeps a <i>new</i> theme
+         * property out of this class: a parser, a slot in the addon layer's own record and a reader at the site,
+         * with nothing here to widen. The half of a style {@code haven} itself reads — the font and its colour —
+         * stays typed above, because building a foundry out of string lookups would buy nothing.
+         *
+         * <p>The values are in the units the addon layer wrote them in ({@code padding} is <b>design</b> px, like
+         * a border's slice), which is that layer's business too: this class only carries them.
          */
-        Integer pad();
+        Object prop(String key);
     }
 
     /**
@@ -150,10 +148,9 @@ public class Fonts {
         final Integer size;      // logical px (UI.scale is applied when a foundry is built), or null = use the site's stock size
         final Boolean aa;        // or null = inherit the site's stock antialias flag
         final Color  color;      // the rule's `color` property, or null = inherit the site's stock default colour
-        // addon: (035.1/C2) the rule's chrome properties, opaque to this class -- see Style.bg().
-        final Object bg;
-        final Object border;
-        final Integer pad;       // addon: (035.2/C2) raw px, or null = the rule names no padding
+        // addon: (065.1) the rule's CHROME half, one immutable bag keyed by property name and opaque to this
+        // class -- see Style.prop(). Null when the rule names no chrome property at all.
+        final Map<String, Object> props;
         // A per-Spec stamp mixed into gen() while this override is the active per-widget FRAME (F5). It is what
         // makes a site's `gen != mygen` check fire for a widget CONSTRUCTED outside the frame and first drawn inside
         // it (and vice versa) -- without it, a label created after the skin would keep its stock font forever,
@@ -166,15 +163,18 @@ public class Fonts {
         // STOCK font identity so each site keeps its own size. Guarded by `this`.
         private final Map<Font, Font> fcache = new IdentityHashMap<Font, Font>();
 
-        Spec(Object owner, Font base, Integer size, Boolean aa, Color color, Object bg, Object border, Integer pad) {
+        Spec(Object owner, Font base, Integer size, Boolean aa, Color color, Map<String, Object> props) {
             this.owner = owner; this.base = base; this.size = size; this.aa = aa; this.color = color;
-            this.bg = bg; this.border = border; this.pad = pad;
+            // Immutable from here on: a Spec is shared by every site it fronts and read from the draw thread.
+            this.props = ((props == null) || props.isEmpty()) ? null
+                : Collections.unmodifiableMap(new LinkedHashMap<String, Object>(props));
             this.stamp = (++stampseq) * 0x9E3779B1;   // a distinct odd multiplier per Spec (built under Fonts.class)
         }
 
         synchronized Text.Foundry foundry(Text.Foundry stock) {
-            // addon: (035.1/035.2) a rule that names only chrome (bg/border/pad) says nothing about text: hand the
-            // site its OWN foundry back, so a `["*"] = {bg=…}` sheet leaves every text surface byte-for-byte stock.
+            // addon: (035.1/065.1) a rule that names only chrome says nothing about text: hand the site its OWN
+            // foundry back, so a `["*"] = {bg=…}` sheet leaves every text surface byte-for-byte stock. The test is
+            // the four TYPED fields, which are the whole of what a foundry is built from.
             if((base == null) && (size == null) && (aa == null) && (color == null))
                 return stock;
             Text.Foundry c = cache.get(stock);
@@ -216,9 +216,7 @@ public class Fonts {
 
         public Color color(Color stock)  {return((color != null) ? color : stock);}
         public boolean aa(boolean stock) {return((aa != null) ? aa.booleanValue() : stock);}
-        public Object bg()               {return(bg);}
-        public Object border()           {return(border);}
-        public Integer pad()             {return(pad);}
+        public Object prop(String key)   {return((props == null) ? null : props.get(key));}
     }
 
     // scope -> owner-tagged override stack (last = top = current). Guarded by `Fonts.class`.
@@ -242,9 +240,7 @@ public class Fonts {
     private static synchronized Spec combine(Spec inner, Spec outer) {
         if(inner == null)
             return outer;
-        if((outer == null) || ((inner.base != null) && (inner.size != null) && (inner.aa != null)
-                               && (inner.color != null) && (inner.bg != null) && (inner.border != null)
-                               && (inner.pad != null)))
+        if(outer == null)
             return inner;                 // nothing left for the outer one to fill in
         Map<Spec, Spec> m = combos.get(inner);
         if(m == null)
@@ -256,11 +252,25 @@ public class Fonts {
                                       (inner.size   != null) ? inner.size   : outer.size,
                                       (inner.aa     != null) ? inner.aa     : outer.aa,
                                       (inner.color  != null) ? inner.color  : outer.color,
-                                      (inner.bg     != null) ? inner.bg     : outer.bg,
-                                      (inner.border != null) ? inner.border : outer.border,
-                                      (inner.pad    != null) ? inner.pad    : outer.pad));
+                                      fold(inner.props, outer.props)));
         }
         return c;
+    }
+
+    /**
+     * The chrome half of {@link #combine}, <b>key by key</b> (065.1): {@code inner} keeps every property it
+     * names and {@code outer} fills the rest — the very fold the typed fields above get, now honest for any key
+     * a theme property is ever added under, and the reason a bag costs the cascade nothing. Neither argument is
+     * modified: both are already shared by whatever is holding them.
+     */
+    private static Map<String, Object> fold(Map<String, Object> inner, Map<String, Object> outer) {
+        if((outer == null) || outer.isEmpty())
+            return inner;
+        if((inner == null) || inner.isEmpty())
+            return outer;
+        Map<String, Object> out = new LinkedHashMap<String, Object>(outer);
+        out.putAll(inner);
+        return out;
     }
 
     /**
@@ -556,8 +566,8 @@ public class Fonts {
      * across frames.
      */
     public static synchronized Style treeSpec(Object owner, Font base, Integer size, Boolean aa, Color color,
-                                              Object bg, Object border, Integer pad) {
-        return new Spec(owner, base, size, aa, color, bg, border, pad);
+                                              Map<String, Object> props) {
+        return new Spec(owner, base, size, aa, color, props);
     }
 
     /** {@code wdg}'s resolved per-widget style, or {@code null}. Takes the source's lock, never {@code Fonts.class}. */
@@ -644,18 +654,18 @@ public class Fonts {
      * re-raises it to the top (last-wins). Bumps {@link #gen()} so routed sites/widgets rebuild. {@code base}
      * already carries any bold/italic, and is {@code null} when the rule sets no {@code font} at all (a
      * colour-only rule — the site keeps its own font); {@code size} is <b>logical</b> px (UI-scaled when the
-     * foundry is built), {@code aa}/{@code color} are {@code null} to inherit the site's stock. {@code bg}/
-     * {@code border} are the opaque chrome properties (035.1) and {@code pad} the geometry one (035.2) — a scope
-     * whose site paints no chrome and owns no geometry simply never asks for them, exactly as a chrome-only rule
-     * leaves every text site alone.
+     * foundry is built), {@code aa}/{@code color} are {@code null} to inherit the site's stock. {@code props} is
+     * the opaque <b>chrome</b> bag (065.1), {@code null} on a rule that names none — a scope whose site paints no
+     * chrome and owns no geometry simply never asks for a key in it, exactly as a chrome-only rule leaves every
+     * text site alone.
      */
     public static synchronized void push(String scope, Object owner, Font base, Integer size, Boolean aa, Color color,
-                                         Object bg, Object border, Integer pad) {
+                                         Map<String, Object> props) {
         List<Spec> st = overrides.get(scope);
         if(st == null)
             overrides.put(scope, st = new ArrayList<Spec>());
         removeOwnerFrom(st, owner);       // an addon owns at most one override per scope
-        st.add(new Spec(owner, base, size, aa, color, bg, border, pad));   // re-raise to the top (last applied wins)
+        st.add(new Spec(owner, base, size, aa, color, props));   // re-raise to the top (last applied wins)
         active = true;
         bumped();
     }

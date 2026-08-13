@@ -31,7 +31,7 @@ import haven.Window;
  * way and {@code window.title} would silently stop working the moment a theme was installed.
  *
  * <p><b>No Lua runs to paint a frame, or to lay one out.</b> The resolved {@link Chrome.Bg}/{@link Chrome.Border}
- * and {@code pad} are plain parsed data, refreshed by {@link #check} once per window per tick — and only a change
+ * and {@code padding} are plain parsed data, refreshed by {@link #check} once per window per tick — and only a change
  * to the two that decide geometry re-lays anything out; the draw reads fields. Chrome has no raster
  * cache (unlike text, which got 026's), so it is redrawn every frame and a per-frame Lua callback was rejected on
  * cost at design time.
@@ -48,7 +48,7 @@ final class SkinDeco extends Window.DefaultDeco {
 
     private Chrome.Bg bg;
     private Chrome.Border border;
-    private int pad;
+    private Chrome.Pad padding;
 
     private SkinDeco(boolean lg) {
         super(lg);
@@ -58,16 +58,18 @@ final class SkinDeco extends Window.DefaultDeco {
 
     /**
      * Where this window's content starts and how big the frame around it is — the one method that can <b>move</b>
-     * the client's own layout, and the reason {@code pad} is a new risk class rather than another paint property.
+     * the client's own layout, and the reason {@code padding} is a new risk class rather than another paint property.
      *
      * <p><b>The formula is the stock one with the theme's numbers in it</b>, not a formula of its own.
      * {@code DefaultDeco} computes {@code content + margin*2 + tlm + brm}: an inner <i>margin</i> (breathing room
      * between the frame art and the content) and an outer pair of <i>frame insets</i> (the room the art itself
      * needs). A rule replaces exactly the half it owns:
      * <ul>
-     *   <li><b>{@code pad} takes the margin's place</b> — it is the breathing room, so it is added to the stock
-     *       margin when the stock art is still there, and <i>is</i> the whole margin when a {@code border} has
-     *       replaced that art.</li>
+     *   <li><b>{@code padding} takes the margin's place</b> — it is the breathing room, so it is added to the
+     *       stock margin when the stock art is still there, and <i>is</i> the whole margin when a {@code border}
+     *       has replaced that art. It says all four sides separately, so the two halves of the sum are two
+     *       {@link Coord}s rather than one doubled: a theme that wants its caption clear of the content asks for
+     *       height at the top alone.</li>
      *   <li><b>A {@code border}'s slice insets take {@code tlm}/{@code brm}'s place</b>, because they are the same
      *       quantity: the room the frame art needs. This is the geometry twin of D-079 — <i>the margin belongs to
      *       whoever paints the frame</i>. A theme whose caption needs room says so in its own top inset; the
@@ -75,10 +77,11 @@ final class SkinDeco extends Window.DefaultDeco {
      * </ul>
      *
      * <p><b>Every term of this sum is device</b>, which is why the two the rule contributes convert on the way in
-     * (058.3): the stock margins and insets are {@code UI.scale}d constants, so a {@code pad} or a slice inset left
+     * (058.3): the stock margins and insets are {@code UI.scale}d constants, so a padding or a slice inset left
      * in the design pixels the rule wrote them in would be the one summand meaning something else — and the frame
      * would then reserve less room than the draw paints. {@link Chrome.Border#tlIn} is the very conversion the draw
-     * scales each corner by, so the two cannot drift apart.
+     * scales each corner by, so the two cannot drift apart, and {@link Chrome.Pad} answers the same pair for the
+     * same reason.
      *
      * <p><b>{@code isz} is the CONTENT size.</b> So padding a window grows it <i>outward</i> around fixed content;
      * it never shrinks the content to fit. Everything else — {@code contarea()} answering {@code aa}, the close
@@ -87,24 +90,27 @@ final class SkinDeco extends Window.DefaultDeco {
      */
     public void iresize(Coord isz) {
         Chrome.Border b = this.border;
-        int p = Px.in(this.pad);                                   // 058.3: the rule said design px; this sum is device
-        Coord ftl, fbr, mrgn;
+        Chrome.Pad pd = this.padding;
+        Coord ptl = (pd == null) ? Coord.z : pd.tlIn();            // 058.3: the rule said design px; this sum is device
+        Coord pbr = (pd == null) ? Coord.z : pd.brIn();
+        Coord ftl, fbr, mtl, mbr;
         if(b == null) {
             ftl = Window.tlm; fbr = Window.brm;                    // the stock art still owns the frame insets
-            mrgn = (lg ? Window.dlmrgn : Window.dsmrgn).add(p, p); // ...and pad simply widens its margin
+            Coord m = lg ? Window.dlmrgn : Window.dsmrgn;
+            mtl = m.add(ptl); mbr = m.add(pbr);                    // ...and the padding simply widens its margin
         } else {
             ftl = b.tlIn(); fbr = b.brIn();                        // our 9-slice owns them instead, at drawn size
-            mrgn = Coord.of(p, p);                                 // ...and pad IS the whole margin
+            mtl = ptl; mbr = pbr;                                  // ...and the padding IS the whole margin
         }
-        Coord csz = isz.add(mrgn.mul(2));
+        Coord csz = isz.add(mtl).add(mbr);
         resize(csz.add(ftl).add(fbr));
         ca = Area.sized(ftl, csz);
-        aa = Area.sized(ca.ul.add(mrgn), isz);
+        aa = Area.sized(ca.ul.add(mtl), isz);
         cbtn.c = Coord.of(sz.x - cbtn.sz.x, 0);
     }
 
     /**
-     * Re-run the geometry in place after a rule changed the insets or the pad, <b>keeping the content where it
+     * Re-run the geometry in place after a rule changed the insets or the padding, <b>keeping the content where it
      * is</b> — which is exactly what {@link Window#chdeco} does around a swap, and the only reason installing and
      * then re-tuning a theme do not disagree about where a window sits. The content size is preserved (it is what
      * {@code iresize} is fed) and the window's own {@code c} absorbs the change in {@code contarea().ul}, so the
@@ -191,23 +197,25 @@ final class SkinDeco extends Window.DefaultDeco {
                 return;                                     // hidden, opening or dying: not while animst runs
         }
         Fonts.Style st = Fonts.styleFor(SCOPE, wnd);
-        Chrome.Bg bg = (st == null) ? null : (Chrome.Bg)st.bg();
-        Chrome.Border bd = (st == null) ? null : (Chrome.Border)st.border();
-        Integer pv = (st == null) ? null : st.pad();
-        int pad = (pv == null) ? 0 : pv.intValue();
-        // A pad of zero says the same thing as no pad at all, so it alone never dresses a window: the deco would
-        // then draw stock pixels at stock coordinates, and installing one for that is a swap nobody asked for.
-        boolean want = (bg != null) || (bd != null) || (pad != 0);
+        Chrome.Bg bg = Chrome.bg(st);
+        Chrome.Border bd = Chrome.border(st);
+        Chrome.Pad pd = Chrome.padding(st);
+        // A padding of zero on every side says the same thing as no padding at all, so it alone never dresses a
+        // window: the deco would then draw stock pixels at stock coordinates, and installing one for that is a
+        // swap nobody asked for.
+        if((pd != null) && pd.zero())
+            pd = null;
+        boolean want = (bg != null) || (bd != null) || (pd != null);
         if(have) {
             SkinDeco sd = (SkinDeco)d;
             if(want) {
                 // Only these two decide the geometry. Compared BY VALUE: re-applying the same sheet parses a
                 // fresh Border, and a repack per tick would be a real cost for a rule that did not change.
-                boolean moved = (sd.pad != pad)
+                boolean moved = ((sd.padding == null) ? (pd != null) : !sd.padding.equals(pd))
                     || ((sd.border == null) ? (bd != null) : !sd.border.equals(bd));
                 sd.bg = bg;                                 // a changed rule repaints; the deco itself stays put
                 sd.border = bd;
-                sd.pad = pad;
+                sd.padding = pd;
                 if(moved)
                     sd.repack();                            // ...but a changed GEOMETRY has to re-lay the window out
             } else {
@@ -219,7 +227,7 @@ final class SkinDeco extends Window.DefaultDeco {
             sd.dragsize(od.dragsize);
             sd.bg = bg;
             sd.border = bd;
-            sd.pad = pad;                                   // BEFORE the swap: chdeco lays the window out with it
+            sd.padding = pd;                                // BEFORE the swap: chdeco lays the window out with it
             wnd.chdeco(sd);
         }
     }

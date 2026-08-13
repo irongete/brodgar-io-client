@@ -49,7 +49,7 @@ properties a given key honours — a site that draws text has no background of i
 | Setter | Says |
 |---|---|
 | `:font(h)`, `:color(r, g, b)` | [the text](../api/ui/style/text.md) |
-| `:bg(t)`, `:border(t)`, `:pad(n)` | [the surface it is painted on](../api/ui/style/chrome.md) |
+| `:bg(t)`, `:border(t)`, `:padding(n)` | [the surface it is painted on](../api/ui/style/chrome.md) |
 | `:position(x, y)`, `:size(w, h)`, `:anchor(t)` | [where the widget is, and how big](../api/ui/style/geometry.md) |
 
 Each setter returns the rule, so a level is one expression, and each reads back with no argument.
@@ -60,7 +60,7 @@ background. A misspelt property is an error naming the ones that exist, which is
 s:rule("window.frame")
   :bg{ color = {26, 26, 28, 240} }
   :border{ image = hafen.asset():get("frame.png"), slice = {12, 40, 12, 12} }
-  :pad(4)
+  :padding(4, 12, 4, 4)
 s:rule("window[title=Inventory]")
   :anchor{ to = "screen", at = "bottomright", offset = {-8, -8} }
 ```
@@ -80,7 +80,7 @@ Layout resolves through the same cascade with a different top: the hand-named le
 
 ## A theme is a file
 
-Nothing in a rule is code the client calls: a colour is three numbers, a `pad` is a number, an anchor is a
+Nothing in a rule is code the client calls: a colour is three numbers, a `padding` is four, an anchor is a
 corner and an offset. So a whole look can live in a JSON file your addon ships, with the Lua doing nothing
 but reading it:
 

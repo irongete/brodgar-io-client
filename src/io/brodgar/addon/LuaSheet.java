@@ -123,7 +123,7 @@ public final class LuaSheet {
             Rec r = rules.get(selector);
             if(r == null)
                 return;
-            clearProps(r.props);
+            r.props.clear();
         }
         changed();
     }
@@ -264,33 +264,16 @@ public final class LuaSheet {
         List<Sheet.Parsed> rows = Sheet.parseSheet("sheet:load", t);
         synchronized(this) {
             for(Map.Entry<String, Rec> e : rules.entrySet())
-                clearProps(e.getValue().props);        // ...a sheet is replaced WHOLE, never merged into
+                e.getValue().props.clear();            // ...a sheet is replaced WHOLE, never merged into
             for(int i = 0; i < rows.size(); i++) {
                 Sheet.Parsed row = rows.get(i);
                 Rec r = rules.get(row.key);
                 if(r == null)
                     rules.put(row.key, r = new Rec(row.sel, row.site));
-                Sheet.Props p = row.props;
-                r.props.font = p.font;
-                r.props.color = p.color;
-                r.props.bg = p.bg;
-                r.props.border = p.border;
-                r.props.pad = p.pad;
-                r.props.pos = p.pos;
-                r.props.size = p.size;
+                r.props.set(row.props);
             }
         }
         changed();
-    }
-
-    private static void clearProps(Sheet.Props p) {
-        p.font = null;
-        p.color = null;
-        p.bg = null;
-        p.border = null;
-        p.pad = null;
-        p.pos = null;
-        p.size = null;
     }
 
     /** The sheet behind a method's {@code self}, or a guiding error (a dot call passes the wrong self). */

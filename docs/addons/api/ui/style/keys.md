@@ -18,7 +18,7 @@ These are the sites the client draws at:
 |---|---|
 | `*` | the global fallback — most UI text, and the cascade for every rule you do not write |
 | `window.title` | window captions |
-| `window.frame` | the window **chrome**: the frame drawn around a window and the surface it sits on. Draws no text, so it takes [`bg` and `border`](chrome.md) and [`pad`](chrome.md#pad), not `font` or `color` |
+| `window.frame` | the window **chrome**: the frame drawn around a window and the surface it sits on. Draws no text, so it takes [`bg` and `border`](chrome.md) and [`padding`](chrome.md#padding), not `font` or `color` |
 | `panel` | the window-**less** framed surfaces — the boxes around lists and info panes, the HUD portrait, party avatars, flower-menu petals, dropdown menus. Draws no text either; see [what a panel does with a rule](chrome.md#panels) |
 | `heading` | in-window section headings, the embossed fraktur ones |
 | `button` | button captions |
@@ -115,9 +115,9 @@ what the surface *does* with a property. First the two that write text:
 And the three that draw the chrome. Two *kinds* of surface wear them, the window decoration and the
 window-less panels:
 
-| Key | `bg` | `border` | `pad` | Worth knowing |
+| Key | `bg` | `border` | `padding` | Worth knowing |
 |---|---|---|---|---|
-| `window.frame` | yes | yes | yes | every window whose chrome is the client's own stock decoration. The only surface where `pad` and a border's insets actually **move** anything, because a window re-lays itself out |
+| `window.frame` | yes | yes | yes | every window whose chrome is the client's own stock decoration. The only surface where `padding` and a border's insets actually **move** anything, because a window re-lays itself out |
 | `panel`, on a **boxed** panel | **inert** | yes | **inert** | the list and info boxes, the HUD portrait, party avatars, the map's view and marker list. A border drawn *around* content that is not the panel's, so a fill would bury it — [why](chrome.md#panels) |
 | `panel`, on a **self-painting** panel | yes | yes | **inert** | flower-menu petals, dropdown menus, an item-stock box: each paints its own surface before its contents, so a `bg` lands on it |
 | `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches `window.frame` **and** `panel`, each subject to its own row here. Text surfaces ignore it entirely and stay stock |
@@ -156,7 +156,7 @@ Three more limits are structural rather than per-key, and none of them is a bug 
 - **A rule flattens colour that carried meaning.** While `["*"] = {color = …}` is on, a red warning is the
   same colour as everything else. Style one key rather than `*` when that matters.
 
-The only *drawing* property that changes geometry is [`pad`](chrome.md#pad), and only where a surface owns
+The only *drawing* property that changes geometry is [`padding`](chrome.md#padding), and only where a surface owns
 its own layout. A `font` rule never moves anything, but a larger `size=` can still *clip* where a surface's
 box was measured from the stock font; [surfaces](surfaces.md) says which ones, and why.
 

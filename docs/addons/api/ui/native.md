@@ -54,7 +54,7 @@ derived, not set.
 pack themselves around their contents whenever anything resizes them — the main inventory is one — so
 `w:size(w, h)` on those is honoured and then undone by the client before the call returns. That is
 **inert, never an error**, and it leaves nothing behind; read `:size()` back if you need to know which kind
-you are holding. It is the same rule the sheet's [`pad`](style/chrome.md#pad) follows: a size applies where
+you are holding. It is the same rule the sheet's [`padding`](style/chrome.md#padding) follows: a size applies where
 the surface can re-lay itself out, and a surface that fixes its own size cannot.
 
 Two addons may each hold a layer over the same widget — unlike
@@ -323,5 +323,5 @@ Dropping a level on a widget you are holding nothing on is a no-op, so the callb
 - [replace](replace.md) — hiding a whole window and standing yours in its place
 - [style/geometry](style/geometry.md) — saying the same placement as a rule instead of a verb
 - [selectors](selectors.md) — naming the widget you are about to move
-- [style/chrome](style/chrome.md#pad) — `pad`, the other property that moves a window
+- [style/chrome](style/chrome.md#padding) — `padding`, the other property that moves a window
 - [the pixel](pixels.md) — what the two numbers in `:position(x, y)` and `:size(w, h)` mean
