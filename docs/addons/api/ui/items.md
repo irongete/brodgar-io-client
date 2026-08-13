@@ -205,6 +205,24 @@ and then, and drops every subscription on it. The item handed to `ItemRemoved` i
 reported, so it is worth keeping — it answers after it has left. Worn equipment additionally has the
 global [`EquipChanged`](../event.md#character-and-status) event, which carries the whole new list.
 
+### The events go deeper than `:items()`
+
+`ItemAdded`/`ItemRemoved` answer **what entered this container**, not what it draws — the one place the
+read and the events part company. An item dropped into a stack, or a creel, that this container holds
+fires here too, **at any depth**, because it did arrive in your inventory; `widget:items()` on that same
+widget stays exactly as shallow as ever, since a stack is still one cell on screen. `item:container()` is
+what a handler uses to place the item it was handed — the stack a contained item just entered, or the
+creel a stack just arrived in.
+
+**Only the outermost thing that moved is reported.** A stack *arriving* with three dandelions already
+inside it fires `ItemAdded` **once**, for the stack — never once per dandelion — and the same on the way
+out. A dandelion dropped into a stack that was already there fires its own `ItemAdded`, because the stack
+itself did not move.
+
+**Subscribing seeds with exactly what `widget:items()` answers right now** — the top-level items alone,
+never what is inside them — and a contained item is reported only when it later moves on its own; it
+never appears in that read.
+
 ## Where the item reads end
 
 What an item holds is what the **server** pushed with it, and it pushes it for the containers you carry: a

@@ -157,6 +157,24 @@ final class UiApi {
         }
     }
 
+    /**
+     * Once per tick ({@code AddonManager.tick}, right after {@code drainRemovedWidgets}): let every watching
+     * {@link WidgetSubs} diff now if a placement or removal touched it since the last flush (064.3) — see
+     * {@link WidgetSubs#markDirty} for why the diff waits for the tick boundary rather than running inline at
+     * {@code offerPlaced}/{@code offerRemoved}. Fast-paths out when nobody is watching.
+     */
+    static void flushItemWatchers() {
+        if(widgetSubsWatching.isEmpty())
+            return;
+        for(WidgetSubs s : widgetSubsWatching) {   // copy-on-write: a firing handler may (un)subscribe here
+            try {
+                s.flush();
+            } catch(RuntimeException e) {
+                log("widget-subs flush error: " + e);
+            }
+        }
+    }
+
     // ===== the widget-placement seam (the body behind AddonManager.onWidgetPlaced) =====
     // ONE consumer since 032.2: the 030.2 selector subscriptions, which see the LIVE widget itself. The
     // {id,type,place,caption,parentType} descriptor that used to be built here for hafen.ui.replace went with it —

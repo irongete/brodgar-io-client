@@ -34,7 +34,7 @@
       that the printed `cur`/`max` match the fill the meter draws.
       <!-- extra context: `haven.Resource find-updates src` checks the pin -->
 
-- [ ] **064.3 — an item entering a stack is an event on the container holding it.** Replaces
+- [x] **064.3 — an item entering a stack is an event on the container holding it.** Replaces
       `WidgetSubs.offerPlaced`'s `hasparent` test with the `ContentsWindow` → `cont` climb, diffs a
       **deep** item set from a new helper leaving `LuaItem.items` untouched, and filters the diff so
       only the outermost thing that moved is reported.

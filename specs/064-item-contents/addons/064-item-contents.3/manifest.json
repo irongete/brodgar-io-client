@@ -1,0 +1,9 @@
+{
+  "name": "064.3 - an item entering a stack is an event on the container holding it",
+  "id": "064-item-contents.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 064.3: the deep ItemAdded/ItemRemoved diff and the outermost-only rule.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -2,6 +2,7 @@ package io.brodgar.addon;
 
 import haven.EventHandler;
 import haven.GItem;
+import haven.Inventory;
 import haven.UI;
 import haven.WItem;
 import haven.Widget;
@@ -12,7 +13,7 @@ import org.luaj.vm2.LuaValue;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -100,8 +101,18 @@ final class WidgetSubs {
     /** The server widget id at the first tree-key subscription ({@code -1} for a client-only widget) — used only
      *  by {@link #live}, at {@link #startListening}'s one-off check for a widget already gone by then. */
     private int boundId = -1;
-    /** Present items, for the {@code ItemAdded}/{@code ItemRemoved} diff — empty until listening starts. */
+    /** Present items, for the {@code ItemAdded}/{@code ItemRemoved} diff — empty until listening starts. DEEP
+     *  (064.3): every item this widget holds at any depth, not just {@code widget:items()}'s one-per-cell set. */
     private final Map<GItem, LuaValue> items = new IdentityHashMap<GItem, LuaValue>();
+    /** Each item currently in {@link #items}' own immediate container, {@code null} for a top-level one —
+     *  recorded while the item is still LIVE (064.3). {@link LuaItem#container} cannot answer this once an
+     *  item has left: {@code Widget.remove()} nulls its parent chain before the removal seam ever fires, so
+     *  by the time {@link #refreshItems} sees an item missing, re-deriving its container from the item itself
+     *  would always read {@code null} — this is the one place that fact is still on record. */
+    private final Map<GItem, GItem> containerOf = new IdentityHashMap<GItem, GItem>();
+    /** A placement/removal touched something of ours since the last {@link #flush} — 064.3, see
+     *  {@link #markDirty} for why the diff itself waits for the tick boundary rather than running inline. */
+    private boolean dirty;
 
     WidgetSubs(Addon owner, Widget wdg) {
         this.owner = owner;
@@ -238,6 +249,8 @@ final class WidgetSubs {
     private void stopListening() {
         this.listening = false;
         items.clear();
+        containerOf.clear();
+        dirty = false;
         UiApi.unregisterInterest(this);
     }
 
@@ -253,8 +266,15 @@ final class WidgetSubs {
 
     /**
      * The widget-placement seam's offer (042.7): {@code w} just entered the tree — is it an item widget inside
-     * MY subtree? If so, re-derive the item set. {@code hasparent} is safe here because placement fires while the
-     * child's parent chain is intact (the mirror of removal below, where it no longer is).
+     * MY subtree, at any depth? If so, re-derive the item set.
+     *
+     * <p><b>{@code hasparent} alone answers that only for a DIRECT arrival</b> (064.3) — dropped straight into
+     * this container. Something arriving inside a stack or a creel HELD in this container arrives off a {@code
+     * GItem.ContentsWindow} hung under {@code GameUI}, never under {@link #wdg}, so {@code w.hasparent(wdg)}
+     * would miss it. {@link #belongsTo} climbs {@code item:container()}'s own {@code ContentsWindow} → {@code
+     * cont} walk out to the OUTERMOST item that moved — the one drawn as a real child of a container widget —
+     * and tests THAT one against the tree the ordinary way; {@code hasparent} is safe on it because placement
+     * fires while the child's parent chain is intact (the mirror of removal below, where it no longer is).
      *
      * <p><b>Both {@code GItem} AND {@code WItem} are checked</b> — not a redundancy. {@code onWidgetPlaced} only
      * ever fires for the widget the SERVER placed ({@code UI.AddWidget.run}'s {@code child}), which for a
@@ -266,12 +286,34 @@ final class WidgetSubs {
      * arriving from outside the container (picked up off the ground) never re-derived, while one arriving from a
      * sibling WItem shuffling elsewhere in the SAME container happened to (that reflow's own WItem create/destroy
      * still triggered a refresh) — an inconsistency indistinguishable from a race until traced to this.
+     *
+     * <p><b>Marks {@link #dirty} rather than diffing right here</b> (064.3) — see {@link #markDirty} for why:
+     * a stack arriving already full sends one placement per widget id the server frees for it, not one for the
+     * whole arrival, and diffing after each would report every one of them individually instead of once for
+     * the outermost.
      */
     void offerPlaced(Widget w) {
         if(!((w instanceof WItem) || (w instanceof GItem)))
             return;
-        if((subs.has("ItemAdded") || subs.has("ItemRemoved")) && w.hasparent(wdg))
-            refreshItems();
+        if((subs.has("ItemAdded") || subs.has("ItemRemoved")) && belongsTo(w))
+            markDirty();
+    }
+
+    /**
+     * Does {@code w} — a {@code WItem} or {@code GItem} the placement seam just saw — belong to {@link #wdg},
+     * directly or through a chain of stacks/creels it holds (064.3)? Climbs from the item {@code w} draws out
+     * to the outermost item that moved via {@link LuaItem#container}, then tests that one the ordinary way:
+     * everything BELOW the outermost item lives off a {@code ContentsWindow} hung under {@code GameUI}, never
+     * under the container it is conceptually inside.
+     */
+    private boolean belongsTo(Widget w) {
+        GItem it = (w instanceof WItem) ? ((WItem)w).item : (GItem)w;
+        if(it == null)
+            return w.hasparent(wdg);
+        GItem outer = it, c;
+        while((c = LuaItem.container(outer)) != null)
+            outer = c;
+        return outer.hasparent(wdg);
     }
 
     /**
@@ -280,7 +322,7 @@ final class WidgetSubs {
      * nothing left to report — or it may be an item widget ({@code WItem} or {@code GItem}, see {@link
      * #offerPlaced}) that just left MY subtree. Its parent link is already gone by now (M1 fires after
      * {@code unlink()}), so membership is read from the cache re-derive below rather than a {@code hasparent}
-     * check.
+     * check. Marks a touch rather than diffing right here — see {@link #markDirty}.
      */
     void offerRemoved(Widget w) {
         if(w == wdg) {
@@ -288,36 +330,108 @@ final class WidgetSubs {
             subs.clear();
             listening = false;
             items.clear();
+            containerOf.clear();
+            dirty = false;
             UiApi.unregisterInterest(this);
             return;
         }
         if(((w instanceof WItem) || (w instanceof GItem)) && (subs.has("ItemAdded") || subs.has("ItemRemoved")))
+            markDirty();
+    }
+
+    /**
+     * A placement or removal may concern us — record the touch and diff at the tick boundary ({@link
+     * #flush}), rather than inline right here (064.3).
+     *
+     * <p><b>Removals need no more than that.</b> {@code Widget.remove()} unlinks synchronously, before the
+     * removal seam even fires, and {@code drainRemovedWidgets} drains a whole tick's worth of them in one
+     * loop — so by the time ANY widget from this tick's batch reaches {@link #offerRemoved}, every OTHER
+     * widget that tick also touched is already gone from the live tree too, regardless of dispatch order.
+     * {@link LuaItem#deepItems}, read at the tick boundary, therefore already sees a stack and everything it
+     * lost together — the outermost rule falls out of the filter over that one diff (it still needs {@link
+     * #containerOf}, not {@link LuaItem#container}, since a removed item's own parent chain is already gone
+     * by then — see {@link #refreshItems}).
+     *
+     * <p><b>Additions are the harder half.</b> The server frees or fills a stack's whole subtree as SEPARATE
+     * per-widget messages — the stack's own, and one for every item inside it — and unlike removals, a
+     * placement dispatches immediately as its own message is processed, with no equivalent queue collecting a
+     * whole tick's worth first. In practice the server sends a stack and its contents as one network burst,
+     * fully processed before the next tick, so the tick boundary still catches them together — but there is
+     * no engine guarantee of that the way there is for removals.
+     */
+    private void markDirty() {
+        dirty = true;
+    }
+
+    /** Once per tick ({@link UiApi#flushItemWatchers}, 064.3): diff now if a placement or removal touched us
+     *  since the last flush — see {@link #markDirty}. An idle container (the ordinary case) costs one read of
+     *  the flag. */
+    void flush() {
+        if(dirty) {
+            dirty = false;
             refreshItems();
+        }
     }
 
     /**
      * Diff this widget's items against the cache, firing {@code ItemAdded}/{@code ItemRemoved} — the item
      * WIDGETS, so a worn item filling two equipment slots is one addition, and what fires is this owner's Item
-     * object, the same one {@code :items()} hands back. Driven by {@link #offerPlaced}/{@link #offerRemoved} now
-     * (042.7) rather than a per-tick poll; the diff itself is unchanged.
+     * object, the same one {@code :items()} hands back. Driven by {@link #offerPlaced}/{@link #offerRemoved}
+     * (042.7) rather than a per-tick poll.
+     *
+     * <p><b>The set diffed is DEEP</b> ({@link LuaItem#deepItems}, 064.3): everything this widget holds at any
+     * depth, so a dandelion moving inside a stack that stayed put is seen even though {@code widget:items()}
+     * never lists it. <b>Only the OUTERMOST thing that moved is fired</b> — {@link #isOutermost} keeps an
+     * added or removed item only when its container did NOT also change in this same pass, which is what
+     * makes a stack arriving or leaving with three things inside it one event, for the stack, rather than
+     * four. A thing that moves inside a container that itself stayed put has no such container in the batch,
+     * so it fires on its own, exactly as it always did.
+     *
+     * <p><b>An added item's container is read FRESH</b> — {@code present}'s own value, since {@link
+     * LuaItem#deepItems} walked the live tree to build it. <b>A removed item's is read from {@link
+     * #containerOf}</b> instead, the record kept while it was still present: by the time it is missing here,
+     * its own {@code :container()} would answer {@code null} regardless of what it actually sat inside, since
+     * {@code Widget.remove()} nulls the parent chain before the removal seam ever runs.
      */
     private void refreshItems() {
-        Set<GItem> present = new LinkedHashSet<GItem>(LuaItem.items(wdg));
-        for(GItem g : present) {
+        Map<GItem, GItem> present = LuaItem.deepItems(wdg);
+        Map<GItem, LuaValue> added = new LinkedHashMap<GItem, LuaValue>();
+        for(Map.Entry<GItem, GItem> e : present.entrySet()) {
+            GItem g = e.getKey();
             if(!items.containsKey(g)) {
                 LuaValue item = LuaItem.of(owner, g);
                 items.put(g, item);
-                subs.fire("ItemAdded", item);
+                added.put(g, item);
             }
+            containerOf.put(g, e.getValue());   // keep it current for everything still present, not just new
         }
+        Map<GItem, LuaValue> removed = new LinkedHashMap<GItem, LuaValue>();
+        Map<GItem, GItem> removedContainer = new LinkedHashMap<GItem, GItem>();
         for(Iterator<Map.Entry<GItem, LuaValue>> it = items.entrySet().iterator(); it.hasNext();) {
             Map.Entry<GItem, LuaValue> e = it.next();
-            if(!present.contains(e.getKey())) {
-                LuaValue item = e.getValue();
+            GItem g = e.getKey();
+            if(!present.containsKey(g)) {
+                removed.put(g, e.getValue());
+                removedContainer.put(g, containerOf.remove(g));
                 it.remove();
-                subs.fire("ItemRemoved", item);
             }
         }
+        for(Map.Entry<GItem, LuaValue> e : added.entrySet()) {
+            if(isOutermost(present.get(e.getKey()), added.keySet()))
+                subs.fire("ItemAdded", e.getValue());
+        }
+        for(Map.Entry<GItem, LuaValue> e : removed.entrySet()) {
+            if(isOutermost(removedContainer.get(e.getKey()), removed.keySet()))
+                subs.fire("ItemRemoved", e.getValue());
+        }
+    }
+
+    /** Is {@code container} — the thing an added or removed item sat inside, already resolved by the caller
+     *  the right way for which of the two this is — absent, or not itself part of {@code batch} (the same
+     *  added/removed pass)? Absent or foreign either way means the item itself is the outermost thing that
+     *  moved (064.3). */
+    private static boolean isOutermost(GItem container, Set<GItem> batch) {
+        return (container == null) || !batch.contains(container);
     }
 
     // ---- teardown -------------------------------------------------------------------------------------

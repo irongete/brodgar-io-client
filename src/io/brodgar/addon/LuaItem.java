@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -656,6 +657,43 @@ public final class LuaItem {
         for(int i = 0; i < its.size(); i++)
             out.set(i + 1, of(owner, its.get(i)));
         return out;
+    }
+
+    /**
+     * Every item {@code container} holds, INCLUDING what sits inside a stack or a creel it holds, at any
+     * depth (064.3) — unlike {@link #items}, which is exactly what {@code widget:items()} answers, one entry
+     * per cell and never a stack's own contents flattened in. This is the set {@link WidgetSubs}'s {@code
+     * ItemAdded}/{@code ItemRemoved} diff runs against: the events answer what ENTERED this container, at
+     * any depth, while the read answers what it DRAWS. Never handed to Lua.
+     *
+     * <p><b>The value is each item's own immediate container</b> ({@code null} for a top-level one) — read
+     * HERE, while every item in the map is still live, rather than later through {@link #container}, which
+     * climbs {@code Widget.parent} and answers {@code null} on anything already unlinked. {@link
+     * WidgetSubs#refreshItems} needs exactly that for a REMOVED item: by the time it is missing from this
+     * map, its own parent chain is already gone, so the only trustworthy record of what it sat inside is one
+     * taken before that happened.
+     */
+    static Map<GItem, GItem> deepItems(Widget container) {
+        Map<GItem, GItem> out = new LinkedHashMap<GItem, GItem>();
+        for(GItem it : items(container))
+            collectDeep(it, null, out);
+        return out;
+    }
+
+    /** One item (under {@code parent}, {@code null} at the top) and — recursively — everything a stack or a
+     *  creel it holds carries, into {@code out}. */
+    private static void collectDeep(GItem it, GItem parent, Map<GItem, GItem> out) {
+        if(out.containsKey(it))
+            return;
+        out.put(it, parent);
+        Widget w = LuaContents.widget(it);
+        UI u = AddonManager.ui;
+        if((w == null) || (u == null))
+            return;
+        List<GItem> kids;
+        synchronized(u) { kids = new ArrayList<GItem>(w.children(GItem.class)); }
+        for(GItem k : kids)
+            collectDeep(k, it, out);
     }
 
     /**

@@ -486,6 +486,13 @@ public final class AddonManager {
             //      update the same frame.
             drainRemovedWidgets();
 
+            // 1b'a. WidgetSubs' deep ItemAdded/ItemRemoved diff (064.3), once per tick now that this tick's
+            //       placements and removals have landed: a container and everything it gains or loses arrives
+            //       as SEPARATE messages, one per widget id, not one for the whole move — diffing inline at
+            //       each would report every contained item on its own instead of once for the outermost. See
+            //       UiApi.flushItemWatchers / WidgetSubs.markDirty.
+            UiApi.flushItemWatchers();
+
             // 1b''. Resolve (M2, 042.1) retries queued by a Loading resolving off-thread → run on the UI thread.
             //       Same one-frame-per-tick bound as the queues above (a retry that re-registers must not spin
             //       this tick forever).
