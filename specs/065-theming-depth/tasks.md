@@ -94,7 +94,7 @@ in stage A before any surface is routed against it.
 
 ## Stage B — the surfaces that draw a box
 
-- [ ] **065.6 — a border may be a line, and the tooltip has a box.** `border` gains `{color = {r,g,b,a},
+- [x] **065.6 — a border may be a line, and the tooltip has a box.** `border` gains `{color = {r,g,b,a},
       width = n}`. `tooltip` starts carrying `bg`, `border` and `padding`: `UILoop.drawtooltip`'s two
       hardcoded `chcolor`/`rect2` calls ask the sheet and paint what they paint today when nothing answers.
       *Its suite* installs a `bg`, a line `border` and a `padding` on `tooltip`, then asserts the resolved

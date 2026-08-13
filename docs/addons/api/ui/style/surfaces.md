@@ -105,7 +105,8 @@ face. Those are not body text.
 
 ## `tooltip`
 
-Every tooltip the client pops up. The bulk of it is the client's tooltip **engine**, which composes the tip
+Every tooltip the client pops up, and the **box** it is popped up in. The bulk of it is the client's tooltip
+**engine**, which composes the tip
 of an inventory item, a buff, a HUD meter, a craft recipe input or output, a minimap marker or object, a
 character-sheet attribute row and an action-menu icon — hovering an inventory item is the quickest way to
 see a rule take effect. On top of that:
@@ -141,6 +142,15 @@ by a pixel.
 > code**, version-matched, which renders the heading on demand instead. There is nothing to do on the addon
 > side. The one caveat is upstream: if the game ships a new version of that resource the local copy steps
 > aside, noting it in the client log, and the heading returns to stock until the copy is refreshed.
+
+**The box is this key too**, so one rule says what a tip is set in *and* what it sits in:
+[`bg`](chrome.md#bg) fills it, [`border`](chrome.md#border) outlines it — a
+[line](chrome.md#border) is what the client's own outline is — and
+[`padding`](chrome.md#padding) is the room between the text and that edge. The client sizes the box around the
+composed text and the box grows **outward**, so padding never re-wraps a tip. Name neither `bg` nor `border`
+and the client's own dark fill and yellow outline stay, at the padding you asked for. There is no cache to
+wait for: the box is painted outside the one the tip's image is kept in, so a rule lands on the tip already
+under your cursor.
 
 ## `menu`
 

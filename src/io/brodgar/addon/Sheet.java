@@ -767,6 +767,12 @@ final class Sheet {
             public boolean draw(String scope, Widget w, haven.GOut g, Coord ul, Coord sz) {
                 return Chrome.draw(scope, w, g, ul, sz);
             }
+
+            // 065.6 - ...and the room its padding asks for, which a site that sizes its OWN box needs before
+            // there is a rectangle to hand over. The tooltip is the first of those.
+            public Coord[] pad(String scope, Widget w) {
+                return Chrome.pad(scope, w);
+            }
         });
     }
 

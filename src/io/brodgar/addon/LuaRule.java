@@ -253,9 +253,11 @@ public final class LuaRule {
                 return self;
             }
         });
-        // border{image=…, slice={l,t,r,b}} — a 9-slice frame (035.1), or border{box="gfx/hud/wnd"}, one of the
-        // client's own (065.2). On the slice form both fields are required: art with no slice cannot be cut into
-        // a frame, and there is no default worth guessing at.
+        // border{image=…, slice={l,t,r,b}} — a 9-slice frame (035.1), border{box="gfx/hud/wnd"}, one of the
+        // client's own (065.2), or border{color=…, width=n}, a LINE (065.6) — which is what the boxes the client
+        // draws in code rather than from a resource are made of. On the slice form both fields are required: art
+        // with no slice cannot be cut into a frame, and there is no default worth guessing at. A line is the same
+        // discipline at its own arity, and refuses the two fields that only mean something to a picture.
         m.set("border", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();

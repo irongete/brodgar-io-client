@@ -216,7 +216,10 @@ Tagged with the tasks that need them; an untagged line is read by every task.
   catalogue reads art names back through)
 - `src/io/brodgar/addon/LuaSheet.java` — 17
 - `src/io/brodgar/addon/Sheet.java`, `Chrome.java`, `LuaRule.java` — 1–17
-- `src/io/brodgar/addon/SkinDeco.java` — 1, 4, 5
+- `src/io/brodgar/addon/SkinDeco.java` — 1, 4, 5, and **every task that changes `Chrome.Border`**: it is the
+  second consumer of that type's `tlIn()`/`brIn()`, so a new border shape has to answer the window's layout too
+- `src/io/brodgar/addon/Px.java` — every task adding a property whose value is a DISTANCE: the design/device
+  seam a width, an inset or a padding converts through on its way into a layout sum
 - `src/io/brodgar/addon/Retired.java` — 1
 - `src/io/brodgar/addon/Selector.java` — 4, 7, 10, 11, 13, 16, 17, 18 (`WIDGET_ROLES`/`SITE_ROLES`, where a
   new key is declared a site rather than silently becoming a tree key)

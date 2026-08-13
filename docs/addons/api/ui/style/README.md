@@ -66,7 +66,7 @@ hafen.ui():sheet():load(doc.rules):install()
 
 That is a look whose Lua never names a surface, a font, a size, a
 colour or a pixel. **Every value a rule takes has a spelling a file can carry**: a colour is an array, a
-border's slice is four numbers, a `padding` is one or four, an
+border is a slice of four numbers or a colour and a width, a `padding` is one or four, an
 [anchor](geometry.md#anchor) is a corner and an offset — as is the place a window's
 [caption](chrome.md#ornaments) is drawn at — a picture is named by its
 [path or its resource](chrome.md#naming-a-picture), and a face is named the
@@ -94,7 +94,7 @@ Each is a setter that returns the rule, and each reads back with no argument.
 | `rule:font(face)` | a [font handle](../../font.md), or the same face **named** | `hafen.font():get(name)` / `hafen.asset():get(path)`, optionally through `:derive()`, or `{builtin = …}` / `{asset = …}` with `size`, `bold`, `italic` and `aa` — see [text](text.md#font) |
 | `rule:color(r, g, b[, a])` | `0..255` each | also takes a colour value, the `{r = …, g = …}` table every reader hands back — see [text](text.md#color) |
 | `rule:bg(t)` | one [surface](chrome.md#naming-a-picture), or an array of them | what something is painted on, one layer or several — see [chrome](chrome.md) |
-| `rule:border(t)` | `{<art>, slice = {l, t, r, b}}` **or** `{box = "gfx/hud/wnd"}` | your own 9-slice frame, or one of the client's own — see [chrome](chrome.md#border) |
+| `rule:border(t)` | `{<art>, slice = {l, t, r, b}}`, `{box = "gfx/hud/wnd"}` or `{color = {r,g,b[,a]}, width = n}` | your own 9-slice frame, one of the client's own, or a plain line — see [chrome](chrome.md#border) |
 | `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, one number for all four sides or `(l, t, r, b)` — see [`padding`](chrome.md#padding) |
 | `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](chrome.md#ornaments) |
 | `rule:sizer(t)` | a [surface](chrome.md#naming-a-picture) with an `at` | the corner grip a resizable window draws, and where — see [ornaments](chrome.md#ornaments) |

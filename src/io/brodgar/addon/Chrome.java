@@ -644,11 +644,20 @@ final class Chrome {
     // ---- border ------------------------------------------------------------------------------------
 
     /**
-     * A rule's {@code border}: a frame drawn around a surface, said one of two ways. Either <b>your own art</b>
+     * A rule's {@code border}: a frame drawn around a surface, said one of three ways. Either <b>your own art</b>
      * plus the four insets that cut it into a 9-slice, or <b>one of the client's own boxes</b> named by its
      * resource folder ({@code {box = "gfx/hud/wnd"}}) — the engine's eight-part {@link IBox}, whose insets are
-     * its corners' own sizes rather than a slice. The centre is <b>not</b> painted either way: that is
-     * {@link Bg}'s job, so the two properties compose instead of overwriting each other.
+     * its corners' own sizes rather than a slice — or a <b>line</b>, {@code {color = {r,g,b[,a]}, width = n}}
+     * (065.6). The centre is <b>not</b> painted any of the three ways: that is {@link Bg}'s job, so the two
+     * properties compose instead of overwriting each other.
+     *
+     * <p><b>A line is a frame with no picture behind it</b>, and it is what the surfaces the client draws
+     * <i>in code</i> rather than from a resource are made of — the tooltip's outline is two colours and a
+     * rectangle, and a theme that wants to restate it has nothing to ship. So it takes none of the fields that
+     * say where a picture's pixels come from: no {@code slice} (there is no art to cut), and no {@code mode}
+     * (there is no edge art to repeat). Its {@code width} is design pixels, like every other distance here, and
+     * it answers the same {@link #tlIn}/{@link #brIn} pair a 9-slice does, so a window framed by a line reserves
+     * exactly the room the line paints.
      *
      * <p><b>{@code mode} is what a 9-slice alone cannot say.</b> {@code IBox.Scaled} stretches its four edges
      * between the corners; the client's own window decoration <i>repeats</i> them, a blit per tile clipped to
@@ -668,11 +677,15 @@ final class Chrome {
      * the frame in the order the rule wrote them.
      */
     static final class Border {
-        /** The 9-slice art, or {@code null} when this border is one of the client's own boxes. */
+        /** The 9-slice art, or {@code null} when this border is one of the client's own boxes, or a line. */
         final Src src;
-        /** The client box's resource folder, or {@code null} when this border is a 9-slice of your own. */
+        /** The client box's resource folder, or {@code null} when this border is art of your own, or a line. */
         final String box;
-        /** The four slice insets, in design pixels. All zero on a {@code box} border, which carries its own. */
+        /** The line's colour (065.6), or {@code null} when this border is art. */
+        final Color line;
+        /** The line's thickness in design pixels, or {@code 0} when this border is art. */
+        final int width;
+        /** The four slice insets, in design pixels. All zero on a {@code box} or a line, which carry their own. */
         final int l, t, r, b;
         /** {@link #STRETCH} or {@link #TILE} — what the four edges do between the corners. */
         final String mode;
@@ -681,9 +694,22 @@ final class Chrome {
         private final Tex[] pieces;       // a box border's eight textures, resolved where the rule was written
         private IBox ibox;                // built on first use -- no upload, nothing to free
 
+        /** A frame cut out of art — your own 9-slice, or one of the client's own boxes. */
         Border(Src src, String box, int l, int t, int r, int b, String mode, Art[] parts, Tex[] pieces) {
+            this(src, box, null, 0, l, t, r, b, mode, parts, pieces);
+        }
+
+        /** A frame that is a <b>line</b> (065.6): one colour, one thickness, all the way round. */
+        Border(Color line, int width, Art[] parts) {
+            this(null, null, line, width, 0, 0, 0, 0, STRETCH, parts, null);
+        }
+
+        private Border(Src src, String box, Color line, int width, int l, int t, int r, int b, String mode,
+                       Art[] parts, Tex[] pieces) {
             this.src = src;
             this.box = box;
+            this.line = line;
+            this.width = width;
             this.l = l; this.t = t; this.r = r; this.b = b;
             this.mode = mode;
             this.parts = parts;
@@ -693,15 +719,16 @@ final class Chrome {
         /**
          * The left/top insets in <b>device</b> pixels — the room the drawn corners actually take, and what a
          * window's chrome lays its content out against ({@link SkinDeco#iresize}). It is the box's own
-         * {@code ctloff()}, which is the very corner the draw paints, so the two cannot drift apart.
+         * {@code ctloff()}, which is the very corner the draw paints, so the two cannot drift apart; a line's is
+         * its own thickness, for the same reason.
          */
         Coord tlIn() {
-            return ibox().ctloff();
+            return (line != null) ? Px.in(Coord.of(width, width)) : ibox().ctloff();
         }
 
         /** The right/bottom insets in device pixels — see {@link #tlIn}. */
         Coord brIn() {
-            return ibox().cbroff();
+            return (line != null) ? Px.in(Coord.of(width, width)) : ibox().cbroff();
         }
 
         /**
@@ -747,14 +774,33 @@ final class Chrome {
             Coord tl = tlIn(), br = brIn();          // the DRAWN corners: sz is the client's own device box
             if((sz.x < tl.x + br.x) || (sz.y < tl.y + br.y))
                 return;
-            ibox().draw(g, ul, sz);
+            if(line != null)
+                drawline(g, ul, sz, tl.x);
+            else
+                ibox().draw(g, ul, sz);
             Art[] ps = this.parts;                   // ...and the pinned pieces, over the frame they sit on
             for(int i = 0; (ps != null) && (i < ps.length); i++)
                 ps[i].draw(g, ul, sz);
         }
 
+        /**
+         * The four runs of a <b>line</b> frame (065.6): an outline {@code w} device pixels thick, drawn
+         * <i>inside</i> the box's own edge so that the room {@link #tlIn} reserves is the room it paints. The
+         * two verticals stop short of the horizontals rather than overdrawing them, which is what keeps a
+         * translucent colour one weight the whole way round instead of doubling at the corners.
+         */
+        private void drawline(GOut g, Coord ul, Coord sz, int w) {
+            g.chcolor(line);
+            g.frect(ul, Coord.of(sz.x, w));
+            g.frect(ul.add(0, sz.y - w), Coord.of(sz.x, w));
+            g.frect(ul.add(0, w), Coord.of(w, sz.y - (w * 2)));
+            g.frect(ul.add(sz.x - w, w), Coord.of(w, sz.y - (w * 2)));
+            g.chcolor();
+        }
+
         public int hashCode() {
-            int h = ((src == null) ? box.hashCode() : (src.hashCode() * 31))
+            int h = ((line != null) ? ((line.hashCode() * 43) + width)
+                                    : ((src == null) ? box.hashCode() : (src.hashCode() * 31)))
                 + (l * 7) + (t * 13) + (r * 17) + (b * 19) + (mode.hashCode() * 23);
             for(int i = 0; (parts != null) && (i < parts.length); i++)
                 h = (h * 31) + parts[i].hashCode();
@@ -767,6 +813,7 @@ final class Chrome {
             Border x = (Border)o;
             return ((src == null) ? (x.src == null) : src.equals(x.src))
                 && ((box == null) ? (x.box == null) : box.equals(x.box))
+                && ((line == null) ? (x.line == null) : line.equals(x.line)) && (width == x.width)
                 && (l == x.l) && (t == x.t) && (r == x.r) && (b == x.b) && mode.equals(x.mode)
                 && sameArt(parts, x.parts);
         }
@@ -774,8 +821,12 @@ final class Chrome {
         /** {@code rule:border()} — the value as {@code reader} may hold it, in the shape the setter takes. */
         LuaValue toLua(Addon reader) {
             LuaTable t = new LuaTable();
-            if(box != null) {
+            if(line != null) {
+                t.set("color", AddonManager.color(line));
+                t.set("width", LuaValue.valueOf(width));
+            } else if(box != null) {
                 t.set("box", LuaValue.valueOf(box));
+                t.set("mode", LuaValue.valueOf(mode));
             } else {
                 src.toLua(reader, t);
                 LuaTable s = new LuaTable();
@@ -784,8 +835,8 @@ final class Chrome {
                 s.set("r", LuaValue.valueOf(this.r));
                 s.set("b", LuaValue.valueOf(this.b));
                 t.set("slice", s);
+                t.set("mode", LuaValue.valueOf(mode));
             }
-            t.set("mode", LuaValue.valueOf(mode));
             if(parts != null) {
                 LuaTable ps = new LuaTable();
                 for(int i = 0; i < parts.length; i++)
@@ -1065,6 +1116,21 @@ final class Chrome {
         return true;
     }
 
+    /**
+     * {@code Fonts.chromepad(scope, wdg)} — the room this site's own {@code padding} asks for, as
+     * {@code {tl, br}} in <b>device</b> pixels, or {@code null} when no rule names one (065.6).
+     *
+     * <p>It is {@link #draw}'s partner, and the two are separate because they are read at different moments: a
+     * site that sizes its own box has to widen that box <i>before</i> it knows where to paint. The tooltip is
+     * the first — its box is its text plus a margin, computed in {@code UILoop.drawtooltip} — and the shape is
+     * the same one {@link SkinDeco#iresize} uses one level up, at the arity that has no layout to re-run: the
+     * site adds the two {@link Coord}s to the rectangle it was going to draw anyway.
+     */
+    static Coord[] pad(String scope, Widget wdg) {
+        Pad p = padding(Fonts.styleFor(scope, wdg));
+        return (p == null) ? null : new Coord[] {p.tlIn(), p.brIn()};
+    }
+
     // ---- parsing -----------------------------------------------------------------------------------
 
     /** The four spellings a picture comes in, as every error here lists them. */
@@ -1271,25 +1337,33 @@ final class Chrome {
         return new Close(up, hover, pressed, (corner < 0) ? null : new Spot(corner, offset));
     }
 
+    /** The three ways a frame is said, as every refusal that meets one of them lists them. */
+    private static final String FRAME =
+        "art cut into a 9-slice ({ image = hafen.asset():get(\"img/panel.png\"), slice = {l,t,r,b} } or"
+        + " { res = \"gfx/…\", slice = … }), one of the client's own frames ({ box = \"gfx/hud/wnd\" }),"
+        + " or a line ({ color = {r,g,b[,a]}, width = 2 })";
+
     /**
      * Parse a rule's {@code border} — a 9-slice of your own ({@code image}/{@code asset}/{@code res} plus
-     * {@code slice}), or one of the client's own boxes ({@code {box = "gfx/hud/wnd"}}). One or the other: they
-     * are two ways of saying where a frame's eight pieces come from, and a value naming both is asking one
-     * question twice.
+     * {@code slice}), one of the client's own boxes ({@code {box = "gfx/hud/wnd"}}), or a <b>line</b>
+     * ({@code {color = …, width = n}}, 065.6). Exactly one of the three: they are three ways of saying what a
+     * frame's four sides are made of, and a value naming two is asking one question twice.
      *
      * <p>On the 9-slice form both fields are required: an image with no slice cannot be cut into a frame, and
      * there is no default worth guessing at (033.3's lesson — a guess produces a table that lies). The slice is
      * validated against the art, so a border that could only ever draw inside out is refused where the rule is
-     * written rather than silently at every frame.
+     * written rather than silently at every frame. A <b>line</b> is the same discipline at its own arity: a
+     * colour needs the thickness it is drawn at, and it refuses the two fields that only mean something to a
+     * picture — a {@code slice} (there is no art to cut) and a {@code mode} (there is no edge art to repeat).
      */
     static Border parseBorder(Addon owner, String ctx, LuaValue v) {
         if(!v.istable())
-            throw new LuaError(ctx + ".border: expected { image = hafen.asset():get(\"panel.png\"),"
-                + " slice = {l,t,r,b} } or { box = \"gfx/hud/wnd\" }, got " + v.typename());
+            throw new LuaError(ctx + ".border: expected a frame — " + FRAME + ", got " + v.typename());
         Src src = null;
         String named = null, box = null;
+        Color line = null;
         Art[] parts = null;
-        LuaValue slice = null, mode = LuaValue.NIL;
+        LuaValue slice = null, mode = LuaValue.NIL, width = null;
         LuaValue k = LuaValue.NIL;
         while(true) {
             Varargs n = v.next(k);
@@ -1301,6 +1375,13 @@ final class Chrome {
             if("image".equals(p) || "asset".equals(p) || "res".equals(p)) {
                 src = source(owner, ctx, ".border", p, pv);
                 named = p;
+            } else if("color".equals(p)) {
+                line = pv.istable() ? AddonManager.luaColor(pv, null) : null;
+                if(line == null)
+                    throw new LuaError(ctx + ".border.color: expected a colour table with 0..255 components"
+                        + " — { 244, 247, 21, 192 } or { r = 244, g = 247, b = 21, a = 192 }");
+            } else if("width".equals(p)) {
+                width = pv;
             } else if("parts".equals(p)) {
                 parts = parseParts(owner, ctx, ".border.parts", pv);
             } else if("box".equals(p)) {
@@ -1314,10 +1395,11 @@ final class Chrome {
                 mode = pv;
             } else {
                 throw new LuaError(ctx + ".border: \"" + k.tojstring() + "\" is not a border property — a border"
-                    + " is { image = …, slice = {l,t,r,b} } or { box = \"gfx/hud/wnd\" }, either with a mode"
-                    + " and a parts list");
+                    + " is " + FRAME + ", each with an optional parts list");
             }
         }
+        if(line != null)
+            return parseLine(ctx, line, width, slice, mode, src, named, box, parts);
         String m = modeOf(ctx, ".border", mode, STRETCH);
         if(box != null) {
             if(src != null)
@@ -1329,8 +1411,8 @@ final class Chrome {
             return new Border(null, box, 0, 0, 0, 0, m, parts, loadBox(ctx, box));
         }
         if(src == null)
-            throw new LuaError(ctx + ".border: needs art — { image = hafen.asset():get(\"img/panel.png\"),"
-                + " slice = {l,t,r,b} }, { res = \"gfx/…\", slice = … } or { box = \"gfx/hud/wnd\" }");
+            throw new LuaError(ctx + ".border: says nothing about what the frame is made of — a border is "
+                + FRAME);
         if(slice == null)
             throw new LuaError(ctx + ".border: needs a slice — the four insets {left, top, right, bottom},"
                 + " in design pixels, that cut the art into corners and edges");
@@ -1341,6 +1423,39 @@ final class Chrome {
                 + "} leaves no middle in a " + sz.x + "x" + sz.y + " image — left+right must be under its width"
                 + " and top+bottom under its height");
         return new Border(src, null, s[0], s[1], s[2], s[3], m, parts, null);
+    }
+
+    /**
+     * The <b>line</b> half of {@link #parseBorder} (065.6): a colour and the thickness it is drawn at, and the
+     * refusal for every field that belongs to a picture instead. Written apart because it is a whole value with
+     * its own rules, not a branch — a line shares nothing with a 9-slice but the property it is written under.
+     */
+    private static Border parseLine(String ctx, Color line, LuaValue width, LuaValue slice, LuaValue mode,
+                                    Src src, String named, String box, Art[] parts) {
+        if(src != null)
+            throw new LuaError(ctx + ".border: says \"color\" AND \"" + named + "\" — a border is a LINE (a"
+                + " colour at a thickness) or ART cut into a frame, not both");
+        if(box != null)
+            throw new LuaError(ctx + ".border: says \"color\" AND \"box\" — a border is a LINE (a colour at a"
+                + " thickness) or one of the client's own frames, not both");
+        if(slice != null)
+            throw new LuaError(ctx + ".border: a line has no slice — a slice cuts ART into corners and edges,"
+                + " and a line is one colour at one thickness the whole way round");
+        if(!mode.isnil())
+            throw new LuaError(ctx + ".border: a line has no edge art to repeat, so it takes no \"mode\" — that"
+                + " says what a 9-slice's four edges do between its corners");
+        if(width == null)
+            throw new LuaError(ctx + ".border: a line needs a \"width\" — how thick the frame is drawn, in"
+                + " design pixels: { color = {r,g,b[,a]}, width = 2 }");
+        // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (the 028
+        // asset lesson), and `width = "2"` is a typo.
+        if(width.type() != LuaValue.TNUMBER)
+            throw new LuaError(ctx + ".border.width: expected a number of design pixels, got " + width.typename());
+        int w = width.toint();
+        if(w < 1)
+            throw new LuaError(ctx + ".border.width: a line's width is at least 1 design pixel (got " + w
+                + ") — a frame nobody can see is said by leaving the property out");
+        return new Border(line, w, parts);
     }
 
     /**

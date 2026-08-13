@@ -94,6 +94,23 @@ knowing before deciding a frame is one.
    do not. Exact mirror of `Deco`, where `iresize`/`contarea` *are* re-run and a replacement therefore
    can change the geometry.
 
+## Boxes the client draws in CODE, not from a resource
+
+A few framed surfaces are neither a `Deco` nor an `IBox`: the client computes a rectangle and fills it with
+literal colours. Nothing about them is swappable, so anything standing in for one has to reproduce the
+geometry as well as the paint.
+
+| What | Where |
+|---|---|
+| **The tooltip's box** | `UILoop.drawtooltip` — `m = UI.scale(2, 2)`, then `g.rect2(pos - m - (1,1), br + m)` in `(244, 247, 21, 192)` **first** and `g.frect2(pos - m, br + m)` in `(35, 35, 35, 192)` over it, so the outline reads as a 1 px ring outside the fill. `pos` is the tip texture's own top-left, `br = pos + tex.sz()` |
+
+**Three things about that one.** `pos` is clamped to `>= 0` but the box is not, so a tip at the left or top
+edge already paints its outline off-screen — widening the box widens that overhang rather than pushing the
+tip inward. The rendered tip is cached on the tooltip **object** (`Utils.eq(tooltip, prevtooltip)`, dropped
+when `Fonts.gen()` moves), and the box is painted **outside** that cache, every frame — so a box that reads a
+style needs no invalidation at all. And `drawtooltip` runs from `UILoop.display` after `ui.draw(g)`, i.e.
+outside every widget's draw, so there is no widget in hand and no per-widget style frame in force.
+
 ## The addon seam
 
 Every `// addon:` edit in the chrome; everything else the sheet needs was already public.

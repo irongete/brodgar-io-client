@@ -24,7 +24,7 @@ These are the sites the client draws at:
 | `button` | button captions |
 | `label` | body text — attribute rows, list items, explicit-foundry labels |
 | `textentry` | text-entry fields **and** the console command line |
-| `tooltip` | every tooltip — items, buffs, meters, craft, minimap, the action menu |
+| `tooltip` | every tooltip — items, buffs, meters, craft, minimap, the action menu — and the **box** the client pops one up in |
 | `menu` | flower-menu petals and the action-menu keybind letters |
 | `chat` | the chat window — messages, channel tabs, the typed line |
 | `world.nick` | floating kin names over characters |
@@ -113,7 +113,7 @@ what the surface *does* with a property. First the two that write text:
 | `widget:rule()` | yes | **per surface** | the same, one widget at a time and named by hand rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do* |
 
 And the three that draw the chrome. The surfaces that wear them are the window decoration, the caption
-plate inside it, and the window-less panels:
+plate inside it, the window-less panels, and the box a tooltip is popped up in:
 
 | Key | `bg` | `border` | `padding` | Worth knowing |
 |---|---|---|---|---|
@@ -121,7 +121,8 @@ plate inside it, and the window-less panels:
 | `window.title` | yes | yes | **inert** | the two paint the caption **plate**, at the box the client sizes around the caption — [the ornaments](chrome.md#ornaments). The caption's own place is `window.frame`'s `caption`, so `padding` has nothing to move here |
 | `panel`, on a **boxed** panel | **inert** | yes | **inert** | the list and info boxes, the HUD portrait, party avatars, the map's view and marker list. A border drawn *around* content that is not the panel's, so a fill would bury it — [why](chrome.md#panels) |
 | `panel`, on a **self-painting** panel | yes | yes | **inert** | flower-menu petals, dropdown menus, an item-stock box: each paints its own surface before its contents, so a `bg` lands on it |
-| `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches `window.frame`, `window.title` **and** `panel`, each subject to its own row here. Text surfaces ignore it entirely and stay stock |
+| `tooltip` | yes | yes | yes | the box a tip is popped up in. The client sizes it around the tip's own text, so `padding` is the room between that text and the edge — and the box grows outward, leaving the text where it was. With neither `bg` nor `border` the client's own dark fill and yellow outline stay |
+| `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches `window.frame`, `window.title`, `panel` **and** `tooltip`, each subject to its own row here. Text surfaces ignore it entirely and stay stock |
 | every other site key | **inert** | **inert** | **inert** | a text site has no surface of its own to paint and no layout of its own to move. Nothing is refused and nothing warns |
 | a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |
 | a tree key **matching a panel** | per panel | yes | **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `["window[title=…] @Frame"]` themes those panels alone. `bg` follows the same two panel rows above |

@@ -419,6 +419,8 @@ public class Fonts {
     public interface Chromes {
         /** Paint {@code scope}'s own surface and frame over {@code [ul, ul+sz)}; {@code false} when no rule names it. */
         public boolean draw(String scope, Widget wdg, GOut g, Coord ul, Coord sz);
+        /** The room {@code scope}'s own padding asks for, as {@code {tl, br}} in device px, or {@code null}. */
+        public Coord[] pad(String scope, Widget wdg);
     }
     private static volatile Chromes chromes = null;
 
@@ -437,6 +439,21 @@ public class Fonts {
             return false;                 // fast path: no override anywhere
         Chromes src = chromes;
         return (src != null) && src.draw(scope, wdg, g, ul, sz);
+    }
+
+    /**
+     * The room a rule's {@code padding} asks for at {@code scope}, as {@code {tl, br}} in <b>device</b> pixels —
+     * {@code null} means no rule names one and the site keeps whatever margin it always kept (065.6).
+     *
+     * <p>It is {@link #drawchrome}'s partner for a site that computes its own box: the box has to be widened
+     * before there is a rectangle to paint, so the two answers are read one after the other rather than
+     * together. Behind the same {@code active} volatile read, so a client with no addon pays one.
+     */
+    public static Coord[] chromepad(String scope, Widget wdg) {
+        if(!active)
+            return null;                  // fast path: no override anywhere
+        Chromes src = chromes;
+        return (src == null) ? null : src.pad(scope, wdg);
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {

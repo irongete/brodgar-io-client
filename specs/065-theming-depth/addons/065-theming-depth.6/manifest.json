@@ -1,0 +1,9 @@
+{
+  "name": "065.6 — a line border, and the tooltip's box",
+  "id": "065-theming-depth.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.6: border{color, width} is a whole frame value, and tooltip carries bg, border and padding.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

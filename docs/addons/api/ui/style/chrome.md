@@ -1,8 +1,9 @@
 # hafen.ui: the properties that paint
 
 The [sheet](README.md) properties that **paint** rather than write, the one that moves the client's own
-content, and the ones that dress a window's ornaments. Two kinds of surface wear them: `window.frame`, the
-client's window chrome, and `panel`, every framed surface that is not a window.
+content, and the ones that dress a window's ornaments. Three kinds of surface wear them: `window.frame`, the
+client's window chrome; `panel`, every framed surface that is not a window; and `tooltip`, the box the client
+pops up under your cursor.
 
 ```lua
 local s = hafen.ui():sheet()
@@ -19,7 +20,7 @@ s:install()
 | Call | Value | Meaning |
 |---|---|---|
 | `rule:bg(t)` | one [surface](#naming-a-picture), or an **array** of them | what something is painted on: one layer, or several in paint order |
-| `rule:border(t)` | `{<art>, slice = {l, t, r, b}}` **or** `{box = "gfx/hud/wnd"}`, either with a `mode` and `parts` | the frame around it, cut from your own art or taken from the client's |
+| `rule:border(t)` | `{<art>, slice = {l, t, r, b}}`, `{box = "gfx/hud/wnd"}` or `{color = {r, g, b[, a]}, width = n}` | the frame around it: your own art, one of the client's own, or a plain line |
 | `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, on all four sides |
 | `rule:padding(l, t, r, b)` | [design px](../pixels.md), `>= 0` each | the same room, said one side at a time |
 | `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](#ornaments) |
@@ -91,15 +92,27 @@ array in paint order. A layer array with nothing in it is an error.
 
 ## border
 
-A frame is said one of two ways, and a rule uses one or the other.
+A frame is said one of three ways, and a rule uses one of them.
 
 | Written | Is |
 |---|---|
 | `{<art>, slice = {l, t, r, b}}` | your own art cut into a 9-slice: the four corners draw at their own size and the four edges run between them |
 | `{box = "gfx/hud/wnd"}` | one of the client's own frames, named by the resource **folder** its eight pieces sit in |
+| `{color = {r, g, b[, a]}, width = n}` | a **line**: one colour at one thickness, all the way round |
 
-The `<art>` is any of the three picture spellings [above](#naming-a-picture). A value naming both an art and
-a `box` is an error, and so is a `slice` beside a `box`: a client frame's own corners *are* its insets.
+The `<art>` is any of the three picture spellings [above](#naming-a-picture). A value naming two of the three
+is an error, and so is a `slice` beside a `box`: a client frame's own corners *are* its insets.
+
+**A line is a frame with no picture behind it**, which is what several of the client's own boxes are — the
+tooltip's outline is a colour and a rectangle, drawn in code rather than loaded from a resource. So it takes
+neither of the two fields that only mean something to a picture: no `slice`, because there is no art to cut,
+and no `mode`, because there is no edge art to repeat. Its `width` is [design px](../pixels.md) and at least
+`1`; a frame nobody can see is said by leaving the property out. A line's width **is** its inset, exactly as a
+9-slice's corners are, so a window framed by one reserves the room the line paints.
+
+```lua
+hafen.ui():sheet():rule("tooltip"):border{ color = {255, 140, 40}, width = 2 }:sheet():install()
+```
 
 **`mode` says what the four edges do between the corners.** `"stretch"`, the default, scales each edge across
 the run; `"tile"` repeats it at the size it was drawn, clipping the last repeat rather than squeezing it,
@@ -209,9 +222,12 @@ s:install()
 - **Removing the rule restores the exact numbers it found** — the same size, the same position, down to the
   pixel.
 
-**A window is the only thing `padding` moves.** Everything else ignores it: a surface that does not own its
-own layout cannot honour one, so nothing is refused and nothing warns. That includes every
-[panel](#panels). [The key table](keys.md#what-each-key-accepts) says which is which.
+**`padding` moves a surface that sizes its own box, and nothing else.** A window is one, because it re-lays
+itself out around its content; a [tooltip](surfaces.md#tooltip) is the other, its box being its text plus a
+margin, and it grows outward the same way — the text stays where it was and the box widens around it.
+Everything else ignores it: a surface whose layout was decided when it was built cannot honour one, so
+nothing is refused and nothing warns. That includes every [panel](#panels).
+[The key table](keys.md#what-each-key-accepts) says which is which.
 
 ## Ornaments
 

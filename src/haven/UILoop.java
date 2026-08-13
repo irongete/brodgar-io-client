@@ -203,11 +203,19 @@ public abstract class UILoop implements Console.Directory {
 		pos.y = 0;
 	    Coord br = pos.add(sz);
 	    Coord m = UI.scale(2, 2);
-	    g.chcolor(244, 247, 21, 192);
-	    g.rect2(pos.sub(m).sub(1, 1), br.add(m));
-	    g.chcolor(35, 35, 35, 192);
-	    g.frect2(pos.sub(m), br.add(m));
-	    g.chcolor();
+	    // addon: (065.6) a tip's BOX is the "tooltip" rule's -- its padding widens the room around the text,
+	    // its bg and border paint what fills that box. With no rule the two rects below are what they always
+	    // were, at the coordinates they always had; the tip's own text is placed and drawn unchanged either way.
+	    Coord[] tpad = Fonts.chromepad("tooltip", null);
+	    Coord tul = pos.sub(m).sub((tpad == null) ? Coord.z : tpad[0]);
+	    Coord tbr = br.add(m).add((tpad == null) ? Coord.z : tpad[1]);
+	    if(!Fonts.drawchrome("tooltip", null, g, tul, tbr.sub(tul))) {
+		g.chcolor(244, 247, 21, 192);
+		g.rect2(tul.sub(1, 1), tbr);
+		g.chcolor(35, 35, 35, 192);
+		g.frect2(tul, tbr);
+		g.chcolor();
+	    }
 	    g.image(tex, pos);
 	}
 	ui.lasttip = tooltip;
