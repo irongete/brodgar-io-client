@@ -147,8 +147,9 @@ n:rule():remove()                       -- drop it again
   child, so a child inside a styled window still reads `nil`.
 - **`widget:rule():position(…)` is an error**, and so are `:size()` and `:anchor()`: the hand-named level of
   the layout cascade is the **verb**, [`w:position(x, y)`](../native.md). One way per operation.
-- **On a window, it dresses that window's chrome**, and one level down, a [panel's](chrome.md#panels) box.
-  On anything that wears no chrome the three chrome properties are inert, still readable through `:style()`.
+- **On a window, it dresses that window's chrome**, and one level down, a [panel's](surfaces.md#panels) box
+  or a [button's](surfaces.md#button) face. On anything that wears no chrome the three chrome properties are
+  inert, still readable through `:style()`.
 - **Owned and short-lived.** The level is tagged with your addon and reverted on `:reload` or disable, and
   it is held **weakly against the widget**: when that window closes it goes with it, and a stashed object
   reads `nil` from every accessor while a write becomes a no-op rather than an error.
@@ -198,12 +199,14 @@ rather than from code.
 - **The inside of a client window.** A rule places a *widget*; it does not re-flow what a window puts within
   itself — rows, columns, tabs, the order of a list. Those places are computed by that window's own code
   when it is built, and nothing re-runs that construction, which is the same fact `padding` and a border's
-  insets meet on a [panel](chrome.md#panels). Rearranging a window's insides is
+  insets meet on a [panel](surfaces.md#panels). Rearranging a window's insides is
   [**replacing**](../replace.md) it, not styling it.
-- **State-dependent looks.** There is no hover, pressed, focused or disabled selector. A rule matches what a
-  widget *is* — its role, class, caption, resource — not what it is momentarily doing, and per-state styling
-  would need the client to publish those states at every site. Your own widgets can of course draw
-  themselves differently in `onDraw`.
+- **A state in the *selector*.** There is no hover, pressed, focused or disabled key. A rule matches what a
+  widget *is* — its role, class, caption, resource — not what it is momentarily doing, and a per-state
+  selector would make every site publish its state to the cascade. A state rides inside the **value**
+  instead, where the surface drawing itself already knows which one it is in: a
+  [`bg`](chrome.md#a-face-per-state) names a face per state, and the surfaces that have one wear it. Your
+  own widgets draw themselves differently in `onDraw`.
 - **Every relationship except containment.** A key may be a [chain](keys.md#tree-keys) — a space is the
   descendant combinator, so `window[title=Cupboard] label` names the labels in one window and nowhere else
   — but there is no `window > button` (direct child), no pseudo-class, no sibling combinator and no

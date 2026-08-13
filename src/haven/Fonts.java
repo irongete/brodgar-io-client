@@ -429,6 +429,23 @@ public class Fonts {
     public interface Chrome {
         /** Paint this site's own surface and frame over {@code [ul, ul+sz)} — device pixels. */
         public void draw(GOut g, Coord ul, Coord sz);
+
+        /*
+         * 065.8 -- ...and the two halves apart, for a site whose own content sits BETWEEN them. A control
+         * rasterises its caption over its fill and under its frame (Button.draw(BufferedImage) draws the centre
+         * texture, then the caption, then the four edges), so it paints the surface, blits its own picture and
+         * paints the frame over it. The two predicates are asked where there is no GOut yet: a site composing
+         * its raster has to know which of its own pieces the rule replaces before it draws any of them.
+         */
+
+        /** Does this rule paint a surface of its own? Then the site skips whatever fill it draws itself. */
+        public boolean bg();
+        /** ...and a frame of its own? Then the site skips its own edges. */
+        public boolean border();
+        /** Paint the surface alone over {@code [ul, ul+sz)} — device pixels. */
+        public void drawbg(GOut g, Coord ul, Coord sz);
+        /** Paint the frame alone over {@code [ul, ul+sz)} — device pixels. */
+        public void drawborder(GOut g, Coord ul, Coord sz);
     }
 
     /** The chrome-paint source (065.4) — installed once by the addon layer; {@code null} in a stock client. */
@@ -437,8 +454,8 @@ public class Fonts {
         public boolean draw(String scope, Widget wdg, GOut g, Coord ul, Coord sz);
         /** The room {@code scope}'s own padding asks for, as {@code {tl, br}} in device px, or {@code null}. */
         public Coord[] pad(String scope, Widget wdg);
-        /** {@code scope}'s own paint, held for a site that draws many boxes, or {@code null} when no rule names it. */
-        public Chrome chrome(String scope, Widget wdg);
+        /** {@code scope}'s own paint in {@code state} ({@code null} = at rest), or {@code null} when no rule names it. */
+        public Chrome chrome(String scope, Widget wdg, String state);
     }
     private static volatile Chromes chromes = null;
 
@@ -483,10 +500,23 @@ public class Fonts {
      * {@code active} volatile read, so a client with no addon pays one per draw rather than one per cell.
      */
     public static Chrome chrome(String scope, Widget wdg) {
+        return chrome(scope, wdg, null);
+    }
+
+    /**
+     * The paint {@code scope}'s rule does in one <b>state</b> (065.8) — {@code "hover"}, {@code "pressed"},
+     * {@code "disabled"}, {@code "checked"}, or {@code null} for the surface at rest.
+     *
+     * <p>A state face rides inside the value a rule wrote rather than in the key it wrote it under, so a site
+     * asks for the state it is in and gets one answer, already resolved; a state the rule says nothing about
+     * hands back the value it varies. Nothing publishes a state to the cascade, and a state a surface never
+     * enters costs it nothing at all.
+     */
+    public static Chrome chrome(String scope, Widget wdg, String state) {
         if(!active)
             return null;                  // fast path: no override anywhere
         Chromes src = chromes;
-        return (src == null) ? null : src.chrome(scope, wdg);
+        return (src == null) ? null : src.chrome(scope, wdg, state);
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {

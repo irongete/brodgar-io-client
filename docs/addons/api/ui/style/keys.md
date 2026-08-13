@@ -19,9 +19,9 @@ These are the sites the client draws at:
 | `*` | the global fallback — most UI text, and the cascade for every rule you do not write |
 | `window.title` | window captions, and the [**plate**](chrome.md#ornaments) they sit on |
 | `window.frame` | the window **chrome**: the frame drawn around a window, the surface it sits on, and where its [ornaments](chrome.md#ornaments) go. Draws no text, so it takes `bg`, `border`, `padding` and the ornament properties, not `font` or `color` |
-| `panel` | the window-**less** framed surfaces — the boxes around lists and info panes, the HUD portrait, party avatars, flower-menu petals, dropdown menus. Draws no text either; see [what a panel does with a rule](chrome.md#panels) |
+| `panel` | the window-**less** framed surfaces — the boxes around lists and info panes, the HUD portrait, party avatars, flower-menu petals, dropdown menus. Draws no text either; see [what a panel does with a rule](surfaces.md#panels) |
 | `heading` | in-window section headings, the embossed fraktur ones |
-| `button` | button captions |
+| `button` | the client's standard buttons: their captions, and the **face** those are drawn on — its fill, its frame, and the fill's own [state faces](chrome.md#a-face-per-state) |
 | `label` | body text — attribute rows, list items, explicit-foundry labels |
 | `textentry` | text-entry fields **and** the console command line |
 | `tooltip` | every tooltip — items, buffs, meters, craft, minimap, the action menu — and the **box** the client pops one up in |
@@ -113,23 +113,27 @@ what the surface *does* with a property. First the two that write text:
 | any tree key | yes | **per surface** | [resolved per widget](#tree-keys) and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats unchanged: a rule on a window covers the window's own caption, where `font` works and `color` is inert. `:style()` reports the colour a rule set even where the surface then throws it away |
 | `widget:rule()` | yes | **per surface** | the same, one widget at a time and named by hand rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do* |
 
-And the three that draw the chrome. The surfaces that wear them are the window decoration, the caption
-plate inside it, the window-less panels, and the box a tooltip is popped up in:
+And the three that draw the chrome. The surfaces that wear them are the ones that draw a box of their own:
+the window decoration, the caption plate inside it, the window-less panels, the box a tooltip is popped up
+in, an inventory square and a button's face. A [state face](chrome.md#a-face-per-state) inside a `bg` is
+worn by the surfaces that *have* that state, and ignored by the rest, exactly as the rows below say:
 
 | Key | `bg` | `border` | `padding` | Worth knowing |
 |---|---|---|---|---|
 | `window.frame` | yes | yes | yes | every window whose chrome is the client's own stock decoration. The only surface where `padding` and a border's insets actually **move** anything, because a window re-lays itself out |
 | `window.title` | yes | yes | **inert** | the two paint the caption **plate**, at the box the client sizes around the caption — [the ornaments](chrome.md#ornaments). The caption's own place is `window.frame`'s `caption`, so `padding` has nothing to move here |
-| `panel`, on a **boxed** panel | **inert** | yes | **inert** | the list and info boxes, the HUD portrait, party avatars, the map's view and marker list. A border drawn *around* content that is not the panel's, so a fill would bury it — [why](chrome.md#panels) |
+| `panel`, on a **boxed** panel | **inert** | yes | **inert** | the list and info boxes, the HUD portrait, party avatars, the map's view and marker list. A border drawn *around* content that is not the panel's, so a fill would bury it — [why](surfaces.md#panels) |
 | `panel`, on a **self-painting** panel | yes | yes | **inert** | flower-menu petals, dropdown menus, an item-stock box: each paints its own surface before its contents, so a `bg` lands on it |
 | `tooltip` | yes | yes | yes | the box a tip is popped up in. The client sizes it around the tip's own text, so `padding` is the room between that text and the edge — and the box grows outward, leaving the text where it was. With neither `bg` nor `border` the client's own dark fill and yellow outline stay |
 | `inventory.slot` | yes | yes | **inert** | one square of an inventory grid, drawn at the size and pitch the client's own square has, so `padding` has nothing to move — [what the square is](surfaces.md#inventoryslot) |
-| `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches `window.frame`, `window.title`, `panel`, `tooltip` **and** `inventory.slot`, each subject to its own row here. Text surfaces ignore it entirely and stay stock |
+| `button` | yes | yes | **inert** | the **face** of every standard button: the `bg` stands in for the fill its caption is set on, the `border` for the four edge caps around it, and either alone leaves the other the client's own. Its box was fixed when it was built, so `padding` has nothing to move — [what a button's face is](surfaces.md#button) |
+| `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches every key in the rows above, each subject to its own row. Text-only surfaces ignore it entirely and stay stock |
 | every other site key | **inert** | **inert** | **inert** | a text site has no surface of its own to paint and no layout of its own to move. Nothing is refused and nothing warns |
 | a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |
 | a tree key **matching a panel** | per panel | yes | **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `["window[title=…] @Frame"]` themes those panels alone. `bg` follows the same two panel rows above |
+| a tree key **matching a button** | yes | yes | **inert** | likewise again: a button asks itself, so `["@Button"]` or `["window[title=…] @Button"]` dresses those buttons' faces alone |
 | a tree key matching anything else | **inert** | **inert** | **inert** | readable back through `widget:style()`, but nothing else in the client wears chrome |
-| `widget:rule()` | per surface | per surface | per surface | exactly as the rows above, one widget at a time: on a window it dresses that window's frame, on a panel that panel's box, anywhere else it is inert |
+| `widget:rule()` | per surface | per surface | per surface | exactly as the rows above, one widget at a time: on a window it dresses that window's frame, on a panel that panel's box, on a button its face, anywhere else it is inert |
 
 And the ones that dress a window's [ornaments](chrome.md#ornaments).
 One surface draws them, so this table is one row.

@@ -114,7 +114,7 @@ in stage A before any surface is routed against it.
       `[manual]`: open the inventory and the equipment window — expect every empty square in the rule's fill
       and outline, the item icons unmoved, and no square drawn over an icon.
 
-- [ ] **065.8 — the button's face.** `button` starts carrying `bg` and `border`, with the state variants
+- [x] **065.8 — the button's face.** `button` starts carrying `bg` and `border`, with the state variants
       inside the value: `bg{color = …, hover = …, pressed = …, disabled = …}`. `Button.draw(BufferedImage)`
       composes from the resolved style when one exists, from its seven statics otherwise; its stock `IBox`
       is built once from `bl`/`br`/`bt`/`bb`. `Button.draw(GOut)`'s re-render check widens from "the caption

@@ -104,9 +104,10 @@ persists tables.
 
 ## Where it stops
 
-The sheet restyles; it does not rebuild. There is no hover or pressed state, no animation, and no
-re-flowing of what a client window puts inside itself — that last one is
-[replacing](../api/ui/replace.md) the window, not styling it.
+The sheet restyles; it does not rebuild. A state is a face **inside** a value rather than a key of its own —
+a [`bg`](../api/ui/style/chrome.md#a-face-per-state) names one for `hover`, `pressed` or `disabled` — and
+there is no animation and no re-flowing of what a client window puts inside itself, that last one being
+[replacing](../api/ui/replace.md) the window rather than styling it.
 [Where the skinning system ends](../api/ui/style/README.md#where-the-skinning-system-ends) states the
 whole boundary and why each part of it is a decision rather than a gap.
 

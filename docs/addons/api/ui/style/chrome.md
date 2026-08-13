@@ -1,9 +1,9 @@
 # hafen.ui: the properties that paint
 
 The [sheet](README.md) properties that **paint** rather than write, the one that moves the client's own
-content, and the ones that dress a window's ornaments. Three kinds of surface wear them: `window.frame`, the
-client's window chrome; `panel`, every framed surface that is not a window; and `tooltip`, the box the client
-pops up under your cursor.
+content, and the ones that dress a window's ornaments. The surfaces that wear them are the ones that draw a
+box of their own — a window's chrome, the framed panels that are not windows, a tooltip, an inventory square,
+a button — and [the key table](keys.md#what-each-key-accepts) says which does what with which.
 
 ```lua
 local s = hafen.ui():sheet()
@@ -19,7 +19,7 @@ s:install()
 
 | Call | Value | Meaning |
 |---|---|---|
-| `rule:bg(t)` | one [surface](#naming-a-picture), or an **array** of them | what something is painted on: one layer, or several in paint order |
+| `rule:bg(t)` | one [surface](#naming-a-picture), or an **array** of them, either with a [face per state](#a-face-per-state) | what something is painted on: one layer, or several in paint order |
 | `rule:border(t)` | `{<art>, slice = {l, t, r, b}}`, `{box = "gfx/hud/wnd"}` or `{color = {r, g, b[, a]}, width = n}` | the frame around it: your own art, one of the client's own, or a plain line |
 | `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, on all four sides |
 | `rule:padding(l, t, r, b)` | [design px](../pixels.md), `>= 0` each | the same room, said one side at a time |
@@ -89,6 +89,24 @@ array in paint order. A layer array with nothing in it is an error.
 - **Layers are painted, not composed.** Each one is drawn over the last in the order written, and each is
   placed by its own `at` and filled by its own `mode`. There is no blend mode and no opacity beyond the
   alpha in the art itself.
+
+### A face per state
+
+Beside its own value a `bg` may name one for a **state** — `hover`, `pressed`, `disabled`, `checked` — each
+a whole background of the same shape, worn while the surface is in that state and falling back to the value
+it sits in where the rule names none.
+
+```lua
+hafen.ui():sheet():rule("button")
+  :bg{ color = {70, 40, 100}, hover = { color = {130, 95, 175} },
+       pressed = { color = {220, 130, 40} } }:sheet():install()
+```
+
+A state rides **inside the value, never in the selector**: the surface drawing itself already knows which
+state it is in, so there is no hover key and nothing publishes a state to the cascade. A face is an ordinary
+background — an array of layers if you like — and carries no state of its own. **Which states a surface
+enters is [the surface's own](keys.md#what-each-key-accepts)**: a button has three, a window frame none, and
+a face nothing ever asks for costs nothing.
 
 ## border
 
@@ -164,28 +182,9 @@ is a [`bg`](#bg) layer instead. A `parts` list with nothing in it is an error ra
   behind it and a frame does not, so chrome is redrawn every frame and a declarative property is the only
   shape that stays free.
 
-### Panels
-
-A great deal of the client is framed without being a window: the boxes around lists and info panes in the
-character sheet, skills, quests, wounds, fight and buddy windows; the HUD portrait; party avatars; the
-map's view and marker list; flower-menu petals; dropdown menus. They draw a 9-slice of their own rather
-than carrying a window's decoration, and `panel` is the key for all of them.
-
-- **`border` reaches every one of them. `bg` does not, and the split is per kind.** A rule's `bg` replaces
-  a surface the client *already paints*; it never invents one. The petals, the dropdown menus and an
-  item-stock box each paint their own surface before their contents, so a `bg` lands there. The **boxed
-  panels are a border drawn *around* content that is not theirs** — the attribute rows in the character
-  sheet belong to the window, not to the box — so a fill would bury the very rows the box is drawn around.
-  On those, `bg` is **inert** and `border` is what you style with. Nothing is refused and nothing warns.
-- **A panel never moves.** Its size, and where its contents sit, were decided when it was built, and no
-  rule re-runs that. So [`padding`](#padding) is inert here, and so are your **border's own insets**: the art is
-  drawn *into* the room the stock frame had, not around it. The stock boxes are about **5 design px** of edge, so
-  author your image to roughly that weight; a much fatter one overlaps the panel's contents rather than
-  pushing them aside. This is the opposite of `window.frame`, where the insets *are* the margins, because a
-  window re-lays itself out and a panel cannot.
-- **The change is deliberately small.** A border rule on a boxed panel swaps a few pixels of edge art inside
-  geometry that stays put. If you want a panel to read differently, say it in the border image; there is no
-  fill behind it to carry the difference.
+A frame lands on a window's decoration and on every window-**less** [panel](surfaces.md#panels) alike, and
+what each does with one — which of the two properties reaches it, and why a panel's insets cannot move
+anything — is on that page, beside what those surfaces are.
 
 Dropping the sheet, disabling the addon or `:reload` puts the stock chrome back on every window and every
 panel.
@@ -226,7 +225,7 @@ s:install()
 itself out around its content; a [tooltip](surfaces.md#tooltip) is the other, its box being its text plus a
 margin, and it grows outward the same way — the text stays where it was and the box widens around it.
 Everything else ignores it: a surface whose layout was decided when it was built cannot honour one, so
-nothing is refused and nothing warns. That includes every [panel](#panels).
+nothing is refused and nothing warns. That includes every [panel](surfaces.md#panels).
 [The key table](keys.md#what-each-key-accepts) says which is which.
 
 ## Ornaments
@@ -261,10 +260,9 @@ origin there. A `sizer` is an ordinary [surface](#naming-a-picture), so its art 
   the client's own X; an art with no `at` re-faces it where the client puts it. **The art is the button's
   box** — it is resized to the picture's own pixels, so nothing is squeezed or stretched, and a face that is
   a flat `color` leaves the client's own box alone, having no size of its own to give.
-- **The button's states ride inside its value.** `hover` and `pressed` are ordinary
-  [surfaces](#naming-a-picture) of the same shape as the face they vary, and each falls back to that face.
-  There is no hover key and no pressed key: a state rides inside the value it varies, because the button
-  already knows which one it is in.
+- **The button's states ride inside its value**, the same way a [`bg`](#a-face-per-state) carries a face per
+  state: `hover` and `pressed` are ordinary [surfaces](#naming-a-picture) of the same shape as the face they
+  vary, and each falls back to that face.
 - **A themed X still closes its window**, and still takes a click anywhere on its picture. What a rule
   replaces is the button's face and its corner, never what pressing it does.
 - **The plate is the client's box and your art.** The client sizes it around the caption — a longer title

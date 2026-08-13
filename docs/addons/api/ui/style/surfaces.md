@@ -35,8 +35,33 @@ because that is the surface doing the drawing.
 
 ## `window.frame` and `panel`
 
-Neither draws text. `window.frame` takes `bg`, `border`, `padding` and the [ornament](chrome.md#ornaments)
-properties, `panel` the first two; both are described in full under [chrome](chrome.md).
+Neither draws text. `window.frame` is the decoration the client draws around a window — it takes
+[`bg`](chrome.md#bg), [`border`](chrome.md#border), [`padding`](chrome.md#padding) and the
+[ornament](chrome.md#ornaments) properties, and it is the one surface where padding and a border's own
+insets actually **move** anything, because a window re-lays itself out around its content.
+
+### Panels
+
+A great deal of the client is framed without being a window: the boxes around lists and info panes in the
+character sheet, skills, quests, wounds, fight and buddy windows; the HUD portrait; party avatars; the
+map's view and marker list; flower-menu petals; dropdown menus. They draw a 9-slice of their own rather
+than carrying a window's decoration, and `panel` is the key for all of them.
+
+- **`border` reaches every one of them. `bg` does not, and the split is per kind.** A rule's `bg` replaces
+  a surface the client *already paints*; it never invents one. The petals, the dropdown menus and an
+  item-stock box each paint their own surface before their contents, so a `bg` lands there. The **boxed
+  panels are a border drawn *around* content that is not theirs** — the attribute rows in the character
+  sheet belong to the window, not to the box — so a fill would bury the very rows the box is drawn around.
+  On those, `bg` is **inert** and `border` is what you style with. Nothing is refused and nothing warns.
+- **A panel never moves.** Its size, and where its contents sit, were decided when it was built, and no
+  rule re-runs that. So [`padding`](chrome.md#padding) is inert here, and so are your **border's own
+  insets**: the art is drawn *into* the room the stock frame had, not around it. The stock boxes are about
+  **5 design px** of edge, so author your image to roughly that weight; a much fatter one overlaps the
+  panel's contents rather than pushing them aside. This is the opposite of `window.frame`, where the insets
+  *are* the margins, because a window re-lays itself out and a panel cannot.
+- **The change is deliberately small.** A border rule on a boxed panel swaps a few pixels of edge art inside
+  geometry that stays put. If you want a panel to read differently, say it in the border image; there is no
+  fill behind it to carry the difference.
 
 ## `inventory.slot`
 
@@ -72,10 +97,37 @@ raster, but none of them is an inventory square, and each keeps the client's own
 
 ## `button`
 
-The captions of the client's standard buttons: the Options window, the character-sheet, craft and build
-buttons, tab buttons, key-bind buttons, `wrapped` multi-line buttons, and any caption a button changes at
-runtime. Buttons rasterise their caption into an image, so each **visible** button re-renders on the frame
-after the rule moves — open a window with buttons while toggling and you see it live.
+The client's standard buttons — the Options window, the character-sheet, craft and build buttons, tab
+buttons, key-bind buttons, `wrapped` multi-line buttons — **caption and face both**: the letters through
+[`font`](text.md#font), and the surface they are set on through [`bg`](chrome.md#bg) and
+[`border`](chrome.md#border). Buttons rasterise themselves into an image, so each **visible** button
+re-renders on the frame after the rule moves — open a window with buttons while toggling and you see it live.
+
+```lua
+local s = hafen.ui():sheet()
+s:rule("button"):bg{ color = {70, 40, 100}, pressed = { color = {220, 130, 40} } }
+                :border{ color = {255, 220, 40}, width = 2 }
+s:install()
+```
+
+**The client's own button is a fill inside a frame, and a rule replaces the two apart.** Its `bg` stands in
+for the centre texture the caption is set on, its `border` for the four edge caps around it; name one and
+the other stays the client's own, which is why a `bg` alone paints inside the stock frame rather than over
+it. The caption is drawn **between** them, as it always was: over the fill, under the frame.
+
+- **Three states reach a button**, and they ride inside the `bg`
+  [as a face per state](chrome.md#a-face-per-state): `pressed` while it is held down, `hover` while the
+  pointer is on it, `disabled` on a button the client has greyed out. The stock face has no hover of its
+  own, so a button follows the pointer only once a rule gives it something to follow it with. `checked`
+  belongs to a checkbox and is never asked for here.
+- **A face never resizes a button.** Its box is the width it was built with and the height of the client's
+  own art, decided before any rule existed, so a picture is drawn into that rectangle. A frame heavier than
+  the stock edge overlaps the caption rather than pushing it aside.
+- **A disabled button is greyed by the client**, as it always was — it monochromises the picture it
+  rasterised, which is the caption and whatever of its own art the rule left in place. The fill beside it is
+  the `disabled` face you named, at the colour you named it.
+- **`padding` is inert here.** A button's caption is centred in a box it does not own, so there is no room
+  to make.
 
 The stock caption font is **bold serif 12**, so overriding `button` with a serif handle at size 12 installs
 correctly and looks like nothing happened. Pick a contrasting family when you want to see the change.
@@ -84,10 +136,11 @@ correctly and looks like nothing happened. Pick a contrasting family when you wa
 while a `wrapped` multi-line caption and any caption the client sets *with* a colour of its own do follow
 it, both rendering through the plain foundry.
 
-Two surfaces are deliberately not in this key: a button whose face the client supplied as a ready-made
-image or pre-rendered text (icon buttons, the character-selection list entries), and button-shaped widgets
-that are not buttons at all (checkboxes, radio labels). Those are not button captions and keep their own
-foundry.
+Two surfaces are deliberately not in this key: a button that is a **picture** rather than a box with a
+caption in it — the icon buttons, the character-selection list entries — and button-shaped widgets that are
+not buttons at all (checkboxes, radio labels). Neither draws the fill-inside-a-frame this key dresses, and
+neither renders a caption through it. A standard button the client hands a ready-made caption to is one of
+these buttons still: its letters are the client's, its face is the rule's.
 
 ## `textentry`
 

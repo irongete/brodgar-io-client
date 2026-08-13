@@ -14,6 +14,10 @@ blit thereafter**. `CheckBox`/`ICheckBox` do **not** — see below.
 | The cache | `SIWidget.surf` — a `Tex`, built lazily in `draw(GOut)` from the subclass's `draw(BufferedImage)` |
 | The only invalidation | `redraw()` — disposes `surf` and nulls it; `dispose()` is teardown |
 
+The raster is built **inside** `draw(GOut)` — it calls `draw()` → `draw(BufferedImage)` on the spot when
+`surf` is null — so whatever the composition reads, it reads in the same frame context as the blit. That is
+what makes `Fonts.gen()`, whose value carries the ambient per-widget frame, safe to record from within one.
+
 > **`Widget.resize(Coord)` does NOT call `redraw()`.** `Widget.resize` sets
 > `sz`, presizes the children and tells the parent — nothing more. So resizing an `SIWidget` moves its box
 > and keeps its old picture, at the old dimensions, until something else happens to invalidate it. Anything
@@ -36,6 +40,10 @@ blit thereafter**. `CheckBox`/`ICheckBox` do **not** — see below.
 | Short vs large | `largep(w)` — `w >= bl+bm+br` **on the UI-scaled images**, so the same width is not the same button on every client. The constructors taking an explicit `lg` say it outright; the rest derive it from `w` |
 | The server-sending default | `Button(int, String)` and `Button(int, String, boolean)` set `action = () -> wdgmsg("activate")`. The overloads taking a `Runnable` do not |
 | The font seam | `checkfont`/`render` — the caption goes through the `"button"` scope provider and re-renders in `draw(GOut)` when `Fonts.gen()` moves |
+| The face is **seven** statics | `bl`/`br`, the full-height end caps; `bt`/`bb`, stretched between them; `ut`/`dt`, the released and held centre textures; `bm`, the ear a large button wears above its frame. `hs`/`hl` are the two heights, and `yo = (hl - hs) / 2` is where the frame sits inside a large one |
+| ...composed in one pass, in this order | `draw(BufferedImage)`: the centre texture inset `UI.scale(4)` on each side, then `cont` centred (shifted `(1,1)` while `a`), then the four edges **over** it, then `bm`. `dis` monochromises the whole raster last, so it greys whatever that pass drew and nothing painted around it |
+| The pointer | `h` (`// addon:`) is set from `mousemove`, which the UI broadcasts to **every** visible widget rather than only the one under the pointer, so the flag falls back to false when the pointer leaves. Stock `Button` has no hover picture at all — `IButton.h` is the same field on a control that does |
+| The chrome seam | `face()`/`fbox()` (`// addon:`) — the `"button"` rule's fill under the raster and its frame over it, each replacing the statics above only where the rule names it |
 
 An **empty caption is safe**: `Text.Foundry.render` widens a zero-width string to
 1 px before allocating the buffer, so a button built with `""` does not blow up on `new BufferedImage(0, …)`.

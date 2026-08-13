@@ -1,0 +1,9 @@
+{
+  "name": "065.8 — the button's face",
+  "id": "065-theming-depth.8",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.8: a bg and a border on the \"button\" key, with the state faces that ride inside the bg.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

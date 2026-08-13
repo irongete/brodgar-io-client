@@ -283,6 +283,32 @@ final class Chrome {
             + " \"" + TILE + "\" (repeat it), got " + ((s == null) ? v.typename() : ("\"" + s + "\"")));
     }
 
+    // ---- the four states a surface may be in (065.8) ------------------------------------------------
+
+    /**
+     * The states a surface draws itself differently in, and the names a value varies itself by ({@link Bg}).
+     * A closed vocabulary, like {@link #CORNERS}: a rule naming a fifth is a typo, and one naming a state its
+     * surface never enters is simply never asked for it.
+     */
+    static final String[] STATES = {"hover", "pressed", "disabled", "checked"};
+
+    /** One of the {@link #STATES}, as its index, or {@code -1} — the answer for {@code null} too. */
+    static int stateOf(String name) {
+        for(int i = 0; (name != null) && (i < STATES.length); i++) {
+            if(STATES[i].equals(name))
+                return i;
+        }
+        return -1;
+    }
+
+    /** The four, spelled out — what a refusal that meets a state name lists rather than summarises. */
+    private static String stateList() {
+        StringBuilder sb = new StringBuilder();
+        for(int i = 0; i < STATES.length; i++)
+            sb.append((i == 0) ? "" : ", ").append('"').append(STATES[i]).append('"');
+        return sb.toString();
+    }
+
     // ---- where a picture's pixels come from (065.2) -------------------------------------------------
 
     /**
@@ -592,13 +618,29 @@ final class Chrome {
      * them painted in order. The list is not a new primitive: it is the value that already exists, at a
      * different arity, and it is what the client's own window background is (a tiled field, then a shade down
      * each side). A texture under a vignette is the same shape.
+     *
+     * <p><b>A face per state</b> (065.8): beside its own layers a background may name a whole background for
+     * each of the {@link #STATES} — the same shape as the value it varies, because it <i>is</i> that value at
+     * another moment. State rides inside the value and never in the selector: the surface drawing itself
+     * already knows which state it is in, and the alternative — a {@code :hover} key in the cascade — would
+     * make every site publish its state to a resolution path that runs before the draw. A state a rule says
+     * nothing about is the value it sits in ({@link #state}), so a theme names only what it wants to differ.
      */
     static final class Bg {
         /** The layers, in paint order. Never empty: a {@code bg} that says nothing is refused where it is written. */
         final Art[] layers;
+        /** The face for each of {@link #STATES}, by index — {@code null} entries, and a {@code null} array, for none. */
+        final Bg[] states;
 
-        Bg(Art[] layers) {
+        Bg(Art[] layers, Bg[] states) {
             this.layers = layers;
+            this.states = states;
+        }
+
+        /** This background as the surface wears it in state {@code i}, which is this one where it names none. */
+        Bg state(int i) {
+            Bg s = ((states == null) || (i < 0)) ? null : states[i];
+            return (s == null) ? this : s;
         }
 
         /** Paint this background over {@code [ul, ul+sz)} — every layer, in the order the rule wrote them. */
@@ -611,6 +653,8 @@ final class Chrome {
             int h = layers.length;
             for(int i = 0; i < layers.length; i++)
                 h = (h * 31) + layers[i].hashCode();
+            for(int i = 0; (states != null) && (i < states.length); i++)
+                h = (h * 37) + ((states[i] == null) ? 0 : states[i].hashCode());
             return h;
         }
 
@@ -624,19 +668,35 @@ final class Chrome {
                 if(!layers[i].equals(b.layers[i]))
                     return false;
             }
+            for(int i = 0; i < STATES.length; i++) {
+                Bg x = (states == null) ? null : states[i], y = (b.states == null) ? null : b.states[i];
+                if((x == null) ? (y != null) : !x.equals(y))
+                    return false;
+            }
             return true;
         }
 
         /**
          * {@code rule:bg()} — the value as {@code reader} may hold it, at the arity it was written: one surface
-         * is one table, several are an array in paint order. So a read round-trips into a write either way.
+         * is one table, several are an array in paint order, and each state face is keyed beside them by its own
+         * name. So a read round-trips into a write either way.
          */
         LuaValue toLua(Addon reader) {
-            if(layers.length == 1)
-                return layers[0].toLua(reader);
-            LuaTable t = new LuaTable();
-            for(int i = 0; i < layers.length; i++)
-                t.set(i + 1, layers[i].toLua(reader));
+            LuaTable t;
+            if(layers.length == 1) {
+                LuaValue one = layers[0].toLua(reader);
+                if(states == null)
+                    return one;
+                t = (LuaTable)one;
+            } else {
+                t = new LuaTable();
+                for(int i = 0; i < layers.length; i++)
+                    t.set(i + 1, layers[i].toLua(reader));
+            }
+            for(int i = 0; (states != null) && (i < states.length); i++) {
+                if(states[i] != null)
+                    t.set(STATES[i], states[i].toLua(reader));
+            }
             return t;
         }
     }
@@ -1104,7 +1164,7 @@ final class Chrome {
     static boolean draw(String scope, Widget wdg, GOut g, Coord ul, Coord sz) {
         if((sz == null) || (sz.x <= 0) || (sz.y <= 0))
             return false;
-        Fonts.Chrome p = chrome(scope, wdg);
+        Fonts.Chrome p = chrome(scope, wdg, null);
         if(p == null)
             return false;                   // a text-only rule paints no plate: the site keeps its own art
         p.draw(g, ul, sz);
@@ -1126,39 +1186,66 @@ final class Chrome {
             this.border = border;
         }
 
-        public void draw(GOut g, Coord ul, Coord sz) {
+        public boolean bg() {
+            return bg != null;
+        }
+
+        public boolean border() {
+            return border != null;
+        }
+
+        public void drawbg(GOut g, Coord ul, Coord sz) {
             if(bg != null)
                 bg.draw(g, ul, sz);
+        }
+
+        public void drawborder(GOut g, Coord ul, Coord sz) {
             if(border != null)
                 border.draw(g, ul, sz);
+        }
+
+        public void draw(GOut g, Coord ul, Coord sz) {
+            drawbg(g, ul, sz);
+            drawborder(g, ul, sz);
         }
     }
 
     /**
-     * One {@link Paint} per resolved style — the same interning {@link #boxes} does one level up, and for the
-     * same reason: an inventory asks once per draw and must allocate nothing. Held weakly, because a style
-     * stops existing when the rules change. Guarded by {@code Chrome.class}.
+     * One {@link Paint} per (resolved style, state) — the same interning {@link #boxes} does one level up, and
+     * for the same reason: an inventory asks once per draw and a button asks once per raster, and neither may
+     * allocate. The array is indexed {@code state + 1}, slot {@code 0} being the surface at rest, and a state
+     * the rule does not vary shares that slot rather than minting a paint of its own. Held weakly, because a
+     * style stops existing when the rules change. Guarded by {@code Chrome.class}.
      */
-    private static final Map<Fonts.Style, Paint> paints = new WeakHashMap<Fonts.Style, Paint>();
+    private static final Map<Fonts.Style, Paint[]> paints = new WeakHashMap<Fonts.Style, Paint[]>();
 
     /**
-     * {@code Fonts.chrome(scope, wdg)} — the paint this site's rule does, or {@code null} when it names neither
-     * a {@code bg} nor a {@code border} and the site should draw its own art (065.7).
+     * {@code Fonts.chrome(scope, wdg, state)} — the paint this site's rule does in the state it is in, or
+     * {@code null} when it names neither a {@code bg} nor a {@code border} and the site should draw its own art
+     * (065.7, 065.8).
      *
      * <p>The <b>inventory square</b> is the first site to want it: a grid draws one box per cell, so it reads
      * the answer at the top of its loop and paints from it, where a plate or a tooltip resolves and paints in
-     * one breath ({@link #draw}).
+     * one breath ({@link #draw}). A <b>button</b> is the first to want it in a state, and asks for the one it
+     * is in: only the {@code bg} varies, since a frame that changed with the pointer would change the room the
+     * frame reserves ({@link Border#tlIn}) and move the very content it is drawn around.
      */
-    static Fonts.Chrome chrome(String scope, Widget wdg) {
+    static Fonts.Chrome chrome(String scope, Widget wdg, String state) {
         Fonts.Style st = Fonts.styleFor(scope, wdg);
         Bg bg = bg(st);
         Border bd = border(st);
         if((bg == null) && (bd == null))
             return null;
+        int i = stateOf(state);
+        Bg face = (bg == null) ? null : bg.state(i);
+        int slot = ((face == bg) ? -1 : i) + 1;      // a state this rule does not vary IS the surface at rest
         synchronized(Chrome.class) {
-            Paint p = paints.get(st);
+            Paint[] ps = paints.get(st);
+            if(ps == null)
+                paints.put(st, ps = new Paint[STATES.length + 1]);
+            Paint p = ps[slot];
             if(p == null)
-                paints.put(st, p = new Paint(bg, bd));
+                ps[slot] = p = new Paint(face, bd);
             return p;
         }
     }
@@ -1300,27 +1387,76 @@ final class Chrome {
         return now;
     }
 
+    /** The fields a surface carries — what a {@code bg} hands down to {@link #parseArt} rather than reading itself. */
+    private static boolean surfaceField(String p) {
+        return "color".equals(p) || "image".equals(p) || "asset".equals(p) || "res".equals(p)
+            || "at".equals(p) || "offset".equals(p) || "mode".equals(p);
+    }
+
     /**
-     * Parse a rule's {@code bg} — one surface, or an <b>array</b> of them painted in order. The array is what
-     * the client's own window background is, and what a texture under a vignette needs; it is no new value, only
-     * the surface at a different arity, so the two are told apart by the one thing that distinguishes them: a
-     * list's first entry is a table, a surface's is nothing.
+     * Parse a rule's {@code bg} — one surface, or an <b>array</b> of them painted in order, either of them
+     * carrying a face for a {@link #STATES state} (065.8). The array is what the client's own window background
+     * is, and what a texture under a vignette needs; it is no new value, only the surface at a different arity,
+     * so the two are told apart by the one thing that distinguishes them: a list's first entry is a table, a
+     * surface's is nothing.
+     *
+     * <p>The state faces are read off <b>here</b> rather than inside the surface, because a state varies the
+     * whole background — every layer of it — and because a surface is also what a {@code sizer} and a border's
+     * {@code parts} are made of, where no state exists to vary. So this method takes them out of the value and
+     * hands the rest down.
      */
     static Bg parseBg(Addon owner, String ctx, LuaValue v) {
+        return parseBg(owner, ctx, ".bg", v, true);
+    }
+
+    private static Bg parseBg(Addon owner, String ctx, String what, LuaValue v, boolean states) {
         if(!v.istable())
-            throw new LuaError(ctx + ".bg: expected a surface — " + ART + " — or an array of them, got "
+            throw new LuaError(ctx + what + ": expected a surface — " + ART + " — or an array of them, got "
                 + v.typename());
-        if(v.get(1).istable()) {
-            List<Art> ls = new ArrayList<Art>();
-            for(int i = 1; ; i++) {
-                LuaValue e = v.get(i);
-                if(e.isnil())
-                    break;
-                ls.add(parseArt(owner, ctx, ".bg[" + i + "]", e));
+        Bg[] st = null;
+        LuaTable rest = new LuaTable();
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            Varargs n = v.next(k);
+            k = n.arg1();
+            if(k.isnil())
+                break;
+            String p = key(k);
+            int s = stateOf(p);
+            if(s >= 0) {
+                if(!states)
+                    throw new LuaError(ctx + what + "." + p + ": a state face is a plain surface, and carries no"
+                        + " state of its own — it IS the value at that moment, so name " + stateList()
+                        + " beside the face they vary rather than inside one");
+                if(st == null)
+                    st = new Bg[STATES.length];
+                st[s] = parseBg(owner, ctx, what + "." + p, n.arg(2), false);
+            } else if((p != null) && !surfaceField(p)) {
+                throw new LuaError(ctx + what + ": \"" + p + "\" is neither a surface property nor a state — a"
+                    + " surface is " + ART + ", each with an optional at, offset and mode, and a state face is"
+                    + " one of " + stateList() + ", of the same shape as the value it varies");
+            } else {
+                rest.set(k, n.arg(2));
             }
-            return new Bg(ls.toArray(new Art[ls.size()]));
         }
-        return new Bg(new Art[] {parseArt(owner, ctx, ".bg", v)});
+        if((st != null) && rest.next(LuaValue.NIL).arg1().isnil())
+            throw new LuaError(ctx + what + ": names a state face and no face for it to vary — a state rides"
+                + " INSIDE the value it varies, so name the surface it is a state OF beside it");
+        return new Bg(layers(owner, ctx, what, rest), st);
+    }
+
+    /** One {@code bg}'s own layers: one surface, or the array of them, in paint order. */
+    private static Art[] layers(Addon owner, String ctx, String what, LuaTable v) {
+        if(!v.get(1).istable())
+            return new Art[] {parseArt(owner, ctx, what, v)};
+        List<Art> ls = new ArrayList<Art>();
+        for(int i = 1; ; i++) {
+            LuaValue e = v.get(i);
+            if(e.isnil())
+                break;
+            ls.add(parseArt(owner, ctx, what + "[" + i + "]", e));
+        }
+        return ls.toArray(new Art[ls.size()]);
     }
 
     /**

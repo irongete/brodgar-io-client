@@ -78,7 +78,11 @@ public class Button extends SIWidget {
     public Color rcol = null;     // non-null -> the plain tfont() path (change(text, col)); null -> the nfont() blur
     public int rwrap = 0;         // >0 -> the renderwrap path (wrapped())
     private int contgen = -1;     // Fonts.gen() at the last caption render
+    private int facegen = -1;     // addon: (065.8) ...and at the last RASTER, which the chrome half moves too
     private boolean a = false, dis = false;
+    // addon: (065.8) is the pointer on this button? The stock face has no hover state, so nothing tracked one;
+    // a rule may give it one, and then the raster is rebuilt on the crossing (IButton.h is the same field).
+    private boolean h = false;
     private UI.Grab d = null;
 	
     @RName("btn")
@@ -162,28 +166,51 @@ public class Button extends SIWidget {
 	return(this);
     }
 
+    /* addon: (065.8) the "button" rule's own face, in the state this button is in -- null on a stock client,
+     * and then the seven statics above are the whole of the button. The two halves answer two different
+     * pieces: a bg replaces the centre texture the caption is set on, a border replaces the four edge caps.
+     * The caption itself is never the rule's -- it is rasterized between them, which is why the paint is split
+     * around super.draw(g) rather than done in one call. */
+    private Fonts.Chrome face() {
+	return(Fonts.chrome("button", this, dis ? "disabled" : (a ? "pressed" : (h ? "hover" : null))));
+    }
+
+    /** addon: (065.8) the box the FRAME occupies -- the whole button, less the ears a large one grows. */
+    private Area fbox() {
+	int yo = lg?((hl - hs) / 2):0;
+	return(Area.sized(Coord.of(0, yo), Coord.of(sz.x, hs)));
+    }
+
     public void draw(BufferedImage img) {
 	Graphics g = img.getGraphics();
 	int yo = lg?((hl - hs) / 2):0;
+	// addon: (065.8) what the rule paints, this button does not: each half is skipped only where a rule
+	// answers for it, so a bg-only rule keeps the stock frame and a border-only rule the stock fill.
+	Fonts.Chrome face = face();
+	boolean fill = (face != null) && face.bg(), frame = (face != null) && face.border();
 
-	g.drawImage(a?dt:ut, UI.scale(4), yo + UI.scale(4), sz.x - UI.scale(8), hs - UI.scale(8), null);
+	if(!fill)
+	    g.drawImage(a?dt:ut, UI.scale(4), yo + UI.scale(4), sz.x - UI.scale(8), hs - UI.scale(8), null);
 
 	Coord tc = sz.sub(Utils.imgsz(cont)).div(2);
 	if(a)
 	    tc = tc.add(UI.scale(1), UI.scale(1));
 	g.drawImage(cont, tc.x, tc.y, null);
 
-	g.drawImage(bl, 0, yo, null);
-	g.drawImage(br, sz.x - br.getWidth(), yo, null);
-	g.drawImage(bt, bl.getWidth(), yo, sz.x - bl.getWidth() - br.getWidth(), bt.getHeight(), null);
-	g.drawImage(bb, bl.getWidth(), yo + hs - bb.getHeight(), sz.x - bl.getWidth() - br.getWidth(), bb.getHeight(), null);
-	if(lg)
-	    g.drawImage(bm, (sz.x - bm.getWidth()) / 2, 0, null);
+	if(!frame) {
+	    g.drawImage(bl, 0, yo, null);
+	    g.drawImage(br, sz.x - br.getWidth(), yo, null);
+	    g.drawImage(bt, bl.getWidth(), yo, sz.x - bl.getWidth() - br.getWidth(), bt.getHeight(), null);
+	    g.drawImage(bb, bl.getWidth(), yo + hs - bb.getHeight(), sz.x - bl.getWidth() - br.getWidth(), bb.getHeight(), null);
+	    if(lg)
+		g.drawImage(bm, (sz.x - bm.getWidth()) / 2, 0, null);
+	}
 
 	g.dispose();
 
 	if(dis)
 	    PUtils.monochromize(img, Color.LIGHT_GRAY);
+	facegen = Fonts.gen();   // addon: this raster is the rule's as of this generation, caption and face both
     }
 	
     public void change(String text, Color col) {
@@ -209,12 +236,30 @@ public class Button extends SIWidget {
     }
 
     // addon: re-render the caption when the "button" font override moves (Fonts.gen()), then rasterize as usual.
+    // 065.8: the check is the STYLE's generation rather than the caption's, because a chrome rule changes no
+    // text at all and would otherwise leave the raster -- the face the caption sits on -- at the old rule.
     public void draw(GOut g) {
-	if((rtext != null) && (contgen != Fonts.gen())) {
-	    render();
+	int gen = Fonts.gen();
+	if(facegen != gen) {
+	    if((rtext != null) && (contgen != gen))
+		render();
 	    redraw();
 	}
+	// addon: (065.8) the rule's own face, painted AROUND this button's own picture: its surface under the
+	// caption, its frame over it, which is the order the stock face composes itself in. With a frame of the
+	// rule's own the surface fills the whole box; with the client's own still on, it stays inside it,
+	// exactly where the centre texture it stands in for is drawn.
+	Fonts.Chrome face = face();
+	Area f = (face == null) ? null : fbox();
+	if(face != null) {
+	    if(face.border())
+		face.drawbg(g, f.ul, f.sz());
+	    else
+		face.drawbg(g, f.ul.add(UI.scale(4), UI.scale(4)), f.sz().sub(UI.scale(8), UI.scale(8)));
+	}
 	super.draw(g);
+	if(face != null)
+	    face.drawborder(g, f.ul, f.sz());
     }
 
     public void disable(boolean dis) {
@@ -249,10 +294,18 @@ public class Button extends SIWidget {
     
     public void mousemove(MouseMoveEvent ev) {
 	super.mousemove(ev);
+	boolean in = ev.c.isect(Coord.z, sz);
+	// addon: (065.8) the pointer crossing this button's edge is a face change only where a rule gave it one.
+	// The flag is kept either way -- it costs a boolean, and a sheet installed while the pointer already
+	// rests on a button has to find it true -- but the raster is rebuilt only for a button that is dressed.
+	if(in != this.h) {
+	    this.h = in;
+	    if(face() != null)
+		redraw();
+	}
 	if(d != null) {
-	    boolean a = ev.c.isect(Coord.z, sz);
-	    if(a != this.a) {
-		this.a = a;
+	    if(in != this.a) {
+		this.a = in;
 		redraw();
 	    }
 	}

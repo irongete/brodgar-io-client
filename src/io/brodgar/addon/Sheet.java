@@ -776,8 +776,10 @@ final class Sheet {
 
             // 065.7 - ...and the same answer HELD, for a site that paves a surface with one box many times
             // over. The inventory square is the first of those: one rectangle per cell, resolved once.
-            public Fonts.Chrome chrome(String scope, Widget w) {
-                return Chrome.chrome(scope, w);
+            // 065.8 - ...in the STATE the site is in, which is where a bg's own hover/pressed/disabled face
+            // is spent: the site names the state it knows it is in and the value answers with one face.
+            public Fonts.Chrome chrome(String scope, Widget w, String state) {
+                return Chrome.chrome(scope, w, state);
             }
         });
     }
