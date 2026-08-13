@@ -781,6 +781,13 @@ final class Sheet {
             public Fonts.Chrome chrome(String scope, Widget w, String state) {
                 return Chrome.chrome(scope, w, state);
             }
+
+            // 065.9 - ...and how BIG that art is, for a control that measures itself from its own background
+            // rather than painting into a box somebody handed it. A text field is the first of those, and it
+            // asks in its constructor, which is why this one takes no widget.
+            public Coord size(String scope) {
+                return Chrome.size(scope);
+            }
         });
     }
 

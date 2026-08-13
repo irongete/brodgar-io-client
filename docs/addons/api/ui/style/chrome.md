@@ -3,7 +3,7 @@
 The [sheet](README.md) properties that **paint** rather than write, the one that moves the client's own
 content, and the ones that dress a window's ornaments. The surfaces that wear them are the ones that draw a
 box of their own — a window's chrome, the framed panels that are not windows, a tooltip, an inventory square,
-a button — and [the key table](keys.md#what-each-key-accepts) says which does what with which.
+a button, a text field — and [the key table](keys.md#what-each-key-accepts) says which does what with which.
 
 ```lua
 local s = hafen.ui():sheet()
@@ -221,9 +221,10 @@ s:install()
 - **Removing the rule restores the exact numbers it found** — the same size, the same position, down to the
   pixel.
 
-**`padding` moves a surface that sizes its own box, and nothing else.** A window is one, because it re-lays
-itself out around its content; a [tooltip](surfaces.md#tooltip) is the other, its box being its text plus a
-margin, and it grows outward the same way — the text stays where it was and the box widens around it.
+**`padding` moves a surface that owns where its own content sits, and nothing else.** A window and a
+[tooltip](surfaces.md#tooltip) both grow **outward**: each is built around its content, so the box widens
+and what is inside stays where it was. A [text field](surfaces.md#textentry) is the third and the other
+way round — its width is whoever built it's, so the room comes out of that width and the text moves in.
 Everything else ignores it: a surface whose layout was decided when it was built cannot honour one, so
 nothing is refused and nothing warns. That includes every [panel](surfaces.md#panels).
 [The key table](keys.md#what-each-key-accepts) says which is which.

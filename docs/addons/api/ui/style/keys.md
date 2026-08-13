@@ -23,7 +23,7 @@ These are the sites the client draws at:
 | `heading` | in-window section headings, the embossed fraktur ones |
 | `button` | the client's standard buttons: their captions, and the **face** those are drawn on — its fill, its frame, and the fill's own [state faces](chrome.md#a-face-per-state) |
 | `label` | body text — attribute rows, list items, explicit-foundry labels |
-| `textentry` | text-entry fields **and** the console command line |
+| `textentry` | text-entry fields **and** the console command line: the letters, and the **field** they are typed into |
 | `tooltip` | every tooltip — items, buffs, meters, craft, minimap, the action menu — and the **box** the client pops one up in |
 | `inventory.slot` | the empty **square** an inventory grid and the equipment window are paved with. Draws no text, so it takes `bg` and `border` |
 | `menu` | flower-menu petals and the action-menu keybind letters |
@@ -104,7 +104,7 @@ what the surface *does* with a property. First the two that write text:
 | `heading` | yes | **inert** | embossed the same way. Two stock sizes ride this key and a size-less rule keeps each |
 | `button` | yes | **partly** | the ordinary caption is embossed, so inert; a `wrapped` multi-line caption, or one the client sets *with* a colour, follows the rule. Stock is bold serif 12, so a serif 12 rule installs correctly and looks like nothing happened |
 | `label` | yes | yes | a larger `size=` clips: row heights were measured at construction |
-| `textentry` | yes | yes | a larger `size=` clips: a field's height comes from its background texture, not the font |
+| `textentry` | yes | yes | a larger `size=` clips: a field's height comes from its background, not the font — and a `bg` **is** a background, so the art you give it is what a field built afterwards is as tall as |
 | `tooltip` | yes | yes | `$col[…]` rows keep their own colour; `size=` is safe, since a tip sizes its box around its text |
 | `menu` | yes | yes | `size=` is safe — a petal re-sizes around its own centre |
 | `chat` | yes | yes | colour is how you tell area from party from private: one rule paints them alike |
@@ -115,7 +115,7 @@ what the surface *does* with a property. First the two that write text:
 
 And the three that draw the chrome. The surfaces that wear them are the ones that draw a box of their own:
 the window decoration, the caption plate inside it, the window-less panels, the box a tooltip is popped up
-in, an inventory square and a button's face. A [state face](chrome.md#a-face-per-state) inside a `bg` is
+in, an inventory square, a button's face and a text field. A [state face](chrome.md#a-face-per-state) inside a `bg` is
 worn by the surfaces that *have* that state, and ignored by the rest, exactly as the rows below say:
 
 | Key | `bg` | `border` | `padding` | Worth knowing |
@@ -127,11 +127,12 @@ worn by the surfaces that *have* that state, and ignored by the rest, exactly as
 | `tooltip` | yes | yes | yes | the box a tip is popped up in. The client sizes it around the tip's own text, so `padding` is the room between that text and the edge — and the box grows outward, leaving the text where it was. With neither `bg` nor `border` the client's own dark fill and yellow outline stay |
 | `inventory.slot` | yes | yes | **inert** | one square of an inventory grid, drawn at the size and pitch the client's own square has, so `padding` has nothing to move — [what the square is](surfaces.md#inventoryslot) |
 | `button` | yes | yes | **inert** | the **face** of every standard button: the `bg` stands in for the fill its caption is set on, the `border` for the four edge caps around it, and either alone leaves the other the client's own. Its box was fixed when it was built, so `padding` has nothing to move — [what a button's face is](surfaces.md#button) |
+| `textentry` | yes | yes | yes | the **field** every line is typed into: the `bg` stands in for its stretched middle, the `border` for the two end caps, and `padding` is the room between those and the text, which moves inside a width the caller still owns — [what a field is](surfaces.md#textentry) |
 | `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches every key in the rows above, each subject to its own row. Text-only surfaces ignore it entirely and stay stock |
 | every other site key | **inert** | **inert** | **inert** | a text site has no surface of its own to paint and no layout of its own to move. Nothing is refused and nothing warns |
 | a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |
 | a tree key **matching a panel** | per panel | yes | **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `["window[title=…] @Frame"]` themes those panels alone. `bg` follows the same two panel rows above |
-| a tree key **matching a button** | yes | yes | **inert** | likewise again: a button asks itself, so `["@Button"]` or `["window[title=…] @Button"]` dresses those buttons' faces alone |
+| a tree key **matching a button or a field** | yes | yes | per surface | likewise again: each asks itself, so `["@Button"]` or `["window[title=…] @TextEntry"]` dresses those alone. `padding` follows the two rows above; a field's **height** does not, being read where a field is built and so from the site half alone |
 | a tree key matching anything else | **inert** | **inert** | **inert** | readable back through `widget:style()`, but nothing else in the client wears chrome |
 | `widget:rule()` | per surface | per surface | per surface | exactly as the rows above, one widget at a time: on a window it dresses that window's frame, on a panel that panel's box, on a button its face, anywhere else it is inert |
 

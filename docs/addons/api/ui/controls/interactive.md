@@ -56,6 +56,10 @@ goes to the field only, never also to your character, a hotkey, or the chat line
 `Submitted` answers on the client's **own** entries as well, the chat line included, and there it can be
 stopped: cancelling one means the server never hears it. [Editing](../edit.md) is that page.
 
+An entry's **height** is its field art's, which is what `:size(w)` leaves to the control. Install a
+[`textentry`](../style/surfaces.md#textentry) rule whose `bg` is a picture *before* you build the entry and
+that picture is the art, so a themed field and your own are the same height.
+
 ## Checkbox
 
 `hafen.ui():check()` is a boolean toggle. `:value(v)` holds the tick and `Changed` fires when the user

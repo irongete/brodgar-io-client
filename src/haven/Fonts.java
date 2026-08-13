@@ -456,6 +456,8 @@ public class Fonts {
         public Coord[] pad(String scope, Widget wdg);
         /** {@code scope}'s own paint in {@code state} ({@code null} = at rest), or {@code null} when no rule names it. */
         public Chrome chrome(String scope, Widget wdg, String state);
+        /** The size {@code scope}'s own background art asks for, in device px, or {@code null}. */
+        public Coord size(String scope);
     }
     private static volatile Chromes chromes = null;
 
@@ -517,6 +519,23 @@ public class Fonts {
             return null;                  // fast path: no override anywhere
         Chromes src = chromes;
         return (src == null) ? null : src.chrome(scope, wdg, state);
+    }
+
+    /**
+     * The size {@code scope}'s own background asks for, in <b>device</b> pixels — {@code null} when no rule
+     * names one, and when the one it names is a flat colour, which has no size of its own to give (065.9).
+     *
+     * <p>It is the <b>widget-less</b> member of the three above, and that is the whole of what distinguishes
+     * it: a control that measures itself from its own background does so in its <b>constructor</b>
+     * ({@link TextEntry}), where there is no widget yet to resolve a tree rule against and no draw in
+     * progress to carry a frame. So it asks the site half of the cascade alone, the path {@link #style(String)}
+     * takes, and a site that has a widget in hand asks {@link #chrome} instead.
+     */
+    public static Coord chromesz(String scope) {
+        if(!active)
+            return null;                  // fast path: no override anywhere
+        Chromes src = chromes;
+        return (src == null) ? null : src.size(scope);
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {

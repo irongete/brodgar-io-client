@@ -126,7 +126,7 @@ in stage A before any surface is routed against it.
       `[manual]`: open Options — expect every button in the theme's frame and fill, and the fill to change
       while a button is held down.
 
-- [ ] **065.9 — text fields.** `textentry` starts carrying `bg`, `border` and `padding`: `TextEntry`'s three
+- [x] **065.9 — text fields.** `textentry` starts carrying `bg`, `border` and `padding`: `TextEntry`'s three
       caps (`gfx/hud/text/l`, `m`, `r`) and its caret are the stock value, and the field asks the sheet
       first. The height caveat is unchanged and documented — a field measures from its background, so a
       taller art makes a taller field while a larger font still clips.

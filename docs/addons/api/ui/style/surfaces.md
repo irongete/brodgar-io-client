@@ -144,16 +144,37 @@ these buttons still: its letters are the client's, its face is the rule's.
 
 ## `textentry`
 
-Both of the client's text-input surfaces: every editable field — the chat input, search boxes, the login
-name and password fields, name-a-save fields — **and** the console command line, the `:` prompt, so `:lua`
-and your own [`hafen.slash`](../../slash.md) commands are typed in your font too. Each field drops its
-cached line when the rule moves, so the change is live on the next frame, and selection and caret positions
-follow the new glyph advances automatically.
+Both of the client's text-input surfaces, **letters and field both**: every editable box — the chat input,
+search boxes, the login name and password fields, name-a-save fields — **and** the console command line, the
+`:` prompt, so `:lua` and your own [`hafen.slash`](../../slash.md) commands are typed in your font too. Each
+field drops its cached line when the rule moves, so the change is live on the next frame, and selection and
+caret positions follow the new glyph advances automatically.
 
-> **Geometry caveat.** A field's *height* comes from its background texture, not from the font, so a much
-> larger size is drawn and then vertically clipped. Stay near the stock serif 12 — the command line's stock
-> is mono 12, wheat-coloured, and a font-only rule inherits that per-site colour — unless you want the
-> clipping.
+```lua
+local s = hafen.ui():sheet()
+s:rule("textentry"):bg{ asset = "img/field.png" }
+                   :border{ color = {255, 190, 60}, width = 2 }
+                   :padding(8, 3, 8, 3)
+s:install()
+```
+
+**The client's own field is a stretched middle between two end caps**, and a rule replaces the two apart:
+[`bg`](chrome.md#bg) stands in for the middle, [`border`](chrome.md#border) for the caps, and naming one
+leaves the other the client's own. The caret is neither, so it keeps being drawn over whichever painted.
+
+- **`padding` is the room between the field and its text**, and the room comes out of a width the client
+  still owns: a field is as wide as whoever built it asked for, so padding moves the text inward and the
+  visible run shortens by that much. Clicking, caret placement and drag-selection read the same offset.
+- **A `bg` decides how tall a field is *built*.** A field's height comes from its background rather than
+  from its font, which is why a much larger `size=` is drawn and then vertically clipped — stay near the
+  stock serif 12, or the command line's mono 12, unless you want the clipping. A `bg` with a picture in it
+  **is** that background, so a field built while the rule is installed is as tall as the art; a flat
+  `color` has no size of its own and leaves the stock height.
+- **Only a field built *afterwards*, and only from the site key.** Nothing re-measures one that exists — a
+  control's box is decided when it is built — so the chat input keeps its height and the art is drawn into
+  the box it has, and the height is read before there is a widget for a [tree key](keys.md#tree-keys) to
+  match, so `["@TextEntry"]` paints a field and never re-sizes one. Install the rule before building your
+  own [entries](../controls/interactive.md#text-entry) and `:size(w)` gives them the art's height.
 
 ## `heading`
 

@@ -55,12 +55,14 @@ final class CEntry extends TextEntry implements Owned.Control, Controls.Value, C
     }
 
     /**
-     * <b>The field's own art</b> (058.4): {@link TextEntry#mext}'s height — the stretched middle the
-     * constructor sizes itself to — and {@link TextEntry#wmarg}, the two end caps a narrower field would
-     * overlap. The same design pair on every client ({@code 17 x 20}).
+     * <b>The field's own art</b> (058.4): {@link TextEntry#bgheight}, the background the constructor sizes
+     * itself to, and {@link TextEntry#wmarg}, the two end caps a narrower field would overlap. The stock
+     * pair is the same on every client ({@code 17 x 20} design px), and the height follows a
+     * {@code "textentry"} rule's own {@code bg} art wherever one is installed (065.9) — answered from the art
+     * at the moment it is asked, exactly as {@link Owned#minsz} says.
      */
     public Coord minsz() {
-        return Coord.of(wmarg, mext.sz().y);
+        return Coord.of(wmarg, bgheight());
     }
 
     /** {@code e:value()} — the entry's current content. */

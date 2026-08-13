@@ -643,6 +643,25 @@ final class Chrome {
             return (s == null) ? this : s;
         }
 
+        /**
+         * The size this background's own art asks for — device pixels — or {@code null} where none of its
+         * layers has one, a flat colour filling whatever surface it is given (065.9). The largest of them
+         * on each axis, because a background is as big as the biggest thing painted in it.
+         *
+         * <p>It is the one place a {@code bg}'s own size decides a <b>widget's</b> rather than filling a box
+         * the client already decided: a text field measures itself from its background, so a taller art
+         * makes a taller field. Everywhere else this is never asked and the art fills the client's own box.
+         */
+        Coord natural() {
+            Coord n = null;
+            for(int i = 0; i < layers.length; i++) {
+                Coord l = layers[i].natural();
+                if(l != null)
+                    n = (n == null) ? l : Coord.of(Math.max(n.x, l.x), Math.max(n.y, l.y));
+            }
+            return n;
+        }
+
         /** Paint this background over {@code [ul, ul+sz)} — every layer, in the order the rule wrote them. */
         void draw(GOut g, Coord ul, Coord sz) {
             for(int i = 0; i < layers.length; i++)
@@ -1263,6 +1282,20 @@ final class Chrome {
     static Coord[] pad(String scope, Widget wdg) {
         Pad p = padding(Fonts.styleFor(scope, wdg));
         return (p == null) ? null : new Coord[] {p.tlIn(), p.brIn()};
+    }
+
+    /**
+     * {@code Fonts.chromesz(scope)} — the size this site's own {@code bg} art asks for, or {@code null} when
+     * its rule names none (065.9).
+     *
+     * <p>The <b>widget-less</b> resolution, and the site that wants it is the reason: a text field measures
+     * itself from its background in its own <i>constructor</i>, so there is no widget yet for a tree rule to
+     * be matched against and the site half of the cascade is the whole answer. It is the same path a
+     * {@code Speaking} bubble resolves through, one property along.
+     */
+    static Coord size(String scope) {
+        Bg bg = bg(Fonts.style(scope));
+        return (bg == null) ? null : bg.natural();
     }
 
     // ---- parsing -----------------------------------------------------------------------------------

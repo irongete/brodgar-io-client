@@ -207,7 +207,10 @@ Tagged with the tasks that need them; an untagged line is read by every task.
   with: the caption's drawn origin, the plate's box, the sizer's origin and the close button's box)
 - `docs/client/ui-chrome.md` — 2, 4, 5, 6, 7, 11, 17, 18
 - `docs/client/ui-controls.md` — 8, 9, 10, 12, 18
-- `docs/client/ui-lists.md` — 9, 10
+- `docs/client/ui-lists.md` — 9, 10 (and it now carries `TextEntry`'s whole draw: its four statics, its
+  raster cache, and the chrome seam a routed control wears)
+- `docs/client/ui-scaling.md` — 9, 10 (where each control's CONSTRUCTED height comes from: the one page that
+  says which art decides a button's, a field's, a checkbox's and a slider's box)
 - `docs/client/text-and-fonts.md` — 1, 14, 15, 16, 17, 18
 - `src/haven/Fonts.java` — 1, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 (and `Fonts.drawchrome`, the seam
   for a box the SITE sizes and a rule dresses — the tooltip's and the inventory square's shape too)
@@ -232,8 +235,9 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `src/haven/IBox.java` — 2, 11
 - `src/haven/UILoop.java` — 6
 - `src/haven/Inventory.java` — 7
-- `src/haven/Button.java` — 8
-- `src/haven/TextEntry.java` — 9
+- `src/haven/Button.java`, `src/haven/TextEntry.java` — 8, 9, 10: the two routed controls, and the pattern
+  every later one copies — `Fonts.chrome` for the paint, and `Fonts.chromesz` where a control MEASURES itself
+  from its own background (a field does; ask it before `super(…)`, since there is no widget yet)
 - `src/haven/CheckBox.java`, `IButton.java`, `Scrollbar.java`, `HSlider.java` — 10
 - `src/haven/Speaking.java` — 11
 - `src/haven/Img.java` — 12

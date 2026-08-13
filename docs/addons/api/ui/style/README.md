@@ -147,9 +147,9 @@ n:rule():remove()                       -- drop it again
   child, so a child inside a styled window still reads `nil`.
 - **`widget:rule():position(…)` is an error**, and so are `:size()` and `:anchor()`: the hand-named level of
   the layout cascade is the **verb**, [`w:position(x, y)`](../native.md). One way per operation.
-- **On a window, it dresses that window's chrome**, and one level down, a [panel's](surfaces.md#panels) box
-  or a [button's](surfaces.md#button) face. On anything that wears no chrome the three chrome properties are
-  inert, still readable through `:style()`.
+- **On a window, it dresses that window's chrome**, and one level down, a [panel's](surfaces.md#panels) box,
+  a [button's](surfaces.md#button) face or a [field's](surfaces.md#textentry). On anything that wears no
+  chrome the three chrome properties are inert, still readable through `:style()`.
 - **Owned and short-lived.** The level is tagged with your addon and reverted on `:reload` or disable, and
   it is held **weakly against the widget**: when that window closes it goes with it, and a stashed object
   reads `nil` from every accessor while a write becomes a no-op rather than an error.

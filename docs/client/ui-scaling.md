@@ -59,7 +59,7 @@ every UI scale.
 |---|---|
 | A plain button's height | `Button.hs` (`bl.getHeight()`) and `Button.hl` (`bm.getHeight()`) — device, from the art above; `Button.largep(int)` picks between them by width, `Button.margin` is `UI.scale(10)` |
 | A window's chrome | `Window.dlmrgn` / `Window.dsmrgn`, both `UI.scale`d; `Window.DefaultDeco.iresize` adds `mrgn` twice plus the deco's own `tlm`/`brm` to the content size |
-| A text field's height | `TextEntry`'s ctor — `mext.sz().y`; `toffx`/`wmarg` (`lcap` + `rcap` + `UI.scale(1)`) are what its end caps take horizontally |
+| A text field's height | `TextEntry`'s ctor — `TextEntry.bgheight()`, whose stock answer is `mext.sz().y`; `toffx`/`wmarg` (`lcap` + `rcap` + `UI.scale(1)`) are what its end caps take horizontally |
 | A checkbox's box | `CheckBox.sbox`/`lbox` (with `smark`/`lmark`); the ctor's height is `max(box.sz().y, lbl.sz().y)` once it has a caption, and `settext` recomputes it |
 | A slider's height | `HSlider`'s ctor — `sflarp.sz().y` (the thumb); `HSlider.resize(int)` takes a width and keeps that height |
 | A horizontal rule's height | `HRuler`'s ctor — `(marg.y * 2) + 1`, `marg` defaulting to `(w / 10, UI.scale(2))`. **The one constant here that is not the same design number at every scale**: it is built from a scaled term plus `1`, not from art |

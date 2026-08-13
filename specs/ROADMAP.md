@@ -44,4 +44,6 @@
 - **`docs/addons/api/types.md` is at its 300-line ceiling**: the snapshot catalogue needs a split by subject, so a feature adding one shape stops pushing it over (filed: 064)
 - **`docs/addons/api/ui/style/chrome.md` is at its 300-line ceiling**: its per-surface prose (the ornaments) is what `surfaces.md` is for, so the property pages stop growing with every surface routed (filed: 065)
 - **`docs/client/ui-chrome.md` is at its 150-line ceiling**: the boxes drawn in code and the addon seam are two maps in one page, so the next surface routed pushes it over (filed: 065)
+- **`docs/client/ui-lists.md` is at its 150-line ceiling**: the sliders, the text field and the model-backed lists are three maps in one page, so the next control read pushes it over (filed: 065)
+- **`docs/addons/api/ui/style/surfaces.md` is at its 300-line ceiling**: one section per site key, so every key this grammar adds pushes it over — the split is by surface, the text sites apart from the ones that draw a box (filed: 065)
 - **Minor client subsystems**: screenshots, custom cursors, graphics settings, polity, news, calendar, server-published windows, the party HUD (filed: 009)
