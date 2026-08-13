@@ -198,6 +198,8 @@ public class Window extends Widget {
 	public Area aa, ca;
 	public Coord cptl = Coord.z, cpsz = Coord.z;
 	public int cmw;
+	public Coord plsz = Coord.z;  // addon: (065.4) the caption PLATE's box, from (0,0) -- see checkcap
+	public boolean platestyled;   // addon: (065.4) did the last frame paint it from a RULE?
 	public Text cap = null;
 	private int capgen = -1;   // addon: Fonts.gen() at the last `cap` render — re-render the caption when the font override moves
 
@@ -263,21 +265,48 @@ public class Window extends Widget {
 		cptl = Coord.of(ca.ul.x, 0);
 		cpsz = Coord.of(cpo.x + cmw, cm.sz().y).sub(cptl);
 		cmw = cmw - (cl.sz().x - cpo.x) - UI.scale(5);
+		// addon: (065.4) the box the caption ART occupies -- the cl/cm/cr run of drawframe, which is NOT
+		// cptl/cpsz: that pair is the DRAG hit-test box (it starts one frame inset in and stops short of
+		// cr). A plate rule replaces the art, so it is drawn over the art's own rectangle.
+		plsz = Coord.of(cl.sz().x + cmw + cr.sz().x,
+				Math.max(cl.sz().y, Math.max(cm.sz().y, cr.sz().y)));
 	    }
+	}
+
+	// addon: (065.4) WHERE this decoration puts the two ornaments it does not build a widget for, one method
+	// each. A replacement deco (io.brodgar.addon.SkinDeco, fed by the "window.frame" sheet key) says where a
+	// theme wants them without duplicating the draw below, and widget:chrome() reads back what was drawn.
+	public Coord capc() {
+	    return(cpo);
+	}
+	public Coord sizerc() {
+	    return(ca.br.sub(sizer.sz()));
+	}
+	protected void drawsizer(GOut g) {
+	    g.image(sizer, sizerc());
+	}
+	// addon: (065.4) the caption PLATE -- the "window.title" rule's own bg/border over the rectangle the
+	// cl/cm/cr run occupies. The client keeps sizing it (plsz, from the caption's own width); the rule says
+	// only what it looks like. False -- always, on a client with no addon -- means the stock run below is
+	// the plate, exactly as it always was.
+	protected boolean drawplate(GOut g) {
+	    return(platestyled = Fonts.drawchrome("window.title", (Window)parent, g, Coord.z, plsz));
 	}
 
 	protected void drawframe(GOut g) {
 	    checkcap();                // addon: (035.1) the caption state, extracted -- see checkcap
 	    if(dragsize)
-		g.image(sizer, ca.br.sub(sizer.sz()));
+		drawsizer(g);          // addon: (065.4)
 	    Coord mdo, cbr;
-	    g.image(cl, Coord.z);
-	    mdo = Coord.of(cl.sz().x, 0);
-	    cbr = mdo.add(cmw, cm.sz().y);
-	    for(int x = 0; x < cmw; x += cm.sz().x)
-		g.image(cm, mdo.add(x, 0), Coord.z, cbr);
-	    g.image(cr, Coord.of(cl.sz().x + cmw, 0));
-	    g.image(cap.tex(), cpo);
+	    if(!drawplate(g)) {        // addon: (065.4) -- the block below IS the stock plate
+		g.image(cl, Coord.z);
+		mdo = Coord.of(cl.sz().x, 0);
+		cbr = mdo.add(cmw, cm.sz().y);
+		for(int x = 0; x < cmw; x += cm.sz().x)
+		    g.image(cm, mdo.add(x, 0), Coord.z, cbr);
+		g.image(cr, Coord.of(cl.sz().x + cmw, 0));
+	    }
+	    g.image(cap.tex(), capc());   // addon: (065.4) capc() -- the stock cpo unless a rule moved it
 	    mdo = Coord.of(cl.sz().x + cmw + cr.sz().x, 0);
 	    cbr = Coord.of(sz.x - tr.sz().x, tm.sz().y);
 	    for(; mdo.x < cbr.x; mdo.x += tm.sz().x)

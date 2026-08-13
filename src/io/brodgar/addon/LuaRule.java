@@ -287,6 +287,41 @@ public final class LuaRule {
                 return self;
             }
         });
+        // caption{at=, offset=} — where a window's decoration draws its caption (065.4): one of the nine
+        // corners of the frame plus an offset in design pixels. With no rule the client's own place is used, to
+        // the pixel. It carries no art: a caption is the window's own text, drawn in the "window.title" font,
+        // and what it SITS on is that key's own bg/border -- the plate.
+        m.set("caption", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaRule r = handle(self, "caption");
+                Sheet.Props cur = r.read(owner);
+                LuaValue v = Args.written(a, 2, r.where() + ":caption", "spot");
+                if(v == null)
+                    return ((cur == null) || (cur.caption == null)) ? LuaValue.NIL : cur.caption.toLua();
+                Sheet.Props p = r.edit(owner);
+                p.caption = Chrome.parseSpot(r.where(), ".caption", v);
+                r.commit(owner, p);
+                return self;
+            }
+        });
+        // sizer{<art>, at=, offset=} — the corner grip a resizable window draws (065.4). It is an ordinary
+        // surface, so it is named the four ways every picture is and its own `at`/`offset` place it against the
+        // frame's box; with no rule the client's own art sits at the client's own place.
+        m.set("sizer", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaRule r = handle(self, "sizer");
+                Sheet.Props cur = r.read(owner);
+                LuaValue v = Args.written(a, 2, r.where() + ":sizer", "sizer");
+                if(v == null)
+                    return ((cur == null) || (cur.sizer == null)) ? LuaValue.NIL : cur.sizer.toLua(owner);
+                Sheet.Props p = r.edit(owner);
+                p.sizer = Chrome.parseArt(owner, r.where(), ".sizer", v);
+                r.commit(owner, p);
+                return self;
+            }
+        });
         // position(x, y) — where the matched widget sits inside its parent, in raw px (036.2). It is the anchor
         // whose target is the widget's own parent, at its top-left, so it and :anchor() are the same slot: the
         // later of the two wins, and the one that was not written reads nil.

@@ -49,6 +49,8 @@ final class SkinDeco extends Window.DefaultDeco {
     private Chrome.Bg bg;
     private Chrome.Border border;
     private Chrome.Pad padding;
+    private Chrome.Spot caption;      // 065.4: where the caption goes, or null for the stock place
+    private Chrome.Art sizer;         // 065.4: the sizer's own art and place, or null for the client's
 
     private SkinDeco(boolean lg) {
         super(lg);
@@ -151,10 +153,45 @@ final class SkinDeco extends Window.DefaultDeco {
             b.draw(g, ca.ul, ca.sz());       // the stock frame still paints the margin: stay inside it
     }
 
+    // ---- the three ornaments (065.4) ---------------------------------------------------------------
+
+    /**
+     * Where the caption is drawn: the rule's {@link Chrome.Spot} over this deco's own box, or — with no
+     * {@code caption} property — the very {@code Window.cpo} the stock client uses, to the pixel.
+     *
+     * <p>The spot is resolved against the <b>caption's own size</b>, so {@code at = "topright"} is the caption's
+     * right edge at the frame's right edge rather than its origin there. That is what makes the nine names mean
+     * the same thing here as they do on a picture, which has a size of its own for the same reason.
+     */
+    public Coord capc() {
+        Chrome.Spot sp = this.caption;
+        if(sp == null)
+            return super.capc();
+        return sp.place(sz, (cap == null) ? Coord.z : cap.sz());
+    }
+
+    /** Where the sizer is drawn — the rule's art at the rule's spot, else the client's own at its own place. */
+    public Coord sizerc() {
+        Chrome.Art a = this.sizer;
+        Area at = (a == null) ? null : a.place(Coord.z, sz);
+        return (at == null) ? super.sizerc() : at.ul;
+    }
+
+    /** ...and the picture it is drawn with, which is the half a spot cannot say. */
+    protected void drawsizer(GOut g) {
+        Chrome.Art a = this.sizer;
+        if(a == null)
+            super.drawsizer(g);
+        else
+            a.draw(g, Coord.z, sz);
+    }
+
     /**
      * The rule's 9-slice frame, or the stock one when the rule names none. A skinned frame keeps the sizer and
-     * the caption — the caption through {@code checkcap()}, so it is still the {@code "window.title"} font — but
-     * not the stock caption plate: the border image owns the frame art, plate included.
+     * the caption — the caption through {@code checkcap()}, so it is still the {@code "window.title"} font, and
+     * at {@link #capc()}, so a {@code caption} rule reaches it either way — and it keeps the caption
+     * <b>plate</b>, which is {@code window.title}'s own {@code bg}/{@code border} at the box the client sized.
+     * With no plate rule the border image owns the frame art, plate included, exactly as the stock frame's does.
      */
     protected void drawframe(GOut g) {
         Chrome.Border b = this.border;
@@ -165,9 +202,10 @@ final class SkinDeco extends Window.DefaultDeco {
         checkcap();
         b.draw(g, Coord.z, sz);
         if(dragsize)
-            g.image(Window.sizer, ca.br.sub(Window.sizer.sz()));
+            drawsizer(g);
+        drawplate(g);
         if(cap != null)
-            g.image(cap.tex(), Window.cpo);
+            g.image(cap.tex(), capc());
     }
 
     // ---- the swap ----------------------------------------------------------------------------------
@@ -200,12 +238,14 @@ final class SkinDeco extends Window.DefaultDeco {
         Chrome.Bg bg = Chrome.bg(st);
         Chrome.Border bd = Chrome.border(st);
         Chrome.Pad pd = Chrome.padding(st);
+        Chrome.Spot cp = Chrome.caption(st);                // 065.4: the two ornaments this deco PLACES...
+        Chrome.Art szr = Chrome.sizer(st);                  //   ...neither of which moves the window's content
         // A padding of zero on every side says the same thing as no padding at all, so it alone never dresses a
         // window: the deco would then draw stock pixels at stock coordinates, and installing one for that is a
         // swap nobody asked for.
         if((pd != null) && pd.zero())
             pd = null;
-        boolean want = (bg != null) || (bd != null) || (pd != null);
+        boolean want = (bg != null) || (bd != null) || (pd != null) || (cp != null) || (szr != null);
         if(have) {
             SkinDeco sd = (SkinDeco)d;
             if(want) {
@@ -216,6 +256,8 @@ final class SkinDeco extends Window.DefaultDeco {
                 sd.bg = bg;                                 // a changed rule repaints; the deco itself stays put
                 sd.border = bd;
                 sd.padding = pd;
+                sd.caption = cp;
+                sd.sizer = szr;
                 if(moved)
                     sd.repack();                            // ...but a changed GEOMETRY has to re-lay the window out
             } else {
@@ -228,6 +270,8 @@ final class SkinDeco extends Window.DefaultDeco {
             sd.bg = bg;
             sd.border = bd;
             sd.padding = pd;                                // BEFORE the swap: chdeco lays the window out with it
+            sd.caption = cp;
+            sd.sizer = szr;
             wnd.chdeco(sd);
         }
     }

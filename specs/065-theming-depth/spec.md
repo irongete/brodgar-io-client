@@ -203,11 +203,14 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `docs/addons/api/ui/style/geometry.md` — 1, 4, 5
 - `docs/addons/api/ui/controls/interactive.md` — 8, 9, 10
 - `docs/addons/api/ui/controls/display.md` — 10, 12
+- `docs/addons/api/ui/widget.md` — 5, 17 (`widget:chrome()`, the read a window's ornaments are MEASURED
+  with: the caption's drawn origin, the plate's box, the sizer's origin and the close button's box)
 - `docs/client/ui-chrome.md` — 2, 4, 5, 6, 7, 11, 17, 18
 - `docs/client/ui-controls.md` — 8, 9, 10, 12, 18
 - `docs/client/ui-lists.md` — 9, 10
 - `docs/client/text-and-fonts.md` — 1, 14, 15, 16, 17, 18
-- `src/haven/Fonts.java` — 1, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
+- `src/haven/Fonts.java` — 1, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 (and `Fonts.drawchrome`, the seam
+  for a box the SITE sizes and a rule dresses — the tooltip's and the inventory square's shape too)
 - `src/haven/ChatUI.java` — 16 (the per-kind colour constants, and the generated speaker hue)
 - `src/io/brodgar/addon/AddonManager.java` — 17 (`onPicture`, the texture-to-resource-name registry a
   catalogue reads art names back through)

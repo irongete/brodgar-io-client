@@ -407,6 +407,38 @@ public class Fonts {
         return (box instanceof Box) && ((Box)box).drawbg(g, tl, sz);
     }
 
+    /* ---- a box the CLIENT sizes and a rule dresses (065.4) ------------------------------------------------
+     *
+     * A few of the client's surfaces paint a box whose GEOMETRY they compute themselves and whose art is a
+     * constant -- the plate behind a window's caption is the first, sized by DefaultDeco.checkcap from the
+     * caption's own width. Such a site owns no IBox to stand in for, so box() above cannot serve it: it hands
+     * over the rectangle instead and asks whether a rule painted it.
+     */
+
+    /** The chrome-paint source (065.4) — installed once by the addon layer; {@code null} in a stock client. */
+    public interface Chromes {
+        /** Paint {@code scope}'s own surface and frame over {@code [ul, ul+sz)}; {@code false} when no rule names it. */
+        public boolean draw(String scope, Widget wdg, GOut g, Coord ul, Coord sz);
+    }
+    private static volatile Chromes chromes = null;
+
+    /** Install the chrome-paint source (the addon layer, once). */
+    public static void chromes(Chromes src) {
+        chromes = src;
+    }
+
+    /**
+     * Paint the rule's own surface and frame over a rectangle the site computed — {@code false} means no rule
+     * names this site and the site paints whatever it always painted, which is the answer a stock client always
+     * gets, after a single {@code volatile} read.
+     */
+    public static boolean drawchrome(String scope, Widget wdg, GOut g, Coord ul, Coord sz) {
+        if(!active)
+            return false;                 // fast path: no override anywhere
+        Chromes src = chromes;
+        return (src != null) && src.draw(scope, wdg, g, ul, sz);
+    }
+
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {
         // F5/C1b: the frame (this widget's own skin, its tree rule, or an enclosing widget's) outranks
         // every scope -- but only for the properties it names; combine() lets the scope fill the rest.

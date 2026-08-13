@@ -70,19 +70,25 @@ knowing before deciding a frame is one.
 | The runs **repeat**, they do not stretch | `DefaultDeco.drawframe` — every edge is a `for` loop of `g.image(tex, mdo, Coord.z, cbr)`, one blit per tile with the run's own clip rectangle. `IBox.Scaled.draw` is the same geometry with `g.image(tex, c, sz)` instead, i.e. one scaled blit. The clip is what keeps the last tile from overrunning a corner |
 | Its background is **three layers** | `DefaultDeco.drawbg` — `bg` tiled over `ca` under `bgblend`, then `bgl` down the left edge and `bgr` down the right, each tiled vertically and clipped to `ca` |
 | A piece pinned at the end of a run | `lb`, dropped at the **foot** of the left run before `lm` tiles the rest — the only such piece in the frame |
-| The caption plate is part of the frame art | `cl` / `cm` / `cr`, with `cm` tiled across `cmw`; `checkcap` computes `cmw`, `cptl` and `cpsz` from `max(caption width, sz.x / 4)` |
+| The caption plate is part of the frame art | `cl` / `cm` / `cr`, with `cm` tiled across `cmw`; `checkcap` computes `cmw` from `max(caption width, sz.x / 4)` and then **shortens it** by `cl.sz().x - cpo.x + UI.scale(5)`, so the run is `cl + cmw + cr` wide from `x = 0` |
 | One set of art, two margins | The statics are all `gfx/hud/wnd/lg/*` and `drawframe` uses them unconditionally; `DefaultDeco.lg` picks only between `dlmrgn` and `dsmrgn` in `iresize` |
 
-**Two traps, both cost time.**
+**Three traps, all cost time.**
 
-1. **`Frame.around` does NOT put the content inside the frame.**
+1. **`cptl`/`cpsz` is the caption's DRAG box, not the caption art's rectangle.** `checkhit` uses the pair to
+   test a click against `cm`'s own alpha, so it starts at `ca.ul.x` — one frame inset in from `x = 0`, where
+   `cl` actually begins — and ends at `cpo.x + cmw` *before* `cmw` is shortened, which stops short of `cr`'s
+   right edge. Painting anything that stands in for the title-bar art at that pair leaves a bare notch at
+   each end of the run. The art's own box is `(0, 0)` to `cl.sz().x + cmw + cr.sz().x`, by the tallest of the
+   three, which is what `plsz` holds.
+2. **`Frame.around` does NOT put the content inside the frame.**
    `around` does `parent.add(new Frame(...))` — the framed widgets stay children of
    `parent` and the frame is appended **after** them, so it draws **on top** of what it appears to contain.
    `with` is the opposite (a real child); `addin` is a
    third shape (resizes the child, adds it to `parent`). A stock `IBox` never noticed — its middle is
    transparent — but anything that *fills* the interior buries the rows on an `around` frame. Both spellings
    are in constant use, often in one window. **Never assume a `Frame`'s visual children are its tree children.**
-2. **The six measuring methods are read at CONSTRUCTION**, not per frame: `Frame`'s ctor (`sz.add(box.bisz())`),
+3. **The six measuring methods are read at CONSTRUCTION**, not per frame: `Frame`'s ctor (`sz.add(box.bisz())`),
    `getpos`, `xlate`, `checkhit`, `addin`, and `SListMenu`'s ctor + `tick` all consume them once. So a box
    swapped in later may paint differently but must **measure identically**, or the frame moves and its contents
    do not. Exact mirror of `Deco`, where `iresize`/`contarea` *are* re-run and a replacement therefore
@@ -90,13 +96,20 @@ knowing before deciding a frame is one.
 
 ## The addon seam
 
-Three `// addon:` edits, and no fourth: everything else the sheet needs was already public.
+Every `// addon:` edit in the chrome; everything else the sheet needs was already public.
 
 | Edit | Where |
 |---|---|
 | Install or drop the sheet-fed deco | `Window.tick` calls `AddonWidgets.chrome(wnd)` — in `tick` because `chdeco` destroys a widget and re-lays the window out |
 | An **extraction**, so a replacement deco renders the caption through the same routed furnace instead of duplicating it | `DefaultDeco.drawframe`'s caption block became `protected checkcap()` |
 | The panels, routed the way the fonts are | `IBox box = Fonts.box("panel", this, stock)` plus `Fonts.drawbg(box, g, tl, sz)` at each site, both handing back the **stock** box / `false` when no rule applies |
+| Where the two placed ornaments go, one method each | `DefaultDeco.capc()` (stock `cpo`) and `sizerc()` (stock `ca.br - sizer.sz()`), both `public` and both read by `drawframe`; `drawsizer(GOut)` wraps the blit so a subclass can supply its own art. A replacement deco overrides them rather than copying `drawframe` |
+| The caption plate, at the box the client sizes | `DefaultDeco.drawplate(GOut)` → `Fonts.drawchrome("window.title", wnd, g, Coord.z, plsz)`, and the stock `cl`/`cm`/`cr` run is skipped when it answers `true`. `plsz` is computed beside `cmw` in `checkcap`; the answer is kept in `DefaultDeco.platestyled` for the read-back |
+
+`Fonts.drawchrome(scope, wdg, g, ul, sz)` is the third source interface beside `Fonts.Boxes` and
+`Fonts.TreeStyles`, and it is the shape for **a box the site sizes itself**: no `IBox` to stand in for, so
+the site hands over a rectangle and asks whether a rule painted it. Both halves are behind the same
+`active` volatile read, so a client with no addon runs the same code it always did.
 
 **Replacing the geometry costs no core edit**: a deco subclass overrides `iresize` itself, and `chdeco`,
 `resize`, `tlm`, `dlmrgn`/`dsmrgn` and `Window.c` are already public. So a client with no addon runs the same

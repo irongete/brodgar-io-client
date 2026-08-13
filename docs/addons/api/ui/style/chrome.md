@@ -1,8 +1,8 @@
-# hafen.ui: bg, border and padding
+# hafen.ui: the properties that paint
 
-The [sheet](README.md) properties that **paint** rather than write, plus the one that moves the client's
-own content. Two kinds of surface wear them: `window.frame`, the client's window chrome, and `panel`, every
-framed surface that is not a window.
+The [sheet](README.md) properties that **paint** rather than write, the one that moves the client's own
+content, and the two that place a window's ornaments. Two kinds of surface wear them: `window.frame`, the
+client's window chrome, and `panel`, every framed surface that is not a window.
 
 ```lua
 local s = hafen.ui():sheet()
@@ -11,6 +11,7 @@ s:rule("window.frame")
        { res = "gfx/hud/wnd/lg/bgl", at = "left", mode = "tile" } }   -- ...and a shade down one side
   :border{ box = "gfx/hud/wnd", mode = "tile" }        -- the client's own frame, by name
   :padding(8, 4, 8, 8)
+  :caption{ at = "topleft", offset = {6, 3} }          -- the title, tight under the corner
 s:rule("panel"):border{ image = hafen.asset():get("img/panel.png"), slice = {8, 8, 8, 8} }
 s:install()
 ```
@@ -18,11 +19,13 @@ s:install()
 | Call | Value | Meaning |
 |---|---|---|
 | `rule:bg(t)` | one [surface](#naming-a-picture), or an **array** of them | what something is painted on: one layer, or several in paint order |
-| `rule:border(t)` | `{<art>, slice = {l, t, r, b}}` **or** `{box = "gfx/hud/wnd"}`, either with a `mode` | the frame around it, cut from your own art or taken from the client's |
+| `rule:border(t)` | `{<art>, slice = {l, t, r, b}}` **or** `{box = "gfx/hud/wnd"}`, either with a `mode` and `parts` | the frame around it, cut from your own art or taken from the client's |
 | `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, on all four sides |
 | `rule:padding(l, t, r, b)` | [design px](../pixels.md), `>= 0` each | the same room, said one side at a time |
+| `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](#ornaments-the-caption-its-plate-and-the-sizer) |
+| `rule:sizer(t)` | a [surface](#naming-a-picture) with an `at` | the corner grip a resizable window draws, and where |
 
-Each reads back bare: `rule:bg()`, `rule:border()`, `rule:padding()`.
+Each reads back bare: `rule:bg()`, `rule:border()`, `rule:padding()`, `rule:caption()`, `rule:sizer()`.
 
 A border's centre is never painted — that is `bg`'s job, so the two compose.
 
@@ -108,6 +111,25 @@ run.
 hafen.ui():sheet():rule("panel"):border{ box = "gfx/hud/wnd", mode = "tile" }:sheet():install()
 ```
 
+### Pieces pinned inside a frame
+
+A frame is corners and runs, and some frames carry a piece that is neither: the client's own window drops
+one at the foot of its left edge. `parts` is an array of those — each an ordinary
+[surface](#naming-a-picture) with an `at` saying which of the nine corners it is pinned to, painted **over**
+the frame in the order written.
+
+```lua
+hafen.ui():sheet():rule("window.frame"):border{
+  box = "gfx/hud/wnd", mode = "tile",
+  parts = { { res = "gfx/hud/wnd/lg/lb", at = "bottomleft" },
+            { asset = "img/rivet.png",   at = "topright", offset = {-4, 4} } },
+}:sheet():install()
+```
+
+`at` is required on a part: being pinned is what makes it one, and a picture that covers the whole surface
+is a [`bg`](#bg) layer instead. A `parts` list with nothing in it is an error rather than an empty frame.
+`rule:border()` hands the list back in paint order, each entry in the shape it was written.
+
 - **Slice insets are in the image's own pixels, and those are [design pixels](../pixels.md)** — the same unit
   everything else your addon draws is measured in, and the unit a `{res = …}` art's slice is written in too.
   So a `slice` of `{8, 8, 8, 8}` is 8 pixels of the weight the client's own chrome is drawn at, on every
@@ -189,10 +211,55 @@ s:install()
 own layout cannot honour one, so nothing is refused and nothing warns. That includes every
 [panel](#panels). [The key table](keys.md#what-each-key-accepts) says which is which.
 
+## Ornaments: the caption, its plate and the sizer
+
+A window's decoration draws three things that are not the frame: its **caption**, the **plate** the caption
+sits on, and — on a window the user may resize — the corner **sizer**. Two are placed by a rule on
+`window.frame`; the plate is `window.title`'s own surface, because the caption is what it belongs to.
+
+```lua
+local s = hafen.ui():sheet()
+s:rule("window.frame")
+  :caption{ at = "topleft", offset = {6, 3} }
+  :sizer{ res = "gfx/hud/wnd/sizer", at = "bottomright", offset = {-2, -2} }
+s:rule("window.title"):bg{ color = {40, 34, 28, 230} }:border{ box = "gfx/hud/bosq" }
+s:install()
+```
+
+**A spot is a corner and an offset** — the same nine names an [`anchor`](geometry.md#anchor) picks and a
+picture's `at` pins to. `at` is required, because a spot with no corner is not a place; `offset` is
+[design px](../pixels.md), either sign, from that corner. The corner is measured against the ornament's
+**own size**, so `at = "topright"` puts the caption's right edge at the frame's right edge rather than its
+origin there. A `sizer` is an ordinary [surface](#naming-a-picture), so its art and its place are one value.
+
+- **Name neither and the client's own numbers stand, to the pixel.** With no `caption` the title is drawn
+  where the stock client draws it; with no `sizer` the client's own grip sits in the client's own corner.
+- **The sizer shows only where the client draws one.** Most windows are not resizable; the map is.
+- **The plate is the client's box and your art.** The client sizes it around the caption — a longer title
+  makes a wider plate, and it never narrows past a quarter of the window — and a `bg` or a `border` on
+  `window.title` says what fills that box. With neither, the window's own title-bar art is the plate, as it
+  always is.
+- **`window.title` carries the caption's `font` as well.** One key for the caption and for the surface it
+  sits on: [`font`](text.md#font) writes the letters, `bg` and `border` write what is behind them.
+- **Nothing here moves the window's contents.** An ornament is painted, not laid out, so a caption pushed
+  down over the content area overlaps it — the room for a title bar is [`padding`](#padding)'s to make.
+
+[`widget:chrome()`](../widget.md#read) reads back where the ornaments actually **went** on one window —
+a different question from what a rule asked for, since a window with no rule answers the client's own
+numbers. Coordinates are [design px](../pixels.md) from that window's **outer** top-left, the corner its
+frame is drawn from, and each field appears only once its ornament has been drawn at least once. The
+plate's `styled` says whether the last frame painted it from a rule or from the client's own art; its box
+is the client's either way.
+
+```lua
+local w = hafen.ui():find("window[title=Inventory]")
+if w then hafen.log():write("caption at " .. w:chrome().caption.x) end
+```
+
 ## See also
 
-- [the pixel](../pixels.md) — the unit a padding and a slice are counted in
-- [keys](keys.md#what-each-key-accepts) — which keys honour these three, and which are inert
+- [the pixel](../pixels.md) — the unit a padding, a slice and an offset are counted in
+- [keys](keys.md#what-each-key-accepts) — which keys honour these, and which are inert
 - [surfaces](surfaces.md) — what a panel and a window frame are on screen
 - [geometry](geometry.md) — the other way a rule moves something, and the only one that moves a widget
 - [`hafen.asset`](../../asset.md) — loading the images a `bg` or a `border` points at

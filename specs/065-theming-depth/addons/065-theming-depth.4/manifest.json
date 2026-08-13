@@ -1,0 +1,9 @@
+{
+  "name": "065.4 — a theme says where the caption goes, what it sits on, and where the sizer is",
+  "id": "065-theming-depth.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.4: the caption spot and the sizer's art, the caption plate the client sizes and the theme dresses, and the pieces a border pins inside itself.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

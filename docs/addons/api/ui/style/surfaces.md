@@ -28,10 +28,15 @@ its own — which is why it is a site and not a role. `window[title=…]` names 
 caption, not the caption itself. It is **embossed**, so it follows a `font` rule and a `color` rule is
 inert. Each **visible** window re-renders its caption on the frame after the rule moves.
 
+This key also carries the **plate** the caption sits on: a `bg` or a `border` here fills the box the client
+sizes around the caption, so a longer title makes a wider plate and the rule only says what fills it. The
+caption's own place is [`window.frame`'s `caption`](chrome.md#ornaments-the-caption-its-plate-and-the-sizer),
+because that is the surface doing the drawing.
+
 ## `window.frame` and `panel`
 
-Neither draws text. They take `bg`, `border` and — for a window only — `padding`, and both are described in
-full under [chrome](chrome.md).
+Neither draws text. `window.frame` takes `bg`, `border`, `padding` and the two ornament properties,
+`panel` the first two; both are described in full under [chrome](chrome.md).
 
 ## `button`
 

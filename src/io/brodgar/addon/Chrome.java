@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import haven.Area;
 import haven.Coord;
 import haven.Fonts;
 import haven.GOut;
@@ -50,6 +51,12 @@ import java.util.WeakHashMap;
  * resampled it ({@code Resource.Image.scaled()}), so a slice is written in design pixels either way and this
  * class converts.
  *
+ * <p><b>...and one place value, three uses</b> (065.4). {@link Spot} is a corner out of {@link #CORNERS} plus an
+ * offset, and it is what a window's decoration is told with: where its {@code caption} goes, and — as the
+ * {@code at} an {@link Art} already carries — where its {@code sizer} sits and where each of a {@link Border}'s
+ * {@code parts} is pinned. The fourth ornament, the caption <b>plate</b>, needs no place at all: it is
+ * {@code window.title}'s own {@code bg}/{@code border} painted at the box the client sized ({@link #draw}).
+ *
  * <p><b>Plain data, parsed once.</b> A rule carries no Lua and no callback: an {@link Art} is a colour or a
  * picture, a {@link Border} is a 9-slice or one of the client's own boxes, and the engine paints from that —
  * the per-frame Lua {@code Deco} callback was rejected on cost at design time (a frame is redrawn every frame
@@ -79,6 +86,10 @@ final class Chrome {
     static final String BORDER = "border";
     /** The {@code padding} property's key. Its value is a {@link Pad}. */
     static final String PADDING = "padding";
+    /** The {@code caption} property's key (065.4). Its value is a {@link Spot}. */
+    static final String CAPTION = "caption";
+    /** The {@code sizer} property's key (065.4). Its value is an {@link Art}. */
+    static final String SIZER = "sizer";
 
     /** The {@code bg} a resolved style carries, or {@code null} — for {@code null} styles too, which is the common case. */
     static Bg bg(Fonts.Style st) {
@@ -95,20 +106,34 @@ final class Chrome {
         return (st == null) ? null : (Pad)st.prop(PADDING);
     }
 
+    /** The {@code caption} spot a resolved style carries, or {@code null} — the stock place, then. */
+    static Spot caption(Fonts.Style st) {
+        return (st == null) ? null : (Spot)st.prop(CAPTION);
+    }
+
+    /** The {@code sizer} a resolved style carries, or {@code null} — the client's own, at its own place. */
+    static Art sizer(Fonts.Style st) {
+        return (st == null) ? null : (Art)st.prop(SIZER);
+    }
+
     /**
      * The bag one rule's chrome properties travel in, or {@code null} when it names none — which is what keeps
      * the provider's identity fast path intact for a sheet that says nothing about chrome.
      */
-    static Map<String, Object> props(Bg bg, Border border, Pad padding) {
-        if((bg == null) && (border == null) && (padding == null))
+    static Map<String, Object> props(Bg bg, Border border, Pad padding, Spot caption, Art sizer) {
+        if((bg == null) && (border == null) && (padding == null) && (caption == null) && (sizer == null))
             return null;
-        Map<String, Object> m = new LinkedHashMap<String, Object>(4);
+        Map<String, Object> m = new LinkedHashMap<String, Object>(8);
         if(bg != null)
             m.put(BG, bg);
         if(border != null)
             m.put(BORDER, border);
         if(padding != null)
             m.put(PADDING, padding);
+        if(caption != null)
+            m.put(CAPTION, caption);
+        if(sizer != null)
+            m.put(SIZER, sizer);
         return m;
     }
 
@@ -132,11 +157,104 @@ final class Chrome {
             if(CORNERS[i].equals(s))
                 return i;
         }
+        throw new LuaError(ctx + what + ": expected one of " + cornerList() + ", got "
+            + ((s == null) ? v.typename() : ("\"" + s + "\"")));
+    }
+
+    /** The nine, spelled out — what every refusal that meets a corner name lists rather than summarises. */
+    private static String cornerList() {
         StringBuilder sb = new StringBuilder();
         for(int i = 0; i < CORNERS.length; i++)
             sb.append((i == 0) ? "" : ", ").append('"').append(CORNERS[i]).append('"');
-        throw new LuaError(ctx + what + ": expected one of " + sb + ", got "
-            + ((s == null) ? v.typename() : ("\"" + s + "\"")));
+        return sb.toString();
+    }
+
+    /**
+     * A <b>spot</b>: one of the nine {@link #CORNERS} plus an offset in design pixels (065.4) — the whole of what
+     * it takes to say where a window's decoration puts an ornament it does not size, its caption being the one
+     * that has no art of its own to carry a place inside.
+     *
+     * <p>It is the same nine-corner vocabulary a rule's {@code anchor} picks a widget's corner out of and an
+     * {@link Art}'s {@code at} pins a picture to, at the one arity that has no picture: a corner, and how far
+     * from it. Immutable, with value equality, because the resolved style is interned on it.
+     */
+    static final class Spot {
+        /** The corner it is pinned to, as a {@link #CORNERS} index. */
+        final int corner;
+        /** How far from that corner, in design pixels, or {@code null}. */
+        final Coord offset;
+
+        Spot(int corner, Coord offset) {
+            this.corner = corner;
+            this.offset = offset;
+        }
+
+        /**
+         * Where a thing {@code isz} device pixels big sits inside a {@code box}-sized surface — its top-left, in
+         * device pixels. The corner decides which end of each axis the thing is measured from, and the offset
+         * moves it from there, converted on the way in because the rule wrote it in design pixels.
+         */
+        Coord place(Coord box, Coord isz) {
+            int ax = corner % 3, ay = corner / 3;
+            int x = (ax == 0) ? 0 : ((ax == 2) ? (box.x - isz.x) : ((box.x - isz.x) / 2));
+            int y = (ay == 0) ? 0 : ((ay == 2) ? (box.y - isz.y) : ((box.y - isz.y) / 2));
+            return Coord.of(x, y).add((offset == null) ? Coord.z : Px.in(offset));
+        }
+
+        public int hashCode() {
+            return (corner * 31) + ((offset == null) ? 0 : offset.hashCode());
+        }
+
+        public boolean equals(Object o) {
+            if(!(o instanceof Spot))
+                return false;
+            Spot s = (Spot)o;
+            return (corner == s.corner) && ((offset == null) ? (s.offset == null) : offset.equals(s.offset));
+        }
+
+        /** The value in the shape the setter takes, so a read round-trips into a write. */
+        LuaValue toLua() {
+            LuaTable t = new LuaTable();
+            t.set("at", LuaValue.valueOf(CORNERS[corner]));
+            if(offset != null)
+                t.set("offset", LuaWidget.xyTable(offset));
+            return t;
+        }
+    }
+
+    /**
+     * Parse a spot — {@code { at = "topleft", offset = {12, 4} }}. The corner is required: a spot with no corner
+     * is not a place, and there is no default worth guessing at (033.3's lesson). The offset is not, because
+     * pinning something flush to a corner is a thing a theme says.
+     */
+    static Spot parseSpot(String ctx, String what, LuaValue v) {
+        if(!v.istable())
+            throw new LuaError(ctx + what + ": expected a spot — { at = \"topleft\", offset = {12, 4} }, got "
+                + v.typename());
+        int corner = -1;
+        Coord offset = null;
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            Varargs n = v.next(k);
+            k = n.arg1();
+            if(k.isnil())
+                break;
+            String p = key(k);
+            LuaValue pv = n.arg(2);
+            if("at".equals(p)) {
+                corner = cornerOf(ctx, what + ".at", pv);
+            } else if("offset".equals(p)) {
+                offset = Layout.parseCoord(ctx + what, "offset", pv);
+            } else {
+                throw new LuaError(ctx + what + ": \"" + k.tojstring() + "\" is not a spot property — a spot"
+                    + " carries the two fields \"at\" (one of the nine corners) and \"offset\" ({dx, dy}, in"
+                    + " design pixels), and nothing else");
+            }
+        }
+        if(corner < 0)
+            throw new LuaError(ctx + what + ": needs an \"at\" — the corner it is pinned to, one of "
+                + cornerList());
+        return new Spot(corner, offset);
     }
 
     /** {@code mode = "stretch"} — an axis this art does not size itself on is scaled to fill it. */
@@ -278,6 +396,28 @@ final class Chrome {
             this.mode = mode;
         }
 
+        /**
+         * The rectangle this art's <b>picture</b> covers inside {@code [ul, ul+sz)} — device pixels — or
+         * {@code null} when there is none to place: a flat colour fills its whole surface, and a disposed image
+         * draws nothing at all. {@link #draw} paints from it, and a window's chrome reads it back to say where
+         * it put an ornament ({@code widget:chrome()}).
+         */
+        Area place(Coord ul, Coord sz) {
+            if((color != null) || (src == null) || src.dead())
+                return null;
+            Coord nat = src.drawn().sz();
+            if((nat.x <= 0) || (nat.y <= 0))
+                return null;
+            int ax = (spot < 0) ? 1 : (spot % 3), ay = (spot < 0) ? 1 : (spot / 3);
+            boolean fx = (spot < 0) || ((spot != 4) && (ax == 1));   // an axis the spot says nothing about
+            boolean fy = (spot < 0) || ((spot != 4) && (ay == 1));
+            int w = fx ? sz.x : nat.x, h = fy ? sz.y : nat.y;
+            int x = fx ? 0 : ((ax == 0) ? 0 : ((ax == 2) ? (sz.x - w) : ((sz.x - w) / 2)));
+            int y = fy ? 0 : ((ay == 0) ? 0 : ((ay == 2) ? (sz.y - h) : ((sz.y - h) / 2)));
+            Coord o = (offset == null) ? Coord.z : Px.in(offset);
+            return Area.sized(ul.add(x, y).add(o), Coord.of(w, h));
+        }
+
         /** Paint this art over {@code [ul, ul+sz)} — device pixels, the client's own box. */
         void draw(GOut g, Coord ul, Coord sz) {
             if(color != null) {
@@ -286,26 +426,17 @@ final class Chrome {
                 g.chcolor();
                 return;
             }
-            if((src == null) || src.dead())
+            Area a = place(ul, sz);
+            if(a == null)
                 return;
             Tex t = src.drawn();
-            Coord nat = t.sz();
-            if((nat.x <= 0) || (nat.y <= 0))
-                return;
-            int ax = (spot < 0) ? 1 : (spot % 3), ay = (spot < 0) ? 1 : (spot / 3);
-            boolean fx = (spot < 0) || ((spot != 4) && (ax == 1));   // an axis the spot says nothing about
-            boolean fy = (spot < 0) || ((spot != 4) && (ay == 1));
-            int w = fx ? sz.x : nat.x, h = fy ? sz.y : nat.y;
-            int x = fx ? 0 : ((ax == 0) ? 0 : ((ax == 2) ? (sz.x - w) : ((sz.x - w) / 2)));
-            int y = fy ? 0 : ((ay == 0) ? 0 : ((ay == 2) ? (sz.y - h) : ((sz.y - h) / 2)));
-            Coord o = (offset == null) ? Coord.z : Px.in(offset);
-            Coord bul = ul.add(x, y).add(o), bsz = Coord.of(w, h);
-            if((w == nat.x) && (h == nat.y))
-                g.image(t, bul);
+            Coord bsz = a.sz();
+            if(bsz.equals(t.sz()))
+                g.image(t, a.ul);
             else if(TILE.equals(mode))
-                g.rimage(t, bul, bsz);
+                g.rimage(t, a.ul, bsz);
             else
-                g.image(t, bul, bsz);
+                g.image(t, a.ul, bsz);
         }
 
         public int hashCode() {
@@ -416,6 +547,12 @@ final class Chrome {
      * converted. The insets a layout reserves are the drawn corners themselves ({@link #tlIn}/{@link #brIn}
      * read the box), so the frame the draw paints and the room {@link SkinDeco#iresize} keeps for it are the
      * same rectangle by construction.
+     *
+     * <p><b>{@code parts} is what a 9-slice cannot say either</b> (065.4): the pieces a frame carries that are
+     * neither a corner nor a run — the client's own foot piece at the bottom of its left edge being one, a rivet
+     * or a crest being the theme's. Each is an ordinary {@link Art} pinned by its own {@code at} and
+     * {@code offset}, so it is no new value, only the surface at a different arity, and they are painted over
+     * the frame in the order the rule wrote them.
      */
     static final class Border {
         /** The 9-slice art, or {@code null} when this border is one of the client's own boxes. */
@@ -426,15 +563,18 @@ final class Chrome {
         final int l, t, r, b;
         /** {@link #STRETCH} or {@link #TILE} — what the four edges do between the corners. */
         final String mode;
-        private final Tex[] parts;        // a box border's eight textures, resolved where the rule was written
+        /** The pieces pinned inside this frame (065.4), in paint order, or {@code null} when it carries none. */
+        final Art[] parts;
+        private final Tex[] pieces;       // a box border's eight textures, resolved where the rule was written
         private IBox ibox;                // built on first use -- no upload, nothing to free
 
-        Border(Src src, String box, int l, int t, int r, int b, String mode, Tex[] parts) {
+        Border(Src src, String box, int l, int t, int r, int b, String mode, Art[] parts, Tex[] pieces) {
             this.src = src;
             this.box = box;
             this.l = l; this.t = t; this.r = r; this.b = b;
             this.mode = mode;
             this.parts = parts;
+            this.pieces = pieces;
         }
 
         /**
@@ -459,7 +599,7 @@ final class Chrome {
         IBox ibox() {
             IBox c = this.ibox;
             if(c == null) {
-                Tex[] p = (parts != null) ? parts : slices();
+                Tex[] p = (pieces != null) ? pieces : slices();
                 this.ibox = c = TILE.equals(mode)
                     ? new Tiled(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7])
                     : new IBox.Scaled(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
@@ -495,11 +635,17 @@ final class Chrome {
             if((sz.x < tl.x + br.x) || (sz.y < tl.y + br.y))
                 return;
             ibox().draw(g, ul, sz);
+            Art[] ps = this.parts;                   // ...and the pinned pieces, over the frame they sit on
+            for(int i = 0; (ps != null) && (i < ps.length); i++)
+                ps[i].draw(g, ul, sz);
         }
 
         public int hashCode() {
-            return ((src == null) ? box.hashCode() : (src.hashCode() * 31))
+            int h = ((src == null) ? box.hashCode() : (src.hashCode() * 31))
                 + (l * 7) + (t * 13) + (r * 17) + (b * 19) + (mode.hashCode() * 23);
+            for(int i = 0; (parts != null) && (i < parts.length); i++)
+                h = (h * 31) + parts[i].hashCode();
+            return h;
         }
 
         public boolean equals(Object o) {
@@ -508,7 +654,8 @@ final class Chrome {
             Border x = (Border)o;
             return ((src == null) ? (x.src == null) : src.equals(x.src))
                 && ((box == null) ? (x.box == null) : box.equals(x.box))
-                && (l == x.l) && (t == x.t) && (r == x.r) && (b == x.b) && mode.equals(x.mode);
+                && (l == x.l) && (t == x.t) && (r == x.r) && (b == x.b) && mode.equals(x.mode)
+                && sameArt(parts, x.parts);
         }
 
         /** {@code rule:border()} — the value as {@code reader} may hold it, in the shape the setter takes. */
@@ -526,8 +673,27 @@ final class Chrome {
                 t.set("slice", s);
             }
             t.set("mode", LuaValue.valueOf(mode));
+            if(parts != null) {
+                LuaTable ps = new LuaTable();
+                for(int i = 0; i < parts.length; i++)
+                    ps.set(i + 1, parts[i].toLua(reader));
+                t.set("parts", ps);
+            }
             return t;
         }
+    }
+
+    /** Two lists of pinned pieces, compared by value — see {@link Border#equals}. */
+    private static boolean sameArt(Art[] a, Art[] b) {
+        if((a == null) || (b == null))
+            return (a == null) && (b == null);
+        if(a.length != b.length)
+            return false;
+        for(int i = 0; i < a.length; i++) {
+            if(!a[i].equals(b[i]))
+                return false;
+        }
+        return true;
     }
 
     /**
@@ -753,6 +919,39 @@ final class Chrome {
         }
     }
 
+    // ---- a box the CLIENT sizes and the theme dresses (065.4) --------------------------------------
+
+    /**
+     * {@code Fonts.drawchrome(scope, wdg, g, ul, sz)} — paint one site's own {@code bg} and {@code border} over
+     * a rectangle the <b>client</b> computed, answering whether a rule named either. {@code false} is the site's
+     * cue to paint exactly what it always painted.
+     *
+     * <p>The caption <b>plate</b> is the first of these and says what the shape is for: {@code window.title}
+     * carries the plate behind a window's caption, but the box it is drawn at is
+     * {@code DefaultDeco.checkcap}'s — {@code cptl}/{@code cpsz}, sized from the caption's own width — so the
+     * client goes on deciding how wide a plate is and the theme says only what it looks like. That is the same
+     * division of labour {@link SkinBox} has one level down, at the one arity that has no {@link IBox} in it:
+     * here the site hands over a rectangle rather than a box, because it draws no frame of its own to stand in
+     * for.
+     *
+     * <p>Nothing is interned: the two values are read straight off the resolved style and painted, because the
+     * rectangle is recomputed by the site anyway and there is no object to hand back.
+     */
+    static boolean draw(String scope, Widget wdg, GOut g, Coord ul, Coord sz) {
+        if((sz == null) || (sz.x <= 0) || (sz.y <= 0))
+            return false;
+        Fonts.Style st = Fonts.styleFor(scope, wdg);
+        Bg bg = bg(st);
+        Border bd = border(st);
+        if((bg == null) && (bd == null))
+            return false;                   // a text-only rule paints no plate: the site keeps its own art
+        if(bg != null)
+            bg.draw(g, ul, sz);
+        if(bd != null)
+            bd.draw(g, ul, sz);
+        return true;
+    }
+
     // ---- parsing -----------------------------------------------------------------------------------
 
     /** The four spellings a picture comes in, as every error here lists them. */
@@ -915,6 +1114,7 @@ final class Chrome {
                 + " slice = {l,t,r,b} } or { box = \"gfx/hud/wnd\" }, got " + v.typename());
         Src src = null;
         String named = null, box = null;
+        Art[] parts = null;
         LuaValue slice = null, mode = LuaValue.NIL;
         LuaValue k = LuaValue.NIL;
         while(true) {
@@ -927,6 +1127,8 @@ final class Chrome {
             if("image".equals(p) || "asset".equals(p) || "res".equals(p)) {
                 src = source(owner, ctx, ".border", p, pv);
                 named = p;
+            } else if("parts".equals(p)) {
+                parts = parseParts(owner, ctx, ".border.parts", pv);
             } else if("box".equals(p)) {
                 box = (pv.isstring() && !pv.isnumber()) ? pv.tojstring() : null;
                 if(box == null)
@@ -938,7 +1140,8 @@ final class Chrome {
                 mode = pv;
             } else {
                 throw new LuaError(ctx + ".border: \"" + k.tojstring() + "\" is not a border property — a border"
-                    + " is { image = …, slice = {l,t,r,b} } or { box = \"gfx/hud/wnd\" }, either with a mode");
+                    + " is { image = …, slice = {l,t,r,b} } or { box = \"gfx/hud/wnd\" }, either with a mode"
+                    + " and a parts list");
             }
         }
         String m = modeOf(ctx, ".border", mode, STRETCH);
@@ -949,7 +1152,7 @@ final class Chrome {
             if(slice != null)
                 throw new LuaError(ctx + ".border: a box carries its own insets — the corners of \"" + box
                     + "\" are its slice, so drop the \"slice\"");
-            return new Border(null, box, 0, 0, 0, 0, m, loadBox(ctx, box));
+            return new Border(null, box, 0, 0, 0, 0, m, parts, loadBox(ctx, box));
         }
         if(src == null)
             throw new LuaError(ctx + ".border: needs art — { image = hafen.asset():get(\"img/panel.png\"),"
@@ -963,7 +1166,34 @@ final class Chrome {
             throw new LuaError(ctx + ".border.slice: {" + s[0] + "," + s[1] + "," + s[2] + "," + s[3]
                 + "} leaves no middle in a " + sz.x + "x" + sz.y + " image — left+right must be under its width"
                 + " and top+bottom under its height");
-        return new Border(src, null, s[0], s[1], s[2], s[3], m, null);
+        return new Border(src, null, s[0], s[1], s[2], s[3], m, parts, null);
+    }
+
+    /**
+     * Parse a border's {@code parts} — the array of pieces pinned inside the frame (065.4). Each is an ordinary
+     * surface, so a piece is named the four ways every picture is; what a part <b>must</b> carry beyond that is
+     * its {@code at}, because being pinned is the whole of what makes it a part rather than another
+     * {@code bg} layer.
+     */
+    private static Art[] parseParts(Addon owner, String ctx, String what, LuaValue v) {
+        if(!v.istable())
+            throw new LuaError(ctx + what + ": expected an ARRAY of pinned pieces — each a surface with an"
+                + " \"at\", e.g. { { res = \"gfx/hud/wnd/lg/lb\", at = \"bottomleft\" } }, got " + v.typename());
+        List<Art> ls = new ArrayList<Art>();
+        for(int i = 1; ; i++) {
+            LuaValue e = v.get(i);
+            if(e.isnil())
+                break;
+            Art a = parseArt(owner, ctx, what + "[" + i + "]", e);
+            if(a.spot < 0)
+                throw new LuaError(ctx + what + "[" + i + "]: a part is PINNED, so it needs an \"at\" — one of"
+                    + " " + cornerList() + ". A picture that covers the whole surface is a bg layer");
+            ls.add(a);
+        }
+        if(ls.isEmpty())
+            throw new LuaError(ctx + what + ": says nothing — a parts list is an array of pinned pieces; drop"
+                + " the key rather than writing an empty one");
+        return ls.toArray(new Art[ls.size()]);
     }
 
     /** The four corners of one of the client's own boxes — the one naming every such frame shares. */

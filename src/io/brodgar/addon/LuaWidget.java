@@ -1299,6 +1299,16 @@ public final class LuaWidget {
                 return (rp == null) ? LuaValue.NIL : xyTable(Px.out(rp));
             }
         });
+        // chrome() — 065.4: WHERE a window's decoration drew its ornaments, in design px from the window's own
+        // outer top-left: { caption = {x=,y=}, plate = {x=,y=,w=,h=}, sizer = {x=,y=}, close = {x=,y=,w=,h=} },
+        // each present only once that ornament has been drawn. nil for anything that is not a window, and for a
+        // window that built a decoration of its own. It answers where the ornament WENT, which a rule cannot: a
+        // window with no rule reads the client's own numbers, and the plate's box is the client's either way.
+        m.set("chrome", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return chromeTable(live(handle(self, "chrome")));
+            }
+        });
         // style() — 034.1/034.3: the style THIS widget RESOLVES to — { font = <handle>, color = {r=,g=,b=,a=} },
         // each field present only where a level of the cascade set it — or nil when nothing overrides it. "nil
         // means stock": on a client with no sheet installed every widget reads nil, which is the same contract the
@@ -2752,6 +2762,60 @@ public final class LuaWidget {
         LuaTable t = new LuaTable();
         t.set("x", LuaValue.valueOf(c.x));
         t.set("y", LuaValue.valueOf(c.y));
+        return t;
+    }
+
+    /** A {@code {x=,y=,w=,h=}} table from a device-pixel box, converted on the way out — see {@link #xyTable}. */
+    private static LuaValue boxTable(Coord ul, Coord sz) {
+        Coord o = Px.out(ul), s = Px.out(sz);
+        LuaTable t = new LuaTable();
+        t.set("x", LuaValue.valueOf(o.x));
+        t.set("y", LuaValue.valueOf(o.y));
+        t.set("w", LuaValue.valueOf(s.x));
+        t.set("h", LuaValue.valueOf(s.y));
+        return t;
+    }
+
+    /**
+     * {@code window:chrome()} (065.4) — the boxes a window's <b>decoration</b> actually drew its ornaments at,
+     * measured from the window's own outer top-left, or {@code nil} for anything that is not a window wearing
+     * the client's own decoration.
+     *
+     * <p>It reads the deco rather than the rule, which is the point: a {@code caption} or a {@code sizer} spot
+     * is what a theme <i>asked</i> for, and this is where the ornament went — the client's own constant when no
+     * rule names it, and the caption plate's box whether or not one does, since the plate is sized by the client
+     * from the caption's own width and a theme only says what it looks like.
+     *
+     * <p>A field is present only once its ornament has been drawn at least once: the plate's box is computed
+     * when a window first renders its caption, so a window built this instant answers without one.
+     */
+    private static LuaValue chromeTable(Widget w) {
+        if(!(w instanceof Window))
+            return LuaValue.NIL;
+        Window wnd = (Window)w;
+        UI u = AddonManager.ui;
+        Window.Deco d;
+        if(u == null)
+            d = wnd.deco;
+        else
+            synchronized(u) { d = wnd.deco; }
+        if(!(d instanceof Window.DefaultDeco))
+            return LuaValue.NIL;              // a window that built a decoration of its own: not ours to read
+        Window.DefaultDeco dd = (Window.DefaultDeco)d;
+        LuaTable t = new LuaTable();
+        if(dd.cap != null)
+            t.set("caption", xyTable(Px.out(dd.capc())));
+        if((dd.plsz.x > 0) && (dd.plsz.y > 0)) {
+            LuaValue pl = boxTable(Coord.z, dd.plsz);
+            // ...and whether the last frame painted it from a RULE rather than from the client's own art. The
+            // box is the client's either way, which is the whole division of labour; this is the other half.
+            pl.set("styled", LuaValue.valueOf(dd.platestyled));
+            t.set("plate", pl);
+        }
+        if(dd.dragsize)
+            t.set("sizer", xyTable(Px.out(dd.sizerc())));
+        if(dd.cbtn != null)
+            t.set("close", boxTable(dd.cbtn.c, dd.cbtn.sz));
         return t;
     }
 

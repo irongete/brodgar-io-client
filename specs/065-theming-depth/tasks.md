@@ -59,7 +59,7 @@ in stage A before any surface is routed against it.
       `[manual]`: expect the client's text in the file's face and its windows in the file's frame, with no
       Lua in the theme but the one line that loads it.
 
-- [ ] **065.4 — a theme says where the caption goes, what it sits on, and where the sizer is.**
+- [x] **065.4 — a theme says where the caption goes, what it sits on, and where the sizer is.**
       `window.frame` gains `caption{at, offset}` and `sizer{<art>, at, offset}`, parsed into `Chrome.Spot` —
       one of the nine corners plus an offset in design px — through the corner vocabulary extracted from
       `Layout.parseAnchor`. `SkinDeco.drawframe` places both; with no spec each falls back to `Window.cpo`

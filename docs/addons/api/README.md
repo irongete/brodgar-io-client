@@ -89,7 +89,7 @@ The verbs that act are on the pages of what they change — [`hafen.player`](pla
 | [keys](ui/style/keys.md) | site keys and tree keys: which surfaces a rule reaches, and what each honours |
 | [surfaces](ui/style/surfaces.md) | every surface the client ships, and what it does with a rule |
 | [text](ui/style/text.md) | `font` and `color` |
-| [chrome](ui/style/chrome.md) | `bg`, `border` and `padding` |
+| [chrome](ui/style/chrome.md) | `bg`, `border`, `padding`, and a window's ornaments |
 | [geometry](ui/style/geometry.md) | `pos`, `size` and `anchor` |
 
 ## The files your addon ships

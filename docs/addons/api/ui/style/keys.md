@@ -17,8 +17,8 @@ These are the sites the client draws at:
 | Key | What it styles |
 |---|---|
 | `*` | the global fallback — most UI text, and the cascade for every rule you do not write |
-| `window.title` | window captions |
-| `window.frame` | the window **chrome**: the frame drawn around a window and the surface it sits on. Draws no text, so it takes [`bg` and `border`](chrome.md) and [`padding`](chrome.md#padding), not `font` or `color` |
+| `window.title` | window captions, and the [**plate**](chrome.md#ornaments-the-caption-its-plate-and-the-sizer) they sit on |
+| `window.frame` | the window **chrome**: the frame drawn around a window, the surface it sits on, and where its [ornaments](chrome.md#ornaments-the-caption-its-plate-and-the-sizer) go. Draws no text, so it takes `bg`, `border`, `padding`, `caption` and `sizer`, not `font` or `color` |
 | `panel` | the window-**less** framed surfaces — the boxes around lists and info panes, the HUD portrait, party avatars, flower-menu petals, dropdown menus. Draws no text either; see [what a panel does with a rule](chrome.md#panels) |
 | `heading` | in-window section headings, the embossed fraktur ones |
 | `button` | button captions |
@@ -112,20 +112,29 @@ what the surface *does* with a property. First the two that write text:
 | any tree key | yes | **per surface** | [resolved per widget](#tree-keys) and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats unchanged: a rule on a window covers the window's own caption, where `font` works and `color` is inert. `:style()` reports the colour a rule set even where the surface then throws it away |
 | `widget:rule()` | yes | **per surface** | the same, one widget at a time and named by hand rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do* |
 
-And the three that draw the chrome. Two *kinds* of surface wear them, the window decoration and the
-window-less panels:
+And the three that draw the chrome. The surfaces that wear them are the window decoration, the caption
+plate inside it, and the window-less panels:
 
 | Key | `bg` | `border` | `padding` | Worth knowing |
 |---|---|---|---|---|
 | `window.frame` | yes | yes | yes | every window whose chrome is the client's own stock decoration. The only surface where `padding` and a border's insets actually **move** anything, because a window re-lays itself out |
+| `window.title` | yes | yes | **inert** | the two paint the caption **plate**, at the box the client sizes around the caption — [the ornaments](chrome.md#ornaments-the-caption-its-plate-and-the-sizer). The caption's own place is `window.frame`'s `caption`, so `padding` has nothing to move here |
 | `panel`, on a **boxed** panel | **inert** | yes | **inert** | the list and info boxes, the HUD portrait, party avatars, the map's view and marker list. A border drawn *around* content that is not the panel's, so a fill would bury it — [why](chrome.md#panels) |
 | `panel`, on a **self-painting** panel | yes | yes | **inert** | flower-menu petals, dropdown menus, an item-stock box: each paints its own surface before its contents, so a `bg` lands on it |
-| `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches `window.frame` **and** `panel`, each subject to its own row here. Text surfaces ignore it entirely and stay stock |
+| `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches `window.frame`, `window.title` **and** `panel`, each subject to its own row here. Text surfaces ignore it entirely and stay stock |
 | every other site key | **inert** | **inert** | **inert** | a text site has no surface of its own to paint and no layout of its own to move. Nothing is refused and nothing warns |
 | a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |
 | a tree key **matching a panel** | per panel | yes | **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `["window[title=…] @Frame"]` themes those panels alone. `bg` follows the same two panel rows above |
 | a tree key matching anything else | **inert** | **inert** | **inert** | readable back through `widget:style()`, but nothing else in the client wears chrome |
 | `widget:rule()` | per surface | per surface | per surface | exactly as the rows above, one widget at a time: on a window it dresses that window's frame, on a panel that panel's box, anywhere else it is inert |
+
+And the two that place a window's [ornaments](chrome.md#ornaments-the-caption-its-plate-and-the-sizer).
+One surface draws them, so this table is one row.
+
+| Key | `caption` | `sizer` | Worth knowing |
+|---|---|---|---|
+| `window.frame` | yes | yes | where the decoration puts the caption, and the sizer's own art and corner. A window that draws no sizer — which is nearly all of them — ignores the second |
+| every other key, `*` included | **inert** | **inert** | nothing else in the client draws a window's ornaments. Readable back through `:style()`, and inert everywhere it lands |
 
 > **A site key does not compose with `*` per property.** Within the site half of the cascade a key either
 > has a rule of its own or falls back to `*`; it does not take half of each. So `["*"] = {bg = …}` beside
