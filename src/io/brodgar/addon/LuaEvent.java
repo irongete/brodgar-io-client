@@ -92,10 +92,11 @@ public final class LuaEvent {
         /** {@code g:on("Up", fn)} — a mouse grab's release (041.5): {@code GRAB_MOVE} plus which button ended it. */
         GRAB_UP("grabup", "a grab's Up event answers :x() :y() :shift() :ctrl() :alt() :button()"),
         /**
-         * {@code w:on("Dragged", fn)} — the user finished dragging a widget by a handle
-         * {@code widget:draggable(h)} armed (062). Two things to say, and they are where the widget
-         * <b>landed</b>: the numbers {@code widget:position()} reads in that same frame, the client's own
-         * off-screen clamp included. Uncancelable — it reports a gesture that is already over.
+         * {@code w:on("Dragged", fn)} / {@code w:on("Resized", fn)} — the user finished dragging or resizing a
+         * widget by a handle {@code widget:draggable(h)}/{@code widget:resizable(h)} armed (062). Two things to
+         * say, and they are where the widget <b>landed</b>: the numbers {@code widget:position()} — or
+         * {@code widget:size()} — read in that same frame, the client's own off-screen clamp and a window that
+         * re-packs itself included. Uncancelable — it reports a gesture that is already over.
          */
         GESTURE("gesture", "a gesture event answers :x() :y()"),
         /**
@@ -402,11 +403,12 @@ public final class LuaEvent {
     }
 
     /**
-     * The {@code ev} for one {@code Dragged} fire ({@code w:on("Dragged", fn)}, 062) — {@code x}/{@code y} are
-     * the widget's own parent-relative coordinate <b>as it landed</b>, in the client's device pixels like
+     * The {@code ev} for one {@code Dragged}/{@code Resized} fire (062) — {@code x}/{@code y} are the widget's
+     * own parent-relative coordinate, or its outer box, <b>as it landed</b>, in the client's device pixels like
      * every other pair in this class, so {@link #px()}/{@link #py()} hand Lua exactly the numbers
-     * {@code widget:position()} reads. Minted per (addon, widget) fire, like {@link #input}: the caller is
-     * that owner's own {@link Subs} firing, so there is no gate left to skip minting for.
+     * {@code widget:position()} and {@code widget:size()} read. Minted per (addon, widget) fire, like
+     * {@link #input}: the caller is that owner's own {@link Subs} firing, so there is no gate left to skip
+     * minting for.
      */
     static LuaValue gesture(Addon owner, int x, int y) {
         return of(new LuaEvent(owner, Shape.GESTURE, (Subs.Cancel)null, (String)null, x, y, null, null));
@@ -798,9 +800,9 @@ public final class LuaEvent {
     }
 
     /**
-     * {@code w:on("Dragged", fn)} (062): where the widget landed, and nothing else. No modifiers — a drop is
-     * a place, and which keys were held while it happened is a question about the pointer
-     * ({@code hafen.ui():mouse()}) rather than about the widget that moved.
+     * {@code w:on("Dragged", fn)} / {@code w:on("Resized", fn)} (062): where the widget landed, or the box it
+     * landed at, and nothing else. No modifiers — a drop is a place, and which keys were held while it happened
+     * is a question about the pointer ({@code hafen.ui():mouse()}) rather than about the widget that moved.
      */
     private static void gesture(LuaTable m) {
         m.set("x", new VarArgFunction() {

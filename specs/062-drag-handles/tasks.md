@@ -48,7 +48,7 @@ the tasks that own each half, named in each below.
       on screen to move, because the suite's level holds the same landed value.
       <!-- extra context: src/haven/Window.java `drag`/`doff`; src/io/brodgar/addon/LuaMouseGrab.java -->
 
-- [ ] **062.2 — a handle resizes one, without moving its origin.**
+- [x] **062.2 — a handle resizes one, without moving its origin.**
       Adds `widget:resizable(h)`, the same three arities over the same `Gesture` with the mode switched:
       it writes `Moved.wantSize`/`sizeSeq` instead, the target's **top-left stays put**, and it never sizes
       below `(1, 1)`. Adds the `Resized` key beside `Dragged`. Covers the size half of the `GameUI.resize`

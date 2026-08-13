@@ -208,13 +208,14 @@ public final class Addon {
      */
     public final List<LuaWidget.Moved> movedNative = new CopyOnWriteArrayList<LuaWidget.Moved>();
     /**
-     * Widgets this addon has handed to the <b>user</b> to drag ({@code widget:draggable(h)}, 062) — one entry
-     * per (target, handle) pair, and one per target, since arming a target again is a change of handle rather
-     * than a second binding. What a gesture then <i>writes</i> is the layout level above ({@link #movedNative}),
-     * so this list holds the arming and nothing else: {@code widget:draggable(nil)} and
-     * {@code widget:revert()} drop an entry, and {@link Gesture#teardown} drops the rest on {@code :reload}/
-     * disable — ending a drag that is running at that moment and deafening the last listener on each handle.
-     * Copy-on-write like the lists above: a {@code Dragged} handler may arm or drop one.
+     * Widgets this addon has handed to the <b>user</b> to drag or resize ({@code widget:draggable(h)},
+     * {@code widget:resizable(h)}, 062) — one entry per (target, mode), since arming a target again in the same
+     * mode is a change of handle rather than a second binding, while the two modes are independent. What a
+     * gesture then <i>writes</i> is the layout level above ({@link #movedNative}), so this list holds the arming
+     * and nothing else: the two {@code nil} arities and {@code widget:revert()} drop an entry, and
+     * {@link Gesture#teardown} drops the rest on {@code :reload}/disable — ending a gesture that is running at
+     * that moment and deafening the last listener on each handle. Copy-on-write like the lists above: a
+     * {@code Dragged} or {@code Resized} handler may arm or drop one.
      */
     public final List<Gesture.Bind> gestures = new CopyOnWriteArrayList<Gesture.Bind>();
     /**

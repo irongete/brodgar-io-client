@@ -477,13 +477,13 @@ public final class LuaWidget {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "draggable"));
                 if(!Args.passed(a, 2)) {
-                    Widget h = (w == null) ? null : Gesture.handleOf(owner, w);
+                    Widget h = (w == null) ? null : Gesture.handleOf(owner, w, Gesture.Mode.DRAG);
                     return (h == null) ? LuaValue.NIL : of(owner, h);
                 }
                 LuaValue v = a.arg(2);
                 if(v.isnil()) {                       // w:draggable(nil) — drop OUR binding, and only ours
                     if(w != null)                     // a stale widget: the 029.2 chaining no-op
-                        Gesture.drop(owner, w);
+                        Gesture.drop(owner, w, Gesture.Mode.DRAG);
                     return self;
                 }
                 LuaWidget hh = resolve(v);
@@ -502,7 +502,51 @@ public final class LuaWidget {
                     throw new LuaError("widget:draggable(h) with the window ITSELF is what a Window's caption"
                         + " already does — pass a handle of your own (build one with :parent(win)) to drag it"
                         + " from somewhere else");
-                Gesture.arm(owner, w, hw);
+                Gesture.arm(owner, w, hw, Gesture.Mode.DRAG);
+                return self;
+            }
+        });
+        // resizable() / resizable(h) / resizable(nil) — 062: the SAME three arities as :draggable, over the same
+        // gesture with the other half of the layout level under it. The client gives this one to exactly one
+        // window in the game (the map, through DefaultDeco.dragsize), so almost nothing else on screen can be
+        // sized by the person using it.
+        //
+        // THE TOP-LEFT STAYS PUT, which is the client's own rule — Window.resize sizes and never places, which is
+        // why its single grip is the bottom right. So the gesture writes the SIZE half and only that, and it never
+        // goes under one design pixel each way: a box of nothing is a widget the user can no longer find.
+        //
+        // WHAT IT WRITES IS YOUR :size LEVEL, so widget:size() reads the box it landed at, widget:size(nil),
+        // widget:revert(), :reload and disable all give the stock box back, and a window that packs itself around
+        // its own contents makes the whole gesture INERT rather than an error — the same answer widget:size(w, h)
+        // gives on those windows, honoured and undone by the client before the write returns.
+        //
+        // There is no refusal for the target as its own handle here: a Window's caption drags it and nothing in
+        // the client's chrome resizes it from the whole frame, so `win:resizable(win)` says something new. Where
+        // the client's own corner sizer IS live, the two gestures both run and the last one to write wins.
+        m.set("resizable", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {        // :resizable() → narg 1 · (nil)/(h) → narg 2
+                LuaValue self = a.arg1();
+                Widget w = live(handle(self, "resizable"));
+                if(!Args.passed(a, 2)) {
+                    Widget h = (w == null) ? null : Gesture.handleOf(owner, w, Gesture.Mode.SIZE);
+                    return (h == null) ? LuaValue.NIL : of(owner, h);
+                }
+                LuaValue v = a.arg(2);
+                if(v.isnil()) {                       // w:resizable(nil) — drop OUR binding, and only ours
+                    if(w != null)                     // a stale widget: the 029.2 chaining no-op
+                        Gesture.drop(owner, w, Gesture.Mode.SIZE);
+                    return self;
+                }
+                LuaWidget hh = resolve(v);
+                if(hh == null)
+                    throw new LuaError("widget:resizable(h) expects a Widget — the handle the user presses to"
+                        + " resize this one. widget:resizable() reads it, widget:resizable(nil) drops it");
+                Widget hw = live(hh);
+                if(hw == null)
+                    throw new LuaError("widget:resizable(h): that handle has left the tree");
+                if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
+                    return self;
+                Gesture.arm(owner, w, hw, Gesture.Mode.SIZE);
                 return self;
             }
         });
@@ -1219,13 +1263,13 @@ public final class LuaWidget {
     // ---- widget:on(key, fn)'s vocabulary (041.3/041.4) --------------------------------------------------
 
     /**
-     * The keys every LIVE widget answers — the universal four inputs (041.3), Destroy (041.4), and the
-     * gesture key {@code widget:draggable(h)} arms (062). {@code Dragged} is here rather than beside a
-     * control's own capability keys because being dragged is a fact about a widget's <i>place</i>, and every
-     * widget has one.
+     * The keys every LIVE widget answers — the universal four inputs (041.3), Destroy (041.4), and the two
+     * gesture keys {@code widget:draggable(h)}/{@code widget:resizable(h)} arm (062). They are here rather
+     * than beside a control's own capability keys because being dragged or resized is a fact about a widget's
+     * <i>place</i> and its <i>box</i>, and every widget has both.
      */
     private static final String[] UNIVERSAL_KEYS =
-        { "MouseDown", "MouseUp", "MouseMove", "Wheel", "Destroy", "Dragged" };
+        { "MouseDown", "MouseUp", "MouseMove", "Wheel", "Destroy", "Dragged", "Resized" };
     /** The four keys ONLY an addon's own surface answers ({@code hafen.ui():widget()}/{@code :window()}). */
     private static final String[] SURFACE_KEYS = { "Draw", "Tick", "Drop", "Close" };
 
@@ -1234,7 +1278,7 @@ public final class LuaWidget {
      * depends on WHAT {@code w} is (a control's own capability, a surface, a container) rather than on a fixed
      * catalogue. A control notification comes first (there is at most one relevant interface a control
      * implements per verb — {@link Controls.Press}/{@link Controls.Change}/{@link Controls.Submit}/
-     * {@link Controls.Select}/{@link Controls.OnCell}), then the five keys every widget answers, then
+     * {@link Controls.Select}/{@link Controls.OnCell}), then {@link #UNIVERSAL_KEYS}, then
      * {@code ItemAdded}/{@code ItemRemoved} (any widget that is not one of the sixteen control adapters — a
      * {@link haven.Button} structurally never carries item children, a native window or an addon's own surface
      * might), then {@code Draw}/{@code Tick}/{@code Drop}/{@code Close} on an owned surface alone.

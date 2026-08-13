@@ -124,7 +124,9 @@ drag and `Dragged`, **2** the resize and `Resized`, **3** `:remember`.
 bindings and the arming listener — 062.1 wrote it, 2 switches its mode, 3 writes its landed values back)
 
 - `Layout.java` — 1, 2, 3 (`apply`, `Anchor.at`, `nextSeq`, `reapply`) · `UiApi.java` — 1, 2 (`fitc`,
-  `revert`) · `Args.java` — 1, 2, 3
+  `revert`) · `Args.java` — 1, 2, 3 · `Px.java` — 2, 3 (which side of the seam a level, a stored
+  record and an event's `ev:x()` each speak: `LuaEvent.px()` converts on the way out, so the emitter
+  hands it DEVICE)
 - `LuaMouse.java`, `LuaGrab.java`, `LuaMouseGrab.java` — 1, 2
 - `WidgetSubs.java`, `Subs.java` — 1, 2 · `Addon.java` — 1, 2, 3 (teardown, `revert()`, what a reload keeps)
 - `LuaEvent.java` — 2 (`Shape.GESTURE`, `gesture(owner, x, y)`) · `AddonRegistry.java` — 2, 3 (teardown order)

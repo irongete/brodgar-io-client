@@ -1,9 +1,9 @@
 # hafen.ui: placing, hiding and handing over the client's own widgets
 
-Four writes answer on a widget you do not own: `:position(x, y)` moves it, `:size(w, h)` resizes it,
-`:visible(false)` takes it off screen, and `:draggable(h)` hands the move to the **user**. All four are
-**unprotected** — client-side placement, not an action — and all four record what they found, so
-everything is given back when your addon goes away.
+These writes answer on a widget you do not own: `:position(x, y)` moves it, `:size(w, h)` resizes it,
+`:visible(false)` takes it off screen, and `:draggable(h)` and `:resizable(h)` hand the move and the box to
+the **user**. Every one of them is **unprotected** — client-side placement, not an action — and every one
+records what it found, so everything is given back when your addon goes away.
 
 ```lua
 local inv = hafen.ui():find("window[title=Inventory]")
@@ -11,6 +11,7 @@ inv:position(40, 200)     -- move it
 inv:size(300, 220)        -- resize its CONTENT; the chrome repacks around it
 inv:position(nil)         -- drop YOUR move: back to where the user had it
 inv:draggable(grip)       -- ...or let the user move it, by pressing a widget of yours
+inv:resizable(corner)     -- ...and size it, by pressing another
 ```
 
 `:destroy()` stays refused on a widget you do not own: that destroys the client's work rather than sits on
@@ -133,8 +134,72 @@ end)
 ```
 
 It is not cancelable: the gesture is over by the time you hear about it. And it does **not** fire for your
-own `w:position(x, y)`, so a handler cannot drive itself. When two addons have armed one widget, both
-handlers fire.
+own `w:position(x, y)`, so a handler cannot drive itself. A press that never moved the pointer is a click
+rather than a drag, and says nothing. When two addons have armed one widget, both handlers fire.
+
+## Letting the user resize it (unprotected)
+
+`w:resizable(h)` says **this widget can be resized, and here is what the user presses to resize it**. The
+client gives that gesture to exactly one window in the game — the map, by the small corner sizer in its
+frame — so nothing else on screen can be made bigger or smaller by the person using it.
+
+```lua
+local win = hafen.ui():find("window[title=Inventory]")
+local corner = hafen.ui():image():source(hafen.asset():get("corner.png")):parent(win)
+
+win:resizable(corner)     -- pressing the corner resizes the window
+win:resizable()           -- the corner back, the same Widget object you passed
+win:resizable(nil)        -- the window stops being resizable
+```
+
+**The top-left stays put.** A resize moves no origin — the client's own rule, which is why the map's single
+sizer is at the bottom right — so the widget grows away from its corner and the place you or the user gave
+it is untouched. That is also why there is no vocabulary of corners and edges here: one gesture, one
+handle, and [`w:position(x, y)`](#moving-and-resizing-unprotected) is where a place is said.
+
+**It never shrinks away to nothing.** One [design pixel](pixels.md) each way is the floor, because a widget
+with no box is one the user can no longer find, let alone grab.
+
+**A resize writes your `:size` level**, exactly as a drag writes your `:position` one. So `w:size()` reads
+the box it landed at, `w:size(nil)` puts the stock box back, `:reload` and disable do the same, and
+everything in [moving and resizing](#moving-and-resizing-unprotected) is true of a resize — including the
+asymmetry that makes `w:size()` a window's **outer** box while the gesture drives its **content**, and
+including the windows that pack themselves around their contents. On one of those the whole gesture is
+**inert**: the box is undone by the client as fast as the pointer writes it, and nothing raises.
+
+**Everything else the handle does, it does the same way**: the press
+[belongs to the gesture](#letting-the-user-drag-it-unprotected), it survives the pointer outrunning the
+handle and leaving the game window, it survives the client re-laying the screen out, and two addons may arm
+one widget and see it sized once. The one difference is the handle a window refuses — a window is refused as
+its own **drag** handle, since its caption already drags it, and accepted as its own **resize** handle,
+since nothing in the client's chrome does that. Where the map's own sizer is live, both gestures run and the
+last one to write wins.
+
+| Call | Does |
+|---|---|
+| `w:resizable()` | the handle **your** addon armed on it, or `nil`; never another addon's |
+| `w:resizable(h)` | arm it: pressing `h` resizes `w`. Arming again is a change of handle, not a second binding; chains |
+| `w:resizable(nil)` | drop your binding; chains |
+
+The two bindings are independent: one grip may drag a widget while another resizes it, and each `nil` drops
+only the one it names. `w:revert()` drops both, along with everything else your addon holds on that widget.
+The refusals are the drag's, one word along — a handle that is not a widget, or one that has left the tree,
+raises; a target that has left the tree is a silent no-op.
+
+### Knowing when one was resized
+
+`w:on("Resized", fn)` fires **once, on release**, and `ev:x()`/`ev:y()` answer the box the widget landed at
+— the same numbers `w:size()` reads in that frame, so on a window it is the **outer** box and not the
+content size the pointer drove.
+
+```lua
+win:on("Resized", function(ev)
+  hafen.log():write("window is now " .. ev:x() .. " by " .. ev:y())
+end)
+```
+
+Like `Dragged` it is not cancelable, it does not fire for your own `w:size(w, h)`, a press that never moved
+the pointer says nothing, and both addons hear it when two have armed one widget.
 
 ## Hiding a native widget carries a restore
 

@@ -113,7 +113,7 @@ on the window's close button. Keyboard input is not a widget option — a
 
 Your window and the client's are the same kind of object, so the rest of `hafen.ui` is about *its* widgets
 rather than yours: [naming one](../api/ui/selectors.md), [reading what is inside it](../api/ui/items.md),
-[moving it, hiding it or letting the user drag it](../api/ui/native.md), and
+[moving it, hiding it or letting the user drag and size it](../api/ui/native.md), and
 [standing your own window in its place](../api/ui/replace.md) — which is how you rebuild a piece of the
 client's interface without reimplementing what it does. Start from a selector, and use the
 [inspector](debugging.md#name-a-widget-you-are-pointing-at) to find one.

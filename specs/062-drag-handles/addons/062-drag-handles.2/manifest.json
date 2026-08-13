@@ -1,0 +1,9 @@
+{
+  "name": "062.2 — a handle resizes one, without moving its origin",
+  "id": "062-drag-handles.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 062.2: widget:resizable(h) in three arities, the size level a resize gesture writes, the Resized key, and a resize being inert on a window that packs itself.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

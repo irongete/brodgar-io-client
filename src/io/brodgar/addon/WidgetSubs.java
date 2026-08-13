@@ -32,9 +32,10 @@ import java.util.Set;
  * moments the buff/meter/equipment adapters read. Registered with {@link UiApi}'s flat watch list on the first
  * of the three, dropped on the last — the same {@code hasSub} gate every other emitter here has.
  *
- * <p><b>The other nine keys need nothing installed at all</b> — a control's {@code Pressed}/{@code Changed}/…
- * and a surface's {@code Draw}/{@code Tick}/{@code Drop}/{@code Close} fire from the Java method that already
- * runs (a click, a tick, a paint), straight into this record's {@link #subs} (via
+ * <p><b>The rest need nothing installed at all</b> — a control's {@code Pressed}/{@code Changed}/…, a
+ * surface's {@code Draw}/{@code Tick}/{@code Drop}/{@code Close} and the two gesture keys
+ * {@code Dragged}/{@code Resized} fire from the Java method that already runs (a click, a tick, a paint, a
+ * release), straight into this record's {@link #subs} (via
  * {@link Addon#widgetSubsOrNull}, which costs one map lookup and mints nothing for a widget nobody listens to).
  *
  * <p><b>One per (addon, widget), never shared across addons</b> (D-100 one level down, spec §R2's table):

@@ -62,6 +62,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:size()` | `{x=, y=}` | size, in [design pixels](pixels.md); for a window its **outer** box |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
 | `:draggable()` | Widget \| nil | the handle **your** addon armed for the user to drag it by, or `nil` — [`:draggable(h)` arms it](native.md#letting-the-user-drag-it-unprotected) |
+| `:resizable()` | Widget \| nil | the handle **your** addon armed for the user to resize it by, or `nil` — [`:resizable(h)` arms it](native.md#letting-the-user-resize-it-unprotected) |
 | `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, CheckBox, Window, TextEntry), else `nil` — `:text(s)` writes it, on [a control you built](controls/README.md#setters) or [one of the client's](edit.md#what-a-window-says) |
 | `:tooltip()` | string \| nil | the line that appears when the pointer rests on it, or `nil` — [`:tooltip(s)` writes it on a control you built](#tooltips-and-focus) |
 | `:focused()` | boolean | whether a keystroke would reach this widget — see [focus](#tooltips-and-focus) |
@@ -133,6 +134,7 @@ sub:off()
 | `Wheel` | `:x()` `:y()` `:amount()` `:preventDefault()` | yes | the wheel turns over it |
 | `Destroy` | — | no | it leaves the tree |
 | `Dragged` | `:x()` `:y()` | no | the user finished [dragging it](native.md#knowing-when-one-was-dragged) by a handle you armed |
+| `Resized` | `:x()` `:y()` | no | the user finished [resizing it](native.md#knowing-when-one-was-resized) by a handle you armed |
 
 `ev:x()`/`:y()` are widget-local [design pixels](pixels.md); `ev:button()` is 1 for left and 3 for right, present on
 `MouseDown` and `MouseUp` only; `ev:amount()` is the wheel delta. `ev:preventDefault()` stops the input
@@ -152,7 +154,7 @@ a borrowed [slider or scrollbar](controls/interactive.md#slider)'s `Changed` can
 
 ```lua
 label:on("Pressed", fn)
--- a Label has no event 'Pressed' — it has: MouseDown, MouseUp, MouseMove, Wheel, Destroy, Dragged
+-- a Label has no event 'Pressed' — it has: MouseDown, MouseUp, MouseMove, Wheel, Destroy, Dragged, Resized
 ```
 
 Subscribing on a **native** widget is released the same way as anywhere else — on `:reload` or disable, or
@@ -189,6 +191,7 @@ provoke the error.
 | `:columns(t)` | name a [table](lists.md#table)'s columns while it is being built | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:draggable(h)` | hand the move to the user, by a handle they press | **works** — [and what a drag writes is your position level](native.md#letting-the-user-drag-it-unprotected) |
+| `:resizable(h)` | hand the box to the user, by a handle they press | **works** — [and what a resize writes is your size level](native.md#letting-the-user-resize-it-unprotected) |
 | `:replace(view)` | **error** — a window you created is not one to stand in for | **works** — [put your own window in its place](replace.md) |
 | `:rule()` | restyle it and its subtree through your own level | **works**, same |
 
@@ -198,7 +201,7 @@ One of these writes is protected, and it is the one that is not client-side stat
 here changes only your own client, and every one of them restores.
 
 **Arity is the verb.** `w:position()` reads, `w:position(x, y)` writes and `w:position(nil)` drops your
-write; `w:size()`, `w:visible()` and `w:draggable()` are the same shape — with the one-number `w:size(w)`
+write; `w:size()`, `w:visible()`, `w:draggable()` and `w:resizable()` are the same shape — with `w:size(w)`
 as the arity a [control](controls/README.md#sizing)'s own art earns it — and so is every setter on
 `w:rule()`. That is why there is no `:move()`, no `:show()` and no `:hide()`: a value belongs in the
 argument, not the verb's name.
