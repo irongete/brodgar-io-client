@@ -66,9 +66,10 @@
   resource or a server id.
 - **FlowerMenu** — the radial right-click context menu, `FlowerMenu`
   (`@RName("sm")`). A choice is a **petal**; selected via `wdgmsg("cl", num)`.
-- **GItem / WItem** — `GItem` is the server-side item widget (has count
-  `num`, wear `meter`, tooltip info); `WItem` is its visible cell inside an
-  `Inventory`.
+- **GItem / WItem** — `GItem` is the server-side item widget (fields `num` and
+  `meter`, plus tooltip info); `WItem` is its visible cell inside an
+  `Inventory`, and the one that draws both icon numbers — from `info()` as much as
+  from those two fields (see `state.md`).
 - **ItemInfo** — the item metadata system, `ItemInfo`; `ItemInfo.Name`
   is the display name. Some info (quality) is server-shipped resource code, not a plain field.
 - **GOut** — the 2D drawing context, `GOut`, passed to `Widget.draw`:

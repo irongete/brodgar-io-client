@@ -48,8 +48,8 @@ is optional.
 |---|---|---|
 | `res` | string | resource name (stable identity) |
 | `name` | string | display name |
-| `num` | number | stack count (absent for a non-stack) |
-| `wear` | number | 0..100 wear or progress percentage (absent when 0) |
+| `quantity` | number | how many this one item is — the [number on its icon](ui/items.md#the-two-numbers-on-an-icon) (absent for one showing none) |
+| `progress` | number | `0..1`, the [arc](ui/items.md#the-two-numbers-on-an-icon) painted over the icon (absent for one painting none) |
 | `quality` | number | the quality the tooltip shows (absent for an item that has none) |
 | `contents` | table | what it holds, as the [Contents](#contents) snapshot (absent for an item holding nothing) |
 | `handle` | number | its server widget id, the number it is addressed by on the wire (absent once the item is gone) |

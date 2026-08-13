@@ -274,7 +274,7 @@ number or the map's exploration, and `wear` as what a surface does to a frame; a
 - `src/io/brodgar/addon/Retired.java` — 4, 5
 - `docs/addons/api/ui/items.md` — 1, 2, 3, 4, 5
 - `docs/addons/api/types.md` — 1, 2, 4, 5
-- `docs/client/state.md` — 1, 2, 4
+- `docs/client/state.md` — 1, 2, 4, 5 (its icon-numbers row is what says whether a wear class also paints the arc)
 - `docs/client/glossary.md` — 4
 - `docs/client/services.md` — 4
 - `DOCUMENTATION.md` — 1, 2, 3, 4, 5

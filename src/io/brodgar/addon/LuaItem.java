@@ -31,8 +31,8 @@ import java.util.Set;
 
 /**
  * An <b>Item object</b> — one thing inside a container ({@code widget:items()}) or on the cursor
- * ({@code hafen.player():hand():item()}), with what the client knows about it: its resource, its display name, a
- * stack count, wear, quality, and where it is sitting.
+ * ({@code hafen.player():hand():item()}), with what the client knows about it: its resource, its display name,
+ * how many it is, the arc over its icon, quality, and where it is sitting.
  *
  * <p><b>The intern key is the item widget's own identity, and that is the whole point of this type.</b>
  * An item has no content id; the server addresses it by a <i>widget id</i>, and a widget id is handed
@@ -45,7 +45,7 @@ import java.util.Set;
  * through the number.
  *
  * <p><b>A stale Item still answers.</b> {@code Widget.destroy()} unlinks the item without clearing it, so
- * {@code :res()}, {@code :name()}, {@code :num()} and {@code :quality()} go on reading the thing it was —
+ * {@code :res()}, {@code :name()}, {@code :quantity()} and {@code :quality()} go on reading the thing it was —
  * which is what makes a stashed {@code onItemRemoved} payload worth holding. What a stale item has no
  * answer for is <i>where</i> it is: {@code :cell()} is nil, {@code :slots()} is empty and
  * {@code :handle()} is nil, because the id is exactly the thing that is no longer its.
@@ -197,18 +197,22 @@ public final class LuaItem {
                 return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n);
             }
         });
-        // num() — how many are in the stack, or nil for a thing that is not a stack.
-        m.set("num", new OneArgFunction() {
+        // quantity() — HOW MANY THIS ONE ITEM IS (064.4): the number the icon shows, for a counted item
+        // (42 seeds of Hemp) and for a stack alike, and nil for one that shows none. On a stack it equals
+        // #item:contents():items(), because there the same number IS how many are inside.
+        m.set("quantity", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                int n = handle(self, "num").wdg.num;
-                return (n == -1) ? LuaValue.NIL : LuaValue.valueOf(n);
+                Integer n = quantity(handle(self, "quantity").wdg);
+                return (n == null) ? LuaValue.NIL : LuaValue.valueOf(n.intValue());
             }
         });
-        // wear() — the item's meter, 0..100, or nil when it carries none.
-        m.set("wear", new OneArgFunction() {
+        // progress() — THE ARC the client paints over the icon (064.4), 0..1, or nil for an item painting
+        // none. A fraction with no units: WItem.draw paints it as a wedge and the client cannot say "132 of
+        // 150" there, only how far round. The two absolute counts are item:durability(), which is other data.
+        m.set("progress", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                int w = handle(self, "wear").wdg.meter;
-                return (w > 0) ? LuaValue.valueOf(w) : LuaValue.NIL;
+                Double p = progress(handle(self, "progress").wdg);
+                return (p == null) ? LuaValue.NIL : LuaValue.valueOf(p.doubleValue());
             }
         });
         // quality() — the number the tooltip shows, or nil while the item's info resolves (and for the
@@ -575,6 +579,76 @@ public final class LuaItem {
         return any;
     }
 
+    // ---- the two numbers an item wears on its icon, each folded from its two sources ---------------------
+
+    /**
+     * {@code item:quantity()} — how many this one item <b>is</b>, or {@code null} for one showing no number
+     * (and while its info is still resolving).
+     *
+     * <p><b>Two sources, folded in one read</b>, which is the whole of why this verb exists: a server message
+     * writes {@link GItem#num}, and the item's own tooltip publishes a {@link GItem.NumberInfo} — and the icon's
+     * number is drawn from the <i>second</i> alone ({@code WItem.draw} paints {@code itemols}, the
+     * {@code OverlayInfo}s of {@code info()}, and reads {@code num} nowhere). Reading the field by itself
+     * therefore answers {@code nil} on the very items that visibly show a number. So the field answers when the
+     * server set it, and the published number answers otherwise, which makes the contract checkable by eye:
+     * <b>if you can see it on the icon, this answers it.</b>
+     *
+     * <p><b>What the published number counts is the implementor's, and the engine has no finer type</b>:
+     * {@code GItem.Amount} renders an amount, and the gilding tooltip renders how many gildings a piece of gear
+     * carries, {@code 0} included — both through the one {@code NumberInfo}. So this answers the number
+     * <i>drawn</i> and does not assert what it means, for the same reason {@code :contents()} covers a stack and
+     * a bucket with one type: guessing between them would answer confidently and wrongly.
+     */
+    static Integer quantity(GItem it) {
+        if(it == null)
+            return null;
+        if(it.num != -1)
+            return Integer.valueOf(it.num);
+        List<ItemInfo> info = info(it);
+        if(info == null)
+            return null;
+        GItem.NumberInfo n = ItemInfo.find(GItem.NumberInfo.class, info);
+        if(n == null)
+            return null;
+        try {
+            return Integer.valueOf(n.itemnum());
+        } catch(RuntimeException e) {   // published code, still resolving what it counts
+            return null;
+        }
+    }
+
+    /**
+     * {@code item:progress()} — the arc painted over the icon as a {@code 0..1} fraction, or {@code null} for an
+     * item painting none.
+     *
+     * <p><b>{@code WItem.draw} is the authority and this mirrors it exactly</b>, both halves and their order:
+     * the field {@link GItem#meter} when the server set it, and the item's published {@link GItem.MeterInfo}
+     * otherwise. The field is a percentage on the wire, so it is divided here — the one conversion in the fold,
+     * and the reason this can never answer a number above 1, which reading that field raw would give.
+     *
+     * <p>What the arc <i>measures</i> is the server's business: the client paints a wedge and cannot say
+     * <i>132 of 150</i> there. The two absolute counts an item's tooltip may print are {@code :durability()},
+     * and neither number converts into the other.
+     */
+    static Double progress(GItem it) {
+        if(it == null)
+            return null;
+        if(it.meter > 0)
+            return Double.valueOf(it.meter / 100.0);
+        List<ItemInfo> info = info(it);
+        if(info == null)
+            return null;
+        GItem.MeterInfo m = ItemInfo.find(GItem.MeterInfo.class, info);
+        if(m == null)
+            return null;
+        try {
+            double p = m.meter();
+            return (p > 0) ? Double.valueOf(p) : null;
+        } catch(RuntimeException e) {   // published code, still resolving what it measures
+            return null;
+        }
+    }
+
     /** The {@code q} field {@code c} inherits from the quality-tooltip class, or {@code null}. */
     private static synchronized Field qfield(Class<?> c) {
         if(qfields.containsKey(c))
@@ -608,10 +682,12 @@ public final class LuaItem {
         String name = CharApi.itemNameOf(it);
         if(name != null)
             t.set("name", LuaValue.valueOf(name));
-        if(it.num != -1)
-            t.set("num", LuaValue.valueOf(it.num));
-        if(it.meter > 0)
-            t.set("wear", LuaValue.valueOf(it.meter));
+        Integer n = quantity(it);
+        if(n != null)
+            t.set("quantity", LuaValue.valueOf(n.intValue()));
+        Double p = progress(it);
+        if(p != null)
+            t.set("progress", LuaValue.valueOf(p.doubleValue()));
         Double q = quality(it);
         if(q != null)
             t.set("quality", LuaValue.valueOf(q.doubleValue()));

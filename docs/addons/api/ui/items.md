@@ -7,7 +7,7 @@ registered. Reading is unprotected.
 
 ```lua
 for _, it in ipairs(hafen.ui():inventory():items()) do
-  hafen.log():write((it:name() or it:res() or "?") .. " x" .. (it:num() or 1))
+  hafen.log():write((it:name() or it:res() or "?") .. " x" .. (it:quantity() or 1))
 end
 
 local h = hafen.player():hand()                -- the cursor, or nil while it is empty
@@ -36,8 +36,8 @@ local cursor = h and h:item()                  -- the item on it
 |---|---|---|
 | `:res()` | string \| nil | resource name — the item's stable identity |
 | `:name()` | string \| nil | display name, once the item's tooltip has resolved |
-| `:num()` | number \| nil | stack count; `nil` for something that is not a stack |
-| `:wear()` | number \| nil | 0..100 wear or progress; `nil` when the item carries no meter |
+| `:quantity()` | number \| nil | [how many](#the-two-numbers-on-an-icon) this one item is — the number on its icon; `nil` for one showing none |
+| `:progress()` | number \| nil | [the arc](#the-two-numbers-on-an-icon) painted over the icon, `0..1`; `nil` for one painting none |
 | `:quality()` | number \| nil | the quality the tooltip shows; `nil` for an item that has none |
 | `:contents()` | [`Contents`](#what-an-item-holds) \| nil | what it holds; `nil` for an item holding nothing |
 | `:container()` | [`Item`](#the-item-object) \| nil | the item it sits **inside**; `nil` for one sitting in a container widget |
@@ -51,11 +51,36 @@ An item is **interned**, so `==` is the identity test and a stashed one keeps an
 the item itself and never on `:handle()`, because the server re-uses that number: a reference built on
 it would stop naming this item and start naming its replacement, silently. So an item that moves, is
 eaten or is consumed does not become something else — it goes **stale**: `:res()`, `:name()` and
-`:num()` still say what it was, `:exists()` is false, and `:cell()`, `:slots()` and `:handle()` are
+`:quantity()` still say what it was, `:exists()` is false, and `:cell()`, `:slots()` and `:handle()` are
 empty, because where it is is exactly what it no longer has.
 
 > The verbs below take the object, never the number. A stale one raises an error and sends nothing,
 > rather than moving whatever took its place.
+
+## The two numbers on an icon
+
+An item wears up to two numbers where you can see them: a **count** in the corner and an **arc** drawn
+round the middle. Each has two sources — a field a server message writes, and the item's own tooltip —
+and the client falls back from one to the other as it paints. `:quantity()` and `:progress()` fold the
+same two sources in the same order, which makes one contract hold for both: **if you can see it on the
+icon, the verb answers it.** An item showing neither answers `nil` to both, and so does one whose
+tooltip has not resolved yet.
+
+`:quantity()` is usually how many this one item **is**. A counted item (`42 seeds of Hemp`) is one thing
+with one quality and no parts, so it holds nothing and this is the only count it has; a stack draws the
+same number for what is inside it, where it agrees with `#item:contents():items()`.
+
+**What the count counts is the item's own business, and it is not always a quantity.** The client has one
+way to put a number on an icon, and the code shipped with an item decides what to put there: gildable gear
+draws how many gildings it carries, `0` included. So the verb answers what is drawn — read it beside
+`:res()` when you need to know what you are counting, rather than assuming every number is an amount.
+
+`:progress()` is a **fraction with no units**. The client paints a wedge and can say how far round it
+went, never how many of how many, so the verb names the arc rather than a magnitude — what it measures
+is the server's business, and an item may paint one for a craft in flight as readily as for wear.
+
+> `item:progress()` **reads a number**. The [progress bar](controls/display.md#progress-bar) that
+> `hafen.ui():progress()` builds is a control you put on the screen; the two share a name and nothing else.
 
 ## What an item holds
 

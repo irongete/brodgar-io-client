@@ -1,0 +1,9 @@
+{
+  "name": "064.4 - two reads answer what the client draws",
+  "id": "064-item-contents.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 064.4: item:quantity() and item:progress(), and the two retired spellings that raise.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

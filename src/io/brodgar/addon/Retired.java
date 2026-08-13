@@ -501,14 +501,31 @@ final class Retired {
             + " first; it still needs the 'craft.make' permission");
 
         // ---- the Item entity: the snapshot's two PLACE fields become the two verbs that say which you meant ----
-        // The rest of the old table's keys (`res`, `name`, `num`, `wear`, `handle`) are live verbs, so a dotted
-        // read of one silently hands back the METHOD rather than throwing — there is no metamethod that can tell
-        // `it.name` from `it:name()`. These two can be caught, because nothing answers to their old spelling.
+        // The rest of the old table's keys (`res`, `name`, `handle`) are live verbs, so a dotted read of one
+        // silently hands back the METHOD rather than throwing — there is no metamethod that can tell `it.name`
+        // from `it:name()`. These two can be caught, because nothing answers to their old spelling.
         put("item:pos", "an item's place is two verbs now, because a backpack cell and an equipment slot are"
             + " not one shape: item:cell() is the {x, y} grid cell it sits in, and item:slots() names the"
             + " equipment slots it fills (a worn item can fill more than one)");
         put("item:slot", "item:slots() names the equipment slots this item fills — a list, because one worn"
             + " item can fill several, and the names are the ones the equipment window shows");
+
+        // ---- 064.4: the two reads that answer WHAT THE CLIENT DRAWS. Both old verbs read one field each, and
+        // ---- the icon is painted from the item's published tooltip info as well, so each answered nil on the
+        // ---- very items that visibly show the thing it named. The replacements fold both sources in the order
+        // ---- WItem.draw folds them.
+        put("item:num", "item:num() is now item:quantity(), which answers the number the icon SHOWS rather"
+            + " than the one field the server happens to have written: a counted item (42 seeds of Hemp) and a"
+            + " stack alike, and nil for one showing none. On a stack it equals #item:contents():items(), the"
+            + " things it counts");
+        // The one retired verb that CANNOT name a single replacement: it was two things at once behind a name
+        // belonging to neither, so the message names both and says which is which.
+        put("item:wear", "item:wear() is retired and has TWO replacements, because it was two different"
+            + " things behind one name. item:progress() is the ARC the client paints over the icon — a"
+            + " fraction with no units, spelled 0..1 like every other fraction in the API (the old 0..100"
+            + " went with the name). item:durability() is the two ABSOLUTE counts the item's tooltip prints,"
+            + " {cur, max}, which is the only pair that says what is left. Neither converts into the other,"
+            + " and an item may answer both");
 
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
         put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"

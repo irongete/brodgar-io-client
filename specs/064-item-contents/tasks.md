@@ -48,7 +48,7 @@
       Then move the whole stack to another container — expect exactly one `ItemRemoved`, for the
       stack, and not one per thing inside it.
 
-- [ ] **064.4 — two reads answer what the client draws.** Retires `item:num()` and `item:wear()`
+- [x] **064.4 — two reads answer what the client draws.** Retires `item:num()` and `item:wear()`
       through `Retired`, the second naming **both** replacements and which is which. Adds
       `item:quantity()`, reading `GItem.num` when it is not `-1` and `GItem.NumberInfo.itemnum()`
       otherwise, and `item:progress()`, mirroring `WItem.draw` — `item.meter / 100.0` when `meter`
