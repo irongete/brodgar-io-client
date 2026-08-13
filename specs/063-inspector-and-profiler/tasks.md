@@ -48,7 +48,7 @@
       one — nothing is cached. A label and a window both answer `nil`. Refusal: `w:picture("x")` raises,
       and the message names `widget:res()` and `widget:image()` as the two neighbours it is not.
 
-- [ ] **063.4 — The inspector says everything the widget will answer.** `addons/widgetstack/main.lua`
+- [x] **063.4 — The inspector says everything the widget will answer.** `addons/widgetstack/main.lua`
       grows one `describe(w)` driver — a fixed order of `pcall`ed reads, a line emitted only where the
       read answered — shared by the hover panel and every Inspector window: `:picture()`, `:tooltip()`,
       `:value()`, `:range()`, `:rows()`, `:rowHeight()`, `:cell()`, `:columns()`, `:source()`,

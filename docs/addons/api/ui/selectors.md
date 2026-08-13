@@ -186,6 +186,19 @@ re-hovers.
 > role `nil`) and not to the `Window`. Address the deco with a chain, `window[title=…] @DefaultDeco`; for
 > the window itself, click one level up in the stack, or write `window[title=…]`.
 
+## What the inspector says a widget answers
+
+Under the selector list sits the other half: every [read](widget.md#read) that has something to say about
+the widget you are pointing at, in one fixed order, in the hover panel and in an inspector window alike.
+A read answering `nil`, an empty collection or a plain `false` prints **no line**, so what you are looking
+at is what the widget *has* — a window's close button is one `picture:` line, a plain label is none at all.
+
+Some of those reads — `:range()`, `:rows()`, `:rowHeight()`, `:cell()`, `:columns()`, `:source()` and
+`:image()` — answer a [control](controls/README.md)'s own configuration, which belongs to the addon that
+**built** it. Over one of the client's own controls they say nothing, which is the honest answer rather
+than a guess at one. `:picture()`, `:tooltip()`, `:value()`, `:items()`, `:focused()` and `:style()` answer
+on any widget in the tree, whoever put it there, so those are the lines you read off the client's own UI.
+
 ## Hold the result
 
 Every lookup walks its whole scope — the client's tree for `hafen.ui():find` and `:all`, one widget's

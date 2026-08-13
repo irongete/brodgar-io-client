@@ -20,7 +20,10 @@ inspector is [selectors](api/ui/selectors.md) end to end, the profiler is
 
 The inspector. It shows the live stack of widgets under the cursor, outlines the hovered one, and opens a
 browsable window for any of them: type, id, position, size, text, [role](api/ui/selectors.md#roles),
-resource, parent and children. Its selector panel answers the question the
+resource, parent, children, and
+[everything else the widget answers](api/ui/selectors.md#what-the-inspector-says-a-widget-answers) — the
+picture it shows, the tooltip it carries, what it holds — a line each, and none for a read with nothing to
+say. Its selector panel answers the question the
 [selector grammar](api/ui/selectors.md) is useless without — what is this widget, and how do I name
 it? — by offering every selector it can build from what the widget is, each one resolved before it is shown
 and ready to paste into `:lua`. It builds **chains**, anchoring on the captioned window a widget sits in,

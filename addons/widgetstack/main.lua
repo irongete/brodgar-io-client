@@ -54,6 +54,11 @@
 -- inspector window. Freeze the stack first (the "freeze" hotkey) so it holds still while you move the mouse
 -- into the window to click a row. That hotkey starts UNBOUND: assign it under Options > Keybindings >
 -- Widgetstack (suggested: Ctrl+Shift+F).
+--
+-- 063.4 -- WHAT IT ANSWERS. Under both of those sits the read block: everything the widget will answer about
+-- ITSELF, driven off ONE table in ONE fixed order (see READS) so the hover panel and every Inspector window
+-- print the same lines in the same places. A line appears only where the read answered something, so what
+-- you are looking at is what the widget HAS -- see describe().
 
 hafen.log():write("widgetstack loaded")
 
@@ -62,6 +67,7 @@ local overlay             -- the HUD overlay handle drawing the highlight box
 local last                -- the Widget object we last built the stack for (the guard's memory)
 local rows = {}           -- the current stack, LEAF-FIRST: { {node,type,id,text,w,h}, ... }
 local insp                -- the selector report for the hovered leaf (see selectorsFor)
+local reads = {}          -- 063.4: the read block for the hovered leaf (see describe)
 local hoverPos            -- { x=, y= } the hovered leaf's top-left in root coords (highlight box)
 local hoverSize           -- { x=, y= } its size
 local rebuilds = 0        -- how many times we rebuilt the stack (proves the `==` guard: it should NOT
@@ -238,18 +244,124 @@ local function selectorsFor(w)
   return rep
 end
 
+-- ================================================================================ the read driver (063.4)
+-- Everything a widget will answer about ITSELF, as ONE table in ONE fixed order -- shared by the hover panel
+-- and by every Inspector window, so a line means the same thing and sits in the same place wherever you read
+-- it. Each entry is { key, read, format }:
+--   * the READ is pcall'ed, so a widget that refuses one still reports the other thirteen;
+--   * the FORMAT turns the answer into the text of the line, and a format that produces NOTHING produces no
+--     line. That is the whole gate. nil is silence, an empty collection is silence, and a plain `false` is
+--     silence -- the block lists what the widget HAS, and a column of "nil" would say nothing at all about
+--     the thing under the cursor while burying the two lines that do.
+-- Seven of them -- :range() :rows() :rowHeight() :cell() :columns() :source() :image() -- read a control's
+-- own adapter, which belongs to the addon that BUILT the control. They speak over a control of your own and
+-- stay silent over the client's, which is the honest answer rather than a guess at one.
+-- `owned` is w:info().owned: the provenance is a field of the snapshot, not a verb of its own.
+
+local READ_MAXROWS = 8            -- lines the block draws before it says how many it clipped
+
+local function faceName(v)
+  return (type(v) == "string") and v or "(an asset of your own)"
+end
+
+-- The first `n` entries of an array, as text. A row may be a string or a {icon=, text=} table, and a column
+-- descriptor a {title=, width=, of=} one, so each element is asked for the word it displays.
+local function join(t, n)
+  local parts = {}
+  for i = 1, math.min(#t, n) do
+    local v = t[i]
+    parts[#parts + 1] = (type(v) == "table") and tostring(v.text or v.title or "?") or tostring(v)
+  end
+  if #t > n then parts[#parts + 1] = "..." end
+  return table.concat(parts, ", ")
+end
+
+-- The keys a table actually carries, sorted -- a style's properties, a button's faces. `#` is 0 on all of
+-- them: they are records, not arrays.
+local function keysOf(t)
+  local out = {}
+  for k in pairs(t) do out[#out + 1] = tostring(k) end
+  table.sort(out)
+  return table.concat(out, ", ")
+end
+
+local function fmtHeld(v)         -- what a control HOLDS: a boolean, a number, a string, or a picked row
+  if type(v) == "string" then return "'" .. v .. "'" end
+  if type(v) == "table" then return v.text and ("'" .. tostring(v.text) .. "'") or "(a row)" end
+  return tostring(v)
+end
+
+local READS = {
+  { "picture",   function(w) return w:picture() end,   tostring },
+  { "tooltip",   function(w) return w:tooltip() end,   function(v) return "'" .. v .. "'" end },
+  { "value",     function(w) return w:value() end,     fmtHeld },
+  { "range",     function(w) return w:range() end,     function(v) return ("%s..%s"):format(v.min, v.max) end },
+  { "rows",      function(w) return w:rows() end,      function(v) return ("%d -- %s"):format(#v, join(v, 4)) end },
+  { "rowHeight", function(w) return w:rowHeight() end, tostring },
+  { "cell",      function(w) return w:cell() end,      function(v) return ("%dx%d"):format(v.w, v.h) end },
+  { "columns",   function(w) return w:columns() end,   function(v) return ("%d -- %s"):format(#v, join(v, 4)) end },
+  { "source",    function(w) return w:source() end,    faceName },
+  { "image",     function(w) return w:image() end,
+                 function(v) return ("up %s   [%s]"):format(faceName(v.up), keysOf(v)) end },
+  { "items",     function(w) return w:items() end,
+                 function(v) return (#v > 0) and (#v .. " inside") or nil end },
+  { "focused",   function(w) return w:focused() end,
+                 function(v) return v and "yes -- a keystroke reaches it" or nil end },
+  { "owned",     function(w) local i = w:info(); return i and i.owned end,
+                 function(v) return v and "yes -- this addon built it" or nil end },
+  { "style",     function(w) return w:style() end,     function(v) return keysOf(v) end },
+}
+
+-- describe(w) -> the array of "key: value" lines, in the order above. Costs no tree walk of its own except
+-- :items(), which traverses the widget's OWN subtree -- so it is built when the hover CHANGES and when an
+-- Inspector opens, beside the selector report, and never per frame.
+local function describe(w)
+  local out = {}
+  for i = 1, #READS do
+    local r = READS[i]
+    local ok, v = pcall(r[2], w)
+    if ok and (v ~= nil) then
+      local shown, s = pcall(r[3], v)
+      if shown and s and (s ~= "") then
+        out[#out + 1] = ellipsis(("%s: %s"):format(r[1], s), 60)
+      end
+    end
+  end
+  return out
+end
+
+-- The block, drawn identically in both windows: a divider, a header that says how many lines there are (or
+-- that there are none), the lines, and the count of any it had to clip.
+local function drawReads(g, width, lines, headY, rowY)
+  g:color(90, 90, 90); g:frect(6, headY - 8, width - 12, 1); g:color()
+  g:color(170, 170, 170)
+  g:text((#lines == 0) and "it answers none of the widget reads"
+                        or ("what it answers (%d):"):format(#lines), 6, headY)
+  g:color()
+  for i = 1, math.min(#lines, READ_MAXROWS) do
+    g:text(lines[i], 10, rowY + (i - 1) * LINE)
+  end
+  if #lines > READ_MAXROWS then
+    g:color(120, 120, 120)
+    g:text(("... (+%d more)"):format(#lines - READ_MAXROWS), 10, rowY + READ_MAXROWS * LINE)
+    g:color()
+  end
+end
+
 -- ============================================================================================ the inspector
 
 local openInspector       -- forward decl (it recurses: a child/parent click opens another inspector)
 local inspCascade = 0     -- cascade new inspector windows so they don't land exactly on top of each other
 
 -- Inspector layout constants (shared by its Draw + MouseDown handlers so a click maps to the same row it drew).
-local I_W, I_H       = 470, 344       -- 049.4: wide enough for a chain candidate on one line
+local I_W, I_H       = 470, 410       -- 049.4: wide enough for a chain candidate on one line
 local I_ROLE_Y       = 62         -- role / res
 local I_SEL_Y        = 76         -- the widget's selector (resolved ONCE, when the window opens)
 local I_PARENT_Y     = 92         -- the clickable "parent" link row
 local I_CHILD_Y0     = 122        -- first child row
-local I_MAXROWS      = math.floor((I_H - I_CHILD_Y0) / LINE)   -- children that fit before clipping
+local I_MAXROWS      = 8          -- children that fit above the read block (063.4)
+local I_READ_HEAD    = 260        -- 063.4: the read block, on a band of its own so the click map above it
+local I_READ_Y0      = 276        -- is the same arithmetic it always was
 
 local function fmtCoord(c) return c and ("(" .. c.x .. "," .. c.y .. ")") or "-" end
 local function fmtSize(c)  return c and (c.x .. "x" .. c.y) or "-" end
@@ -257,7 +369,9 @@ local function fmtSize(c)  return c and (c.x .. "x" .. c.y) or "-" end
 openInspector = function(node)
   if not node then return end
   inspCascade = (inspCascade + 1) % 10
-  local st = { node = node, sel = selectorsFor(node) }   -- the selector is static enough to resolve once
+  -- Both of these are resolved ONCE, when the window opens: the selector costs a fistful of tree walks, and
+  -- describe()'s :items() traverses this widget's own subtree. Everything else the window draws is read live.
+  local st = { node = node, sel = selectorsFor(node), reads = describe(node) }
   local st_sel = st.sel
 
   st.win = hafen.ui():window()
@@ -314,6 +428,7 @@ openInspector = function(node)
         g:text(("... (+%d more)"):format(#kids - I_MAXROWS), 10, I_CHILD_Y0 + I_MAXROWS * LINE)
         g:color()
       end
+      drawReads(g, w, st.reads, I_READ_HEAD, I_READ_Y0)      -- 063.4: what this widget answers
       g:color(120, 120, 120); g:rect(0, 0, w, h); g:color()
   end)
   st.win:on("Close", function() end)   -- bridge-owned: also destroyed on :reload/disable
@@ -324,7 +439,7 @@ openInspector = function(node)
       if st_sel.offer then hafen.log():write(pasteLine(st_sel.offer)) end
     elseif y >= I_PARENT_Y and y < I_PARENT_Y + LINE then       -- parent link
       openInspector(n:parent())
-    elseif y >= I_CHILD_Y0 then                                 -- a child row
+    elseif y >= I_CHILD_Y0 and y < I_CHILD_Y0 + I_MAXROWS * LINE then   -- a child row (never the read block)
       local idx = math.floor((y - I_CHILD_Y0) / LINE) + 1       -- 1-based
       local kids = n:children()
       if idx >= 1 and idx <= math.min(#kids, I_MAXROWS) then
@@ -358,6 +473,7 @@ local function rebuild()
   end
   rows = out
   insp = last and selectorsFor(last) or nil     -- 030.3: the selector report for the hovered leaf
+  reads = last and describe(last) or {}         -- 063.4: and everything that leaf answers about itself
   walks = insp and insp.walks or 0
   -- The highlight box tracks the leaf. Suppress it when the leaf is the root widget (hovering "nothing"
   -- resolves to the full-screen root -- faithful, but a whole-screen box is just noise).
@@ -395,6 +511,11 @@ local P_HEAD    = PANEL_Y0 + 60
 local SEL_Y0    = PANEL_Y0 + 76
 local SEL_MAXROWS = 7                                    -- role+class+[title=] is 7 combinations: it fits whole
 local SEL_COUNT_X = 400                                  -- the right-hand "n matches, #i" column
+-- 063.4: the read block, on a band of its own BELOW the offer line. The offer floats (see drawPanel), and
+-- the lowest it can land is SEL_Y0 + 8*LINE + 8 = 380 -- so this band starts clear of it whatever the
+-- candidate list came to, and the stack window's own click map above it is untouched.
+local READ_HEAD = 406
+local READ_Y0   = 422
 
 local function drawPanel(g, w, h)
   g:color(90, 90, 90); g:frect(6, PANEL_Y0 - 8, w - 12, 1); g:color()      -- divider
@@ -488,6 +609,7 @@ local function drawStack(g, w, h)
     end
   end
   drawPanel(g, w, h)
+  drawReads(g, w, reads, READ_HEAD, READ_Y0)                       -- 063.4: what the hovered widget answers
   g:color(150, 150, 120)
   g:text("click a row to inspect / a selector to log it (the freeze hotkey holds it)", 6, h - 16)
   g:color(120, 120, 120); g:rect(0, 0, w, h); g:color()            -- 1px border
@@ -504,7 +626,7 @@ local function stackClick(ev)
     local k = math.floor((y - STACK_Y0) / LINE)
     local r = rows[shown - k]
     if r and r.node then openInspector(r.node) end
-  elseif y >= SEL_Y0 and insp then
+  elseif y >= SEL_Y0 and y < READ_HEAD - 8 and insp then    -- the panel's own band: the read block is inert
     local k = math.floor((y - SEL_Y0) / LINE) + 1
     local c = insp.cands[k]
     if (k <= SEL_MAXROWS) and c then
@@ -527,7 +649,7 @@ hafen.event():on("EnterWorld", function()
   if not win then
     win = hafen.ui():window()
       :title("Widget Stack")
-      :size(580, 442)                 -- 049.4: a chain candidate is a long line, and the panel grew a row
+      :size(580, 574)                 -- 049.4: a chain candidate is a long line; 063.4: and the read block
       :position(60, 60)
     -- widget:on(key, fn) hands back a SUB, not the widget (041.3), so none of these can sit mid-chain above.
     win:on("Draw", function(ev) drawStack(ev:g(), ev:w(), ev:h()) end)

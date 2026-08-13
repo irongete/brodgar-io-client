@@ -1,0 +1,9 @@
+{
+  "name": "063.4 — the inspector says everything the widget will answer",
+  "id": "063-inspector-and-profiler.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 063.4: every read the inspector's describe() driver prints answers on the widget that has it and nil on one that has not, and the selector the panel offers resolves back to that widget.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

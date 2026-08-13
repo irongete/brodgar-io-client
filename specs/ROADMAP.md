@@ -17,6 +17,7 @@
 - `widget:on("Destroy", fn)` stays silent for one of the CLIENT's widgets inside a window that is destroyed: only an addon's own are reported from the disposal recursion (filed: 061)
 - the post-apply `uimsg` tap carries no args, so re-reading the widget is the only way to learn what the server wrote — a rewrite to the string a level already holds is indistinguishable from no rewrite (filed: 061)
 - `widget:range()` reads `nil` on a BORROWED slider or scrollbar, so `widget:value(v)` can drive one but nothing can read the bounds it clamps into (filed: 061)
+- the rest of that family — `:rows()`, `:rowHeight()`, `:cell()`, `:columns()`, `:source()`, `:image()` — reads through the owned adapter alone too, so the inspector reports no configuration at all for one of the client's own lists, pictures or icon buttons (filed: 063)
 - a `haven.Progress` is only ever server-placed, so `widget:value(v)`'s refusal on one has no target a suite can reach (filed: 061)
 - `widget:position(x, y)` writes through `Widget.move` and reads back `c`, so on a widget that overrides `move` — the chat, whose argument is its BASE — the pair does not round-trip and a drag lands its own height off (filed: 062)
 - the stock half of a layout record is an absolute value taken at the first touch, so `widget:position(nil)`/`:size(nil)` after the client has re-laid the screen out restores a place or a box fitted to the OLD screen, and it stands until the client's next re-layout (filed: 062)
