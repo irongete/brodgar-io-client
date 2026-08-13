@@ -68,13 +68,13 @@ That is a look whose Lua never names a surface, a font, a size, a
 colour or a pixel. **Every value a rule takes has a spelling a file can carry**: a colour is an array, a
 border's slice is four numbers, a `padding` is one or four, an
 [anchor](geometry.md#anchor) is a corner and an offset — as is the place a window's
-[caption](chrome.md#ornaments-the-caption-its-plate-and-the-sizer) is drawn at — a picture is named by its
+[caption](chrome.md#ornaments) is drawn at — a picture is named by its
 [path or its resource](chrome.md#naming-a-picture), and a face is named the
 [same two ways](text.md#font) — `{builtin = "mono"}` or `{asset = "fonts/Inter.ttf"}`. Nothing in the
 document is a handle, so a whole client look, windows and typography included, is a file and one command.
 
 Inside a loaded table the properties are the setter names: `font`, `color`, `bg`, `border`, `padding`,
-`caption`, `sizer`, `position`, `anchor`, `size`. An unknown one is an **error** naming the ones that exist, and so is a rule
+`caption`, `sizer`, `close`, `position`, `anchor`, `size`. An unknown one is an **error** naming the ones that exist, and so is a rule
 that says both `position` and `anchor` — two spellings of [one property](geometry.md#anchor), and in a table
 there is no *later* to pick the winner.
 
@@ -96,8 +96,9 @@ Each is a setter that returns the rule, and each reads back with no argument.
 | `rule:bg(t)` | one [surface](chrome.md#naming-a-picture), or an array of them | what something is painted on, one layer or several — see [chrome](chrome.md) |
 | `rule:border(t)` | `{<art>, slice = {l, t, r, b}}` **or** `{box = "gfx/hud/wnd"}` | your own 9-slice frame, or one of the client's own — see [chrome](chrome.md#border) |
 | `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, one number for all four sides or `(l, t, r, b)` — see [`padding`](chrome.md#padding) |
-| `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](chrome.md#ornaments-the-caption-its-plate-and-the-sizer) |
-| `rule:sizer(t)` | a [surface](chrome.md#naming-a-picture) with an `at` | the corner grip a resizable window draws, and where — see [ornaments](chrome.md#ornaments-the-caption-its-plate-and-the-sizer) |
+| `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](chrome.md#ornaments) |
+| `rule:sizer(t)` | a [surface](chrome.md#naming-a-picture) with an `at` | the corner grip a resizable window draws, and where — see [ornaments](chrome.md#ornaments) |
+| `rule:close(t)` | a [surface](chrome.md#naming-a-picture) with `hover`, `pressed`, `at` and `offset` | the button that closes a window, and which corner it sits in — see [ornaments](chrome.md#ornaments) |
 | `rule:position(x, y)` | [design px](../pixels.md) | where the widget sits inside its parent — **tree keys only**, see [geometry](geometry.md) |
 | `rule:anchor(t)` | `{to =, at =, offset =}` | the same place said as a relationship — see [`anchor`](geometry.md#anchor) |
 | `rule:size(w, h)` | [design px](../pixels.md) | how big it is; a window's *content* size — **tree keys only**, see [geometry](geometry.md) |
@@ -187,8 +188,8 @@ patch.
 **What one sheet reaches.** *Which* — any render site the client draws text or chrome at (the
 [site keys](keys.md#site-keys)), any widget a [selector](../selectors.md) names, and any single widget you
 point at with `widget:rule()`. *What* — the text (`font`, `color`), the surfaces that paint (`bg`,
-`border`), the room around content (`padding`), where a window's decoration puts its ornaments (`caption`,
-`sizer`), and where a widget is and how big (`position`, `size`, `anchor`). *How* — resolved [per property](#the-cascade), applied live, owned by your addon and reversible
+`border`), the room around content (`padding`), what a window's decoration draws its ornaments as and where
+it puts them (`caption`, `sizer`, `close`), and where a widget is and how big (`position`, `size`, `anchor`). *How* — resolved [per property](#the-cascade), applied live, owned by your addon and reversible
 to the pixel; and since a rule is only values, a whole look can [come from a **file**](#a-sheet-from-data)
 rather than from code.
 

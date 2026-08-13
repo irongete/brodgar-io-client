@@ -322,6 +322,24 @@ public final class LuaRule {
                 return self;
             }
         });
+        // close{<art>, hover=, pressed=, at=, offset=} — the button a window's decoration draws in a corner
+        // (065.5). Its art is a surface like every other, with the two faces a button wears riding INSIDE the
+        // value rather than in the selector; its `at`/`offset` place the button itself. The two halves are
+        // independent, so either alone is a rule, and with neither the client's own button sits where it sits.
+        m.set("close", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaRule r = handle(self, "close");
+                Sheet.Props cur = r.read(owner);
+                LuaValue v = Args.written(a, 2, r.where() + ":close", "close");
+                if(v == null)
+                    return ((cur == null) || (cur.close == null)) ? LuaValue.NIL : cur.close.toLua(owner);
+                Sheet.Props p = r.edit(owner);
+                p.close = Chrome.parseClose(owner, r.where(), ".close", v);
+                r.commit(owner, p);
+                return self;
+            }
+        });
         // position(x, y) — where the matched widget sits inside its parent, in raw px (036.2). It is the anchor
         // whose target is the widget's own parent, at its top-left, so it and :anchor() are the same slot: the
         // later of the two wins, and the one that was not written reads nil.

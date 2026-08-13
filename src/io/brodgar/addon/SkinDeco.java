@@ -4,8 +4,12 @@ import haven.Area;
 import haven.Coord;
 import haven.Fonts;
 import haven.GOut;
+import haven.IButton;
+import haven.TexI;
 import haven.Widget;
 import haven.Window;
+
+import java.awt.image.BufferedImage;
 
 /**
  * The <b>sheet-fed window chrome</b> (spec {@code 035-ui-chrome}, feature C2): a {@link Window.Deco} that paints
@@ -51,6 +55,15 @@ final class SkinDeco extends Window.DefaultDeco {
     private Chrome.Pad padding;
     private Chrome.Spot caption;      // 065.4: where the caption goes, or null for the stock place
     private Chrome.Art sizer;         // 065.4: the sizer's own art and place, or null for the client's
+    private Chrome.Close close;       // 065.5: the close button's art and place, or null for the client's
+    private Chrome.Close faced;       // ...and the value the button STANDING THERE was built from -- see checkbtn
+
+    /**
+     * The blank the themed close button is constructed with. {@code IButton} takes three rasters and sizes itself
+     * to the first; this one's faces are {@link Chrome.Art}, painted straight from their textures at the draw, so
+     * the raster {@code SIWidget} would cache is never built and one pixel is all the constructor needs.
+     */
+    private static final BufferedImage BLANK = TexI.mkbuf(Coord.of(1, 1));
 
     private SkinDeco(boolean lg) {
         super(lg);
@@ -86,9 +99,9 @@ final class SkinDeco extends Window.DefaultDeco {
      * same reason.
      *
      * <p><b>{@code isz} is the CONTENT size.</b> So padding a window grows it <i>outward</i> around fixed content;
-     * it never shrinks the content to fit. Everything else — {@code contarea()} answering {@code aa}, the close
-     * button at the top right, the sizer inside {@code ca} — is stock and inherited, so a themed window resizes,
-     * drags and closes with exactly the stock code.
+     * it never shrinks the content to fit. Everything a rule does not name is stock and inherited —
+     * {@code contarea()} answering {@code aa}, the sizer inside {@code ca}, the close button at the top right —
+     * so a themed window resizes, drags and closes with exactly the stock code.
      */
     public void iresize(Coord isz) {
         Chrome.Border b = this.border;
@@ -108,7 +121,7 @@ final class SkinDeco extends Window.DefaultDeco {
         resize(csz.add(ftl).add(fbr));
         ca = Area.sized(ftl, csz);
         aa = Area.sized(ca.ul.add(mtl), isz);
-        cbtn.c = Coord.of(sz.x - cbtn.sz.x, 0);
+        placebtn();                                                // 065.5: the rule's corner, or the stock one
     }
 
     /**
@@ -153,7 +166,7 @@ final class SkinDeco extends Window.DefaultDeco {
             b.draw(g, ca.ul, ca.sz());       // the stock frame still paints the margin: stay inside it
     }
 
-    // ---- the three ornaments (065.4) ---------------------------------------------------------------
+    // ---- the placed ornaments (065.4) --------------------------------------------------------------
 
     /**
      * Where the caption is drawn: the rule's {@link Chrome.Spot} over this deco's own box, or — with no
@@ -184,6 +197,73 @@ final class SkinDeco extends Window.DefaultDeco {
             super.drawsizer(g);
         else
             a.draw(g, Coord.z, sz);
+    }
+
+    // ---- the close button (065.5) ------------------------------------------------------------------
+
+    /**
+     * Where the close button sits: the rule's {@link Chrome.Spot} over this deco's box, or — with no place of its
+     * own — pinned to the top right exactly as {@code DefaultDeco.iresize} pins it.
+     *
+     * <p>It is called from {@link #iresize}, so a window that is dragged out to a new size finds its button at
+     * the same corner rather than at the pixel it happened to be at; and from {@link #checkbtn}, because a
+     * rebuilt button has a size of its own and the corner is measured against it.
+     */
+    private void placebtn() {
+        Chrome.Close cl = this.close;
+        Chrome.Spot sp = (cl == null) ? null : cl.at;
+        cbtn.c = (sp == null) ? Coord.of(sz.x - cbtn.sz.x, 0) : sp.place(sz, cbtn.sz);
+    }
+
+    /**
+     * The button a theme's own art needs, <b>built</b> — an {@code IButton} whose faces are {@link Chrome.Art}
+     * rather than rasters, and whose box is the art's own drawn size ({@link Chrome.Close#size}). A face that is
+     * a flat colour has no size to give, so the client's own box stands and the colour fills it.
+     *
+     * <p><b>It is the client's button in every other respect</b>: the same class, the same input path, and
+     * {@code mkcbtn}'s own action — the X still runs {@code Window.reqclose()}, which is what a window's own
+     * close handler is hung on. Anonymous on purpose, so the widget's reported type stays {@code IButton}: what
+     * an addon sees is one of the client's buttons wearing a theme, not a class of this bridge's.
+     *
+     * <p>The hit test is the box rather than the art's alpha. {@code IButton}'s own samples the {@code up}
+     * raster, and this button has none to sample; a themed button therefore takes a click anywhere in the
+     * rectangle its art was drawn at.
+     */
+    private IButton mkbtn(final Chrome.Close cl) {
+        IButton b = new IButton(BLANK, BLANK, BLANK, (Runnable)null) {
+                public void draw(GOut g) {
+                    cl.face(a, h).draw(g, Coord.z, sz);
+                }
+
+                public boolean checkhit(Coord c) {
+                    return c.isect(Coord.z, sz);
+                }
+            };
+        b.action(() -> ((Window)parent).reqclose());
+        Coord bsz = cl.size();
+        b.resize((bsz == null) ? cbtn.sz : bsz);
+        return b;
+    }
+
+    /**
+     * Put the right button there, and put it in the right place. <b>Only a changed FACE costs a rebuild</b> —
+     * {@code IButton}'s three are {@code final}, so re-facing one in place is impossible and {@code chcbtn}
+     * destroys what it displaces, the same discipline {@code chdeco} has one level up. A changed spot moves the
+     * button that is already there, and so a theme may tune where the X sits without the button under the
+     * pointer being swapped out from under it.
+     */
+    private void checkbtn() {
+        Chrome.Close cl = this.close;
+        if((cl != null) && (cl.up != null)) {
+            if((faced == null) || !cl.sameFaces(faced)) {
+                chcbtn(mkbtn(cl));
+                faced = cl;
+            }
+        } else if(faced != null) {
+            chcbtn(mkcbtn());                 // the client's own button, built exactly where the client builds it
+            faced = null;
+        }
+        placebtn();
     }
 
     /**
@@ -240,12 +320,14 @@ final class SkinDeco extends Window.DefaultDeco {
         Chrome.Pad pd = Chrome.padding(st);
         Chrome.Spot cp = Chrome.caption(st);                // 065.4: the two ornaments this deco PLACES...
         Chrome.Art szr = Chrome.sizer(st);                  //   ...neither of which moves the window's content
+        Chrome.Close cl = Chrome.close(st);                 // 065.5: ...and the one it BUILDS, which moves none either
         // A padding of zero on every side says the same thing as no padding at all, so it alone never dresses a
         // window: the deco would then draw stock pixels at stock coordinates, and installing one for that is a
         // swap nobody asked for.
         if((pd != null) && pd.zero())
             pd = null;
-        boolean want = (bg != null) || (bd != null) || (pd != null) || (cp != null) || (szr != null);
+        boolean want = (bg != null) || (bd != null) || (pd != null) || (cp != null) || (szr != null)
+            || (cl != null);
         if(have) {
             SkinDeco sd = (SkinDeco)d;
             if(want) {
@@ -258,6 +340,8 @@ final class SkinDeco extends Window.DefaultDeco {
                 sd.padding = pd;
                 sd.caption = cp;
                 sd.sizer = szr;
+                sd.close = cl;
+                sd.checkbtn();                              // a changed FACE rebuilds the button; a changed spot moves it
                 if(moved)
                     sd.repack();                            // ...but a changed GEOMETRY has to re-lay the window out
             } else {
@@ -272,7 +356,9 @@ final class SkinDeco extends Window.DefaultDeco {
             sd.padding = pd;                                // BEFORE the swap: chdeco lays the window out with it
             sd.caption = cp;
             sd.sizer = szr;
+            sd.close = cl;
             wnd.chdeco(sd);
+            sd.checkbtn();                                  // ...and AFTER it: a button is destroyed and re-added
         }
     }
 }

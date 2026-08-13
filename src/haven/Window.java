@@ -193,7 +193,9 @@ public class Window extends Widget {
 	    }
 	}
 	public final boolean lg;
-	public final IButton cbtn;
+	// addon: (065.5) NOT final -- an IButton's faces are, so a theme's own close art cannot be put on this
+	// button in place. It is REBUILT instead, through chcbtn() below.
+	public IButton cbtn;
 	public boolean dragsize, cfocus;
 	public Area aa, ca;
 	public Coord cptl = Coord.z, cpsz = Coord.z;
@@ -205,9 +207,23 @@ public class Window extends Widget {
 
 	public DefaultDeco(boolean lg) {
 	    this.lg = lg;
-	    cbtn = add(new IButton(cbtni[0], cbtni[1], cbtni[2])).action(() -> ((Window)parent).reqclose());
+	    cbtn = add(mkcbtn());   // addon: (065.5) the one place the stock button is built -- see mkcbtn
 	}
 	public DefaultDeco() {this(false);}
+
+	// addon: (065.5) the stock close button, in ONE place, so a deco wearing a theme's own art can build the
+	// client's own back exactly as this constructor does -- the action included, which is the whole of what
+	// makes the X still close its window after a theme has re-faced it.
+	protected IButton mkcbtn() {
+	    return(new IButton(cbtni[0], cbtni[1], cbtni[2]).action(() -> ((Window)parent).reqclose()));
+	}
+
+	// addon: (065.5) swap the close button, destroying the one it displaces -- the same discipline chdeco has
+	// for a whole deco, and for the same reason: a destroyed widget can never be added back.
+	protected void chcbtn(IButton nb) {
+	    cbtn.reqdestroy();
+	    cbtn = add(nb);
+	}
 
 	public DefaultDeco dragsize(boolean v) {
 	    this.dragsize = v;

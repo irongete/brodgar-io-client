@@ -1,7 +1,7 @@
 # hafen.ui: the properties that paint
 
 The [sheet](README.md) properties that **paint** rather than write, the one that moves the client's own
-content, and the two that place a window's ornaments. Two kinds of surface wear them: `window.frame`, the
+content, and the ones that dress a window's ornaments. Two kinds of surface wear them: `window.frame`, the
 client's window chrome, and `panel`, every framed surface that is not a window.
 
 ```lua
@@ -22,10 +22,12 @@ s:install()
 | `rule:border(t)` | `{<art>, slice = {l, t, r, b}}` **or** `{box = "gfx/hud/wnd"}`, either with a `mode` and `parts` | the frame around it, cut from your own art or taken from the client's |
 | `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, on all four sides |
 | `rule:padding(l, t, r, b)` | [design px](../pixels.md), `>= 0` each | the same room, said one side at a time |
-| `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](#ornaments-the-caption-its-plate-and-the-sizer) |
+| `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](#ornaments) |
 | `rule:sizer(t)` | a [surface](#naming-a-picture) with an `at` | the corner grip a resizable window draws, and where |
+| `rule:close(t)` | a [surface](#naming-a-picture) with `hover`, `pressed`, `at` and `offset` | the button that closes a window: what it looks like, and which corner it sits in |
 
-Each reads back bare: `rule:bg()`, `rule:border()`, `rule:padding()`, `rule:caption()`, `rule:sizer()`.
+Each reads back bare: `rule:bg()`, `rule:border()`, `rule:padding()`, `rule:caption()`, `rule:sizer()`,
+`rule:close()`.
 
 A border's centre is never painted — that is `bg`'s job, so the two compose.
 
@@ -211,17 +213,20 @@ s:install()
 own layout cannot honour one, so nothing is refused and nothing warns. That includes every
 [panel](#panels). [The key table](keys.md#what-each-key-accepts) says which is which.
 
-## Ornaments: the caption, its plate and the sizer
+## Ornaments
 
-A window's decoration draws three things that are not the frame: its **caption**, the **plate** the caption
-sits on, and — on a window the user may resize — the corner **sizer**. Two are placed by a rule on
-`window.frame`; the plate is `window.title`'s own surface, because the caption is what it belongs to.
+A window's decoration draws more than the frame: its **caption**, the **plate** the caption sits on, the
+**close** button, and — on a window the user may resize — the corner **sizer**. All but the plate are dressed
+by a rule on `window.frame`; the plate is `window.title`'s own surface, because the caption is what it
+belongs to.
 
 ```lua
 local s = hafen.ui():sheet()
 s:rule("window.frame")
   :caption{ at = "topleft", offset = {6, 3} }
   :sizer{ res = "gfx/hud/wnd/sizer", at = "bottomright", offset = {-2, -2} }
+  :close{ asset = "img/close.png", hover = { asset = "img/closehover.png" },
+          at = "topleft", offset = {4, 4} }
 s:rule("window.title"):bg{ color = {40, 34, 28, 230} }:border{ box = "gfx/hud/bosq" }
 s:install()
 ```
@@ -232,9 +237,20 @@ picture's `at` pins to. `at` is required, because a spot with no corner is not a
 **own size**, so `at = "topright"` puts the caption's right edge at the frame's right edge rather than its
 origin there. A `sizer` is an ordinary [surface](#naming-a-picture), so its art and its place are one value.
 
-- **Name neither and the client's own numbers stand, to the pixel.** With no `caption` the title is drawn
-  where the stock client draws it; with no `sizer` the client's own grip sits in the client's own corner.
+- **Name none and the client's own numbers stand, to the pixel.** With no `caption` the title is drawn where
+  the stock client draws it; with no `sizer` the client's own grip sits in the client's own corner; with no
+  `close` the client's own button sits at the top right.
 - **The sizer shows only where the client draws one.** Most windows are not resizable; the map is.
+- **The close button's art and its place are independent, and either alone is a rule.** `close{at = …}` moves
+  the client's own X; an art with no `at` re-faces it where the client puts it. **The art is the button's
+  box** — it is resized to the picture's own pixels, so nothing is squeezed or stretched, and a face that is
+  a flat `color` leaves the client's own box alone, having no size of its own to give.
+- **The button's states ride inside its value.** `hover` and `pressed` are ordinary
+  [surfaces](#naming-a-picture) of the same shape as the face they vary, and each falls back to that face.
+  There is no hover key and no pressed key: a state rides inside the value it varies, because the button
+  already knows which one it is in.
+- **A themed X still closes its window**, and still takes a click anywhere on its picture. What a rule
+  replaces is the button's face and its corner, never what pressing it does.
 - **The plate is the client's box and your art.** The client sizes it around the caption — a longer title
   makes a wider plate, and it never narrows past a quarter of the window — and a `bg` or a `border` on
   `window.title` says what fills that box. With neither, the window's own title-bar art is the plate, as it

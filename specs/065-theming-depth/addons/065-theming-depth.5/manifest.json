@@ -1,0 +1,9 @@
+{
+  "name": "065.5 — the close button is the theme's",
+  "id": "065-theming-depth.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.5: a close button faced from the theme's own art, sized by it, pinned to the corner the rule names and held there across a resize, still carrying the client's own close action, and given back whole when the sheet is dropped.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

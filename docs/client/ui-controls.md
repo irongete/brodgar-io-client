@@ -33,8 +33,8 @@ blit thereafter**. `CheckBox`/`ICheckBox` do **not** — see below.
 | A caption is **three** fields, not a string | fork: `rtext` + `rcol` + `rwrap` (public), and `change(String)` sets `rcol = null`, `rwrap = 0` — so a coloured caption, or a wrapped one (`wrapped(w, text)`, the `ltbtn` factory), put back through it comes back rendered wrong. `caption(String, Color, int)` (`// addon:`) is the one write that takes all three |
 | A caption never resizes the button | `sz` is the constructor's `w` × `hs`/`hl`; `change`/`render` re-rasterise the face and nothing else, so a longer caption is centred and clipped rather than widening the box |
 | A caption may be **absent** | `Button(int, Text)` and `Button(int, BufferedImage)` set `cont` directly and leave `rtext` null — the face was rendered by the caller, and there is nothing to render back |
-| Short vs large | `largep(w)` — `w >= bl+bm+br` **on the UI-scaled images**, so the same width is not the same button on every client. The `lg` constructors () say it outright |
-| The server-sending default | `Button(int, String)` → sets `action = () -> wdgmsg("activate")`. The `Runnable` overloads () do not |
+| Short vs large | `largep(w)` — `w >= bl+bm+br` **on the UI-scaled images**, so the same width is not the same button on every client. The constructors taking an explicit `lg` say it outright; the rest derive it from `w` |
+| The server-sending default | `Button(int, String)` and `Button(int, String, boolean)` set `action = () -> wdgmsg("activate")`. The overloads taking a `Runnable` do not |
 | The font seam | `checkfont`/`render` — the caption goes through the `"button"` scope provider and re-renders in `draw(GOut)` when `Fonts.gen()` moves |
 
 An **empty caption is safe**: `Text.Foundry.render` widens a zero-width string to
@@ -42,13 +42,13 @@ An **empty caption is safe**: `Text.Foundry.render` widens a zero-width string t
 
 ## `IButton`, and where a face comes from
 
-`IButton` — the picture push button. Its faces are **`final`**
- and its box is `Utils.imgsz(up)`: a face is chosen at construction, never after.
+`IButton` — the picture push button. Its faces are **`final`** and its box is `Utils.imgsz(up)`: a face is
+chosen at construction, never after, so re-facing one is building another and destroying the first.
 
 | What | Where |
 |---|---|
-| The faces, and the two-image default | `IButton(up, down)` → `hover = up`; the three-image form is |
-| Activation, and the server-sending default | `click()` runs `action` and `gkeytype` calls it too — the ctors without a `Runnable` () set `action = () -> wdgmsg("activate")`; the `Runnable` overload does not |
+| The faces, and the two-image default | `IButton(up, down)` → `hover = up`. Each form comes twice, over three `BufferedImage`s or over a `base` folder plus three suffixes (`IButton(String base, up, down, hover)`, where a null `hover` falls back to `up`) |
+| Activation, and the server-sending default | `click()` runs `action` and `gkeytype` calls it too — the ctors without a `Runnable` set `action = () -> wdgmsg("activate")`, the ones taking one do not, and `action(Runnable)` is the chainer that replaces it either way |
 | The hit test reads PIXELS | `checkhit` bounds the point by **`sz`** and then samples `up`'s alpha there, so a box wider than the picture samples off the raster and throws **from the input pass** |
 | A face from the game's own art | `Resource.loadrimg` = `local().loadwait(name).layer(imgc)`, **null** when the resource has no image layer; `loadsimg` is that plus `.scaled()` (the UI scale: 56×56 art reads 14×14 at the default). A name that does not exist throws `Resource.NoSuchResourceException` — on the **local** pool in ~10 ms, so it is safe on the UI thread |
 
@@ -71,8 +71,8 @@ Neither subclass extends `SIWidget` — both blit/draw fresh every frame, no `re
 
 ## A native control that is always in the tree
 
-`Window.DefaultDeco.cbtn` — the close box, a real `IButton` added by the deco
- and owned by nobody. Every window carries one, which makes it the
+`Window.DefaultDeco.cbtn` — the close box, a real `IButton` added by the deco and owned by nobody. Every
+window carries one, which makes it the
 reliable answer to *"find a control this addon did not build"* without depending on which client windows
 happen to be open. The rest of the deco is [ui-chrome.md](ui-chrome.md).
 

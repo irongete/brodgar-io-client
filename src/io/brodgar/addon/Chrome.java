@@ -90,6 +90,8 @@ final class Chrome {
     static final String CAPTION = "caption";
     /** The {@code sizer} property's key (065.4). Its value is an {@link Art}. */
     static final String SIZER = "sizer";
+    /** The {@code close} property's key (065.5). Its value is a {@link Close}. */
+    static final String CLOSE = "close";
 
     /** The {@code bg} a resolved style carries, or {@code null} — for {@code null} styles too, which is the common case. */
     static Bg bg(Fonts.Style st) {
@@ -116,12 +118,18 @@ final class Chrome {
         return (st == null) ? null : (Art)st.prop(SIZER);
     }
 
+    /** The {@code close} button a resolved style carries, or {@code null} — the client's own, at its own place. */
+    static Close close(Fonts.Style st) {
+        return (st == null) ? null : (Close)st.prop(CLOSE);
+    }
+
     /**
      * The bag one rule's chrome properties travel in, or {@code null} when it names none — which is what keeps
      * the provider's identity fast path intact for a sheet that says nothing about chrome.
      */
-    static Map<String, Object> props(Bg bg, Border border, Pad padding, Spot caption, Art sizer) {
-        if((bg == null) && (border == null) && (padding == null) && (caption == null) && (sizer == null))
+    static Map<String, Object> props(Bg bg, Border border, Pad padding, Spot caption, Art sizer, Close close) {
+        if((bg == null) && (border == null) && (padding == null) && (caption == null) && (sizer == null)
+           && (close == null))
             return null;
         Map<String, Object> m = new LinkedHashMap<String, Object>(8);
         if(bg != null)
@@ -134,6 +142,8 @@ final class Chrome {
             m.put(CAPTION, caption);
         if(sizer != null)
             m.put(SIZER, sizer);
+        if(close != null)
+            m.put(CLOSE, close);
         return m;
     }
 
@@ -397,16 +407,26 @@ final class Chrome {
         }
 
         /**
-         * The rectangle this art's <b>picture</b> covers inside {@code [ul, ul+sz)} — device pixels — or
-         * {@code null} when there is none to place: a flat colour fills its whole surface, and a disposed image
-         * draws nothing at all. {@link #draw} paints from it, and a window's chrome reads it back to say where
-         * it put an ornament ({@code widget:chrome()}).
+         * The size this art's <b>picture</b> is drawn at — device pixels — or {@code null} where it has none: a
+         * flat colour fills whatever surface it is given, and a disposed image draws nothing at all. It is what
+         * gives a themed close button its box ({@link Close}), the one place an art's own size decides a
+         * widget's rather than filling a box the client already decided.
          */
-        Area place(Coord ul, Coord sz) {
+        Coord natural() {
             if((color != null) || (src == null) || src.dead())
                 return null;
             Coord nat = src.drawn().sz();
-            if((nat.x <= 0) || (nat.y <= 0))
+            return ((nat.x <= 0) || (nat.y <= 0)) ? null : nat;
+        }
+
+        /**
+         * The rectangle this art's <b>picture</b> covers inside {@code [ul, ul+sz)} — device pixels — or
+         * {@code null} when there is none to place. {@link #draw} paints from it, and a window's chrome reads it
+         * back to say where it put an ornament ({@code widget:chrome()}).
+         */
+        Area place(Coord ul, Coord sz) {
+            Coord nat = natural();
+            if(nat == null)
                 return null;
             int ax = (spot < 0) ? 1 : (spot % 3), ay = (spot < 0) ? 1 : (spot / 3);
             boolean fx = (spot < 0) || ((spot != 4) && (ax == 1));   // an axis the spot says nothing about
@@ -456,7 +476,7 @@ final class Chrome {
         }
 
         /** The value as {@code reader} may hold it — the spelling it was written with, and the fields it set. */
-        LuaValue toLua(Addon reader) {
+        LuaTable toLua(Addon reader) {
             LuaTable t = new LuaTable();
             if(color != null) {
                 t.set("color", AddonManager.color(color));
@@ -470,6 +490,99 @@ final class Chrome {
             t.set("mode", LuaValue.valueOf(mode));
             return t;
         }
+    }
+
+    // ---- the close button (065.5) ------------------------------------------------------------------
+
+    /**
+     * A rule's {@code close}: the <b>button</b> a window's decoration draws in one of its corners — its art, the
+     * two faces that art wears while the pointer is on it and while it is held, and the {@link Spot} it sits at.
+     *
+     * <p><b>The art and the place are independent</b>, and either alone is a whole value: a theme that wants the
+     * client's own X moved says only {@code at}, one that wants its own button where the client puts it says only
+     * the art. With neither, this property is not written at all and the client's own button sits in the client's
+     * own corner, to the pixel.
+     *
+     * <p><b>State rides inside the value</b> rather than in the selector: {@code hover} and {@code pressed} are
+     * ordinary surfaces of the same shape as the face they vary, and each falls back to the released one exactly
+     * as the engine's own two-image button does. The rasteriser already knows its own state; nothing publishes
+     * one to the cascade.
+     *
+     * <p><b>The art is the button's box.</b> Its own drawn size is what the button is resized to
+     * ({@link Art#natural}), so a face is never squeezed into someone else's rectangle — which is also why a flat
+     * colour leaves the box alone: it has no size of its own to give, so the client's own stays.
+     */
+    static final class Close {
+        /** The released face, or {@code null} — the client's own art, then. */
+        final Art up;
+        /** The face under the pointer, or {@code null} — {@link #up}, as an engine button's own default is. */
+        final Art hover;
+        /** The face while it is held, or {@code null} — {@link #up} again. */
+        final Art pressed;
+        /** Where the button is pinned, or {@code null} — the client's own top-right corner, then. */
+        final Spot at;
+
+        Close(Art up, Art hover, Art pressed, Spot at) {
+            this.up = up;
+            this.hover = hover;
+            this.pressed = pressed;
+            this.at = at;
+        }
+
+        /** The face a button in this state wears — never {@code null} where {@link #up} is not. */
+        Art face(boolean held, boolean under) {
+            if(held && under && (pressed != null))
+                return pressed;
+            if(under && (hover != null))
+                return hover;
+            return up;
+        }
+
+        /** The box this button's art asks for — device pixels — or {@code null} where the art gives none. */
+        Coord size() {
+            return (up == null) ? null : up.natural();
+        }
+
+        /**
+         * Do these two say the same thing about the <b>faces</b>? That is the question a decoration asks, because
+         * only a changed face costs a rebuilt button ({@code IButton}'s are final); a changed spot merely moves
+         * the one that is there.
+         */
+        boolean sameFaces(Close o) {
+            return (o != null) && same(up, o.up) && same(hover, o.hover) && same(pressed, o.pressed);
+        }
+
+        public int hashCode() {
+            return ((up == null) ? 0 : up.hashCode()) + ((hover == null) ? 0 : (hover.hashCode() * 7))
+                + ((pressed == null) ? 0 : (pressed.hashCode() * 13)) + ((at == null) ? 0 : (at.hashCode() * 17));
+        }
+
+        public boolean equals(Object o) {
+            if(!(o instanceof Close))
+                return false;
+            Close c = (Close)o;
+            return sameFaces(c) && ((at == null) ? (c.at == null) : at.equals(c.at));
+        }
+
+        /** {@code rule:close()} — the art's own fields, its two variants and its spot, as the setter takes them. */
+        LuaValue toLua(Addon reader) {
+            LuaTable t = (up == null) ? new LuaTable() : up.toLua(reader);
+            if(hover != null)
+                t.set("hover", hover.toLua(reader));
+            if(pressed != null)
+                t.set("pressed", pressed.toLua(reader));
+            if(at != null) {
+                t.set("at", LuaValue.valueOf(CORNERS[at.corner]));
+                if(at.offset != null)
+                    t.set("offset", LuaWidget.xyTable(at.offset));
+            }
+            return t;
+        }
+    }
+
+    /** Two pieces of art, either of which may be absent — see {@link Close#sameFaces}. */
+    private static boolean same(Art a, Art b) {
+        return (a == null) ? (b == null) : a.equals(b);
     }
 
     // ---- bg ----------------------------------------------------------------------------------------
@@ -1095,6 +1208,67 @@ final class Chrome {
             return new Bg(ls.toArray(new Art[ls.size()]));
         }
         return new Bg(new Art[] {parseArt(owner, ctx, ".bg", v)});
+    }
+
+    /**
+     * Parse a rule's {@code close} (065.5) — a surface, its {@code hover} and {@code pressed} variants, and the
+     * {@code at}/{@code offset} that pin the button to a corner of the frame.
+     *
+     * <p><b>Three groups of key, and the split is what the value means.</b> The art spellings say what the button
+     * looks like; {@code hover}/{@code pressed} vary that face and are surfaces themselves; {@code at} and
+     * {@code offset} place the <i>button</i>, which is why they are not the art's own — a face fills the box it
+     * is given, and the box is what the spot moves.
+     *
+     * <p><b>Either half alone is a value</b>, so a theme may move the client's own button or re-face it where it
+     * stands. Saying neither is the one thing refused: a rule that names a property and then says nothing with it
+     * is a typo, and there is no default worth guessing at.
+     */
+    static Close parseClose(Addon owner, String ctx, String what, LuaValue v) {
+        if(!v.istable())
+            throw new LuaError(ctx + what + ": expected a close button — a surface (" + ART + "), with an"
+                + " optional \"hover\" and \"pressed\" face and an \"at\"/\"offset\", got " + v.typename());
+        LuaTable art = new LuaTable();
+        boolean named = false;
+        Art hover = null, pressed = null;
+        int corner = -1;
+        Coord offset = null;
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            Varargs n = v.next(k);
+            k = n.arg1();
+            if(k.isnil())
+                break;
+            String p = key(k);
+            LuaValue pv = n.arg(2);
+            if("hover".equals(p)) {
+                hover = parseArt(owner, ctx, what + ".hover", pv);
+            } else if("pressed".equals(p)) {
+                pressed = parseArt(owner, ctx, what + ".pressed", pv);
+            } else if("at".equals(p)) {
+                corner = cornerOf(ctx, what + ".at", pv);
+            } else if("offset".equals(p)) {
+                offset = Layout.parseCoord(ctx + what, "offset", pv);
+            } else if("color".equals(p) || "image".equals(p) || "asset".equals(p) || "res".equals(p)
+                      || "mode".equals(p)) {
+                art.set(p, pv);
+                named = true;
+            } else {
+                throw new LuaError(ctx + what + ": \"" + k.tojstring() + "\" is not a close property — a close"
+                    + " button is a surface (" + ART + ") with an optional \"hover\" and \"pressed\" face of the"
+                    + " same shape, plus the \"at\" and \"offset\" that pin it to a corner of the frame");
+            }
+        }
+        Art up = named ? parseArt(owner, ctx, what, art) : null;
+        if((up == null) && ((hover != null) || (pressed != null)))
+            throw new LuaError(ctx + what + ": names a \"hover\"/\"pressed\" face and no face for it to vary — a"
+                + " state face rides INSIDE the value it varies, so name the button's own art beside it");
+        if((corner < 0) && (offset != null))
+            throw new LuaError(ctx + what + ": names an \"offset\" and no \"at\" — an offset is counted FROM a"
+                + " corner, one of " + cornerList());
+        if((up == null) && (corner < 0))
+            throw new LuaError(ctx + what + ": says nothing — a close button is a surface (" + ART + "), a spot"
+                + " (\"at\", with an optional \"offset\"), or both: the art and the place are independent");
+        return new Close(up, hover, pressed, (corner < 0) ? null : new Spot(corner, offset));
     }
 
     /**

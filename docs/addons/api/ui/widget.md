@@ -83,7 +83,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:at(coord)` | Widget \| nil | the deepest widget under a `{x=, y=}` **root-coord** point within this subtree |
 | `:rootPos()` | `{x=, y=}` \| nil | its top-left in **root coords**, the same [unit](pixels.md) as `:size()`; the two together are the rectangle that outlines it |
 | `:replacement()` | Widget \| nil | the view **you** put in place of this widget's window, or `nil` — see [replace](replace.md) |
-| `:chrome()` | table \| nil | on a **window**, where its decoration drew its [ornaments](style/chrome.md#ornaments-the-caption-its-plate-and-the-sizer) — `{caption = {x=, y=}, plate = {x=, y=, w=, h=, styled=}, sizer = {x=, y=}, close = {x=, y=, w=, h=}}`, each present only once it has been drawn; `nil` on anything else |
+| `:chrome()` | table \| nil | on a **window**, where its decoration drew its [ornaments](style/chrome.md#ornaments) — `{caption = {x=, y=}, plate = {x=, y=, w=, h=, styled=}, sizer = {x=, y=}, close = {x=, y=, w=, h=}}`, each present only once it has been drawn; `nil` on anything else |
 | `:style()` | table \| nil | the style this widget [resolves to](style/README.md#the-cascade), or `nil` when nothing names it |
 | `:rule()` | Rule | **your own** [level of the cascade](style/README.md#restyle-one-widget) on this widget: its properties are setters, `:info()` reads them back and `:remove()` drops them |
 

@@ -84,8 +84,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 final class Sheet {
     /** The style properties a rule may carry — the whole of a rule's vocabulary, in both its shapes. */
     static final String PROPS =
-        "\"font\", \"color\", \"bg\", \"border\", \"padding\", \"caption\", \"sizer\", \"position\","
-        + " \"anchor\" and \"size\"";
+        "\"font\", \"color\", \"bg\", \"border\", \"padding\", \"caption\", \"sizer\", \"close\","
+        + " \"position\", \"anchor\" and \"size\"";
 
     /**
      * <b>What one rule says</b> — the properties below, each independently optional, and mutable because a
@@ -105,13 +105,15 @@ final class Sheet {
         Chrome.Pad padding;       // the rule's `padding` property (065.1), or null
         Chrome.Spot caption;      // the rule's `caption` property (065.4), or null
         Chrome.Art sizer;         // the rule's `sizer` property (065.4), or null
+        Chrome.Close close;       // the rule's `close` property (065.5), or null
         Layout.Anchor pos;        // where the rule puts it — `position` or `anchor` (036.2/036.3): TREE rules only
         Coord size;               // the rule's `size` property (036.2), or null — TREE rules only
 
         /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
         boolean empty() {
             return (font == null) && (color == null) && (bg == null) && (border == null) && (padding == null)
-                && (caption == null) && (sizer == null) && (pos == null) && (size == null);
+                && (caption == null) && (sizer == null) && (close == null) && (pos == null)
+                && (size == null);
         }
 
         /** Does it lay anything out (036.2)? The half of a rule that is a WRITE rather than a draw-time read. */
@@ -122,7 +124,7 @@ final class Sheet {
         /** ...and does it say anything the DRAW reads? A layout-only sheet must not reach the draw pass at all. */
         boolean draws() {
             return (font != null) || (color != null) || (bg != null) || (border != null) || (padding != null)
-                || (caption != null) || (sizer != null);
+                || (caption != null) || (sizer != null) || (close != null);
         }
 
         /** A copy — what a write takes before it changes one field, and what an apply freezes. */
@@ -141,6 +143,7 @@ final class Sheet {
             padding = p.padding;
             caption = p.caption;
             sizer = p.sizer;
+            close = p.close;
             pos = p.pos;
             size = p.size;
         }
@@ -170,6 +173,8 @@ final class Sheet {
                 t.set("caption", caption.toLua());
             if(sizer != null)
                 t.set("sizer", sizer.toLua(reader));
+            if(close != null)
+                t.set("close", close.toLua(reader));
             if(pos != null)
                 pos.toLua(reader, t);
             if(size != null)
@@ -193,6 +198,7 @@ final class Sheet {
         final Chrome.Pad padding; // the rule's `padding` property (065.1), or null
         final Chrome.Spot caption;   // the rule's `caption` property (065.4), or null
         final Chrome.Art sizer;   // the rule's `sizer` property (065.4), or null
+        final Chrome.Close close; // the rule's `close` property (065.5), or null
         final Layout.Anchor pos;  // where the rule puts it — `position` or `anchor` (036.2/036.3) — TREE only
         final Coord size;         // the rule's `size` property (036.2), or null — TREE rules only
 
@@ -207,6 +213,7 @@ final class Sheet {
             this.padding = p.padding;
             this.caption = p.caption;
             this.sizer = p.sizer;
+            this.close = p.close;
             this.pos = p.pos;
             this.size = p.size;
         }
@@ -214,7 +221,8 @@ final class Sheet {
         /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
         boolean empty() {
             return (font == null) && (color == null) && (bg == null) && (border == null) && (padding == null)
-                && (caption == null) && (sizer == null) && (pos == null) && (size == null);
+                && (caption == null) && (sizer == null) && (close == null) && (pos == null)
+                && (size == null);
         }
 
         /** Does it lay anything out (036.2)? The half of a rule that is a WRITE rather than a draw-time read. */
@@ -225,7 +233,7 @@ final class Sheet {
         /** ...and does it say anything the DRAW reads? A layout-only sheet must not reach the draw pass at all. */
         boolean draws() {
             return (font != null) || (color != null) || (bg != null) || (border != null) || (padding != null)
-                || (caption != null) || (sizer != null);
+                || (caption != null) || (sizer != null) || (close != null);
         }
     }
 
@@ -349,7 +357,7 @@ final class Sheet {
                        (f == null) ? null : f.font,
                        (f == null) ? null : f.size,
                        (f == null) ? null : f.aa,
-                       r.color, Chrome.props(r.bg, r.border, r.padding, r.caption, r.sizer));
+                       r.color, Chrome.props(r.bg, r.border, r.padding, r.caption, r.sizer, r.close));
         }
     }
 
@@ -475,6 +483,8 @@ final class Sheet {
                 out.caption = Chrome.parseSpot(ctx, ".caption", pv);
             } else if("sizer".equals(p)) {
                 out.sizer = Chrome.parseArt(owner, ctx, ".sizer", pv);
+            } else if("close".equals(p)) {
+                out.close = Chrome.parseClose(owner, ctx, ".close", pv);
             } else if("position".equals(p) || "anchor".equals(p) || "size".equals(p)) {
                 layoutable(ctx, p, site, sel);
                 if("size".equals(p)) {
@@ -566,6 +576,8 @@ final class Sheet {
         final Chrome.Spot caption;
         /** The winning {@code sizer} property (065.4), or {@code null}. */
         final Chrome.Art sizer;
+        /** The winning {@code close} property (065.5), or {@code null}. */
+        final Chrome.Close close;
         /**
          * Where the winning rule puts this widget (036.2/036.3) — one {@link Layout.Anchor} whether it was written
          * as {@code pos} or as {@code anchor} — or {@code null}; and the addon whose rule won it, which is who
@@ -596,7 +608,7 @@ final class Sheet {
         int recheck;
 
         Resolved(FontHandle font, Addon fontOwner, Color color, Chrome.Bg bg, Chrome.Border border,
-                 Chrome.Pad padding, Chrome.Spot caption, Chrome.Art sizer, int gen) {
+                 Chrome.Pad padding, Chrome.Spot caption, Chrome.Art sizer, Chrome.Close close, int gen) {
             this.font = font;
             this.fontOwner = fontOwner;
             this.color = color;
@@ -605,6 +617,7 @@ final class Sheet {
             this.padding = padding;
             this.caption = caption;
             this.sizer = sizer;
+            this.close = close;
             this.gen = gen;
         }
 
@@ -619,7 +632,7 @@ final class Sheet {
          */
         boolean drawEmpty() {
             return (font == null) && (color == null) && (bg == null) && (border == null) && (padding == null)
-                && (caption == null) && (sizer == null);
+                && (caption == null) && (sizer == null) && (close == null);
         }
     }
 
@@ -689,9 +702,10 @@ final class Sheet {
         final Chrome.Pad padding;
         final Chrome.Spot caption;
         final Chrome.Art sizer;
+        final Chrome.Close close;
 
         SKey(FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border, Chrome.Pad padding,
-             Chrome.Spot caption, Chrome.Art sizer) {
+             Chrome.Spot caption, Chrome.Art sizer, Chrome.Close close) {
             this.font = font;
             this.color = color;
             this.bg = bg;
@@ -699,6 +713,7 @@ final class Sheet {
             this.padding = padding;
             this.caption = caption;
             this.sizer = sizer;
+            this.close = close;
         }
 
         public int hashCode() {
@@ -706,7 +721,8 @@ final class Sheet {
                 + ((bg == null) ? 0 : bg.hashCode() * 7) + ((border == null) ? 0 : border.hashCode() * 13)
                 + ((padding == null) ? 0 : padding.hashCode() * 23)
                 + ((caption == null) ? 0 : caption.hashCode() * 29)
-                + ((sizer == null) ? 0 : sizer.hashCode() * 37);
+                + ((sizer == null) ? 0 : sizer.hashCode() * 37)
+                + ((close == null) ? 0 : close.hashCode() * 41);
         }
 
         public boolean equals(Object o) {
@@ -719,7 +735,8 @@ final class Sheet {
                 && ((border == null) ? (k.border == null) : border.equals(k.border))
                 && ((padding == null) ? (k.padding == null) : padding.equals(k.padding))
                 && ((caption == null) ? (k.caption == null) : caption.equals(k.caption))
-                && ((sizer == null) ? (k.sizer == null) : sizer.equals(k.sizer));
+                && ((sizer == null) ? (k.sizer == null) : sizer.equals(k.sizer))
+                && ((close == null) ? (k.close == null) : close.equals(k.close));
         }
     }
 
@@ -940,7 +957,7 @@ final class Sheet {
      * site every frame). Caller holds {@code Sheet.class}.
      */
     private static Fonts.Style specFor(Resolved r) {
-        SKey k = new SKey(r.font, r.color, r.bg, r.border, r.padding, r.caption, r.sizer);
+        SKey k = new SKey(r.font, r.color, r.bg, r.border, r.padding, r.caption, r.sizer, r.close);
         Fonts.Style s = specs.get(k);
         if(s == null) {
             FontHandle font = r.font;
@@ -951,7 +968,7 @@ final class Sheet {
                                             (font == null) ? null : font.size,
                                             (font == null) ? null : font.aa,
                                             r.color, Chrome.props(r.bg, r.border, r.padding,
-                                                                  r.caption, r.sizer)));
+                                                                  r.caption, r.sizer, r.close)));
         }
         return s;
     }
@@ -973,11 +990,12 @@ final class Sheet {
         Chrome.Pad padding = null;
         Chrome.Spot caption = null;
         Chrome.Art sizer = null;
+        Chrome.Close close = null;
         Layout.Anchor pos = null;
         Coord size = null;
         Addon posOwner = null, sizeOwner = null;
         int frank = -1, crank = -1, grank = -1, brank = -1, prank = -1, xrank = -1, zrank = -1;
-        int arank = -1, srank = -1;
+        int arank = -1, srank = -1, krank = -1;
         for(int i = 0; i < installed.size(); i++) {
             Sheet s = installed.get(i);
             for(int j = 0; j < s.tree.size(); j++) {
@@ -1005,6 +1023,9 @@ final class Sheet {
                 if((r.sizer != null) && (r.rank >= srank)) {
                     sizer = r.sizer; srank = r.rank;
                 }
+                if((r.close != null) && (r.rank >= krank)) {
+                    close = r.close; krank = r.rank;
+                }
                 if((r.pos != null) && (r.rank >= xrank)) {          // 036.2: the owner rides along, because a
                     pos = r.pos; posOwner = s.owner; xrank = r.rank;//   layout property is given BACK, not drawn
                 }
@@ -1031,10 +1052,13 @@ final class Sheet {
                 caption = s.p.caption;
             if(s.p.sizer != null)
                 sizer = s.p.sizer;
+            if(s.p.close != null)
+                close = s.p.close;
             // No layout here: widget:rule() cannot carry position/size (LuaRule refuses it). The hand-named level
             // of the LAYOUT cascade is the verb, and Layout folds it in above this whole result.
         }
-        Resolved out = new Resolved(font, fontOwner, color, bg, border, padding, caption, sizer, treegen);
+        Resolved out = new Resolved(font, fontOwner, color, bg, border, padding, caption, sizer, close,
+                                    treegen);
         out.pos = pos;
         out.posOwner = posOwner;
         out.size = size;
@@ -1157,6 +1181,8 @@ final class Sheet {
             t.set("caption", r.caption.toLua());
         if(r.sizer != null)
             t.set("sizer", r.sizer.toLua(reader));
+        if(r.close != null)
+            t.set("close", r.close.toLua(reader));
         if(r.pos != null)                             // 036.2: what the SHEET says this widget's layout is — the
             r.pos.toLua(reader, t);                   //   verb above it is read with widget:position(), which answers
         if(r.size != null)                            //   where the widget actually IS. 036.3: `position` or

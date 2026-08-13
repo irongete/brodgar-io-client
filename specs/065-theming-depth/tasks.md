@@ -80,7 +80,7 @@ in stage A before any surface is routed against it.
       `[manual]`: open the Inventory — expect its title tight under the top-left corner rather than floating,
       sitting on the theme's plate, and the window's contents where they were before the rule.
 
-- [ ] **065.5 — the close button is the theme's.** `close{<art with hover/pressed variants>, at, offset}` on
+- [x] **065.5 — the close button is the theme's.** `close{<art with hover/pressed variants>, at, offset}` on
       `window.frame`. `SkinDeco.check` rebuilds `cbtn` when the art moves — `IButton`'s faces are `final` —
       destroying the button it displaces, and `iresize` places it from the spot instead of pinning it to the
       top right. Art alone, or a spot alone, each work: the properties are independent.
