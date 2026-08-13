@@ -81,14 +81,20 @@ Layout resolves through the same cascade with a different top: the hand-named le
 ## A theme is a file
 
 Nothing in a rule is code the client calls: a colour is three numbers, a `padding` is four, an anchor is a
-corner and an offset, and a picture is [named](../api/ui/style/chrome.md#naming-a-picture) — the path of a
-file you ship, or the resource name of the client's own art. So a whole look can live in a JSON file your
-addon ships, with the Lua doing nothing but reading it:
+corner and an offset, a picture is [named](../api/ui/style/chrome.md#naming-a-picture) — the path of a file
+you ship, or the resource name of the client's own art — and a
+[face](../api/ui/style/text.md#font) is named the same way. So a whole look lives in a JSON file your addon
+ships, and the Lua does nothing but read it:
 
 ```lua
 local doc = hafen.json():parse(hafen.asset():get("theme.json"):text())
--- map the one value JSON cannot carry -- a font face -- to a handle, then:
 hafen.ui():sheet():load(doc.rules):install()
+```
+
+```text
+{ "rules": { "*":            { "font": { "builtin": "mono", "size": 11 } },
+             "window.frame": { "border": { "box": "gfx/hud/wnd", "mode": "tile" },
+                               "padding": [8, 4, 8, 8] } } }
 ```
 
 Once the look is a file, making a different theme is editing that file rather than writing an addon.

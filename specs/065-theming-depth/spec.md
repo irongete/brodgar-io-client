@@ -194,10 +194,10 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `docs/addons/api/ui/style/surfaces.md` — 4, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18
 - `docs/addons/api/ui/style/text.md` — 3, 14, 15, 16, 18
 - `docs/addons/guides/theming.md` — 1, 2, 3, 17, 18
-- `docs/addons/api/json.md` — 17 (what a catalogue is serialised with)
+- `docs/addons/api/json.md` — 3, 17 (what a theme is parsed with, and a catalogue serialised with)
 - `docs/addons/api/timer.md` — every task whose suite drives a window: the chrome swap lands in `Window.tick`,
   so a geometry read has to wait a beat for it
-- `docs/addons/api/asset.md` — 2, 12
+- `docs/addons/api/asset.md` — 2, 3, 12 (the door an art and a face are both NAMED through)
 - `docs/addons/api/font.md` — 3, 14, 15
 - `docs/addons/api/ui/pixels.md` — 1, 2
 - `docs/addons/api/ui/style/geometry.md` — 1, 4, 5

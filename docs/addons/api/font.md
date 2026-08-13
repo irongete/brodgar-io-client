@@ -138,6 +138,12 @@ hafen.ui():sheet():install()                       -- ...and install THIS addon'
 hafen.ui():sheet():drop()                          -- drop it; every surface it styled falls back
 ```
 
+A rule takes the handle, or **the same face named**: `{builtin = "mono", size = 11}` for one of the
+built-ins, `{asset = "fonts/Inter.ttf", size = 12, bold = true}` for a file you ship. A name resolves to the
+very handle the two loaders above hand back, and naming rather than loading is what lets a
+[whole theme be a file](ui/style/README.md#a-sheet-from-data) with no Lua in it. The fields a named face
+carries are in [text](ui/style/text.md#font).
+
 A font is **one property of a rule**, and the key is a [selector](ui/selectors.md), so there is one
 vocabulary for "which part of the UI" rather than a font-specific one beside it. The call, the
 one-sheet-per-addon rule, the properties and the cascade are documented under

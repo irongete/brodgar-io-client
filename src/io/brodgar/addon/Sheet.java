@@ -444,7 +444,7 @@ final class Sheet {
             String p = (!pk.isnumber() && pk.isstring()) ? pk.tojstring() : null;
             LuaValue pv = n.arg(2);
             if("font".equals(p)) {
-                out.font = font(ctx, pv);
+                out.font = font(owner, ctx, pv);
             } else if("color".equals(p)) {
                 out.color = pv.istable() ? AddonManager.luaColor(pv, null) : null;
                 if(out.color == null)
@@ -485,13 +485,15 @@ final class Sheet {
         return out;
     }
 
-    /** A rule's {@code font} property: a font handle, or the error that names the two ways to get one. */
-    static FontHandle font(String ctx, LuaValue v) {
-        FontHandle h = FontHandle.resolve(v);
-        if(h == null)
-            throw new LuaError(ctx + ".font: expected a font handle — hafen.font(\"sans\")"
-                + " or hafen.asset(\"fonts/Inter.ttf\"), optionally :derive{size=…}");
-        return h;
+    /**
+     * A rule's {@code font} property: a <b>face</b>, said either way (065.3) — the handle
+     * ({@code hafen.font():get(name)}, {@code hafen.asset():get(path)}, either {@code :derive()}d) or the same
+     * face <b>named</b>, {@code {builtin = "mono", size = 11}} / {@code {asset = "fonts/Inter.ttf"}}, which is
+     * the spelling a {@code theme.json} carries. {@link FontApi#face} is the one parser, so the setter and the
+     * data door take the same value and refuse the same way.
+     */
+    static FontHandle font(Addon owner, String ctx, LuaValue v) {
+        return FontApi.face(owner, ctx + ".font", v);
     }
 
     /**

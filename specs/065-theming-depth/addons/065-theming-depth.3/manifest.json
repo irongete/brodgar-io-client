@@ -1,0 +1,9 @@
+{
+  "name": "065.3 — a face is named too, so a whole theme is a file",
+  "id": "065-theming-depth.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.3: a face named by builtin or by asset path, a whole theme read out of a JSON file with no handle in it, and the round trip back off every rule it declared.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

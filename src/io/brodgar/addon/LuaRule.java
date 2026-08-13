@@ -198,20 +198,22 @@ public final class LuaRule {
 
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
-        // font(h) — the handle this rule draws its text with: hafen.font(name) or hafen.asset(path), optionally
-        // :derive{…}. A handle's OWN colour is ignored on a client surface (D-073): a surface's colour is said as
-        // a colour, where the sheet can be read, and a handle's colour is for the addon's own pixels.
+        // font(face) — the face this rule draws its text with: the handle hafen.font():get(name) or
+        // hafen.asset():get(path) hands back, optionally :derive()d, or the same face NAMED (065.3),
+        // { builtin = "mono", size = 11 } / { asset = "fonts/Inter.ttf" }, which is what a theme.json says.
+        // A handle's OWN colour is ignored on a client surface (D-073): a surface's colour is said as a
+        // colour, where the sheet can be read, and a handle's colour is for the addon's own pixels.
         m.set("font", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "font");
                 Sheet.Props cur = r.read(owner);
-                LuaValue v = Args.written(a, 2, r.where() + ":font", "handle");
+                LuaValue v = Args.written(a, 2, r.where() + ":font", "face");
                 if(v == null)
                     return ((cur == null) || (cur.font == null)) ? LuaValue.NIL
                         : FontApi.handleFor(owner, cur.font, owner);
                 Sheet.Props p = r.edit(owner);
-                p.font = Sheet.font(r.where(), v);
+                p.font = Sheet.font(owner, r.where(), v);
                 r.commit(owner, p);
                 return self;
             }

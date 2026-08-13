@@ -93,6 +93,16 @@ public final class FontHandle {
                 + " it: h:derive():" + verb.substring(verb.indexOf(':') + 1) + "(...)");
     }
 
+    /**
+     * Seal a variant this bridge built for a consumer that is reading it right now — a face a rule
+     * <b>named</b> rather than was handed ({@link FontApi#face}). It is the same moment {@link #resolve}
+     * marks, said from the other side: the rule read this face the instant it was parsed, so a later setter
+     * on the handle it reads back would take and change nothing.
+     */
+    synchronized void seal() {
+        used = true;
+    }
+
     /** Write {@code bold} or {@code italic} by re-deriving the AWT font, keeping the other of the two. */
     synchronized void style(boolean bold, boolean on) {
         boolean b = bold ? on : font.isBold();

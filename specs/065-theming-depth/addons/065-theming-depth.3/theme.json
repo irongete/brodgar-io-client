@@ -1,0 +1,9 @@
+{
+  "rules": {
+    "*":            { "font": { "builtin": "mono", "size": 11 } },
+    "window.title": { "font": { "asset": "fonts/inconsolata.ttf", "size": 15, "bold": true } },
+    "window.frame": { "bg":      { "color": [26, 26, 28, 240] },
+                      "border":  { "box": "gfx/hud/wnd", "mode": "tile" },
+                      "padding": [6, 24, 6, 6] }
+  }
+}

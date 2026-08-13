@@ -113,6 +113,10 @@ A font asset **is** a [`FontHandle`](font.md) with the three asset verbs on top.
 can install it on. Disposing a font asset frees nothing, since a font holds no releasable resource; it only
 drops the cache entry, so the next load re-reads and re-registers the file.
 
+A [stylesheet](ui/style/text.md#font) takes this handle or the **path**, exactly as it does for an image:
+`{asset = "fonts/Inter.ttf", size = 12}` loads through this same door and interns to this same object, so a
+theme in a JSON file sets the client's text in a face your addon ships.
+
 ### Mesh
 
 | Method | Description |

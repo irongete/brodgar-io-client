@@ -32,8 +32,10 @@ import static io.brodgar.addon.AddonManager.*;
  *   <li><b>Global surfaces are the STYLESHEET's</b>, not this file's: {@code hafen.font.setFont(scope, h)} /
  *       {@code reset(scope)} / {@code scopes()} are a <b>hard cut</b> (033.1) — a font became one property of a
  *       rule, and {@code hafen.ui():sheet():rule("window.title"):font(h)} ({@link Sheet}) is the single place
- *       that says what a client surface looks like. The {@link Fonts} provider and its owner-tagged stack are
- *       unchanged: only <i>who fills them</i> moved. Their teardown still runs from here
+ *       that says what a client surface looks like. That rule takes the handle, or the same face <b>named</b>
+ *       ({@link #face}, 065.3) — {@code {builtin = "mono", size = 11}} / {@code {asset = "fonts/x.ttf"}} —
+ *       which is what lets a whole theme be a file with no handle in it. The {@link Fonts} provider and its
+ *       owner-tagged stack are unchanged: only <i>who fills them</i> moved. Their teardown still runs from here
  *       ({@link #teardownFonts}) — the owned-resource model (spec 05).</li>
  *   <li><b>Own-widget application</b> (F2, shipped): the {@code :font(h)} setter on {@code hafen.ui():window()}/{@code
  *       widget} ({@link AddonWidget}) and a per-call {@code {font,color}} on the {@code g:text}/{@code g:atext} draw
@@ -113,19 +115,139 @@ final class FontApi {
         if(h != null)
             return h;
         Font base = builtinFont(name);
+        if(base == null)
+            throw new LuaError("hafen.font():get(\"" + name + "\"): not a built-in font — the built-ins are "
+                + BUILTINS + "; a font FILE this addon ships is an asset: hafen.asset():get(\"fonts/Inter.ttf\")");
         h = fontHandle(new FontHandle(base, null, null, null));
         owner.assets.putBuiltinFont(name, h);
         return h;
     }
 
-    /** The AWT font behind a built-in name, or a {@link LuaError} that also points a path at {@code hafen.asset}. */
+    /**
+     * The AWT font behind a built-in name, or {@code null} for anything else — the one place the four are
+     * listed, and therefore the membership test both doors that take a name are refused by.
+     */
     private static Font builtinFont(String name) {
         if("sans".equals(name))    return Text.sans;
         if("serif".equals(name))   return Text.serif;
         if("mono".equals(name))    return Text.mono;
         if("fraktur".equals(name)) return Text.fraktur;
-        throw new LuaError("hafen.font():get(\"" + name + "\"): not a built-in font — the built-ins are "
-            + BUILTINS + "; a font FILE this addon ships is an asset: hafen.asset():get(\"fonts/Inter.ttf\")");
+        return null;
+    }
+
+    // ------------------------------------------------------------------ the NAMED face (065.3)
+
+    /** The two ways a face is named rather than handed over, as every error below lists them. */
+    private static final String FACE = "{ builtin = \"mono\" } or { asset = \"fonts/Inter.ttf\" },"
+        + " either with size, bold, italic and aa beside the name";
+
+    /**
+     * A <b>face</b>, as a stylesheet rule's {@code font} property takes one (065.3): the {@link FontHandle}
+     * itself — {@code hafen.font():get(name)}, {@code hafen.asset():get(path)}, either through a
+     * {@code :derive()} variant — or <b>the same face named</b>, {@code {builtin = …}} / {@code {asset = …}}
+     * with the variant's own properties beside it.
+     *
+     * <p><b>Naming it is what makes a whole look a file.</b> A handle is the one value JSON cannot carry, so
+     * the two spellings here are what a {@code theme.json} says a face with, and they resolve to exactly the
+     * object the loader interns: {@code {builtin = "serif"}} <i>is</i> {@code hafen.font():get("serif")}, one
+     * face and one parse per file however many rules name it. A name plus a variant derives, once, and the
+     * result is sealed — the rule read it the instant it was parsed, so a setter on the handle it hands back
+     * would take and change nothing.
+     *
+     * <p><b>{@code color} is refused here</b>, and that is not an omission: a handle's own colour never
+     * styled a client surface (D-073), so a face that could name one would be a second, invisible answer to
+     * "what colour is this surface". The rule's own {@code color} property is the answer, where it can be read.
+     */
+    static FontHandle face(Addon owner, String what, LuaValue v) {
+        FontHandle h = FontHandle.resolve(v);
+        if(h != null)
+            return h;                       // handed over: a built-in, a file, or a :derive()d variant of one
+        if(!v.istable())
+            throw new LuaError(what + ": expected a face — a handle from hafen.font():get(\"serif\") or"
+                + " hafen.asset():get(\"fonts/Inter.ttf\"), or the same face NAMED: " + FACE
+                + ", got " + v.typename());
+        String builtin = null, asset = null, named = null;
+        Integer size = null;
+        Boolean aa = null, bold = null, italic = null;
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            Varargs n = v.next(k);
+            k = n.arg1();
+            if(k.isnil())
+                break;
+            // BEFORE isstring(): in LuaJ a number IS a string, so a numeric key would read as a property name
+            String p = (!k.isnumber() && k.isstring()) ? k.tojstring() : null;
+            LuaValue pv = n.arg(2);
+            if("builtin".equals(p) || "asset".equals(p)) {
+                String s = (pv.isstring() && !pv.isnumber()) ? pv.tojstring() : null;
+                if(s == null)
+                    throw new LuaError(what + "." + p + ": expected "
+                        + ("builtin".equals(p) ? "a built-in font name (" + BUILTINS + ")"
+                                               : "the path of a font file this addon ships"
+                                                 + " — \"fonts/Inter.ttf\"")
+                        + ", got " + pv.typename());
+                if(named != null)
+                    throw new LuaError(what + ": says \"" + named + "\" AND \"" + p + "\" — a face is one of"
+                        + " the client's own OR a file this addon ships, not both");
+                named = p;
+                if("builtin".equals(p))
+                    builtin = s;
+                else
+                    asset = s;
+            } else if("size".equals(p)) {
+                size = optSize(pv, what + ".size");
+            } else if("aa".equals(p) || "bold".equals(p) || "italic".equals(p)) {
+                if(!pv.isboolean())
+                    throw new LuaError(what + "." + p + ": expected true or false, got " + pv.typename());
+                Boolean f = Boolean.valueOf(pv.toboolean());
+                if("aa".equals(p))
+                    aa = f;
+                else if("bold".equals(p))
+                    bold = f;
+                else
+                    italic = f;
+            } else if("color".equals(p)) {
+                throw new LuaError(what + ": a face carries no colour on a client surface — the colour of a"
+                    + " surface is the rule's own property, said where it can be read: :color(r, g, b)");
+            } else {
+                throw new LuaError(what + ": \"" + k.tojstring() + "\" is not a face property — a face is "
+                    + FACE);
+            }
+        }
+        if(named == null)
+            throw new LuaError(what + ": says nothing — a face is a font handle, or " + FACE);
+        FontHandle base = (builtin != null) ? builtinFace(owner, what, builtin)
+                                            : assetFace(owner, what, asset);
+        if((size == null) && (aa == null) && (bold == null) && (italic == null))
+            return base;                    // no variant: the very handle the loader interns for that face
+        FontHandle d = base.draft();
+        if(size != null)
+            d.size = size;
+        if(aa != null)
+            d.aa = aa;
+        if(bold != null)
+            d.style(true, bold.booleanValue());
+        if(italic != null)
+            d.style(false, italic.booleanValue());
+        d.seal();                           // the rule reads it HERE, as resolve() seals one handed over
+        return d;
+    }
+
+    /** {@code {builtin = "mono"}} — one of the client's own faces, interned exactly as {@code :get} interns it. */
+    private static FontHandle builtinFace(Addon owner, String what, String name) {
+        if(builtinFont(name) == null)
+            throw new LuaError(what + ".builtin: \"" + name + "\" is not a built-in font — the built-ins are "
+                + BUILTINS + "; a font FILE this addon ships is named { asset = \"fonts/Inter.ttf\" }");
+        return FontHandle.resolve(builtin(owner, LuaValue.valueOf(name)));
+    }
+
+    /** {@code {asset = "fonts/Inter.ttf"}} — a file this addon ships, through {@link AssetApi}'s own door. */
+    private static FontHandle assetFace(Addon owner, String what, String path) {
+        FontHandle h = FontHandle.resolve(AssetApi.load(owner, path));
+        if(h == null)
+            throw new LuaError(what + ".asset: \"" + path + "\" is not a font — a face's asset is a font file"
+                + " this addon ships (.ttf/.otf)");
+        return h;
     }
 
     /**
@@ -258,10 +380,10 @@ final class FontApi {
     /** A positive logical-px size from a Lua value. Rejects a non-number / a non-positive one. */
     private static Integer optSize(LuaValue v, String ctx) {
         if(!v.isnumber())
-            throw new LuaError(ctx + ": 'size' must be a number (logical px)");
+            throw new LuaError(ctx + ": 'size' must be a number (design px)");
         int px = v.toint();
         if(px <= 0)
-            throw new LuaError(ctx + ": 'size' must be a positive number (logical px)");
+            throw new LuaError(ctx + ": 'size' must be a positive number (design px)");
         return Integer.valueOf(px);
     }
 

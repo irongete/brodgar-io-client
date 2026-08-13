@@ -47,7 +47,7 @@ in stage A before any surface is routed against it.
       `bg`, a shade down each side over the tiled field.
       <!-- extra context: src/haven/Resource.java — Image.scaled()/tex() and NoSuchResourceException -->
 
-- [ ] **065.3 — a face is named too, so a whole theme is a file.** `font` accepts
+- [x] **065.3 — a face is named too, so a whole theme is a file.** `font` accepts
       `{asset = "fonts/x.ttf", size =, bold =, aa =}` and `{builtin = "mono", size = …}` beside the handle,
       resolved through `FontApi` to the `FontHandle` the property already takes. With this, every value in
       the vocabulary has a spelling JSON can carry.

@@ -65,12 +65,12 @@ hafen.ui():sheet():load(doc.rules):install()
 ```
 
 That is a look whose Lua never names a surface, a font, a size, a
-colour or a pixel. One value in a rule is a thing JSON cannot carry, because it is a **handle**: a font's
-face. Map that one and everything else — a colour array, a border's four slice insets, a `padding`, an
-[anchor's corner and offset](geometry.md#anchor) — is already the sheet's own shape and travels verbatim, the
-art included: a picture is named by its [path or its resource](chrome.md#naming-a-picture), so a `bg` and a
-`border` are strings in a file like everything else. A whole client look, windows included, with no code of
-its own, is one command away.
+colour or a pixel. **Every value a rule takes has a spelling a file can carry**: a colour is an array, a
+border's slice is four numbers, a `padding` is one or four, an
+[anchor](geometry.md#anchor) is a corner and an offset, a picture is named by its
+[path or its resource](chrome.md#naming-a-picture), and a face is named the
+[same two ways](text.md#font) — `{builtin = "mono"}` or `{asset = "fonts/Inter.ttf"}`. Nothing in the
+document is a handle, so a whole client look, windows and typography included, is a file and one command.
 
 Inside a loaded table the properties are the setter names: `font`, `color`, `bg`, `border`, `padding`,
 `position`, `anchor`, `size`. An unknown one is an **error** naming the ones that exist, and so is a rule
@@ -90,7 +90,7 @@ Each is a setter that returns the rule, and each reads back with no argument.
 
 | Call | Value | Notes |
 |---|---|---|
-| `rule:font(h)` | a [font handle](../../font.md) | `hafen.font():get(name)` or `hafen.asset():get(path)`, optionally through `:derive()` — see [text](text.md) |
+| `rule:font(face)` | a [font handle](../../font.md), or the same face **named** | `hafen.font():get(name)` / `hafen.asset():get(path)`, optionally through `:derive()`, or `{builtin = …}` / `{asset = …}` with `size`, `bold`, `italic` and `aa` — see [text](text.md#font) |
 | `rule:color(r, g, b[, a])` | `0..255` each | also takes a colour value, the `{r = …, g = …}` table every reader hands back — see [text](text.md#color) |
 | `rule:bg(t)` | one [surface](chrome.md#naming-a-picture), or an array of them | what something is painted on, one layer or several — see [chrome](chrome.md) |
 | `rule:border(t)` | `{<art>, slice = {l, t, r, b}}` **or** `{box = "gfx/hud/wnd"}` | your own 9-slice frame, or one of the client's own — see [chrome](chrome.md#border) |
