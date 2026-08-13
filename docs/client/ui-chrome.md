@@ -103,6 +103,7 @@ geometry as well as the paint.
 | What | Where |
 |---|---|
 | **The tooltip's box** | `UILoop.drawtooltip` — `m = UI.scale(2, 2)`, then `g.rect2(pos - m - (1,1), br + m)` in `(244, 247, 21, 192)` **first** and `g.frect2(pos - m, br + m)` in `(35, 35, 35, 192)` over it, so the outline reads as a 1 px ring outside the fill. `pos` is the tip texture's own top-left, `br = pos + tex.sz()` |
+| **The inventory square** | `Inventory.invsq`, a `TexI` over a `WritableRaster` filled in the class's **static initialiser**: a 1 px ring of `(20, 28, 21, 167)` around a field of `(36, 52, 38, 125)` |
 
 **Three things about that one.** `pos` is clamped to `>= 0` but the box is not, so a tip at the left or top
 edge already paints its outline off-screen — widening the box widens that overhang rather than pushing the
@@ -110,6 +111,14 @@ tip inward. The rendered tip is cached on the tooltip **object** (`Utils.eq(tool
 when `Fonts.gen()` moves), and the box is painted **outside** that cache, every frame — so a box that reads a
 style needs no invalidation at all. And `drawtooltip` runs from `UILoop.display` after `ui.draw(g)`, i.e.
 outside every widget's draw, so there is no widget in hand and no per-widget style frame in force.
+
+**And two about the square.** It is drawn **one pixel larger than the grid's pitch** (`sqsz` is
+`UI.scale(32,32) + (1,1)`, the raster `sqsz + (1,1)`), so adjacent cells overlap and share one ring — place
+at `c.mul(sqsz)`, size at `invsq.sz()`, never at `sqsz`. And it is blitted from **six** classes, only two of
+them an inventory: `Inventory.draw` and `Equipory.drawslots`, against `GameUI`'s two belt widgets,
+`MenuGrid.bg`, `Makewindow.SpecWidget.drawbg` and `FightWnd`'s manoeuvre row, which take the field for its
+pixels rather than for what it means. A `static final` from a static initialiser is never *replaced* — the
+JVM does not re-run one — so a site that wants another square asks, and falls back to this.
 
 ## The addon seam
 
@@ -122,12 +131,16 @@ Every `// addon:` edit in the chrome; everything else the sheet needs was alread
 | The panels, routed the way the fonts are | `IBox box = Fonts.box("panel", this, stock)` plus `Fonts.drawbg(box, g, tl, sz)` at each site, both handing back the **stock** box / `false` when no rule applies |
 | Where the two placed ornaments go, one method each | `DefaultDeco.capc()` (stock `cpo`) and `sizerc()` (stock `ca.br - sizer.sz()`), both `public` and both read by `drawframe`; `drawsizer(GOut)` wraps the blit so a subclass can supply its own art. A replacement deco overrides them rather than copying `drawframe` |
 | The close button, buildable and swappable | `DefaultDeco.mkcbtn()` is the constructor's own line — the stock `IButton` over `Window.cbtni` with `((Window)parent).reqclose()` on it — so anything replacing the button can build the client's own back, action included. `chcbtn(IButton)` swaps it and `reqdestroy()`s what it displaces, `chdeco`'s discipline one level down; `cbtn` is not `final`, because an `IButton`'s three faces are and a face change is therefore a whole new button |
+| The inventory square, one lookup for a whole grid | `Inventory.draw` and `Equipory.drawslots` open with `Fonts.chrome("inventory.slot", this)` and blit `invsq` when it answers `null`. Resolved **outside** the loop: a grid is one box per cell, and asking per cell would take the registry lock per cell per frame |
 | The caption plate, at the box the client sizes | `DefaultDeco.drawplate(GOut)` → `Fonts.drawchrome("window.title", wnd, g, Coord.z, plsz)`, and the stock `cl`/`cm`/`cr` run is skipped when it answers `true`. `plsz` is computed beside `cmw` in `checkcap`; the answer is kept in `DefaultDeco.platestyled` for the read-back |
 
-`Fonts.drawchrome(scope, wdg, g, ul, sz)` is the third source interface beside `Fonts.Boxes` and
-`Fonts.TreeStyles`, and it is the shape for **a box the site sizes itself**: no `IBox` to stand in for, so
-the site hands over a rectangle and asks whether a rule painted it. Both halves are behind the same
-`active` volatile read, so a client with no addon runs the same code it always did.
+`Fonts.Chromes` is the third source interface beside `Fonts.Boxes` and `Fonts.TreeStyles`, and it is the
+shape for **a box the site sizes itself**: no `IBox` to stand in for, so the site hands over a rectangle and
+asks whether a rule painted it. It answers three ways for the three moments a site needs it —
+`drawchrome(scope, wdg, g, ul, sz)` resolves and paints in one breath, `chromepad(scope, wdg)` gives the
+room a padding asks for *before* there is a rectangle, and `chrome(scope, wdg)` hands the paint back as a
+`Fonts.Chrome` for a site that draws the same box many times. All three are behind the same `active`
+volatile read, so a client with no addon runs the same code it always did.
 
 **Replacing the geometry costs no core edit**: a deco subclass overrides `iresize` itself, and `chdeco`,
 `resize`, `tlm`, `dlmrgn`/`dsmrgn` and `Window.c` are already public. So a client with no addon runs the same

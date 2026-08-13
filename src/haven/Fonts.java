@@ -94,6 +94,7 @@ public class Fonts {
         "textentry",      // F3  — text-entry fields
         "world.nick",     // F4  — floating player/kin names
         "world.speech",   // F4  — speech bubbles
+        "inventory.slot", // C2  — the empty square an inventory grid is paved with (065.7; bg/border, no text)
     };
 
     /**
@@ -415,12 +416,29 @@ public class Fonts {
      * over the rectangle instead and asks whether a rule painted it.
      */
 
+    /**
+     * The paint one site's rule does, <b>held</b> rather than spent (065.7) — what {@link #chrome} hands a site
+     * that draws the same box many times in one pass. An inventory's grid is one rectangle per square, and
+     * asking {@link #drawchrome} per square would resolve the rule (and take the registry lock) per square per
+     * frame; so the site resolves once, outside its loop, and paints from the answer.
+     *
+     * <p>Opaque, like every other value the addon layer parks in a style: this class only carries it. The
+     * instances are interned per resolved style by the layer that makes them, so a site that asks every frame
+     * allocates nothing.
+     */
+    public interface Chrome {
+        /** Paint this site's own surface and frame over {@code [ul, ul+sz)} — device pixels. */
+        public void draw(GOut g, Coord ul, Coord sz);
+    }
+
     /** The chrome-paint source (065.4) — installed once by the addon layer; {@code null} in a stock client. */
     public interface Chromes {
         /** Paint {@code scope}'s own surface and frame over {@code [ul, ul+sz)}; {@code false} when no rule names it. */
         public boolean draw(String scope, Widget wdg, GOut g, Coord ul, Coord sz);
         /** The room {@code scope}'s own padding asks for, as {@code {tl, br}} in device px, or {@code null}. */
         public Coord[] pad(String scope, Widget wdg);
+        /** {@code scope}'s own paint, held for a site that draws many boxes, or {@code null} when no rule names it. */
+        public Chrome chrome(String scope, Widget wdg);
     }
     private static volatile Chromes chromes = null;
 
@@ -454,6 +472,21 @@ public class Fonts {
             return null;                  // fast path: no override anywhere
         Chromes src = chromes;
         return (src == null) ? null : src.pad(scope, wdg);
+    }
+
+    /**
+     * The paint {@code scope}'s rule does, resolved <b>once</b> for a site that draws many boxes in one pass —
+     * {@code null} means no rule names it and the site paints exactly what it always painted (065.7).
+     *
+     * <p>Same answer as {@link #drawchrome}, read at the top of a loop rather than inside it. A site with one
+     * box to paint has nothing to gain from it and asks the other; a grid does, and asks this. Behind the same
+     * {@code active} volatile read, so a client with no addon pays one per draw rather than one per cell.
+     */
+    public static Chrome chrome(String scope, Widget wdg) {
+        if(!active)
+            return null;                  // fast path: no override anywhere
+        Chromes src = chromes;
+        return (src == null) ? null : src.chrome(scope, wdg);
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {

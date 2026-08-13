@@ -1104,16 +1104,63 @@ final class Chrome {
     static boolean draw(String scope, Widget wdg, GOut g, Coord ul, Coord sz) {
         if((sz == null) || (sz.x <= 0) || (sz.y <= 0))
             return false;
+        Fonts.Chrome p = chrome(scope, wdg);
+        if(p == null)
+            return false;                   // a text-only rule paints no plate: the site keeps its own art
+        p.draw(g, ul, sz);
+        return true;
+    }
+
+    /**
+     * One site's own paint — its {@code bg} under its {@code border}, in that order — held so that a site
+     * paving a surface with the <b>same</b> box many times resolves the rule once rather than once per box
+     * ({@link #chrome}). It is the whole of what {@link #draw} does, named, because a grid needs the answer
+     * before its loop and a plate needs it inside a single call.
+     */
+    static final class Paint implements Fonts.Chrome {
+        private final Bg bg;
+        private final Border border;
+
+        private Paint(Bg bg, Border border) {
+            this.bg = bg;
+            this.border = border;
+        }
+
+        public void draw(GOut g, Coord ul, Coord sz) {
+            if(bg != null)
+                bg.draw(g, ul, sz);
+            if(border != null)
+                border.draw(g, ul, sz);
+        }
+    }
+
+    /**
+     * One {@link Paint} per resolved style — the same interning {@link #boxes} does one level up, and for the
+     * same reason: an inventory asks once per draw and must allocate nothing. Held weakly, because a style
+     * stops existing when the rules change. Guarded by {@code Chrome.class}.
+     */
+    private static final Map<Fonts.Style, Paint> paints = new WeakHashMap<Fonts.Style, Paint>();
+
+    /**
+     * {@code Fonts.chrome(scope, wdg)} — the paint this site's rule does, or {@code null} when it names neither
+     * a {@code bg} nor a {@code border} and the site should draw its own art (065.7).
+     *
+     * <p>The <b>inventory square</b> is the first site to want it: a grid draws one box per cell, so it reads
+     * the answer at the top of its loop and paints from it, where a plate or a tooltip resolves and paints in
+     * one breath ({@link #draw}).
+     */
+    static Fonts.Chrome chrome(String scope, Widget wdg) {
         Fonts.Style st = Fonts.styleFor(scope, wdg);
         Bg bg = bg(st);
         Border bd = border(st);
         if((bg == null) && (bd == null))
-            return false;                   // a text-only rule paints no plate: the site keeps its own art
-        if(bg != null)
-            bg.draw(g, ul, sz);
-        if(bd != null)
-            bd.draw(g, ul, sz);
-        return true;
+            return null;
+        synchronized(Chrome.class) {
+            Paint p = paints.get(st);
+            if(p == null)
+                paints.put(st, p = new Paint(bg, bd));
+            return p;
+        }
     }
 
     /**

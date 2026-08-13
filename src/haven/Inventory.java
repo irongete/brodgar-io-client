@@ -66,18 +66,32 @@ public class Inventory extends Widget implements DTarget {
     public void draw(GOut g) {
 	Coord c = new Coord();
 	int mo = 0;
+	// addon: (065.7) the empty square is the "inventory.slot" rule's -- the SAME box at every cell, so the
+	// rule is resolved once here and painted per square rather than resolved per square. Null is the
+	// answer a stock client always gets, and then every cell is the static raster at the coordinate it
+	// always had. The mask's dimming brackets whichever of the two paints, exactly as it always did.
+	Fonts.Chrome sq = Fonts.chrome("inventory.slot", this);
 	for(c.y = 0; c.y < isz.y; c.y++) {
 	    for(c.x = 0; c.x < isz.x; c.x++) {
 		if((sqmask != null) && sqmask[mo++]) {
 		    g.chcolor(64, 64, 64, 255);
-		    g.image(invsq, c.mul(sqsz));
+		    drawsq(g, sq, c.mul(sqsz));
 		    g.chcolor();
 		} else {
-		    g.image(invsq, c.mul(sqsz));
+		    drawsq(g, sq, c.mul(sqsz));
 		}
 	    }
 	}
 	super.draw(g);
+    }
+
+    /* addon: (065.7) one square, the rule's or the client's own, at the size the client's own always was --
+     * so a themed grid keeps its stock pitch and every item icon stays where it is. */
+    private static void drawsq(GOut g, Fonts.Chrome sq, Coord c) {
+	if(sq == null)
+	    g.image(invsq, c);
+	else
+	    sq.draw(g, c, invsq.sz());
     }
 	
     public Inventory(Coord sz) {

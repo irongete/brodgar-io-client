@@ -204,13 +204,19 @@ public class Equipory extends Widget implements DTarget {
 	    } catch(Loading l) {
 	    }
 	}
+	// addon: (065.7) the equipment slots are paved with the very square an inventory is, so they are the
+	// same site: one lookup for the whole plate, then the rule's square or the client's own per slot.
+	Fonts.Chrome sq = Fonts.chrome("inventory.slot", this);
 	for(int i = 0; i < ecoords.length; i++) {
 	    if((slots & (1 << i)) != 0) {
 		g.chcolor(255, 255, 0, 64);
 		g.frect(ecoords[i].add(1, 1), invsq.sz().sub(2, 2));
 		g.chcolor();
 	    }
-	    g.image(invsq, ecoords[i]);
+	    if(sq == null)
+		g.image(invsq, ecoords[i]);
+	    else
+		sq.draw(g, ecoords[i], invsq.sz());
 	    if(ebgs[i] != null)
 		g.image(ebgs[i], ecoords[i]);
 	}

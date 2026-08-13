@@ -96,10 +96,10 @@ as the stylesheet's [site keys](style/keys.md), deliberately, so there is one se
 | `menu` | `MenuGrid`, `FlowerMenu` |
 
 **Some site-key names classify no widget** — `window.title`, `window.frame`, `panel`, `heading`, `tooltip`,
-`world.nick`, `world.speech`. They name a *render site*, not a widget: a window's caption and frame are
-drawn by the window's decoration, a tooltip is painted rather than placed, and the world sites live over
-the 3D view. They stay valid selectors, because the vocabulary is shared with the sheet, but they match
-nothing.
+`inventory.slot`, `world.nick`, `world.speech`. They name a *render site*, not a widget: a window's caption
+and frame are drawn by the window's decoration, an inventory's empty square is paved by the grid rather than
+placed in it, a tooltip is painted rather than placed, and the world sites live over the 3D view. They stay
+valid selectors, because the vocabulary is shared with the sheet, but they match nothing.
 
 Most widgets have **no** role — layout containers, scroll ports, images, item icons. That is the rule
 working, not a gap: an unrecognised widget answers `nil` rather than being guessed into the nearest role.

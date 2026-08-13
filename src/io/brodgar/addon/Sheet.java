@@ -773,6 +773,12 @@ final class Sheet {
             public Coord[] pad(String scope, Widget w) {
                 return Chrome.pad(scope, w);
             }
+
+            // 065.7 - ...and the same answer HELD, for a site that paves a surface with one box many times
+            // over. The inventory square is the first of those: one rectangle per cell, resolved once.
+            public Fonts.Chrome chrome(String scope, Widget w) {
+                return Chrome.chrome(scope, w);
+            }
         });
     }
 

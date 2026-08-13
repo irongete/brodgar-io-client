@@ -38,6 +38,38 @@ because that is the surface doing the drawing.
 Neither draws text. `window.frame` takes `bg`, `border`, `padding` and the [ornament](chrome.md#ornaments)
 properties, `panel` the first two; both are described in full under [chrome](chrome.md).
 
+## `inventory.slot`
+
+The empty **square** an inventory is paved with: your own, every container you open — a cupboard, a chest, a
+cart, a stockpile — and the slots of the equipment window, which are the same square laid out around the
+character. It draws no text, so it takes [`bg`](chrome.md#bg) and [`border`](chrome.md#border) and nothing
+else. The client's own square is exactly those two — a translucent dark-green fill inside a one-pixel darker
+outline, drawn in code rather than loaded from a resource — so a
+[line](chrome.md#border) border and a flat `bg` restate it, and any other art replaces it.
+
+```lua
+local s = hafen.ui():sheet()
+s:rule("inventory.slot"):bg{ color = {40, 20, 60, 255} }
+                        :border{ color = {255, 140, 40}, width = 1 }
+s:install()
+```
+
+Three things follow from where the square is drawn, and none of them is a limit you can lift:
+
+- **A rule paints inside the client's own rectangle.** The square's size *is* the grid's pitch — the cell an
+  item icon is placed on was measured from it when the inventory was built — so a rule says what fills that
+  rectangle and never how big it is. Art of another size is scaled into it, and `padding` has nothing to
+  move here.
+- **The squares are painted before the items.** An inventory draws its whole grid and then its icons over
+  it, so a `bg` never buries an item however opaque it is, and a hovered or dragged item is unaffected.
+- **A masked-off cell is dimmed by the client**, as it always was — a container whose shape leaves some
+  cells unusable draws those darker. The dimming multiplies through *picture* art and leaves a flat `bg`
+  colour as written, so a themed grid that wants its dead cells to read differently gives them a picture.
+
+Deliberately not in this key: the belt across the bottom of the screen, the action-menu grid, the craft
+window's input and output slots and the combat-manoeuvre row. Each of those happens to blit the *same*
+raster, but none of them is an inventory square, and each keeps the client's own.
+
 ## `button`
 
 The captions of the client's standard buttons: the Options window, the character-sheet, craft and build

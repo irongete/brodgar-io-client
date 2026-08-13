@@ -73,6 +73,7 @@ final class Selector {
      */
     static final String[] SITE_ROLES = {
         "window.title", "window.frame", "panel", "heading", "tooltip", "world.nick", "world.speech",
+        "inventory.slot",
     };
 
     /**

@@ -105,7 +105,7 @@ in stage A before any surface is routed against it.
       `[manual]`: hover an inventory item — expect the tip's box in the rule's fill and its outline in the
       rule's colour, at the rule's thickness, with the text further from the edge than stock.
 
-- [ ] **065.7 — the inventory square.** New site key `inventory.slot`, carrying `bg` and `border`.
+- [x] **065.7 — the inventory square.** New site key `inventory.slot`, carrying `bg` and `border`.
       `Inventory`'s static 33×33 raster stays exactly as the stock value, and `Inventory.draw` asks the sheet
       per square, falling back to it. `Equipory` draws the same square and follows for free.
       *Its suite* installs a `bg` colour and a line `border` on `inventory.slot`, asserts the key resolved

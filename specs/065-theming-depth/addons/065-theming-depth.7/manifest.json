@@ -1,0 +1,9 @@
+{
+  "name": "065.7 — the inventory square",
+  "id": "065-theming-depth.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.7: inventory.slot is a site key carrying bg and border, and it paves every inventory and equipment square.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
