@@ -30,6 +30,7 @@
 - `widget:tooltip(s)` writes a plain string, and `Widget.settip` defaults `rich` to false, so an addon cannot write a tooltip carrying `$col`/`$b` markup while the client writes them for its own buttons (filed: 065)
 - `KeyBinding.key` is three-state and `keybindings:key(name, k)` writes only two of them, so nothing puts a binding back on its DEFAULT — which also means a caller that saves a key and writes it back turns a default into an assignment, and any later change to that default can never reach the profile again (filed: 066)
 - `player():worldToScreen(p)` projects at the PLAYER's height: `MapView.screenxf(Coord2d)` fills the z in from `getcc()`, so a Position on a slope answers where it would be at the player's altitude and a screen→world trip back does not return to it — the `screenxf(Coord3f)` overload beside it plus the height `world():height(p)` already reads is the fix (filed: 067)
+- `MapFile.update` passes `prios[i]` into every `TileInfo` from the loop ABOVE the one that fills `prios`, so every grid recorded off the live map carries `prio 0` — which flattens `DataGrid.render`'s tile-border pass and leaves `View.fin`'s topological tile sort ordering by the grid's own array order instead of the server's (filed: 068)
 - the two emboss textures are loaded in different spaces — `Window.ctex` through `Resource.loadsimg` and `CharWnd.failtex` through `Resource.loadimg` — so on a scaled-up client a FAILED heading is carved at a finer grain than every other embossed surface (filed: 065)
 
 ## Candidates

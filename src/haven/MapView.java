@@ -1472,6 +1472,34 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private volatile FleetView[] fvorder = new FleetView[0];
     private double lastreq = 0, lastfleet = 0;
 
+    /* 068: the remembered ground's source -- an MCache of its own, filled out of the map database.
+     * Built on the first tick that has a minimap to take sessloc from, and nothing is drawn out of it
+     * here: this holds the read back, and :recall is what reports it. */
+    private io.brodgar.rts.Recall recall = null;
+
+    private void recalltick() {
+	GameUI gui = getparent(GameUI.class);
+	MiniMap mm = (gui == null) ? null : gui.mmap;
+	if(mm == null)
+	    return;
+	if(recall == null)
+	    recall = new io.brodgar.rts.Recall(glob.sess);
+	/* Where the ground is read around. The RTS camera is the one that leaves the character, and it
+	 * is the reason the record is read at all; every other camera is bolted to the player, where
+	 * getcc() says the same thing. */
+	Coord2d c = null;
+	if(camera instanceof RTSCam)
+	    c = ((RTSCam)camera).center();
+	if(c == null) {
+	    try {
+		c = new Coord2d(getcc());
+	    } catch(Loading e) {
+		/* No player yet, or no ground under them: nothing to centre a read on. */
+	    }
+	}
+	recall.tick(mm, c);
+    }
+
     /* rts: every frame, unlike fleettick() -- an animated pose that is 200ms stale is a visible jump. */
     public void gtick(Render out) {
 	super.gtick(out);
@@ -2544,6 +2572,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    e.boostprio(5);
 	    camload = e;
 	}
+	recalltick();   // 068: read the ground the character remembers, out of the map database
 	basic(Camera.class, camera);
 	amblight();
 	updsmap(amblight);
@@ -3356,6 +3385,19 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		public void run(Console cons, String[] args) throws Exception {
 		    if(args.length >= 2)
 			setcam(args[1], Utils.splice(args, 2));
+		}
+	    });
+	/* 068: what the remembered ground's source is based on, what it has read back and what it
+	 * costs. The request counts are the ones that matter: a source filled from the map database
+	 * that puts anything on the wire is asking the server about ground the character is nowhere
+	 * near, which is the one thing this must not do. */
+	cmdmap.put("recall", new Console.Command() {
+		public void run(Console cons, String[] args) throws Exception {
+		    io.brodgar.rts.Recall r = recall;
+		    if(r == null)
+			throw(new Exception("recall: no source yet -- no minimap to take a session location from"));
+		    for(String ln : r.report())
+			cons.out.println(ln);
 		}
 	    });
 	cmdmap.put("whyload", new Console.Command() {

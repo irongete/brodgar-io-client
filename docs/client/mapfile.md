@@ -66,11 +66,53 @@
   and throws `IllegalArgumentException` otherwise; its `ByZCoord` (``) answers `null` (not `Loading`)
   once it has run and found nothing there.
 
+## Reading a recorded grid back as a live one
+
+A recorded `Grid` and an `MCache.Grid` hold the same picture in the same layout — a `cmaps`-sized `int[]` of
+tile indices and a `float[]` of heights — so the record is rasterizable by the terrain machinery in
+[world-3d.md](world-3d.md), once these four differences are paid.
+
+| The record | The live cache | What has to happen |
+|---|---|---|
+| `DataGrid.tiles`, indices into **this grid's own** `tilesets` | `MCache.Grid.tiles`, this **session's** tile ids, indices into `MCache.sets` | remap per grid, through a name→id map the reader keeps for itself |
+| `TileInfo.res`, a `Resource.Saved` | `MCache.sets[id]`, an `Indir<Resource>` | the same shape already; `MCache.settileset` (`// addon:`) is the two lines `filltiles3` runs with no wire message around them |
+| `DataGrid.zmap`, `Grid.id` | `MCache.Grid.z`, `.id` | copy. The id seeds each `Cut`'s `Random`, so a place meshes identically every time it is built |
+| `DataGrid.ols`, a `Collection<Overlay>` keyed by resource | `MCache.Grid.ols`/`.ol`, parallel arrays | not the same shape at all — and `MCache.Grid.getol` walks `ols.length` unguarded, so a grid filled from the record needs **empty arrays, never null** |
+
+- **A tile id is per-session and per-cache.** The server assigns it (`MCache.Grid.filltiles3`) and it is an
+  index into `sets`, which is why the record stores names and versions instead. It is also the transition
+  priority: `MapMesh.dotrans` loops from the highest neighbouring id down and hands `255 - i` to `Tiler.trans`
+  as the layer order. A reader minting ids of its own therefore gets correct ground with a transition order of
+  its own, and there is no way to recover the server's — see the `prio` gotcha below.
+- **The read is two steps and neither of them waits.** `Segment.gridid(sc)` answers from memory; `Segment.grid(id)`
+  hands back an `Indir` — both `checklock()`, both under the `tryLock` of `MiniMap.resolve`'s rule. Call `get()`
+  **outside** the lock and treat its `Loading` as *ask again next pass*: the caller is itself on a `Defer` thread
+  and blocking one on another's task is what [boot-and-loop.md](boot-and-loop.md) warns about.
+- **The offset is `sessloc`, and it can check itself.** Segment grid coord = session grid coord +
+  `sessloc.tc / cmaps`, and `sessloc.tc` is grid-aligned because `SessionLocator` derives it from a live grid's
+  `GridInfo`. `sessloc` goes stale rather than null ([minimap.md](minimap.md)), so a reader proves the offset
+  before trusting it: a live `MCache.Grid`'s `id` must equal `Segment.gridid` at its translated coord. A grid id
+  is the server's and is the same number in every frame, which is what makes that comparison an answer.
+- **A grid arriving does not need its neighbours invalidated, and invalidating them is expensive.**
+  `MCache.Grid.Cut.invalidate` goes through `Deferred.rebuild`, which schedules a build whether or not that cut
+  was ever built — so `ivneigh` around each arrival meshes the edge cuts of eight grids nobody asked to draw,
+  and `MapMesh.dotrans` reads one tile across the grid border, which is a `getgrid` miss and therefore a
+  `request`. `Grid.fill` can afford it because the ground it fills is being drawn anyway. It is also
+  unnecessary: that same cross-border read means an edge cut whose neighbour grid is absent throws
+  `MCache.LoadingMap`, and `Defer.Future.run` catches `Loading` into `resched` instead of completing — so a cut
+  only ever finishes with every grid it read present. Fill a margin beyond what is drawn; do not invalidate.
+
 ## Gotchas
 
 - **`Loading` is everywhere on this path** (`Indir.get`, a tileset resource, `olid.get`) and it is a
   `RuntimeException`: catch broadly at the API boundary or it escapes into user code.
 - A grid id and a segment id are **64-bit**; expose them as decimal strings, never Lua numbers.
+- **`TileInfo.prio` is 0 on every grid recorded off the live map.** `update`'s first loop passes `prios[i]` into
+  each `TileInfo`; the loop that *fills* `prios` runs after it, and the array is never read again. So the
+  ordering the field exists to keep is thrown away at the one place it is written — which flattens
+  `DataGrid.render`'s tile-border pass (it fires on `prio` strictly greater than the centre's) and leaves
+  `View.fin`'s topological tile sort ordering by the grid's own array order. `ZoomGrid.from` mints its own from
+  the merged name index, so a zoom level's prios are not 0 and are not the server's either.
 - `markerseq` does **not** bump for markers loaded from disk at startup, so the initial load never calls
   `onMarkersChanged`. Every call into it is therefore already a **real** change — `MapApi.fireMarkersChanged`
   fires on the first call too (it primes `lastMarkerSeq` and fires in the same call), unlike the old poll's

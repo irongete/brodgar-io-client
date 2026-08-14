@@ -103,6 +103,61 @@ public final class AddonWidgets {
     }
 
     /**
+     * addon: install a tileset in a map cache under an id that cache chose for itself (spec
+     * {@code 068-remembered-ground}) — the door to {@link MCache}'s own {@code settileset}, whose
+     * {@code sets} array and {@code cktileid} are private to that class.
+     *
+     * <p>A live tile id is an index the <b>server</b> assigned for this session, and it arrives with
+     * the grid that uses it. A map source filled from {@link MapFile} has none: the record carries
+     * tileset resource names and versions, so such a source keeps a name&rarr;id map of its own and
+     * registers each new one here. The {@code Indir} is the recorded {@link Resource.Saved} itself,
+     * which is the same shape {@code sets[]} already holds.
+     */
+    public static void settileset(MCache mc, int id, Indir<Resource> res) {
+        mc.settileset(id, res);
+    }
+
+    /**
+     * addon: put a grid into a map cache that no server sent (spec {@code 068-remembered-ground}) —
+     * the counterpart of {@code MCache.mapdata2} for ground read back out of {@link MapFile}.
+     *
+     * <p>A recorded grid carries exactly what a live one does — an {@code int[]} of tile indices and
+     * a {@code float[]} of heights, both {@code cmaps}-sized — so the whole of the difference is
+     * where the bytes came from. {@code tiles} must already be in the target cache's OWN tile ids
+     * (see {@link #settileset}); {@code id} is the server's grid id the record kept, which is what
+     * seeds the cut meshes' randomness so a place looks the same each time it is drawn.
+     *
+     * <p>The overlay arrays are empty rather than {@code null}: {@code MCache.Grid.getol} walks
+     * {@code ols.length} unguarded.
+     *
+     * <p><b>The neighbours are deliberately not invalidated</b>, which is where this parts company
+     * with {@code Grid.fill}. {@code Cut.invalidate} calls {@code Deferred.rebuild}, which schedules
+     * a build whether or not that cut was ever built — so invalidating around each arrival meshes
+     * the edge cuts of eight grids nobody asked to draw, and {@code MapMesh}'s transition pass reads
+     * one tile across the grid border, which is a {@code getgrid} miss and therefore a
+     * {@code request} on a cache that must put nothing on the wire. Nor is it needed: that same
+     * cross-border read means an edge cut whose neighbour grid is absent throws {@code LoadingMap},
+     * and {@code Defer.Future.run} catches {@code Loading} into {@code resched} rather than
+     * completing. A cut can only finish with every grid it read present, so there is no stale edge
+     * for an invalidation to repair — the caller fills a margin beyond what it draws instead.
+     */
+    @SuppressWarnings("unchecked")
+    public static void putgrid(MCache mc, Coord gc, long id, int[] tiles, float[] z) {
+        MCache.Grid g = mc.new Grid(gc);
+        System.arraycopy(tiles, 0, g.tiles, 0, g.tiles.length);
+        System.arraycopy(z, 0, g.z, 0, g.z.length);
+        g.id = id;
+        g.seq = 0;
+        g.ols = new Indir[0];
+        g.ol = new boolean[0][];
+        synchronized(mc.grids) {
+            MCache.Grid prev = mc.grids.put(gc, g);
+            if(prev != null)
+                prev.dispose();
+        }
+    }
+
+    /**
      * The map grids streamed in right now, backing {@code hafen.world():grid():list()}. A copy taken under the
      * cache's own monitor, the way {@link MCache} takes it itself; grids being removed are left out, so what
      * comes back is what is actually on the map. The grid map is a {@code haven}-package field (audit B5), so

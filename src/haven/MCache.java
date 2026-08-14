@@ -291,6 +291,18 @@ public class MCache implements MapSource {
 	}
     }
 
+    /* addon: (068.1) install a tileset under an id this cache chooses for itself -- the two lines
+     * filltiles3 runs when the server names one, without the wire message around them. `sets` and
+     * `cktileid` are private, which is why this cannot live in AddonWidgets like its companion
+     * putgrid does. A map source filled from the map database rather than from the wire has no
+     * server-assigned tile ids at all: the record carries tileset resource NAMES, so such a source
+     * mints its own and installs them here. Reached from outside `haven` through
+     * AddonWidgets.settileset. */
+    void settileset(int id, Indir<Resource> res) {
+	cktileid(id);
+	sets[id] = res;
+    }
+
     private void cktileid(int id) {
 	if(id >= sets.length) {
 	    synchronized(setmon) {
@@ -934,6 +946,34 @@ public class MCache implements MapSource {
     public int numgrids() {
 	synchronized(grids) {
 	    return(grids.size());
+	}
+    }
+
+    /* addon: (068.1) how many of this cache's cuts hold a built mesh right now. `cuts` and `Deferred`
+     * are private to Grid, so nothing outside this class can count them -- and for a cache that is
+     * filled from disk rather than from the wire this IS the cost of it: a grid is an array copy,
+     * while a cut is two passes over 625 tiles, a slot compile and a VBO upload. */
+    public int numcuts() {
+	Collection<Grid> copy;
+	synchronized(grids) {
+	    copy = new ArrayList<>(grids.values());
+	}
+	int n = 0;
+	for(Grid g : copy) {
+	    for(Grid.Cut cut : g.cuts) {
+		if(cut.mesh.cur() != null)
+		    n++;
+	    }
+	}
+	return(n);
+    }
+
+    /* addon: (068.1) how many grids this cache would ask the server for the next time sendreqs() ran
+     * on it. Zero is the whole point for a cache filled from the map database: nothing ticks it and
+     * nothing sends for it, so anything above zero here says something called getgrid() on it. */
+    public int numreqs() {
+	synchronized(req) {
+	    return(req.size());
 	}
     }
 
