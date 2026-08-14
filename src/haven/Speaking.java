@@ -70,15 +70,36 @@ public class Speaking extends GAttrib implements RenderTree.Node, PView.Render2D
 	}
     }
 
+    /* addon: (065.11) the bubble's own box is the "world.speech" rule's -- a bg and a border over the very
+     * rectangle the client measures around the text. This class is a GAttrib rather than a Widget, so there is
+     * nothing here to resolve a tree rule against: it asks the WIDGET-LESS arity, the site half of the cascade
+     * alone, which is the very path the font half above already resolves through. Both halves of the key
+     * therefore answer off one chain and cannot drift apart.
+     *   The GEOMETRY stays the client's: tl, ftl and the tail are measured from the stock sb every frame, so a
+     * themed bubble keeps its text where it was, its tail beneath it and its size following the string. A
+     * border whose corners are heavier than the stock's is drawn INTO the room the stock art had, exactly as a
+     * panel's is -- the doctrine's geometry row, and this surface re-lays nothing out.
+     *   Null is the answer a stock client always gets, and then every pixel below is the one it always drew. */
     public void draw(GOut g, Coord c) {
 	checkfont();   // addon: (F4)
 	Coord sz = text.sz();
 	sz.x = Math.max(sz.x, UI.scale(15));
 	Coord tl = c.sub(sx, sb.cisz().y + sz.y + svans.sz().y - sb.bb.sz().y);
 	Coord ftl = tl.add(sb.btloff());
+	Coord bsz = sz.add(sb.cisz());                     // addon: (065.11) the whole bubble, its frame included
+	Fonts.Chrome bub = Fonts.chrome("world.speech");   // addon: (065.11)
 	g.chcolor(Color.WHITE);
-	g.frect(ftl, sz);
-	sb.draw(g, tl, sz.add(sb.cisz()));
+	/* addon: (065.11) where the rule's own surface stops is D-079 one surface along: with a border of its
+	 * own the fill covers the WHOLE bubble, our 9-slice being transparent between its slices; with the
+	 * client's own frame still around it the fill stays inside that frame, which is where the stock one is. */
+	if((bub != null) && bub.bg())
+	    bub.drawbg(g, bub.border() ? tl : ftl, bub.border() ? bsz : sz);
+	else
+	    g.frect(ftl, sz);
+	if((bub != null) && bub.border())
+	    bub.drawborder(g, tl, bsz);
+	else
+	    sb.draw(g, tl, bsz);
 	g.chcolor(Color.BLACK);
 	g.image(text.tex(), ftl);
 	g.chcolor(Color.WHITE);

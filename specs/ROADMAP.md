@@ -27,6 +27,7 @@
 - `Window.DefaultDeco.drawframe` blits `cap.tex()` unguarded, so a window built with a null caption throws on its first frame — the sheet-fed deco guards the same blit and the stock one does not (filed: 065)
 - `ICheckBox`'s server-side factory loads BOTH hover faces from `args[1]`, so a resource-placed picture checkbox wears its `down` art for `hoverup` and never reads `args[2]`/`args[3]` at all (filed: 065)
 - the stock half of a layout record is an absolute value taken at the first touch, so `widget:position(nil)`/`:size(nil)` after the client has re-laid the screen out restores a place or a box fitted to the OLD screen, and it stands until the client's next re-layout (filed: 062)
+- `Speaking.draw` blits its finished text under a flat `chcolor(Color.BLACK)`, so the `color` a `world.speech` rule bakes into the raster through `fixcol` is multiplied away and the bubble's text is black whatever the rule says (filed: 065)
 
 ## Candidates
 

@@ -115,14 +115,15 @@ what the surface *does* with a property. First the two that write text:
 | `menu` | yes | yes | `size=` is safe — a petal re-sizes around its own centre |
 | `chat` | yes | yes | colour is how you tell area from party from private: one rule paints them alike |
 | `world.nick` | yes | yes | a `color` rule flattens the kin-**group** colours; a font-only rule leaves them |
-| `world.speech` | yes | yes | `size=` is safe — the bubble measures its frame around the text every frame |
+| `world.speech` | yes | **inert** | the bubble blits its finished text under a flat black tint, so the glyph colour is thrown away on the way to the screen. `size=` is safe — the bubble measures its frame around the text every frame |
 | any tree key | yes | **per surface** | [resolved per widget](#tree-keys) and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats unchanged: a rule on a window covers the window's own caption, where `font` works and `color` is inert. `:style()` reports the colour a rule set even where the surface then throws it away |
 | `widget:rule()` | yes | **per surface** | the same, one widget at a time and named by hand rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do* |
 
 And the three that draw the chrome. The surfaces that wear them are the ones that draw a box of their own:
 the window decoration, the caption plate inside it, the window-less panels, the box a tooltip is popped up
-in, an inventory square, a button's face, a text field, and the boxes, rails and thumbs of the three
-controls the client blits. A [state face](chrome.md#a-face-per-state) inside a `bg` is
+in, an inventory square, a button's face, a text field, the boxes, rails and thumbs of the three
+controls the client blits, and the speech bubble over a talking character.
+A [state face](chrome.md#a-face-per-state) inside a `bg` is
 worn by the surfaces that *have* that state, and ignored by the rest, exactly as the rows below say:
 
 | Key | `bg` | `border` | `padding` | Worth knowing |
@@ -137,6 +138,7 @@ worn by the surfaces that *have* that state, and ignored by the rest, exactly as
 | `textentry` | yes | yes | yes | the **field** every line is typed into: the `bg` stands in for its stretched middle, the `border` for the two end caps, and `padding` is the room between those and the text, which moves inside a width the caller still owns — [what a field is](surfaces.md#textentry) |
 | `checkbox`, `scrollbar`, `slider` | yes | yes | **inert** | the box a checkbox ticks and the two **rails** a thumb runs along, each painted over the rectangle the control was built with, so `padding` has nothing to move. A [`checked` face](chrome.md#a-face-per-state) inside a `checkbox` `bg` is what a ticked box wears, and it is the only state any of the three enters. A checkbox drawn as a single **picture** — the HUD's map and menu buttons, a dropdown's arrow — is not in this key, for the reason an icon button is not in `button` — [the three controls](surfaces.md#checkbox-scrollbar-and-slider) |
 | `checkbox.mark`, `scrollbar.knob`, `slider.knob` | yes | yes | **inert** | the tick and the two **thumbs**, each a key of its own so the part is dressed apart from the whole it sits on. A part never takes the whole's art: name both or the one you leave out stays the client's |
+| `world.speech` | yes | yes | **inert** | the **bubble** over a talking character: the `bg` stands in for its white fill, the `border` for the frame around it, and either alone leaves the other the client's own. The bubble measures itself around the sentence every frame, so `padding` has nothing to move — [what the bubble is](surfaces.md#worldspeech-and-worldnick) |
 | `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches every key in the rows above, each subject to its own row. Text-only surfaces ignore it entirely and stay stock |
 | every other site key | **inert** | **inert** | **inert** | a text site has no surface of its own to paint and no layout of its own to move. Nothing is refused and nothing warns |
 | a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |
@@ -167,10 +169,11 @@ And the three that lay widgets out. This table is short because the answer is: a
 | any site key, `*` included | **error** | **error** | a site is where the client draws text, and text has no position. The error names the fix: select the widget |
 | `widget:rule()` | **error** | **error** | the hand-named level is the verb, [`w:position(x, y)`](../native.md) — the error says so |
 
-**Where `color` is inert, it is the same reason every time**: the surface is *embossed*. The client renders
-the text as a mask, tiles a texture through it and blurs a shadow behind, so the glyph colour is discarded
-before anything reaches the screen and there is nothing for a rule to override. Those surfaces still follow
-a `font` rule perfectly. Nothing is refused and nothing warns.
+**Where `color` is inert, the glyph colour is thrown away before anything reaches the screen.** Most of
+those surfaces are *embossed*: the client renders the text as a mask, tiles a texture through it and blurs
+a shadow behind, so there is nothing left for a rule to override. The speech bubble instead blits its
+finished text under a flat black tint, which comes to the same thing. All of them still follow a `font`
+rule perfectly. Nothing is refused and nothing warns.
 
 Three more limits are structural rather than per-key, and none of them is a bug to report:
 

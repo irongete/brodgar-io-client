@@ -104,6 +104,7 @@ geometry as well as the paint.
 |---|---|
 | **The tooltip's box** | `UILoop.drawtooltip` — `m = UI.scale(2, 2)`, then `g.rect2(pos - m - (1,1), br + m)` in `(244, 247, 21, 192)` **first** and `g.frect2(pos - m, br + m)` in `(35, 35, 35, 192)` over it, so the outline reads as a 1 px ring outside the fill. `pos` is the tip texture's own top-left, `br = pos + tex.sz()` |
 | **The inventory square** | `Inventory.invsq`, a `TexI` over a `WritableRaster` filled in the class's **static initialiser**: a 1 px ring of `(20, 28, 21, 167)` around a field of `(36, 52, 38, 125)` |
+| **The speech bubble's field** | `Speaking.draw` — a `g.frect` in `Color.WHITE` at `tl + sb.btloff()`, sized `text.sz()` (x floored at `UI.scale(15)`), with the `sb` box drawn around `sz + sb.cisz()` and `Text.render(…, Color.BLACK)` blitted over it. The **tail** is a separate `g.image(svans, …)` below the box, and `tl` is derived from `svans.sz().y` — so it is the geometry that pins the bubble to the head, not the box |
 
 **Three things about that one.** `pos` is clamped to `>= 0` but the box is not, so a tip at the left or top
 edge already paints its outline off-screen — widening the box widens that overhang rather than pushing the
@@ -133,14 +134,16 @@ Every `// addon:` edit in the chrome; everything else the sheet needs was alread
 | The close button, buildable and swappable | `DefaultDeco.mkcbtn()` is the constructor's own line — the stock `IButton` over `Window.cbtni` with `((Window)parent).reqclose()` on it — so anything replacing the button can build the client's own back, action included. `chcbtn(IButton)` swaps it and `reqdestroy()`s what it displaces, `chdeco`'s discipline one level down; `cbtn` is not `final`, because an `IButton`'s three faces are and a face change is therefore a whole new button |
 | The inventory square, one lookup for a whole grid | `Inventory.draw` and `Equipory.drawslots` open with `Fonts.chrome("inventory.slot", this)` and blit `invsq` when it answers `null`. Resolved **outside** the loop: a grid is one box per cell, and asking per cell would take the registry lock per cell per frame |
 | The caption plate, at the box the client sizes | `DefaultDeco.drawplate(GOut)` → `Fonts.drawchrome("window.title", wnd, g, Coord.z, plsz)`, and the stock `cl`/`cm`/`cr` run is skipped when it answers `true`. `plsz` is computed beside `cmw` in `checkcap`; the answer is kept in `DefaultDeco.platestyled` for the read-back |
+| The speech bubble, which is **no widget at all** | `Speaking.draw` opens with `Fonts.chrome("world.speech")` — the widget-less arity — and paints its own `frect`/`sb.draw` when that answers `null`. `tl`, `ftl` and the tail are measured from the stock `sb` either way, so a rule changes the paint and never the geometry |
 
 `Fonts.Chromes` is the third source interface beside `Fonts.Boxes` and `Fonts.TreeStyles`, and it is the
 shape for **a box the site sizes itself**: no `IBox` to stand in for, so the site hands over a rectangle and
-asks whether a rule painted it. It answers three ways for the three moments a site needs it —
-`drawchrome(scope, wdg, g, ul, sz)` resolves and paints in one breath, `chromepad(scope, wdg)` gives the
-room a padding asks for *before* there is a rectangle, and `chrome(scope, wdg)` hands the paint back as a
-`Fonts.Chrome` for a site that draws the same box many times. All three are behind the same `active`
-volatile read, so a client with no addon runs the same code it always did.
+asks whether a rule painted it. `drawchrome(scope, wdg, g, ul, sz)` resolves and paints in one breath,
+`chromepad(scope, wdg)` gives the room a padding asks for *before* there is a rectangle, and
+`chrome(scope, wdg)` hands the paint back for a site that draws the same box many times. `chrome(scope)`
+and `chromesz(scope)` are the **widget-less** pair — a surface that is no widget (`Speaking`), or one with
+none yet (a `TextEntry` measuring itself in its own constructor) — and take the site half of the cascade
+alone, the `Fonts.style(scope)` path. All are behind the same `active` volatile read.
 
 **Replacing the geometry costs no core edit**: a deco subclass overrides `iresize` itself, and `chdeco`,
 `resize`, `tlm`, `dlmrgn`/`dsmrgn` and `Window.c` are already public. So a client with no addon runs the same

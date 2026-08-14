@@ -462,6 +462,8 @@ public class Fonts {
         public Coord[] pad(String scope, Widget wdg);
         /** {@code scope}'s own paint in {@code state} ({@code null} = at rest), or {@code null} when no rule names it. */
         public Chrome chrome(String scope, Widget wdg, String state);
+        /** {@code scope}'s own paint with <b>no widget</b> to resolve against, or {@code null} when no rule names it. */
+        public Chrome chrome(String scope);
         /** The size {@code scope}'s own background art asks for, in device px, or {@code null}. */
         public Coord size(String scope);
     }
@@ -525,6 +527,24 @@ public class Fonts {
             return null;                  // fast path: no override anywhere
         Chromes src = chromes;
         return (src == null) ? null : src.chrome(scope, wdg, state);
+    }
+
+    /**
+     * The paint {@code scope}'s rule does with <b>no widget</b> to resolve it against (065.11) — {@code null}
+     * when no rule names it and the site paints exactly what it always painted.
+     *
+     * <p>The two above take the widget whose tree rule and whose draw frame outrank the scope; this one is for
+     * a surface that <b>is no widget</b>. A speech bubble is drawn by a {@link Speaking}, a {@link GAttrib} on
+     * a {@link Gob} in the 3D view, so there is no widget to name and nothing to hand over — it asks the site
+     * half of the cascade alone, the path {@link #style(String)} takes and the very path its own font already
+     * resolves through {@link #foundry(String, Text.Foundry)}. So both halves of such a key answer off one
+     * chain, and neither can drift from the other.
+     */
+    public static Chrome chrome(String scope) {
+        if(!active)
+            return null;                  // fast path: no override anywhere
+        Chromes src = chromes;
+        return (src == null) ? null : src.chrome(scope);
     }
 
     /**

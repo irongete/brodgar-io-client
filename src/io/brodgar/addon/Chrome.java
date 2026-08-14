@@ -1250,7 +1250,24 @@ final class Chrome {
      * frame reserves ({@link Border#tlIn}) and move the very content it is drawn around.
      */
     static Fonts.Chrome chrome(String scope, Widget wdg, String state) {
-        Fonts.Style st = Fonts.styleFor(scope, wdg);
+        return paint(Fonts.styleFor(scope, wdg), state);
+    }
+
+    /**
+     * {@code Fonts.chrome(scope)} — the same paint for a surface that is <b>no widget</b> (065.11), and so has
+     * none to resolve a tree rule against: the speech bubble over a character, drawn by a {@code Speaking}
+     * {@code GAttrib} rather than by anything in the tree.
+     *
+     * <p>It is the site half of the cascade alone, {@link #size} one property along, and the very path that
+     * bubble's <i>font</i> already resolves through — so the two halves of one key cannot drift apart. A
+     * surface with no widget has no state either: nothing hovers a speech bubble.
+     */
+    static Fonts.Chrome chrome(String scope) {
+        return paint(Fonts.style(scope), null);
+    }
+
+    /** The interned {@link Paint} one resolved style does in one state, or {@code null} when it paints nothing. */
+    private static Fonts.Chrome paint(Fonts.Style st, String state) {
         Bg bg = bg(st);
         Border bd = border(st);
         if((bg == null) && (bd == null))

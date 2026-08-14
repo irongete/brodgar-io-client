@@ -782,6 +782,13 @@ final class Sheet {
                 return Chrome.chrome(scope, w, state);
             }
 
+            // 065.11 - ...and the same answer for a surface that is NO WIDGET, so there is nothing to resolve
+            // a tree rule against: a speech bubble is a GAttrib on a Gob out in the 3D view. It takes the site
+            // half alone, which is the very path that bubble's own font already resolves through.
+            public Fonts.Chrome chrome(String scope) {
+                return Chrome.chrome(scope);
+            }
+
             // 065.9 - ...and how BIG that art is, for a control that measures itself from its own background
             // rather than painting into a box somebody handed it. A text field is the first of those, and it
             // asks in its constructor, which is why this one takes no widget.

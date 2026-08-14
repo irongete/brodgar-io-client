@@ -149,7 +149,7 @@ in stage A before any surface is routed against it.
       `[manual]`: open Options — expect the checkboxes in the theme's box with the theme's tick, and the
       scrollbar of a long list with the theme's rail and knob.
 
-- [ ] **065.11 — the speech bubble.** `world.speech` starts carrying `border` and `bg`. `Speaking` is a
+- [x] **065.11 — the speech bubble.** `world.speech` starts carrying `border` and `bg`. `Speaking` is a
       `GAttrib` rather than a widget, so it resolves through the widget-less `Fonts.style(scope)` path that
       `RichText` and `ChatUI` already use, not through `Fonts.box(scope, wdg, stock)`.
       *Its suite* installs a `border` on `world.speech` and asserts the key resolved it through the

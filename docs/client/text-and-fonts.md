@@ -8,7 +8,7 @@
 | **Global default** | `Text.std` = `new Foundry(sans,10)` (`public static final`); `Text.render(…)` statics; `Label` default |
 | Built-in fonts | `Text.sans/serif/mono/fraktur` |
 | Window titles | `Window.DefaultDeco.cf/ncf` = `new Text.Foundry(Text.fraktur,15).aa(true)` |
-| **Speech bubbles** | `Speaking` — cached `Text` (ctor + `update`), frame measured from `text.sz()` in `draw`; stock = `Text.std` |
+| **Speech bubbles** | `Speaking` — cached `Text` (ctor + `update`), frame measured from `text.sz()` in `draw`; stock = `Text.std`. **`draw` blits the finished raster under `g.chcolor(Color.BLACK)`**, so any colour baked into it — the `Foundry.fixcol` a rule sets, or the `Color` passed to `render` — is multiplied to black on the way to the screen. A colour cannot reach this surface without moving that `chcolor` |
 | **Floating kin names** | **NOT in the fork** — published code in the `ui/obj/buddy` resource (`haven.KinInfo` is gone; `OCache.OD_BUDDY` commented `-- Removed`). Adopted with `get-code` → `src/haven/res/ui/obj/buddy/{Buddy,Info,InfoPart}.java`: shared foundry `InfoPart.fnd` + `rendertext`, composed `Tex` invalidated by `Info.dirty()` |
 | **Per-run markup** (`$font`) | `RichText` `$font` tag — resolves by **AWT family name** (`TextAttribute.FAMILY`); a custom TTF needs `GraphicsEnvironment.registerFont` at load |
 | DPI sizing | `UI.scale(float)` — every produced size passes through it |

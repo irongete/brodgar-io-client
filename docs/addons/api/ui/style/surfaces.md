@@ -327,6 +327,12 @@ area, party, private and system lines alike.
 own included, which makes it the easiest key to check: say something and look. The bubble measures its
 frame around the text every frame, so a large size is completely safe here.
 
+**The bubble's box is this key too.** [`bg`](chrome.md#bg) stands in for its white field and
+[`border`](chrome.md#border) for the frame, either alone leaving the other the client's own. With a
+`border` of yours the fill covers the whole bubble; a heavier one draws into the room the stock frame took
+rather than pushing the sentence apart; and the **tail** stays the client's own. Give it a **light** fill —
+the bubble's text is black and stays black, [`color`](keys.md#what-each-key-accepts) being inert here.
+
 `world.nick` is the floating name drawn over characters on your **kin list**, in their kin-group colour. A
 font-only rule leaves that colour alone and the label re-centres itself over the character at the new size;
 a `color` rule **flattens the groups**, painting every name alike. You need a kin visible on screen to
