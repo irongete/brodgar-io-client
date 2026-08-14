@@ -96,7 +96,7 @@ camera, no click-map and no scene — which is why a member obeys while invisibl
 
 | What | Where |
 |---|---|
-| The message | `MapView.Click.hit` sends `wdgmsg("click", pc, mc.floor(posres), btn, modflags)`. `pc` is a screen coord the protocol carries and **not** what picks the destination, so any plausible value serves |
+| The message | `MapView.Click.hit` sends `wdgmsg("click", pc, mc.floor(posres), btn, modflags)`. `pc` is a screen coord the protocol carries and **not** what picks the destination, so any plausible value serves. It is `Widget.MouseButtonEvent.c` handed straight through `Hittest` to `checkmapclick`, so it is **map-view-local DEVICE pixels** — the space [world-3d.md](world-3d.md) gives that whole path, and a `Widget.rootpos()` away from a root coordinate. `mc` is world units, and `floor(posres)` is the **only** scaling in the pair: argument 1 and argument 2 are the same `{x, y}` shape in two different spaces |
 | Getting it there | `UI.rawWdgmsg` resolves the widget id from **that** UI's own `rwidgets` and hands it to that UI's receiver. Raw rather than `wdgmsg` for a member: the action-hook chain belongs to the anchor and knows nothing about the session it would be walking for |
 | A gob target | `Gob.GobClick.clickargs` is `{0, id, gob.rc.floor(posres), 0, -1}`, and that coordinate is the **observer's**. Relaying the arguments verbatim hands every session a place from somebody else's login, so a target travels as an id and each recipient rebuilds them from its own `OCache`. One that cannot see the target walks to the spot, which is what a click on unidentifiable ground does anyway |
 

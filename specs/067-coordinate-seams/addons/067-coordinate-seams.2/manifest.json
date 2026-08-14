@@ -1,0 +1,9 @@
+{
+  "name": "067.2 — a raw argument can say which space it is in",
+  "id": "067-coordinate-seams.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 067.2: ev:position(i) undoes posres and ev:pixel(i) answers design pixels, each refusing an argument that is not a coordinate and naming the other, while ev:args() stays the raw snapshot ev:resend() round-trips through.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

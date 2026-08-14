@@ -82,4 +82,6 @@ through `Px`, untouched by a projection.
 - `src/io/brodgar/addon/AddonManager.java` — 2 (`xy`), 3 (`dispatchAction`)
 - `src/haven/OCache.java` — 2, 3 (`posres`)
 - `docs/client/world-3d.md`, `docs/client/ui-scaling.md` — 1, 4
+- `docs/client/multi-session.md` — 3 (the `click` argument row: the order, and which space each of `pc`
+  and `mc` is in)
 - `DOCUMENTATION.md` — 4

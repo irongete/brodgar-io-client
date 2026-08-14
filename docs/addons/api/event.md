@@ -232,10 +232,17 @@ reaches the server, which an event on the bus above would arrive too late to do.
 |---|---|
 | `ev:msg()` | the message name |
 | `ev:sender()` | the sending [Widget](ui/widget.md) |
-| `ev:args()` | a 1-based array snapshot of the arguments; a coordinate is `{x=, y=}` |
+| `ev:args()` | a 1-based array snapshot of the raw protocol arguments, in the units the wire carries; a coordinate is `{x=, y=}` |
+| `ev:position(i)` | argument `i` as a [Position](world.md#the-position-type); throws when that argument is not a coordinate |
+| `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the sending widget's own space; throws when that argument is not a coordinate |
 | `ev:preventDefault()` | cancel the send |
 | `ev:resend()` | re-send the original arguments verbatim; implies `preventDefault` |
 | `ev:send(t)` | send a new argument table; implies `preventDefault` |
+
+A coordinate argument is in one of two spaces and nothing in its shape says which: a `click` carries the
+press point at 1 and the destination in the world at 2, both `{x=, y=}`. Name the space at the index you
+mean, and each verb throws naming the other on an index holding anything else. `ev:args()` stays raw,
+because `resend` and `send` round-trip through it to the server.
 
 `resend` and `send` bypass every `action` handler, so re-issuing an action cannot loop — the "intercept my
 move, do something, then move" pattern:
@@ -262,7 +269,9 @@ to be applied to a widget.
 |---|---|
 | `ev:msg()` | the message name |
 | `ev:target()` | the receiving [Widget](ui/widget.md) |
-| `ev:args()` | a 1-based array snapshot of the arguments |
+| `ev:args()` | a 1-based array snapshot of the raw protocol arguments, in the units the wire carries |
+| `ev:position(i)` | argument `i` as a [Position](world.md#the-position-type), as on `action` above |
+| `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the receiving widget's own space |
 | `ev:preventDefault()` | **swallow** the update, so the widget never applies it |
 | `ev:rewrite(t)` | apply the update with new arguments |
 

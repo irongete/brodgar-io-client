@@ -1,5 +1,8 @@
 package io.brodgar.addon;
 
+import haven.Coord;
+import haven.Coord2d;
+import haven.OCache;
 import haven.UI;
 import haven.Widget;
 
@@ -59,10 +62,11 @@ public final class LuaEvent {
      */
     public enum Shape {
         /** {@code hafen.event():action():on(msg, fn)} — an outbound {@code wdgmsg}, before the server sees it. */
-        ACTION("action", "an action event answers :msg() :sender() :args() :preventDefault() :resend()"
-               + " :send(t)"),
+        ACTION("action", "an action event answers :msg() :sender() :args() :position(i) :pixel(i)"
+               + " :preventDefault() :resend() :send(t)"),
         /** {@code hafen.event():message():on(msg, fn)} — an inbound {@code uimsg}, before the widget applies it. */
-        MESSAGE("message", "a message event answers :msg() :target() :args() :preventDefault() :rewrite(t)"),
+        MESSAGE("message", "a message event answers :msg() :target() :args() :position(i) :pixel(i)"
+                + " :preventDefault() :rewrite(t)"),
         /**
          * {@code w:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)} — the four universal widget input keys
          * (041.3), on a widget you built, one you found by selector, or one an event handed you.
@@ -464,6 +468,52 @@ public final class LuaEvent {
         return argsObj;
     }
 
+    /**
+     * <b>The {@link Coord} at 1-based argument {@code i}</b> — the one lookup both typed readers below share
+     * (067.2), and the one place that refuses an index holding something else.
+     *
+     * <p><b>Why a reader beside {@code :args()} rather than a conversion inside it.</b> A {@code Coord} reaches
+     * an argument array in one of two spaces and there is nothing in its <i>shape</i> to tell them apart: a
+     * {@code click} carries a screen pixel at 1 and a world point scaled by {@link OCache#posres} at 2, adjacent
+     * and identical. {@code :args()} cannot pick — and must not, because {@link #outbound}'s {@code resend}/
+     * {@code send} round-trip through it and a converted snapshot would reach the server as different bytes. So
+     * the caller names the space, at the index they mean, and the raw snapshot stays raw.
+     *
+     * <p>The refusal names <b>what is actually there</b> and <b>the other reader</b>: reading the wrong index of
+     * the right message and reading the right index with the wrong verb are the same mistake seen from two
+     * sides, and either one otherwise walks the character somewhere far away in silence.
+     */
+    private Coord coordArg(Varargs a, String verb, String other) {
+        LuaValue iv = Args.required(a, 2, "ev:" + verb, "i");
+        if(!iv.isnumber())
+            throw new LuaError("ev:" + verb + "(i): i is the 1-based argument INDEX, a number — got "
+                + iv.typename() + ". ev:args() shows what each index holds.");
+        int i = iv.toint();
+        int n = (args == null) ? 0 : args.length;
+        if((i < 1) || (i > n))
+            throw new LuaError("ev:" + verb + "(" + i + "): '" + msg + "' carries " + n + " argument"
+                + ((n == 1) ? "" : "s") + ", so index " + i + " is not one of them.");
+        Object o = args[i - 1];
+        if(!(o instanceof Coord))
+            throw new LuaError("ev:" + verb + "(" + i + "): argument " + i + " of '" + msg + "' is "
+                + describe(o) + ", not a coordinate — only a coordinate argument names a place or a pixel."
+                + " ev:args() shows what each index holds, and the other reader is ev:" + other + "(i).");
+        return (Coord)o;
+    }
+
+    /** What an argument that is not a coordinate actually is, for {@link #coordArg}'s refusal. */
+    private static String describe(Object o) {
+        if(o == null)
+            return "absent (the message has a nil there)";
+        if(o instanceof Number)
+            return "a number (" + o + ")";
+        if(o instanceof String)
+            return "the string \"" + o + "\"";
+        if(o instanceof Boolean)
+            return "a boolean (" + o + ")";
+        return "a " + o.getClass().getSimpleName();
+    }
+
     /** {@code ev:gob()} (OVERLAY) — the interned Gob handle, minted on the first ask (like {@code :sender()}). */
     private LuaValue gob() {
         if(gobObj == null)
@@ -545,6 +595,28 @@ public final class LuaEvent {
         m.set("args", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return self(a.arg1(), shape, "args").args();
+            }
+        });
+        // position(i) / pixel(i) (067.2) — the two spaces a raw protocol coordinate can be in, each named by
+        // the caller at the index they mean. They serve these two shapes ALONE, because these are the two that
+        // carry raw arguments at all: every other shape has its own builder, which already converted.
+        //
+        // position(i) undoes the mc.floor(posres) every map message is built with — the exact inverse, so a
+        // destination read here is the destination the client resolved. pixel(i) is the SENDER's own design
+        // pixels, the space ev:x()/ev:y() speak on a MouseDown, so a press and the message it caused agree
+        // about the same widget.
+        m.set("position", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaEvent e = self(a.arg1(), shape, "position");
+                Coord c = e.coordArg(a, "position", "pixel");
+                return LuaPosition.of(e.owner, Coord2d.of(c).mul(OCache.posres));
+            }
+        });
+        m.set("pixel", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaEvent e = self(a.arg1(), shape, "pixel");
+                Coord c = e.coordArg(a, "pixel", "position");
+                return AddonManager.xy(Px.out((double)c.x), Px.out((double)c.y));
             }
         });
         preventDefault(m, shape);

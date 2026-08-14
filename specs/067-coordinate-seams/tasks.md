@@ -14,7 +14,7 @@
       `[manual]`: with Interface scale at 1.0 and again at 1.5 (a restart each), run it and read the line
       — expect the same verdicts, and the drawn dot sitting on your character's feet both times.
 
-- [ ] **067.2 — A raw argument can say which space it is in.** Adds `LuaEvent.coordArg` and the two
+- [x] **067.2 — A raw argument can say which space it is in.** Adds `LuaEvent.coordArg` and the two
       readers in `common()`, which serves the ACTION and MESSAGE shapes alone: `ev:position(i)` undoes
       `OCache.posres` into a Position, `ev:pixel(i)` puts the pair through `Px.out` into the sender's own
       design pixels. Both join the two vocabulary strings `Retired.closedIndex` prints.
