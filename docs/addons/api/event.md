@@ -237,12 +237,28 @@ reaches the server, which an event on the bus above would arrive too late to do.
 | `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the sending widget's own space; throws when that argument is not a coordinate |
 | `ev:preventDefault()` | cancel the send |
 | `ev:resend()` | re-send the original arguments verbatim; implies `preventDefault` |
-| `ev:send(t)` | send a new argument table; implies `preventDefault` |
+| `ev:send(t)` | send a new argument table, a [Position](world.md#the-position-type) where a coordinate goes; implies `preventDefault` |
 
 A coordinate argument is in one of two spaces and nothing in its shape says which: a `click` carries the
 press point at 1 and the destination in the world at 2, both `{x=, y=}`. Name the space at the index you
 mean, and each verb throws naming the other on an index holding anything else. `ev:args()` stays raw,
 because `resend` and `send` round-trip through it to the server.
+
+Writing one back takes those two spaces just as seriously. **A Position is accepted wherever a coordinate
+argument goes**, and the client encodes the wire form for you, so rewriting a destination needs no
+arithmetic; a `{x=, y=}` table in the same list is still taken verbatim, because a table is as likely to
+be a screen pixel as a place and only a Position says which. A place this session cannot locate throws
+rather than sending a number that would walk you somewhere else.
+
+```lua
+-- snap every walk to the centre of the tile you clicked:
+hafen.event():action():on("click", function(ev)
+  if ev:sender():type() ~= "MapView" then return end
+  local a = ev:args()
+  a[2] = hafen.world():snapPlace(ev:position(2))
+  ev:send(a)
+end)
+```
 
 `resend` and `send` bypass every `action` handler, so re-issuing an action cannot loop — the "intercept my
 move, do something, then move" pattern:
@@ -273,7 +289,7 @@ to be applied to a widget.
 | `ev:position(i)` | argument `i` as a [Position](world.md#the-position-type), as on `action` above |
 | `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the receiving widget's own space |
 | `ev:preventDefault()` | **swallow** the update, so the widget never applies it |
-| `ev:rewrite(t)` | apply the update with new arguments |
+| `ev:rewrite(t)` | apply the update with new arguments, a [Position](world.md#the-position-type) included, as on `action` above |
 
 `preventDefault` wins over `rewrite` if both are called. Common `msg` names: `set` · `add` · `del`.
 

@@ -1,6 +1,8 @@
 package io.brodgar.addon;
 
 import haven.Coord;
+import haven.Coord2d;
+import haven.OCache;
 
 import java.util.List;
 import java.util.Map;
@@ -26,6 +28,8 @@ import org.luaj.vm2.LuaValue;
  *   <li>{@code Integer}/{@code Short}/{@code Byte} &rarr; a Lua int; {@code Long}/{@code Double}/
  *       {@code Float} &rarr; a Lua double (the usual {@code >2^53} precision caveat);</li>
  *   <li>{@code String}/{@code Boolean} map directly;</li>
+ *   <li>inbound only, {@link #toJava}: a <b>Position</b> &rarr; {@code rc.floor(OCache.posres)}, the wire form a
+ *       map message carries, so a destination can be rewritten without the addon knowing {@code posres};</li>
  *   <li>anything else &rarr; an opaque userdata that {@link #toJava} maps back to the <b>identical</b>
  *       Java object, so exotic args (e.g. a clicked gob's click-data) round-trip untouched.</li>
  * </ul>
@@ -191,7 +195,21 @@ final class LuaMarshal {
     /** The ceiling on an argument list built from Lua (see {@link #argCount}). */
     private static final int MAXARGS = 256;
 
-    /** Inverse of {@link #toLua}: a {@code {x=,y=}} table &rarr; {@link Coord}, userdata &rarr; its object. */
+    /**
+     * Inverse of {@link #toLua}: a {@code {x=,y=}} table &rarr; {@link Coord}, a <b>Position</b> &rarr; the wire
+     * coordinate the server reads, userdata &rarr; its object.
+     *
+     * <p><b>Why a Position is the one userdata that converts</b> (067.3). The read half already lets a handler
+     * name the space an argument is in ({@code ev:position(i)}); without a write half the only way to put a
+     * destination back was to multiply by {@code 11/1024} by hand — the constant this API exists to keep out of
+     * addons. A Position is unambiguous where a {@code {x=,y=}} table is not: it always means a <i>place</i> and
+     * never a screen pixel, which is exactly the property the table lacks and the reason the {@code TTABLE}
+     * branch below still takes one verbatim. So a hand-built argument list goes on working, and a rewritten
+     * destination needs no arithmetic.
+     *
+     * <p>A place this session cannot locate is <b>refused</b> rather than encoded: it has no session coordinate
+     * at all, so there is no number to send, and any stand-in would walk the character somewhere arbitrary.
+     */
     static Object toJava(LuaValue v, String ctx) {
         switch(v.type()) {
         case LuaValue.TNIL:
@@ -203,8 +221,16 @@ final class LuaMarshal {
                                              : (Object)Double.valueOf(v.todouble());
         case LuaValue.TSTRING:
             return v.tojstring();
-        case LuaValue.TUSERDATA:
-            return v.touserdata();
+        case LuaValue.TUSERDATA: {
+            LuaPosition p = LuaPosition.resolve(v);
+            if(p == null)
+                return v.touserdata();                // an opaque arg the client built — back out untouched
+            Coord2d rc = p.world();
+            if(rc == null)
+                throw new LuaError(ctx + ": a Position argument " + LuaPosition.UNREACHABLE);
+            // The exact inverse of ev:position(i), and of the mc.floor(posres) every map message is built with.
+            return rc.floor(OCache.posres);
+        }
         case LuaValue.TTABLE: {
             LuaValue x = v.get("x"), y = v.get("y");
             if(x.isnumber() && y.isnumber())

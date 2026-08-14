@@ -47,6 +47,7 @@
 - **Driving an input event**: nothing can make the client deliver a click or a keypress from Lua, so anything that only happens on a real gesture — a capability key firing, and therefore a subscription's removal — can be checked by hand alone (filed: 061)
 - **Nothing reads what a SITE key resolved**: `widget:style()` answers tree levels alone, so a suite can read back only what a rule wrote and never which state face a surface actually wore — the `checked`, `hover` and `pressed` halves of every chrome rule are checkable by eye alone (filed: 065)
 - **A control's disabled state has no verb**: nothing greys a button from Lua, so the `disabled` face of a state-varying rule has no target an addon can reach at all, by hand or otherwise (filed: 065)
+- **`docs/addons/api/event.md` is over its 300-line ceiling**: the bus catalogue and the two message streams are two subjects in one page, so every event added and every verb the streams grow pushes it further over (filed: 067)
 - **`docs/addons/api/types.md` is at its 300-line ceiling**: the snapshot catalogue needs a split by subject, so a feature adding one shape stops pushing it over (filed: 064)
 - **`docs/addons/api/ui/style/chrome.md` is at its 300-line ceiling**: its per-surface prose (the ornaments) is what `surfaces.md` is for, so the property pages stop growing with every surface routed (filed: 065)
 - **`docs/client/ui-chrome.md` is at its 150-line ceiling**: the boxes drawn in code and the addon seam are two maps in one page, so the next surface routed pushes it over (filed: 065)

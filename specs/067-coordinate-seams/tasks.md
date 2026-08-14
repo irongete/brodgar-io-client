@@ -27,7 +27,7 @@
       `[manual]`: left-click the ground once when the suite says to — expect the character to walk there
       exactly as it does with no addon loaded.
 
-- [ ] **067.3 — A Position can be written back to the server.** `LuaMarshal.toJava`'s `TUSERDATA` branch
+- [x] **067.3 — A Position can be written back to the server.** `LuaMarshal.toJava`'s `TUSERDATA` branch
       resolves a `LuaPosition` and encodes `rc.floor(OCache.posres)`, raising for one this session cannot
       locate; the `TTABLE` branch keeps taking `{x=, y=}` so hand-built argument tables still work.
       *Its suite* intercepts `click`, replaces argument 2 with

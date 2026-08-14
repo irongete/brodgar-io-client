@@ -1,0 +1,9 @@
+{
+  "name": "067.3 — a Position can be written back to the server",
+  "id": "067-coordinate-seams.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 067.3: ev:send(t) encodes a Position as the wire coordinate a map message carries, refusing a place this session cannot locate, while a {x=, y=} table beside it in the same argument list still round-trips verbatim.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

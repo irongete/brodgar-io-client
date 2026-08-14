@@ -230,7 +230,12 @@ public final class LuaPosition {
         return an;
     }
 
-    private static final String UNREACHABLE =
+    /**
+     * <b>Why a Position can have nowhere to go</b> — the one wording for it, shared by {@link #worldArg} and by
+     * {@link LuaMarshal#toJava}, which refuses the same place for the same reason on the way to the server
+     * (067.3). An author who hits it from either door reads one sentence, not two that half agree.
+     */
+    static final String UNREACHABLE =
         "is a place this session cannot reach — it was recorded in another part of the world, so it has no"
         + " coordinate here (p:x() reports it as nil)";
 
