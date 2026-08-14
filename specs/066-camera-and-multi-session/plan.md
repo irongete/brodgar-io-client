@@ -46,31 +46,37 @@ it got **and the names that exist** — which is why no list verb is needed.
 
 ### The bindings, all unbound
 
-`rts-next-anchor`, `rts-focus` and the new `cam-pivot` are all `KeyBinding.get(id, KeyMatch.nil)` —
-the client's idiom for a remappable id with no default. `BindingPanel` gains a **Multi session**
-section after `Camera control`, listing all three.
+`rts-next-anchor` and `rts-focus` are both `KeyBinding.get(id, KeyMatch.nil)` — the client's idiom for
+a remappable id with no default. `BindingPanel` gains a **Multi session** section after
+`Camera control`, listing both.
 
-### Hold-to-pivot
+### The pivot is a modifier, and cannot be a binding
 
-The client tracks **no** held-key state — `UI.modflags` covers Shift/Ctrl/Alt/Meta and nothing else —
-so `UI` gains a `Set<Integer>` of held keycodes, fed from `UI.keydown`/`UI.keyup`: the OS doors,
-called before `dispatch`, so the set is right no matter who has focus. `UI.keyheld(KeyMatch)` answers
-it; normalising a `KeyMatch` to one keycode is what `KeyBinding.keycode` already does privately,
-lifted to a public static on `KeyMatch`.
+`RTSCam.click` reads `ui.modflags() & UI.MOD_CTRL` where it read `MOD_SHIFT`. One line.
 
-`RTSCam.click` then reads `ui.keyheld(kb_campivot.key())` where it read `ui.modflags() & MOD_SHIFT`.
-`KeyMatch.nil` is `VK_UNDEFINED` and never in the set, so unbound means "middle drag always pans".
+It stays hard-wired because the keybind panel cannot express a modifier and cannot be made to without
+breaking everything else it does. `KeyMatch.Capture` opens a key grab and closes it the moment
+`handle` returns true; `handle` refuses `VK_SHIFT`/`VK_CONTROL`/`VK_ALT`/`VK_META`/`VK_WINDOWS`, and
+that refusal is exactly what holds the grab open across the `VK_CONTROL` event of a `Ctrl+M` so the
+`VK_M` event after it can be captured. Lift the refusal and every chord in the client becomes
+unassignable — you could bind bare keys and bare modifiers and nothing else. (`KeyMatch.ModCapture`
+solves the same problem the other way, committing on key**up**, and nothing in the tree uses it.) So a
+rebindable pivot could only ever hold a non-modifier key, which is the wrong shape for a gesture you
+hold while dragging.
+
+Nothing collides. `MapView.mousedown` sends `ev.b == 2` straight to `camera.click` with no modifier
+branch and no fallthrough, so the middle button on the map view is the camera and nothing else. The
+other Ctrl gestures within reach are on different events: `StdPlace.rotate` is Ctrl and the wheel
+**turning** while placing a building, and the RTS marquee's additive select takes Shift or Ctrl on
+buttons 1 and 3.
 
 ## Files to create/modify
 
 | File | What |
 |---|---|
-| `src/haven/MapView.java` | `RTSCam`; `camtypes` → `LinkedHashMap`; `setcam`/`camname`; the `cam` command; `kb_campivot`; `kb_rtsnext`/`kb_rtsfocus` re-defaulted to `KeyMatch.nil` |
+| `src/haven/MapView.java` | `RTSCam`; `camtypes` → `LinkedHashMap`; `setcam`/`camname`; the `cam` command; `RTSCam.click`'s modifier; `kb_rtsnext`/`kb_rtsfocus` re-defaulted to `KeyMatch.nil` |
 | `src/io/brodgar/rts/Control.java` | `RTSCam` everywhere; `kb_rtsfocus` dispatch moves in |
 | `src/haven/OptWnd.java` | `CameraPanel`'s selector; `BindingPanel`'s Multi session section |
-| `src/haven/UI.java` | the held-keycode set, `keyheld` |
-| `src/haven/KeyMatch.java` | `keycode(KeyMatch)` public static |
-| `src/haven/KeyBinding.java` | its private `keycode` calls that one |
 | `src/io/brodgar/addon/CameraOptions.java` | the `mode` option |
 | `docs/client/world-3d.md` | **new** — the camera registry, the prefs, `:cam`, the selector |
 | `docs/client/multi-session.md` | lines 25 and 32–35 |
@@ -80,14 +86,9 @@ lifted to a public static on `KeyMatch`.
 
 ## Risks & gotchas
 
-- **`KeyMatch.Capture.handle` refuses bare modifiers** — `VK_SHIFT`, `VK_CONTROL`, `VK_ALT`,
-  `VK_META`, `VK_WINDOWS` all return false. So `cam-pivot` can never be bound to Shift through the
-  panel, and Shift + middle drag is gone for good. Backspace in a `SetButton` reverts to the default,
-  which here is "None"; Delete unbinds.
-- **A lost window focus delivers no `keyup`**, so a key can read as held after alt-tab. It is read
-  only at the middle-button press, and one press-and-release clears it; `held` also clears in
-  `UI.destroy`. **`UI.keydown` sees every key, including one typed into a `TextEntry`** — the pivot
-  key reads as held while you type it into the chat, and the worst case is one drag that rotates.
+- **`KeyMatch.Capture.handle` refuses bare modifiers**, and the refusal is load-bearing rather than a
+  restriction — see above. Backspace in a `SetButton` reverts to the default, which for the two ids
+  here is "None"; Delete unbinds.
 - **`restorecam()` runs in a field initialiser** and falls back to `SOrthoCam` on an unknown
   `defcam` — a pref still saying `fleet` comes back on ortho rather than erroring. Say so in the docs.
   **`makecam` reflects for `(MapView, String[])` then `(MapView)`**, which `RTSCam(String... args)`
@@ -107,13 +108,18 @@ lifted to a public static on `KeyMatch`.
 - **A display label per camera in the dropdown** — "Isometric" beside `ortho` reads better exactly
   once, and thereafter is a second name for one camera, unfindable from the console word the docs and
   the refusals use.
-- **Defaulting `cam-pivot` to Shift so today's gesture survives** — no default can be conflict-free,
-  and a gesture the panel could never restore afterwards is worse than a clean absence.
-- **A "pivot mode" toggle instead of a held key** — a mode you can leave switched on is a camera that
-  has silently stopped panning; a held key cannot be forgotten.
-- **Tracking held keys in `MapView.keydown`/`keyup` rather than in `UI`** — a focused key never
-  reaches the map view while a text entry has focus, so the *release* would be missed exactly when
-  the user tabs away mid-hold, which is the one case the tracking exists to survive.
+- **A rebindable `cam-pivot` id, held down and read through a new `UI.keyheld`** — built, and taken
+  back out. It works, but the panel can only ever put a *non-modifier* key in it, so the gesture
+  becomes "hold P and middle-drag" rather than the modifier a drag gesture wants. Paying a held-keycode
+  set in `UI`, a public `KeyMatch.keycode`, a registry id and a panel row to end up with a worse
+  gesture than the one line it replaced is the wrong trade.
+- **Lifting `Capture`'s bare-modifier refusal so a modifier could be bound** — it is what keeps the key
+  grab open across the modifier press of a chord, so lifting it makes every `Ctrl+X` in the client
+  unassignable. Doing it properly means `ModCapture`'s commit-on-keyup rule inside `Capture`, plus a
+  `name()` that does not render a bare Ctrl as "Ctrl+Ctrl", plus `PointBind`'s own copy of the refusal
+  — a client-wide input capability, not a camera feature, and it belongs in its own spec.
+- **A "pivot mode" toggle instead of a held modifier** — a mode you can leave switched on is a camera
+  that has silently stopped panning; a modifier cannot be forgotten.
 - **A camera *collection*, or a `modes()` verb beside `mode()`** — the members would be five strings
   with no identity, no lifetime and nothing to address into, which is not what a collection is for,
   and the plural belongs to a collection's verb. Either would be a second way to learn the same five

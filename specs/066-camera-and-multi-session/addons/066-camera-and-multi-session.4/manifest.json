@@ -1,0 +1,9 @@
+{
+  "name": "066.4 — Ctrl and a middle drag pivots the camera",
+  "id": "066-camera-and-multi-session.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 066.4: the pivot is a hard-wired modifier, so it left no cam-pivot binding behind, and the Multi session section is otherwise untouched.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

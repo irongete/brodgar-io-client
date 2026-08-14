@@ -575,9 +575,22 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void follow()         {this.center = null;}
 
 	public boolean click(Coord sc) {
-	    /* Shift keeps FreeCam's own gesture -- rotate and elevate -- because this camera is that
-	     * camera in every other respect and there is nowhere else to put it. Bare drag pans. */
-	    rotating = (ui.modflags() & UI.MOD_SHIFT) != 0;
+	    /* Ctrl keeps FreeCam's own gesture -- rotate and elevate -- because this camera is that camera
+	     * in every other respect and there is nowhere else to put it. Bare drag pans.
+	     *
+	     * Hard-wired to a modifier rather than a rebindable id, because the keybind panel cannot express
+	     * one: KeyMatch.Capture.handle refuses VK_SHIFT/VK_CONTROL/VK_ALT/VK_META/VK_WINDOWS, and that
+	     * refusal is what keeps the key grab open across the modifier press so the chord that follows it
+	     * can be captured at all. A binding could therefore only ever hold a NON-modifier key, which is
+	     * the wrong shape for a hold-while-dragging gesture.
+	     *
+	     * No modifier collides here: mousedown sends ev.b == 2 straight to camera.click with no modifier
+	     * branch and no fallthrough, so the middle button on this widget is the camera and nothing else.
+	     * The other Ctrl gestures in reach are on different events -- StdPlace.rotate is Ctrl and the
+	     * wheel TURNING while placing, and the RTS marquee's additive select (io.brodgar.rts.Control)
+	     * takes Shift or Ctrl on buttons 1 and 3. Read once, at the press, so letting go mid-drag does
+	     * not change what the drag is already doing. */
+	    rotating = (ui.modflags() & UI.MOD_CTRL) != 0;
 	    if(rotating)
 		return(super.click(sc));
 	    dragsc = sc;

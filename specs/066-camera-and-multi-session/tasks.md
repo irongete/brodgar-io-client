@@ -42,21 +42,22 @@
       reading None. Bind one, press it in game — expect the anchor to switch. Press Tab — expect the
       inventory, and no anchor switch.
 
-- [ ] **066.4 — Hold a key, pivot the camera.** `UI` gains a held-keycode set fed from `UI.keydown`
-      and `UI.keyup` (the OS doors, so focus is irrelevant), cleared in `destroy`, and
-      `UI.keyheld(KeyMatch)`. `KeyBinding`'s private `keycode` lifts to a public static on
-      `KeyMatch`, so both callers normalise a char-match and a code-match the same way. New
-      `MapView.kb_campivot` = `KeyBinding.get("cam-pivot", KeyMatch.nil)`, listed as "Pivot camera" in
-      066.3's Multi session section. `RTSCam.click` reads `ui.keyheld(kb_campivot.key())` where it
-      read `ui.modflags() & MOD_SHIFT`. `KeyMatch.nil` is `VK_UNDEFINED` and is never held, so
-      unbound means always pan.
-      *Its suite* asserts `cam-pivot` is in `keybindings():list()` reading `"None"`, that a write and
-      read-back round-trips, and that `"None"` unbinds it again — a key that is not in the registry
-      cannot be held, so its presence there is the precondition the gesture rests on. It restores what
-      it found.
-      `[manual]`: on `:cam rts`, middle-drag with nothing bound — expect a pan, and Shift + middle
-      drag also a pan, not a rotate. Bind Pivot camera to a key, hold it and middle-drag — expect the
-      rotate and elevate. Release, drag again — expect the pan back.
+- [x] **066.4 — Ctrl and a middle drag pivots the camera.** `RTSCam.click` reads
+      `ui.modflags() & UI.MOD_CTRL` where it read `MOD_SHIFT`, and that is the whole change: one line
+      and its comment. The pivot stays a **hard-wired modifier** rather than becoming a `KeyBinding`,
+      because `KeyMatch.Capture.handle` refuses a bare `VK_SHIFT`/`VK_CONTROL`/`VK_ALT`/`VK_META`/
+      `VK_WINDOWS`, and that refusal is what keeps the key grab open across a modifier press so the
+      chord after it can be captured — lifting it would make every chord in the client unassignable.
+      A rebindable pivot could therefore only ever carry a non-modifier key, which is the wrong shape
+      for a hold-while-dragging gesture. No modifier collides: `MapView.mousedown` sends `ev.b == 2`
+      straight to `camera.click` with no modifier branch and no fallthrough.
+      *Its suite* has no Lua door to a camera or to this gesture, so like 066.2's it asserts only that
+      it is running against a client that still answers `keybindings():list()` for the Multi session
+      ids and `cam-reset`, and that **no `cam-pivot` id was left behind** — the gesture is a modifier
+      and must appear in no registry. The rest is the maintainer's.
+      `[manual]`: on `:cam rts`, middle-drag — expect a pan. Shift + middle drag — expect a pan too,
+      not a rotate. Ctrl + middle drag — expect the rotate and elevate. Release Ctrl, drag again —
+      expect the pan back. Options ▸ Keybindings ▸ Multi session — expect two rows, and no pivot row.
 
 - [ ] **066.5 — `opts:camera():mode()`.** `CameraOptions` gains a third `OptionsMethod` beside the two
       inversions. The read is `camname()` off `AddonManager.view`, falling back to the `defcam` pref
