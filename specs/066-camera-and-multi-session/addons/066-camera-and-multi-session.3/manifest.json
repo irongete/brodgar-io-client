@@ -1,0 +1,9 @@
+{
+  "name": "066.3 — a Multi session section, and no default keys",
+  "id": "066-camera-and-multi-session.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 066.3: the two Multi session bindings are in the registry, carry no default key, and round-trip through keybindings():key().",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -28,7 +28,7 @@
       `ortho` and `rts`, showing the one in force. Pick another — expect the view to change at once.
       Reopen the window — expect the new one still shown. Restart — expect it still in force.
 
-- [ ] **066.3 — A Multi session section, and no default keys.** `kb_rtsnext` and `kb_rtsfocus` are
+- [x] **066.3 — A Multi session section, and no default keys.** `kb_rtsnext` and `kb_rtsfocus` are
       re-declared `KeyBinding.get(id, KeyMatch.nil)`, so Tab goes back to `Inventory` alone and space
       to whatever had it. `OptWnd.BindingPanel` gains a **Multi session** section after
       `Camera control`, listing "Next character" (`rts-next-anchor`) and "Focus selection"

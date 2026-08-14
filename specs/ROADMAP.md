@@ -29,7 +29,7 @@
 - the stock half of a layout record is an absolute value taken at the first touch, so `widget:position(nil)`/`:size(nil)` after the client has re-laid the screen out restores a place or a box fitted to the OLD screen, and it stands until the client's next re-layout (filed: 062)
 - `Speaking.draw` blits its finished text under a flat `chcolor(Color.BLACK)`, so the `color` a `world.speech` rule bakes into the raster through `fixcol` is multiplied away and the bubble's text is black whatever the rule says (filed: 065)
 - `widget:tooltip(s)` writes a plain string, and `Widget.settip` defaults `rich` to false, so an addon cannot write a tooltip carrying `$col`/`$b` markup while the client writes them for its own buttons (filed: 065)
-- `KeyBinding.key` is three-state and `keybindings:key(name, k)` writes only two of them, so nothing puts a binding back on its DEFAULT — and where two defaults share a key (`inv` and `rts-next-anchor` on Tab), writing either takes it off the other for good (filed: 066)
+- `KeyBinding.key` is three-state and `keybindings:key(name, k)` writes only two of them, so nothing puts a binding back on its DEFAULT — which also means a caller that saves a key and writes it back turns a default into an assignment, and any later change to that default can never reach the profile again (filed: 066)
 - the two emboss textures are loaded in different spaces — `Window.ctex` through `Resource.loadsimg` and `CharWnd.failtex` through `Resource.loadimg` — so on a scaled-up client a FAILED heading is carved at a finer grain than every other embossed surface (filed: 065)
 
 ## Candidates

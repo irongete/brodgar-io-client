@@ -36,8 +36,13 @@ a mode is not a preference.
 | Right click | order the selection. The destination is resolved by the client's own pick pass (`MapView.FleetClick extends Hittest`), so it lands where a real click would |
 | Middle drag | pan. The pixel delta is solved back into world units through the view's own projection — three `screenxf` probes and a 2×2 inverse — rather than by rebuilding the camera's trigonometry |
 | Shift and middle drag | `FreeCam`'s own rotate and elevate |
-| `rts-next-anchor` (Tab), `rts-focus` (space) | next session; centre on the selection, or on everyone when nothing is selected. Both are dispatched by `Control.keydown`, which `MapView.keydown` runs **before** `camera.keydown` — so they are the mode's keys under whatever camera is installed, and answer nothing while the mode is off |
+| `rts-next-anchor`, `rts-focus` | next session; centre on the selection, or on everyone when nothing is selected. **Both ship unbound** — see below. Both are dispatched by `Control.keydown`, which `MapView.keydown` runs **before** `camera.keydown` — so they are the mode's keys under whatever camera is installed, and answer nothing while the mode is off |
 | `cam-reset` (Home), `cam-left`, `cam-right`, `cam-in`, `cam-out` | follow the anchor's character again; rotate and zoom, since `FreeCam` has no keyboard of its own. These are the camera's own, so they answer with the mode off too |
+
+**The mode's own two keys ship unbound**, `KeyBinding.get(id, KeyMatch.nil)`, and `OptWnd.BindingPanel`
+lists them by hand under **Multi session** for the user to assign. No default can be conflict-free:
+`KeyBinding.get` runs none of `set`'s exclusivity pass, so two *defaults* sharing a key leave both
+firing, and neither is repairable afterwards ([services.md](services.md)).
 
 ## One loop, several sessions
 

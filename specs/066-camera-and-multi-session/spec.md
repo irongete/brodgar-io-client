@@ -78,7 +78,7 @@ and criterion 7 keeps it true.
 
 ## Context files
 
-- `src/haven/MapView.java` — 1, 2, 4, 5 *(`setcam`/`camname`/`camnames` are the public members task 2 added and task 5 reads and writes through)*
+- `src/haven/MapView.java` — 1, 2, 3, 4, 5 *(`setcam`/`camname`/`camnames` are the public members task 2 added and task 5 reads and writes through; `kb_rtsfocus`/`kb_rtsnext`/`kb_campivot` are declared here, which is what tasks 3 and 4 re-default)*
 - `src/io/brodgar/rts/Control.java` — 1
 - `src/haven/OptWnd.java` — 2, 3, 4
 - `src/haven/UI.java` — 4

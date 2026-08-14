@@ -685,6 +685,11 @@ public class OptWnd extends Window {
 	    y = addbtn(cont, "Zoom in", MapView.kb_camin, y);
 	    y = addbtn(cont, "Zoom out", MapView.kb_camout, y);
 	    y = addbtn(cont, "Reset", MapView.kb_camreset, y);
+	    // addon: the keys the multi-session (RTS) mode owns. Both ship unbound, so this panel is the only
+	    // way to reach them -- it lists bindings by hand, and an id with no addbtn line is invisible.
+	    y = cont.adda(new Label("Multi session"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
+	    y = addbtn(cont, "Next character", MapView.kb_rtsnext, y);
+	    y = addbtn(cont, "Focus selection", MapView.kb_rtsfocus, y);
 	    y = cont.adda(new Label("Map window"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
 	    y = addbtn(cont, "Reset view", MapWnd.kb_home, y);
 	    y = addbtn(cont, "Place marker", MapWnd.kb_mark, y);

@@ -502,11 +502,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
     static {camtypes.put("ortho", SOrthoCam.class);}
 
-    // rts: (F4) centre the view on the selection -- the RTS gesture, through the client's own
-    // rebindable binding system rather than a hard-wired key.
-    public static KeyBinding kb_rtsfocus = KeyBinding.get("rts-focus", KeyMatch.forcode(KeyEvent.VK_SPACE, 0));
-    // rts: (F5) hand the screen to the next session -- the only way to reach another character's HUD.
-    public static KeyBinding kb_rtsnext = KeyBinding.get("rts-next-anchor", KeyMatch.forcode(KeyEvent.VK_TAB, 0));
+    /* rts: the two keys the multi-session mode owns, listed as "Multi session" in the keybind panel.
+     * Both start UNBOUND (KeyMatch.nil, the client's idiom for a remappable id with no default) and the
+     * user assigns them: no default can be conflict-free, since `get` runs none of `set`'s exclusivity
+     * pass, so a default sharing a key with another binding leaves both firing and neither repairable. */
+    // rts: centre the view on the selection -- the RTS gesture, through the client's own rebindable
+    // binding system rather than a hard-wired key.
+    public static KeyBinding kb_rtsfocus = KeyBinding.get("rts-focus", KeyMatch.nil);
+    // rts: hand the screen to the next session -- the only way to reach another character's HUD.
+    public static KeyBinding kb_rtsnext = KeyBinding.get("rts-next-anchor", KeyMatch.nil);
 
     /* rts: (F4, specs/rts/plan.md) the RTS camera, `:cam rts`. It is an SOrthoCam in every respect --
      * the same isometric snap, the same wheel zoom, the same rotation on the arrow keys -- except that
