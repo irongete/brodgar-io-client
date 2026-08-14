@@ -32,6 +32,7 @@
 - `player():worldToScreen(p)` projects at the PLAYER's height: `MapView.screenxf(Coord2d)` fills the z in from `getcc()`, so a Position on a slope answers where it would be at the player's altitude and a screen→world trip back does not return to it — the `screenxf(Coord3f)` overload beside it plus the height `world():height(p)` already reads is the fix (filed: 067)
 - `MapFile.update` passes `prios[i]` into every `TileInfo` from the loop ABOVE the one that fills `prios`, so every grid recorded off the live map carries `prio 0` — which flattens `DataGrid.render`'s tile-border pass and leaves `View.fin`'s topological tile sort ordering by the grid's own array order instead of the server's (filed: 068)
 - `MCache.trim`/`trimall` dispose a `Grid`'s cut meshes while `MapView.MapRaster.Grid.tick` still holds their slots, and the `LoadingMap` the disposed `Deferred` then throws is caught into `curload` without removing anything — so the scene goes on drawing a disposed `MapMesh` until the grid comes back (filed: 068)
+- `MCache.Grid.getolcut` builds the OUTLINE mesh (`MapMesh.makeolol`) beside every overlay mesh whether or not anything draws it, so an overlay whose `omat()` is null still pays two full tile-laying passes per cut, on the calling thread (filed: 068)
 - the two emboss textures are loaded in different spaces — `Window.ctex` through `Resource.loadsimg` and `CharWnd.failtex` through `Resource.loadimg` — so on a scaled-up client a FAILED heading is carved at a finer grain than every other embossed surface (filed: 065)
 
 ## Candidates

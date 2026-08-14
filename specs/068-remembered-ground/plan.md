@@ -36,15 +36,22 @@ unconditionally, not on the `cullterrain` setting, because the one reason that i
 ground stops casting into the shadow map) cannot apply to ground the shadow box never reaches. Added
 to `basic` when the RTS camera is installed, removed with it; `MapView.camname()` is the test.
 
-**3. The wash — the client's own overlay path.** `MCache.OverlayInfo` is a plain interface
-(`tags`, `mat`, `omat`); `ResOverlay` is only its resource-backed implementation. `MapView.Overlay`
-adds `Grid.getolcut(id, cc)` under `id.mat()`, and that cut is `MapMesh.makeol`'s conforming sheet
-ordered by `MapMesh.OLOrder` — a translucent layer that follows the relief and does not fight the
-ground. So the wash is one `OverlayInfo` of our own, whose `mat()` copies `MapView.gridmat`'s state
-set (`BaseColor(255, 255, 255, a)`, `States.maskdepth`, `OLOrder`) with the alpha turned up, plus one
-`MCache.RectOverlay` registered in the recalled cache covering its whole area — which is what makes
-`MCache.getol` hand back a full mask and `makeol` emit every face. The ground underneath keeps its
-real tilesets, so the tile still reads through the wash. That is the whole of "partial".
+**3. The wash — a shader state on the raster's slot.** The wash takes the *colour* out, and no layer
+laid over the ground can do that: alpha blending interpolates every fragment the same fraction
+toward one colour, so a translucent white sheet leaves remembered ground pale and still green,
+brown and blue. Desaturating is an operation on a fragment's own three channels against each other,
+and the fragment shader is the only place it can be written.
+
+A shader program here is compiled from the **composed `Pipe`** of the slot being drawn rather than
+per `Material`, so every `State` in that composition contributes its `ShaderMacro` — which is what
+lets one state installed at this subtree's root reach ground whose colour comes from a tileset's own
+material. `io.brodgar.rts.Greyscale` is that state: a `State.Slot`, a `Uniform` holding how far
+toward grey, and `FragColor.fragcol(prog.fctx).mod(fn, 1000)` mixing the fragment's Rec. 709 luma
+back over its rgb. `haven.ColorMask` and `render.BaseColor` are the same mechanism.
+
+What it costs is one program, compiled on the first frame that needs it — no second mesh, no second
+draw, no second pass, and the amount living in the uniform rather than the macro means changing it
+recompiles nothing either: `Slot.ostate` pushes a new instance and the next frame reads it.
 
 **4. The command — `:recall`** in `MapView.cmdmap`, beside `:cam`: bare prints the counters (grids
 read from disk, cuts live, requests sent), `off`/`on` toggles the raster, `wash <a>` sets the alpha
@@ -56,10 +63,12 @@ so the look is dialled in-game instead of through a rebuild.
   the budget, the counters.
 - `src/haven/MCache.java` — `settileset`.
 - `src/haven/AddonWidgets.java` — `putgrid`.
-- `src/haven/MapView.java` — `RecallTerrain`, the wash `OverlayInfo`, install/remove, `:recall`.
+- `src/io/brodgar/rts/Greyscale.java` — new: the desaturating render state.
+- `src/haven/MapView.java` — `RecallTerrain`, the wash on its slot, install/remove, `:recall`.
 - `docs/client/mapfile.md` — a recorded grid read back into a live-shaped one.
-- `docs/client/world-3d.md` — the drawn-ground row gains the second raster; the conforming-sheet
-  recipe (`OverlayInfo` needs no resource) goes in the ground-overlays section.
+- `docs/client/world-3d.md` — the drawn-ground row gains the second raster; the ground-overlays
+  section gains both ways of recolouring ground, the sheet and the shader state, and which each can
+  do.
 - `docs/addons/api/world.md`, `docs/addons/api/vr/README.md`, `docs/addons/api/vr/widgets.md` — the
   impact set.
 
@@ -100,9 +109,13 @@ so the look is dialled in-game instead of through a rebuild.
 - **Teaching `MapMesh` to build from a `MapSource`** — it reads `getcz`, `getcut` and `getol`, none
   of which are on that interface: four classes changed to avoid constructing one object.
 - **An opaque wash** — cheaper, and it hides the tile the wash exists to keep recognisable.
-- **Desaturating through lighting or a shader** — a tileset brings its own material, so there is no
-  state above them a subtree can set to wash them out; a sheet washes from above with machinery that
-  already ships.
+- **A translucent sheet over the ground** — the client's own ground-overlay path (an `OverlayInfo`
+  of our own plus an `MCache.RectOverlay` covering everything, drawn through `MCache.getolcut` as
+  `MapMesh.makeol`'s conforming sheet). It follows the relief exactly and it ships already, but it
+  can only tint: blending moves every fragment the same fraction toward one colour, so the ground
+  reads as hazy rather than as remembered. It also costs what the shader does not — two full
+  tile-laying passes per cut (`makeol` and the `makeolol` nobody draws) and a second mesh in the
+  scene.
 - **`ZoomGrid` levels as far LOD** — `ZoomGrid.from` takes the majority tile and the *minimum* z of
   each 2×2, so far ground reads stepped and sunken. A wash over wrong relief is worse than no ground.
 - **A cut budget derived from the frustum alone** — the camera can frame more ground than this client

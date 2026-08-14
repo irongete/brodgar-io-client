@@ -1482,6 +1482,37 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private boolean recallon = true;
     private double lastrecall = 0;
 
+    /* 068.3: the wash that tells remembered ground from live ground.
+     *
+     * It is the COLOUR that is taken out, and that is not something a sheet laid over the ground can do.
+     * Alpha blending interpolates toward one colour: a translucent white sheet moves every fragment the
+     * same fraction toward white, so the ground goes pale and stays green, brown and blue -- which is a
+     * haze over live-looking ground, not a memory of it. Desaturating is an operation on the fragment's own
+     * three channels against each other, and the fragment shader is the only place that can be written.
+     *
+     * io.brodgar.rts.Greyscale is that state, and the reason it reaches ground whose colour comes from a
+     * tileset's own Material is that a program here is compiled from the COMPOSED Pipe of the slot being
+     * drawn -- so a State installed once at this subtree's root is compiled into every material under it.
+     * BaseColor and ColorMask work exactly this way.
+     *
+     * It costs one shader program, compiled on the first frame that needs it: no second mesh, no second
+     * draw, no second pass. The amount is a uniform rather than a compiled-in constant, so `:recall wash`
+     * pushes a new instance through Slot.ostate and nothing is rebuilt at all -- not the program, not the
+     * slot tree, not a single cut. */
+    private int washamt = 255;
+
+    private Pipe.Op greyscale() {
+	return(new io.brodgar.rts.Greyscale(washamt / 255f));
+    }
+
+    private void setwash(int a) {
+	if(a == washamt)
+	    return;
+	washamt = a;
+	if(s_recall != null)
+	    s_recall.ostate(greyscale());
+    }
+
     /* 068.2: the remembered ground, in the scene.
      *
      * The client's own Terrain centres its area on getcc() -- the player's own cut -- so a camera panned
@@ -1520,7 +1551,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    return(map.getcut(cc));
 		}
 	    };
-
 	RecallTerrain(MCache map) {
 	    super(map);
 	}
@@ -1613,6 +1643,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * plain Terrain slot beside it does. Locking a slot whose state has already been used throws,
 	     * and adding the node is what uses it. */
 	    s_recall = basic.add(recallterrain, ShadowMap.maskshadow);
+	    /* The wash. On the slot rather than in the raster, because it is one state over the whole
+	     * subtree and because ostate is what lets `:recall wash` change it without touching anything
+	     * the raster built. */
+	    s_recall.ostate(greyscale());
 	}
 	/* The cut set changes at panning pace, and maintaining it is a frustum test per cut of a square
 	 * far larger than the one the live raster keeps. Five times a second delays a cut entering the
@@ -3529,8 +3563,20 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			    recallon = false;
 			else if(args[1].equals("on"))
 			    recallon = true;
-			else
-			    throw(new Exception("recall: no such argument `" + args[1] + "' -- off, on, or nothing"));
+			else if(args[1].equals("wash")) {
+			    if(args.length < 3)
+				throw(new Exception("recall wash: an alpha from 0 to 255, and none given"));
+			    int a;
+			    try {
+				a = Integer.parseInt(args[2]);
+			    } catch(NumberFormatException e) {
+				throw(new Exception("recall wash: `" + args[2] + "' is not a number"));
+			    }
+			    if((a < 0) || (a > 255))
+				throw(new Exception("recall wash: alpha " + a + " is outside 0 to 255"));
+			    setwash(a);
+			} else
+			    throw(new Exception("recall: no such argument `" + args[1] + "' -- off, on, wash <alpha>, or nothing"));
 		    }
 		    io.brodgar.rts.Recall r = recall;
 		    if(r == null)
@@ -3541,6 +3587,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 						   recallon ? "on" : "off",
 						   (s_recall == null) ? "out of the scene" : "in the scene",
 						   (recallterrain == null) ? 0 : recallterrain.main.cuts.size()));
+		    cons.out.println(String.format("recall: wash %d of 255 toward grey -- `:recall wash <a>' to change it",
+						   washamt));
 		}
 	    });
 	cmdmap.put("whyload", new Console.Command() {

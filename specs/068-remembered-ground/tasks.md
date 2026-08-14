@@ -36,18 +36,17 @@
       `[manual]`: `:recall off`, then `:cam ortho` — expect the scene exactly as it is today, both
       times.
 
-- [ ] **068.3 — Remembered ground is washed white-grey.** Adds the wash: one `MCache.OverlayInfo`
-      implemented in `MapView` (the interface needs no resource) whose `mat()` copies `gridmat`'s
-      state set — `BaseColor(255, 255, 255, a)`, `States.maskdepth`, `MapMesh.OLOrder` — with the
-      alpha raised, and one `MCache.RectOverlay` in the recalled cache covering its area, which is
-      what makes `MCache.getol` return a full mask and `MapMesh.makeol` emit every face. Drawn
-      through a second `Grid` on `RecallTerrain` over `map.getolcut`. `:recall wash <a>` sets the
-      alpha live. Writes the conforming-sheet recipe into `docs/client/world-3d.md`'s ground-overlay
+- [x] **068.3 — Remembered ground is washed grey.** Adds the wash: `io.brodgar.rts.Greyscale`, a
+      `State` whose `ShaderMacro` mods `FragColor.fragcol` at order 1000, mixing the fragment's
+      Rec. 709 luma back over its own rgb by a `Uniform` amount. Installed on `RecallTerrain`'s slot,
+      where the composed `Pipe` compiles it into every tileset material below it. `:recall wash <a>`
+      pushes a new amount through `Slot.ostate`, recompiling nothing. Writes both ways of recolouring
+      ground — the sheet and the shader state — into `docs/client/world-3d.md`'s ground-overlay
       section.
-      *No suite.* The alpha is a judgement, so the task ships the dial rather than a number, and the
+      *No suite.* The amount is a judgement, so the task ships the dial rather than a number, and the
       maintainer's answer to the second line is what fixes the default.
-      `[manual]`: pan onto remembered ground — expect it washed white-grey, told apart from live
-      ground at a glance, with the tile still readable through it (water, ploughed field, road).
+      `[manual]`: pan onto remembered ground — expect it drawn without colour, told apart from live
+      ground at a glance, with the tile still readable (water, ploughed field, road).
       `[manual]`: try `:recall wash` at a few values and say which one to ship as the default.
 
 - [ ] **068.4 — It stays bounded, and it survives the ground moving.** Adds the cut and grid budget
