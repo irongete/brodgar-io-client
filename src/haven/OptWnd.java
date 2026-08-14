@@ -27,6 +27,7 @@
 package haven;
 
 import haven.render.*;
+import java.util.List;
 import java.util.function.*;
 import java.awt.event.KeyEvent;
 
@@ -857,9 +858,86 @@ public class OptWnd extends Window {
     }
 
     public class CameraPanel extends Panel {
+	private final CamSelector cam;
+
+	/* addon: (066.2) the camera picker. Its items ARE MapView's registry keys -- the very names
+	 * :cam takes -- so no camera gets a second, prettier spelling that the console and the
+	 * refusals do not know. */
+	public class CamSelector extends SDropBox<String, Widget> {
+	    private CamSelector() {
+		/* The row height is the item font's own, as SListWidget.TextItem renders with it and a
+		 * shorter row clips the text rather than shrinking it. */
+		super(UI.scale(200), UI.scale(120), CharWnd.attrfont().height());
+	    }
+
+	    protected List<String> items() {return(MapView.camnames());}
+
+	    protected Widget makeitem(String nm, int idx, Coord sz) {
+		/* makeitem(null, …) is a real call: SDropBox.change passes whatever it is handed for
+		 * the closed box, and before the first sync that is nothing. */
+		return(SListWidget.TextItem.of(sz, () -> (nm == null) ? "(unknown)" : nm));
+	    }
+
+	    /* The camera in force, which the defcam pref does not answer while a mode has swapped one
+	     * in without writing it. Before login there is no map view and the pref is all there is.
+	     * It answers the REGISTRY's own instance of the name, never the equal one the pref store
+	     * hands back: SDropBox compares its selection by reference (`item != sel`, `sel == item`),
+	     * so an equal-but-distinct string shows in the closed box and highlights no row. A name the
+	     * registry does not have is null -- a dead pref reads as no selection, not as a camera. */
+	    private String current() {
+		MapView mv = mapview();
+		String nm = (mv == null) ? Utils.getpref("defcam", null) : mv.camname();
+		for(String cand : MapView.camnames()) {
+		    if(cand.equals(nm))
+			return(cand);
+		}
+		return(null);
+	    }
+
+	    /* change(I) is the ONLY way to set what the closed box shows -- it both writes sel and
+	     * rebuilds that widget -- so a re-sync runs super's half and none of the pick below. */
+	    private void sync() {
+		super.change(current());
+	    }
+
+	    public void change(String nm) {
+		/* Read before super.change writes it. Clicking the row you are already on installs
+		 * nothing: makecam would build a fresh camera, and the view would jump back to where a
+		 * pan started for no gesture the user made. */
+		boolean same = (nm == this.sel);
+		super.change(nm);
+		if((nm == null) || same)
+		    return;
+		MapView mv = mapview();
+		if(mv != null) {
+		    mv.setcam(nm);
+		} else {
+		    /* This panel exists at login too, with no map view to install onto: write the
+		     * preference alone, and the session that comes up reads it through restorecam. */
+		    Utils.setpref("defcam", nm);
+		    Utils.setprefb("camargs", Utils.serialize(new String[0]));
+		}
+	    }
+	}
+
+	private MapView mapview() {
+	    GameUI gui = getparent(GameUI.class);
+	    return((gui == null) ? null : gui.map);
+	}
+
+	/* The panel is built once and kept, so the box is re-read every time it is shown rather than
+	 * only when it is made -- :cam and the RTS mode both move the camera behind its back. */
+	public void show() {
+	    cam.sync();
+	    super.show();
+	}
+
 	public CameraPanel(Panel back) {
 	    Widget prev;
-	    prev = add(new Label("Camera axis inversion"), 0, 0);
+	    prev = add(new Label("Camera"), 0, 0);
+	    cam = add(new CamSelector(), prev.pos("bl").adds(0, 10));
+	    cam.settip("The camera the world is drawn through. These are the names the :cam command takes.", true);
+	    prev = add(new Label("Camera axis inversion"), cam.pos("bl").adds(0, 20));
 	    prev = add(new CheckBox("Invert horizontal axis (left/right)") {
 		    {a = MapView.invcamx;}
 		    public void set(boolean val) {Utils.setprefb("invcamx", MapView.invcamx = val); a = val;}

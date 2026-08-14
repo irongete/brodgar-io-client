@@ -14,7 +14,7 @@
       drag pans, the wheel zooms, Home follows again. Then `:cam fleet` — expect a refusal naming
       `rts`. Then `:fleet rts on`/`off` — expect the camera swapped in and put back.
 
-- [ ] **066.2 — Options ▸ Camera picks the camera.** `camtypes` becomes a `LinkedHashMap`, so the
+- [x] **066.2 — Options ▸ Camera picks the camera.** `camtypes` becomes a `LinkedHashMap`, so the
       dropdown's order is the registration order and **no label field is added** — a camera is shown
       under the name `:cam` takes and no other. The `cam` command's body becomes
       `MapView.setcam(String, String...)`, which the console then calls; `camname()` reverse-looks-up

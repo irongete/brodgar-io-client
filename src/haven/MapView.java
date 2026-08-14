@@ -59,7 +59,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public static double plobagran = Utils.getprefd("plobagran", 12);
     public static boolean invcamx = Utils.getprefb("invcamx", false);
     public static boolean invcamy = Utils.getprefb("invcamy", false);
-    private static final Map<String, Class<? extends Camera>> camtypes = new HashMap<String, Class<? extends Camera>>();
+    /* addon: (066.2) linked, so camnames() -- and the Options ▸ Camera dropdown reading it -- comes
+     * out in the order the camera classes are declared, rather than in a hash order nobody chose. */
+    private static final Map<String, Class<? extends Camera>> camtypes = new LinkedHashMap<String, Class<? extends Camera>>();
     
     public interface Delayed {
 	public void run(GOut g);
@@ -3293,26 +3295,50 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
 
+    /* addon: (066.2) every name :cam takes, in declaration order. The registry is private and each
+     * camera registers itself from its own static block, so this is the only way anything outside
+     * MapView can learn which names exist -- and it is what both the dropdown and setcam's own
+     * refusal read, so no second list of camera names is kept anywhere. */
+    public static List<String> camnames() {
+	return(new ArrayList<String>(camtypes.keySet()));
+    }
+
+    /* addon: (066.2) the name of the camera actually INSTALLED, which is not what the defcam pref
+     * says while the RTS mode has swapped one in without writing it. null for a camera no static
+     * block registered -- OrthoCam is real and has no name. */
+    public String camname() {
+	Class<? extends Camera> ct = camera.getClass();
+	for(Map.Entry<String, Class<? extends Camera>> e : camtypes.entrySet()) {
+	    if(e.getValue() == ct)
+		return(e.getKey());
+	}
+	return(null);
+    }
+
+    /* addon: (066.2) the one writer of the camera and its two preferences. The :cam command, the
+     * Options ▸ Camera dropdown and Lua all end here, so a camera chosen one way reads back the same
+     * through the other two. Unchecked, because the console catches it and the dropdown offers no
+     * name that is not in the registry. */
+    public void setcam(String name, String... args) {
+	/* rts: a retired spelling refuses by name. "no such camera: fleet" is true and useless -- it
+	 * reads as "this client has no such thing", when the camera is there under one name and one
+	 * name only. */
+	if(name.equals("fleet"))
+	    throw(new IllegalArgumentException("no camera named 'fleet' -- it is 'rts': :cam rts"));
+	Class<? extends Camera> ct = camtypes.get(name);
+	if(ct == null)
+	    throw(new IllegalArgumentException("no such camera: " + name + " -- the client has " + String.join(", ", camnames())));
+	camera = makecam(ct, args);
+	Utils.setpref("defcam", name);
+	Utils.setprefb("camargs", Utils.serialize(args));
+    }
+
     private Map<String, Console.Command> cmdmap = new TreeMap<String, Console.Command>();
     {
 	cmdmap.put("cam", new Console.Command() {
 		public void run(Console cons, String[] args) throws Exception {
-		    if(args.length >= 2) {
-			/* rts: a retired spelling refuses by name. "no such camera: fleet" is true and
-			 * useless -- it reads as "this client has no such thing", when the camera is
-			 * there under one name and one name only. */
-			if(args[1].equals("fleet"))
-			    throw(new Exception("no camera named 'fleet' -- it is 'rts': :cam rts"));
-			Class<? extends Camera> ct = camtypes.get(args[1]);
-			String[] cargs = Utils.splice(args, 2);
-			if(ct != null) {
-				camera = makecam(ct, cargs);
-				Utils.setpref("defcam", args[1]);
-				Utils.setprefb("camargs", Utils.serialize(cargs));
-			} else {
-			    throw(new Exception("no such camera: " + args[1]));
-			}
-		    }
+		    if(args.length >= 2)
+			setcam(args[1], Utils.splice(args, 2));
 		}
 	    });
 	cmdmap.put("whyload", new Console.Command() {

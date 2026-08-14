@@ -78,14 +78,14 @@ and criterion 7 keeps it true.
 
 ## Context files
 
-- `src/haven/MapView.java` — 1, 2, 4
+- `src/haven/MapView.java` — 1, 2, 4, 5 *(`setcam`/`camname`/`camnames` are the public members task 2 added and task 5 reads and writes through)*
 - `src/io/brodgar/rts/Control.java` — 1
 - `src/haven/OptWnd.java` — 2, 3, 4
 - `src/haven/UI.java` — 4
 - `src/haven/KeyBinding.java` — 1, 3, 4 *(`set` steals a key from any other binding matching it, which is what a suite saving and restoring one has to work around)*
 - `src/haven/KeyMatch.java` — 4
 - `src/haven/SDropBox.java` — 2
-- `src/haven/GameUI.java` — 2 *(`Polity.Selector`, a concrete `SDropBox` to copy)*
+- `src/haven/GameUI.java` — 2 *(`Polity.Selector`, a concrete `SDropBox` to copy; `GameUI.map` reached from a panel by `getparent(GameUI.class)` — `UI` has no `gui` field)*
 - `src/io/brodgar/addon/CameraOptions.java` — 5
 - `src/io/brodgar/addon/OptionsMethod.java` — 5
 - `docs/addons/api/client/README.md` — 5

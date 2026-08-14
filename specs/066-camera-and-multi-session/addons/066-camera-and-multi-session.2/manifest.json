@@ -1,0 +1,9 @@
+{
+  "name": "066.2 — Options ▸ Camera picks the camera",
+  "id": "066-camera-and-multi-session.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 066.2: the camera dropdown in Options ▸ Camera, and the cam-* bindings it sits beside.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

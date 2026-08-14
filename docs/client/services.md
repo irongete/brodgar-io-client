@@ -48,6 +48,7 @@
 | UI scale | pref `uiscale` (restart to take effect) |
 | Placement granularity | `MapView.plobpgran` / `plobagran`  statics + like-named prefs |
 | Camera inversion | `MapView.invcamx` / `invcamy`  statics + like-named prefs; consumed by `Camera.invdx`/`invdy` |
+| Camera choice | prefs `defcam`/`camargs`, written only by `MapView.setcam` ([world-3d.md](world-3d.md)); `CameraPanel.CamSelector` calls it. ⚠️ **A panel's constructor runs before it is in the tree** — `PButton.click` does `tgt.get()` and only then `add`s the result — so `ui` and `getparent(GameUI.class)` are both null there, and `PButton` caches the panel in `actual` and reuses it forever after. A control whose value the client can move behind its back (this one: `:cam` and the RTS mode both do) therefore re-reads in `show()`, which `chpanel` calls every time the panel is opened; construction is far too early and happens once |
 | Audio master / buffer | `Audio.Root.volume()` (persists `sfxvol`), `bufsize()` (**in samples** @44100 Hz, persists `audiobuf`) |
 | Audio channels | `ActAudio.Root` `.aui`/`.pos`/`.amb` → `RootChannel.setvolume` + public `volume` field. The three `AudioPanel` sliders map 1:1: "Interface volume"→`aui`, "In-game event volume"→`pos`, "Ambient volume"→`amb`. **There is no music slider** — `Music` is a separate MIDI player, see above |
 | Stop / is-it-playing a clip | all public, no core edit: `RootChannel.remove(cs)` (→ `Mixer.stop`, identity match on the very `CS` you added) and `RootChannel.mixer()` → `Mixer.playing(cs)` / `size` / `current` / `clear` |
