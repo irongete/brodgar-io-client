@@ -256,6 +256,24 @@ public final class LuaRule {
                 return self;
             }
         });
+        // glow{color=…, radius=n} — the blurred HALO behind an embossed surface's letters (065.15), the other
+        // decorator every carved site builds around its foundry. Both fields are required and a radius of 0 is
+        // the way to say NO halo; leaving the property out is the other answer, and it is the one that keeps
+        // the client's own. One radius stands for the client's two, which differ by a quarter of a pixel.
+        m.set("glow", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaRule r = handle(self, "glow");
+                Sheet.Props cur = r.read(owner);
+                LuaValue v = Args.written(a, 2, r.where() + ":glow", "glow");
+                if(v == null)
+                    return ((cur == null) || (cur.glow == null)) ? LuaValue.NIL : cur.glow.toLua();
+                Sheet.Props p = r.edit(owner);
+                p.glow = Chrome.parseGlow(r.where(), v);
+                r.commit(owner, p);
+                return self;
+            }
+        });
         // bg{color=…} / bg{image=…} / bg{asset=…} / bg{res=…} — the surface something is painted on (035.1), and
         // since 065.2 an ARRAY of those, painted in order. A structured VALUE, not named arguments: a background
         // is one thing said as a table, exactly as a colour is.

@@ -1,0 +1,9 @@
+{
+  "name": "065.15 — glow",
+  "id": "065-theming-depth.15",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.15: glow{color, radius} supplies the halo an embossed surface is blurred behind, radius 0 removes it, and a key with no glow keeps the client's own.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

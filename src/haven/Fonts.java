@@ -496,6 +496,26 @@ public class Fonts {
         public BufferedImage texture(BufferedImage stock);
     }
 
+    /**
+     * The <b>halo</b> a rule draws behind a surface's glyphs (065.15) — the other decorator every embossed site
+     * already wraps its foundry in ({@link PUtils.BlurFurn}), and the second of the two properties that are
+     * neither a surface nor a frame.
+     *
+     * <p>A blur is two radii and a colour, and a rule says <b>one</b> radius for both: the stock pairs differ by
+     * a quarter of a pixel where they differ at all, which is a distinction no theme can see and none should
+     * have to write. A radius of zero is a value rather than an omission — it means <i>no halo</i>, where saying
+     * nothing means the client's own.
+     *
+     * <p>Opaque like every other value the addon layer parks in a style, and asked at the one moment a furnace
+     * is built, exactly as {@link Relief} is.
+     */
+    public interface Halo {
+        /** How far the halo reaches, in <b>device</b> pixels — {@code 0} for no halo at all. */
+        public int radius();
+        /** The colour it is drawn in. Never {@code null}: a glow that names no colour is refused at its rule. */
+        public Color color();
+    }
+
     /** The chrome-paint source (065.4) — installed once by the addon layer; {@code null} in a stock client. */
     public interface Chromes {
         /** Paint {@code scope}'s own surface and frame over {@code [ul, ul+sz)}; {@code false} when no rule names it. */
@@ -512,6 +532,8 @@ public class Fonts {
         public Picture picture(String scope, Widget wdg);
         /** What {@code scope}'s rule says about its relief, or {@code null} when it says nothing (065.14). */
         public Relief emboss(String scope);
+        /** ...and about the halo behind it, or {@code null} when it says nothing (065.15). */
+        public Halo glow(String scope);
     }
     private static volatile Chromes chromes = null;
 
@@ -662,6 +684,44 @@ public class Fonts {
             }
         }
         return new PUtils.TexFurn(bk, tex);
+    }
+
+    /**
+     * The <b>halo</b> an embossed site blurs behind its text (065.15): {@code bk} behind {@code grad}/{@code
+     * brad} of {@code col} — what this client has always drawn — or the one radius and colour a rule names
+     * instead, or {@code bk} <b>bare</b> where that radius is zero.
+     *
+     * <p>It sits directly outside {@link #emboss}, which is how the client itself stacks the two
+     * ({@code BlurFurn(TexFurn(foundry, tex), …)}) at each of the five surfaces that wear them, and it is asked
+     * on the same {@link #gen()} check each of them already performs for its font. The two properties are
+     * independent in every direction: dropping the relief leaves the halo where it was, and naming a halo leaves
+     * the relief tiling exactly what it tiled.
+     *
+     * <p><b>A radius of zero is an answer, and not the same answer as silence.</b> No {@code glow} property
+     * leaves the stock blur untouched to the pixel — the shadow under a window caption is part of this client's
+     * look and a theme that says nothing about it keeps it — while {@code radius = 0} removes the decorator
+     * outright, which is the only way to have letters sit on a surface with nothing behind them.
+     *
+     * <p>Resolved through the site half of the cascade with the ambient per-widget frame above it, the same
+     * chain the foundry and the relief beneath it resolved through, so the three cannot answer to three
+     * different rules. A client with no addon pays one {@code volatile} read and builds the furnace it always
+     * built.
+     */
+    public static Text.Forge glow(String scope, Text.Forge bk, int grad, int brad, Color col) {
+        int g = grad, b = brad;
+        Color c = col;
+        if(active) {
+            Chromes src = chromes;
+            Halo h = (src == null) ? null : src.glow(scope);
+            if(h != null) {
+                int r = h.radius();
+                if(r <= 0)
+                    return bk;        // `radius = 0`: no halo, so the glyphs sit on whatever is behind them
+                g = b = r;
+                c = h.color();
+            }
+        }
+        return new PUtils.BlurFurn(bk, g, b, c);
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {

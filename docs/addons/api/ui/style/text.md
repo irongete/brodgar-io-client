@@ -101,7 +101,7 @@ them is a picture.
 
 | Written | Is |
 |---|---|
-| `false` | no relief at all. The letters are drawn in the font, in the rule's own [`color`](#color), and the halo behind them stays |
+| `false` | no relief at all. The letters are drawn in the font, in the rule's own [`color`](#color), and the [halo](#glow) behind them stays |
 | `{texture = <art>}` | the theme's own picture tiled through the letters, in place of the client's |
 
 The texture is a picture named the [same four ways](chrome.md#naming-a-picture) as every other art in a
@@ -124,10 +124,48 @@ s:install()
   nothing, exactly as a `bg` on a text site does — [the key table](keys.md#what-each-key-accepts) is the
   list.
 - **The halo is a different property.** `emboss` says what fills the letters; the blurred shadow behind
-  them is untouched by it.
+  them is [`glow`](#glow), and neither implies the other.
 - **A texture is tiled at the weight it was authored at.** A file your addon ships is in
   [design pixels](../pixels.md) and is scaled with the interface; the client's own art carries its own
   scale, exactly as it does everywhere a picture is named.
+
+## glow
+
+`rule:glow{color = …, radius = n}` is the blurred **halo** behind a surface's letters — the shadow every
+carved caption in this client already sits on, said as a value. It reaches the same keys
+[`emboss`](#emboss) does, those being the surfaces the client blurs.
+
+| Field | Value |
+|---|---|
+| `color` | `{r, g, b}` or `{r, g, b, a}`, `0..255` each — also the `{r = …, g = …}` table every reader hands back |
+| `radius` | [design px](../pixels.md), `>= 0` — how far the halo reaches on every side |
+
+```lua
+local s = hafen.ui():sheet()
+s:rule("window.title"):glow{ color = {40, 200, 255}, radius = 4 }   -- a cyan halo behind every caption
+s:rule("heading"):glow{ color = {0, 0, 0}, radius = 0 }             -- ...and none at all behind a heading
+s:install()
+```
+
+- **Both fields are required.** A colour says nothing about how far it reaches and a radius nothing about
+  what is drawn, so a value carrying one of the two is an error naming both. A negative radius is an error
+  too: it is a distance.
+- **`radius = 0` is a value, and it is the only way to say *no halo*.** Leaving the property out is the
+  other answer, and it is the one that keeps the client's own blur to the pixel — the same division
+  [`emboss`](#emboss) draws between `false` and silence. `rule:glow()` reads back the halo a rule set and
+  `nil` where it says nothing, so the two are not the same answer.
+- **One radius, and the client draws with two.** A blur has a gradient radius and a blur radius, and this
+  client's pairs differ by a fraction of a pixel where they differ at all; a rule says one number and both
+  take it.
+- **It is independent of the relief.** Dropping the emboss leaves the halo where it was, and naming a halo
+  leaves the letters filled with whatever fills them. A caption with `emboss(false)`, a `color` and a `glow`
+  is three properties saying three things.
+- **A halo grows the letters' own raster**, by the radius on every side, and anything the client sizes
+  *around* that raster grows with it: a window's caption [plate](chrome.md#ornaments) is measured from the
+  rendered caption, so a wide radius widens the plate and insets the glyphs within it. The client's own halo
+  already does this at its own radius — a rule changes the number, not the behaviour.
+- **It reaches the keys the client blurs and no others.** On any other key it is accepted and does nothing,
+  exactly as a `bg` on a text site does — [the key table](keys.md#what-each-key-accepts) is the list.
 
 ## See also
 

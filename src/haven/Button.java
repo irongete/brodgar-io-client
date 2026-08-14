@@ -65,8 +65,9 @@ public class Button extends SIWidget {
 	    // addon: (065.14) ...and the RELIEF the caption's letters are cut out of, which a rule may re-texture or
 	    // drop -- the latter being what lets a `color` rule reach an ordinary button caption. The stock-identity
 	    // fast path widens with it: an emboss rule leaves the foundry exactly where it was.
+	    // addon: (065.15) ...and the HALO behind it, which a rule may recolour, widen or drop outright.
 	    bnf = ((btf == tf) && !Fonts.styled()) ? nf
-		: new PUtils.BlurFurn(Fonts.emboss("button", btf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
+		: Fonts.glow("button", Fonts.emboss("button", btf, Window.ctex), UI.rscale(0.75), UI.rscale(0.75), new Color(80, 40, 0));
 	    fontgen = g;
 	}
     }

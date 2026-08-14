@@ -124,18 +124,23 @@ what the surface *does* with a property. First the two that write text:
 | any tree key | yes | **per surface** | [resolved per widget](#tree-keys) and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats unchanged: a rule on a window covers the window's own caption, where `font` works and `color` waits on an `emboss`. `:style()` reports the colour a rule set even where the surface then throws it away |
 | `widget:rule()` | yes | **per surface** | the same, one widget at a time and named by hand rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do* |
 
-And the one that decides which of those two a carved surface listens to.
+And the two that dress a **carved** surface — what its letters are filled with, and what sits behind them.
 [`emboss`](text.md#emboss) reaches the keys the client renders as a **mask** and fills with a picture, which
-is exactly the set where `color` is inert until it is dropped.
+is exactly the set where `color` is inert until it is dropped, and [`glow`](text.md#glow) the halo those same
+keys are blurred behind. The two are independent: a key may carry either alone.
 
-| Key | `emboss` | Worth knowing |
-|---|---|---|
-| `window.title` | yes | the caption, in the theme's texture or in the rule's flat `color`. The plate behind it is [`bg`](chrome.md#bg) on the same key, and the two are independent |
-| `heading` | yes | both sizes of in-window section heading, the big fraktur ones and the smaller group captions above a grid |
-| `button` | yes | the ordinary button caption. A `wrapped` one was never embossed, so it is unaffected either way |
-| `*` | **cascades** | into those three and nowhere else, they being the only surfaces the client carves. So one rule on `*` flattens every carved caption in the client at once |
-| a tree key, and `widget:rule()` | yes | resolved per widget and drawn over its whole subtree, so `["window[title=Inventory]"]` flattens one window's caption and leaves every other window carved |
-| every other key | **inert** | nothing else in the client draws its text through a mask. Readable back through `:style()`, and inert everywhere it lands |
+| Key | `emboss` | `glow` | Worth knowing |
+|---|---|---|---|
+| `window.title` | yes | yes | the caption, in the theme's texture or in the rule's flat `color`, on the theme's halo. The plate behind the lot is [`bg`](chrome.md#bg) on the same key |
+| `heading` | yes | yes | both sizes of in-window section heading, the big fraktur ones and the smaller group captions above a grid |
+| `button` | yes | yes | the ordinary button caption. A `wrapped` one was never embossed or blurred, so it is unaffected either way |
+| `*` | **cascades** | **cascades** | into those three and nowhere else, they being the only surfaces the client carves. So one rule on `*` flattens every carved caption in the client at once |
+| a tree key, and `widget:rule()` | yes | yes | resolved per widget and drawn over its whole subtree, so `["window[title=Inventory]"]` flattens one window's caption and leaves every other window carved |
+| every other key | **inert** | **inert** | nothing else in the client draws its text through a mask or blurs a halo behind it. Readable back through `:style()`, and inert everywhere it lands |
+
+A window's caption is drawn one way when the window has focus and another when it does not, and the
+difference is the colour of that halo. A `glow` rule replaces both, so a themed client tells a focused
+window from an unfocused one by whatever else the theme says, not by its caption's shadow.
 
 And the three that draw the chrome. The surfaces that wear them are the ones that draw a box of their own:
 the window decoration, the caption plate inside it, the window-less panels, the box a tooltip is popped up
@@ -203,7 +208,8 @@ And the three that lay widgets out. This table is short because the answer is: a
 
 **Where `color` is inert, the glyph colour is thrown away before anything reaches the screen.** Most of
 those surfaces are *embossed*: the client renders the text as a mask, tiles a texture through it and blurs
-a shadow behind, so there is nothing left for a rule to override until [`emboss(false)`](text.md#emboss)
+a [halo](text.md#glow) behind, so there is nothing left for a rule to override until
+[`emboss(false)`](text.md#emboss)
 stops the tiling — which is what that property is for. The speech bubble is the one that stays inert
 whatever you write: it blits its finished text under a flat black tint, and no rule reaches inside that.
 All of them still follow a `font` rule perfectly. Nothing is refused and nothing warns.

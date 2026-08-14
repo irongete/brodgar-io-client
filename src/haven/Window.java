@@ -191,8 +191,11 @@ public class Window extends Widget {
 		// mask, exactly as before, unless a rule names its own texture or drops it. Dropping it is what lets a
 		// `color` rule reach a caption at all, and the blur below is untouched either way.
 		Text.Forge e = Fonts.emboss("window.title", f, ctex);
-		cf  = new PUtils.BlurFurn(e, UI.rscale(0.75), UI.rscale(1.0), new Color(96, 96, 0));
-		ncf = new PUtils.BlurFurn(e, UI.rscale(0.75), UI.rscale(1.0), Color.BLACK);
+		// addon: (065.15) ...and the HALO behind them, the client's own two radii and colour unless a rule
+		// names its own. Both twins ask, so a themed glow is the same halo whether the window has focus or
+		// not -- the focused/unfocused pair is a colour distinction the theme has replaced.
+		cf  = Fonts.glow("window.title", e, UI.rscale(0.75), UI.rscale(1.0), new Color(96, 96, 0));
+		ncf = Fonts.glow("window.title", e, UI.rscale(0.75), UI.rscale(1.0), Color.BLACK);
 		fontgen = g;
 	    }
 	}

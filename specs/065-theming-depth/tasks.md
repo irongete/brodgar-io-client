@@ -193,7 +193,7 @@ in stage A before any surface is routed against it.
       `[manual]`: expect window titles, section headings and button captions in the rule's flat colour with
       no golden relief; then with `emboss{texture = …}`, in the theme's texture.
 
-- [ ] **065.15 — `glow`.** `glow{color = {…}, radius = n}` supplies the `PUtils.BlurFurn` every embossed site
+- [x] **065.15 — `glow`.** `glow{color = {…}, radius = n}` supplies the `PUtils.BlurFurn` every embossed site
       already builds behind its text — two radii and a colour, the stock caption's being `UI.rscale(0.75)`
       and `UI.rscale(1.0)`. A rule's radius is design px and converts through `Px.in`. No `glow` property
       leaves the stock halo exactly as it is.

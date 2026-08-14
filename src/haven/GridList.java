@@ -45,8 +45,9 @@ public abstract class GridList<T> extends Widget {
 	    Text.Foundry f = Fonts.foundry("heading", dcatfnd);
 	    // addon: (065.14) ...and the RELIEF it is cut out of, so a `heading` rule that drops the emboss reaches
 	    // a group caption too. The fast path widens with it: an emboss rule moves nothing about the foundry.
+	    // addon: (065.15) ...and the HALO behind it, which the same `heading` rule names for both sizes.
 	    bdcatf = ((f == dcatfnd) && !Fonts.styled()) ? dcatf
-		: new BlurFurn(Fonts.emboss("heading", f, Window.ctex), 2, 1, new Color(96, 48, 0));
+		: Fonts.glow("heading", Fonts.emboss("heading", f, Window.ctex), 2, 1, new Color(96, 48, 0));
 	    fontgen = g;
 	}
 	return(bdcatf);

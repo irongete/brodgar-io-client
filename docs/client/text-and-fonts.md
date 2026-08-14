@@ -30,17 +30,18 @@ room it took as `tloff()`/`broff()`.
 | Decorator | Does | Costs |
 |---|---|---|
 | `PUtils.TexFurn(bk, BufferedImage)` | `PUtils.tilemod` — tiles the image through the glyph raster **in place**, so the mask is what you see and the foundry's colour is gone | no growth (`tloff`/`broff` are `Coord.z`) |
-| `PUtils.BlurFurn(bk, grad, brad, Color)` | `PUtils.blurmask2` — a coloured halo behind the glyphs | grows the raster by `grad + brad` on every side |
+| `PUtils.BlurFurn(bk, grad, brad, Color)` | `PUtils.blurmask2` — a coloured halo behind the glyphs | grows the raster by `grad + brad` on every side, which is `tloff`/`broff` and moves what the site lays out around it |
 
 The two are always stacked the same way — `BlurFurn(TexFurn(foundry, tex), …)` — at four places, and each
-rebuilds its statics on a `Fonts.gen()` compare:
+rebuilds its statics on a `Fonts.gen()` compare. The blur's `grad`/`brad`/`col` are per site and none of them
+is shared:
 
-| Site | Stock foundry | Texture |
-|---|---|---|
-| `Window.DefaultDeco.checktitlefont` → `cf`, `ncf` | `DefaultDeco.titlefnd` (fraktur 15) | `Window.ctex` = `Resource.loadsimg("gfx/hud/fonttex")` |
-| `CharWnd.checkcapfont` → `bcatf`, `bfailf` | `CharWnd.capfnd` (fraktur 25) | `Window.ctex`, and `gfx/hud/fontred` for the failed twin |
-| `GridList.dcatfont` → `bdcatf` | `GridList.dcatfnd` (fraktur 18) | `Window.ctex` |
-| `Button.checkfont` → `bnf` | `Button.tf` (bold serif 12) | `Window.ctex` |
+| Site | Stock foundry | Texture | Blur |
+|---|---|---|---|
+| `Window.DefaultDeco.checktitlefont` → `cf`, `ncf` | `DefaultDeco.titlefnd` (fraktur 15) | `Window.ctex` = `Resource.loadsimg("gfx/hud/fonttex")` | `UI.rscale(0.75)`, `UI.rscale(1.0)`; `Color(96,96,0)` focused, `Color.BLACK` not |
+| `CharWnd.checkcapfont` → `bcatf`, `bfailf` | `CharWnd.capfnd` (fraktur 25) | `Window.ctex`, and `gfx/hud/fontred` for the failed twin | `UI.scale(3)`, `UI.scale(2)`, `Color(96,48,0)` |
+| `GridList.dcatfont` → `bdcatf` | `GridList.dcatfnd` (fraktur 18) | `Window.ctex` | `2`, `1`, `Color(96,48,0)` — **unscaled literals**, unlike the three above |
+| `Button.checkfont` → `bnf` | `Button.tf` (bold serif 12) | `Window.ctex` | `UI.rscale(0.75)` twice, `Color(80,40,0)` |
 
 `Charlist`, `Fightsess`, `MapView` and `QuestWnd` build furnaces of their own from the same two classes
 and are **not** routed.

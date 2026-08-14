@@ -98,6 +98,8 @@ final class Chrome {
     static final String PICTURE = "picture";
     /** The {@code emboss} property's key (065.14). Its value is an {@link Emboss}. */
     static final String EMBOSS = "emboss";
+    /** The {@code glow} property's key (065.15). Its value is a {@link Glow}. */
+    static final String GLOW = "glow";
 
     /** The {@code bg} a resolved style carries, or {@code null} — for {@code null} styles too, which is the common case. */
     static Bg bg(Fonts.Style st) {
@@ -139,18 +141,25 @@ final class Chrome {
         return (st == null) ? null : (Emboss)st.prop(EMBOSS);
     }
 
+    /** The {@code glow} a resolved style carries, or {@code null} — the client's own halo, then. */
+    static Glow glow(Fonts.Style st) {
+        return (st == null) ? null : (Glow)st.prop(GLOW);
+    }
+
     /**
      * The bag one rule's chrome properties travel in, or {@code null} when it names none — which is what keeps
      * the provider's identity fast path intact for a sheet that says nothing about chrome.
      */
-    static Map<String, Object> props(Bg bg, Border border, Pad padding, Pic picture, Emboss emboss, Spot caption,
-                                     Art sizer, Close close) {
+    static Map<String, Object> props(Bg bg, Border border, Pad padding, Pic picture, Emboss emboss, Glow glow,
+                                     Spot caption, Art sizer, Close close) {
         if((bg == null) && (border == null) && (padding == null) && (picture == null) && (emboss == null)
-           && (caption == null) && (sizer == null) && (close == null))
+           && (glow == null) && (caption == null) && (sizer == null) && (close == null))
             return null;
-        Map<String, Object> m = new LinkedHashMap<String, Object>(8);
+        Map<String, Object> m = new LinkedHashMap<String, Object>(9);
         if(emboss != null)
             m.put(EMBOSS, emboss);
+        if(glow != null)
+            m.put(GLOW, glow);
         if(bg != null)
             m.put(BG, bg);
         if(border != null)
@@ -624,6 +633,66 @@ final class Chrome {
                 return LuaValue.FALSE;
             LuaTable t = new LuaTable();
             t.set("texture", texture.toLua(reader));
+            return t;
+        }
+    }
+
+    // ---- the halo behind it (065.15) ---------------------------------------------------------------
+
+    /**
+     * A rule's {@code glow}: the blurred <b>halo</b> the client draws behind an embossed surface's letters, as a
+     * colour and a radius. It is {@link Emboss}'s neighbour and its opposite in one respect — a relief is what
+     * the glyphs are <i>filled</i> with, a halo is what sits <i>behind</i> them — and the two are independent in
+     * every direction: dropping the relief leaves the halo, naming a halo leaves the relief.
+     *
+     * <p><b>One radius, both of the client's two.</b> The blur an embossed site builds takes a gradient radius
+     * and a blur radius, and the stock pairs differ by a quarter of a pixel where they differ at all; a theme
+     * says one number and both take it, because the distinction is one no theme can see.
+     *
+     * <p><b>Zero is a value, not an omission.</b> {@code radius = 0} is the only way to say <i>no halo</i>, and
+     * a rule carrying no {@code glow} at all is what keeps the client's own — the same division {@code emboss}
+     * draws between {@code false} and silence.
+     *
+     * <p>The radius is held in <b>design</b> pixels, as the rule wrote it, and converts at the moment the site
+     * asks ({@link #radius}) — so the value stays comparable across interface scales, which is what the
+     * interning of a resolved style ({@code Sheet.SKey}) is keyed on. Immutable with value equality, and it
+     * <b>is</b> the {@link Fonts.Halo} the site reads.
+     */
+    static final class Glow implements Fonts.Halo {
+        /** The colour the halo is drawn in. Never {@code null}: a glow naming none is refused at its rule. */
+        final Color color;
+        /** How far it reaches, in <b>design</b> pixels — {@code 0} being no halo at all. */
+        final int radius;
+
+        Glow(Color color, int radius) {
+            this.color = color;
+            this.radius = radius;
+        }
+
+        public int radius() {
+            return Px.in(radius);
+        }
+
+        public Color color() {
+            return color;
+        }
+
+        public int hashCode() {
+            return (color.hashCode() * 31) + radius;
+        }
+
+        public boolean equals(Object o) {
+            if(!(o instanceof Glow))
+                return false;
+            Glow g = (Glow)o;
+            return color.equals(g.color) && (radius == g.radius);
+        }
+
+        /** The value in the shape the setter takes, so a read round-trips into a write. */
+        LuaTable toLua() {
+            LuaTable t = new LuaTable();
+            t.set("color", AddonManager.color(color));
+            t.set("radius", LuaValue.valueOf(radius));
             return t;
         }
     }
@@ -1536,6 +1605,18 @@ final class Chrome {
         return emboss(Fonts.style(scope));
     }
 
+    /**
+     * {@code Fonts.glow(scope, …)} — what this site's rule says about the halo behind its letters, or
+     * {@code null} when it says nothing and the client blurs exactly the shadow it always blurred (065.15).
+     *
+     * <p>The same <b>widget-less</b> resolution {@link #emboss(String)} takes, and for the same reason: the two
+     * decorators are built one inside the other at one place per site, off a static the whole client shares, so
+     * they resolve through one chain and cannot disagree about which rule won.
+     */
+    static Fonts.Halo glow(String scope) {
+        return glow(Fonts.style(scope));
+    }
+
     // ---- parsing -----------------------------------------------------------------------------------
 
     /** The four spellings a picture comes in, as every error here lists them. */
@@ -1844,6 +1925,62 @@ final class Chrome {
 
     /** The three fields that place a picture in a rectangle — the ones a glyph mask has no rectangle for. */
     private static final String[] PLACERS = {"at", "offset", "mode"};
+
+    /** What a glow is, spelled out — what every refusal here carries, rather than naming one missing field. */
+    private static final String GLOWS =
+        "{ color = {r,g,b[,a]}, radius = n } — a colour and how far it reaches, in design pixels, 0 for no"
+        + " halo at all";
+
+    /**
+     * Parse a rule's {@code glow} (065.15) — the halo an embossed surface's letters are blurred behind. One
+     * shape, and <b>both</b> of its fields are required: a colour with no radius says nothing about how far it
+     * reaches and a radius with no colour nothing about what is drawn, so neither half has a default worth
+     * guessing at.
+     *
+     * <p><b>A radius of zero is legal and means no halo</b>, which is what makes the property able to say the
+     * one thing the client's own look cannot: letters with nothing behind them. Leaving the property out is
+     * the other answer, and it is the one that keeps the client's own blur to the pixel.
+     */
+    static Glow parseGlow(String ctx, LuaValue v) {
+        if(!v.istable())
+            throw new LuaError(ctx + ".glow: expected " + GLOWS + ", got " + v.typename());
+        Color col = null;
+        LuaValue rad = LuaValue.NIL;
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            Varargs n = v.next(k);
+            k = n.arg1();
+            if(k.isnil())
+                break;
+            String p = key(k);
+            LuaValue pv = n.arg(2);
+            if("color".equals(p)) {
+                col = pv.istable() ? AddonManager.luaColor(pv, null) : null;
+                if(col == null)
+                    throw new LuaError(ctx + ".glow.color: expected a colour table with 0..255 components"
+                        + " — { 96, 96, 0 } or { r = 96, g = 96, b = 0, a = 255 }");
+            } else if("radius".equals(p)) {
+                rad = pv;
+            } else {
+                throw new LuaError(ctx + ".glow: \"" + k.tojstring() + "\" is not a glow property — a glow is "
+                    + GLOWS);
+            }
+        }
+        if(col == null)
+            throw new LuaError(ctx + ".glow: names no colour — a glow is " + GLOWS);
+        if(rad.isnil())
+            throw new LuaError(ctx + ".glow: names no radius — a glow is " + GLOWS);
+        // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (the 028
+        // asset lesson), and `radius = "4"` is a typo.
+        if(rad.type() != LuaValue.TNUMBER)
+            throw new LuaError(ctx + ".glow.radius: expected a number of design pixels, got " + rad.typename()
+                + " — a glow is " + GLOWS);
+        int r = rad.toint();
+        if(r < 0)
+            throw new LuaError(ctx + ".glow.radius: a radius is a distance and cannot be negative (got " + r
+                + ") — a glow is " + GLOWS);
+        return new Glow(col, r);
+    }
 
     /**
      * Parse a rule's {@code close} (065.5) — a surface, its {@code hover} and {@code pressed} variants, and the

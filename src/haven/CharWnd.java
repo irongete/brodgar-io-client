@@ -62,8 +62,9 @@ public class CharWnd extends Window {
 	    // stock-identity fast path widens from "no font override" to "no override at all", a heading being
 	    // embossed with two different textures and neither of them the foundry.
 	    boolean stock = (f == capfnd) && !Fonts.styled();
-	    bcatf  = stock ? catf  : new BlurFurn(Fonts.emboss("heading", f, Window.ctex), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
-	    bfailf = stock ? failf : new BlurFurn(Fonts.emboss("heading", f, failtex),     UI.scale(3), UI.scale(2), new Color(96, 48, 0));
+	    // addon: (065.15) ...and the HALO each is blurred behind, the client's own unless a rule names one.
+	    bcatf  = stock ? catf  : Fonts.glow("heading", Fonts.emboss("heading", f, Window.ctex), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
+	    bfailf = stock ? failf : Fonts.glow("heading", Fonts.emboss("heading", f, failtex),     UI.scale(3), UI.scale(2), new Color(96, 48, 0));
 	    capgen = g;
 	}
     }
