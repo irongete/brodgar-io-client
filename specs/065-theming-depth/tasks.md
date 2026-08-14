@@ -160,7 +160,7 @@ in stage A before any surface is routed against it.
 
 ## Stage C — the picture, the letter, and the client said back
 
-- [ ] **065.12 — `picture`, the whole plate.** A new property taking the art value with its state variants,
+- [x] **065.12 — `picture`, the whole plate.** A new property taking the art value with its state variants,
       read at the **draw** rather than written into the widget: an `Img` is re-pointed by the server, so a
       `setimg` write would be clobbered and would fight the restore. It applies through a tree key, so
       `["@Img"]` and a chain reach any picture the client built.

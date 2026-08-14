@@ -209,7 +209,7 @@ namespace is *your files*; the table below is *the game's*.
 | Engine resource | Call |
 |---|---|
 | a `.res` image — action icons, HUD art | [`g:resource(name, x, y)`](ui/drawing.md) |
-| a `.res` image as a theme's own art | `{res = name}` in a [rule](ui/style/chrome.md#naming-a-picture)'s `bg` or `border` |
+| a `.res` image as a theme's own art | `{res = name}` in a [rule](ui/style/chrome.md#naming-a-picture)'s `bg`, `border` or `picture` |
 | a minimap drawing of ground you explored | [`grid:image(lvl)`](map/drawings.md) |
 | a `.res` sound | [`hafen.sound():get(name)`](sound.md) |
 | a `.res` prop in the world | [`hafen.vr`](vr/ghosts.md) |

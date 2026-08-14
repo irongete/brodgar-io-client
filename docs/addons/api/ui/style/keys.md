@@ -161,6 +161,17 @@ One surface draws them, so this table is one row.
 > names the surface. Levels *above* the site half, a tree rule or a `widget:rule()`, do
 > [compose per property](README.md#the-cascade).
 
+And the one that replaces a surface outright. [`picture`](chrome.md#picture) is keyed on what a rule
+**matches** rather than on a site, because a client picture is one widget showing one image rather than a
+kind of surface the client draws at.
+
+| Key | `picture` | Worth knowing |
+|---|---|---|
+| a tree key **matching a picture** | yes | `["@Img"]`, or a chain naming the window it sits in. The rule's plate is drawn in the rectangle the client already had, so nothing moves; a [state face](chrome.md#a-face-per-state) inside the value is worn by a surface that enters that state, and a picture the server re-points keeps following the rule |
+| `widget:rule()` | yes | the same, one picture at a time and named by hand |
+| any site key, `*` included | **inert** | a site is a kind of surface the client draws, and none of them blits a plate. Readable back through `:style()`, and inert everywhere it lands — which is also what keeps one `["*"]` rule from repainting every picture in the client |
+| a tree key matching anything else | **inert** | nothing else in the client shows a picture of its own |
+
 And the three that lay widgets out. This table is short because the answer is: a widget, or an error.
 
 | Key | `position` / `anchor` | `size` | Worth knowing |

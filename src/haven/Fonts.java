@@ -454,6 +454,20 @@ public class Fonts {
         public void drawborder(GOut g, Coord ul, Coord sz);
     }
 
+    /**
+     * The whole <b>picture</b> a rule paints in place of the one a site shows (065.12) — one surface rather
+     * than the {@code bg}-under-{@code border} pair {@link Chrome} carries, because a plate is not a frame
+     * around anything: it <i>is</i> what the site draws.
+     *
+     * <p>Opaque, like every other value the addon layer parks in a style, and read at the <b>draw</b>: the
+     * server re-points the picture an {@link Img} shows ({@code uimsg "ch"}), so a write into the widget would
+     * be clobbered and would fight the restore when the rule goes away.
+     */
+    public interface Picture {
+        /** Paint it over {@code [ul, ul+sz)} — device pixels, the box the site was going to draw in. */
+        public void draw(GOut g, Coord ul, Coord sz);
+    }
+
     /** The chrome-paint source (065.4) — installed once by the addon layer; {@code null} in a stock client. */
     public interface Chromes {
         /** Paint {@code scope}'s own surface and frame over {@code [ul, ul+sz)}; {@code false} when no rule names it. */
@@ -466,6 +480,8 @@ public class Fonts {
         public Chrome chrome(String scope);
         /** The size {@code scope}'s own background art asks for, in device px, or {@code null}. */
         public Coord size(String scope);
+        /** The picture {@code wdg} resolves to from the <b>per-widget</b> cascade alone, or {@code null}. */
+        public Picture picture(Widget wdg);
     }
     private static volatile Chromes chromes = null;
 
@@ -562,6 +578,23 @@ public class Fonts {
             return null;                  // fast path: no override anywhere
         Chromes src = chromes;
         return (src == null) ? null : src.size(scope);
+    }
+
+    /**
+     * The whole picture a rule paints in place of {@code wdg}'s own (065.12) — {@code null} when no rule names
+     * it, which is the site's cue to draw exactly the art it always drew.
+     *
+     * <p><b>The per-widget cascade alone</b>, and that is the whole of what distinguishes it from the four
+     * above: a client picture is not a <i>site</i> the client draws text or a box at, it is one widget showing
+     * one image, so what names it is a {@link Widget} — {@code ["@Img"]}, or a chain naming the window it sits
+     * in. There is no scope to fall back through, and therefore no way for the global {@code "*"} rule to
+     * repaint every picture in the client because somebody named a plate.
+     */
+    public static Picture picture(Widget wdg) {
+        if(!active)
+            return null;                  // fast path: no override anywhere
+        Chromes src = chromes;
+        return (src == null) ? null : src.picture(wdg);
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {

@@ -1,0 +1,9 @@
+{
+  "name": "065.12 — picture, the whole plate",
+  "id": "065-theming-depth.12",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.12: the picture property, read at the draw through a tree key, dresses a client picture without writing into the widget.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

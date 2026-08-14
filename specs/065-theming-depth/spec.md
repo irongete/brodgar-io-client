@@ -242,5 +242,7 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `src/haven/Speaking.java` — 11
 - `src/haven/Img.java` — 12
 - `src/haven/GameUI.java`, `MiniMap.java` — 13
+- `docs/client/minimap.md` — 13 (where the corner map is added, and the one that decides what a plate over it
+  looks like: `GameUI` calls `mmap.lower()`, so `blframe` is drawn **over** the map it frames)
 - `src/haven/PUtils.java`, `Text.java` — 14, 15
 - `addons/065-theming-depth.<N>/` — each task its own

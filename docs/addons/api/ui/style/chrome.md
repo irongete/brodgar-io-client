@@ -3,8 +3,9 @@
 The [sheet](README.md) properties that **paint** rather than write, the one that moves the client's own
 content, and the ones that dress a window's ornaments. The surfaces that wear them are the ones that draw a
 box of their own — a window's chrome, the framed panels that are not windows, a tooltip, an inventory square,
-a button, a text field, a checkbox and the two rails a thumb runs along — and
-[the key table](keys.md#what-each-key-accepts) says which does what with which.
+a button, a text field, a checkbox and the two rails a thumb runs along — plus the plates the client blits
+whole, which [`picture`](#picture) replaces outright. [The key table](keys.md#what-each-key-accepts) says
+which does what with which.
 
 ```lua
 local s = hafen.ui():sheet()
@@ -24,12 +25,13 @@ s:install()
 | `rule:border(t)` | `{<art>, slice = {l, t, r, b}}`, `{box = "gfx/hud/wnd"}` or `{color = {r, g, b[, a]}, width = n}` | the frame around it: your own art, one of the client's own, or a plain line |
 | `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, on all four sides |
 | `rule:padding(l, t, r, b)` | [design px](../pixels.md), `>= 0` each | the same room, said one side at a time |
+| `rule:picture(t)` | one [surface](#naming-a-picture), with a [face per state](#a-face-per-state) | the whole plate a surface **is**, where the client blits a picture — see [`picture`](#picture) |
 | `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](#ornaments) |
 | `rule:sizer(t)` | a [surface](#naming-a-picture) with an `at` | the corner grip a resizable window draws, and where |
 | `rule:close(t)` | a [surface](#naming-a-picture) with `hover`, `pressed`, `at` and `offset` | the button that closes a window: what it looks like, and which corner it sits in |
 
-Each reads back bare: `rule:bg()`, `rule:border()`, `rule:padding()`, `rule:caption()`, `rule:sizer()`,
-`rule:close()`.
+Each reads back bare: `rule:bg()`, `rule:border()`, `rule:padding()`, `rule:picture()`, `rule:caption()`,
+`rule:sizer()`, `rule:close()`.
 
 A border's centre is never painted — that is `bg`'s job, so the two compose.
 
@@ -93,9 +95,9 @@ array in paint order. A layer array with nothing in it is an error.
 
 ### A face per state
 
-Beside its own value a `bg` may name one for a **state** — `hover`, `pressed`, `disabled`, `checked` — each
-a whole background of the same shape, worn while the surface is in that state and falling back to the value
-it sits in where the rule names none.
+Beside its own value a `bg` — or a [`picture`](#picture) — may name one for a **state**: `hover`,
+`pressed`, `disabled`, `checked`, each a whole value of the same shape, worn while the surface is in that
+state and falling back to the value it sits in where the rule names none.
 
 ```lua
 hafen.ui():sheet():rule("button")
@@ -229,6 +231,33 @@ way round — its width is whoever built it's, so the room comes out of that wid
 Everything else ignores it: a surface whose layout was decided when it was built cannot honour one, so
 nothing is refused and nothing warns. That includes every [panel](surfaces.md#panels).
 [The key table](keys.md#what-each-key-accepts) says which is which.
+
+## picture
+
+`bg` is what a surface is painted **on**. `picture` is what a surface **is**: the whole plate, for the places
+the client blits an image rather than framing something — the plate around the minimap, the frames around
+the corner buttons, a picture the server placed in a window.
+
+```lua
+hafen.ui():sheet():rule("@Img"):picture{ res = "gfx/hud/brframe" }:sheet():install()
+```
+
+- **One surface, never a list**, and it fills the rectangle the client already drew in. Layers are what a
+  background is painted in, so an array here is an error naming [`bg`](#bg); a picture of another size fills
+  that rectangle by its own [`mode`](#naming-a-picture) — repeated, or scaled with `mode = "stretch"` —
+  and the rectangle itself never moves. It takes a [face per state](#a-face-per-state) exactly as a `bg` does.
+- **Some plates are drawn OVER what they frame** — the one around the minimap is — and the client's own
+  art has a transparent centre, which is what makes the two read as one. Art with no hole there hides what it
+  framed: nothing moves and every click still lands, because a rule changes the paint and never the hit
+  test, but you see the plate alone. Give such a surface art carrying the transparency the stock art had.
+- **The rule is read at the draw, never written into the widget.** The server re-points a picture whenever it
+  likes, so a rule keeps applying across that and `:remove()` hands the client's own art straight back —
+  which is why `rule:picture(t)` and [`widget:picture()`](../widget.md#read) stay opposite questions: the
+  first says what a surface is drawn as, the second names the resource the **client** put there.
+- **What names one is a [tree key](keys.md#tree-keys)** — `["@Img"]`, or a chain naming the window it
+  sits in — because a picture is one widget showing one image rather than a kind of surface the client
+  draws. So there is no site key behind it and no `*` fallback, which is what keeps one broad rule from
+  repainting every picture in the client at once. [The key table](keys.md#what-each-key-accepts) has the rest.
 
 ## Ornaments
 

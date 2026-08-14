@@ -37,6 +37,10 @@ first `:source(h)`.
 question: not what you named, but what the control is **showing**. On a client resource the two agree; on an
 asset handle of your own it is `nil`, because the name it answers is a client resource name or nothing.
 
+A picture control is also what the sheet's [`picture`](../style/chrome.md#picture) property dresses, so
+`["@Img"]` reaches yours and every one the client built alike. Yours has a `:source(h)` of its own and does
+not need the rule; a client's does, and that is what the property is for.
+
 ## Separator
 
 `hafen.ui():separator()` is a plain horizontal rule, with no setter of its own — `:size(w, h)` is all there

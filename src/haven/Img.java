@@ -71,7 +71,14 @@ public class Img extends Widget {
     }
 
     public void draw(GOut g) {
-	g.image(img, Coord.z);
+	// addon: 065.12 -- a `picture` rule paints the whole plate instead, read HERE rather than written into
+	// the widget: setimg is the server's (uimsg "ch"), so a write would be clobbered and would fight the
+	// restore when the rule goes away. Null -- the answer a stock client always gives -- draws the client's own.
+	Fonts.Picture p = Fonts.picture(this);
+	if(p != null)
+	    p.draw(g, Coord.z, sz);
+	else
+	    g.image(img, Coord.z);
     }
 
     public Img(Tex img) {

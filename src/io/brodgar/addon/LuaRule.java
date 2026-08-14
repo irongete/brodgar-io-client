@@ -289,6 +289,24 @@ public final class LuaRule {
                 return self;
             }
         });
+        // picture{<art>, hover=, pressed=, …} — the whole plate a surface IS (065.12), where the client blits a
+        // picture rather than framing something. ONE surface, never a list: layers are what a bg is painted in,
+        // and a second plate under this one could never be seen. It is read at the DRAW, so a rule on a picture
+        // the server re-points survives the re-point and gives the client's own art back on :remove().
+        m.set("picture", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaRule r = handle(self, "picture");
+                Sheet.Props cur = r.read(owner);
+                LuaValue v = Args.written(a, 2, r.where() + ":picture", "picture");
+                if(v == null)
+                    return ((cur == null) || (cur.picture == null)) ? LuaValue.NIL : cur.picture.toLua(owner);
+                Sheet.Props p = r.edit(owner);
+                p.picture = Chrome.parsePicture(owner, r.where(), ".picture", v);
+                r.commit(owner, p);
+                return self;
+            }
+        });
         // caption{at=, offset=} — where a window's decoration draws its caption (065.4): one of the nine
         // corners of the frame plus an offset in design pixels. With no rule the client's own place is used, to
         // the pixel. It carries no art: a caption is the window's own text, drawn in the "window.title" font,

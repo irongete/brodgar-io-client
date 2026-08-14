@@ -92,6 +92,8 @@ final class Chrome {
     static final String SIZER = "sizer";
     /** The {@code close} property's key (065.5). Its value is a {@link Close}. */
     static final String CLOSE = "close";
+    /** The {@code picture} property's key (065.12). Its value is a {@link Pic}. */
+    static final String PICTURE = "picture";
 
     /** The {@code bg} a resolved style carries, or {@code null} — for {@code null} styles too, which is the common case. */
     static Bg bg(Fonts.Style st) {
@@ -123,13 +125,19 @@ final class Chrome {
         return (st == null) ? null : (Close)st.prop(CLOSE);
     }
 
+    /** The {@code picture} a resolved style carries, or {@code null} — the client's own art, then. */
+    static Pic picture(Fonts.Style st) {
+        return (st == null) ? null : (Pic)st.prop(PICTURE);
+    }
+
     /**
      * The bag one rule's chrome properties travel in, or {@code null} when it names none — which is what keeps
      * the provider's identity fast path intact for a sheet that says nothing about chrome.
      */
-    static Map<String, Object> props(Bg bg, Border border, Pad padding, Spot caption, Art sizer, Close close) {
-        if((bg == null) && (border == null) && (padding == null) && (caption == null) && (sizer == null)
-           && (close == null))
+    static Map<String, Object> props(Bg bg, Border border, Pad padding, Pic picture, Spot caption, Art sizer,
+                                     Close close) {
+        if((bg == null) && (border == null) && (padding == null) && (picture == null) && (caption == null)
+           && (sizer == null) && (close == null))
             return null;
         Map<String, Object> m = new LinkedHashMap<String, Object>(8);
         if(bg != null)
@@ -138,6 +146,8 @@ final class Chrome {
             m.put(BORDER, border);
         if(padding != null)
             m.put(PADDING, padding);
+        if(picture != null)
+            m.put(PICTURE, picture);
         if(caption != null)
             m.put(CAPTION, caption);
         if(sizer != null)
@@ -712,6 +722,80 @@ final class Chrome {
                 for(int i = 0; i < layers.length; i++)
                     t.set(i + 1, layers[i].toLua(reader));
             }
+            for(int i = 0; (states != null) && (i < states.length); i++) {
+                if(states[i] != null)
+                    t.set(STATES[i], states[i].toLua(reader));
+            }
+            return t;
+        }
+    }
+
+    // ---- picture (065.12) --------------------------------------------------------------------------
+
+    /**
+     * A rule's {@code picture}: the whole plate a surface <b>is</b>, where the client blits a picture rather
+     * than framing something. One {@link Art} and its {@link #STATES state} faces — not a list, because layers
+     * are what a <i>background</i> has: a plate is the picture, and anything under it would never be seen.
+     *
+     * <p><b>It is the third arity of one value</b>, beside {@link Bg} (a stack of surfaces) and {@link Border}
+     * (a frame cut out of one). What tells them apart is not their pixels but what the site does with them: a
+     * {@code bg} is painted under content, a {@code border} around it, and a {@code picture} <i>instead</i> of
+     * the art the site would have blitted. So a rule may carry all three and nothing collides.
+     *
+     * <p><b>Read at the draw, never written into the widget.</b> An {@code Img} is re-pointed by the server, so
+     * a {@code setimg} write would be clobbered by the next {@code uimsg} and would fight the restore when the
+     * rule goes away. The site asks instead ({@link #picture(Widget)}) and falls back to its own art, which is
+     * what keeps a stock client stock and a dropped sheet exact.
+     */
+    static final class Pic implements Fonts.Picture {
+        /** The plate at rest. Never {@code null}: a picture that says nothing is refused where it is written. */
+        final Art art;
+        /** The face for each of {@link #STATES}, by index — {@code null} entries, and a {@code null} array, for none. */
+        final Pic[] states;
+
+        Pic(Art art, Pic[] states) {
+            this.art = art;
+            this.states = states;
+        }
+
+        /** This picture as the surface wears it in state {@code i}, which is this one where it names none. */
+        Pic state(int i) {
+            Pic s = ((states == null) || (i < 0)) ? null : states[i];
+            return (s == null) ? this : s;
+        }
+
+        /** Paint the plate over {@code [ul, ul+sz)} — the very box the site was going to blit its own art in. */
+        public void draw(GOut g, Coord ul, Coord sz) {
+            art.draw(g, ul, sz);
+        }
+
+        public int hashCode() {
+            int h = art.hashCode();
+            for(int i = 0; (states != null) && (i < states.length); i++)
+                h = (h * 37) + ((states[i] == null) ? 0 : states[i].hashCode());
+            return h;
+        }
+
+        public boolean equals(Object o) {
+            if(!(o instanceof Pic))
+                return false;
+            Pic p = (Pic)o;
+            if(!art.equals(p.art))
+                return false;
+            for(int i = 0; i < STATES.length; i++) {
+                Pic x = (states == null) ? null : states[i], y = (p.states == null) ? null : p.states[i];
+                if((x == null) ? (y != null) : !x.equals(y))
+                    return false;
+            }
+            return true;
+        }
+
+        /**
+         * {@code rule:picture()} — the surface's own fields, with each state face keyed beside them by its own
+         * name, exactly as the setter takes them.
+         */
+        LuaValue toLua(Addon reader) {
+            LuaTable t = art.toLua(reader);
             for(int i = 0; (states != null) && (i < states.length); i++) {
                 if(states[i] != null)
                     t.set(STATES[i], states[i].toLua(reader));
@@ -1315,6 +1399,23 @@ final class Chrome {
         return (bg == null) ? null : bg.natural();
     }
 
+    /**
+     * {@code Fonts.picture(wdg)} — the whole plate a rule paints in place of {@code wdg}'s own art, or
+     * {@code null} when nothing names it (065.12).
+     *
+     * <p>The <b>per-widget</b> resolution, and the only one of these that has no scope in it at all. A client
+     * picture is one widget showing one image rather than a site the client draws a kind of thing at, so what
+     * names it is a tree key — {@code ["@Img"]}, or a chain naming the window it sits in — and
+     * {@link Sheet#specOf} is that half of the cascade whole. Nothing falls back to {@code "*"} here on
+     * purpose: a global rule that repainted every picture in the client would be a theme's first accident.
+     *
+     * <p>Nothing is interned: a {@link Pic} <i>is</i> the {@link Fonts.Picture} the site paints from, and the
+     * resolved style already holds one object per distinct rule.
+     */
+    static Fonts.Picture picture(Widget wdg) {
+        return picture(Sheet.specOf(wdg));
+    }
+
     // ---- parsing -----------------------------------------------------------------------------------
 
     /** The four spellings a picture comes in, as every error here lists them. */
@@ -1507,6 +1608,55 @@ final class Chrome {
             ls.add(parseArt(owner, ctx, what + "[" + i + "]", e));
         }
         return ls.toArray(new Art[ls.size()]);
+    }
+
+    /**
+     * Parse a rule's {@code picture} (065.12) — <b>one</b> surface, with a face for any of the {@link #STATES}
+     * beside it. It is {@link #parseBg} at the arity that has no list in it, and the difference is the value's
+     * own meaning rather than a restriction: layers are what a background is painted <i>in</i>, and a plate is
+     * the whole picture, so a second one under it could never be seen. A theme that wants layers wants a
+     * {@code bg}.
+     */
+    static Pic parsePicture(Addon owner, String ctx, String what, LuaValue v) {
+        return parsePicture(owner, ctx, what, v, true);
+    }
+
+    private static Pic parsePicture(Addon owner, String ctx, String what, LuaValue v, boolean states) {
+        if(!v.istable())
+            throw new LuaError(ctx + what + ": expected a surface — " + ART + ", got " + v.typename());
+        Pic[] st = null;
+        LuaTable rest = new LuaTable();
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            Varargs n = v.next(k);
+            k = n.arg1();
+            if(k.isnil())
+                break;
+            String p = key(k);
+            int s = stateOf(p);
+            if(s >= 0) {
+                if(!states)
+                    throw new LuaError(ctx + what + "." + p + ": a state face is a plain surface, and carries no"
+                        + " state of its own — it IS the value at that moment, so name " + stateList()
+                        + " beside the face they vary rather than inside one");
+                if(st == null)
+                    st = new Pic[STATES.length];
+                st[s] = parsePicture(owner, ctx, what + "." + p, n.arg(2), false);
+            } else if((p != null) && !surfaceField(p)) {
+                throw new LuaError(ctx + what + ": \"" + p + "\" is neither a surface property nor a state — a"
+                    + " picture is " + ART + ", with an optional at, offset and mode, and a state face is one of"
+                    + " " + stateList() + ", of the same shape as the value it varies");
+            } else if(p == null) {
+                throw new LuaError(ctx + what + ": a picture is ONE surface, not an array of them — " + ART
+                    + ". Layers are what a bg is painted in; a plate is the whole picture");
+            } else {
+                rest.set(k, n.arg(2));
+            }
+        }
+        if((st != null) && rest.next(LuaValue.NIL).arg1().isnil())
+            throw new LuaError(ctx + what + ": names a state face and no face for it to vary — a state rides"
+                + " INSIDE the value it varies, so name the surface it is a state OF beside it");
+        return new Pic(parseArt(owner, ctx, what, rest), st);
     }
 
     /**

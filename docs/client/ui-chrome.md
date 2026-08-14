@@ -143,7 +143,9 @@ asks whether a rule painted it. `drawchrome(scope, wdg, g, ul, sz)` resolves and
 `chrome(scope, wdg)` hands the paint back for a site that draws the same box many times. `chrome(scope)`
 and `chromesz(scope)` are the **widget-less** pair — a surface that is no widget (`Speaking`), or one with
 none yet (a `TextEntry` measuring itself in its own constructor) — and take the site half of the cascade
-alone, the `Fonts.style(scope)` path. All are behind the same `active` volatile read.
+alone, the `Fonts.style(scope)` path. `picture(wdg)` is their mirror, the **scope-less** one: a plate is one
+widget's own art rather than a kind of surface, so it takes the per-widget half alone and no site rule
+reaches it ([the controls](ui-controls.md)). All are behind the same `active` volatile read.
 
 **Replacing the geometry costs no core edit**: a deco subclass overrides `iresize` itself, and `chdeco`,
 `resize`, `tlm`, `dlmrgn`/`dsmrgn` and `Window.c` are already public. So a client with no addon runs the same

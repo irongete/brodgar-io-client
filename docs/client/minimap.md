@@ -51,6 +51,13 @@
 
 ## Gotchas
 
+- **The corner minimap is drawn UNDER its own frame.** `GameUI` does `mmap = blpanel.add(new CornerMap(…),
+  minimapc)` and then `mmap.lower()`, which makes it the panel's **first** child; `Widget.draw` walks
+  `child`→`next`, so the `gfx/hud/blframe` `Img` added before it paints **over** the map. The stock frame's
+  centre is transparent, which is what makes the two read as one surround. Anything opaque drawn in that
+  `Img`'s box hides the map without moving it: the hit walk runs the other way, `Img.hit` is `false` on
+  that one, and `Img.checkhit` samples the resource's own alpha rather than whatever was painted — so the
+  click still reaches the map beneath.
 - **`MiniMap` cannot be classloaded headless** — its static `Resource.loadtex` fields need GL. An
   `Unsafe.allocateInstance` + reflect-set `file`/`sessloc` is enough for anything that only reads those.
 - `MapSource.drawmap` resolves a `Tileset` layer per tile index and an `Image` layer under it, and its
