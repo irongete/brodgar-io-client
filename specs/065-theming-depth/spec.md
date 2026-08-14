@@ -191,10 +191,12 @@ revised by 065.14 rather than deleted — the emboss is still the stock behaviou
 Tagged with the tasks that need them; an untagged line is read by every task.
 
 - `docs/addons/api/ui/style/README.md`, `keys.md`, `chrome.md` — all
-- `docs/addons/api/ui/style/surfaces.md` — 4, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18 (at 349 lines of its 350
-  hard limit: a task adding a surface makes room before it writes, as 13 did)
+- `docs/addons/api/ui/style/surfaces.md` — 4, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18 (a task adding a surface
+  makes room before it writes, as 13 and 16 did; the chat and the HUD plates are on the two pages below)
 - `docs/addons/api/ui/style/hud.md` — 13, 17, 18 (the five HUD plate keys, split off `surfaces.md` by 13 to
   keep that page under its limit)
+- `docs/addons/api/ui/style/chat.md` — 16, 17, 18 (the chat window, its five kinds of line and the two keys
+  whose colour is a SEQUENCE, split off `surfaces.md` by 16 for the same reason)
 - `docs/addons/api/ui/style/text.md` — 3, 14, 15, 16, 18
 - `docs/addons/guides/theming.md` — 1, 2, 3, 17, 18
 - `docs/addons/api/json.md` — 3, 17 (what a theme is parsed with, and a catalogue serialised with)
@@ -217,7 +219,9 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `docs/client/text-and-fonts.md` — 1, 14, 15, 16, 17, 18
 - `src/haven/Fonts.java` — 1, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 (and `Fonts.drawchrome`, the seam
   for a box the SITE sizes and a rule dresses — the tooltip's and the inventory square's shape too)
-- `src/haven/ChatUI.java` — 16 (the per-kind colour constants, and the generated speaker hue)
+- `src/haven/ChatUI.java`, `src/haven/UI.java` — 16, 17 (the per-kind colour constants, which are NOT all in
+  `ChatUI`: a System line's white and an error's red are `UI.Notice`/`UI.ErrorMessage` defaults. The
+  generated speaker hue and the two urgency arrays are `ChatUI`'s, and the two arrays disagree at index 0)
 - `src/io/brodgar/addon/AddonManager.java` — 17 (`onPicture`, the texture-to-resource-name registry a
   catalogue reads art names back through)
 - `src/io/brodgar/addon/LuaSheet.java` — 17

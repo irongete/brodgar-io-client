@@ -31,6 +31,7 @@ import java.awt.Font;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -107,7 +108,29 @@ public class Fonts {
         "hud.menu.right",   // C2 — ...the main-menu plate in the bottom-right one
         "hud.search",       // C2 — ...the plate the action-search button sits on
         "minimap.frame",    // C2 — ...and the frame drawn around the corner minimap
+        "chat.system",    // F3  — the System log's lines (065.16; a UI.Notice, white, or an error's dark red)
+        "chat.mine",      // F3  — ...your OWN line in any multi-chat
+        "chat.private",   // F3  — ...a private message, received or sent
+        "chat.party",     // F3  — ...a party line, whose stock is the member's own colour
+        "chat.urgent",    // F3  — ...the urgency indicator, a colour PER LEVEL rather than one
+        "chat.speaker",   // F3  — ...and the hue the client WALKS, one speaker at a time
     };
+
+    /**
+     * The scope a scope falls back to before {@code "default"} (065.16), or {@code null} for the great majority
+     * that fall straight to it. <b>Declared, never derived from the dot</b>, and that is the whole point: a
+     * dotted name means "a part of" at some keys and "a kind of" at others, and only the second cascades.
+     * {@code checkbox.mark} must NOT inherit {@code checkbox}'s art — a part that took the whole's would make
+     * naming one of the two impossible (065.10) — while {@code chat.private} must inherit {@code chat}'s,
+     * because a kind of chat line IS a chat line and a theme that says nothing about the kinds still means all
+     * of them.
+     */
+    private static final Map<String, String> SCOPE_PARENT = new HashMap<String, String>();
+    static {
+        for(String s : new String[] {"chat.system", "chat.mine", "chat.private",
+                                     "chat.party", "chat.urgent", "chat.speaker"})
+            SCOPE_PARENT.put(s, "chat");
+    }
 
     /**
      * The resolved style for a scope, for render sites whose font is <b>not</b> a {@link Text.Foundry} — F3d's
@@ -516,6 +539,24 @@ public class Fonts {
         public Color color();
     }
 
+    /**
+     * A colour a site does not <b>hold</b> but <b>walks</b> (065.16) — one per speaker, one per urgency level —
+     * said as the sequence it is rather than as the colours it happens to emit.
+     *
+     * <p>Two of this client's chat colours are of that shape, and neither can be expressed by a {@code color}
+     * property without destroying the thing it is for: flattening the per-speaker hue to one colour stops
+     * telling speakers apart, and flattening the urgency triple stops telling <i>how</i> urgent. So the rule
+     * names the sequence — a palette it lists, or a generator it parameterises — and the site asks it for the
+     * {@code n}th answer exactly where it used to walk its own.
+     *
+     * <p>Opaque like every other value the addon layer parks in a style: this class carries it and asks it one
+     * question, at the one moment a site needs a colour it has not got yet.
+     */
+    public interface Sequence {
+        /** The {@code n}th colour of the sequence, {@code n >= 0}. Never {@code null}, and total: a palette wraps. */
+        public Color color(int n);
+    }
+
     /** The chrome-paint source (065.4) — installed once by the addon layer; {@code null} in a stock client. */
     public interface Chromes {
         /** Paint {@code scope}'s own surface and frame over {@code [ul, ul+sz)}; {@code false} when no rule names it. */
@@ -534,6 +575,8 @@ public class Fonts {
         public Relief emboss(String scope);
         /** ...and about the halo behind it, or {@code null} when it says nothing (065.15). */
         public Halo glow(String scope);
+        /** The colour SEQUENCE {@code scope}'s rule names, or {@code null} when it names none (065.16). */
+        public Sequence sequence(String scope);
     }
     private static volatile Chromes chromes = null;
 
@@ -724,6 +767,25 @@ public class Fonts {
         return new PUtils.BlurFurn(bk, g, b, c);
     }
 
+    /**
+     * The colour <b>sequence</b> {@code scope}'s rule names (065.16), or {@code null} — the site walks its own,
+     * then, exactly as it always has.
+     *
+     * <p>Two sites ask: the per-speaker hue a multi-chat mints on first sight ({@code ChatUI.MultiChat}) and the
+     * urgency colour the chat indicator and the channel tabs are drawn in. Both used to walk a constant they held
+     * privately; both now ask here first and fall back to it.
+     *
+     * <p>Resolved through the site half of the cascade, like every other chrome value. Only the two keys that
+     * take one can carry one — a sequence is refused on every other key at its rule — so the cascade beneath them
+     * can never supply a sequence they did not ask for.
+     */
+    public static Sequence sequence(String scope) {
+        if(!active)
+            return null;                  // fast path: no override anywhere
+        Chromes src = chromes;
+        return (src == null) ? null : src.sequence(scope);
+    }
+
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {
         // F5/C1b: the frame (this widget's own skin, its tree rule, or an enclosing widget's) outranks
         // every scope -- but only for the properties it names; combine() lets the scope fill the rest.
@@ -731,12 +793,19 @@ public class Fonts {
         return (o == null) ? stock : o.foundry(stock);
     }
 
-    /** The override a scope resolves to on its own: its own stack, else the {@code "default"} cascade. */
+    /**
+     * The override a scope resolves to on its own: its own stack, else its declared {@link #SCOPE_PARENT}'s
+     * (065.16), else the {@code "default"} cascade. The walk is a fallback rather than a fold — within the site
+     * half a key either has a rule or takes the one beneath it whole, exactly as it has always taken
+     * {@code "default"}'s — so a refining key adds a rung to that ladder and changes nothing about it.
+     */
     private static Spec scopeTop(String scope) {
-        Spec o = top(scope);
-        if((o == null) && !"default".equals(scope))
-            o = top("default");           // cascade: an unset scope falls back to the "default" override
-        return o;
+        for(String s = scope; s != null; s = SCOPE_PARENT.get(s)) {
+            Spec o = top(s);
+            if(o != null)
+                return o;
+        }
+        return "default".equals(scope) ? null : top("default");
     }
 
     /** The current top-of-stack override for {@code scope}, or {@code null}. Caller holds {@code Fonts.class}. */

@@ -73,6 +73,13 @@ antialiasing.
 `{r = …, g = …, b = …, a = …}` table every reader in this API hands back, `rule:color()` included — so one
 surface's colour passes straight into another's setter.
 
+**Two keys take a sequence here instead of a colour**, because what they are is a colour the client hands
+out one at a time rather than one it paints with: `chat.speaker`, a colour per speaker, and `chat.urgent`, a
+colour per urgency level. Both are written `{palette = …}` or `{generate = …}` and neither takes a colour,
+one flat colour being exactly what each exists to prevent — see
+[the two colours the client walks](chat.md#the-two-colours-the-client-walks). A sequence on any other key is
+an error naming those two.
+
 Where a rule sets a colour, the surface **draws in it even when the client itself asks for another**. That
 is what a stylesheet is for, and it is worth knowing what it costs: while the rule is on, text that carries
 *meaning* in its colour is flattened with the rest — a red warning under `["*"] = {color = …}` goes the

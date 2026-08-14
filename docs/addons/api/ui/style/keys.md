@@ -37,14 +37,27 @@ These are the sites the client draws at:
 | `hud.search` | the plate the action-search button sits on |
 | `minimap.frame` | the frame drawn around the corner minimap |
 | `menu` | flower-menu petals and the action-menu keybind letters |
-| `chat` | the chat window — messages, channel tabs, the typed line |
+| `chat` | the chat window — messages, channel tabs, the typed line — and the cascade for the five kinds below |
+| `chat.system` | the **System** log's lines: what the client tells you rather than what anyone said |
+| `chat.mine` | your **own** line, in whichever channel you said it in |
+| `chat.private` | a private message, received or sent |
+| `chat.party` | a line in the Party channel |
+| `chat.urgent` | the **unread** indicator: a waiting channel's tab, and the glow on the chat button |
+| `chat.speaker` | the colour a **speaker** is given in a multi-person channel |
 | `world.nick` | floating kin names over characters |
 | `world.speech` | speech bubbles |
 
 Each surface keeps **its own stock size and colour** unless your rule overrides them. One key can front two
 sites with different stocks — `textentry` covers the serif fields *and* the mono command line — and both
-stay native under one rule. [surfaces](surfaces.md) describes each one and its geometry caveats, and
-[the HUD's plates](hud.md) the five the client blits whole.
+stay native under one rule. [surfaces](surfaces.md) describes each one and its geometry caveats,
+[the chat](chat.md) the window and its kinds of line, and [the HUD's plates](hud.md) the five the client
+blits whole.
+
+**Six keys refine another key rather than `*`.** The five `chat.` kinds and `chat.speaker` fall back to
+[`chat`](chat.md#each-kind-falls-back-to-chat) before they fall back to `*`, because a kind of chat line is
+a chat line. Nothing else does: `checkbox.mark` is a **part** of a checkbox rather than a kind of one, so it
+takes nothing from `checkbox`, and neither do the two knobs — name both or the one you leave out stays the
+client's.
 
 ## Tree keys
 
@@ -105,8 +118,11 @@ s:install()
 ## What each key accepts
 
 Every *drawing* property is accepted on **every** key — a sheet never errors because a surface cannot use
-one — and the exception is the pair that lays widgets out, which only a tree key may carry. What differs is
-what the surface *does* with a property. First the two that write text:
+one — and what differs is what the surface *does* with it. Two exceptions, and both are places where the
+value itself would have to mean something different rather than merely land on nothing: the three that lay
+widgets out, which only a tree key may carry, and `color` on the two keys whose colour the client
+[walks rather than holds](chat.md#the-two-colours-the-client-walks), which take a sequence and refuse a
+colour. First the two that write text:
 
 | Key | `font` | `color` | Worth knowing |
 |---|---|---|---|
@@ -118,7 +134,9 @@ what the surface *does* with a property. First the two that write text:
 | `textentry` | yes | yes | a larger `size=` clips: a field's height comes from its background, not the font — and a `bg` **is** a background, so the art you give it is what a field built afterwards is as tall as |
 | `tooltip` | yes | yes | `$col[…]` rows keep their own colour; `size=` is safe, since a tip sizes its box around its text |
 | `menu` | yes | yes | `size=` is safe — a petal re-sizes around its own centre |
-| `chat` | yes | yes | colour is how you tell area from party from private: one rule paints them alike |
+| `chat` | yes | yes | one rule paints every kind of line alike — the five keys below are how you keep them apart |
+| `chat.system`, `chat.mine`, `chat.private`, `chat.party` | yes | yes | one kind of line each, [falling back to `chat`](chat.md#each-kind-falls-back-to-chat) and then to `*`. `$col[…]` in the line still wins |
+| `chat.urgent`, `chat.speaker` | **inert** | **a sequence** | neither draws text, and neither holds one colour: each takes [the sequence it hands out](chat.md#the-two-colours-the-client-walks), per level and per speaker. A flat `color` on either is an **error** |
 | `world.nick` | yes | yes | a `color` rule flattens the kin-**group** colours; a font-only rule leaves them |
 | `world.speech` | yes | **inert** | the bubble blits its finished text under a flat black tint, so the glyph colour is thrown away on the way to the screen. `size=` is safe — the bubble measures its frame around the text every frame |
 | any tree key | yes | **per surface** | [resolved per widget](#tree-keys) and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats unchanged: a rule on a window covers the window's own caption, where `font` works and `color` waits on an `emboss`. `:style()` reports the colour a rule set even where the surface then throws it away |

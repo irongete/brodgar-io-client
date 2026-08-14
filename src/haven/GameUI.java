@@ -1828,7 +1828,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
 		    public void draw(GOut g) {
 			super.draw(g);
-			Color urg = chat.urgcols[chat.urgency];
+			Color urg = ChatUI.urgcol(chat.urgency, chat.urgcols);   // addon: the "chat.urgent" sequence (065.16)
 			if(urg != null) {
 			    GOut g2 = g.reclipl2(UI.scale(-4, -4), g.sz().add(UI.scale(4, 4)));
 			    g2.chcolor(urg.getRed(), urg.getGreen(), urg.getBlue(), 128);

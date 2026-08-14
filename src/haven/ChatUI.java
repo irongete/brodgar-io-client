@@ -54,37 +54,78 @@ public class ChatUI extends Widget {
      * none; `fndcol` likewise for the default (local-message) colour. */
     private static final Font fndstock = Text.dfont.deriveFont(UI.scale(12f));
     private static final Color fndcol = Color.BLACK;
-    private static RichText.Foundry bfnd;
     private static Text.Foundry bqfnd;
-    private static Color bfndcol;   // addon: (033.2) the sheet's `color` for "chat", or null when it sets none
     private static int fontgen = -1;
+    /* addon: (065.16) one message foundry per RESOLVED style rather than one for the whole window. A chat line
+     * now resolves at one of six keys -- "chat" itself, or one of the five that REFINE it ("chat.system",
+     * "chat.mine", "chat.private", "chat.party", "chat.urgent") -- and each of those cascades into "chat", so a
+     * client with a rule on "chat" alone resolves them all to the very SAME interned Spec and they share one
+     * foundry between them. That is why this is keyed on the style's identity and not on the scope's name: the
+     * common case costs exactly what it cost before, and a theme that splits the kinds pays one foundry per kind
+     * it actually split. Dropped whole on a gen move, like every other cached raster here. */
+    private static final java.util.Map<Fonts.Style, RichText.Foundry> byst =
+	new java.util.IdentityHashMap<Fonts.Style, RichText.Foundry>();
     private static void checkfont() {
 	int g = Fonts.gen();
-	if((bfnd == null) || (fontgen != g)) {
-	    Fonts.Style st = Fonts.style("chat");
-	    if(st == null) {
-		bfnd = fnd;
-		bfndcol = null;
-	    } else {
-		bfnd = new RichText.Foundry(new ChatParser(TextAttribute.FONT, st.font(fndstock),
-							   TextAttribute.FOREGROUND, st.color(fndcol)))
-		    .aa(st.aa(fnd.aa));
-		bfndcol = st.color(null);
-	    }
+	if(fontgen != g) {
+	    synchronized(byst) {byst.clear();}
 	    bqfnd = Fonts.foundry("chat", qfnd);
 	    fontgen = g;
 	}
     }
-    /** addon: the current message foundry for the {@code "chat"} scope (an override, else stock {@link #fnd}). */
-    public static RichText.Foundry fnd() {checkfont(); return(bfnd);}
+    /**
+     * addon: the message foundry for {@code scope} — an override, else stock {@link #fnd}. Every caller passes
+     * the key its own line resolves at ({@link Channel.Message#scope}), which on any client not themed per kind
+     * is {@code "chat"} or something that cascades straight into it.
+     */
+    public static RichText.Foundry fnd(String scope) {
+	checkfont();
+	Fonts.Style st = Fonts.style(scope);
+	if(st == null)
+	    return(fnd);
+	synchronized(byst) {
+	    RichText.Foundry f = byst.get(st);
+	    if(f == null) {
+		byst.put(st, f = new RichText.Foundry(new ChatParser(TextAttribute.FONT, st.font(fndstock),
+								     TextAttribute.FOREGROUND, st.color(fndcol)))
+			 .aa(st.aa(fnd.aa)));
+	    }
+	    return(f);
+	}
+    }
     /**
      * addon: (033.2) the colour a chat line should be rendered in, given the colour the SITE picked. Almost every
      * line passes its own {@code FOREGROUND} — a speaker's kin colour, a system message's — which as a per-render
      * attribute outranks the foundry's default, so without this a {@code ["chat"] = {color=…}} rule would only
      * ever reach the handful of lines that pass none. A sheet rule is what the surface looks like, so it wins;
      * with no rule this hands the site's own colour straight back and nothing changes.
+     *
+     * <p>addon: (065.16) asked at the line's OWN key, so a rule on one kind leaves the other kinds reading as
+     * they did. With no rule on that kind the cascade hands back {@code "chat"}'s, which is what a client themed
+     * before the kinds existed still resolves.
      */
-    private static Color fndcol(Color site) {checkfont(); return((bfndcol != null) ? bfndcol : site);}
+    private static Color fndcol(String scope, Color site) {
+	Fonts.Style st = Fonts.style(scope);
+	Color c = (st == null) ? null : st.color(null);
+	return((c != null) ? c : site);
+    }
+    /**
+     * addon: (065.16) the colour urgency level {@code urg} is drawn in — the glow around the chat toggle button
+     * and the blur behind an unread channel's tab — or {@code stock}'s own where no rule names it.
+     *
+     * <p>A {@code chat.urgent} rule names the whole SEQUENCE rather than a colour, one entry per level, for the
+     * reason the per-speaker hue does: three levels flattened to one colour stop saying <i>how</i> urgent, which
+     * is the only thing the indicator is for. Level 0 is "nothing unread" rather than a level, so it keeps its
+     * site's own value — a null glow here, the resting tab colour there — and a rule never reaches it.
+     */
+    public static Color urgcol(int urg, Color[] stock) {
+	if(urg >= 1) {
+	    Fonts.Sequence sq = Fonts.sequence("chat.urgent");
+	    if(sq != null)
+		return(sq.color(urg - 1));
+	}
+	return(stock[urg]);
+    }
     /** addon: the current quick-line foundry for the {@code "chat"} scope (an override, else stock {@link #qfnd}). */
     public static Text.Foundry qfnd() {checkfont(); return(bqfnd);}
     public static final int selw = UI.scale(130);
@@ -174,6 +215,15 @@ public class ChatUI extends Widget {
 
 	public static abstract class Message {
 	    public final double time = Utils.ntime();
+	    /* addon: (065.16) the site key this line's face and colour resolve at. Stamped by append() below,
+	     * which is the one funnel every message goes through and the only place that knows both the message
+	     * and the channel it landed in -- a System line and a private one are the same SimpleMessage class. */
+	    private String scope = null;
+
+	    /** addon: (065.16) the key this KIND of line names, or null to take the channel's. */
+	    protected String kind() {return(null);}
+	    /** addon: (065.16) the site key this line resolves at — never null once it has been appended. */
+	    public String scope() {return((scope == null) ? "chat" : scope);}
 
 	    public abstract Indir<Text> render(int w);
 	    public boolean valid(Indir<Text> prev) {
@@ -313,9 +363,9 @@ public class ChatUI extends Widget {
 
 	    public Indir<Text> render(int w) {
 		if(col == null)
-		    return(() -> fnd().render(RichText.Parser.quote(text), w));   // addon: the "chat" scope (F3d)
+		    return(() -> fnd(scope()).render(RichText.Parser.quote(text), w));   // addon: this line's own scope (F3d, 065.16)
 		else
-		    return(() -> fnd().render(RichText.Parser.quote(text), w, TextAttribute.FOREGROUND, fndcol(col)));   // addon: (F3d) + the sheet's colour (033.2)
+		    return(() -> fnd(scope()).render(RichText.Parser.quote(text), w, TextAttribute.FOREGROUND, fndcol(scope(), col)));   // addon: (F3d) + the sheet's colour (033.2, 065.16)
 	    }
 	}
 
@@ -327,7 +377,12 @@ public class ChatUI extends Widget {
 		cb = null;
 	}
 
+	/** addon: (065.16) the key the lines of this channel resolve at, unless a line names its own kind. */
+	public String chanscope() {return("chat");}
+
 	public void append(Message msg, int urgency) {
+	    if(msg.scope == null)   // addon: (065.16) BEFORE the first render below, which reads it
+		msg.scope = (msg.kind() != null) ? msg.kind() : chanscope();
 	    synchronized(rmsgs) {
 		RenderedMessage rm = new RenderedMessage(msg, rmsgs.size(), iw());
 		if(rmsgs.isEmpty()) {
@@ -809,6 +864,10 @@ public class ChatUI extends Widget {
 	    super(false);
 	    this.name = name;
 	}
+
+	// addon: (065.16) the System log: the lines the CLIENT writes rather than a player says. Their stock is
+	// UI.Notice's own white and UI.ErrorMessage's dark red, neither of which lives in this class.
+	public String chanscope() {return("chat.system");}
 	
 	public String name() {return(name);}
     }
@@ -927,7 +986,7 @@ public class ChatUI extends Widget {
 		}
 
 		public Text get() {
-		    return(fnd().render(RichText.Parser.quote(String.format("%s: %s", nm, text)), w, TextAttribute.FOREGROUND, fndcol(col)));   // addon: (F3d) + the sheet's colour (033.2)
+		    return(fnd(scope()).render(RichText.Parser.quote(String.format("%s: %s", nm, text)), w, TextAttribute.FOREGROUND, fndcol(scope(), col)));   // addon: (F3d) + the sheet's colour (033.2, 065.16)
 		}
 	    }
 
@@ -968,6 +1027,10 @@ public class ChatUI extends Widget {
 	    public MyMessage(String text) {
 		super(text, new Color(192, 192, 255));
 	    }
+
+	    // addon: (065.16) your OWN line, in whichever multi-chat it was said in -- so a theme paints it apart
+	    // from everyone else's, which is what this colour is for and what the party channel inherits too.
+	    protected String kind() {return("chat.mine");}
 	}
 
 	public MultiChat(boolean closable, String name, int urgency) {
@@ -977,12 +1040,34 @@ public class ChatUI extends Widget {
 	}
 
 	private float colseq = 0;
+	private int seqn = 0;       // addon: (065.16) how many speakers this channel has minted a colour for
+	private int seqgen = -1;    // addon: (065.16) Fonts.gen() the mints below were made at
 	private Color nextcol() {
+	    /* addon: (065.16) a theme may name the SEQUENCE this walks rather than any of the colours it emits:
+	     * a palette it lists and this cycles, or this very walk with its own step, saturation and brightness.
+	     * Naming the sequence is what makes it a value at all -- flattening it to one colour would stop
+	     * telling speakers apart, which is the whole of what it is for. With no rule the client's own walk is
+	     * exactly what it always was, accumulation and all. */
+	    Fonts.Sequence sq = Fonts.sequence("chat.speaker");
+	    if(sq != null)
+		return(sq.color(seqn++));
+	    seqn++;
 	    return(new Color(Color.HSBtoRGB(colseq = ((colseq + (float)Math.sqrt(2)) % 1.0f), 0.5f, 1.0f)));
 	}
 
 	public Color fromcolor(int from) {
 	    synchronized(pc) {
+		/* addon: (065.16) a speaker's colour is minted once and kept, so a rule installed later would
+		 * never reach anyone already speaking. Dropping the mints on a gen move is what makes a theme
+		 * take effect on the next line rather than on the next login. Lines ALREADY in the scrollback
+		 * keep theirs: a message's colour is decided when it arrives, not when it is drawn. */
+		int g = Fonts.gen();
+		if(seqgen != g) {
+		    seqgen = g;
+		    pc.clear();
+		    seqn = 0;
+		    colseq = 0;
+		}
 		Color c = pc.get(from);
 		if(c == null)
 		    pc.put(from, c = nextcol());
@@ -1025,6 +1110,10 @@ public class ChatUI extends Widget {
 	    super(false, "Party", 2);
 	}
 
+	// addon: (065.16) a party line's stock colour is the member's own, which the SERVER assigns; a rule on
+	// this key is what a theme says when it wants the party channel to read as one thing instead.
+	public String chanscope() {return("chat.party");}
+
 	public void uimsg(String msg, Object... args) {
 	    if(msg == "msg") {
 		Number from = (Number)args[0];
@@ -1049,6 +1138,10 @@ public class ChatUI extends Widget {
     }
     
     public static class PrivChat extends EntryChannel {
+	// addon: (065.16) both halves of a private conversation -- the incoming line and the outgoing one, whose
+	// two stock colours are the only pair the client holds for one kind.
+	public String chanscope() {return("chat.private");}
+
 	private final int other;
 	private boolean muted;
 	
@@ -1274,7 +1367,7 @@ public class ChatUI extends Widget {
 			raw = tfont().render(name.substring(0, len) + "...");   // addon:
 		    }
 		    BufferedImage img = raw.img;
-		    rname = namedeco(name, img, uc[urgency = urg]);
+		    rname = namedeco(name, img, urgcol(urgency = urg, uc));   // addon: the "chat.urgent" sequence (065.16)
 		}
 		return(rname);
 	    }
@@ -1471,7 +1564,7 @@ public class ChatUI extends Widget {
 	private Notification(Channel chan, Channel.Message msg) {
 	    this.chan = chan;
 	    this.msg = msg;
-	    this.chnm = fnd().render(chan.name(), 0, TextAttribute.FOREGROUND, fndcol(Color.WHITE));   // addon: the "chat" scope (F3d) + the sheet's colour (033.2)
+	    this.chnm = fnd("chat").render(chan.name(), 0, TextAttribute.FOREGROUND, fndcol("chat", Color.WHITE));   // addon: the "chat" scope (F3d) + the sheet's colour (033.2)
 	    this.rmsg = msg.render(sz.x - selw).get();
 	}
     }

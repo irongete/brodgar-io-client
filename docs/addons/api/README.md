@@ -88,6 +88,7 @@ The verbs that act are on the pages of what they change — [`hafen.player`](pla
 | [the sheet](ui/style/README.md) | `hafen.ui():sheet()`, one widget's own rule, the cascade, and where skinning ends |
 | [keys](ui/style/keys.md) | site keys and tree keys: which surfaces a rule reaches, and what each honours |
 | [surfaces](ui/style/surfaces.md) | every surface the client ships, and what it does with a rule |
+| [the chat](ui/style/chat.md) | the chat window, its five kinds of line, and the two colours it walks |
 | [the HUD's plates](ui/style/hud.md) | the five surfaces the client blits whole, and the property that replaces one |
 | [text](ui/style/text.md) | `font` and `color` |
 | [chrome](ui/style/chrome.md) | `bg`, `border`, `padding`, `picture`, and a window's ornaments |

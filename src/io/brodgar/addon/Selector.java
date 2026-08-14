@@ -75,6 +75,7 @@ final class Selector {
         "window.title", "window.frame", "panel", "heading", "tooltip", "world.nick", "world.speech",
         "inventory.slot", "checkbox", "checkbox.mark", "scrollbar", "scrollbar.knob", "slider",
         "slider.knob", "hud.belt", "hud.menu.left", "hud.menu.right", "hud.search", "minimap.frame",
+        "chat.system", "chat.mine", "chat.private", "chat.party", "chat.urgent", "chat.speaker",
     };
 
     /**

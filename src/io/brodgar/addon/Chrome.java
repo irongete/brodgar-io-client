@@ -19,6 +19,7 @@ import org.luaj.vm2.Varargs;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -100,6 +101,13 @@ final class Chrome {
     static final String EMBOSS = "emboss";
     /** The {@code glow} property's key (065.15). Its value is a {@link Glow}. */
     static final String GLOW = "glow";
+    /**
+     * The {@code color} property's key when what it carries is a <b>sequence</b> rather than a colour (065.16).
+     * Its value is a {@link Seq}. It rides the bag rather than {@code Spec}'s typed {@code color} field for the
+     * plain reason that it is not a colour: no foundry can be built out of it, and the two sites that walk one
+     * ask for it by name at the moment they need the next answer.
+     */
+    static final String COLORSEQ = "colorseq";
 
     /** The {@code bg} a resolved style carries, or {@code null} — for {@code null} styles too, which is the common case. */
     static Bg bg(Fonts.Style st) {
@@ -146,16 +154,23 @@ final class Chrome {
         return (st == null) ? null : (Glow)st.prop(GLOW);
     }
 
+    /** The colour {@code Seq} a resolved style carries, or {@code null} — the site walks its own, then. */
+    static Seq seq(Fonts.Style st) {
+        return (st == null) ? null : (Seq)st.prop(COLORSEQ);
+    }
+
     /**
      * The bag one rule's chrome properties travel in, or {@code null} when it names none — which is what keeps
      * the provider's identity fast path intact for a sheet that says nothing about chrome.
      */
     static Map<String, Object> props(Bg bg, Border border, Pad padding, Pic picture, Emboss emboss, Glow glow,
-                                     Spot caption, Art sizer, Close close) {
+                                     Spot caption, Art sizer, Close close, Seq seq) {
         if((bg == null) && (border == null) && (padding == null) && (picture == null) && (emboss == null)
-           && (glow == null) && (caption == null) && (sizer == null) && (close == null))
+           && (glow == null) && (caption == null) && (sizer == null) && (close == null) && (seq == null))
             return null;
-        Map<String, Object> m = new LinkedHashMap<String, Object>(9);
+        Map<String, Object> m = new LinkedHashMap<String, Object>(10);
+        if(seq != null)
+            m.put(COLORSEQ, seq);
         if(emboss != null)
             m.put(EMBOSS, emboss);
         if(glow != null)
@@ -695,6 +710,240 @@ final class Chrome {
             t.set("radius", LuaValue.valueOf(radius));
             return t;
         }
+    }
+
+    // ---- the colour a site WALKS (065.16) ----------------------------------------------------------
+
+    /**
+     * A rule's {@code color} where what it names is a <b>sequence</b>: the colours a site hands out one at a
+     * time rather than the one colour it paints with. Two of this client's chat colours are of that shape — the
+     * hue a multi-chat mints per speaker, and the urgency triple — and neither survives being flattened, since
+     * telling one speaker or one urgency from the next is the whole of what they are for.
+     *
+     * <p><b>Two spellings, and a value is exactly one of them.</b> A {@code palette} is the colours themselves,
+     * cycled in the order written, which is what a theme with a chosen set of colours wants. A {@code generate}
+     * is the walk the client itself does — a step around the hue circle, at a fixed saturation and brightness —
+     * parameterised, which is what a theme wanting <i>unlimited</i> distinct colours wants. The client's own is
+     * a {@code generate} of {@code step = math.sqrt(2) % 1}, {@code saturation = 0.5}, {@code brightness = 1.0}.
+     *
+     * <p>Immutable with value equality, so a resolved style interns ({@code Sheet.SKey}) exactly as it does for
+     * every other value here, and it <b>is</b> the {@link Fonts.Sequence} the site reads.
+     */
+    static final class Seq implements Fonts.Sequence {
+        /** The colours to cycle, in order — {@code null} on a generated sequence. Never empty when set. */
+        final Color[] palette;
+        /**
+          * How far around the hue circle each answer moves, {@code 0 < step <= 1}. Unread on a palette.
+          *
+          * <p><b>Double rather than float</b>, though the client's own walk and {@code HSBtoRGB} are both
+          * float: a rule writes a Lua number, which is a double, and narrowing it here would make the value
+          * that reads back a different number from the one that was written. A read round-trips into a write
+          * everywhere else in this API and there is no reason for three fields to be the exception.
+          */
+        final double step;
+        /** The saturation and brightness every generated colour is minted at, each {@code 0..1}. */
+        final double saturation, brightness;
+
+        Seq(Color[] palette) {
+            this.palette = palette;
+            this.step = this.saturation = this.brightness = 0;
+        }
+
+        Seq(double step, double saturation, double brightness) {
+            this.palette = null;
+            this.step = step;
+            this.saturation = saturation;
+            this.brightness = brightness;
+        }
+
+        /**
+         * The {@code n}th colour. A palette wraps, so it is total however many speakers turn up; a generator
+         * multiplies rather than accumulates, which is the same walk the client does and answers the same for a
+         * given {@code n} however it was reached.
+         */
+        public Color color(int n) {
+            if(n < 0)
+                n = 0;
+            if(palette != null)
+                return palette[n % palette.length];
+            return new Color(Color.HSBtoRGB((float)((((double)n + 1) * step) % 1.0),
+                                            (float)saturation, (float)brightness));
+        }
+
+        public int hashCode() {
+            if(palette != null)
+                return Arrays.hashCode(palette);
+            long b = (Double.doubleToLongBits(step) * 31 + Double.doubleToLongBits(saturation)) * 31
+                + Double.doubleToLongBits(brightness);
+            return (int)(b ^ (b >>> 32));
+        }
+
+        public boolean equals(Object o) {
+            if(!(o instanceof Seq))
+                return false;
+            Seq s = (Seq)o;
+            if((palette == null) != (s.palette == null))
+                return false;
+            if(palette != null)
+                return Arrays.equals(palette, s.palette);
+            return (step == s.step) && (saturation == s.saturation) && (brightness == s.brightness);
+        }
+
+        /** The value in the shape the setter takes, so a read round-trips into a write. */
+        LuaTable toLua() {
+            LuaTable t = new LuaTable();
+            if(palette != null) {
+                LuaTable p = new LuaTable();
+                for(int i = 0; i < palette.length; i++)
+                    p.set(i + 1, AddonManager.color(palette[i]));
+                t.set("palette", p);
+            } else {
+                LuaTable g = new LuaTable();
+                g.set("step", LuaValue.valueOf(step));
+                g.set("saturation", LuaValue.valueOf(saturation));
+                g.set("brightness", LuaValue.valueOf(brightness));
+                t.set("generate", g);
+            }
+            return t;
+        }
+    }
+
+    /** What a sequence is, spelled out — what every refusal here carries. */
+    private static final String SEQS =
+        "{ palette = { {r,g,b}, … } } — the colours to cycle — or { generate = { step = , saturation = ,"
+        + " brightness = } }, a walk around the hue circle with each field 0..1";
+
+    /**
+     * Is {@code v} written as a colour SEQUENCE rather than as a colour? Asked by {@code rule:color}, which takes
+     * both: the two spellings are told apart by their own field names, and nothing else in a colour value uses
+     * either, so the test is exact and no colour can be mistaken for a sequence.
+     */
+    static boolean isSeq(LuaValue v) {
+        return v.istable() && (!v.get("palette").isnil() || !v.get("generate").isnil());
+    }
+
+    /**
+     * The two site keys whose {@code color} is a <b>sequence</b> and nothing else (065.16). Both are colours the
+     * client hands out <i>per something</i> — one per speaker, one per urgency level — and one flat colour
+     * across the lot destroys the very distinction each exists to draw. So neither takes a colour, and every
+     * other key takes only a colour.
+     *
+     * <p><b>Every level alike is still sayable</b>, and has to be said: a one-entry {@code palette} cycles to the
+     * same colour for every answer. That is a deliberate sentence rather than an accident of writing
+     * {@code color(r, g, b)} on the wrong key, which is the whole reason the refusal is here.
+     */
+    private static final String[] SEQ_KEYS = {"chat.speaker", "chat.urgent"};
+
+    /** Does the key {@code scope} names take a sequence rather than a colour? {@code null} is a TREE key: no. */
+    static boolean seqKey(String scope) {
+        for(int i = 0; i < SEQ_KEYS.length; i++) {
+            if(SEQ_KEYS[i].equals(scope))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * Which shape a {@code color} value takes on this key — {@code true} to read it as a sequence — or the
+     * refusal when it takes neither. The one gate both doors go through, {@code rule:color} and
+     * {@code sheet:load}, so the two cannot come to differ about it or about how they say so.
+     *
+     * <p>On a key the client WALKS, anything that is not recognisably a colour is read as a sequence rather
+     * than measured against {@link #isSeq}. That is what makes a <b>misspelt field</b> answerable: a value is
+     * refused for the field that is wrong, which is the one the author can see and fix, instead of for the
+     * shape it failed to be, which tells them nothing about which of their keys was the typo.
+     */
+    static boolean seqShape(String verb, String scope, LuaValue v, boolean positional) {
+        if(!seqKey(scope)) {
+            if(!positional && isSeq(v))
+                throw new LuaError(verb + ": a colour SEQUENCE is taken by \"" + SEQ_KEYS[0] + "\" and \""
+                    + SEQ_KEYS[1] + "\" alone — every other surface is painted in ONE colour, written"
+                    + " {r,g,b[,a]}");
+            return false;
+        }
+        if(positional || !v.istable() || (AddonManager.luaColor(v, null) != null)) {
+            throw new LuaError(verb + ": \"" + scope + "\" is a colour the client WALKS rather than one it"
+                + " holds, so it takes a sequence: " + SEQS + ". For every answer alike, say so — a palette of"
+                + " one colour cycles to it every time");
+        }
+        return true;
+    }
+
+    /**
+     * Parse a rule's {@code color} where it names a sequence (065.16). Exactly one of the two spellings, because
+     * a value carrying both says two different things about the same question and neither is the obvious winner.
+     */
+    static Seq parseSeq(String verb, LuaValue v) {
+        LuaValue pal = v.get("palette"), gen = v.get("generate");
+        if(!pal.isnil() && !gen.isnil())
+            throw new LuaError(verb + ": names both a palette and a generator — a sequence is " + SEQS);
+        for(Varargs n = v.next(LuaValue.NIL); !n.arg1().isnil(); n = v.next(n.arg1())) {
+            String p = key(n.arg1());
+            if(!"palette".equals(p) && !"generate".equals(p))
+                throw new LuaError(verb + ": \"" + n.arg1().tojstring() + "\" is not a sequence property"
+                    + " — a sequence is " + SEQS);
+        }
+        if(pal.isnil() && gen.isnil())
+            throw new LuaError(verb + ": names neither a palette nor a generator — a sequence is " + SEQS);
+        if(!pal.isnil())
+            return new Seq(parsePalette(verb, pal));
+        return parseGenerate(verb, gen);
+    }
+
+    private static Color[] parsePalette(String verb, LuaValue v) {
+        if(!v.istable())
+            throw new LuaError(verb + ".palette: expected an array of colours, got " + v.typename());
+        int n = v.length();
+        if(n < 1)
+            throw new LuaError(verb + ".palette: is empty — a palette is the colours to cycle, and cycling"
+                + " none of them leaves nothing to draw with");
+        Color[] out = new Color[n];
+        for(int i = 0; i < n; i++) {
+            LuaValue e = v.get(i + 1);
+            Color c = e.istable() ? AddonManager.luaColor(e, null) : null;
+            if(c == null)
+                throw new LuaError(verb + ".palette[" + (i + 1) + "]: expected a colour table with 0..255"
+                    + " components — { 96, 96, 0 } or { r = 96, g = 96, b = 0, a = 255 }");
+            out[i] = c;
+        }
+        return out;
+    }
+
+    private static Seq parseGenerate(String verb, LuaValue v) {
+        if(!v.istable())
+            throw new LuaError(verb + ".generate: expected " + SEQS + ", got " + v.typename());
+        double[] f = new double[3];
+        boolean[] set = new boolean[3];
+        String[] names = {"step", "saturation", "brightness"};
+        for(Varargs n = v.next(LuaValue.NIL); !n.arg1().isnil(); n = v.next(n.arg1())) {
+            String p = key(n.arg1());
+            LuaValue pv = n.arg(2);
+            int i = 0;
+            while((i < names.length) && !names[i].equals(p))
+                i++;
+            if(i == names.length)
+                throw new LuaError(verb + ".generate: \"" + n.arg1().tojstring() + "\" is not a generator"
+                    + " property — a generator names " + names[0] + ", " + names[1] + " and " + names[2]);
+            // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (028).
+            if(pv.type() != LuaValue.TNUMBER)
+                throw new LuaError(verb + ".generate." + p + ": expected a number 0..1, got " + pv.typename());
+            double d = pv.todouble();
+            if((d < 0) || (d > 1))
+                throw new LuaError(verb + ".generate." + p + ": " + d + " is outside 0..1 — a step is a"
+                    + " fraction of the hue circle, and a saturation and a brightness are fractions of full");
+            f[i] = d;
+            set[i] = true;
+        }
+        for(int i = 0; i < names.length; i++) {
+            if(!set[i])
+                throw new LuaError(verb + ".generate: names no " + names[i] + " — a generator is all three"
+                    + " of " + names[0] + ", " + names[1] + " and " + names[2] + ", since each decides a"
+                    + " different thing about every colour it mints");
+        }
+        if(f[0] <= 0)
+            throw new LuaError(verb + ".generate.step: 0 never moves off one hue, so every speaker would"
+                + " be the same colour — a step is how far around the circle each answer goes");
+        return new Seq(f[0], f[1], f[2]);
     }
 
     // ---- the close button (065.5) ------------------------------------------------------------------
@@ -1615,6 +1864,18 @@ final class Chrome {
      */
     static Fonts.Halo glow(String scope) {
         return glow(Fonts.style(scope));
+    }
+
+    /**
+     * {@code Fonts.sequence(scope)} — the colour sequence this site's rule names, or {@code null} when it names
+     * none and the site walks exactly the colours it always walked (065.16).
+     *
+     * <p>The same <b>widget-less</b> resolution the two above take. Neither site that asks has a widget to name:
+     * a multi-chat mints a speaker's colour where the message arrives, and the urgency colour is read by the
+     * indicator and by the channel tabs, which are three different widgets sharing one answer.
+     */
+    static Fonts.Sequence sequence(String scope) {
+        return seq(Fonts.style(scope));
     }
 
     // ---- parsing -----------------------------------------------------------------------------------

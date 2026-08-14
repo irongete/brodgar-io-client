@@ -2,7 +2,8 @@
 
 What each [site key](keys.md#site-keys) actually is on screen, how to see a rule take effect on it, and the
 caveats that only make sense once you know what the surface is. [keys](keys.md) says *which* properties each
-one honours; this page says *what it is*.
+one honours; this page says *what it is*. Two families sit on pages of their own: [the chat window and its
+kinds of line](chat.md), and [the HUD's plates](hud.md).
 
 Two things hold everywhere below. A rule **inherits each site's stock size** unless your handle carries
 one, so `["label"] = { font = h }` swaps the family everywhere while an 18 px row stays 18 px — the safe way
@@ -308,19 +309,6 @@ Two surfaces: the **petal captions** of a flower menu — the ring of options a 
 its own centre when the rule moves, so a menu that is already open restyles in place without drifting off
 its ring, and a bigger `size=` is safe.
 
-## `chat`
-
-The whole chat window: every **message** line (area, party, private, system), the **channel tabs** down its
-side, and the **quick line** you type over the map. Only the messages currently visible re-render, the
-scrollback re-rendering as you scroll it into view, and each message's height is re-measured so the log
-re-flows correctly under a bigger font. URLs stay clickable — the rule keeps chat's own link parser.
-
-The typed quick line belongs to this key rather than to `textentry`: it lives in the chat window and is
-built from the chat's own recipe. Two things are worth knowing: the channel-tab **truncation width** was
-measured from the stock font once, so a much wider font can shorten a long channel name slightly early; and
-chat is where a `color` rule costs the most, because **who said it** is carried by colour — one rule paints
-area, party, private and system lines alike.
-
 ## `world.speech` and `world.nick`
 
 `world.speech` is the speech bubble that pops up over a character's head when they talk in area chat, your
@@ -344,6 +332,7 @@ every other key.
 ## See also
 
 - [keys](keys.md) — which properties each of these keys honours
+- [the chat](chat.md) — the chat window, the five kinds of line in it, and the two colours it walks
 - [the HUD's plates](hud.md) — the five sites whose whole surface is one picture, on a page of their own
 - [style](README.md) — installing the sheet these keys go in
 - [text](text.md) · [chrome](chrome.md) — the properties themselves, and the handles they take

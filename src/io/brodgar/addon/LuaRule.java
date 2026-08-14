@@ -69,6 +69,18 @@ public final class LuaRule {
         return (selector == null) ? "widget:rule()" : ("sheet:rule(\"" + selector + "\")");
     }
 
+    /**
+     * The SITE key this rule names (065.16), or {@code null} on a tree key and on a widget's own level — the
+     * question {@code color} has to ask, because two site keys take a colour SEQUENCE where every other surface
+     * takes a colour. The sheet worked it out when the rule was first named, and {@link #layoutable} already
+     * asks it the same way, so this is a lookup rather than a second parse of one selector.
+     */
+    String scope() {
+        if(sheet == null)
+            return null;                  // widget:rule() is the hand-named level, and names no site
+        return sheet.site(selector);
+    }
+
     /** The {@code LuaRule} behind a Lua value, or {@code null} for anything that is not one. */
     static LuaRule resolve(LuaValue v) {
         if((v == null) || !v.isuserdata())
@@ -220,18 +232,36 @@ public final class LuaRule {
         });
         // color(r, g, b[, a]) — positional components, and a colour VALUE passes straight back through (§2.8),
         // so rule:color(other:color()) is one expression. Reads back as {r=,g=,b=,a=}, the API's own shape.
+        //
+        // 065.16 — and on the two keys whose colour the client WALKS rather than holds, `chat.speaker` and
+        // `chat.urgent`, the same verb takes the SEQUENCE instead: {palette=…} or {generate=…}. It is one
+        // property because it answers one question, "what colour is this drawn in"; the two keys differ in
+        // owing an answer per speaker and per urgency level rather than one for the surface. Which shape a key
+        // takes is Chrome's to say, so both doors into a rule — this one and sheet:load — refuse alike.
         m.set("color", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 LuaRule r = handle(self, "color");
                 Sheet.Props cur = r.read(owner);
-                if(!Args.passed(a, 2))
-                    return ((cur == null) || (cur.color == null)) ? LuaValue.NIL
-                        : AddonManager.color(cur.color);
+                if(!Args.passed(a, 2)) {
+                    if(cur == null)
+                        return LuaValue.NIL;
+                    if(cur.seq != null)
+                        return cur.seq.toLua();
+                    return (cur.color == null) ? LuaValue.NIL : AddonManager.color(cur.color);
+                }
                 if(a.arg(2).isnil())
                     throw Args.nilRefused(r.where() + ":color", "color");
+                String verb = r.where() + ":color";
+                boolean sq = Chrome.seqShape(verb, r.scope(), a.arg(2), Args.passed(a, 3));
                 Sheet.Props p = r.edit(owner);
-                p.color = colorArg(a, 2, r.where() + ":color");
+                if(sq) {
+                    p.seq = Chrome.parseSeq(verb, a.arg(2));
+                    p.color = null;       // one property, one slot: the other shape is no longer what it says
+                } else {
+                    p.color = colorArg(a, 2, verb);
+                    p.seq = null;
+                }
                 r.commit(owner, p);
                 return self;
             }

@@ -1,0 +1,9 @@
+{
+  "name": "065.16 — the chat's colours, the walked one included",
+  "id": "065-theming-depth.16",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.16: the five keys that refine `chat`, the two whose colour is a sequence, and the cascade between them.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

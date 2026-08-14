@@ -20,7 +20,8 @@ s:install()
 
 [keys](keys.md) says **which** surfaces a rule reaches and which properties each one honours.
 [surfaces](surfaces.md) says what each of the client's own surfaces *is*, and how it behaves when a rule
-lands on it, with [the HUD's plates](hud.md) on a page of their own. Then the property pages:
+lands on it, with [the chat](chat.md) and [the HUD's plates](hud.md) on pages of their own. Then the
+property pages:
 [text](text.md) for what the letters look like, [chrome](chrome.md) for
 everything that paints, [geometry](geometry.md) for `position`, `size` and `anchor`. This page holds the sheet
 itself, the per-widget level, the cascade they all resolve through, and the edge of the system.
@@ -94,7 +95,7 @@ Each is a setter that returns the rule, and each reads back with no argument.
 | Call | Value | Notes |
 |---|---|---|
 | `rule:font(face)` | a [font handle](../../font.md), or the same face **named** | `hafen.font():get(name)` / `hafen.asset():get(path)`, optionally through `:derive()`, or `{builtin = …}` / `{asset = …}` with `size`, `bold`, `italic` and `aa` — see [text](text.md#font) |
-| `rule:color(r, g, b[, a])` | `0..255` each | also takes a colour value, the `{r = …, g = …}` table every reader hands back — see [text](text.md#color) |
+| `rule:color(r, g, b[, a])` | `0..255` each | also takes a colour value, the `{r = …, g = …}` table every reader hands back; on the two keys whose colour the client [walks](chat.md#the-two-colours-the-client-walks) it takes the sequence instead — see [text](text.md#color) |
 | `rule:emboss(v)` | `false`, or `{texture = <art>}` | whether the client's own relief is cut through a surface's letters, and with what. `false` is what lets `color` reach a caption at all — see [`emboss`](text.md#emboss) |
 | `rule:glow(t)` | `{color = {r,g,b[,a]}, radius = n}` | the blurred halo behind a carved surface's letters; a radius of `0` is no halo at all — see [`glow`](text.md#glow) |
 | `rule:bg(t)` | one [surface](chrome.md#naming-a-picture), or an array of them | what something is painted on, one layer or several — see [chrome](chrome.md) |
@@ -237,6 +238,7 @@ rather than from code.
 
 - [keys](keys.md) — which surfaces a key reaches, and what each honours
 - [surfaces](surfaces.md) — what each client surface is, and how it behaves under a rule
+- [the chat](chat.md) — the chat window, its kinds of line, and the two colours it hands out one at a time
 - [the HUD's plates](hud.md) — the five the client blits whole, and the one property that dresses them
 - [`hafen.font`](../../font.md) — the handles a `font` property takes
 - [selectors](../selectors.md) — the grammar every key is written in

@@ -204,7 +204,7 @@ in stage A before any surface is routed against it.
       `[manual]`: expect a coloured halo behind the window titles at the radius asked for, and the captions
       still legible over it; at radius 0, no halo at all.
 
-- [ ] **065.16 — the chat's colours, the walked one included.** `chat` keeps covering the whole window, and
+- [x] **065.16 — the chat's colours, the walked one included.** `chat` keeps covering the whole window, and
       four keys refine it:
       `chat.system`, `chat.private`, `chat.party` and `chat.urgent`, each cascading into `chat` and then into
       `*`. They are the constants `ChatUI` holds one per kind — `(192,192,255)`, `(255,128,128)`,
