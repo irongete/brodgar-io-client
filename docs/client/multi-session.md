@@ -22,8 +22,13 @@ server, and simply not rendered. Which one is the anchor changes at any time.
 
 A mode and not a rebinding: a left click on the ground walks you there, and a marquee needs that
 button. Off, the map view behaves as it does without any of this. On, the anchor's view takes
-`MapView.FleetCam` (also `:cam fleet`), a `FreeCam` with a centre of its own so that panning survives
-the character moving.
+`MapView.RTSCam`, a `FreeCam` with a centre of its own so that panning survives the character moving.
+
+**The camera is the client's, not the mode's.** It is registered under the name `rts` beside every
+other camera ([world-3d.md](world-3d.md)), so `:cam rts` installs it on any character with no fleet and
+no mode at all. What the mode adds is the swap: it installs that camera on the session holding the
+screen, puts the previous one back on the way out, and writes neither `defcam` nor `camargs` —
+a mode is not a preference.
 
 | Input | Does |
 |---|---|
@@ -31,8 +36,8 @@ the character moving.
 | Right click | order the selection. The destination is resolved by the client's own pick pass (`MapView.FleetClick extends Hittest`), so it lands where a real click would |
 | Middle drag | pan. The pixel delta is solved back into world units through the view's own projection — three `screenxf` probes and a 2×2 inverse — rather than by rebuilding the camera's trigonometry |
 | Shift and middle drag | `FreeCam`'s own rotate and elevate |
-| `rts-next-anchor` (Tab), `rts-focus` (space) | next session; centre on the selection, or on everyone when nothing is selected |
-| `cam-reset` (Home), `cam-left`, `cam-right`, `cam-in`, `cam-out` | follow the anchor's character again; rotate and zoom, since `FreeCam` has no keyboard of its own |
+| `rts-next-anchor` (Tab), `rts-focus` (space) | next session; centre on the selection, or on everyone when nothing is selected. Both are dispatched by `Control.keydown`, which `MapView.keydown` runs **before** `camera.keydown` — so they are the mode's keys under whatever camera is installed, and answer nothing while the mode is off |
+| `cam-reset` (Home), `cam-left`, `cam-right`, `cam-in`, `cam-out` | follow the anchor's character again; rotate and zoom, since `FreeCam` has no keyboard of its own. These are the camera's own, so they answer with the mode off too |
 
 ## One loop, several sessions
 

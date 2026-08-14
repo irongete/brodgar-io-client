@@ -1,0 +1,9 @@
+{
+  "name": "066.1 — the RTS camera, and the keys it gives up",
+  "id": "066-camera-and-multi-session.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 066.1: rts-focus and rts-next-anchor survive being re-homed off the camera, and a key written to either round-trips.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

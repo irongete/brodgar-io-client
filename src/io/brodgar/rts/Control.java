@@ -329,9 +329,10 @@ public class Control {
 	    clear();
 	}
 	/* The camera comes with the mode. Playing a character and commanding a group want different
-	 * cameras, and asking the maintainer to remember `:cam fleet` beside `:fleet rts on` would be
-	 * two switches for one decision. The previous one is put back on the way out, and neither is
-	 * written to the `defcam` pref -- this is a mode, not a preference. */
+	 * cameras, and asking the maintainer to remember `:cam rts` beside `:fleet rts on` would be
+	 * two switches for one decision. The camera is not the mode's, though -- it is one of the
+	 * client's, reachable on its own. The previous one is put back on the way out, and neither is
+	 * written to the `defcam` pref: this is a mode, not a preference. */
 	if(v) {
 	    recam();
 	} else {
@@ -343,7 +344,7 @@ public class Control {
     }
 
     /**
-     * rts: (F5) give the session now on screen the fleet camera, remembering what it had. Called on
+     * rts: (F5) give the session now on screen the RTS camera, remembering what it had. Called on
      * every anchor switch as well as when the mode goes on, because each session has its own MapView
      * and therefore its own camera -- there is no one camera to move across.
      */
@@ -352,18 +353,26 @@ public class Control {
 	    return;
 	GameUI gui = Fleet.anchorgameui();
 	MapView mv = (gui == null) ? null : gui.map;
-	if((mv == null) || (mv.camera instanceof MapView.FleetCam))
+	if((mv == null) || (mv.camera instanceof MapView.RTSCam))
 	    return;
 	prevcam.put(mv, mv.camera);
-	mv.camera = mv.new FleetCam();
+	mv.camera = mv.new RTSCam();
     }
 
-    /** rts: (F5) keys the RTS layer owns, ahead of the camera's. */
+    /**
+     * rts: (F5) keys the RTS layer owns, ahead of the camera's. {@code MapView.keydown} calls this
+     * before {@code camera.keydown}, so a key the mode owns is dispatched here whatever camera is
+     * installed — and the camera answers the client's own {@code cam-*} bindings and nothing else.
+     */
     public static boolean keydown(MapView mv, Widget.KeyDownEvent ev) {
 	if(!on)
 	    return(false);
 	if(MapView.kb_rtsnext.key().match(ev)) {
 	    Fleet.next();
+	    return(true);
+	}
+	if(MapView.kb_rtsfocus.key().match(ev)) {
+	    focus(mv);
 	    return(true);
 	}
 	return(false);
@@ -374,8 +383,8 @@ public class Control {
      * it centres on the whole fleet instead, which is what you want when you have lost track of them.
      */
     public static void focus(MapView mv) {
-	if(!(mv.camera instanceof MapView.FleetCam)) {
-	    Fleet.say("not on the fleet camera");
+	if(!(mv.camera instanceof MapView.RTSCam)) {
+	    Fleet.say("not on the rts camera");
 	    return;
 	}
 	List<Unit> us = units(mv);
@@ -393,6 +402,6 @@ public class Control {
 	    Fleet.say("nothing to centre on");
 	    return;
 	}
-	((MapView.FleetCam)mv.camera).focus(Coord2d.of(x / n, y / n));
+	((MapView.RTSCam)mv.camera).focus(Coord2d.of(x / n, y / n));
     }
 }

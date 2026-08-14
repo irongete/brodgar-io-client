@@ -29,6 +29,7 @@
 - the stock half of a layout record is an absolute value taken at the first touch, so `widget:position(nil)`/`:size(nil)` after the client has re-laid the screen out restores a place or a box fitted to the OLD screen, and it stands until the client's next re-layout (filed: 062)
 - `Speaking.draw` blits its finished text under a flat `chcolor(Color.BLACK)`, so the `color` a `world.speech` rule bakes into the raster through `fixcol` is multiplied away and the bubble's text is black whatever the rule says (filed: 065)
 - `widget:tooltip(s)` writes a plain string, and `Widget.settip` defaults `rich` to false, so an addon cannot write a tooltip carrying `$col`/`$b` markup while the client writes them for its own buttons (filed: 065)
+- `KeyBinding.key` is three-state and `keybindings:key(name, k)` writes only two of them, so nothing puts a binding back on its DEFAULT — and where two defaults share a key (`inv` and `rts-next-anchor` on Tab), writing either takes it off the other for good (filed: 066)
 - the two emboss textures are loaded in different spaces — `Window.ctex` through `Resource.loadsimg` and `CharWnd.failtex` through `Resource.loadimg` — so on a scaled-up client a FAILED heading is carved at a finer grain than every other embossed surface (filed: 065)
 
 ## Candidates
@@ -54,4 +55,5 @@
 - **The stock look this vocabulary cannot say**: a run whose middle tiles BETWEEN two caps (a window's caption plate, a text field, a button) is a frame shape with no `border` spelling, so said as `bg` layers the middle paints across the caps' own transparency; and a window frame whose top-left corner is that plate, a button's inset fill, a rail of evenly spread chain links — each drawn by the client and each therefore absent from `sheet:stock()` (filed: 065)
 - **One site key, more than one stock**: `panel` covers five different client boxes and `checkbox` two sizes of art, so a catalogue reports whichever drew last and installs that one over all of them (filed: 065)
 - **One property, two client values**: a window caption's halo is one colour focused and another unfocused, a heading's relief one texture succeeded and another failed, and a tooltip's stock margin is kept whether or not a rule names a `padding` — so none of the three round-trips without repainting its twin (filed: 065)
+- **`docs/client/multi-session.md` maps `io.brodgar`**: `Fleet`, `Control` and the RTS mode fill a subtree whose rule is upstream `haven` only, so the page either earns a stated exception or splits, its seams staying and its policy going (filed: 066)
 - **Minor client subsystems**: screenshots, custom cursors, graphics settings, polity, news, calendar, server-published windows, the party HUD (filed: 009)

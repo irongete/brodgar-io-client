@@ -266,7 +266,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    return(getcc().invy());
 	}
 
-	/* rts: (F4) protected, not private -- FleetCam drives the same controls from the keyboard and
+	/* rts: (F4) protected, not private -- RTSCam drives the same controls from the keyboard and
 	 * sizes its frustum from the distance. */
 	protected float dist = 50.0f, tdist = dist;
 	protected float elev = (float)Math.PI / 4.0f, telev = elev;
@@ -506,23 +506,28 @@ public class MapView extends PView implements DTarget, Console.Directory {
     // rts: (F5) hand the screen to the next session -- the only way to reach another character's HUD.
     public static KeyBinding kb_rtsnext = KeyBinding.get("rts-next-anchor", KeyMatch.forcode(KeyEvent.VK_TAB, 0));
 
-    /* rts: (F4, specs/rts/plan.md) the fleet camera. It is an SOrthoCam in every respect -- the same
-     * isometric snap, the same wheel zoom, the same rotation on the arrow keys -- except that it has a
-     * centre of its own instead of being bolted to the player. That is the whole difference between a
-     * camera you play a character with and one you command a group with.
+    /* rts: (F4, specs/rts/plan.md) the RTS camera, `:cam rts`. It is an SOrthoCam in every respect --
+     * the same isometric snap, the same wheel zoom, the same rotation on the arrow keys -- except that
+     * it has a centre of its own instead of being bolted to the player. That is the whole difference
+     * between a camera you play a character with and one you command a group with.
+     *
+     * It belongs to no mode: it is one of the client's cameras, installed by name like any other, and
+     * the RTS mode merely happens to install it. So it answers the client's own cam-* bindings and
+     * nothing else -- the keys the mode owns are dispatched by io.brodgar.rts.Control, which
+     * MapView.keydown already runs ahead of the camera.
      *
      * The middle button pans instead of rotating: rotation is on the arrow keys already, and an RTS
      * without panning is not one. The pan solves the screen delta back into world units through the
      * view's OWN projection (three probes and a 2x2 inverse) rather than by rebuilding the camera's
      * trigonometry -- so it stays exact at any angle, elevation or zoom, and cannot drift out of
      * agreement with what is actually on screen. */
-    public class FleetCam extends FreeCam {
+    public class RTSCam extends FreeCam {
 	private Coord2d center = null;      // null = follow the player, exactly as FreeCam does
 	private Coord2d dragorig = null;
 	private Coord dragsc = null;
 	private boolean rotating = false;
 
-	public FleetCam(String... args) {
+	public RTSCam(String... args) {
 	    super();
 	}
 
@@ -649,10 +654,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 
 	public boolean keydown(KeyDownEvent ev) {
-	    if(kb_rtsfocus.key().match(ev)) {
-		io.brodgar.rts.Control.focus(MapView.this);
-		return(true);
-	    }
 	    if(kb_camreset.key().match(ev)) {
 		follow();
 		return(true);
@@ -683,7 +684,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    return(String.format("%.0f %.2f%s", dist, angl / Math.PI, (center == null) ? " follow" : " free"));
 	}
     }
-    static {camtypes.put("fleet", FleetCam.class);}
+    static {camtypes.put("rts", RTSCam.class);}
 
     @RName("mapview")
     public static class $_ implements Factory {
@@ -3297,6 +3298,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	cmdmap.put("cam", new Console.Command() {
 		public void run(Console cons, String[] args) throws Exception {
 		    if(args.length >= 2) {
+			/* rts: a retired spelling refuses by name. "no such camera: fleet" is true and
+			 * useless -- it reads as "this client has no such thing", when the camera is
+			 * there under one name and one name only. */
+			if(args[1].equals("fleet"))
+			    throw(new Exception("no camera named 'fleet' -- it is 'rts': :cam rts"));
 			Class<? extends Camera> ct = camtypes.get(args[1]);
 			String[] cargs = Utils.splice(args, 2);
 			if(ct != null) {

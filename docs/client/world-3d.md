@@ -29,6 +29,28 @@ the field of view is `field/near`. Move the near plane (to buy depth precision a
 held at the shipped `0.5f` and the view narrows by exactly the factor the distance widened it — the
 camera moves and the image does not, which reads as a zoom that is stuck.
 
+## The camera registry — how one is named, built and remembered
+
+`MapView.camera` is a plain public field holding one `MapView.Camera`, and every camera is a
+**non-static inner class** of `MapView` — which is why building one takes the enclosing instance
+(`mv.new SOrthoCam()`) and why the registry reflects rather than calls a factory.
+
+| What | Where |
+|---|---|
+| **The registry** | `MapView.camtypes`, private static, name → `Class<? extends Camera>`. Each camera class is followed by its own `static {camtypes.put(…)}` block, so **a camera class nobody registered is unreachable**: `OrthoCam` is real and has no name, `SOrthoCam` is `ortho` |
+| The names the client has | `follow` (`FollowCam`), `worse` (`SimpleCam`), `bad` (`FreeCam`), `ortho` (`SOrthoCam`), `rts` (`RTSCam`) |
+| Building one | `MapView.makecam(Class, String...)` reflects for a `(MapView, String[])` constructor, then for `(MapView)`; with neither it throws naming the class. The `String[]` is the console's trailing words, and a camera that wants none simply declares the shorter constructor |
+| **The two preferences** | `defcam` is the name, `Utils.getpref`/`setpref`; `camargs` is the argument array, serialized whole through `Utils.getprefb`/`setprefb` + `Utils.serialize`/`deserialize`. They are written together, by the one writer below |
+| Restoring at construction | `MapView.restorecam()`, called **in the `camera` field initialiser** — so it runs before the widget is attached and can reach nothing but the prefs |
+| Choosing one by hand | the `cam` command in `MapView`'s `cmdmap` (`Console.Directory`): `:cam <name> [args…]` installs it on **this** map view and writes both prefs. `findcmds` exposes the map, so the command lives on the map view rather than on the client |
+| The camera's own input | `Camera.keydown`, `click`, `drag`, `release`, `wheel` — all no-ops on the base class. `MapView.keydown` runs the fork's dispatch **before** `camera.keydown`, so a camera never sees a key the client has already claimed |
+
+**Gotcha — an unknown `defcam` is silent, not an error.** `restorecam` returns `new SOrthoCam()` both
+when `camtypes.get` misses and when `makecam` throws anything at all. A preference naming a camera the
+client does not have therefore comes up on `ortho` with nothing said, and the pref keeps its dead
+value until something writes it — so a camera that loses its name reads as "my setting was ignored",
+never as a failure anyone can see.
+
 ## Ground overlays — who decides one is drawn
 
 | What | Where |
