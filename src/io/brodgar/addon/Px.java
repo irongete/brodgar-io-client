@@ -79,6 +79,17 @@ final class Px {
     }
 
     /**
+     * Device &rarr; design, unrounded — the mirror of {@link #in(double)}, for a device coordinate that was
+     * never a whole pixel to begin with. A <b>projected</b> world point is the case: {@code MapView.screenxf}
+     * ends in a projective divide and answers a {@code Coord3f}, so rounding it to a pixel before dividing by
+     * the scale would quantise a line an addon draws from it — twice over on a scaled client, where one design
+     * pixel is several device ones. {@link #out(int)} rounds because its input already had.
+     */
+    static double out(double n) {
+        return UI.unscale(n);
+    }
+
+    /**
      * The running device factor ({@code hafen.ui():scale()}) — {@code 1.0} on an unscaled client, {@code >= 1.0}
      * always. It is the factor <b>in force</b>, read off the live {@code UI}, and not the persisted preference
      * {@code hafen.client():options():interface():scale()} answers: the pref defaults to {@code 1.0} where the

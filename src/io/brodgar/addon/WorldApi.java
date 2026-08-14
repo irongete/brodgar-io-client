@@ -156,11 +156,17 @@ final class WorldApi {
             }
         });
         // screenToWorld(sx, sy, fn) — the RAYCAST INVERSE of hafen.player():worldToScreen: fn(p) is called with
-        // a Position on the ground under game-window pixel (sx,sy), or fn(nil) if the pixel hit no terrain
+        // a Position on the ground under ROOT DESIGN pixel (sx,sy), or fn(nil) if the pixel hit no terrain
         // (sky/off-map). ASYNCHRONOUS by necessity — the engine reads the true terrain point from the GPU
         // (MapView.Maptest, the pass the client's own building placement uses), so a synchronous return would
         // stall the UI thread on a GPU fence; the answer arrives a frame later, exactly the lag a placement
-        // ghost has. (sx,sy) is the same pixel space worldToScreen returns. Requires being in the world.
+        // ghost has. Requires being in the world.
+        //   067.1: (sx,sy) is the same space worldToScreen ANSWERS and the same one ev:x()/ev:y() speak, so the
+        // mouse feeds this door with no arithmetic in between. MapView.Maptest takes VIEW-LOCAL DEVICE pixels,
+        // so the trip in is the exact mirror of the trip out: Px.in, then subtract the view's own corner. The
+        // pair is rounded only here, at the end, because a readback names one device pixel and nothing finer.
+        //   What comes BACK out of Maptest.hit is a Coord2d in world units already — posres is not in this
+        // path, and nothing is converted on that side.
         m.set("screenToWorld", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "world", "screenToWorld");
@@ -171,8 +177,16 @@ final class WorldApi {
                     throw new LuaError("hafen.world():screenToWorld(sx, sy, fn): fn must be a function — the"
                         + " answer comes back a frame later, so there is nothing to return here");
                 MapView mv = view;
-                if(mv != null)
-                    screenToWorld(owner, mv, (int)Math.round(sx), (int)Math.round(sy), fn);
+                if(mv != null) {
+                    Coord rp;
+                    try {
+                        rp = mv.rootpos();
+                    } catch(RuntimeException e) {
+                        return LuaValue.NIL;   // an unattached view: no callback, like a readback that failed
+                    }
+                    screenToWorld(owner, mv, (int)Math.round(Px.in(sx)) - rp.x,
+                                  (int)Math.round(Px.in(sy)) - rp.y, fn);
+                }
                 return LuaValue.NIL;   // async — the answer arrives through fn
             }
         });
@@ -515,7 +529,9 @@ final class WorldApi {
 
     // ---- raycast/snap helpers (screenToWorld / snapAngle) ----
     /**
-     * {@code hafen.world():screenToWorld}: raycast the terrain under game-window pixel {@code (px,py)} via the
+     * {@code hafen.world():screenToWorld}: raycast the terrain under <b>view-local device</b> pixel
+     * {@code (px,py)} — the space {@link haven.MapView.Maptest} itself takes, which the caller above has
+     * already converted the addon's root design pixels into — via the
      * engine's own {@link haven.MapView.Maptest} (the pass the client's building placement uses), then call
      * {@code fn} with the ground {@link LuaPosition} (or nil for no terrain). Asynchronous: {@code Maptest.run()}
      * submits a GPU readback and its callback fires later under {@code synchronized(ui)} (so {@link #callLua} is

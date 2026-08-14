@@ -1,0 +1,9 @@
+{
+  "name": "067.1 — the projection verbs answer and take root design pixels",
+  "id": "067-coordinate-seams.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 067.1: worldToScreen answers root design pixels, screenToWorld takes them, and the round trip through both comes home within a tile at any interface scale.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

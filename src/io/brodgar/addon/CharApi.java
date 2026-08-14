@@ -912,10 +912,16 @@ final class CharApi {
         });
         /* vitals() is GONE (027-meters-oop's hard cut): the HUD bars are hafen.meter():list(), which is every meter
          * the server puts in the slot rather than a hard-coded hp/stamina/energy triple read by position. */
-        // worldToScreen(p) — project a PLACE IN THE WORLD to a MAP-VIEW pixel. It takes a Position (§2.7) and
+        // worldToScreen(p) — project a PLACE IN THE WORLD to a SCREEN POINT. It takes a Position (§2.7) and
         // answers a plain {x, y} in px, which is deliberately NOT one: the two spaces have the same shape and
         // used to be the same type, so a widget's pixel position walked the character somewhere wrong instead
         // of failing. Now only the direction that has an answer type-checks.
+        //   067.1: it answers ROOT DESIGN pixels — the space hafen.ui():at(), the mouse, widget:rootPos() and a
+        // HUD overlay's painter already share, and the space Px exists to name. MapView.screenxf answers
+        // VIEW-LOCAL DEVICE pixels (it ends in HomoCoord4f.toview over Area.sized(this.sz)), so two things are
+        // undone here rather than by every caller: the view's own corner is added, and the pair goes through
+        // Px.out. Unrounded, because a projected point has no pixel to round to. The same conversion
+        // UiApi.paintGobOverlays already does for a gob overlay's projected point (058.2).
         methods.set("worldToScreen", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.player():worldToScreen", "p");
@@ -924,9 +930,12 @@ final class CharApi {
                     return LuaValue.NIL;
                 try {
                     Coord3f sc = m.screenxf(rc);
-                    return (sc == null) ? LuaValue.NIL : xy(sc.x, sc.y);
+                    if(sc == null)
+                        return LuaValue.NIL;
+                    Coord rp = m.rootpos();          // view-local -> root, in the view's own device pixels
+                    return xy(Px.out(sc.x + rp.x), Px.out(sc.y + rp.y));
                 } catch(RuntimeException e) {
-                    return LuaValue.NIL;
+                    return LuaValue.NIL;             // an unattached view (rootpos walks to ui.root) included
                 }
             }
         });

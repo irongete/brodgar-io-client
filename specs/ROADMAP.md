@@ -12,7 +12,6 @@
 - `LuaWorldEntity`'s javadoc calls five retired verbs "the common handle verbs" (filed: 055)
 - `widget:on(key, fn)` on a STALE widget refuses naming the key as unknown, before the check that says the widget left the tree (filed: 061)
 - the layout half of the caption seam takes no widget, so a late-captioned window never lays its descendants out (filed: 049)
-- `world():screenToWorld(sx, sy)` and `player():worldToScreen(p)` speak device pixels while every other screen coordinate is a design pixel (filed: 058)
 - `hafen.ui():on(sel, event, fn)` is the one `:on` whose handle ends with `:remove()` instead of `sub:off()` (filed: 061)
 - `widget:on("Destroy", fn)` stays silent for one of the CLIENT's widgets inside a window that is destroyed: only an addon's own are reported from the disposal recursion (filed: 061)
 - the post-apply `uimsg` tap carries no args, so re-reading the widget is the only way to learn what the server wrote — a rewrite to the string a level already holds is indistinguishable from no rewrite (filed: 061)
@@ -30,6 +29,7 @@
 - `Speaking.draw` blits its finished text under a flat `chcolor(Color.BLACK)`, so the `color` a `world.speech` rule bakes into the raster through `fixcol` is multiplied away and the bubble's text is black whatever the rule says (filed: 065)
 - `widget:tooltip(s)` writes a plain string, and `Widget.settip` defaults `rich` to false, so an addon cannot write a tooltip carrying `$col`/`$b` markup while the client writes them for its own buttons (filed: 065)
 - `KeyBinding.key` is three-state and `keybindings:key(name, k)` writes only two of them, so nothing puts a binding back on its DEFAULT — which also means a caller that saves a key and writes it back turns a default into an assignment, and any later change to that default can never reach the profile again (filed: 066)
+- `player():worldToScreen(p)` projects at the PLAYER's height: `MapView.screenxf(Coord2d)` fills the z in from `getcc()`, so a Position on a slope answers where it would be at the player's altitude and a screen→world trip back does not return to it — the `screenxf(Coord3f)` overload beside it plus the height `world():height(p)` already reads is the fix (filed: 067)
 - the two emboss textures are loaded in different spaces — `Window.ctex` through `Resource.loadsimg` and `CharWnd.failtex` through `Resource.loadimg` — so on a scaled-up client a FAILED heading is carved at a finer grain than every other embossed surface (filed: 065)
 
 ## Candidates
