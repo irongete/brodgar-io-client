@@ -39,7 +39,7 @@
       `[manual]`: click a few tiles away — expect the character to stop at the centre of that tile, not
       at the pixel you clicked.
 
-- [ ] **067.4 — The pages say which space every coordinate is in.** Rewrites the `worldToScreen` row and
+- [x] **067.4 — The pages say which space every coordinate is in.** Rewrites the `worldToScreen` row and
       paragraph in `api/player.md`, the `screenToWorld` row and the "screen to world" section in
       `api/world.md`, and `api/ui/mouse.md`'s grab example, which is correct only after 067.1. In
       `api/event.md`, the `:args()` row states raw protocol in wire units, the two readers get their rows,

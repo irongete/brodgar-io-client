@@ -152,9 +152,9 @@ A **lattice cell** is an index, not a place, and keeps its own name: `grid:segme
 `marker:segmentTile()` counts tiles, and the argument of `grid:tile(c)` is a within-grid tile coord `0..99`.
 
 **Screen pixels are not Positions** either. A widget's `:position()`, `:rootPos()` and
-[`worldToScreen`](player.md) answer plain `{x, y}` **pixels**. A screen point has no durable form because
-the screen is not a place — and handing one to `hafen.player():move()` raises, rather than walking you
-somewhere wrong.
+[`worldToScreen`](player.md) answer a plain `{x, y}` table of [design pixels](ui/pixels.md). A screen point
+has no durable form because the screen is not a place — and handing one to `hafen.player():move()` raises,
+rather than walking you somewhere wrong.
 
 ## Terrain and coordinates
 
@@ -179,7 +179,7 @@ if t then hafen.log():write("standing on " .. (t.name or t.id)) end
 | `hafen.world():grid():list()` | `Grid[]` | every grid streamed in right now |
 | `hafen.world():tileToWorld(tx, ty)` | `{x, y}` | tile coord to world, at its upper-left corner |
 | `hafen.world():tileToGrid(tx, ty)` | `{x, y}` | tile coord to grid coord |
-| `hafen.world():screenToWorld(sx, sy, fn)` | nothing, calls `fn` | raycast the ground under a screen pixel; asynchronous |
+| `hafen.world():screenToWorld(sx, sy, fn)` | nothing, calls `fn` | raycast the ground under a root [design pixel](ui/pixels.md); asynchronous |
 | `hafen.world():snapPlace(p, fine)` | Position | snap a Position to the client's placement grid |
 | `hafen.world():snapAngle(a, fine)` | number | snap a facing in radians to the client's placement-angle grid |
 
@@ -202,9 +202,11 @@ hafen.world():screenToWorld(sx, sy, function(p)
 end)
 ```
 
-`(sx, sy)` are game-window pixels, the space `worldToScreen` returns. During a drag, feed it the cursor
-coords from [the mouse's grab](ui/mouse.md#the-grab) and coalesce — issue the next raycast only after the
-previous `fn` fired — so at most one is in flight per frame.
+`(sx, sy)` are **root [design pixels](ui/pixels.md)** — the space `worldToScreen` answers, the space
+[`m:x()`/`m:y()`](ui/mouse.md#read) reports, and the space a grab's `ev:x()`/`ev:y()` carries. So the cursor
+feeds this door with no arithmetic in between: during a drag, hand it the coords from
+[the mouse's grab](ui/mouse.md#the-grab) as they arrive, and coalesce — issue the next raycast only after
+the previous `fn` fired — so at most one is in flight per frame.
 
 **`snapPlace(p, fine)`** snaps a Position exactly as placing a building does, honouring the live
 placement-grid setting: without `fine`, the tile centre; with `fine = true`, the sub-tile grid

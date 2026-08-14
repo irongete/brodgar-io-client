@@ -39,7 +39,7 @@ widget the user can move or size.
 ```lua
 local g = hafen.ui():mouse():grab()   -- bare: from here the pointer is yours
 
-g:on("Move", function(ev) end)        -- ev:x() ev:y() ev:shift() ev:ctrl() ev:alt()
+g:on("Move", function(ev) end)        -- ev:x() ev:y() in root coords; ev:shift() ev:ctrl() ev:alt()
 g:on("Up",   function(ev) end)        -- …plus ev:button(); fires once and auto-releases
 
 g:release()                           -- hand it back early
@@ -66,6 +66,11 @@ g:on("Up", function(ev) hafen.log():write("dropped with button " .. ev:button())
 
 Pair it with [`hafen.world():screenToWorld`](../world.md#screen-to-world-and-placement-snapping) and
 `snapPlace` to drag something along the ground.
+
+**`ev:x()`/`ev:y()` go into `screenToWorld` as they come** — a grab reports the pointer in root
+[design pixels](pixels.md), which is the space that door takes, so there is nothing to convert and nothing
+to add for where the map view happens to sit. Coalesce the raycasts, though: `screenToWorld` answers a
+frame later, and a move fires every frame.
 
 ## See also
 

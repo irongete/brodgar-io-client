@@ -1,0 +1,9 @@
+{
+  "name": "067.4 — the pages say which space every coordinate is in",
+  "id": "067-coordinate-seams.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 067.4: the grab example from the mouse page, run verbatim, hands back the ground under the cursor; the projection round trip still closes; and every hafen.* name the touched pages write resolves to a callable.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

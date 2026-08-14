@@ -244,6 +244,11 @@ press point at 1 and the destination in the world at 2, both `{x=, y=}`. Name th
 mean, and each verb throws naming the other on an index holding anything else. `ev:args()` stays raw,
 because `resend` and `send` round-trip through it to the server.
 
+**`click` is not the map's alone.** A message name is protocol, and several widgets send that one — a
+portrait, an item box, a party member's tile — carrying arguments of their own, at other indices and
+often not coordinates at all. Check `ev:sender()` before reading an index, as the example below does; a
+handler that assumes the map reads argument 2 of a message that never had one.
+
 Writing one back takes those two spaces just as seriously. **A Position is accepted wherever a coordinate
 argument goes**, and the client encodes the wire form for you, so rewriting a destination needs no
 arithmetic; a `{x=, y=}` table in the same list is still taken verbatim, because a table is as likely to
