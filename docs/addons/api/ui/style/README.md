@@ -21,7 +21,7 @@ s:install()
 [keys](keys.md) says **which** surfaces a rule reaches and which properties each one honours.
 [surfaces](surfaces.md) says what each of the client's own surfaces *is*, and how it behaves when a rule
 lands on it, with [the HUD's plates](hud.md) on a page of their own. Then the property pages:
-[text](text.md) for `font` and `color`, [chrome](chrome.md) for
+[text](text.md) for what the letters look like, [chrome](chrome.md) for
 everything that paints, [geometry](geometry.md) for `position`, `size` and `anchor`. This page holds the sheet
 itself, the per-widget level, the cascade they all resolve through, and the edge of the system.
 
@@ -74,8 +74,8 @@ border is a slice of four numbers or a colour and a width, a `padding` is one or
 [same two ways](text.md#font) — `{builtin = "mono"}` or `{asset = "fonts/Inter.ttf"}`. Nothing in the
 document is a handle, so a whole client look, windows and typography included, is a file and one command.
 
-Inside a loaded table the properties are the setter names: `font`, `color`, `bg`, `border`, `padding`,
-`picture`, `caption`, `sizer`, `close`, `position`, `anchor`, `size`. An unknown one is an **error**
+Inside a loaded table the properties are the setter names: `font`, `color`, `emboss`, `bg`, `border`,
+`padding`, `picture`, `caption`, `sizer`, `close`, `position`, `anchor`, `size`. An unknown one is an **error**
 naming the ones that exist, and so is a rule
 that says both `position` and `anchor` — two spellings of [one property](geometry.md#anchor), and in a table
 there is no *later* to pick the winner.
@@ -95,6 +95,7 @@ Each is a setter that returns the rule, and each reads back with no argument.
 |---|---|---|
 | `rule:font(face)` | a [font handle](../../font.md), or the same face **named** | `hafen.font():get(name)` / `hafen.asset():get(path)`, optionally through `:derive()`, or `{builtin = …}` / `{asset = …}` with `size`, `bold`, `italic` and `aa` — see [text](text.md#font) |
 | `rule:color(r, g, b[, a])` | `0..255` each | also takes a colour value, the `{r = …, g = …}` table every reader hands back — see [text](text.md#color) |
+| `rule:emboss(v)` | `false`, or `{texture = <art>}` | whether the client's own relief is cut through a surface's letters, and with what. `false` is what lets `color` reach a caption at all — see [`emboss`](text.md#emboss) |
 | `rule:bg(t)` | one [surface](chrome.md#naming-a-picture), or an array of them | what something is painted on, one layer or several — see [chrome](chrome.md) |
 | `rule:border(t)` | `{<art>, slice = {l, t, r, b}}`, `{box = "gfx/hud/wnd"}` or `{color = {r,g,b[,a]}, width = n}` | your own 9-slice frame, one of the client's own, or a plain line — see [chrome](chrome.md#border) |
 | `rule:padding(n)` | [design px](../pixels.md), `>= 0` | the room a surface keeps between its frame and its content, one number for all four sides or `(l, t, r, b)` — see [`padding`](chrome.md#padding) |
@@ -191,7 +192,8 @@ patch.
 
 **What one sheet reaches.** *Which* — any render site the client draws text or chrome at (the
 [site keys](keys.md#site-keys)), any widget a [selector](../selectors.md) names, and any single widget you
-point at with `widget:rule()`. *What* — the text (`font`, `color`), the surfaces that paint (`bg`,
+point at with `widget:rule()`. *What* — the text (`font`, `color`, and the `emboss` that decides which of
+the two a carved surface listens to), the surfaces that paint (`bg`,
 `border`), the room around content (`padding`), the whole plate a surface is where the client blits one
 (`picture`), what a window's decoration draws its ornaments as and where
 it puts them (`caption`, `sizer`, `close`), and where a widget is and how big (`position`, `size`, `anchor`). *How* — resolved [per property](#the-cascade), applied live, owned by your addon and reversible

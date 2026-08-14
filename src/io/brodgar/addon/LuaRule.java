@@ -236,6 +236,26 @@ public final class LuaRule {
                 return self;
             }
         });
+        // emboss(false) / emboss{texture=<art>} — whether this client's own RELIEF is cut through the letters of
+        // an embossed surface, and with what (065.14). It is the property that lets `color` reach a window
+        // caption, a section heading and a button label at all: a texture tiled through a glyph mask leaves no
+        // colour behind to override, so the only way to paint one is to stop tiling. Reads back `false` where
+        // the rule dropped the relief and nil where it says nothing — two different answers, and Lua tells them
+        // apart, because the second means the client's own.
+        m.set("emboss", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaRule r = handle(self, "emboss");
+                Sheet.Props cur = r.read(owner);
+                LuaValue v = Args.written(a, 2, r.where() + ":emboss", "emboss");
+                if(v == null)
+                    return ((cur == null) || (cur.emboss == null)) ? LuaValue.NIL : cur.emboss.toLua(owner);
+                Sheet.Props p = r.edit(owner);
+                p.emboss = Chrome.parseEmboss(owner, r.where(), v);
+                r.commit(owner, p);
+                return self;
+            }
+        });
         // bg{color=…} / bg{image=…} / bg{asset=…} / bg{res=…} — the surface something is painted on (035.1), and
         // since 065.2 an ARRAY of those, painted in order. A structured VALUE, not named arguments: a background
         // is one thing said as a table, exactly as a colour is.

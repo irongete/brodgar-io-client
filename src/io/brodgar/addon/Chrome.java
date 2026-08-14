@@ -5,6 +5,7 @@ import haven.Coord;
 import haven.Fonts;
 import haven.GOut;
 import haven.IBox;
+import haven.PUtils;
 import haven.Resource;
 import haven.Tex;
 import haven.TexSI;
@@ -16,6 +17,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import java.awt.Color;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -94,6 +96,8 @@ final class Chrome {
     static final String CLOSE = "close";
     /** The {@code picture} property's key (065.12). Its value is a {@link Pic}. */
     static final String PICTURE = "picture";
+    /** The {@code emboss} property's key (065.14). Its value is an {@link Emboss}. */
+    static final String EMBOSS = "emboss";
 
     /** The {@code bg} a resolved style carries, or {@code null} — for {@code null} styles too, which is the common case. */
     static Bg bg(Fonts.Style st) {
@@ -130,16 +134,23 @@ final class Chrome {
         return (st == null) ? null : (Pic)st.prop(PICTURE);
     }
 
+    /** The {@code emboss} a resolved style carries, or {@code null} — the client's own relief, then. */
+    static Emboss emboss(Fonts.Style st) {
+        return (st == null) ? null : (Emboss)st.prop(EMBOSS);
+    }
+
     /**
      * The bag one rule's chrome properties travel in, or {@code null} when it names none — which is what keeps
      * the provider's identity fast path intact for a sheet that says nothing about chrome.
      */
-    static Map<String, Object> props(Bg bg, Border border, Pad padding, Pic picture, Spot caption, Art sizer,
-                                     Close close) {
-        if((bg == null) && (border == null) && (padding == null) && (picture == null) && (caption == null)
-           && (sizer == null) && (close == null))
+    static Map<String, Object> props(Bg bg, Border border, Pad padding, Pic picture, Emboss emboss, Spot caption,
+                                     Art sizer, Close close) {
+        if((bg == null) && (border == null) && (padding == null) && (picture == null) && (emboss == null)
+           && (caption == null) && (sizer == null) && (close == null))
             return null;
         Map<String, Object> m = new LinkedHashMap<String, Object>(8);
+        if(emboss != null)
+            m.put(EMBOSS, emboss);
         if(bg != null)
             m.put(BG, bg);
         if(border != null)
@@ -344,6 +355,7 @@ final class Chrome {
         private final Tex raw;            // the raster in ITS OWN space
         private final boolean design;     // ...and is that space design pixels?
         private Tex drawn;
+        private BufferedImage awt;        // ...and the same pixels off the GPU (065.14), built at most once
 
         private Src(LuaImage image, String res, Tex raw, boolean design) {
             this.image = image;
@@ -378,6 +390,31 @@ final class Chrome {
         /** The raster's own size in <b>design</b> pixels — the space a {@code slice} is validated against. */
         Coord size() {
             return design ? image.sz : Px.out(raw.sz());
+        }
+
+        /**
+         * The same pixels as an <b>AWT raster</b>, at the size they are drawn — what a glyph mask is tiled with
+         * (065.14), the one consumer in this API that composes on the CPU rather than blitting on the GPU.
+         * {@code null} where there is nothing to tile: a disposed image, or art that carries no raster.
+         *
+         * <p>Built at most once and kept, because the client rebuilds a furnace whenever the rules move and a
+         * scale is a copy of every pixel. The design/device seam is the same one {@link #drawn} crosses: an
+         * addon's own PNG is authored in design pixels and is resampled here exactly as the client resamples
+         * its own art on the way in, so one texture reads at the same weight at every interface scale.
+         */
+        BufferedImage raster() {
+            BufferedImage a = this.awt;
+            if(a != null)
+                return a;
+            if(res != null) {
+                a = Resource.loadsimg(res);            // the client's own, already at this client's scale
+            } else if(!dead()) {
+                a = image.tex.back;
+                Coord tsz = Px.in(image.sz);
+                if(!tsz.equals(Coord.of(a.getWidth(), a.getHeight())))
+                    a = PUtils.uiscale(a, tsz);        // an addon's file is DESIGN pixels: scale it as the client does
+            }
+            return this.awt = a;
         }
 
         /** A window onto the raster, cut at <b>design</b> coordinates and viewed at the size it is drawn. */
@@ -524,6 +561,69 @@ final class Chrome {
             if(offset != null)
                 t.set("offset", LuaWidget.xyTable(offset));
             t.set("mode", LuaValue.valueOf(mode));
+            return t;
+        }
+    }
+
+    // ---- the relief a caption is cut out of (065.14) ------------------------------------------------
+
+    /**
+     * A rule's {@code emboss}: whether this client's own <b>relief</b> is drawn through a surface's glyphs, and
+     * with what. It is the one property here that paints no box — five text surfaces render their letters as a
+     * <i>mask</i> and tile a picture through it ({@link Fonts#emboss}), and this is what says which picture, or
+     * that there should be none.
+     *
+     * <p><b>Turning it off is what makes a {@code color} rule reach those letters.</b> A texture cut to the
+     * shape of a caption leaves no glyph colour behind for anything to override, so the property that names the
+     * relief is also the only way to stop one — and with it gone the foundry's own colour, which is the rule's,
+     * is what reaches the screen.
+     *
+     * <p>Immutable with value equality, because the resolved style is interned on it ({@code Sheet.SKey}), and
+     * it <b>is</b> the {@link Fonts.Relief} the site asks: the value carries no state and there is nothing to
+     * intern one level down.
+     */
+    static final class Emboss implements Fonts.Relief {
+        /** Is a relief drawn at all? {@code false} is the whole of what {@code emboss(false)} says. */
+        final boolean on;
+        /** The texture tiled through the glyphs, or {@code null} when {@link #on} is {@code false}. */
+        final Art texture;
+
+        Emboss(boolean on, Art texture) {
+            this.on = on;
+            this.texture = texture;
+        }
+
+        /**
+         * {@inheritDoc}
+         *
+         * <p>A theme's art that has been disposed answers {@code stock}: the surface keeps looking like the
+         * client's own, which is the conservative half of every art read here — a picture that is gone stops
+         * painting rather than blanking what it was over.
+         */
+        public BufferedImage texture(BufferedImage stock) {
+            if(!on)
+                return null;
+            BufferedImage a = (texture.src == null) ? null : texture.src.raster();
+            return (a == null) ? stock : a;
+        }
+
+        public int hashCode() {
+            return (on ? 0x51ED : 0) + ((texture == null) ? 0 : (texture.hashCode() * 31));
+        }
+
+        public boolean equals(Object o) {
+            if(!(o instanceof Emboss))
+                return false;
+            Emboss e = (Emboss)o;
+            return (on == e.on) && ((texture == null) ? (e.texture == null) : texture.equals(e.texture));
+        }
+
+        /** The value in the shape the setter takes, so a read round-trips into a write. */
+        LuaValue toLua(Addon reader) {
+            if(!on)
+                return LuaValue.FALSE;
+            LuaTable t = new LuaTable();
+            t.set("texture", texture.toLua(reader));
             return t;
         }
     }
@@ -1423,6 +1523,19 @@ final class Chrome {
         return picture((scope == null) ? Sheet.specOf(wdg) : Fonts.styleFor(scope, wdg));
     }
 
+    /**
+     * {@code Fonts.emboss(scope, …)} — what this site's rule says about its relief, or {@code null} when it says
+     * nothing and the client tiles exactly the texture it always tiled (065.14).
+     *
+     * <p>The <b>widget-less</b> resolution with the ambient frame above it, which is {@link Fonts#style}: an
+     * embossed site builds its furnace from a static its whole client shares, once per rule change, so there is
+     * no one widget to name — and it is the very chain the foundry inside that furnace resolved through, so a
+     * caption's letters and the relief cut out of them cannot answer to two different rules.
+     */
+    static Fonts.Relief emboss(String scope) {
+        return emboss(Fonts.style(scope));
+    }
+
     // ---- parsing -----------------------------------------------------------------------------------
 
     /** The four spellings a picture comes in, as every error here lists them. */
@@ -1665,6 +1778,72 @@ final class Chrome {
                 + " INSIDE the value it varies, so name the surface it is a state OF beside it");
         return new Pic(parseArt(owner, ctx, what, rest), st);
     }
+
+    /** The two things an emboss may be — what every refusal here lists, rather than summarising. */
+    private static final String EMBOSSES =
+        "false — no relief, so a `color` rule reaches the glyphs — or { texture = " + ART + " }";
+
+    /**
+     * Parse a rule's {@code emboss} (065.14). Two shapes, and they are the two answers there are: {@code false}
+     * drops the relief this client tiles through an embossed surface's letters, and a {@code texture} tiles the
+     * theme's own instead.
+     *
+     * <p><b>{@code true} is refused</b>, and it is the one refusal here worth spelling out: it would mean "the
+     * client's own relief", which is what a key carrying no {@code emboss} at all already draws, to the pixel.
+     * A property whose only effect is to say what silence says is a property that will be read as doing
+     * something, so it says what to write instead.
+     *
+     * <p>A texture is an ordinary picture, named the same {@link #parseArt four ways} as every other art in this
+     * vocabulary — but it is <b>tiled through a mask</b> rather than painted into a box, so it takes neither a
+     * flat colour (there are no pixels to tile) nor the three fields that place a picture in a rectangle (there
+     * is no rectangle; the letters are the shape).
+     */
+    static Emboss parseEmboss(Addon owner, String ctx, LuaValue v) {
+        if(v.isboolean()) {
+            if(v.toboolean())
+                throw new LuaError(ctx + ".emboss: an emboss is " + EMBOSSES + ". \"true\" is this client's own"
+                    + " relief, which is what a rule naming no emboss at all already draws — leave the property"
+                    + " out to keep it");
+            return new Emboss(false, null);
+        }
+        if(!v.istable())
+            throw new LuaError(ctx + ".emboss: expected " + EMBOSSES + ", got " + v.typename());
+        LuaValue tex = LuaValue.NIL;
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            Varargs n = v.next(k);
+            k = n.arg1();
+            if(k.isnil())
+                break;
+            String p = key(k);
+            if("texture".equals(p))
+                tex = n.arg(2);
+            else
+                throw new LuaError(ctx + ".emboss: \"" + k.tojstring() + "\" is not an emboss property — an"
+                    + " emboss is " + EMBOSSES + ", and \"texture\" is the only field it carries");
+        }
+        if(tex.isnil())
+            throw new LuaError(ctx + ".emboss: says nothing — an emboss is " + EMBOSSES);
+        if(tex.istable()) {
+            // The two fields a picture carries that a MASK has no room for, refused where they are written
+            // rather than ignored: the letters are the shape, so there is no rectangle to pin art inside and
+            // no leftover axis for a mode to fill.
+            for(int i = 0; i < PLACERS.length; i++) {
+                if(!tex.get(PLACERS[i]).isnil())
+                    throw new LuaError(ctx + ".emboss.texture: takes no \"" + PLACERS[i] + "\" — an emboss"
+                        + " texture is tiled through the SHAPE OF THE LETTERS rather than painted into a box,"
+                        + " so there is nowhere to pin it and nothing left over to fill");
+            }
+        }
+        Art a = parseArt(owner, ctx, ".emboss.texture", tex);
+        if(a.color != null)
+            throw new LuaError(ctx + ".emboss.texture: a colour has no pixels to tile through the letters — to"
+                + " paint an embossed surface one flat colour, say emboss(false) and give the rule a color");
+        return new Emboss(true, a);
+    }
+
+    /** The three fields that place a picture in a rectangle — the ones a glyph mask has no rectangle for. */
+    private static final String[] PLACERS = {"at", "offset", "mode"};
 
     /**
      * Parse a rule's {@code close} (065.5) — a surface, its {@code hover} and {@code pressed} variants, and the

@@ -17,8 +17,33 @@
 | **`Text` → GPU** | `Text.tex()` lazily wraps the `BufferedImage` in a `TexI` and **memoises it**; `Text.dispose()` forwards to it. A `Text` is therefore two allocations: the AWT raster (kept) and the texture |
 | **The immediate-mode blit** | `GOut.atext` = `Text.render` → `tex()` → `aimage` → `dispose()`, **all four per call, every frame**; `GOut.text` is `atext(…,0,0)`. Drop the `dispose()` and you have the `Label` pattern |
 | **`TexI` GL side** | `st()` uploads **lazily on first render** (so building a `TexI` is free of GL); `dispose()` drops the `ColorTex` and nulls it — but `st()` would silently **re-upload**, so a double-free shows up as a slow leak, never a crash. Size is `Tex.nextp2`-rounded (`tdim`): bytes = `4·nextp2(w)·nextp2(h)`, not `4·w·h` |
-| **The scope vocabulary** | `Fonts.SCOPES` — the 13 names, `default` being the selector `*`'s twin; `Fonts.isScope` is what makes a stylesheet key a **site** key. Five (`button`, `label`, `textentry`, `chat`, `menu`) are also `Selector.WIDGET_ROLES`; seven name a render site nothing is ever classified as (`Selector.SITE_ROLES`); and the widget roles `window`/`inventory` have **no** scope, so a bare `window` key is a *tree* key |
+| **The scope vocabulary** | `Fonts.SCOPES` — the names a stylesheet key may be a **site** key for, `default` being the selector `*`'s twin; `Fonts.isScope` is the test. Some (`button`, `label`, `textentry`, `chat`, `menu`) are also `Selector.WIDGET_ROLES`; the rest name a render site nothing is ever classified as (`Selector.SITE_ROLES`); and the widget roles `window`/`inventory` have **no** scope, so a bare `window` key is a *tree* key |
 | **Where COLOUR enters a render** | Three different layers — see the gotcha below. `Text.Foundry.defcol` (the default), the `Color` argument of `render(text, c)`/`renderwrap` (**baked into the raster** by `g.setColor(c)`), and a per-render `TextAttribute.FOREGROUND` extra on a `RichText.Foundry.render(…)` call |
+
+## The furnace stack
+
+A `Text.Furnace` is "render this string"; `Text.Forge` narrows it to one that also answers `height()`,
+`strsize()` and a `Slug`. `Text.Foundry` is the only leaf that owns a `Font`; everything else is a
+**decorator** — `Text.OffsetForge` wraps a backing `Forge` and post-processes the raster, reporting the
+room it took as `tloff()`/`broff()`.
+
+| Decorator | Does | Costs |
+|---|---|---|
+| `PUtils.TexFurn(bk, BufferedImage)` | `PUtils.tilemod` — tiles the image through the glyph raster **in place**, so the mask is what you see and the foundry's colour is gone | no growth (`tloff`/`broff` are `Coord.z`) |
+| `PUtils.BlurFurn(bk, grad, brad, Color)` | `PUtils.blurmask2` — a coloured halo behind the glyphs | grows the raster by `grad + brad` on every side |
+
+The two are always stacked the same way — `BlurFurn(TexFurn(foundry, tex), …)` — at four places, and each
+rebuilds its statics on a `Fonts.gen()` compare:
+
+| Site | Stock foundry | Texture |
+|---|---|---|
+| `Window.DefaultDeco.checktitlefont` → `cf`, `ncf` | `DefaultDeco.titlefnd` (fraktur 15) | `Window.ctex` = `Resource.loadsimg("gfx/hud/fonttex")` |
+| `CharWnd.checkcapfont` → `bcatf`, `bfailf` | `CharWnd.capfnd` (fraktur 25) | `Window.ctex`, and `gfx/hud/fontred` for the failed twin |
+| `GridList.dcatfont` → `bdcatf` | `GridList.dcatfnd` (fraktur 18) | `Window.ctex` |
+| `Button.checkfont` → `bnf` | `Button.tf` (bold serif 12) | `Window.ctex` |
+
+`Charlist`, `Fightsess`, `MapView` and `QuestWnd` build furnaces of their own from the same two classes
+and are **not** routed.
 
 ## Gotchas
 
@@ -41,3 +66,10 @@
 - **`$col[…]` markup vs a `FOREGROUND` extra**: both land as a foreground attribute on a run, but the
   first comes from the *string* and the second from the *call site* — opposite precedence against an
   override. Check which one you are looking at.
+- **`TexFurn` mutates the slug it is given** (`tilemod(text.img.getRaster(), …)`) and hands the same
+  `BufferedImage` back. It is the last word on colour for anything it wraps: `Foundry.defcol`, a `Color`
+  passed to `render`, and `Foundry.fixcol` alike are all overwritten. Removing it from the stack is the
+  only way a colour survives to the screen on one of the four sites above.
+- **`Text.Foundry` is both leaf and `Forge`**, so `new TexFurn(foundry, tex)` and
+  `new TexFurn(otherFurn, tex)` compile identically — the `Text.Furnace` overloads of both decorators are
+  `@Deprecated` and exist only for that ambiguity. Prefer the `Forge` one.

@@ -1,13 +1,14 @@
-# hafen.ui: font and color
+# hafen.ui: what text looks like
 
-The two [sheet](README.md) properties that change what text *looks* like. Neither moves anything; a rule
-that carries only one leaves the other exactly as the surface had it.
+The [sheet](README.md) properties that change what text *looks* like. None of them moves anything; a rule
+that carries one leaves the others exactly as the surface had them.
 
 ```lua
 local s = hafen.ui():sheet()
 s:rule("*"):font(hafen.asset():get("fonts/Inter.ttf"):derive():size(12))
 s:rule("chat"):color(200, 210, 200)
 s:rule("tooltip"):font{ builtin = "serif", size = 13 }:color(255, 150, 90)   -- the same face, named
+s:rule("window.title"):emboss(false):color(220, 205, 170)   -- a flat caption instead of a carved one
 s:install()
 ```
 
@@ -77,19 +78,56 @@ is what a stylesheet is for, and it is worth knowing what it costs: while the ru
 *meaning* in its colour is flattened with the rest — a red warning under `["*"] = {color = …}` goes the
 same colour as everything else. Style one site rather than `*` when that matters.
 
-Two things still win over a rule, and one surface ignores it:
+Two things still win over a rule, and one kind of surface ignores it until you say otherwise:
 
 - **`$col[…]` markup inside the text.** It is part of the string, not the site's choice of colour, so a
   tooltip's green and red attribute deltas survive a `["tooltip"]` colour rule.
 - **A [tree key](keys.md#tree-keys) covering that widget**, and above it
   [`widget:rule()`](README.md#restyle-one-widget) — both sit nearer the draw than a site rule.
 - **An embossed surface** — a window caption, a section heading, an ordinary button caption — takes its
-  colour from a *texture* tiled through the glyph mask rather than from the font, so it follows a `font`
-  rule and ignores a `color` one. There is nothing there to colour. See
-  [what each key accepts](keys.md#what-each-key-accepts).
+  colour from a *texture* tiled through the glyph mask rather than from the font, so a `color` rule alone
+  lands on nothing. [`emboss(false)`](#emboss) is what hands those letters back to the font, and to the
+  colour beside it. See [what each key accepts](keys.md#what-each-key-accepts).
 
 `widget:style()` reports the colour a rule set even on a surface that then throws it away: it is honest
 about the rule, not about the pixels.
+
+## emboss
+
+`rule:emboss(v)` says whether the client's own **relief** is cut through a surface's letters, and with
+what. A window caption, a section heading and an ordinary button caption are all drawn that way, and it is
+why a `color` on those keys does nothing on its own: the glyphs are a *mask*, and what you see through
+them is a picture.
+
+| Written | Is |
+|---|---|
+| `false` | no relief at all. The letters are drawn in the font, in the rule's own [`color`](#color), and the halo behind them stays |
+| `{texture = <art>}` | the theme's own picture tiled through the letters, in place of the client's |
+
+The texture is a picture named the [same four ways](chrome.md#naming-a-picture) as every other art in a
+rule, minus the flat colour: a colour has no pixels to tile, and one flat caption is `emboss(false)` plus a
+`color`. It is tiled through the shape of the letters rather than painted into a box, so it takes none of
+the `at`, `offset` and `mode` that place a picture — there is no rectangle for them to speak about.
+
+```lua
+local s = hafen.ui():sheet()
+s:rule("window.title"):emboss(false):color(230, 220, 190)          -- flat captions, in one colour
+s:rule("heading"):emboss{ texture = { res = "gfx/hud/fontred" } }  -- the client's red leaf, on headings
+s:rule("button"):emboss{ texture = { asset = "img/brass.png" } }   -- ...and your own, on button captions
+s:install()
+```
+
+- **Leaving the property out is how you keep the client's relief**, to the pixel — which is why `true` is
+  an error rather than a synonym for it. `rule:emboss()` reads back `false` where a rule dropped the
+  relief and `nil` where it says nothing, so the two are not the same answer.
+- **It reaches the keys that are embossed and no others.** On any other key it is accepted and does
+  nothing, exactly as a `bg` on a text site does — [the key table](keys.md#what-each-key-accepts) is the
+  list.
+- **The halo is a different property.** `emboss` says what fills the letters; the blurred shadow behind
+  them is untouched by it.
+- **A texture is tiled at the weight it was authored at.** A file your addon ships is in
+  [design pixels](../pixels.md) and is scaled with the interface; the client's own art carries its own
+  scale, exactly as it does everywhere a picture is named.
 
 ## See also
 

@@ -84,8 +84,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 final class Sheet {
     /** The style properties a rule may carry — the whole of a rule's vocabulary, in both its shapes. */
     static final String PROPS =
-        "\"font\", \"color\", \"bg\", \"border\", \"padding\", \"picture\", \"caption\", \"sizer\","
-        + " \"close\", \"position\", \"anchor\" and \"size\"";
+        "\"font\", \"color\", \"emboss\", \"bg\", \"border\", \"padding\", \"picture\", \"caption\","
+        + " \"sizer\", \"close\", \"position\", \"anchor\" and \"size\"";
 
     /**
      * <b>What one rule says</b> — the properties below, each independently optional, and mutable because a
@@ -100,6 +100,7 @@ final class Sheet {
     static final class Props {
         FontHandle font;          // the rule's `font` property, or null (a rule may carry only a colour)
         Color color;              // the rule's `color` property, or null (a rule may carry only a font)
+        Chrome.Emboss emboss;     // the rule's `emboss` property (065.14), or null
         Chrome.Bg bg;             // the rule's `bg` property (035.1), or null
         Chrome.Border border;     // the rule's `border` property (035.1), or null
         Chrome.Pad padding;       // the rule's `padding` property (065.1), or null
@@ -112,9 +113,9 @@ final class Sheet {
 
         /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
         boolean empty() {
-            return (font == null) && (color == null) && (bg == null) && (border == null) && (padding == null)
-                && (picture == null) && (caption == null) && (sizer == null) && (close == null) && (pos == null)
-                && (size == null);
+            return (font == null) && (color == null) && (emboss == null) && (bg == null) && (border == null)
+                && (padding == null) && (picture == null) && (caption == null) && (sizer == null)
+                && (close == null) && (pos == null) && (size == null);
         }
 
         /** Does it lay anything out (036.2)? The half of a rule that is a WRITE rather than a draw-time read. */
@@ -124,8 +125,9 @@ final class Sheet {
 
         /** ...and does it say anything the DRAW reads? A layout-only sheet must not reach the draw pass at all. */
         boolean draws() {
-            return (font != null) || (color != null) || (bg != null) || (border != null) || (padding != null)
-                || (picture != null) || (caption != null) || (sizer != null) || (close != null);
+            return (font != null) || (color != null) || (emboss != null) || (bg != null) || (border != null)
+                || (padding != null) || (picture != null) || (caption != null) || (sizer != null)
+                || (close != null);
         }
 
         /** A copy — what a write takes before it changes one field, and what an apply freezes. */
@@ -139,6 +141,7 @@ final class Sheet {
         void set(Props p) {
             font = p.font;
             color = p.color;
+            emboss = p.emboss;
             bg = p.bg;
             border = p.border;
             padding = p.padding;
@@ -165,6 +168,8 @@ final class Sheet {
                 t.set("font", FontApi.handleFor(reader, font, reader));
             if(color != null)
                 t.set("color", AddonManager.color(color));
+            if(emboss != null)
+                t.set("emboss", emboss.toLua(reader));   // `false` where the rule dropped the relief
             if(bg != null)
                 t.set("bg", bg.toLua(reader));
             if(border != null)
@@ -197,6 +202,7 @@ final class Sheet {
         final int rank;           // a tree rule's SPECIFICITY (030, summed over the chain since 049)
         final FontHandle font;    // the rule's `font` property, or null (a rule may carry only a colour)
         final Color color;        // the rule's `color` property, or null (a rule may carry only a font)
+        final Chrome.Emboss emboss;   // the rule's `emboss` property (065.14), or null
         final Chrome.Bg bg;       // the rule's `bg` property (035.1), or null
         final Chrome.Border border;   // the rule's `border` property (035.1), or null
         final Chrome.Pad padding; // the rule's `padding` property (065.1), or null
@@ -213,6 +219,7 @@ final class Sheet {
             this.rank = (sel == null) ? 0 : sel.specificity();
             this.font = p.font;
             this.color = p.color;
+            this.emboss = p.emboss;
             this.bg = p.bg;
             this.border = p.border;
             this.padding = p.padding;
@@ -226,9 +233,9 @@ final class Sheet {
 
         /** Does this rule say anything at all? A rule that names no property styles nothing, anywhere. */
         boolean empty() {
-            return (font == null) && (color == null) && (bg == null) && (border == null) && (padding == null)
-                && (picture == null) && (caption == null) && (sizer == null) && (close == null) && (pos == null)
-                && (size == null);
+            return (font == null) && (color == null) && (emboss == null) && (bg == null) && (border == null)
+                && (padding == null) && (picture == null) && (caption == null) && (sizer == null)
+                && (close == null) && (pos == null) && (size == null);
         }
 
         /** Does it lay anything out (036.2)? The half of a rule that is a WRITE rather than a draw-time read. */
@@ -238,8 +245,9 @@ final class Sheet {
 
         /** ...and does it say anything the DRAW reads? A layout-only sheet must not reach the draw pass at all. */
         boolean draws() {
-            return (font != null) || (color != null) || (bg != null) || (border != null) || (padding != null)
-                || (picture != null) || (caption != null) || (sizer != null) || (close != null);
+            return (font != null) || (color != null) || (emboss != null) || (bg != null) || (border != null)
+                || (padding != null) || (picture != null) || (caption != null) || (sizer != null)
+                || (close != null);
         }
     }
 
@@ -363,8 +371,8 @@ final class Sheet {
                        (f == null) ? null : f.font,
                        (f == null) ? null : f.size,
                        (f == null) ? null : f.aa,
-                       r.color, Chrome.props(r.bg, r.border, r.padding, r.picture, r.caption, r.sizer,
-                                             r.close));
+                       r.color, Chrome.props(r.bg, r.border, r.padding, r.picture, r.emboss, r.caption,
+                                             r.sizer, r.close));
         }
     }
 
@@ -480,6 +488,8 @@ final class Sheet {
                 if(out.color == null)
                     throw new LuaError(ctx + ".color: expected a colour table with 0..255"
                         + " components — { 200, 210, 200 } or { r = 200, g = 210, b = 200, a = 255 }");
+            } else if("emboss".equals(p)) {
+                out.emboss = Chrome.parseEmboss(owner, ctx, pv);
             } else if("bg".equals(p)) {
                 out.bg = Chrome.parseBg(owner, ctx, pv);
             } else if("border".equals(p)) {
@@ -575,6 +585,8 @@ final class Sheet {
         final Addon fontOwner;
         /** The winning {@code color} property, or {@code null}. */
         final Color color;
+        /** The winning {@code emboss} property (065.14), or {@code null}. */
+        final Chrome.Emboss emboss;
         /** The winning {@code bg} property (035.1), or {@code null}. */
         final Chrome.Bg bg;
         /** The winning {@code border} property (035.1), or {@code null}. */
@@ -618,12 +630,13 @@ final class Sheet {
          */
         int recheck;
 
-        Resolved(FontHandle font, Addon fontOwner, Color color, Chrome.Bg bg, Chrome.Border border,
-                 Chrome.Pad padding, Chrome.Pic picture, Chrome.Spot caption, Chrome.Art sizer,
-                 Chrome.Close close, int gen) {
+        Resolved(FontHandle font, Addon fontOwner, Color color, Chrome.Emboss emboss, Chrome.Bg bg,
+                 Chrome.Border border, Chrome.Pad padding, Chrome.Pic picture, Chrome.Spot caption,
+                 Chrome.Art sizer, Chrome.Close close, int gen) {
             this.font = font;
             this.fontOwner = fontOwner;
             this.color = color;
+            this.emboss = emboss;
             this.bg = bg;
             this.border = border;
             this.padding = padding;
@@ -644,8 +657,9 @@ final class Sheet {
          * entirely, stamp, foundry rebuild and all (036.2).
          */
         boolean drawEmpty() {
-            return (font == null) && (color == null) && (bg == null) && (border == null) && (padding == null)
-                && (picture == null) && (caption == null) && (sizer == null) && (close == null);
+            return (font == null) && (color == null) && (emboss == null) && (bg == null) && (border == null)
+                && (padding == null) && (picture == null) && (caption == null) && (sizer == null)
+                && (close == null);
         }
     }
 
@@ -710,6 +724,7 @@ final class Sheet {
     private static final class SKey {
         final FontHandle font;
         final Color color;
+        final Chrome.Emboss emboss;
         final Chrome.Bg bg;
         final Chrome.Border border;
         final Chrome.Pad padding;
@@ -718,10 +733,11 @@ final class Sheet {
         final Chrome.Art sizer;
         final Chrome.Close close;
 
-        SKey(FontHandle font, Color color, Chrome.Bg bg, Chrome.Border border, Chrome.Pad padding,
-             Chrome.Pic picture, Chrome.Spot caption, Chrome.Art sizer, Chrome.Close close) {
+        SKey(FontHandle font, Color color, Chrome.Emboss emboss, Chrome.Bg bg, Chrome.Border border,
+             Chrome.Pad padding, Chrome.Pic picture, Chrome.Spot caption, Chrome.Art sizer, Chrome.Close close) {
             this.font = font;
             this.color = color;
+            this.emboss = emboss;
             this.bg = bg;
             this.border = border;
             this.padding = padding;
@@ -733,6 +749,7 @@ final class Sheet {
 
         public int hashCode() {
             return (System.identityHashCode(font) * 31) + ((color == null) ? 0 : color.hashCode())
+                + ((emboss == null) ? 0 : emboss.hashCode() * 3)
                 + ((bg == null) ? 0 : bg.hashCode() * 7) + ((border == null) ? 0 : border.hashCode() * 13)
                 + ((padding == null) ? 0 : padding.hashCode() * 23)
                 + ((picture == null) ? 0 : picture.hashCode() * 43)
@@ -747,6 +764,7 @@ final class Sheet {
             SKey k = (SKey)o;
             return (font == k.font)
                 && ((color == null) ? (k.color == null) : color.equals(k.color))
+                && ((emboss == null) ? (k.emboss == null) : emboss.equals(k.emboss))
                 && ((bg == null) ? (k.bg == null) : bg.equals(k.bg))
                 && ((border == null) ? (k.border == null) : border.equals(k.border))
                 && ((padding == null) ? (k.padding == null) : padding.equals(k.padding))
@@ -820,6 +838,13 @@ final class Sheet {
             // places of its own: those DO have a name, and naming them is the whole difference.
             public Fonts.Picture picture(String scope, Widget w) {
                 return Chrome.picture(scope, w);
+            }
+
+            // 065.14 - ...and the one answer here that paints nothing: whether the client's own RELIEF is cut
+            // through an embossed surface's letters, and with what. It takes no widget because an embossed
+            // site builds its furnace from a static its whole client shares.
+            public Fonts.Relief emboss(String scope) {
+                return Chrome.emboss(scope);
             }
         });
     }
@@ -1011,7 +1036,8 @@ final class Sheet {
      * site every frame). Caller holds {@code Sheet.class}.
      */
     private static Fonts.Style specFor(Resolved r) {
-        SKey k = new SKey(r.font, r.color, r.bg, r.border, r.padding, r.picture, r.caption, r.sizer, r.close);
+        SKey k = new SKey(r.font, r.color, r.emboss, r.bg, r.border, r.padding, r.picture, r.caption, r.sizer,
+                          r.close);
         Fonts.Style s = specs.get(k);
         if(s == null) {
             FontHandle font = r.font;
@@ -1022,7 +1048,7 @@ final class Sheet {
                                             (font == null) ? null : font.size,
                                             (font == null) ? null : font.aa,
                                             r.color, Chrome.props(r.bg, r.border, r.padding, r.picture,
-                                                                  r.caption, r.sizer, r.close)));
+                                                                  r.emboss, r.caption, r.sizer, r.close)));
         }
         return s;
     }
@@ -1039,6 +1065,7 @@ final class Sheet {
         FontHandle font = null;
         Addon fontOwner = null;
         Color color = null;
+        Chrome.Emboss emboss = null;
         Chrome.Bg bg = null;
         Chrome.Border border = null;
         Chrome.Pad padding = null;
@@ -1050,7 +1077,7 @@ final class Sheet {
         Coord size = null;
         Addon posOwner = null, sizeOwner = null;
         int frank = -1, crank = -1, grank = -1, brank = -1, prank = -1, xrank = -1, zrank = -1;
-        int arank = -1, srank = -1, krank = -1, qrank = -1;
+        int arank = -1, srank = -1, krank = -1, qrank = -1, erank = -1;
         for(int i = 0; i < installed.size(); i++) {
             Sheet s = installed.get(i);
             for(int j = 0; j < s.tree.size(); j++) {
@@ -1062,6 +1089,9 @@ final class Sheet {
                 }
                 if((r.color != null) && (r.rank >= crank)) {
                     color = r.color; crank = r.rank;
+                }
+                if((r.emboss != null) && (r.rank >= erank)) {
+                    emboss = r.emboss; erank = r.rank;
                 }
                 if((r.bg != null) && (r.rank >= grank)) {
                     bg = r.bg; grank = r.rank;
@@ -1100,6 +1130,8 @@ final class Sheet {
             }
             if(s.p.color != null)
                 color = s.p.color;
+            if(s.p.emboss != null)
+                emboss = s.p.emboss;
             if(s.p.bg != null)
                 bg = s.p.bg;
             if(s.p.border != null)
@@ -1117,8 +1149,8 @@ final class Sheet {
             // No layout here: widget:rule() cannot carry position/size (LuaRule refuses it). The hand-named level
             // of the LAYOUT cascade is the verb, and Layout folds it in above this whole result.
         }
-        Resolved out = new Resolved(font, fontOwner, color, bg, border, padding, picture, caption, sizer,
-                                    close, treegen);
+        Resolved out = new Resolved(font, fontOwner, color, emboss, bg, border, padding, picture, caption,
+                                    sizer, close, treegen);
         out.pos = pos;
         out.posOwner = posOwner;
         out.size = size;
@@ -1231,6 +1263,8 @@ final class Sheet {
             t.set("font", FontApi.handleFor(reader, r.font, r.fontOwner));
         if(r.color != null)
             t.set("color", AddonManager.color(r.color));
+        if(r.emboss != null)
+            t.set("emboss", r.emboss.toLua(reader));
         if(r.bg != null)
             t.set("bg", r.bg.toLua(reader));
         if(r.border != null)

@@ -187,8 +187,12 @@ public class Window extends Widget {
 	    int g = Fonts.gen();
 	    if((cf == null) || (fontgen != g)) {
 		Text.Foundry f = Fonts.foundry("window.title", titlefnd);
-		cf  = new PUtils.BlurFurn(new PUtils.TexFurn(f, ctex), UI.rscale(0.75), UI.rscale(1.0), new Color(96, 96, 0));
-		ncf = new PUtils.BlurFurn(new PUtils.TexFurn(f, ctex), UI.rscale(0.75), UI.rscale(1.0), Color.BLACK);
+		// addon: (065.14) the RELIEF the caption's letters are cut out of -- `ctex` tiled through the glyph
+		// mask, exactly as before, unless a rule names its own texture or drops it. Dropping it is what lets a
+		// `color` rule reach a caption at all, and the blur below is untouched either way.
+		Text.Forge e = Fonts.emboss("window.title", f, ctex);
+		cf  = new PUtils.BlurFurn(e, UI.rscale(0.75), UI.rscale(1.0), new Color(96, 96, 0));
+		ncf = new PUtils.BlurFurn(e, UI.rscale(0.75), UI.rscale(1.0), Color.BLACK);
 		fontgen = g;
 	    }
 	}

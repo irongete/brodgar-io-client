@@ -251,5 +251,9 @@ Tagged with the tasks that need them; an untagged line is read by every task.
 - `docs/client/gameui-windows.md` — 13, 17 (the seven `Hidepanel`s and the plates on them: which are blits
   inside a widget's own `draw` and which are `Img` children, and that `beltwdg` is in no panel and is one of
   two belt widgets, only one of which has a plate at all)
-- `src/haven/PUtils.java`, `Text.java` — 14, 15
+- `src/haven/PUtils.java`, `Text.java` — 14, 15 (the furnace stack: `Forge`/`Furnace`/`OffsetForge`, and the
+  two decorators every embossed site wraps its foundry in — now mapped in `docs/client/text-and-fonts.md`)
+- `src/haven/Resource.java`, `TexI.java` — 2, 14: where a picture's **AWT raster** comes from, as opposed to
+  its `Tex`. `Resource.loadsimg` is the scaled view (what `Window.ctex` itself is) and `TexI.back` is the
+  image behind an addon's own handle — the pair anything composing on the CPU rather than blitting needs
 - `addons/065-theming-depth.<N>/` — each task its own

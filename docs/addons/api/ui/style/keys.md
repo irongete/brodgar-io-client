@@ -111,9 +111,9 @@ what the surface *does* with a property. First the two that write text:
 | Key | `font` | `color` | Worth knowing |
 |---|---|---|---|
 | `*` | yes | yes | cascades to every key you do not write, including the colour |
-| `window.title` | yes | **inert** | an *embossed* surface: a texture is tiled through the glyph mask, so there is nothing left to tint |
-| `heading` | yes | **inert** | embossed the same way. Two stock sizes ride this key and a size-less rule keeps each |
-| `button` | yes | **partly** | the ordinary caption is embossed, so inert; a `wrapped` multi-line caption, or one the client sets *with* a colour, follows the rule. Stock is bold serif 12, so a serif 12 rule installs correctly and looks like nothing happened |
+| `window.title` | yes | **with `emboss(false)`** | an *embossed* surface: a texture is tiled through the glyph mask, so there is nothing left to tint until [the relief is dropped](text.md#emboss) |
+| `heading` | yes | **with `emboss(false)`** | embossed the same way. Two stock sizes ride this key and a size-less rule keeps each |
+| `button` | yes | **partly** | the ordinary caption is embossed, so it needs `emboss(false)` too; a `wrapped` multi-line caption, or one the client sets *with* a colour, follows a `color` rule as it stands. Stock is bold serif 12, so a serif 12 rule installs correctly and looks like nothing happened |
 | `label` | yes | yes | a larger `size=` clips: row heights were measured at construction |
 | `textentry` | yes | yes | a larger `size=` clips: a field's height comes from its background, not the font — and a `bg` **is** a background, so the art you give it is what a field built afterwards is as tall as |
 | `tooltip` | yes | yes | `$col[…]` rows keep their own colour; `size=` is safe, since a tip sizes its box around its text |
@@ -121,8 +121,21 @@ what the surface *does* with a property. First the two that write text:
 | `chat` | yes | yes | colour is how you tell area from party from private: one rule paints them alike |
 | `world.nick` | yes | yes | a `color` rule flattens the kin-**group** colours; a font-only rule leaves them |
 | `world.speech` | yes | **inert** | the bubble blits its finished text under a flat black tint, so the glyph colour is thrown away on the way to the screen. `size=` is safe — the bubble measures its frame around the text every frame |
-| any tree key | yes | **per surface** | [resolved per widget](#tree-keys) and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats unchanged: a rule on a window covers the window's own caption, where `font` works and `color` is inert. `:style()` reports the colour a rule set even where the surface then throws it away |
+| any tree key | yes | **per surface** | [resolved per widget](#tree-keys) and drawn over that widget's whole subtree. It reaches the same surfaces as the rows above and carries their caveats unchanged: a rule on a window covers the window's own caption, where `font` works and `color` waits on an `emboss`. `:style()` reports the colour a rule set even where the surface then throws it away |
 | `widget:rule()` | yes | **per surface** | the same, one widget at a time and named by hand rather than matched. Being the top of the cascade changes *who wins*, never *what a surface can do* |
+
+And the one that decides which of those two a carved surface listens to.
+[`emboss`](text.md#emboss) reaches the keys the client renders as a **mask** and fills with a picture, which
+is exactly the set where `color` is inert until it is dropped.
+
+| Key | `emboss` | Worth knowing |
+|---|---|---|
+| `window.title` | yes | the caption, in the theme's texture or in the rule's flat `color`. The plate behind it is [`bg`](chrome.md#bg) on the same key, and the two are independent |
+| `heading` | yes | both sizes of in-window section heading, the big fraktur ones and the smaller group captions above a grid |
+| `button` | yes | the ordinary button caption. A `wrapped` one was never embossed, so it is unaffected either way |
+| `*` | **cascades** | into those three and nowhere else, they being the only surfaces the client carves. So one rule on `*` flattens every carved caption in the client at once |
+| a tree key, and `widget:rule()` | yes | resolved per widget and drawn over its whole subtree, so `["window[title=Inventory]"]` flattens one window's caption and leaves every other window carved |
+| every other key | **inert** | nothing else in the client draws its text through a mask. Readable back through `:style()`, and inert everywhere it lands |
 
 And the three that draw the chrome. The surfaces that wear them are the ones that draw a box of their own:
 the window decoration, the caption plate inside it, the window-less panels, the box a tooltip is popped up
@@ -190,9 +203,10 @@ And the three that lay widgets out. This table is short because the answer is: a
 
 **Where `color` is inert, the glyph colour is thrown away before anything reaches the screen.** Most of
 those surfaces are *embossed*: the client renders the text as a mask, tiles a texture through it and blurs
-a shadow behind, so there is nothing left for a rule to override. The speech bubble instead blits its
-finished text under a flat black tint, which comes to the same thing. All of them still follow a `font`
-rule perfectly. Nothing is refused and nothing warns.
+a shadow behind, so there is nothing left for a rule to override until [`emboss(false)`](text.md#emboss)
+stops the tiling — which is what that property is for. The speech bubble is the one that stays inert
+whatever you write: it blits its finished text under a flat black tint, and no rule reaches inside that.
+All of them still follow a `font` rule perfectly. Nothing is refused and nothing warns.
 
 Three more limits are structural rather than per-key, and none of them is a bug to report:
 

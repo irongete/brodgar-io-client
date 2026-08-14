@@ -1,0 +1,9 @@
+{
+  "name": "065.14 — emboss, and the colour it gives back",
+  "id": "065-theming-depth.14",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.14: emboss(false) drops the client's relief so a color rule reaches a carved caption, emboss{texture=...} tiles the theme's own, and a key with no emboss keeps the client's.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

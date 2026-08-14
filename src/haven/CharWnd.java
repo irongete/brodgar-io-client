@@ -58,8 +58,12 @@ public class CharWnd extends Window {
 	int g = Fonts.gen();
 	if((bcatf == null) || (capgen != g)) {
 	    Text.Foundry f = Fonts.foundry("heading", capfnd);
-	    bcatf  = (f == capfnd) ? catf  : new BlurFurn(new TexFurn(f, Window.ctex), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
-	    bfailf = (f == capfnd) ? failf : new BlurFurn(new TexFurn(f, failtex),     UI.scale(3), UI.scale(2), new Color(96, 48, 0));
+	    // addon: (065.14) ...and the RELIEF each is cut out of, which a rule may re-texture or drop -- so the
+	    // stock-identity fast path widens from "no font override" to "no override at all", a heading being
+	    // embossed with two different textures and neither of them the foundry.
+	    boolean stock = (f == capfnd) && !Fonts.styled();
+	    bcatf  = stock ? catf  : new BlurFurn(Fonts.emboss("heading", f, Window.ctex), UI.scale(3), UI.scale(2), new Color(96, 48, 0));
+	    bfailf = stock ? failf : new BlurFurn(Fonts.emboss("heading", f, failtex),     UI.scale(3), UI.scale(2), new Color(96, 48, 0));
 	    capgen = g;
 	}
     }

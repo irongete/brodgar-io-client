@@ -181,7 +181,7 @@ in stage A before any surface is routed against it.
       `[manual]`: expect the belt across the bottom, the two menu backgrounds at the corners and the
       minimap's frame all in the theme's art, with every button on them still clickable where it was.
 
-- [ ] **065.14 — `emboss`, and the colour it gives back.** `emboss = false` drops the `PUtils.TexFurn` a
+- [x] **065.14 — `emboss`, and the colour it gives back.** `emboss = false` drops the `PUtils.TexFurn` a
       surface tiles through its glyph mask; `emboss{texture = <art>}` tiles the theme's own. It reaches the
       five surfaces that are embossed today — `window.title`, `heading`, `button`, and the two furnaces
       `CharWnd`/`GridList` build — through the foundry each already resolves. With `emboss = false` a

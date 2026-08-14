@@ -28,6 +28,7 @@ package haven;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -473,6 +474,28 @@ public class Fonts {
         public void draw(GOut g, Coord ul, Coord sz);
     }
 
+    /**
+     * What a rule says about an <b>embossed</b> site's relief (065.14) — the one property here that is neither
+     * a surface nor a frame, but the texture the client tiles through its own glyph <i>mask</i>.
+     *
+     * <p>Five of this client's text surfaces are drawn that way ({@link #emboss}), which is exactly why a
+     * {@code color} rule cannot reach them: there is no glyph colour left by the time anything is blitted, only
+     * a picture cut to the shape of the letters. So the property that names the relief is also the property
+     * that <b>turns it off</b>, and turning it off is what hands those glyphs back to the foundry — and to the
+     * rule's own colour.
+     *
+     * <p>Opaque like every other value the addon layer parks in a style: this class carries it and asks it one
+     * question at the moment a furnace is built.
+     */
+    public interface Relief {
+        /**
+         * The texture tiled through the glyph mask: the theme's own, {@code stock} where the art it named is
+         * gone, or {@code null} — <b>no relief at all</b>, so the letters keep the colour the foundry rendered
+         * them in.
+         */
+        public BufferedImage texture(BufferedImage stock);
+    }
+
     /** The chrome-paint source (065.4) — installed once by the addon layer; {@code null} in a stock client. */
     public interface Chromes {
         /** Paint {@code scope}'s own surface and frame over {@code [ul, ul+sz)}; {@code false} when no rule names it. */
@@ -487,6 +510,8 @@ public class Fonts {
         public Coord size(String scope);
         /** The picture {@code wdg} resolves to at {@code scope} ({@code null} = the per-widget cascade alone), or {@code null}. */
         public Picture picture(String scope, Widget wdg);
+        /** What {@code scope}'s rule says about its relief, or {@code null} when it says nothing (065.14). */
+        public Relief emboss(String scope);
     }
     private static volatile Chromes chromes = null;
 
@@ -602,6 +627,41 @@ public class Fonts {
             return null;                  // fast path: no override anywhere
         Chromes src = chromes;
         return (src == null) ? null : src.picture(scope, wdg);
+    }
+
+    /**
+     * The <b>relief</b> an embossed site builds its furnace around (065.14): {@code bk} with {@code stock}
+     * tiled through its glyph mask — what this client has always drawn — or the texture a rule names instead,
+     * or {@code bk} <b>bare</b> where the rule says {@code emboss = false}.
+     *
+     * <p>Five surfaces are drawn this way, and each of them says so at the one place it builds its furnace over
+     * the foundry {@link #foundry(String, Text.Foundry)} just resolved: a window's caption
+     * ({@code Window.DefaultDeco}), a section heading and its failed twin ({@code CharWnd}), a group heading
+     * ({@code GridList}) and a button's caption ({@code Button}). Each therefore rebuilds on the same
+     * {@link #gen()} check it already performs for its font, and needs no second one.
+     *
+     * <p><b>Dropping the {@link PUtils.TexFurn} is what lets a {@code color} rule reach those glyphs</b>, which
+     * is the whole point of the property: a texture cut to the shape of the letters leaves no colour to
+     * override, so the only way to paint a caption is to stop tiling one. The blur behind them is a separate
+     * furnace and is untouched here.
+     *
+     * <p>Resolved through the site half of the cascade with the ambient per-widget frame above it — the very
+     * chain the foundry beneath it resolved through — so the two halves of one caption cannot disagree about
+     * which rule won. A client with no addon pays one {@code volatile} read and builds the furnace it always
+     * built.
+     */
+    public static Text.Forge emboss(String scope, Text.Forge bk, BufferedImage stock) {
+        BufferedImage tex = stock;
+        if(active) {
+            Chromes src = chromes;
+            Relief r = (src == null) ? null : src.emboss(scope);
+            if(r != null) {
+                tex = r.texture(stock);
+                if(tex == null)
+                    return bk;            // `emboss = false`: no relief, so the foundry's own colour survives
+            }
+        }
+        return new PUtils.TexFurn(bk, tex);
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {
