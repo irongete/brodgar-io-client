@@ -86,7 +86,7 @@ Derived impact set — `grep -rniE "(terrain|ground).*(is drawn|not drawn|stream
 - `src/haven/MiniMap.java` — 1, 3
 - `src/haven/AddonWidgets.java` — 1
 - `src/haven/MapMesh.java` — 1, 2
-- `src/haven/MapView.java` — 2, 3
+- `src/haven/MapView.java` — 2, 3, 4
 - `docs/client/mapfile.md` — 1, 3
 - `docs/client/minimap.md` — 1, 3
 - `docs/client/state.md` — 1, 2

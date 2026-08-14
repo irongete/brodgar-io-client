@@ -759,6 +759,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	for(FleetView fv : fleetviews.values())
 	    fv.remove();
 	fleetviews.clear();
+	droprecall();   // 068.2: a dormant view draws no ground of its own and none it remembers
 	if(s_gobs != null)     {s_gobs.remove();     s_gobs = null;}
 	if(s_terrain != null)  {s_terrain.remove();  s_terrain = null;}
 	if(s_clickmap != null) {s_clickmap.remove(); s_clickmap = null;}
@@ -1473,22 +1474,117 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private double lastreq = 0, lastfleet = 0;
 
     /* 068: the remembered ground's source -- an MCache of its own, filled out of the map database.
-     * Built on the first tick that has a minimap to take sessloc from, and nothing is drawn out of it
-     * here: this holds the read back, and :recall is what reports it. */
+     * Built on the first tick that has a minimap to take sessloc from; RecallTerrain below is what
+     * draws it, and :recall is what reports it. */
     private io.brodgar.rts.Recall recall = null;
+    private RecallTerrain recallterrain = null;
+    private RenderTree.Slot s_recall = null;
+    private boolean recallon = true;
+    private double lastrecall = 0;
+
+    /* 068.2: the remembered ground, in the scene.
+     *
+     * The client's own Terrain centres its area on getcc() -- the player's own cut -- so a camera panned
+     * off the character arrives at a void, and widening THAT raster is not the fix: every cut outside the
+     * streamed set calls MCache.getgrid, which asks the server for ground the character is nowhere near.
+     * This is the same machinery pointed at the source filled from the map database instead, which has
+     * that ground already and no wire to ask down.
+     *
+     * Three things make it a second raster rather than a second copy of the first.
+     *
+     * The area is centred on where the CAMERA is looking, and it is bounded by what the source has
+     * actually read: Recall fills a square of grids around that same point, and this draws all of it but
+     * the outermost ring. That ring is the fill margin MapMesh.dotrans needs -- the transition pass reads
+     * one tile across the cut edge, so a cut with no neighbour grid throws LoadingMap and never completes.
+     * Drawing to the edge of the fill would leave a permanent ring of Loading cuts, each of them putting
+     * its absent neighbour into a request queue nothing may ever send.
+     *
+     * It yields every cut the live Terrain claims. The two sources hold the SAME ground wherever they
+     * overlap -- same tiles, same heights, straight off the same server -- so drawing both is not a merge
+     * but one mesh laid on its twin, which is z-fighting. The live one wins, exactly as the anchor wins
+     * over a fleet member's patch, and the join has no step in it because the height either side came from
+     * the same record.
+     *
+     * It culls unconditionally rather than on the cullterrain option. That setting exists because ground
+     * culled around the player stops casting into the shadow map, which is a trade the player makes for
+     * themselves; this ground is masked out of the shadow pass at its slot regardless (the shadow box is
+     * 750 units around the character and this is by definition somewhere else), so the one reason to keep
+     * an invisible cut cannot apply to it. */
+    private class RecallTerrain extends MapRaster {
+	/* Computed once per tick, so the frustum test runs once per cut rather than once per grid tick. */
+	final Set<Coord> vis = new HashSet<>();
+	Coord2d center = null;
+
+	final Grid main = new Grid<MapMesh>() {
+		MapMesh getcut(Coord cc) {
+		    return(map.getcut(cc));
+		}
+	    };
+
+	RecallTerrain(MCache map) {
+	    super(map);
+	}
+
+	void tick() {
+	    Coord2d c = this.center;
+	    if(c == null) {
+		area = null;
+		return;
+	    }
+	    /* In grids rather than in cuts, because grids are the unit the source reads and the margin is
+	     * a grid wide. cutn is cmaps/cutsz, so a grid coord scales to the cut coord of its corner. */
+	    Coord gc = c.floor(tilesz).div(MCache.cmaps);
+	    int r = io.brodgar.rts.Recall.radius - 1;
+	    area = new Area(gc.sub(r, r).mul(MCache.cutn), gc.add(r + 1, r + 1).mul(MCache.cutn));
+	    vis.clear();
+	    for(Coord cc : area) {
+		if(cutvisible(cc))
+		    vis.add(cc);
+	    }
+	    main.tick();
+	}
+
+	boolean skipcut(Coord cc) {
+	    Area own = terrain.area;
+	    if((own != null) && own.contains(cc))
+		return(true);
+	    if(!vis.contains(cc))
+		return(true);
+	    /* Ask the cache what it HOLDS rather than let getcut ask for it. MCache.getcut ends in
+	     * getgrid, which on a miss queues a request -- harmless on a source nothing sends for, but it
+	     * fills that queue with every unrecorded grid in the area and buries the one number :recall
+	     * exists to report. Ground the character has never walked is simply not drawn. */
+	    return(AddonWidgets.loadedGrid(map, cc.div(MCache.cutn)) == null);
+	}
+
+	public void added(RenderTree.Slot slot) {
+	    slot.add(main);
+	    super.added(slot);
+	}
+    }
+
+    private void droprecall() {
+	if(s_recall != null) {
+	    s_recall.remove();
+	    s_recall = null;
+	}
+    }
 
     private void recalltick() {
 	GameUI gui = getparent(GameUI.class);
 	MiniMap mm = (gui == null) ? null : gui.mmap;
-	if(mm == null)
+	if(mm == null) {
+	    droprecall();
 	    return;
+	}
 	if(recall == null)
 	    recall = new io.brodgar.rts.Recall(glob.sess);
 	/* Where the ground is read around. The RTS camera is the one that leaves the character, and it
 	 * is the reason the record is read at all; every other camera is bolted to the player, where
 	 * getcc() says the same thing. */
+	boolean rts = camera instanceof RTSCam;
 	Coord2d c = null;
-	if(camera instanceof RTSCam)
+	if(rts)
 	    c = ((RTSCam)camera).center();
 	if(c == null) {
 	    try {
@@ -1498,6 +1594,35 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    }
 	}
 	recall.tick(mm, c);
+	/* The raster goes in with the RTS camera and comes out with it. Every other camera is bolted to
+	 * the character, where the live Terrain already draws everything in view and this would have
+	 * nothing to add but a second mesh over the first -- and with the raster out of the tree its
+	 * grids stop being meshed at all, which is the whole of what it costs. */
+	if(!recallon || !rts || (c == null)) {
+	    droprecall();
+	    return;
+	}
+	if(recallterrain == null)
+	    recallterrain = new RecallTerrain(recall.map);
+	if(s_recall == null) {
+	    /* ShadowMap.ShadowList.add mirrors every lit slot into the shadow pass and skips only one
+	     * carrying maskshadow, so without this every recalled cut is rasterized twice -- for a shadow
+	     * box of 750 units around the player that this ground is, by construction, outside of. */
+	    /* No lockstate() here, unlike a FleetView's slot: what locks a descendant is a Composited gob
+	     * or a click-map cut, and this subtree holds neither -- only MapMesh cuts, exactly as the
+	     * plain Terrain slot beside it does. Locking a slot whose state has already been used throws,
+	     * and adding the node is what uses it. */
+	    s_recall = basic.add(recallterrain, ShadowMap.maskshadow);
+	}
+	/* The cut set changes at panning pace, and maintaining it is a frustum test per cut of a square
+	 * far larger than the one the live raster keeps. Five times a second delays a cut entering the
+	 * scene by rather less than building its mesh does. */
+	double now = Utils.rtime();
+	if((now - lastrecall) < 0.2)
+	    return;
+	lastrecall = now;
+	recallterrain.center = c;
+	recallterrain.tick();
     }
 
     /* rts: every frame, unlike fleettick() -- an animated pose that is 200ms stale is a visible jump. */
@@ -2572,7 +2697,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    e.boostprio(5);
 	    camload = e;
 	}
-	recalltick();   // 068: read the ground the character remembers, out of the map database
 	basic(Camera.class, camera);
 	amblight();
 	updsmap(amblight);
@@ -2585,6 +2709,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		gridlines.tick();
 	    clickmap.tick();
 	}
+	/* 068: read the ground the character remembers out of the map database, and draw it. AFTER the
+	 * live terrain and outside its lock: the recalled raster yields every cut terrain.area holds, so
+	 * it wants this frame's area rather than the last one's, and nothing it touches is behind that
+	 * monitor. */
+	recalltick();
 	Loader.Future<Plob> placing = this.placing;
 	if((placing != null) && placing.done()) {
 	    Plob ob = placing.get();
@@ -3390,14 +3519,28 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	/* 068: what the remembered ground's source is based on, what it has read back and what it
 	 * costs. The request counts are the ones that matter: a source filled from the map database
 	 * that puts anything on the wire is asking the server about ground the character is nowhere
-	 * near, which is the one thing this must not do. */
+	 * near, which is the one thing this must not do. `off` and `on` take the raster out of the
+	 * scene and put it back, which is how "with it off the scene is what it is today" is a thing
+	 * the maintainer can check without a rebuild. */
 	cmdmap.put("recall", new Console.Command() {
 		public void run(Console cons, String[] args) throws Exception {
+		    if(args.length >= 2) {
+			if(args[1].equals("off"))
+			    recallon = false;
+			else if(args[1].equals("on"))
+			    recallon = true;
+			else
+			    throw(new Exception("recall: no such argument `" + args[1] + "' -- off, on, or nothing"));
+		    }
 		    io.brodgar.rts.Recall r = recall;
 		    if(r == null)
 			throw(new Exception("recall: no source yet -- no minimap to take a session location from"));
 		    for(String ln : r.report())
 			cons.out.println(ln);
+		    cons.out.println(String.format("recall: drawing %s, raster %s, cuts drawn %d",
+						   recallon ? "on" : "off",
+						   (s_recall == null) ? "out of the scene" : "in the scene",
+						   (recallterrain == null) ? 0 : recallterrain.main.cuts.size()));
 		}
 	    });
 	cmdmap.put("whyload", new Console.Command() {

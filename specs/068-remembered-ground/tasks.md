@@ -20,7 +20,7 @@
       `[manual]`: walk into a cave or a house, run `:recall` — expect it to report a different
       segment and no grids, rather than grids from the segment you left.
 
-- [ ] **068.2 — The camera looks at remembered ground and finds it.** Adds
+- [x] **068.2 — The camera looks at remembered ground and finds it.** Adds
       `MapView.RecallTerrain extends MapRaster` over the recalled cache: `area` centred on
       `RTSCam.center()`, `skipcut` yielding every cut the live `Terrain` holds and everything
       `cutvisible` rejects, `ShadowMap.maskshadow` on its slot, a one-grid fill margin so `dotrans`
