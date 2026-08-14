@@ -242,7 +242,7 @@ in stage A before any surface is routed against it.
       indistinguishable from the same client with no sheet at all: the window frame's tiled runs, its
       caption plate, the shading down its sides and the foot piece on its left edge, all present.
 
-- [ ] **065.18 — the sweep, and the theme the guide ships.** Discharges the impact set the spec derived —
+- [x] **065.18 — the sweep, and the theme the guide ships.** Discharges the impact set the spec derived —
       every page carrying `pad`, both boundary paragraphs about state and hover, and every "embossed, so
       `color` is inert" sentence, which is revised rather than deleted. Rewrites `guides/theming.md` around
       a **theme file** short enough to read that still names one property of each of the four kinds, plus

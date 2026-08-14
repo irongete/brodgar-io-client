@@ -1,0 +1,9 @@
+{
+  "name": "065.18 — the sweep, and the theme the guide ships",
+  "id": "065-theming-depth.18",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.18: the guide's own theme file installs and every rule in it reads back what the page says, and every key this vocabulary adds resolves as a site key.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

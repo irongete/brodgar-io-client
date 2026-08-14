@@ -49,7 +49,7 @@ and are **not** routed.
 ## The chat's colours, one per kind
 
 There is no table of them anywhere: a chat line's colour is a literal at the place the line is **built**,
-and the seven live in three classes. Nothing distinguishes the kinds at the render — every one of them is a
+and they live in three classes. Nothing distinguishes the kinds at the render — every one of them is a
 `SimpleMessage` or a `NamedMessage` carrying a `Color` — so the only way to tell a System line from a
 private one is **which channel it was appended to**, or which `Message` subclass built it.
 

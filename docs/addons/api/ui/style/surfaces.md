@@ -26,8 +26,9 @@ s:rule("button"):remove()                            -- buttons fall back to the
 
 The caption in a window's title bar, drawn by the window's **decoration** rather than placed as a widget of
 its own — which is why it is a site and not a role. `window[title=…]` names the window that carries the
-caption, not the caption itself. It is **embossed**, so it follows a `font` rule and a `color` rule is
-inert. Each **visible** window re-renders its caption on the frame after the rule moves.
+caption, not the caption itself. It is **embossed** — a texture tiled through the glyph mask — so it
+follows a `font` rule as it stands while a `color` waits on an [`emboss(false)`](text.md#emboss) beside it.
+Each **visible** window re-renders its caption on the frame after the rule moves.
 
 This key also carries the **plate** the caption sits on: a `bg` or a `border` here fills the box the client
 sizes around the caption, so a longer title makes a wider plate and the rule only says what fills it. The
@@ -133,9 +134,9 @@ it. The caption is drawn **between** them, as it always was: over the fill, unde
 The stock caption font is **bold serif 12**, so overriding `button` with a serif handle at size 12 installs
 correctly and looks like nothing happened. Pick a contrasting family when you want to see the change.
 
-`color` reaches only part of this key: the ordinary caption is embossed, so a colour rule is inert on it,
-while a `wrapped` multi-line caption and any caption the client sets *with* a colour of its own do follow
-it, both rendering through the plain foundry.
+`color` reaches only part of this key on its own: the ordinary caption is embossed, so a colour rule needs
+an [`emboss(false)`](text.md#emboss) beside it there, while a `wrapped` multi-line caption and any caption
+the client sets *with* a colour of its own follow it as it stands, both rendering through the plain foundry.
 
 Two surfaces are deliberately not in this key: a button that is a **picture** rather than a box with a
 caption in it — the icon buttons, the character-selection list entries — and button-shaped widgets that are
@@ -230,7 +231,7 @@ bar nor body text, so you can restyle one without the others.
 Two stock sizes ride this key, window headings and group captions, and a rule with no `size=` keeps each of
 them, so nothing around a heading moves. Headings are baked into an image, so the client rebuilds it and
 re-renders each **visible** heading on the frame after the rule moves. Being embossed is also why a `color`
-rule is inert here, exactly as on a window caption.
+rule wants an [`emboss(false)`](text.md#emboss) beside it here, exactly as on a window caption.
 
 ## `label`
 

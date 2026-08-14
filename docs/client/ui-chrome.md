@@ -33,20 +33,18 @@ does not paint is transparent black, not a background.
 
 ## `IBox` — the 9-slice, and the window-LESS panels that draw one
 
-`IBox` is an **interface**: `draw(g, tl, sz)` plus six measuring methods —
-`btloff`/`ctloff` (top-left border / corner offsets), `bbroff`/`cbroff`, `bisz` (total border size),
-`cisz` (total corner size). `IBox.Images` holds the eight textures and derives all six
-from them; `IBox.Scaled` is the only `draw` — corners at their own size, edges
-stretched between them, **centre never painted**.
+`IBox` is an **interface**: `draw(g, tl, sz)` plus six measuring methods — `btloff`/`ctloff` (top-left
+border and corner offsets), `bbroff`/`cbroff`, `bisz` (total border size), `cisz` (total corner size).
+`IBox.Images` holds the eight textures and derives all six from them; `IBox.Scaled` is the only `draw` —
+corners at their own size, edges stretched between them, **centre never painted**.
 
 **The eight pieces are named by suffix, and the client spells the edges two ways.**
 `IBox.Images(String base, ctl, ctr, cbl, cbr, bl, br, bt, bb)` is `Resource.loadtex(base + "/" + suffix)`
 eight times, and every call site passes the corners as `tl`/`tr`/`bl`/`br`. The edges are
 `el`/`er`/`et`/`eb` in `ISBox.box` (`gfx/hud/bosq`) and `Speaking.sb` (`gfx/hud/emote`), but
 `extvl`/`extvr`/`extht`/`exthb` in `Window.wbox` (`gfx/hud/wnd`) — the folders carry one set or the other,
-not both, so anything resolving a box from a folder name has to try each. `loadtex` is
-`loadrimg(name).tex()`, i.e. `Resource.Image.scaled()`, so all eight arrive **device-sized**; see
-[ui-scaling.md](ui-scaling.md).
+not both, so anything resolving a box from a folder name has to try each. `loadtex` is `loadrimg(name).tex()`,
+i.e. `Resource.Image.scaled()`, so all eight arrive **device-sized**; see [ui-scaling.md](ui-scaling.md).
 
 | Who draws one | Where |
 |---|---|

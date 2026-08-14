@@ -1,0 +1,9 @@
+{ "rules": {
+    "*":            { "font": { "builtin": "serif", "size": 11 } },
+    "window.frame": { "border": { "box": "gfx/hud/wnd", "mode": "tile" },
+                      "bg": [ { "res": "gfx/hud/wnd/lg/bg",  "mode": "tile" },
+                              { "res": "gfx/hud/wnd/lg/bgl", "at": "left", "mode": "tile" } ],
+                      "padding": [8, 24, 8, 8] },
+    "chat":         { "color": [190, 210, 190] },
+    "chat.speaker": { "color": { "palette": [[220, 190, 140], [150, 200, 220]] } }
+} }
