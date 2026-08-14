@@ -70,11 +70,20 @@ public class Img extends Widget {
 	return(img);
     }
 
+    // addon: 065.13 -- the style SITE this picture is one of, for the few the CLIENT itself places at a fixed
+    // spot (the minimap's frame, the action-search plate). Null on every other Img -- every one the server
+    // places -- which are named by a tree rule alone, one @Img being indistinguishable from the next.
+    private String site = null;
+    public Img site(String scope) {
+	this.site = scope;
+	return(this);
+    }
+
     public void draw(GOut g) {
 	// addon: 065.12 -- a `picture` rule paints the whole plate instead, read HERE rather than written into
 	// the widget: setimg is the server's (uimsg "ch"), so a write would be clobbered and would fight the
 	// restore when the rule goes away. Null -- the answer a stock client always gives -- draws the client's own.
-	Fonts.Picture p = Fonts.picture(this);
+	Fonts.Picture p = Fonts.picture(site, this);
 	if(p != null)
 	    p.draw(g, Coord.z, sz);
 	else

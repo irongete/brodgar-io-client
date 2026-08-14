@@ -300,12 +300,14 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	umpanel = add(new Hidepanel("gui-um", null, new Coord( 0, -1)));
 	urpanel = add(new Hidepanel("gui-ur", null, new Coord( 1, -1)));
 	mapmenupanel.add(new MapMenu(), 0, 0);
-	blpanel.add(new Img(Resource.loadtex("gfx/hud/blframe")), 0, 0);
+	// addon: 065.13 -- two of the HUD's plates are Imgs the CLIENT places, so each carries the site key that
+	// names it; every other Img in the client is the server's and keeps a null site.
+	blpanel.add(new Img(Resource.loadtex("gfx/hud/blframe")).site("minimap.frame"), 0, 0);
 	minimapc = new Coord(UI.scale(4), UI.scale(34));
 	Tex rbtnbg = Resource.loadtex("gfx/hud/csearch-bg");
 	Img brframe = brpanel.add(new Img(Resource.loadtex("gfx/hud/brframe")), rbtnbg.sz().x - UI.scale(22), 0);
 	menugridc = brframe.c.add(UI.scale(20), UI.scale(34));
-	Img rbtnimg = brpanel.add(new Img(rbtnbg), 0, brpanel.sz.y - rbtnbg.sz().y);
+	Img rbtnimg = brpanel.add(new Img(rbtnbg).site("hud.search"), 0, brpanel.sz.y - rbtnbg.sz().y);
 	menupanel.add(new MainMenu(), 0, 0);
 	menubuttons(rbtnimg);
 	foldbuttons();
@@ -1552,7 +1554,12 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
 
 	public void draw(GOut g) {
-	    g.image(menubg, Coord.z);
+	    // addon: 065.13 -- one lookup at the draw, falling back to the static this has always blitted.
+	    Fonts.Picture p = Fonts.picture("hud.menu.right", this);
+	    if(p != null)
+		p.draw(g, Coord.z, sz);
+	    else
+		g.image(menubg, Coord.z);
 	    super.draw(g);
 	}
     }
@@ -1600,7 +1607,12 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
 
 	public void draw(GOut g) {
-	    g.image(mapmenubg, Coord.z);
+	    // addon: 065.13 -- one lookup at the draw, falling back to the static this has always blitted.
+	    Fonts.Picture p = Fonts.picture("hud.menu.left", this);
+	    if(p != null)
+		p.draw(g, Coord.z, sz);
+	    else
+		g.image(mapmenubg, Coord.z);
 	    super.draw(g);
 	}
     }
@@ -1839,7 +1851,14 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
     
 	public void draw(GOut g) {
-	    g.image(nkeybg, Coord.z);
+	    // addon: 065.13 -- one lookup at the draw, falling back to the static this has always blitted. The
+	    // ten squares and their numbers are drawn over it either way: the plate is the belt's background,
+	    // not its contents.
+	    Fonts.Picture p = Fonts.picture("hud.belt", this);
+	    if(p != null)
+		p.draw(g, Coord.z, sz);
+	    else
+		g.image(nkeybg, Coord.z);
 	    for(int i = 0; i < 10; i++) {
 		int slot = i + (curbelt * 12);
 		Coord c = beltc(i);

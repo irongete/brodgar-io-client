@@ -18,6 +18,25 @@ PACKS AROUND ITS GRID and cannot be resized from outside**: it is anonymous, wit
 notifies `parent.cresize(this)` — so `resize2`'s `deco.iresize` makes the deco call back and the window re-packs
 to its content **before your call returns** (`pack()` = `resize(contentsz())`). `equwnd` has none, and resizes.
 
+## The HUD itself: seven `Hidepanel`s, and the plates they blit
+
+| What | Where |
+|---|---|
+| The panel | `GameUI.Hidepanel` — an id, an `Indir<Coord> base` and a `g` gravity; `add(T)` **`pack()`s and `move()`s on every child added**, so a panel is exactly its contents. `move(double a)` slides it off along `g`, `show(boolean)` is remembered as `<id>-visible` |
+| The seven | built in the ctor, in order: `blpanel`, `mapmenupanel`, `brpanel`, `menupanel`, `ulpanel`, `umpanel`, `urpanel`. The two menu panels take an `Indir` base that chases the corner panel beside them |
+| The plates blitted **in a widget's own `draw`** | `MainMenu.draw` → `menubg` (`gfx/hud/rbtn-bg`), `MapMenu.draw` → `mapmenubg` (`gfx/hud/lbtn-bg`), `NKeyBelt.draw` → `nkeybg` (`gfx/hud/hb-main`), each a `static final Tex` and each `g.image(…, Coord.z)` before the rest of the draw |
+| The plates that are **`Img` children** | `gfx/hud/blframe` in `blpanel` (the minimap's frame), `gfx/hud/csearch-bg` and `gfx/hud/brframe` in `brpanel`. Each is a plain `Img`, so it is a widget in the tree rather than a blit |
+| What sits **on** them | `menugridc` is `brframe.c` plus a constant and `menubuttons` places the search button at `rbtnimg.c` — the `Img`'s own box decides, once, at construction. `minimapc` beside them is a bare constant |
+
+**The size of a panel is the size of its plate**: `MainMenu` and `MapMenu` both call `super(<tex>.sz())`,
+and `Hidepanel.add` packs around them. Nothing re-measures on a redraw, so a plate painted at another size
+is drawn into the box the client's art gave it.
+
+⚠️ **`beltwdg` is not in a panel, and there are two of it.** It is `add`ed to `GameUI` itself and placed by
+hand in `resize`/`updfold`; `NKeyBelt` (`super(nkeybg.sz())`) blits that plate, while `FKeyBelt` — the other
+half of the Options belt setting — draws **no background at all**, only its twelve squares. Both blit
+`Inventory.invsq` for those, the same raster the action grid uses, so neither is an `Inventory` draw.
+
 ## The client's own position store (`wndc-*`, and every place it is written)
 
 | What | Where |

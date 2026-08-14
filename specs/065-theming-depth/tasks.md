@@ -171,7 +171,7 @@ in stage A before any surface is routed against it.
       `[manual]`: expect the panel behind the minimap to be the theme's plate, and the minimap itself drawn
       over it exactly where it was.
 
-- [ ] **065.13 — the HUD's own art.** Five site keys for the plates the client blits rather than builds a
+- [x] **065.13 — the HUD's own art.** Five site keys for the plates the client blits rather than builds a
       widget for: `hud.belt` (`GameUI.nkeybg`), `hud.menu.left` and `hud.menu.right` (`mapmenubg`,
       `menubg`), `hud.search` (the `csearch-bg` group) and `minimap.frame`. Each is one lookup at its draw,
       falling back to the static it uses today.

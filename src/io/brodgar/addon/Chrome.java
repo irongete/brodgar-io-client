@@ -1400,20 +1400,27 @@ final class Chrome {
     }
 
     /**
-     * {@code Fonts.picture(wdg)} — the whole plate a rule paints in place of {@code wdg}'s own art, or
+     * {@code Fonts.picture(scope, wdg)} — the whole plate a rule paints in place of {@code wdg}'s own art, or
      * {@code null} when nothing names it (065.12).
      *
-     * <p>The <b>per-widget</b> resolution, and the only one of these that has no scope in it at all. A client
-     * picture is one widget showing one image rather than a site the client draws a kind of thing at, so what
-     * names it is a tree key — {@code ["@Img"]}, or a chain naming the window it sits in — and
-     * {@link Sheet#specOf} is that half of the cascade whole. Nothing falls back to {@code "*"} here on
-     * purpose: a global rule that repainted every picture in the client would be a theme's first accident.
+     * <p><b>A {@code null} scope is the per-widget resolution</b>, and it is the one answer here that has no
+     * site in it at all: a picture the server placed is one widget showing one image rather than a site the
+     * client draws a kind of thing at, so what names it is a tree key — {@code ["@Img"]}, or a chain naming the
+     * window it sits in — and {@link Sheet#specOf} is that half of the cascade whole. Nothing falls back to
+     * {@code "*"} on that path, on purpose: a global rule that repainted every picture in the client would be
+     * a theme's first accident.
+     *
+     * <p><b>A scope is the ordinary site resolution</b> (065.13), {@link Fonts#styleFor} exactly as every other
+     * chrome answer above takes it: the tree rule over the site's own stack over {@code "*"}. The plates the
+     * client blits at fixed places — the belt, the two menu backgrounds, the action-search plate, the
+     * minimap's frame — are sites like any other, and being able to <i>name</i> them is the whole difference
+     * from an {@code Img} the server hands over.
      *
      * <p>Nothing is interned: a {@link Pic} <i>is</i> the {@link Fonts.Picture} the site paints from, and the
      * resolved style already holds one object per distinct rule.
      */
-    static Fonts.Picture picture(Widget wdg) {
-        return picture(Sheet.specOf(wdg));
+    static Fonts.Picture picture(String scope, Widget wdg) {
+        return picture((scope == null) ? Sheet.specOf(wdg) : Fonts.styleFor(scope, wdg));
     }
 
     // ---- parsing -----------------------------------------------------------------------------------

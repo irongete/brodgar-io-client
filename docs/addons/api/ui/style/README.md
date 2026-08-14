@@ -20,7 +20,8 @@ s:install()
 
 [keys](keys.md) says **which** surfaces a rule reaches and which properties each one honours.
 [surfaces](surfaces.md) says what each of the client's own surfaces *is*, and how it behaves when a rule
-lands on it. Then the property pages: [text](text.md) for `font` and `color`, [chrome](chrome.md) for
+lands on it, with [the HUD's plates](hud.md) on a page of their own. Then the property pages:
+[text](text.md) for `font` and `color`, [chrome](chrome.md) for
 everything that paints, [geometry](geometry.md) for `position`, `size` and `anchor`. This page holds the sheet
 itself, the per-widget level, the cascade they all resolve through, and the edge of the system.
 
@@ -233,6 +234,7 @@ rather than from code.
 
 - [keys](keys.md) — which surfaces a key reaches, and what each honours
 - [surfaces](surfaces.md) — what each client surface is, and how it behaves under a rule
+- [the HUD's plates](hud.md) — the five the client blits whole, and the one property that dresses them
 - [`hafen.font`](../../font.md) — the handles a `font` property takes
 - [selectors](../selectors.md) — the grammar every key is written in
 - [`hafen.asset`](../../asset.md) — the fonts and images a rule points at

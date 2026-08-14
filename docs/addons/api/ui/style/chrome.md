@@ -235,18 +235,21 @@ nothing is refused and nothing warns. That includes every [panel](surfaces.md#pa
 ## picture
 
 `bg` is what a surface is painted **on**. `picture` is what a surface **is**: the whole plate, for the places
-the client blits an image rather than framing something — the plate around the minimap, the frames around
-the corner buttons, a picture the server placed in a window.
+the client blits an image rather than framing something — the [HUD's own five](hud.md), and every picture
+the server placed in a window.
 
 ```lua
-hafen.ui():sheet():rule("@Img"):picture{ res = "gfx/hud/brframe" }:sheet():install()
+local s = hafen.ui():sheet()
+s:rule("minimap.frame"):picture{ asset = "img/mapframe.png" }   -- a plate the CLIENT blits
+s:rule("@Img"):picture{ res = "gfx/hud/brframe" }               -- ...and the ones the server places
+s:install()
 ```
 
 - **One surface, never a list**, and it fills the rectangle the client already drew in. Layers are what a
   background is painted in, so an array here is an error naming [`bg`](#bg); a picture of another size fills
   that rectangle by its own [`mode`](#naming-a-picture) — repeated, or scaled with `mode = "stretch"` —
   and the rectangle itself never moves. It takes a [face per state](#a-face-per-state) exactly as a `bg` does.
-- **Some plates are drawn OVER what they frame** — the one around the minimap is — and the client's own
+- **Some plates are drawn OVER what they frame** — [the one around the minimap](hud.md) is — and the client's own
   art has a transparent centre, which is what makes the two read as one. Art with no hole there hides what it
   framed: nothing moves and every click still lands, because a rule changes the paint and never the hit
   test, but you see the plate alone. Give such a surface art carrying the transparency the stock art had.
@@ -254,10 +257,13 @@ hafen.ui():sheet():rule("@Img"):picture{ res = "gfx/hud/brframe" }:sheet():insta
   likes, so a rule keeps applying across that and `:remove()` hands the client's own art straight back —
   which is why `rule:picture(t)` and [`widget:picture()`](../widget.md#read) stay opposite questions: the
   first says what a surface is drawn as, the second names the resource the **client** put there.
-- **What names one is a [tree key](keys.md#tree-keys)** — `["@Img"]`, or a chain naming the window it
-  sits in — because a picture is one widget showing one image rather than a kind of surface the client
-  draws. So there is no site key behind it and no `*` fallback, which is what keeps one broad rule from
-  repainting every picture in the client at once. [The key table](keys.md#what-each-key-accepts) has the rest.
+- **What names one is either a place the client has a name for, or a [tree key](keys.md#tree-keys).** The
+  client blits five plates at fixed places of its own — the belt, the two corner menus, the search plate and
+  the minimap's frame — and each is a [site key](hud.md). Every other picture is the **server's**, placed
+  where it likes and told apart by nothing but where it sits in the tree, so what names one is `["@Img"]` or
+  a chain naming the window it is in. A tree key has no `*` above it, which is what keeps one broad rule
+  from repainting every picture in the client at once.
+  [The key table](keys.md#what-each-key-accepts) has the rest.
 
 ## Ornaments
 
@@ -322,5 +328,6 @@ if w then hafen.log():write("caption at " .. w:chrome().caption.x) end
 - [the pixel](../pixels.md) — the unit a padding, a slice and an offset are counted in
 - [keys](keys.md#what-each-key-accepts) — which keys honour these, and which are inert
 - [surfaces](surfaces.md) — what a panel and a window frame are on screen
+- [the HUD's plates](hud.md) — the five site keys `picture` reaches
 - [geometry](geometry.md) — the other way a rule moves something, and the only one that moves a widget
 - [`hafen.asset`](../../asset.md) — loading the images a `bg` or a `border` points at

@@ -813,11 +813,13 @@ final class Sheet {
                 return Chrome.size(scope);
             }
 
-            // 065.12 - ...and the whole PLATE a rule paints in place of one widget's own art, which is the
-            // one of these that has no scope at all: a client picture is a widget showing an image, not a
-            // kind of surface the client draws, so what names it is a tree key and this is that half whole.
-            public Fonts.Picture picture(Widget w) {
-                return Chrome.picture(w);
+            // 065.12 - ...and the whole PLATE a rule paints in place of one widget's own art. A null scope is
+            // the per-widget half of the cascade whole, which is what a picture the SERVER placed is named by:
+            // one widget showing one image, not a kind of surface the client draws.
+            // 065.13 - ...and a scope is the ordinary site answer, for the plates the client blits at fixed
+            // places of its own: those DO have a name, and naming them is the whole difference.
+            public Fonts.Picture picture(String scope, Widget w) {
+                return Chrome.picture(scope, w);
             }
         });
     }

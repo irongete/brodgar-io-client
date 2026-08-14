@@ -191,7 +191,10 @@ revised by 065.14 rather than deleted — the emboss is still the stock behaviou
 Tagged with the tasks that need them; an untagged line is read by every task.
 
 - `docs/addons/api/ui/style/README.md`, `keys.md`, `chrome.md` — all
-- `docs/addons/api/ui/style/surfaces.md` — 4, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18
+- `docs/addons/api/ui/style/surfaces.md` — 4, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18 (at 349 lines of its 350
+  hard limit: a task adding a surface makes room before it writes, as 13 did)
+- `docs/addons/api/ui/style/hud.md` — 13, 17, 18 (the five HUD plate keys, split off `surfaces.md` by 13 to
+  keep that page under its limit)
 - `docs/addons/api/ui/style/text.md` — 3, 14, 15, 16, 18
 - `docs/addons/guides/theming.md` — 1, 2, 3, 17, 18
 - `docs/addons/api/json.md` — 3, 17 (what a theme is parsed with, and a catalogue serialised with)
@@ -240,9 +243,13 @@ Tagged with the tasks that need them; an untagged line is read by every task.
   from its own background (a field does; ask it before `super(…)`, since there is no widget yet)
 - `src/haven/CheckBox.java`, `IButton.java`, `Scrollbar.java`, `HSlider.java` — 10
 - `src/haven/Speaking.java` — 11
-- `src/haven/Img.java` — 12
+- `src/haven/Img.java` — 12, 13, 17 (the `picture` read, and `Img.site`: two of the HUD's own plates ARE
+  `Img`s the client places, so they are named by a site key rather than by a tree key alone)
 - `src/haven/GameUI.java`, `MiniMap.java` — 13
 - `docs/client/minimap.md` — 13 (where the corner map is added, and the one that decides what a plate over it
   looks like: `GameUI` calls `mmap.lower()`, so `blframe` is drawn **over** the map it frames)
+- `docs/client/gameui-windows.md` — 13, 17 (the seven `Hidepanel`s and the plates on them: which are blits
+  inside a widget's own `draw` and which are `Img` children, and that `beltwdg` is in no panel and is one of
+  two belt widgets, only one of which has a plate at all)
 - `src/haven/PUtils.java`, `Text.java` — 14, 15
 - `addons/065-theming-depth.<N>/` — each task its own

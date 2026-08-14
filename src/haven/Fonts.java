@@ -101,6 +101,11 @@ public class Fonts {
         "scrollbar.knob", // C2  — ...and the thumb that runs along it
         "slider",         // C2  — the rail a slider draws
         "slider.knob",    // C2  — ...and its thumb
+        "hud.belt",         // C2 — the plate under the number belt (065.13; a `picture`, no text)
+        "hud.menu.left",    // C2 — ...the map-menu plate in the bottom-left corner
+        "hud.menu.right",   // C2 — ...the main-menu plate in the bottom-right one
+        "hud.search",       // C2 — ...the plate the action-search button sits on
+        "minimap.frame",    // C2 — ...and the frame drawn around the corner minimap
     };
 
     /**
@@ -480,8 +485,8 @@ public class Fonts {
         public Chrome chrome(String scope);
         /** The size {@code scope}'s own background art asks for, in device px, or {@code null}. */
         public Coord size(String scope);
-        /** The picture {@code wdg} resolves to from the <b>per-widget</b> cascade alone, or {@code null}. */
-        public Picture picture(Widget wdg);
+        /** The picture {@code wdg} resolves to at {@code scope} ({@code null} = the per-widget cascade alone), or {@code null}. */
+        public Picture picture(String scope, Widget wdg);
     }
     private static volatile Chromes chromes = null;
 
@@ -584,17 +589,19 @@ public class Fonts {
      * The whole picture a rule paints in place of {@code wdg}'s own (065.12) — {@code null} when no rule names
      * it, which is the site's cue to draw exactly the art it always drew.
      *
-     * <p><b>The per-widget cascade alone</b>, and that is the whole of what distinguishes it from the four
-     * above: a client picture is not a <i>site</i> the client draws text or a box at, it is one widget showing
-     * one image, so what names it is a {@link Widget} — {@code ["@Img"]}, or a chain naming the window it sits
-     * in. There is no scope to fall back through, and therefore no way for the global {@code "*"} rule to
-     * repaint every picture in the client because somebody named a plate.
+     * <p><b>The scope is optional here, and it is the whole of what distinguishes the two callers</b> (065.13).
+     * A picture the <i>server</i> placed is one widget showing one image and nothing more, so it passes
+     * {@code null} and is named by a tree key alone — {@code ["@Img"]}, or a chain naming the window it sits in
+     * — which is what stops the global {@code "*"} rule repainting every picture in the client because somebody
+     * named a plate. A plate the <i>client</i> blits at a fixed place is a site like any other: the HUD's belt,
+     * its two menu backgrounds, its action-search plate and the minimap's frame each pass their own scope, so a
+     * theme names the one it means and the ordinary cascade answers.
      */
-    public static Picture picture(Widget wdg) {
+    public static Picture picture(String scope, Widget wdg) {
         if(!active)
             return null;                  // fast path: no override anywhere
         Chromes src = chromes;
-        return (src == null) ? null : src.picture(wdg);
+        return (src == null) ? null : src.picture(scope, wdg);
     }
 
     private static synchronized Text.Foundry resolve(String scope, Text.Foundry stock) {

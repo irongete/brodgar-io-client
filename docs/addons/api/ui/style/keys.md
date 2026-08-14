@@ -32,6 +32,10 @@ These are the sites the client draws at:
 | `scrollbar.knob` | the **thumb** itself, wherever along that rail it currently sits |
 | `slider` | the **rail** a slider's thumb runs along |
 | `slider.knob` | that slider's own thumb |
+| `hud.belt` | the plate the numbered belt squares are laid on, across the bottom of the screen — [the HUD's plates](hud.md) |
+| `hud.menu.left`, `hud.menu.right` | the two plates behind the toggle buttons in the bottom corners |
+| `hud.search` | the plate the action-search button sits on |
+| `minimap.frame` | the frame drawn around the corner minimap |
 | `menu` | flower-menu petals and the action-menu keybind letters |
 | `chat` | the chat window — messages, channel tabs, the typed line |
 | `world.nick` | floating kin names over characters |
@@ -39,7 +43,8 @@ These are the sites the client draws at:
 
 Each surface keeps **its own stock size and colour** unless your rule overrides them. One key can front two
 sites with different stocks — `textentry` covers the serif fields *and* the mono command line — and both
-stay native under one rule. [surfaces](surfaces.md) describes each one and its geometry caveats.
+stay native under one rule. [surfaces](surfaces.md) describes each one and its geometry caveats, and
+[the HUD's plates](hud.md) the five the client blits whole.
 
 ## Tree keys
 
@@ -140,6 +145,7 @@ worn by the surfaces that *have* that state, and ignored by the rest, exactly as
 | `checkbox.mark`, `scrollbar.knob`, `slider.knob` | yes | yes | **inert** | the tick and the two **thumbs**, each a key of its own so the part is dressed apart from the whole it sits on. A part never takes the whole's art: name both or the one you leave out stays the client's |
 | `world.speech` | yes | yes | **inert** | the **bubble** over a talking character: the `bg` stands in for its white fill, the `border` for the frame around it, and either alone leaves the other the client's own. The bubble measures itself around the sentence every frame, so `padding` has nothing to move — [what the bubble is](surfaces.md#worldspeech-and-worldnick) |
 | `*` | **cascades** | **cascades** | **cascades** | `*` is the fallback for a key you did not write, so a chrome property on it reaches every key in the rows above, each subject to its own row. Text-only surfaces ignore it entirely and stay stock |
+| the five [HUD plate](hud.md) keys | **inert** | **inert** | **inert** | a plate is a whole picture rather than a fill inside a frame, so what dresses one is [`picture`](chrome.md#picture) and these three land on it and do nothing |
 | every other site key | **inert** | **inert** | **inert** | a text site has no surface of its own to paint and no layout of its own to move. Nothing is refused and nothing warns |
 | a tree key **matching a window** | yes | yes | yes | it reaches *that* window's chrome, because a window's decoration resolves through the window it belongs to |
 | a tree key **matching a panel** | per panel | yes | **inert** | likewise: a panel asks *itself* what style it resolves, so `["@Frame"]` or `["window[title=…] @Frame"]` themes those panels alone. `bg` follows the same two panel rows above |
@@ -161,15 +167,17 @@ One surface draws them, so this table is one row.
 > names the surface. Levels *above* the site half, a tree rule or a `widget:rule()`, do
 > [compose per property](README.md#the-cascade).
 
-And the one that replaces a surface outright. [`picture`](chrome.md#picture) is keyed on what a rule
-**matches** rather than on a site, because a client picture is one widget showing one image rather than a
-kind of surface the client draws at.
+And the one that replaces a surface outright. [`picture`](chrome.md#picture) reaches two kinds of key,
+because the client shows a picture two ways: at a handful of **places of its own**, which have names, and
+through pictures the **server** places, which are told apart by nothing but where they sit in the tree.
 
 | Key | `picture` | Worth knowing |
 |---|---|---|
-| a tree key **matching a picture** | yes | `["@Img"]`, or a chain naming the window it sits in. The rule's plate is drawn in the rectangle the client already had, so nothing moves; a [state face](chrome.md#a-face-per-state) inside the value is worn by a surface that enters that state, and a picture the server re-points keeps following the rule |
+| the five [HUD plate](hud.md) keys | yes | `hud.belt`, `hud.menu.left`, `hud.menu.right`, `hud.search` and `minimap.frame`: the plates the client blits at fixed places of its own. The rule's picture fills the rectangle the client already had, so nothing moves and every button on a plate still takes its click |
+| `*` | **cascades** | into those five and nowhere else, they being the only sites that blit a plate. So a `picture` on `*` paints the whole HUD alike — name the key you mean |
+| a tree key **matching a picture** | yes | `["@Img"]`, or a chain naming the window it sits in. A [state face](chrome.md#a-face-per-state) inside the value is worn by a surface that enters that state, and a picture the server re-points keeps following the rule |
 | `widget:rule()` | yes | the same, one picture at a time and named by hand |
-| any site key, `*` included | **inert** | a site is a kind of surface the client draws, and none of them blits a plate. Readable back through `:style()`, and inert everywhere it lands — which is also what keeps one `["*"]` rule from repainting every picture in the client |
+| every other site key | **inert** | a text site draws no picture, and a surface that draws a box wears [`bg`](chrome.md#bg) and [`border`](chrome.md#border) instead. Readable back through `:style()`, and inert everywhere it lands |
 | a tree key matching anything else | **inert** | nothing else in the client shows a picture of its own |
 
 And the three that lay widgets out. This table is short because the answer is: a widget, or an error.
@@ -204,5 +212,6 @@ box was measured from the stock font; [surfaces](surfaces.md) says which ones, a
 
 - [style](README.md) — the sheet, the cascade and `widget:rule()`
 - [surfaces](surfaces.md) — what each of these keys actually is on screen
+- [the HUD's plates](hud.md) — the five whose whole surface is one picture
 - [text](text.md) · [chrome](chrome.md) · [geometry](geometry.md) — the properties themselves
 - [selectors](../selectors.md) — the grammar, and the roles this vocabulary shares

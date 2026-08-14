@@ -344,6 +344,6 @@ every other key.
 ## See also
 
 - [keys](keys.md) — which properties each of these keys honours
+- [the HUD's plates](hud.md) — the five sites whose whole surface is one picture, on a page of their own
 - [style](README.md) — installing the sheet these keys go in
-- [text](text.md) — the `font` and `color` properties themselves
-- [`hafen.font`](../../font.md) — getting the handle a `font` property takes
+- [text](text.md) · [chrome](chrome.md) — the properties themselves, and the handles they take

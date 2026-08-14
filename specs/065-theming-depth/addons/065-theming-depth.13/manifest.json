@@ -1,0 +1,9 @@
+{
+  "name": "065.13 — the HUD's own art",
+  "id": "065-theming-depth.13",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.13: the five HUD plate site keys, each resolving its own picture.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
