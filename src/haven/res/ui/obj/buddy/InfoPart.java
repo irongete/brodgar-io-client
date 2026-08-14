@@ -26,6 +26,7 @@ public interface InfoPart {
      * override. The stock `fnd` field is left untouched for any other caller; resolution happens per render (which
      * is per re-compose, not per frame) and takes the provider's fast path while no override exists. */
     public static Text.Foundry fnd() {
+	Fonts.stock("world.nick", "font", fnd);   // addon: (065.17) the face a floating name is set in
 	return(Fonts.foundry("world.nick", fnd));
     }
 

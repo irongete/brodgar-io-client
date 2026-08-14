@@ -6,7 +6,7 @@
 |---|---|
 | Foundry (font+size+colour+aa) | `Text.Foundry`; `renderwrap` builds a `RichText.Foundry` |
 | **Global default** | `Text.std` = `new Foundry(sans,10)` (`public static final`); `Text.render(…)` statics; `Label` default |
-| Built-in fonts | `Text.sans/serif/mono/fraktur` |
+| Built-in fonts | `Text.sans/serif/mono/fraktur`. **Only two of the four name an AWT logical family.** `serif` and `mono` ask for `"Serif"`/`"Monospaced"`, which exist; `sans` asks for `"Sans"`, which does not, so it resolves to `Dialog` and `getFamily()` on it is indistinguishable from a `Dialog` font's. `getName()` keeps the string the `Font` was constructed with and **survives every `deriveFont`**, so it, not the family, is what tells the four apart in a font some site has already derived. `fraktur` is a resource font and answers its own family |
 | Window titles | `Window.DefaultDeco.cf/ncf` = `new Text.Foundry(Text.fraktur,15).aa(true)` |
 | **Speech bubbles** | `Speaking` — cached `Text` (ctor + `update`), frame measured from `text.sz()` in `draw`; stock = `Text.std`. **`draw` blits the finished raster under `g.chcolor(Color.BLACK)`**, so any colour baked into it — the `Foundry.fixcol` a rule sets, or the `Color` passed to `render` — is multiplied to black on the way to the screen. A colour cannot reach this surface without moving that `chcolor` |
 | **Floating kin names** | **NOT in the fork** — published code in the `ui/obj/buddy` resource (`haven.KinInfo` is gone; `OCache.OD_BUDDY` commented `-- Removed`). Adopted with `get-code` → `src/haven/res/ui/obj/buddy/{Buddy,Info,InfoPart}.java`: shared foundry `InfoPart.fnd` + `rendertext`, composed `Tex` invalidated by `Info.dirty()` |

@@ -35,6 +35,8 @@ itself, the per-widget level, the cascade they all resolve through, and the edge
 | `sheet:load(rules)` | self | a whole sheet from **data** — see [below](#a-sheet-from-data) |
 | `sheet:install()` | self | apply what the sheet says, **replacing** whatever this addon had installed |
 | `sheet:drop()` | self | stop applying it; every surface it styled falls back |
+| `sheet:stock()` | table | the **client's own** look as data — see [below](#the-clients-own-look) |
+| `sheet:stock(key)` | table \| nil | one site's own look; `nil` when this client has offered none |
 | `sheet:info()` | table | `{installed = …, rules = {selector, …}}` |
 
 **An addon owns exactly one sheet**, so the document is the thing you keep and `:install()` is the moment it
@@ -87,6 +89,44 @@ already
 persists tables. One command reads where your windows currently are and keeps them account-wide, another
 re-applies them over the file's own placement, a third drops them. There is no profile system here because
 a sheet is data and an addon already has a store.
+
+## The client's own look
+
+`sheet:stock()` hands back **what this client draws with when no rule says anything**, keyed by
+[site](keys.md#site-keys), in the very shape `sheet:load(rules)` takes. Art comes back named by its
+resource, faces by their built-in, colours as numbers — so the answer is a document, and the shortest way to
+start a theme is to write it to a file and edit it:
+
+```lua
+local look = hafen.ui():sheet():stock()
+hafen.log():write(hafen.json():encode(look))   -- the whole catalogue, ready to paste into a theme file
+hafen.ui():sheet():load(look):install()        -- ...and the client looks exactly as it did
+```
+
+`sheet:stock(key)` is one site out of it, `nil` when this client has offered none. A key that names no site
+raises, and so does a [tree key](keys.md#tree-keys): a widget has no look of its own to read back, only the
+sites inside it.
+
+- **A site that has not drawn declares nothing.** The catalogue is what the client has *offered*, so a
+  surface belonging to a window nobody has opened is absent until it is opened. Open what you mean to read.
+- **A key answers only what it can say whole.** Some of this client's surfaces are made of things this
+  vocabulary has no word for — a fill inset a fixed margin inside its own end caps, a chain of links spread
+  evenly down a bar, a corner whose width follows the caption inside it. Those properties are left out
+  rather than approximated, so what you load back paints the client you were looking at. What is missing is
+  therefore worth reading as a limit of the grammar, not as a gap in the answer.
+- **Art with no name is left out too.** A picture the client composed in code rather than decoding from a
+  resource has nothing to name it by, and the catalogue never invents one. Where such a surface is *also* a
+  flat colour and an outline — the inventory square, a tooltip's box — it comes back as exactly that.
+- **A surface built more than one way reports the last one drawn.** A checkbox is built large or small and
+  the two wear different art; the same key covers both, so the catalogue carries whichever was on screen
+  most recently.
+- **A colour the client hands out one at a time comes back as the sequence it is**, never flattened —
+  `chat.speaker` as the walk it does, `chat.urgent` as the colours it cycles. See
+  [the chat](chat.md#the-two-colours-the-client-walks).
+
+The table holds nothing but strings, numbers, booleans and tables — no handle anywhere in it — so
+[`hafen.json`](../../json.md) encodes it as it stands, and a
+[saved variable](../../store.md) keeps it across sessions.
 
 ## Properties
 

@@ -105,6 +105,11 @@ public class ChatUI extends Widget {
      * before the kinds existed still resolves.
      */
     private static Color fndcol(String scope, Color site) {
+	/* addon: (065.17) no colour is declared here, and the reason is what these keys are: a kind's colour
+	 * arrives per LINE -- a notice's white or an error's dark red at the same key, a private message's two
+	 * colours for received and sent, a party line's the member's own -- so not one of them is a constant
+	 * the catalogue could hand back and load again. The two keys whose colour IS a value declare it as
+	 * the sequence it is, in checkfont() above. */
 	Fonts.Style st = Fonts.style(scope);
 	Color c = (st == null) ? null : st.color(null);
 	return((c != null) ? c : site);
@@ -136,6 +141,19 @@ public class ChatUI extends Widget {
 	new Color(255, 128, 0),
 	new Color(255, 0, 0),
     };
+    /* addon: (065.17) what the chat is made of: the face its lines are set in, and the two colours it WALKS
+     * rather than holds -- the hue a channel mints per speaker, said as the walk it is, and the urgency
+     * triple, said as the colours it cycles. Both are the sequence itself, because that is the only shape
+     * either has: flattening one to a colour is what neither can survive.
+     *   Declared beside the three constants rather than where a line is rendered, because that is what they
+     * are: none of them is drawn FROM, so a client whose chat has had nothing to say yet would otherwise
+     * carry no answer for colours it is already prepared to hand out. */
+    static {
+	Fonts.stock("chat", "font", qfnd);
+	Fonts.stock("chat.speaker", "color",
+		    Double.valueOf(Math.sqrt(2) % 1.0), Double.valueOf(0.5), Double.valueOf(1.0));
+	Fonts.stock("chat.urgent", "color", urgcols[1], urgcols[2], urgcols[3]);
+    }
     public Channel sel = null;
     public int urgency = 0;
     private final Selector chansel;

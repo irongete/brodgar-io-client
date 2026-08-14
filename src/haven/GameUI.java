@@ -1555,6 +1555,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
 	public void draw(GOut g) {
 	    // addon: 065.13 -- one lookup at the draw, falling back to the static this has always blitted.
+	    Fonts.stock("hud.menu.right", "picture", Fonts.piece(menubg));   // addon: (065.17) the plate itself
 	    Fonts.Picture p = Fonts.picture("hud.menu.right", this);
 	    if(p != null)
 		p.draw(g, Coord.z, sz);
@@ -1608,6 +1609,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
 	public void draw(GOut g) {
 	    // addon: 065.13 -- one lookup at the draw, falling back to the static this has always blitted.
+	    Fonts.stock("hud.menu.left", "picture", Fonts.piece(mapmenubg));   // addon: (065.17) the plate itself
 	    Fonts.Picture p = Fonts.picture("hud.menu.left", this);
 	    if(p != null)
 		p.draw(g, Coord.z, sz);
@@ -1854,6 +1856,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	    // addon: 065.13 -- one lookup at the draw, falling back to the static this has always blitted. The
 	    // ten squares and their numbers are drawn over it either way: the plate is the belt's background,
 	    // not its contents.
+	    Fonts.stock("hud.belt", "picture", Fonts.piece(nkeybg));   // addon: (065.17) the plate itself
 	    Fonts.Picture p = Fonts.picture("hud.belt", this);
 	    if(p != null)
 		p.draw(g, Coord.z, sz);

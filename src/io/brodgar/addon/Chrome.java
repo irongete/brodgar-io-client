@@ -2453,13 +2453,13 @@ final class Chrome {
     }
 
     /** The four corners of one of the client's own boxes — the one naming every such frame shares. */
-    private static final String[] BOX_CORNERS = {"tl", "tr", "bl", "br"};
+    static final String[] BOX_CORNERS = {"tl", "tr", "bl", "br"};
     /**
      * ...and its four edges, which the client spells two ways: {@code gfx/hud/bosq} and {@code gfx/hud/emote}
      * carry {@code el}/{@code er}/{@code et}/{@code eb}, {@code gfx/hud/wnd} carries the {@code ext} spelling.
      * Both are tried, in order, so a theme names the folder and nothing else.
      */
-    private static final String[][] BOX_EDGES = {
+    static final String[][] BOX_EDGES = {
         {"el", "er", "et", "eb"},
         {"extvl", "extvr", "extht", "exthb"},
     };

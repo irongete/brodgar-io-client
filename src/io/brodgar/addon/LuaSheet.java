@@ -156,7 +156,7 @@ public final class LuaSheet {
     private static LuaValue meta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("sheet", methods(owner),
-            "a sheet's verbs are :rule(selector) :load(rules) :install() :drop() and :info()"));
+            "a sheet's verbs are :rule(selector) :load(rules) :install() :drop() :stock(key) and :info()"));
         mt.set("__name", LuaValue.valueOf("Sheet"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -216,6 +216,24 @@ public final class LuaSheet {
                 handle(self, "drop");
                 Sheet.dropSheet(owner);
                 return self;
+            }
+        });
+        // stock() — the client's OWN look, as data, in the very shape :load() takes: every site that has drawn
+        // one, with its art named by resource and its faces by built-in. stock(key) is one of them. It is a
+        // read of the CLIENT rather than of this sheet, and it lives here because the shape it hands back is
+        // this sheet's own document: three lines write the whole catalogue to a file and put it back.
+        m.set("stock", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                handle(a.arg1(), "stock");
+                LuaValue k = a.arg(2);
+                if(k.isnil())
+                    return Stock.catalogue();
+                if(k.isnumber())    // BEFORE isstring(): in LuaJ a number IS a string (the hafen.asset lesson)
+                    throw new LuaError("sheet:stock(key): a site is named by a SELECTOR string (e.g. \"*\","
+                        + " \"chat\", \"window.frame\"), not a number");
+                if(!k.isstring())
+                    throw new LuaError("sheet:stock(key): expected a selector string, got " + k.typename());
+                return Stock.one(k.tojstring());
             }
         });
         // info() — the snapshot hatch: whether the sheet is applied right now, and the selectors it names, in

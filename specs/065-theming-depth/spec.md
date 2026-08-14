@@ -223,8 +223,11 @@ Tagged with the tasks that need them; an untagged line is read by every task.
   `ChatUI`: a System line's white and an error's red are `UI.Notice`/`UI.ErrorMessage` defaults. The
   generated speaker hue and the two urgency arrays are `ChatUI`'s, and the two arrays disagree at index 0)
 - `src/io/brodgar/addon/AddonManager.java` — 17 (`onPicture`, the texture-to-resource-name registry a
-  catalogue reads art names back through)
+  catalogue reads art names back through. A `TexI` a SITE builds over a `Resource.Image.scaled()` is NOT in it
+  — `Window.cm` and `HSlider.schain` are the two — so a name is asked of `TexI.back` as well as of the texture)
 - `src/io/brodgar/addon/LuaSheet.java` — 17
+- `src/io/brodgar/addon/Stock.java` — 17, 18 (the catalogue behind `sheet:stock()`: it NAMES what the sites
+  declared through `Fonts.stock`/`Fonts.Piece`, and drops any property whose art resolves to no resource name)
 - `src/io/brodgar/addon/Sheet.java`, `Chrome.java`, `LuaRule.java` — 1–17
 - `src/io/brodgar/addon/SkinDeco.java` — 1, 4, 5, and **every task that changes `Chrome.Border`**: it is the
   second consumer of that type's `tlIn()`/`brIn()`, so a new border shape has to answer the window's layout too

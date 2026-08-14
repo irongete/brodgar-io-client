@@ -71,6 +71,7 @@ public class Inventory extends Widget implements DTarget {
 	// answer a stock client always gets, and then every cell is the static raster at the coordinate it
 	// always had. The mask's dimming brackets whichever of the two paints, exactly as it always did.
 	Fonts.Chrome sq = Fonts.chrome("inventory.slot", this);
+	stocksq();   // addon: (065.17) the two colours the raster above is built out of, said as a rule says them
 	for(c.y = 0; c.y < isz.y; c.y++) {
 	    for(c.x = 0; c.x < isz.x; c.x++) {
 		if((sqmask != null) && sqmask[mo++]) {
@@ -83,6 +84,16 @@ public class Inventory extends Widget implements DTarget {
 	    }
 	}
 	super.draw(g);
+    }
+
+    /* addon: (065.17) what an empty square is made of. This surface is built pixel by pixel above rather than
+     * loaded from a resource, so there is no art to name -- and none is needed: the two samples the loop sets
+     * ARE a fill and a one-pixel outline, which is a flat bg and a line border said the long way round. */
+    private static final java.awt.Color sqbg = new java.awt.Color(36, 52, 38, 125);
+    private static final java.awt.Color sqbd = new java.awt.Color(20, 28, 21, 167);
+    private static void stocksq() {
+	Fonts.stock("inventory.slot", "bg", Fonts.piece(sqbg));
+	Fonts.stock("inventory.slot", "border", Fonts.piece(sqbd).width(1));
     }
 
     /* addon: (065.7) one square, the rule's or the client's own, at the size the client's own always was --

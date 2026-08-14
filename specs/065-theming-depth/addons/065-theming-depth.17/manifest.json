@@ -1,0 +1,9 @@
+{
+  "name": "065.17 — the client, read back as data",
+  "id": "065-theming-depth.17",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 065.17: sheet:stock() hands the client's own look back as data, named by resource and by built-in, and it loads straight back in.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

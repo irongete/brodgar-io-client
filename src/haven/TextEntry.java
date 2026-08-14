@@ -44,6 +44,11 @@ public class TextEntry extends Widget implements ReadLine.Owner {
     static Text.Foundry tfont() {
 	int g = Fonts.gen();
 	if((efnd == null) || (fontgen != g)) {
+	    /* addon: (065.17) the face a field's text is set in, and the art it is painted on, which is one
+	     * picture stretched across the field. Its FRAME is not said: the two end caps are pinned to the
+	     * left and the right at their own size and are no nine-slice, so a `border` could not draw them. */
+	    Fonts.stock("textentry", "font", fnd);
+	    Fonts.stock("textentry", "bg", Fonts.piece(mext));
 	    efnd = Fonts.foundry("textentry", fnd);
 	    fontgen = g;
 	}

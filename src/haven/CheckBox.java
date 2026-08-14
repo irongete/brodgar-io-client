@@ -87,6 +87,10 @@ public class CheckBox extends ACheckBox {
         // are blitted at exactly the coordinates they always were. Neither is an SIWidget: nothing caches
         // this, so a changed rule lands on the next frame with nothing to invalidate.
         String st = state() ? "checked" : null;
+        // addon: (065.17) what this box and its tick are made of. A checkbox is built large or small and the
+        // two wear different art, so what the catalogue carries is the pair the LAST one drawn was wearing.
+        Fonts.stock("checkbox", "bg", Fonts.piece(box));
+        Fonts.stock("checkbox.mark", "bg", Fonts.piece(mark));
         Fonts.Chrome cb = Fonts.chrome("checkbox", this, st);
         Coord bc = Coord.z.add(0, (sz.y - box.sz().y) / 2);
         if(cb == null)

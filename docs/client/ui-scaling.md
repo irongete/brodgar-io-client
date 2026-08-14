@@ -49,6 +49,12 @@ Options panel reads back — is `1.0` on a fresh install, while `loadscale` star
 | `tex()` | a `TexI` over `scaled()` — **already device-sized**. `rawtex()` is the unscaled one |
 | `o` / `so` | the declared offset, and the same offset scaled |
 
+**`tex()` and `rawtex()` are memoised on the layer; a `TexI` a SITE builds is not.** A handful of statics wrap
+`loadsimg` in a `TexI` of their own rather than calling `loadtex` — `Window.cm`, so `DefaultDeco.checkhit` can
+sample `TexI.back`'s alpha raster, and `HSlider.schain`, which transposes the pixels first. Those are second
+objects over (or beside) the layer's own, so anything keyed on the texture identity misses them and has to ask
+about `TexI.back` instead.
+
 So a widget that measures its own art is already in device pixels, and scaling it again doubles it. The
 design size of a piece of art is `sz / scale` — a whole number the artist chose, and the same integer at
 every UI scale.

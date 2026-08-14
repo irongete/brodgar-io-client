@@ -44,6 +44,7 @@ public class FlowerMenu extends Widget {
     public static Text.Foundry ptfont() {
 	int g = Fonts.gen();
 	if((bptf == null) || (fontgen != g)) {
+	    Fonts.stock("menu", "font", ptf);   // addon: (065.17) the face a petal's own label is set in
 	    bptf = Fonts.foundry("menu", ptf);
 	    fontgen = g;
 	}

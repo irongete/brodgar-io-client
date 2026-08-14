@@ -67,6 +67,9 @@ public class HSlider extends Widget {
 	}
 	int fx = ((sz.x - sflarp.sz().x) * (val - min)) / (max - min);
 	// addon: (065.10) ...and the thumb is "slider.knob"'s, at the place and the size the client's own has.
+	// addon: (065.17) the thumb's own picture; the rail is the same spread chain a scrollbar draws, and is
+	// no more sayable one axis along than it is the other.
+	Fonts.stock("slider.knob", "bg", Fonts.piece(sflarp));
 	Fonts.Chrome knob = Fonts.chrome("slider.knob", this);
 	if(knob == null)
 	    g.image(sflarp, new Coord(fx, 0));

@@ -76,6 +76,10 @@ public class Img extends Widget {
     private String site = null;
     public Img site(String scope) {
 	this.site = scope;
+	// addon: (065.17) a plate the CLIENT places is a site, so its own picture is what that site's look IS.
+	// One the SERVER places carries no site and declares nothing: there is no key to declare it under.
+	if(scope != null)
+	    Fonts.stock(scope, "picture", Fonts.piece(img));
 	return(this);
     }
 

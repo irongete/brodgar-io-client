@@ -57,6 +57,11 @@ public class CharWnd extends Window {
     private static void checkcapfont() {
 	int g = Fonts.gen();
 	if((bcatf == null) || (capgen != g)) {
+	    /* addon: (065.17) the face a section heading is set in, said where it is built. Its RELIEF and its
+	     * HALO are not: a heading is carved out of two different textures depending on whether it succeeded,
+	     * and the group headings elsewhere in the client blur at a radius of their own, so one value under
+	     * either property would repaint a surface it does not describe. */
+	    Fonts.stock("heading", "font", capfnd);
 	    Text.Foundry f = Fonts.foundry("heading", capfnd);
 	    // addon: (065.14) ...and the RELIEF each is cut out of, which a rule may re-texture or drop -- so the
 	    // stock-identity fast path widens from "no font override" to "no override at all", a heading being
@@ -134,6 +139,7 @@ public class CharWnd extends Window {
     public static Text.Foundry attrfont() {
 	int g = Fonts.gen();
 	if((battrf == null) || (attrfgen != g)) {
+	    Fonts.stock("label", "font", attrf);   // addon: (065.17) the client's own body-text face
 	    battrf = Fonts.foundry("label", attrf);
 	    attrfgen = g;
 	}

@@ -169,6 +169,7 @@ public abstract class ItemInfo {
      * the widgets that cache the composed tooltip IMAGE re-compose on the same check (WItem, Buff, LayerMeter,
      * Makewindow, MiniMap, CharWnd, MenuGrid). */
     private static Text.Foundry tipfnd() {
+	Fonts.stock("tooltip", "font", Text.std);   // addon: (065.17) the face every plain tip is set in
 	return(Fonts.foundry("tooltip", Text.std));
     }
 

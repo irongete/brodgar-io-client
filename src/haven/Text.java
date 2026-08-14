@@ -48,6 +48,9 @@ public class Text implements Disposable {
 	
     static {
 	std = new Foundry(sans, 10);
+	// addon: (065.17) the face every unrouted surface falls back to -- what the `*` key's own look IS, and
+	// the one declaration in the catalogue that belongs to no single site.
+	Fonts.stock("default", "font", std);
     }
 	
     public static abstract class Slug extends Text {

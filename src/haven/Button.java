@@ -61,6 +61,14 @@ public class Button extends SIWidget {
     private static void checkfont() {
 	int g = Fonts.gen();
 	if((btf == null) || (fontgen != g)) {
+	    /* addon: (065.17) what a button's CAPTION is made of, said where it is made -- the face it is set
+	     * in, the relief cut through its letters and the halo behind them, which is the whole of this
+	     * surface's text half. Its FACE is not said: the fill is inset a fixed margin inside the four caps
+	     * and those are not a nine-slice, so neither half of what a `bg` and a `border` mean here would
+	     * paint what this button paints. */
+	    Fonts.stock("button", "font", tf);
+	    Fonts.stock("button", "emboss", Window.ctex);
+	    Fonts.stock("button", "glow", Fonts.piece(new Color(80, 40, 0)).width(UI.rscale(0.75)));
 	    btf = Fonts.foundry("button", tf);
 	    // addon: (065.14) ...and the RELIEF the caption's letters are cut out of, which a rule may re-texture or
 	    // drop -- the latter being what lets a `color` rule reach an ordinary button caption. The stock-identity

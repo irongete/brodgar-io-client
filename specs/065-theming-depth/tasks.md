@@ -224,7 +224,7 @@ in stage A before any surface is routed against it.
       three in three different colours, a message carrying its own `$col` markup unchanged, and two
       different speakers in the palette's two colours.
 
-- [ ] **065.17 — the client, read back as data.** `sheet:stock()` hands back the whole look this client
+- [x] **065.17 — the client, read back as data.** `sheet:stock()` hands back the whole look this client
       draws with, as a plain table keyed by site, and `sheet:stock(key)` hands back one — art named by
       resource, faces by built-in, colours as numbers, in the very shapes `sheet:load()` takes. Nothing new
       is published for it: every routed site already hands its stock in as the third argument

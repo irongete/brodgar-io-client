@@ -147,6 +147,17 @@ public abstract class UILoop implements Console.Directory {
     private Indir<Tex> prevtooltex = null;
     private Disposable freetooltex = null;
     private int tipfontgen = -1;   // addon: Fonts.gen() at the last String-tooltip render (F3d)
+    /* addon: (065.17) what a tip's box is made of, said where it is drawn. The surface has no resource behind
+     * it at all -- it is two colours and a rectangle, which is exactly what a flat bg and a line border are.
+     * Its MARGIN is not said: the two pixels below are kept whether or not a rule names a padding, so a
+     * catalogue carrying one would widen every tip by that much again. */
+    private static final java.awt.Color tipbg = new java.awt.Color(35, 35, 35, 192);
+    private static final java.awt.Color tipbd = new java.awt.Color(244, 247, 21, 192);
+    private static void stocktip() {
+	Fonts.stock("tooltip", "bg", Fonts.piece(tipbg));
+	Fonts.stock("tooltip", "border", Fonts.piece(tipbd).width(1));
+    }
+
     private void drawtooltip(UI ui, GOut g) {
 	Object tooltip;
 	synchronized(ui) {
@@ -206,6 +217,7 @@ public abstract class UILoop implements Console.Directory {
 	    // addon: (065.6) a tip's BOX is the "tooltip" rule's -- its padding widens the room around the text,
 	    // its bg and border paint what fills that box. With no rule the two rects below are what they always
 	    // were, at the coordinates they always had; the tip's own text is placed and drawn unchanged either way.
+	    stocktip();            // addon: (065.17) what a tip's box is made of
 	    Coord[] tpad = Fonts.chromepad("tooltip", null);
 	    Coord tul = pos.sub(m).sub((tpad == null) ? Coord.z : tpad[0]);
 	    Coord tbr = br.add(m).add((tpad == null) ? Coord.z : tpad[1]);

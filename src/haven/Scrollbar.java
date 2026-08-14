@@ -79,6 +79,10 @@ public class Scrollbar extends Widget {
 	    int fy = (int)((sz.y - sflarp.sz().y) * a);
 	    // addon: (065.10) ...and the thumb is "scrollbar.knob"'s, at the place and the size the client's own
 	    // flarp has, so a themed bar keeps the grab shape a drag is measured against.
+	    /* addon: (065.17) the thumb's own picture, said where it is blitted. The RAIL is not said: the
+	     * chain is a fixed number of links spread evenly down the bar rather than one picture repeated,
+	     * so neither a tiled surface nor a stretched one draws what this draws. */
+	    Fonts.stock("scrollbar.knob", "bg", Fonts.piece(sflarp));
 	    Fonts.Chrome knob = Fonts.chrome("scrollbar.knob", this);
 	    if(knob == null)
 		g.image(sflarp, new Coord(0, fy));

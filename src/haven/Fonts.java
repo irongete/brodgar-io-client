@@ -1118,6 +1118,117 @@ public class Fonts {
         active = any || treed;   // addon: (034.2) a per-widget-only sheet still needs the slow path
     }
 
+    /* ---- what a site's own look is MADE OF (065.17) --------------------------------------------------
+     *
+     * Every seam above answers "what does the RULE say about this site". This one answers the other half:
+     * what the site draws when no rule says anything -- its stock font, its stock surface, the frame it
+     * paints, the place it puts an ornament. A routed site declares it once, beside the very lookup it
+     * already performs, and the addon layer reads it back as the catalogue behind sheet:stock().
+     *
+     * It is DECLARED rather than derived, and it is declared BY THE DRAW: the code that paints a surface is
+     * the only thing that knows what that surface is made of, so a catalogue transcribed anywhere else is
+     * right the day it is written and silently wrong after the next art change. What travels is the site's
+     * own objects -- a Tex, an IBox, a Color, a Foundry -- so a resource NAME is never typed here either:
+     * the addon layer resolves one through the picture registry it already fills.
+     *
+     * A site that has not drawn yet has declared nothing, and answers nothing. That is honest rather than
+     * unfortunate: a window nobody has opened has no look to read back.
+     */
+
+    /**
+     * One piece of a site's own look (065.17): the art it is drawn with, where that art is pinned, and what
+     * it does with the room left over.
+     *
+     * <p>{@link #art} is one of the client's own objects — a {@link Tex}, a {@link BufferedImage}, an
+     * {@link IBox}, or a {@link Color} — and it is what the addon layer NAMES; the rest is the placement a
+     * theme would have to write to draw the same thing. Every distance here is <b>device</b> pixels, the
+     * space a site's own constants are already in; the addon layer converts on the way out, at the one seam
+     * it converts everything else.
+     *
+     * <p>Mutable while it is built and read-only from the moment it is handed over — a site builds one, says
+     * where it goes, and passes it to {@link #stock} in the same expression.
+     */
+    public static final class Piece {
+	/**
+	 * The client's own art: a {@link Tex}, a {@link BufferedImage}, an {@link IBox} or a {@link Color} —
+	 * or {@code null} where the piece is a <b>place</b> and nothing else, which is what a window's caption
+	 * is (it has no art of its own; the letters are the picture).
+	 */
+	public final Object art;
+	/** One of the nine corner names it is pinned to, or {@code null} — it covers the whole surface, then. */
+	public String at;
+	/** How far from that corner, in <b>device</b> px, or {@code null}. */
+	public Coord offset;
+	/** Does it repeat across the room left over, rather than being scaled across it? */
+	public boolean tile;
+	/** A line's thickness, or a halo's reach — <b>device</b> px, {@code 0} where the piece is neither. */
+	public int width;
+
+	private Piece(Object art) {this.art = art;}
+
+	/** Pin it to one of the nine corners. */
+	public Piece at(String corner) {this.at = corner; return(this);}
+	/** ...at an offset from that corner, in device px. */
+	public Piece at(String corner, Coord offset) {this.at = corner; this.offset = offset; return(this);}
+	/** It repeats across the room left over. */
+	public Piece tile() {this.tile = true; return(this);}
+	/** Its thickness, in device px — a line frame, or the radius of a halo. */
+	public Piece width(int w) {this.width = w; return(this);}
+    }
+
+    /** One piece of a site's own look — see {@link Piece}. */
+    public static Piece piece(Object art) {
+	return(new Piece(art));
+    }
+
+    /* scope -> property -> the site's own value for it. Written by the sites, read by the addon layer. */
+    private static final Map<String, Map<String, Object[]>> stocks =
+	new java.util.concurrent.ConcurrentHashMap<String, Map<String, Object[]>>();
+
+    /**
+     * Declare what {@code scope}'s own {@code prop} is made of (065.17) — the property spelled exactly as a
+     * rule spells it ({@code "font"}, {@code "bg"}, {@code "border"}, {@code "padding"}, …), and the value as
+     * the site holds it: a {@link Text.Foundry}, a {@link Color}, a pair of {@link Coord}s, or one or more
+     * {@link Piece}s.
+     *
+     * <p><b>Idempotent and cheap</b>, because a site may declare from its own draw: an unchanged declaration
+     * is a comparison and no write at all. A site whose stock genuinely varies per instance — a checkbox is
+     * built large or small — declares what it is drawing, so the last one drawn is what the catalogue
+     * carries, and the addon layer's page says so.
+     *
+     * <p>A site declares a property only where the declaration is <b>what it draws</b>. Half of a surface,
+     * or a piece placed near enough, would make a catalogue that reads right and installs wrong, which is
+     * worse than a key the catalogue leaves out.
+     */
+    public static void stock(String scope, String prop, Object... value) {
+	if((scope == null) || (prop == null) || (value == null))
+	    return;
+	Map<String, Object[]> m = stocks.get(scope);
+	if(m == null)
+	    stocks.putIfAbsent(scope, m = new java.util.concurrent.ConcurrentHashMap<String, Object[]>());
+	m = stocks.get(scope);
+	Object[] had = m.get(prop);
+	if((had != null) && java.util.Arrays.equals(had, value))
+	    return;                       // the same declaration again: no write, so a per-draw call is free
+	m.put(prop, value.clone());
+    }
+
+    /** What {@code scope} declared its own look to be, property by property, or {@code null} for nothing. */
+    public static Map<String, Object[]> stockOf(String scope) {
+	Map<String, Object[]> m = (scope == null) ? null : stocks.get(scope);
+	return((m == null) ? null : Collections.unmodifiableMap(m));
+    }
+
+    /** Every scope that has declared anything, in {@link #SCOPES} order. */
+    public static List<String> stocked() {
+	List<String> out = new ArrayList<String>();
+	for(String s : SCOPES) {
+	    if(stocks.containsKey(s))
+		out.add(s);
+	}
+	return(out);
+    }
+
     /**
      * Is {@code name} a valid scope (a member of {@link #SCOPES})? This is how a <b>stylesheet key</b> is
      * classified (033.1): a bare selector role that names one of these is a <b>site key</b> and fills this

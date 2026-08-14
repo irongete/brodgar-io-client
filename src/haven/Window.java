@@ -186,6 +186,7 @@ public class Window extends Widget {
 	private static void checktitlefont() {
 	    int g = Fonts.gen();
 	    if((cf == null) || (fontgen != g)) {
+		stockdecl();               // addon: (065.17) what this decoration is made of, said where it is drawn
 		Text.Foundry f = Fonts.foundry("window.title", titlefnd);
 		// addon: (065.14) the RELIEF the caption's letters are cut out of -- `ctex` tiled through the glyph
 		// mask, exactly as before, unless a rule names its own texture or drops it. Dropping it is what lets a
@@ -199,6 +200,32 @@ public class Window extends Widget {
 		fontgen = g;
 	    }
 	}
+	/* addon: (065.17) what a window's own chrome is MADE OF, declared once beside the draw that makes it --
+	 * the catalogue behind sheet:stock(). Four of the five properties this decoration paints are said here:
+	 * the background is three layers (a tiled field, and a shade down each side), the caption is a place,
+	 * the sizer is a picture at a place, and the close button is three faces at a place.
+	 *   Two things are NOT said, and both are findings rather than omissions. The FRAME: its top-left corner
+	 * is the caption plate, whose width follows the caption, so the eight-part box a `border` is could only
+	 * reproduce it by taking the frame's own insets over tlm/brm -- and those two are what iresize reserves
+	 * a window's content by, so the window would re-lay itself out around art that had not changed. And the
+	 * PLATE: cl/cm/cr is a run whose middle tiles BETWEEN two caps, which is the shape of a frame and not of
+	 * a stack of layers -- said as layers, the middle paints across the whole plate and the caps sit on top
+	 * of it, so the plank shows through their scrollwork. */
+	private static boolean stockdone = false;
+	private static void stockdecl() {
+	    if(stockdone)
+		return;
+	    stockdone = true;
+	    Fonts.stock("window.frame", "bg", Fonts.piece(bg).tile(),
+			Fonts.piece(bgl).at("left").tile(), Fonts.piece(bgr).at("right").tile());
+	    Fonts.stock("window.frame", "caption", Fonts.piece(null).at("topleft", cpo));
+	    Fonts.stock("window.frame", "sizer", Fonts.piece(sizer).at("bottomright", Coord.z.sub(brm)));
+	    Fonts.stock("window.frame", "close", Fonts.piece(cbtni[0]).at("topright"),
+			Fonts.piece(cbtni[2]), Fonts.piece(cbtni[1]));
+	    Fonts.stock("window.title", "font", titlefnd);
+	    Fonts.stock("window.title", "emboss", ctex);
+	}
+
 	public final boolean lg;
 	// addon: (065.5) NOT final -- an IButton's faces are, so a theme's own close art cannot be put on this
 	// button in place. It is REBUILT instead, through chcbtn() below.

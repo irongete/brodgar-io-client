@@ -46,6 +46,12 @@ public class Speaking extends GAttrib implements RenderTree.Node, PView.Render2D
     private int fontgen = Fonts.gen();
 
     private static Text.Foundry font() {
+	/* addon: (065.17) what a speech bubble is made of: the face its words are set in, and the frame drawn
+	 * around them, which is one of the client's own eight-part boxes. Its FILL is not said -- the white
+	 * behind the text stops at the stock frame's inner edge, and a rule that painted it would be painting
+	 * the whole bubble, its shaped corners included. */
+	Fonts.stock("world.speech", "font", Text.std);
+	Fonts.stock("world.speech", "border", Fonts.piece(sb));
 	return(Fonts.foundry("world.speech", Text.std));
     }
 
