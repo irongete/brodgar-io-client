@@ -162,6 +162,12 @@ Terrain reads take a Position and return `nil` when the map for that spot has no
 lattice conversions are pure arithmetic and always answer. Nothing here is protected, and nothing throws on a
 point that is simply off-map.
 
+> **Ground you can see is not proof the live map has it.** The client also draws ground it merely
+> *remembers* — read back off the disk, greyed, wherever the camera looks past what is streaming — and
+> these reads never touch that record. Over remembered ground `:tile` and `:height` answer `nil` exactly as
+> they do over the void beside it. What the client wrote down is [`hafen.map`](map/README.md)'s to read, by
+> grid rather than by point.
+
 ```lua
 local p = hafen.player():gob():position()
 local t = hafen.world():tile(p)

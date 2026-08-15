@@ -139,6 +139,11 @@ and the ground it stands on stops being drawn; it goes with that ground, and it 
 place — the moment the ground returns. Nothing is lost meanwhile: it keeps its handle, its place, its look
 and its `:exists()`, and every verb goes on answering.
 
+**Ground the client merely remembers does not hold one up.** Past what is streaming, the client can draw the
+greyed-out ground it recorded on disk — and that is a picture, not a place: it carries no height for anything
+to stand on, so one standing there is still not drawn, and [`hafen.world`](../world.md) still answers `nil`
+for its tile. Drawn ground and locatable ground are two questions, and `:drawn()` answers the second.
+
 **The numbers move under it, and it does not move with them.** Stepping into a cave or a house makes the
 server drop the map and hand it back re-based, so one and the same world coordinate names different ground
 before and after. What one standing at a point holds is the durable place, never those numbers, so it is

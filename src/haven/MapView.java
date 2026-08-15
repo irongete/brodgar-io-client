@@ -1541,10 +1541,30 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * themselves; this ground is masked out of the shadow pass at its slot regardless (the shadow box is
      * 750 units around the character and this is by definition somewhere else), so the one reason to keep
      * an invisible cut cannot apply to it. */
+    /* 068.4: the cut cap, and it is a stated number rather than one derived from the frustum.
+     *
+     * The camera can frame more ground than this client was ever built to draw: the read square is 5x5
+     * grids and a grid is 4x4 cuts, so a wide view can want 400 cuts where the live raster around the
+     * player keeps 25. A cut is not a cheap thing to want -- two passes over 625 tiles plus dotrans's
+     * eight neighbour reads each, then a slot compile and a VBO upload -- so the cuts beyond the cap are
+     * simply not drawn, and because the set is filled nearest to where the camera is looking first, what
+     * is dropped is always the farthest ground on screen. */
+    private static final int recallcutcap = 160;
+    /* And a limit on how many of those may be STARTED in one tick. The mesh build is the whole cost of
+     * this feature and it arrives as a burst -- a pan into unread ground wants a hundred cuts at once,
+     * on the Defer threads every other loading thing in the client shares. A cut not started this tick
+     * is started next one; at five ticks a second the cap fills in a few seconds of continuous panning,
+     * and a cut still building is not in `cuts` yet, so this bounds what is in flight and not merely
+     * what is begun. */
+    private static final int recallmaxbuild = 6;
+
     private class RecallTerrain extends MapRaster {
-	/* Computed once per tick, so the frustum test runs once per cut rather than once per grid tick. */
-	final Set<Coord> vis = new HashSet<>();
+	/* Which cuts this raster is to hold, computed once per tick: visible, not the live raster's, read
+	 * back from the record, and within both budgets. Nearest-first, so a pan grows the drawn ground
+	 * outward from where the camera is looking rather than in grid order. */
+	final Set<Coord> draw = new HashSet<>();
 	Coord2d center = null;
+	int nwanted = 0;
 
 	final Grid main = new Grid<MapMesh>() {
 		MapMesh getcut(Coord cc) {
@@ -1559,6 +1579,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    Coord2d c = this.center;
 	    if(c == null) {
 		area = null;
+		draw.clear();
+		nwanted = 0;
 		return;
 	    }
 	    /* In grids rather than in cuts, because grids are the unit the source reads and the margin is
@@ -1566,25 +1588,58 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    Coord gc = c.floor(tilesz).div(MCache.cmaps);
 	    int r = io.brodgar.session.Recall.radius - 1;
 	    area = new Area(gc.sub(r, r).mul(MCache.cutn), gc.add(r + 1, r + 1).mul(MCache.cutn));
-	    vis.clear();
+	    List<Coord> cand = new ArrayList<>();
+	    Area own = terrain.area;
 	    for(Coord cc : area) {
-		if(cutvisible(cc))
-		    vis.add(cc);
+		/* The live raster's ground wins every cut the two share: both sources hold the same
+		 * tiles and the same heights there, so a second mesh is not a merge but a twin, and two
+		 * twins in one place is z-fighting. */
+		if((own != null) && own.contains(cc))
+		    continue;
+		/* Ask the cache what it HOLDS rather than let getcut ask for it. MCache.getcut ends in
+		 * getgrid, which on a miss queues a request -- harmless on a source nothing sends for, but
+		 * it fills that queue with every unrecorded grid in the area and buries the one number
+		 * :recall exists to report. Ground the character has never walked is simply not drawn. */
+		if(AddonWidgets.loadedGrid(map, cc.div(MCache.cutn)) == null)
+		    continue;
+		if(!cutvisible(cc))
+		    continue;
+		cand.add(cc);
+	    }
+	    nwanted = cand.size();
+	    final Coord cen = c.floor(tilesz).div(MCache.cutsz);
+	    Collections.sort(cand, new Comparator<Coord>() {
+		    public int compare(Coord a, Coord b) {
+			return(Long.compare(dist2(a, cen), dist2(b, cen)));
+		    }
+		});
+	    draw.clear();
+	    int building = 0;
+	    for(Coord cc : cand) {
+		if(draw.size() >= recallcutcap)
+		    break;
+		if(!main.cuts.containsKey(cc)) {
+		    /* Not `break`: a cut already built and still in view is kept whatever this tick's
+		     * build budget is, because keeping it costs nothing and dropping it would only have
+		     * it rebuilt. What the budget bounds is starting new ones. */
+		    if(building >= recallmaxbuild)
+			continue;
+		    building++;
+		}
+		draw.add(cc);
 	    }
 	    main.tick();
 	}
 
+	private long dist2(Coord a, Coord b) {
+	    long dx = a.x - b.x, dy = a.y - b.y;
+	    return((dx * dx) + (dy * dy));
+	}
+
+	/* Everything the budget left out leaves the scene here, and so does everything that left the
+	 * view: Grid.tick removes the slot of every cut this refuses, and of every cut outside `area`. */
 	boolean skipcut(Coord cc) {
-	    Area own = terrain.area;
-	    if((own != null) && own.contains(cc))
-		return(true);
-	    if(!vis.contains(cc))
-		return(true);
-	    /* Ask the cache what it HOLDS rather than let getcut ask for it. MCache.getcut ends in
-	     * getgrid, which on a miss queues a request -- harmless on a source nothing sends for, but it
-	     * fills that queue with every unrecorded grid in the area and buries the one number :recall
-	     * exists to report. Ground the character has never walked is simply not drawn. */
-	    return(AddonWidgets.loadedGrid(map, cc.div(MCache.cutn)) == null);
+	    return(!draw.contains(cc));
 	}
 
 	public void added(RenderTree.Slot slot) {
@@ -1627,9 +1682,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	/* The raster goes in with the RTS camera and comes out with it. Every other camera is bolted to
 	 * the character, where the live Terrain already draws everything in view and this would have
 	 * nothing to add but a second mesh over the first -- and with the raster out of the tree its
-	 * grids stop being meshed at all, which is the whole of what it costs. */
-	if(!recallon || !rts || (c == null)) {
+	 * grids stop being meshed at all, which is the whole of what it costs.
+	 *
+	 * It also comes out whenever the source cannot vouch for where its ground goes. Walking into a
+	 * house or a cave re-bases the session coordinate space while sessloc still names the segment just
+	 * left, and everything read through that offset is now ground drawn somewhere it never was --
+	 * which is worse than no ground at all. It returns of its own accord once a sweep has proved the
+	 * new base, and in the right place. */
+	if(!recallon || !rts || (c == null) || !recall.ready()) {
 	    droprecall();
+	    /* In this order and not the other: release() disposes every cut mesh the source holds, and a
+	     * raster still in the tree holding one goes on drawing it. Out of the scene, then disposed. */
+	    recall.release();
 	    return;
 	}
 	if(recallterrain == null)
@@ -3578,10 +3642,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			throw(new Exception("recall: no source yet -- no minimap to take a session location from"));
 		    for(String ln : r.report())
 			cons.out.println(ln);
-		    cons.out.println(String.format("recall: drawing %s, raster %s, cuts drawn %d",
+		    cons.out.println(String.format("recall: drawing %s, raster %s, cuts drawn %d of %d (wanted %d, %d new per tick)",
 						   recallon ? "on" : "off",
 						   (s_recall == null) ? "out of the scene" : "in the scene",
-						   (recallterrain == null) ? 0 : recallterrain.main.cuts.size()));
+						   (recallterrain == null) ? 0 : recallterrain.main.cuts.size(),
+						   recallcutcap,
+						   (recallterrain == null) ? 0 : recallterrain.nwanted,
+						   recallmaxbuild));
 		    cons.out.println(String.format("recall: wash %d of 255 toward grey -- `:recall wash <a>' to change it",
 						   washamt));
 		}

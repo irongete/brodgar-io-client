@@ -49,7 +49,7 @@
       ground at a glance, with the tile still readable (water, ploughed field, road).
       `[manual]`: try `:recall wash` at a few values and say which one to ship as the default.
 
-- [ ] **068.4 — It stays bounded, and it survives the ground moving.** Adds the cut and grid budget
+- [x] **068.4 — It stays bounded, and it survives the ground moving.** Adds the cut and grid budget
       with a stated cap and a per-tick limit on new builds, nearest to the camera centre first;
       release of what leaves the view; and the re-base handling — the offset re-derived each tick
       from `sessloc`, every recalled grid dropped when `sessloc.seg` or `tc` moves (`MCache.trimall`

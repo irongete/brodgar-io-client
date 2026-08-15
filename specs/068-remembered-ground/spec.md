@@ -80,7 +80,8 @@ Derived impact set — `grep -rniE "(terrain|ground).*(is drawn|not drawn|stream
 
 ## Context files
 
-- `src/io/brodgar/rts/Recall.java` — 2, 3, 4
+- `src/io/brodgar/session/Recall.java` — 2, 3, 4
+- `docs/addons/api/map/README.md` — 4
 - `src/haven/MCache.java` — 1, 2, 3
 - `src/haven/MapFile.java` — 1, 3
 - `src/haven/MiniMap.java` — 1, 3

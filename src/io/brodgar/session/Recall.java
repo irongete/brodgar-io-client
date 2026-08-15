@@ -49,6 +49,13 @@ import haven.Utils;
 public class Recall {
     /** How far around the centre the record is read, in grids. */
     public static final int radius = 3;
+    /**
+     * The grid cap, and it is the whole of the budget on this side: a square of {@link #radius}
+     * around the centre and not one grid more, released down to that square every tick. A grid is an
+     * array copy and a handful of kilobytes — what costs is meshing one, and that cap is the drawn
+     * raster's, a ring further in.
+     */
+    public static final int gridcap = ((radius * 2) + 1) * ((radius * 2) + 1);
     /** How many grids one sweep may start reading off the disk. */
     private static final int maxread = 8;
     /** How often the sweep runs, in seconds. */
@@ -86,6 +93,22 @@ public class Recall {
     private volatile Base base = null;
     private volatile String unbased = "no session location yet";
 
+    /**
+     * Whether a sweep has shown the offset to be the right one, and whether what is held must go.
+     *
+     * <p>A base that has merely been derived is not a base that has been <i>proved</i>. {@code sessloc}
+     * goes stale rather than null: for a window after the server drops the map it still names the
+     * segment just left, while the session coordinate space underneath has already been re-based — and
+     * everything read through it in that window is placed somewhere it never was. So nothing is drawn
+     * until a sweep has checked the offset against a live grid's id, and the moment one fails, what
+     * was read through the old offset is dropped rather than left standing.
+     *
+     * <p>Dropping is {@link #release()}'s job and never done here, because the order matters: the
+     * raster comes out of the scene first, and only then are the meshes it was holding disposed.
+     */
+    private volatile boolean proven = false;
+    private volatile boolean mustrelease = false;
+
     /* The per-source tile remap. Touched by the sweep alone, and only one sweep runs at a time. */
     private final Map<String, Integer> tileids = new HashMap<String, Integer>();
     private int nexttile = 0;
@@ -94,6 +117,7 @@ public class Recall {
     private double lastsweep = 0;
 
     private volatile int nread = 0, nfailed = 0, nrebase = 0, nblank = 0, nwaiting = 0, nstale = 0;
+    private volatile int nreleased = 0;
     private volatile String lasterr = null;
 
     /**
@@ -136,12 +160,23 @@ public class Recall {
 	if((cur == null) || !cur.sameas(loc)) {
 	    if(cur != null)
 		nrebase++;
-	    map.trimall();
+	    /* The offset is re-derived, never carried across the move: a grid coord that meant somewhere
+	     * before means somewhere else afterwards, so what was read through the old one is now wrong
+	     * everywhere. Nothing is drawn again until a sweep has proved the new offset. */
+	    proven = false;
+	    mustrelease = true;
 	    this.base = cur = new Base(mm.file, loc);
 	}
 	unbased = null;
 	if(center == null)
 	    return;
+	/* Release, every tick and not merely at the end of a sweep that got the file lock. The kept
+	 * square is concentric with the drawn one and a whole grid wider, so trimming never disposes a
+	 * grid the raster is holding a cut of -- which is the one way this could reach through a
+	 * disposed mesh. A sweep's own centre lags this one under a fast pan; this centre is the one the
+	 * raster is about to be given, so the two cannot disagree. */
+	Coord gc = center.floor(MCache.tilesz).div(MCache.cmaps);
+	map.trim(gc.sub(radius, radius), gc.add(radius, radius));
 	double now = Utils.rtime();
 	if(sweeping || ((now - lastsweep) < period))
 	    return;
@@ -205,9 +240,18 @@ public class Recall {
 		    wrong++;
 	    }
 	    if((checked == 0) || (wrong > 0)) {
+		/* Not merely a refusal to read: what was already read came through an offset that has just
+		 * failed its own check, so it goes. `checked == 0` counts as a failure and not as an
+		 * unknown -- the character's own grid is recorded within a second of arriving, so nothing
+		 * to compare against means the record does not know where the session is standing, which
+		 * is exactly the window a re-base opens and exactly when drawing is at its most wrong. */
 		nstale++;
+		if(proven)
+		    mustrelease = true;
+		proven = false;
 		return;
 	    }
+	    proven = true;
 	    for(int y = -radius; y <= radius; y++) {
 		for(int x = -radius; x <= radius; x++) {
 		    Coord gc = center.add(x, y);
@@ -260,9 +304,27 @@ public class Recall {
 		lasterr = String.valueOf(e);
 	    }
 	}
-	/* Release what left the wanted rectangle. trim() is the cache's own verb for exactly this and
-	 * it drops the pending request set with the grids, which for this source is always empty. */
-	map.trim(center.sub(radius, radius), center.add(radius, radius));
+    }
+
+    /**
+     * Whether the remembered ground may be drawn: there is a base, a sweep has proved it, and nothing
+     * read through a base that has since failed is still held.
+     */
+    public boolean ready() {
+	return((base != null) && proven && !mustrelease);
+    }
+
+    /**
+     * Drop everything read through a base that is gone or was never proved. Called by whatever draws
+     * this source, <b>after</b> it has taken its raster out of the scene: {@code trimall} disposes
+     * every cut mesh in the cache, and a raster still holding one goes on drawing it.
+     */
+    public void release() {
+	if(!mustrelease)
+	    return;
+	mustrelease = false;
+	nreleased++;
+	map.trimall();
     }
 
     /** Remap the recorded grid's tile indices onto this cache's own ids, and install it. */
@@ -304,13 +366,14 @@ public class Recall {
 	if(b == null) {
 	    out.add("recall: no base -- " + unbased);
 	} else {
-	    out.add(String.format("recall: segment %s, session tile %s, grid offset %s",
-				  Long.toUnsignedString(b.segid, 16), b.tc, b.off));
+	    out.add(String.format("recall: segment %s, session tile %s, grid offset %s, %s",
+				  Long.toUnsignedString(b.segid, 16), b.tc, b.off,
+				  proven ? "proved against a live grid" : "NOT PROVED -- nothing is drawn"));
 	}
-	out.add(String.format("recall: grids read %d, in cache %d, unrecorded %d, waiting %d, failed %d",
-			      nread, map.numgrids(), nblank, nwaiting, nfailed));
-	out.add(String.format("recall: rebases %d, sweeps refused on a stale session location %d",
-			      nrebase, nstale));
+	out.add(String.format("recall: grids read %d, in cache %d of %d, unrecorded %d, waiting %d, failed %d",
+			      nread, map.numgrids(), gridcap, nblank, nwaiting, nfailed));
+	out.add(String.format("recall: rebases %d, sweeps refused on a stale session location %d, releases %d",
+			      nrebase, nstale, nreleased));
 	/* "sent" is zero by construction and not by a counter: nothing ticks this source, so
 	 * sendreqs() never runs on it. What is worth reading is the number beside it -- a queue above
 	 * zero says something called getgrid() on this cache and would put that grid on the wire the
