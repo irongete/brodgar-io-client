@@ -84,6 +84,7 @@ grep -n "dwait" docs/addons/api/client/profiling/README.md
 - `src/haven/MapView.java` — 1, 2, 3
 - `docs/client/multi-session.md` — 1, 2, 3
 - `docs/client/world-3d.md` — 2
+- `docs/client/boot-and-loop.md` — 2 (the UI-thread phase list, which the list above did not name)
 - `docs/client/services.md` — 1
 - `docs/addons/api/client/profiling/README.md` — 2
 - `specs/ROADMAP.md` — 3

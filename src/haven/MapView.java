@@ -727,7 +727,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	this.terrain = new Terrain();
 	this.clickmap = new ClickMap();
 	setcanfocus(true);
-	/* rts: a fleet member's view is built but never enters the render tree (F0, specs/rts/plan.md).
+	/* rts: a member's view is built but never enters the render tree (F0, specs/rts/plan.md).
 	 * That is not cosmetic. MapRaster.Grid.tick() is a no-op while its node has no slot, and Gobs
 	 * registers its OCache callback only when it is added -- so this one branch is the whole
 	 * difference between a dormant session costing network and one meshing terrain, building gob
@@ -753,12 +753,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private void detachscene() {
-	/* The merged fleet patches are the anchor's business and nobody else's: a dormant view has no
-	 * frame of reference to hang them in and nothing to draw them to. Dropped whole; fleettick()
+	/* The merged member patches are the anchor's business and nobody else's: a dormant view has no
+	 * frame of reference to hang them in and nothing to draw them to. Dropped whole; sessiontick()
 	 * builds them again from scratch if this view is ever promoted back. */
-	for(FleetView fv : fleetviews.values())
+	for(SessionView fv : sessionviews.values())
 	    fv.remove();
-	fleetviews.clear();
+	sessionviews.clear();
 	droprecall();   // 068.2: a dormant view draws no ground of its own and none it remembers
 	if(s_gobs != null)     {s_gobs.remove();     s_gobs = null;}
 	if(s_terrain != null)  {s_terrain.remove();  s_terrain = null;}
@@ -838,7 +838,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private final Gobs gobs;
     private class Gobs implements RenderTree.Node, OCache.ChangeCallback {
 	/* rts: (F7, specs/rts/plan.md) the Glob is a constructor argument now -- it was `glob`, this
-	 * view's own, and nothing else. A fleet member's objects are rendered into this same scene by a
+	 * view's own, and nothing else. A member's objects are rendered into this same scene by a
 	 * second instance reading the member's Glob, so the field had to stop being a constant. */
 	final Glob g;
 	final OCache oc;
@@ -854,7 +854,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 
 
-	/* rts: (F7) a gob this instance must not draw. Always false for the view's own objects; a fleet
+	/* rts: (F7) a gob this instance must not draw. Always false for the view's own objects; a
 	 * member's instance uses it to yield anything the anchor is already drawing, so the overlap
 	 * between two sessions' worlds is rendered once, not twice. */
 	boolean skipgob(Gob ob) {
@@ -965,7 +965,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private class MapRaster extends RenderTree.Node.Track1 {
-	/* rts: (F7) an argument, for the same reason as Gobs.g above -- a fleet member's ground is
+	/* rts: (F7) an argument, for the same reason as Gobs.g above -- a member's ground is
 	 * rasterized into this scene out of the member's own MCache. */
 	final MCache map;
 	Area area;
@@ -977,7 +977,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    this.map = map;
 	}
 
-	/* rts: (F7) a cut this raster must not draw. A fleet member's ground overlaps the anchor's
+	/* rts: (F7) a cut this raster must not draw. A member's ground overlaps the anchor's
 	 * wherever the two are near each other, and two identical meshes in one place is z-fighting,
 	 * not a merge -- so the member yields every cut the anchor is already drawing. */
 	boolean skipcut(Coord cc) {
@@ -1105,7 +1105,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    return(culling() && !vis.contains(cc));
 	}
 
-	/* rts: the Video option. A fleet patch is culled unconditionally -- it is somewhere else and
+	/* rts: the Video option. A member's patch is culled unconditionally -- it is somewhere else and
 	 * routinely off screen altogether, and it casts no shadow either way -- but the ground around
 	 * the player sits inside the shadow map's own box, so culling it there is a trade the player
 	 * makes rather than one the client makes for them. */
@@ -1147,18 +1147,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * Both halves yield to the anchor where the two worlds overlap: the same ground drawn twice is
      * z-fighting and the same tree drawn twice is a double tree, so the anchor wins every cut and every
      * gob it already has, and the member fills in only what is missing. */
-    private class FleetTerrain extends MapRaster {
+    private class SessionTerrain extends MapRaster {
 	final Glob mglob;
 	final long mplgob;
 	final Coord cutoff;   // member cut coords -> anchor cut coords: subtract
-	FleetView fv;
+	SessionView fv;
 
 	final Grid main = new Grid<MapMesh>() {
 		MapMesh getcut(Coord cc) {
 		    return(map.getcut(cc));
 		}
 	    };
-	FleetTerrain(Glob mglob, long mplgob, Coord cutoff) {
+	SessionTerrain(Glob mglob, long mplgob, Coord cutoff) {
 	    super(mglob.map);
 	    this.mglob = mglob;
 	    this.mplgob = mplgob;
@@ -1169,7 +1169,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    /* Centred on the MEMBER's character, in the MEMBER's tile coords -- this raster reads that
 	     * session's map, so it must be addressed in that session's frame. The translation on the
 	     * slot above is what puts the result in the right place on screen. */
-	    area = fleetarea(mglob, mplgob, this);
+	    area = sessionarea(mglob, mplgob, this);
 	    if(area != null)
 		main.tick();
 	}
@@ -1184,12 +1184,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
 
-    private class FleetGobs extends Gobs {
+    private class SessionGobs extends Gobs {
 	private double lastdedupe = 0;
 	private final Coord2d fvoff;
-	FleetView fv;
+	SessionView fv;
 
-	FleetGobs(Glob mglob, Coord2d fvoff) {
+	SessionGobs(Glob mglob, Coord2d fvoff) {
 	    super(mglob);
 	    this.fvoff = fvoff;
 	}
@@ -1207,7 +1207,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	boolean skipgob(Gob ob) {
 	    if(glob.oc.getgob(ob.id) != null)
 		return(true);
-	    FleetView[] order = fvorder;
+	    SessionView[] order = fvorder;
 	    for(int i = 0; i < order.length; i++) {
 		if(order[i] == fv)
 		    return(false);
@@ -1267,13 +1267,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
     /* rts: (F7) the member's ground in the CLICK tree. Without this the merged terrain is scenery:
      * visible, and completely unclickable, because the pick pass tests against clmaptree alone -- which
      * is exactly why an order only landed while the anchor stood near the ground being clicked. */
-    private class FleetClickMap extends ClickMap {
+    private class SessionClickMap extends ClickMap {
 	final Glob mglob;
 	final long mplgob;
 	final Coord cutoff;
-	FleetView fv;
+	SessionView fv;
 
-	FleetClickMap(Glob mglob, long mplgob, Coord cutoff) {
+	SessionClickMap(Glob mglob, long mplgob, Coord cutoff) {
 	    super(mglob.map);
 	    this.mglob = mglob;
 	    this.mplgob = mplgob;
@@ -1281,7 +1281,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 
 	void tick() {
-	    area = fleetarea(mglob, mplgob, this);
+	    area = sessionarea(mglob, mplgob, this);
 	    if(area != null)
 		grid.tick();
 	}
@@ -1295,7 +1295,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * States.Facecull is back-face, per triangle, and nothing in RenderList or DrawList tests
      * visibility -- so every node in the tree is submitted every frame whether or not it can be seen.
      * For the client's own terrain that hardly matters: it is a small square around the camera and
-     * almost all of it is in view. A fleet patch is somewhere else entirely and is routinely off
+     * almost all of it is in view. A member's patch is somewhere else entirely and is routinely off
      * screen altogether, and paying full price for it is what makes a second character expensive.
      *
      * Conservative on purpose. The test is per-plane -- a cut is dropped only when all four corners
@@ -1341,7 +1341,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     /** rts: (F7) the cut rectangle around a member's character, in that member's own tile coords. */
-    private Area fleetarea(Glob mglob, long mplgob, MapRaster raster) {
+    private Area sessionarea(Glob mglob, long mplgob, MapRaster raster) {
 	try {
 	    Gob pl = mglob.oc.getgob(mplgob);
 	    if(pl == null)
@@ -1362,30 +1362,30 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
 
-    /** rts: (F7) one fleet member's ground and objects, hanging in this scene under F1's offset. */
-    private class FleetView {
+    /** rts: (F7) one member's ground and objects, hanging in this scene under F1's offset. */
+    private class SessionView {
 	final Glob mglob;
 	final long mplgob;
 	final Coord2d off;
-	final FleetTerrain fterrain;
-	final FleetGobs fgobs;
-	final FleetClickMap fclick;
+	final SessionTerrain fterrain;
+	final SessionGobs fgobs;
+	final SessionClickMap fclick;
 	final RenderTree.Slot slot, clslot;
 	final Coord cutoff;
-	/* Which cuts THIS view is the one to draw, in its own cut coords. Recomputed each fleettick and
+	/* Which cuts THIS view is the one to draw, in its own cut coords. Recomputed each sessiontick and
 	 * consulted by both of its rasters, so the terrain, the flavour layer and the click geometry
 	 * always agree about what belongs to whom. */
 	final Set<Coord> mine = new HashSet<>();
 
-	FleetView(Glob mglob, long mplgob, Coord2d off) {
+	SessionView(Glob mglob, long mplgob, Coord2d off) {
 	    this.mglob = mglob;
 	    this.mplgob = mplgob;
 	    this.off = off;
 	    Coord toff = Coord.of((int)Math.round(off.x / tilesz.x), (int)Math.round(off.y / tilesz.y));
 	    this.cutoff = toff.div(MCache.cutsz);
-	    this.fterrain = new FleetTerrain(mglob, mplgob, cutoff);
-	    this.fgobs = new FleetGobs(mglob, off);
-	    this.fclick = new FleetClickMap(mglob, mplgob, cutoff);
+	    this.fterrain = new SessionTerrain(mglob, mplgob, cutoff);
+	    this.fgobs = new SessionGobs(mglob, off);
+	    this.fclick = new SessionClickMap(mglob, mplgob, cutoff);
 	    fterrain.fv = this;
 	    fclick.fv = this;
 	    fgobs.fv = this;
@@ -1398,7 +1398,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * an ancestor whose state could still change, and it throws rather than risk a stale bake.
 	     * Nothing above these two ever defined a Location before, so nothing was ever that ancestor;
 	     * introducing one is what makes the declaration necessary. It is also simply true: the offset
-	     * is fixed for this member, and a FleetView is rebuilt whole if it ever changes. */
+	     * is fixed for this member, and a SessionView is rebuilt whole if it ever changes. */
 	    /* ShadowMap.maskshadow keeps this whole patch out of the shadow pass, which is a second full
 	     * render of every triangle in it. The shadow map is a 750-unit box around the ANCHOR's
 	     * character, so a patch far enough away to need merging at all contributes nothing to it and
@@ -1418,7 +1418,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	void tick(Set<Coord> claimed) {
 	    mine.clear();
-	    Area a = fleetarea(mglob, mplgob, fterrain);
+	    Area a = sessionarea(mglob, mplgob, fterrain);
 	    if(a != null) {
 		for(Coord cc : a) {
 		    Coord anc = cc.sub(cutoff);
@@ -1441,7 +1441,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	/* rts: a rendered gob needs gtick() EVERY frame -- that is what uploads its animated pose, and
 	 * a Drawable whose pose is never refreshed is drawn from whatever happened to be in its buffers,
 	 * which is why merged trees jittered in position and height. Glob.gtick was deliberately not
-	 * called for fleet sessions in F0, and that was right then: nothing of theirs was in a render
+	 * called for member sessions in F0, and that was right then: nothing of theirs was in a render
 	 * tree. The merged view made it wrong and nothing said so.
 	 *
 	 * Only the gobs this view actually put in the scene, not the member's whole OCache -- the culled
@@ -1468,10 +1468,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
 
-    private final Map<String, FleetView> fleetviews = new LinkedHashMap<>();
-    /* An immutable snapshot of fleetviews in a stable order, safe to walk from a Loader thread. */
-    private volatile FleetView[] fvorder = new FleetView[0];
-    private double lastreq = 0, lastfleet = 0;
+    private final Map<String, SessionView> sessionviews = new LinkedHashMap<>();
+    /* An immutable snapshot of sessionviews in a stable order, safe to walk from a Loader thread. */
+    private volatile SessionView[] fvorder = new SessionView[0];
+    private double lastreq = 0, lastsession = 0;
 
     /* 068: the remembered ground's source -- an MCache of its own, filled out of the map database.
      * Built on the first tick that has a minimap to take sessloc from; RecallTerrain below is what
@@ -1533,7 +1533,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * It yields every cut the live Terrain claims. The two sources hold the SAME ground wherever they
      * overlap -- same tiles, same heights, straight off the same server -- so drawing both is not a merge
      * but one mesh laid on its twin, which is z-fighting. The live one wins, exactly as the anchor wins
-     * over a fleet member's patch, and the join has no step in it because the height either side came from
+     * over a member's patch, and the join has no step in it because the height either side came from
      * the same record.
      *
      * It culls unconditionally rather than on the cullterrain option. That setting exists because ground
@@ -1638,7 +1638,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    /* ShadowMap.ShadowList.add mirrors every lit slot into the shadow pass and skips only one
 	     * carrying maskshadow, so without this every recalled cut is rasterized twice -- for a shadow
 	     * box of 750 units around the player that this ground is, by construction, outside of. */
-	    /* No lockstate() here, unlike a FleetView's slot: what locks a descendant is a Composited gob
+	    /* No lockstate() here, unlike a SessionView's slot: what locks a descendant is a Composited gob
 	     * or a click-map cut, and this subtree holds neither -- only MapMesh cuts, exactly as the
 	     * plain Terrain slot beside it does. Locking a slot whose state has already been used throws,
 	     * and adding the node is what uses it. */
@@ -1659,30 +1659,30 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	recallterrain.tick();
     }
 
-    /* rts: every frame, unlike fleettick() -- an animated pose that is 200ms stale is a visible jump. */
+    /* rts: every frame, unlike sessiontick() -- an animated pose that is 200ms stale is a visible jump. */
     public void gtick(Render out) {
 	super.gtick(out);
-	if(dormant || fleetviews.isEmpty())
+	if(dormant || sessionviews.isEmpty())
 	    return;
-	for(FleetView fv : fleetviews.values())
+	for(SessionView fv : sessionviews.values())
 	    fv.gtick(out);
     }
 
-    private void fleettick() {
+    private void sessiontick() {
 	/* The cut set under a member changes when it walks across a cut boundary, which at running pace
 	 * is a few times a second at most -- and maintaining it means a getcut() and a map lookup for
 	 * every cut of a 7x7 patch, three times over (terrain, flavour objects, click geometry), per
 	 * member, per frame. Five times a second delays a new cut appearing by 200ms and nothing else. */
 	double now = Utils.rtime();
-	if((now - lastfleet) < 0.2)
+	if((now - lastsession) < 0.2)
 	    return;
-	lastfleet = now;
-	fleettick2();
+	lastsession = now;
+	sessiontick2();
     }
 
-    private void fleettick2() {
+    private void sessiontick2() {
 	List<io.brodgar.session.Sessions.View> vs = io.brodgar.session.Sessions.views();
-	if(vs.isEmpty() && fleetviews.isEmpty())
+	if(vs.isEmpty() && sessionviews.isEmpty())
 	    return;
 	/* The anchor's own terrain claims its ground before anyone else is asked, so a member never
 	 * draws over the session that is actually on screen. */
@@ -1695,26 +1695,26 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Set<String> live = new HashSet<>();
 	for(io.brodgar.session.Sessions.View v : vs) {
 	    live.add(v.user);
-	    FleetView fv = fleetviews.get(v.user);
+	    SessionView fv = sessionviews.get(v.user);
 	    /* A relog gives the member a new Glob and a new frame: the old node is not adjustable, it
 	     * is wrong. Drop it and build again. */
 	    if((fv != null) && ((fv.mglob != v.glob) || !fv.off.equals(v.offset))) {
 		fv.remove();
-		fleetviews.remove(v.user);
+		sessionviews.remove(v.user);
 		fv = null;
 	    }
 	    if(fv == null)
-		fleetviews.put(v.user, fv = new FleetView(v.glob, v.plgob, v.offset));
+		sessionviews.put(v.user, fv = new SessionView(v.glob, v.plgob, v.offset));
 	    fv.tick(claimed);
 	}
-	for(Iterator<Map.Entry<String, FleetView>> i = fleetviews.entrySet().iterator(); i.hasNext();) {
-	    Map.Entry<String, FleetView> e = i.next();
+	for(Iterator<Map.Entry<String, SessionView>> i = sessionviews.entrySet().iterator(); i.hasNext();) {
+	    Map.Entry<String, SessionView> e = i.next();
 	    if(!live.contains(e.getKey())) {
 		e.getValue().remove();
 		i.remove();
 	    }
 	}
-	fvorder = fleetviews.values().toArray(new FleetView[0]);
+	fvorder = sessionviews.values().toArray(new SessionView[0]);
     }
 
     public class Overlay extends MapRaster {
@@ -2423,7 +2423,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			    Coord2d wc = new Coord2d(cut.ul).add(pos.mul(new Coord2d(cut.sz))).mul(tilesz);
 			    /* rts: (F7) the coordinate is derived from the CUT, so it comes out in the frame
 			     * of whichever session's map that cut belongs to -- the scene translation above
-			     * it does not touch this arithmetic at all. A cut from a merged fleet view is
+			     * it does not touch this arithmetic at all. A cut from a merged member view is
 			     * brought back into the anchor's frame here, once, so that everything downstream
 			     * (an order, a move, a placement) goes on speaking one coordinate system. */
 			    Coord2d off = io.brodgar.session.Sessions.offsetfor(cut.map);
@@ -2737,7 +2737,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	updweather();
 	synchronized(glob.map) {
 	    terrain.tick();
-	    fleettick();   // rts: (F7) the fleet members' ground and objects, merged into this scene
+	    sessiontick();   // rts: (F7) the members' ground and objects, merged into this scene
 	    oltick();
 	    if(gridlines != null)
 		gridlines.tick();
@@ -3122,13 +3122,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
     
     /* rts: (F3, specs/rts/plan.md) an order's destination, resolved by the client's OWN pick pass --
-     * the same machinery a real click uses, so a fleet order lands exactly where a click would have.
+     * the same machinery a real click uses, so an order lands exactly where a click would have.
      * It sends nothing itself: it hands the resolved point, and the id of any gob under it, to the RTS
      * controller, which decides who receives it and rebuilds the arguments in each recipient's frame. */
-    public class FleetClick extends Hittest {
+    public class ClickOrder extends Hittest {
 	private final int btn, mods;
 
-	public FleetClick(Coord c, int btn, int mods) {
+	public ClickOrder(Coord c, int btn, int mods) {
 	    super(c);
 	    this.btn = btn;
 	    this.mods = mods;
@@ -3529,11 +3529,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * through the other two. Unchecked, because the console catches it and the dropdown offers no
      * name that is not in the registry. */
     public void setcam(String name, String... args) {
-	/* rts: a retired spelling refuses by name. "no such camera: fleet" is true and useless -- it
-	 * reads as "this client has no such thing", when the camera is there under one name and one
-	 * name only. */
-	if(name.equals("fleet"))
-	    throw(new IllegalArgumentException("no camera named 'fleet' -- it is 'rts': :cam rts"));
 	Class<? extends Camera> ct = camtypes.get(name);
 	if(ct == null)
 	    throw(new IllegalArgumentException("no such camera: " + name + " -- the client has " + String.join(", ", camnames())));

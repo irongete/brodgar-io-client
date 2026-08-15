@@ -15,7 +15,7 @@
       captioned `Sessions`. The task hands over the exact console script in its report.
       <!-- extra context: the whole `:fleet` block in `src/haven/Client.java` is the door being moved -->
 
-- [ ] **069.2 — `MapView`'s merged scene, said in sessions.** Renames the inner machinery:
+- [x] **069.2 — `MapView`'s merged scene, said in sessions.** Renames the inner machinery:
       `FleetView`, `FleetTerrain`, `FleetGobs` and `FleetClickMap` → `SessionView`, `SessionTerrain`,
       `SessionGobs`, `SessionClickMap`; `fleettick`/`fleettick2` → `sessiontick`/`sessiontick2`,
       `fleetarea` → `sessionarea`, `fleetviews` → `sessionviews`, `lastfleet` → `lastsession`.

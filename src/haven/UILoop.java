@@ -558,7 +558,7 @@ public abstract class UILoop implements Console.Directory {
 	     * threads take exactly one, so there is no cycle to make. No gtick and no resize: a member has
 	     * nothing in a render tree and no pixels of its own. Its own phase, because the whole point of
 	     * F0 is to read what a second session costs. No members = one list check. */
-	    CPUProfile.phase(prof, "fleet");
+	    CPUProfile.phase(prof, "sessions");
 	    io.brodgar.session.Sessions.tick();
 	    /* rts: (F5) the main session is a background session whenever it is not the one on screen.
 	     * Nothing else would tick it -- Sessions owns its members and this one is not among them -- and

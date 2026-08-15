@@ -71,10 +71,10 @@ reasons — so they answer whether profiling is armed or not, and reading them c
 | `ui` | number | widget-tree cost this frame |
 | `addons` | number | Lua time charged to addons this frame |
 
-`phases` carries the client's own phase names — `dwait`, `stick`, `utick`, `draw`, `aux`, `wait` — so the
-numbers line up with the client's profile window field by field. `render` is the render thread's group
-(`tick`, `draw`, `swap`, `finish`) and **lags by about one frame**: that profile closes a frame on the next
-frame's fence, and the API reports what the client measured rather than re-timing it.
+`phases` carries the client's own phase names — `dwait`, `stick`, `utick`, `sessions`, `draw`, `aux`,
+`wait` — so the numbers line up with the client's profile window field by field. `render` is the render
+thread's group (`tick`, `draw`, `swap`, `finish`) and **lags by about one frame**: that profile closes a
+frame on the next frame's fence, and the API reports what the client measured rather than re-timing it.
 
 `addons` is the same accounting the addon CPU watchdog uses, read rather than re-measured.
 

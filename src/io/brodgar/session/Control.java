@@ -185,7 +185,7 @@ public class Control {
 	     * the client's OWN pick pass -- the same machinery a real click uses -- so an order lands
 	     * exactly where a click would have. It answers a frame or two later, on the UI thread, in
 	     * Control.hit below. */
-	    mv.new FleetClick(ev.c, ev.b, mods).run();
+	    mv.new ClickOrder(ev.c, ev.b, mods).run();
 	    return(true);
 	}
 	/* Nothing selected, or the middle button: the map view does what it has always done -- the

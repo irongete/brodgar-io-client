@@ -33,7 +33,7 @@ a mode is not a preference.
 | Input | Does |
 |---|---|
 | Left drag, left click | select by box, or the nearest character within 24px. Both project each character with `MapView.screenxf` and test in screen space: only our own characters are ever selected, so no rectangular pick pass exists |
-| Right click | order the selection. The destination is resolved by the client's own pick pass (`MapView.FleetClick extends Hittest`), so it lands where a real click would |
+| Right click | order the selection. The destination is resolved by the client's own pick pass (`MapView.ClickOrder extends Hittest`), so it lands where a real click would |
 | Middle drag | pan. The pixel delta is solved back into world units through the view's own projection — three `screenxf` probes and a 2×2 inverse — rather than by rebuilding the camera's trigonometry |
 | Ctrl and middle drag | `FreeCam`'s own rotate and elevate. `RTSCam.click` reads `ui.modflags()` once, at the press, so letting Ctrl go mid-drag does not change what the drag is already doing. Not a `KeyBinding`: `KeyMatch.Capture.handle` refuses a bare `VK_SHIFT`/`VK_CONTROL`/`VK_ALT`/`VK_META`/`VK_WINDOWS`, and that refusal is exactly what holds the key grab open across a modifier press so the chord after it can be captured — so a rebindable id could only ever carry a non-modifier key. No modifier collides: `MapView.mousedown` sends `ev.b == 2` straight to `camera.click` with no modifier branch and no fallthrough, so the middle button on the map view is the camera and nothing else |
 | `rts-next-anchor`, `rts-focus` | next session; centre on the selection, or on everyone when nothing is selected. **Both ship unbound** — see below. Both are dispatched by `Control.keydown`, which `MapView.keydown` runs **before** `camera.keydown` — so they are the mode's keys under whatever camera is installed, and answer nothing while the mode is off |
@@ -107,7 +107,7 @@ one session's ground and objects are drawn into the anchor's scene under a singl
 
 | What | Where |
 |---|---|
-| The sources | `MapRaster` and `Gobs` take their `MCache` and `Glob` as constructor arguments; `MapView.FleetTerrain`, `FleetGobs` and `FleetClickMap` are those same classes pointed at another session |
+| The sources | `MapRaster` and `Gobs` take their `MCache` and `Glob` as constructor arguments; `MapView.SessionTerrain`, `SessionGobs` and `SessionClickMap` are those same classes pointed at another session |
 | One object, one copy | `MapRaster.skipcut` and `Gobs.skipgob`. The anchor claims its ground first and each patch claims what is left; a gob belongs to the **first** view, in a stable order, whose session can see it. Positional rather than claimed, because `skipgob` runs on Loader threads as well as on the tick and so can agree with nobody about who ran first |
 | Clickability | the pick pass tests `MapView.clmaptree` alone, so merged ground absent from it is scenery. `MapView.checkmapclick` then derives its coordinate from `cut.ul`, in the frame of whichever session's map produced that cut — the translation above it never enters that arithmetic. `MapMesh.map` says whose, and the answer is corrected once, at the source |
 | Cost | `ShadowMap.maskshadow` keeps a patch out of `ShadowMap.ShadowList`, which is a second full render of every triangle it holds; the shadow map is a 750-unit box around the anchor's character, so a patch far enough away to need merging contributes nothing to it. Each patch is also frustum-tested per cut and per gob, because [nothing in the render path culls](world-3d.md) |
@@ -118,7 +118,7 @@ one session's ground and objects are drawn into the anchor's scene under a singl
   great many slots — every map cut's click geometry, every composited gob — and a locked slot may not
   depend on an ancestor whose state could still change. `RenderTree.TreeSlot.checklockdeps` throws
   *"locked state depends on non-locked state"* on the UI thread, at the first frame that draws it.
-  Locking is honest here because a patch's offset never changes: a `FleetView` is rebuilt whole if it
+  Locking is honest here because a patch's offset never changes: a `SessionView` is rebuilt whole if it
   ever does.
 - **`TickList` does not call `Gob.gtick`.** It dispatches `TickList.Ticking.autogtick`, which
   `Gob.Placed` does not implement, so a gob's animated pose reaches the GPU through `OCache.gtick`
