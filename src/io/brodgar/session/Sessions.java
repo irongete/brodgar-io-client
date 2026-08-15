@@ -115,6 +115,7 @@ public class Sessions {
 	tickrebind();       // rts: (F6)
 	applymute();        // rts: (F6)
 	SessionWnd.tick();    // rts: the session switcher, on the HUD of whichever session is drawn
+	tickmode();         // rts: (F3) the mode, derived from the membership above the return below
 	if(members.isEmpty())
 	    return;
 	tickmainoffset();   // rts: (F5)
@@ -137,6 +138,33 @@ public class Sessions {
 		new Warning(e, String.format("session: tick failed for %s", m.user)).issue();
 	    }
 	}
+    }
+
+    /** What the membership last asked the mode to be, so that only a change acts. */
+    private static boolean modeon = false;
+
+    /**
+     * The RTS mode, derived rather than switched. It is wanted exactly while there is a second
+     * session to command, so {@code members} being non-empty <em>is</em> the switch and there is no
+     * console verb for it: a verb would be a second authority over one boolean, and the one the user
+     * typed is the one that goes stale the moment a session joins.
+     *
+     * <p>Only the edge acts. {@link Control#mode} swaps the camera and clears the selection, so
+     * calling it on a frame that changed nothing would wipe a selection the user had just made.
+     *
+     * <p>Called from {@link #tick()} <b>above</b> its {@code members.isEmpty()} return: dropping the
+     * last member is exactly the frame on which the list is empty and the mode still has to go off.
+     */
+    private static void tickmode() {
+	boolean want = !members.isEmpty();
+	if(want == modeon)
+	    return;
+	/* An edge the mode could not take is left pending, not swallowed. Going on installs a camera
+	 * on the anchor's MapView, and the frame a session enters may have none yet; recording the
+	 * flip anyway would leave the mode on under the wrong camera with nothing left to notice it. */
+	if(!Control.mode(want))
+	    return;
+	modeon = want;
     }
 
     /**

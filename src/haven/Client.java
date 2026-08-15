@@ -303,11 +303,6 @@ public class Client implements Console.Directory {
 			    io.brodgar.session.Sessions.say("empty");
 			for(io.brodgar.session.Sessions.Member m : ms)
 			    io.brodgar.session.Sessions.say("%s", m.status());
-		    } else if(sub.equals("rts")) {
-			/* rts: (F3) the mode switch. A mode rather than a rebinding, because the two schemes
-			 * conflict: in Haven a left click on the ground walks you there, and an RTS needs
-			 * that button for the marquee. */
-			io.brodgar.session.Control.mode((args.length < 3) || Utils.parsebool(args[2]));
 		    } else if(sub.equals("wnd")) {
 			io.brodgar.session.SessionWnd.reopen();   // rts: the session switcher, after it has been closed
 		    } else if(sub.equals("anchor")) {
@@ -334,7 +329,7 @@ public class Client implements Console.Directory {
 			    for(String u : us)
 			    io.brodgar.session.Sessions.say("saved token for %s", u);
 		    } else {
-			throw(new Exception("usage: session add|drop|list|rts|anchor|wnd|users"));
+			throw(new Exception("usage: session add|drop|list|anchor|wnd|users"));
 		    }
 		}
 	    });

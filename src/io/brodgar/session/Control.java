@@ -317,9 +317,26 @@ public class Control {
 
     private static final java.util.Map<MapView, MapView.Camera> prevcam = new java.util.HashMap<MapView, MapView.Camera>();
 
-    public static void mode(boolean v) {
+    /**
+     * Take the mode on or off. Package-visible because {@link Sessions#tick} derives it from the
+     * membership and is the only caller there is.
+     *
+     * @return false when going on found no view to put the camera on, having changed nothing — the
+     *         caller offers the edge again on the next frame.
+     */
+    static boolean mode(boolean v) {
 	on = v;
-	if(!v) {
+	/* The camera comes with the mode. Playing a character and commanding a group want different
+	 * cameras, and asking the maintainer to install one by hand beside a mode that arrives on its
+	 * own would be two halves of one decision. The camera is not the mode's, though -- it is one
+	 * of the client's, reachable on its own. The previous one is put back on the way out, and
+	 * neither is written to the `defcam` pref: this is a mode, not a preference. */
+	if(v) {
+	    if(!recam()) {
+		on = false;
+		return(false);
+	    }
+	} else {
 	    dragging = false;
 	    dragfrom = dragto = null;
 	    if(grab != null) {
@@ -327,36 +344,34 @@ public class Control {
 		grab = null;
 	    }
 	    clear();
-	}
-	/* The camera comes with the mode. Playing a character and commanding a group want different
-	 * cameras, and asking the maintainer to remember `:cam rts` beside `:session rts on` would be
-	 * two switches for one decision. The camera is not the mode's, though -- it is one of the
-	 * client's, reachable on its own. The previous one is put back on the way out, and neither is
-	 * written to the `defcam` pref: this is a mode, not a preference. */
-	if(v) {
-	    recam();
-	} else {
 	    for(java.util.Map.Entry<MapView, MapView.Camera> e : prevcam.entrySet())
 		e.getKey().camera = e.getValue();
 	    prevcam.clear();
 	}
 	Sessions.say("rts mode %s", v ? "on -- alt-click or alt-drag selects, the usual clicks command the selection" : "off");
+	return(true);
     }
 
     /**
      * rts: (F5) give the session now on screen the RTS camera, remembering what it had. Called on
      * every anchor switch as well as when the mode goes on, because each session has its own MapView
      * and therefore its own camera -- there is no one camera to move across.
+     *
+     * @return false only when the anchor has no map view to install it on. The mode being off, and
+     *         the camera already being the RTS one, are both nothing to do rather than a failure.
      */
-    public static void recam() {
+    public static boolean recam() {
 	if(!on)
-	    return;
+	    return(true);
 	GameUI gui = Sessions.anchorgameui();
 	MapView mv = (gui == null) ? null : gui.map;
-	if((mv == null) || (mv.camera instanceof MapView.RTSCam))
-	    return;
+	if(mv == null)
+	    return(false);
+	if(mv.camera instanceof MapView.RTSCam)
+	    return(true);
 	prevcam.put(mv, mv.camera);
 	mv.camera = mv.new RTSCam();
+	return(true);
     }
 
     /**

@@ -29,7 +29,7 @@
       `fleet`. The merged scene itself is checked by eye — two sessions apart, the far one's ground and
       objects still drawn in the anchor's view. The task hands over the exact console script.
 
-- [ ] **069.3 — The mode follows the sessions.** `Sessions.tickmode()`, called from `Sessions.tick()`
+- [x] **069.3 — The mode follows the sessions.** `Sessions.tickmode()`, called from `Sessions.tick()`
       **above** its `members.isEmpty()` early return, compares that emptiness against a static
       `modeon` and calls `Control.mode(v)` on the edge alone — so the mode comes on when the first
       extra session enters and goes off when the last is dropped, camera swap and selection clear

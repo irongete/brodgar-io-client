@@ -16,7 +16,6 @@ server, and simply not rendered. Which one is the anchor changes at any time.
 | `:session drop USER\|all` | close a session. `Session.close` is what ends it, so `RemoteUI.run` unwinds through its own cleanup instead of being torn out from under itself |
 | `:session anchor USER\|main` | hand the screen over. Everything else in the layer reads `Sessions.anchor()`, so the offsets, the orders and the merged patches follow by themselves |
 | `:session wnd` | rebuild the switcher window after its close button. It hides rather than sending `close`, which the server would not understand |
-| `:session rts [on\|off]` | the mode below; bare means on |
 
 ## The RTS mode
 
@@ -24,11 +23,21 @@ A mode and not a rebinding: a left click on the ground walks you there, and a ma
 button. Off, the map view behaves as it does without any of this. On, the anchor's view takes
 `MapView.RTSCam`, a `FreeCam` with a centre of its own so that panning survives the character moving.
 
+**The mode has no switch of its own.** It is derived from the membership, because it is only ever
+wanted when there is something to command: `Sessions.tickmode` measures `members` against its own
+`modeon` and calls `Control.mode` on the edge alone, so the mode arrives with the first extra session
+and leaves with the last. Two things about where it sits.
+
+| What | Where |
+|---|---|
+| It runs **above** the early return | `Sessions.tick` returns on `members.isEmpty()`, and dropping the last member is exactly the frame on which the list is empty and the mode still has to go off |
+| A refused edge stays pending | `Control.mode` answers false when going on finds no anchor `MapView` to put the camera on, having changed nothing. `tickmode` leaves `modeon` alone and offers the edge again next frame, rather than recording a mode that is on under the wrong camera |
+
 **The camera is the client's, not the mode's.** It is registered under the name `rts` beside every
 other camera ([world-3d.md](world-3d.md)), so `:cam rts` installs it on any character with no second session and
-no mode at all. What the mode adds is the swap: it installs that camera on the session holding the
-screen, puts the previous one back on the way out, and writes neither `defcam` nor `camargs` —
-a mode is not a preference.
+no mode at all. What the mode adds is the swap: `Control.recam` installs that camera on the session
+holding the screen, puts the previous one back on the way out, and writes neither `defcam` nor
+`camargs` — a mode is not a preference.
 
 | Input | Does |
 |---|---|
