@@ -1,4 +1,4 @@
-package io.brodgar.rts;
+package io.brodgar.session;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -34,28 +34,28 @@ import haven.Utils;
 import haven.Warning;
 
 /**
- * The fleet: the sessions this client holds open beside the one it draws.
+ * The sessions this client holds open beside the one it draws.
  *
  * <p>The client renders exactly one session — the <em>anchor</em>, which is {@code UILoop.ui} and is
- * reached the way it always was. A fleet member is a second, third, fourth session: a real
+ * reached the way it always was. A member is a second, third, fourth session: a real
  * {@link Session} with a real {@link UI} and a real widget tree, connected, ticked and answering the
  * server, whose view is never drawn. When the characters stand in the same area the anchor already
  * sees them all — its {@code OCache} receives every nearby object — so there is nothing to compose,
  * and a member exists to be <em>commanded</em>, not to be looked at.
  *
  * <p>All-static, mirroring {@code io.brodgar.addon.AddonManager}: there is one client process and one
- * fleet in it. {@link #tick()} runs on the UI thread from {@code UILoop.Frame.tick}, outside the
+ * set of sessions in it. {@link #tick()} runs on the UI thread from {@code UILoop.Frame.tick}, outside the
  * anchor's monitor; each member is ticked under its own, so no two UI monitors are ever held at once.
  *
  * <p>This is F0 of {@code specs/rts/plan.md}: the scaffolding, and the phase that measures whether the
  * whole design is affordable. There is no selection, no order and no shared view here — only sessions
  * that stay alive and cost something measurable.
  */
-public class Fleet {
+public class Sessions {
     private static volatile UILoop loop;
     private static final List<Member> members = new CopyOnWriteArrayList<Member>();
 
-    /** Called once from the {@code UILoop} constructor: the fleet needs the loop to build a UI. */
+    /** Called once from the {@code UILoop} constructor: the sessions layer needs the loop to build a UI. */
     public static void init(UILoop loop_) {
 	loop = loop_;
     }
@@ -69,7 +69,7 @@ public class Fleet {
      * so it must answer correctly from the moment the session exists — which is why a member registers
      * its {@code Session} before its {@code UI} is built.
      */
-    public static boolean isfleet(Session sess) {
+    public static boolean ismember(Session sess) {
 	if(sess == null)
 	    return(false);
 	for(Member m : members) {
@@ -106,7 +106,7 @@ public class Fleet {
 
     /**
      * Advance every member by one frame. Deliberately no {@code gtick}: a member has nothing in a
-     * render tree, so there is no render stream of its own to feed. An empty fleet is one list check.
+     * render tree, so there is no render stream of its own to feed. No members at all is one list check.
      */
     public static void tick() {
 	invalidate();
@@ -114,7 +114,7 @@ public class Fleet {
 	reclaim();          // rts: (F5)
 	tickrebind();       // rts: (F6)
 	applymute();        // rts: (F6)
-	FleetWnd.tick();    // rts: the session switcher, on the HUD of whichever session is drawn
+	SessionWnd.tick();    // rts: the session switcher, on the HUD of whichever session is drawn
 	if(members.isEmpty())
 	    return;
 	tickmainoffset();   // rts: (F5)
@@ -134,24 +134,24 @@ public class Fleet {
 		m.autoplay(u);
 		m.tickoffset(anchorglob());
 	    } catch(RuntimeException e) {
-		new Warning(e, String.format("rts: tick failed for fleet member %s", m.user)).issue();
+		new Warning(e, String.format("session: tick failed for %s", m.user)).issue();
 	    }
 	}
     }
 
     /**
      * Say something where it will actually be seen. {@code Console.out} lands in the chat's "System"
-     * channel, which is easy to have closed — and a fleet member is invisible by construction, so the
+     * channel, which is easy to have closed — and a member is invisible by construction, so the
      * only evidence it exists is what it says. This goes through the anchor's on-screen notice.
      */
     public static void say(String fmt, Object... args) {
-	pending.add("fleet: " + String.format(fmt, args));
+	pending.add("session: " + String.format(fmt, args));
     }
 
     private static final Queue<String> pending = new ConcurrentLinkedQueue<String>();
 
     /* Queued, and drained on the UI thread by tick(), rather than said where it is thought. say() is
-     * called from fleet threads, from the console and from the tick itself, and delivering it means
+     * called from session threads, from the console and from the tick itself, and delivering it means
      * taking the ANCHOR's monitor -- which a member's Loader thread may one day do while holding its
      * own. One direction only, from a thread that holds nothing, and that whole class of deadlock
      * cannot form. It also puts the messages in the order they were said. */
@@ -235,7 +235,7 @@ public class Fleet {
 	if(an == mutedfor)
 	    return;
 	mutedfor = an;
-	for(Sess ss : sessions()) {
+	for(Placed ss : placed()) {
 	    if(ss.ui.audio != null)
 		ss.ui.audio.mute(!ss.isanchor);
 	}
@@ -474,7 +474,7 @@ public class Fleet {
      * character that cannot be seen, selected or ordered the moment you tab away from it. One uniform
      * list, the anchor being simply the session whose offset is zero.
      */
-    public static class Sess {
+    public static class Placed {
 	public final String user;
 	public final UI ui;
 	public final GameUI gui;
@@ -483,7 +483,7 @@ public class Fleet {
 	public final Member member;    // null for the main session
 	public final boolean isanchor;
 
-	Sess(String user, UI ui, GameUI gui, Glob glob, Coord2d offset, Member member, boolean isanchor) {
+	Placed(String user, UI ui, GameUI gui, Glob glob, Coord2d offset, Member member, boolean isanchor) {
 	    this.user = user;
 	    this.ui = ui;
 	    this.gui = gui;
@@ -501,31 +501,31 @@ public class Fleet {
     }
 
     /* rts: rebuilt at most once a frame. It is asked for by the merged views, by the selection, by
-     * the switcher window and by the mute -- and it allocates a list, a Sess per session and (before
+     * the switcher window and by the mute -- and it allocates a list, a Placed per session and (before
      * the cache above) a tree walk per session every single time. Nothing it reports can change
      * within a frame: the tick is the only thing that moves any of it. */
-    private static List<Sess> sesscache = null;
+    private static List<Placed> placedcache = null;
 
     static void invalidate() {
-	sesscache = null;
+	placedcache = null;
     }
 
-    public static List<Sess> sessions() {
-	List<Sess> c = sesscache;
+    public static List<Placed> placed() {
+	List<Placed> c = placedcache;
 	if(c != null)
 	    return(c);
-	return(sesscache = buildsessions());
+	return(placedcache = buildplaced());
     }
 
-    private static List<Sess> buildsessions() {
-	List<Sess> ret = new ArrayList<Sess>();
+    private static List<Placed> buildplaced() {
+	List<Placed> ret = new ArrayList<Placed>();
 	UI an = anchor();
 	UI mu = mainui();
 	if((mu != null) && (mu.sess != null) && (mu.root != null)) {
 	    GameUI gui = mainguiof(mu);
 	    Coord2d off = (mu == an) ? Coord2d.of(0, 0) : mainoff;
 	    if((gui != null) && (off != null))
-		ret.add(new Sess("main", mu, gui, mu.sess.glob, off, null, mu == an));
+		ret.add(new Placed("main", mu, gui, mu.sess.glob, off, null, mu == an));
 	}
 	for(Member m : members) {
 	    UI u = m.ui;
@@ -534,14 +534,14 @@ public class Fleet {
 	    Coord2d off = (u == an) ? Coord2d.of(0, 0) : m.offset();
 	    if((u == null) || (gui == null) || (ms == null) || (off == null))
 		continue;
-	    ret.add(new Sess(m.user, u, gui, ms.glob, off, m, u == an));
+	    ret.add(new Placed(m.user, u, gui, ms.glob, off, m, u == an));
 	}
 	return(ret);
     }
 
     /** The session this character belongs to, by its (global) gob id. */
-    public static Sess bysess(long gobid) {
-	for(Sess ss : sessions()) {
+    public static Placed bysess(long gobid) {
+	for(Placed ss : placed()) {
 	    if(ss.gui.plid == gobid)
 		return(ss);
 	}
@@ -570,7 +570,7 @@ public class Fleet {
     /** Every session that can be drawn into the anchor's scene -- anchored, in the world, not the anchor. */
     public static List<View> views() {
 	List<View> ret = new ArrayList<View>();
-	for(Sess ss : sessions()) {
+	for(Placed ss : placed()) {
 	    if(ss.isanchor)
 		continue;   /* the session holding the anchor IS the scene; it is not merged into itself */
 	    ret.add(new View(ss.user, ss.glob, ss.gui.plid, ss.offset));
@@ -586,7 +586,7 @@ public class Fleet {
     public static Coord2d offsetfor(MCache map) {
 	if(map == null)
 	    return(null);
-	for(Sess ss : sessions()) {
+	for(Placed ss : placed()) {
 	    if(ss.glob.map == map)
 		return(ss.isanchor ? null : ss.offset);
 	}
@@ -620,7 +620,7 @@ public class Fleet {
      * which needs no translation and sends through its ordinary click path.
      */
     public static boolean orderunit(long unitid, Coord2d anchorpos, long targetgob, int btn, int mods) {
-	Sess ss = bysess(unitid);
+	Placed ss = bysess(unitid);
 	if((ss == null) || (ss.gui.map == null))
 	    return(false);
 	/* One rule for every session: translate into its frame, send down its own socket. The anchor's
@@ -662,12 +662,12 @@ public class Fleet {
 
 
     static GameUI anchorgameui() {
-	Sess ss = anchorsess();
+	Placed ss = anchorsess();
 	return((ss == null) ? null : ss.gui);
     }
 
     /* rts: Widget.findchild is a RECURSIVE walk of the whole tree, and this used to run once per
-     * session per sessions() call, three times a frame. A GameUI is made once when a session enters
+     * session per placed() call, three times a frame. A GameUI is made once when a session enters
      * the world and stays put, so the answer is cached and re-derived only when the widget it names
      * has left the tree. */
     @SuppressWarnings("deprecation")
@@ -687,8 +687,8 @@ public class Fleet {
 	return(mainguicache = findgui(u));
     }
 
-    static Sess anchorsess() {
-	for(Sess ss : sessions()) {
+    static Placed anchorsess() {
+	for(Placed ss : placed()) {
 	    if(ss.isanchor)
 		return(ss);
 	}
@@ -711,7 +711,7 @@ public class Fleet {
 	    throw(new IllegalStateException("rts: no UI loop yet"));
 	for(Member m : members) {
 	    if(m.user.equals(user))
-		throw(new IOException("already in the fleet: " + user));
+		throw(new IOException("already a live session: " + user));
 	}
 	Session sess = connect(user);
 	Member m = new Member(user, chr, sess);
@@ -785,7 +785,7 @@ public class Fleet {
 	    RemoteUI rui = new RemoteUI(sess);
 	    UI u = lp.bgui(rui);
 	    this.ui = u;
-	    Thread t = new HackThread(() -> run(lp, rui, u), "rts-fleet-" + user);
+	    Thread t = new HackThread(() -> run(lp, rui, u), "session-" + user);
 	    t.setDaemon(true);
 	    this.th = t;
 	    t.start();
@@ -814,7 +814,7 @@ public class Fleet {
 		}
 	    } catch(InterruptedException e) {
 	    } catch(RuntimeException e) {
-		new Warning(e, String.format("rts: fleet member %s died", user)).issue();
+		new Warning(e, String.format("session: %s died", user)).issue();
 	    } finally {
 		boolean announce = !dead;   /* a drop() already said so */
 		dead = true;
@@ -1034,7 +1034,7 @@ public class Fleet {
 	    return(String.format("%s:%s(%dg) %s", user, gui.chrid, grids, check()));
 	}
 
-	/** rts: the long form of {@link #check()} — every number the anchoring rests on, for {@code :fleet where}. */
+	/** rts: the long form of {@link #check()} — every number the anchoring rests on. */
 	public String where() {
 	    GameUI gui = gameui();
 	    Session s = this.sess;
@@ -1072,7 +1072,7 @@ public class Fleet {
     /**
      * The saved-token half of {@code Bootstrap.run}, with no login screen behind it. It reads the same
      * pref the login screen writes ({@code Bootstrap.gettoken}) and deliberately does <em>not</em>
-     * clear that token when authentication fails, unlike {@code Bootstrap}: a failed fleet add must
+     * clear that token when authentication fails, unlike {@code Bootstrap}: a failed session add must
      * not cost the maintainer a saved login.
      */
     private static Session connect(String user) throws IOException {

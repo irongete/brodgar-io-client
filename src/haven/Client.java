@@ -256,14 +256,14 @@ public class Client implements Console.Directory {
 		    }
 		}
 	    });
-	// rts: the fleet's one console door (F0, specs/rts/plan.md). There is no UI for this yet, and
+	// rts: the sessions' one console door (F0, specs/rts/plan.md). There is no UI for this yet, and
 	// deliberately so: F0 exists to measure what a second live session costs, not to dress it up.
-	cmdmap.put("fleet", new Console.Command() {
+	cmdmap.put("session", new Console.Command() {
 		public void run(Console cons, String[] args) throws Exception {
 		    String sub = (args.length > 1) ? args[1] : "list";
 		    if(sub.equals("add")) {
 			if(args.length < 3)
-			    throw(new Exception("usage: fleet add USER [CHAR]"));
+			    throw(new Exception("usage: session add USER [CHAR]"));
 			final String user = args[2];
 			/* The rest of the line IS the character name: Haven names have spaces in them
 			 * ("Irongeta World 16.1"), and a word-split arg[3] would silently ask for a
@@ -275,66 +275,66 @@ public class Client implements Console.Directory {
 			    nm.append(args[i]);
 			}
 			final String chr = (nm.length() > 0) ? nm.toString() : null;
-			io.brodgar.rts.Fleet.say("connecting %s%s...", user, (chr == null) ? "" : (" as " + chr));
+			io.brodgar.session.Sessions.say("connecting %s%s...", user, (chr == null) ? "" : (" as " + chr));
 			/* Off the UI thread: authentication and the session handshake are both blocking
 			 * network round-trips, and the client must keep drawing through them. */
 			new HackThread(() -> {
 				try {
-				    io.brodgar.rts.Fleet.add(user, chr);
-				    io.brodgar.rts.Fleet.say("%s connected", user);
+				    io.brodgar.session.Sessions.add(user, chr);
+				    io.brodgar.session.Sessions.say("%s connected", user);
 				} catch(Exception e) {
-				    io.brodgar.rts.Fleet.say("%s failed: %s", user, e.getMessage());
+				    io.brodgar.session.Sessions.say("%s failed: %s", user, e.getMessage());
 				}
-			    }, "rts-fleet-connect").start();
+			    }, "session-connect").start();
 		    } else if(sub.equals("drop")) {
 			if(args.length < 3)
-			    throw(new Exception("usage: fleet drop USER|all"));
+			    throw(new Exception("usage: session drop USER|all"));
 			if(args[2].equals("all")) {
-			    io.brodgar.rts.Fleet.dropall();
-			    io.brodgar.rts.Fleet.say("dropped all");
-			} else if(io.brodgar.rts.Fleet.drop(args[2])) {
-			    io.brodgar.rts.Fleet.say("dropped %s", args[2]);
+			    io.brodgar.session.Sessions.dropall();
+			    io.brodgar.session.Sessions.say("dropped all");
+			} else if(io.brodgar.session.Sessions.drop(args[2])) {
+			    io.brodgar.session.Sessions.say("dropped %s", args[2]);
 			} else {
-			    io.brodgar.rts.Fleet.say("not in the fleet: %s", args[2]);
+			    io.brodgar.session.Sessions.say("no such session: %s", args[2]);
 			}
 		    } else if(sub.equals("list")) {
-			List<io.brodgar.rts.Fleet.Member> ms = io.brodgar.rts.Fleet.members();
+			List<io.brodgar.session.Sessions.Member> ms = io.brodgar.session.Sessions.members();
 			if(ms.isEmpty())
-			    io.brodgar.rts.Fleet.say("empty");
-			for(io.brodgar.rts.Fleet.Member m : ms)
-			    io.brodgar.rts.Fleet.say("%s", m.status());
+			    io.brodgar.session.Sessions.say("empty");
+			for(io.brodgar.session.Sessions.Member m : ms)
+			    io.brodgar.session.Sessions.say("%s", m.status());
 		    } else if(sub.equals("rts")) {
 			/* rts: (F3) the mode switch. A mode rather than a rebinding, because the two schemes
 			 * conflict: in Haven a left click on the ground walks you there, and an RTS needs
 			 * that button for the marquee. */
-			io.brodgar.rts.Control.mode((args.length < 3) || Utils.parsebool(args[2]));
+			io.brodgar.session.Control.mode((args.length < 3) || Utils.parsebool(args[2]));
 		    } else if(sub.equals("wnd")) {
-			io.brodgar.rts.FleetWnd.reopen();   // rts: the session switcher, after it has been closed
+			io.brodgar.session.SessionWnd.reopen();   // rts: the session switcher, after it has been closed
 		    } else if(sub.equals("anchor")) {
 			/* rts: (F5) hand the screen to another session. */
 			if(args.length < 3)
-			    throw(new Exception("usage: fleet anchor USER|main"));
+			    throw(new Exception("usage: session anchor USER|main"));
 			if(args[2].equals("main")) {
-			    io.brodgar.rts.Fleet.anchor(null);
+			    io.brodgar.session.Sessions.anchor(null);
 			} else {
-			    io.brodgar.rts.Fleet.Member am = null;
-			    for(io.brodgar.rts.Fleet.Member m : io.brodgar.rts.Fleet.members()) {
+			    io.brodgar.session.Sessions.Member am = null;
+			    for(io.brodgar.session.Sessions.Member m : io.brodgar.session.Sessions.members()) {
 				if(m.user.equals(args[2]))
 				    am = m;
 			    }
 			    if(am == null)
-				io.brodgar.rts.Fleet.say("not in the fleet: %s", args[2]);
+				io.brodgar.session.Sessions.say("no such session: %s", args[2]);
 			    else
-				io.brodgar.rts.Fleet.anchor(am);
+				io.brodgar.session.Sessions.anchor(am);
 			}
 		    } else if(sub.equals("users")) {
-			List<String> us = io.brodgar.rts.Fleet.savedusers();
+			List<String> us = io.brodgar.session.Sessions.savedusers();
 			    if(us.isEmpty())
-				io.brodgar.rts.Fleet.say("no saved tokens -- log the account in once on the login screen");
+				io.brodgar.session.Sessions.say("no saved tokens -- log the account in once on the login screen");
 			    for(String u : us)
-			    io.brodgar.rts.Fleet.say("saved token for %s", u);
+			    io.brodgar.session.Sessions.say("saved token for %s", u);
 		    } else {
-			throw(new Exception("usage: fleet add|drop|list|rts|anchor|wnd|users"));
+			throw(new Exception("usage: session add|drop|list|rts|anchor|wnd|users"));
 		    }
 		}
 	    });

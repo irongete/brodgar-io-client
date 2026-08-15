@@ -938,7 +938,7 @@ public class MCache implements MapSource {
 	return(getgrid(tc.div(cmaps)));
     }
 
-    /* rts: how much ground this session has actually loaded (F0, specs/rts/plan.md). A fleet member is
+    /* rts: how much ground this session has actually loaded (F0, specs/rts/plan.md). A member session is
      * never drawn, and draw() is where a live view asks the server for map data -- so this number is
      * how the maintainer sees whether a dormant session is streaming at all. It is also the door F1
      * grows into: a Grid carries both `gc` (this session's, login-relative) and `id` (the server's),

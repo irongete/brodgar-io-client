@@ -1,7 +1,7 @@
 # Several sessions in one client
 
 One process, several accounts logged in at once, one of them on screen. This is the client's own
-structure, not an addon: the seams are in `haven` and the policy standing on them is `io.brodgar.rts`.
+structure, not an addon: the seams are in `haven` and the policy standing on them is `io.brodgar.session`.
 
 The session being drawn is the **anchor**; every other session is live, ticked and answering the
 server, and simply not rendered. Which one is the anchor changes at any time.
@@ -10,13 +10,13 @@ server, and simply not rendered. Which one is the anchor changes at any time.
 
 | Command | Does |
 |---|---|
-| `:fleet users` | the accounts with a token saved by the login screen (`Bootstrap.gettoken`), which is all `add` can reach — there is no login dialog for a second account |
-| `:fleet add USER [CHAR]` | connect and hold a session open. The character name is the **rest of the line**, spaces and all; without one it plays whichever the server offers first. A token login does not rotate the token, and a failed add deliberately does not clear it |
-| `:fleet list` | each session and how far it has got: connecting, character list, loading, or its character and how many grids it has streamed |
-| `:fleet drop USER\|all` | close a session. `Session.close` is what ends it, so `RemoteUI.run` unwinds through its own cleanup instead of being torn out from under itself |
-| `:fleet anchor USER\|main` | hand the screen over. Everything else in the layer reads `Fleet.anchor()`, so the offsets, the orders and the merged patches follow by themselves |
-| `:fleet wnd` | rebuild the switcher window after its close button. It hides rather than sending `close`, which the server would not understand |
-| `:fleet rts [on\|off]` | the mode below; bare means on |
+| `:session users` | the accounts with a token saved by the login screen (`Bootstrap.gettoken`), which is all `add` can reach — there is no login dialog for a second account |
+| `:session add USER [CHAR]` | connect and hold a session open. The character name is the **rest of the line**, spaces and all; without one it plays whichever the server offers first. A token login does not rotate the token, and a failed add deliberately does not clear it |
+| `:session list` | each session and how far it has got: connecting, character list, loading, or its character and how many grids it has streamed |
+| `:session drop USER\|all` | close a session. `Session.close` is what ends it, so `RemoteUI.run` unwinds through its own cleanup instead of being torn out from under itself |
+| `:session anchor USER\|main` | hand the screen over. Everything else in the layer reads `Sessions.anchor()`, so the offsets, the orders and the merged patches follow by themselves |
+| `:session wnd` | rebuild the switcher window after its close button. It hides rather than sending `close`, which the server would not understand |
+| `:session rts [on\|off]` | the mode below; bare means on |
 
 ## The RTS mode
 
@@ -25,7 +25,7 @@ button. Off, the map view behaves as it does without any of this. On, the anchor
 `MapView.RTSCam`, a `FreeCam` with a centre of its own so that panning survives the character moving.
 
 **The camera is the client's, not the mode's.** It is registered under the name `rts` beside every
-other camera ([world-3d.md](world-3d.md)), so `:cam rts` installs it on any character with no fleet and
+other camera ([world-3d.md](world-3d.md)), so `:cam rts` installs it on any character with no second session and
 no mode at all. What the mode adds is the swap: it installs that camera on the session holding the
 screen, puts the previous one back on the way out, and writes neither `defcam` nor `camargs` —
 a mode is not a preference.
@@ -51,12 +51,12 @@ firing, and neither is repairable afterwards ([services.md](services.md)).
 | **The two UIs, and why they are two** | `UILoop.ui` is the main runner's, which `Client.Main` replaces and **destroys** as its runner chain advances; `UILoop.drawn` is the one actually drawn, dispatched to and `gtick`ed. One field could not be both — destroying the runner's UI must never be able to destroy a session it does not own. `newui` clears `drawui` when it destroys the UI that was on screen |
 | Building a session's UI | `UILoop.bgui` — `newui` minus the replace and the destroy, and like it built **outside `uilock`**, because `UI`'s constructor runs `Runner.init` and no other lock may be taken underneath that one. The profiling fields are left off: `uprof`/`rprof`/`gprof` describe the frame, and only the anchor has one |
 | The anchor's frame | `UILoop.Frame.tick`, all inside `synchronized(ui)`: dispatch, `glob.ctick`, `glob.gtick`, `ui.tick`, `mousehover`, resize |
-| Everything not drawn | `Fleet.tick` and `Fleet.tickbg`, called **after** that block closes, each session under its own monitor. `tickbg` exists for the main session when a member holds the screen: `Fleet` owns its members and the main session is not among them, so nothing else would tick it |
-| Handing the screen over | `Fleet.anchor` flips `UILoop.drawn` and the dormancy of the two views. `Fleet.reclaim` does it unasked when the session holding the screen dies, because that runner unwinds on its own thread, where touching render trees would be wrong |
+| Everything not drawn | `Sessions.tick` and `Sessions.tickbg`, called **after** that block closes, each session under its own monitor. `tickbg` exists for the main session when a member holds the screen: `Sessions` owns its members and the main session is not among them, so nothing else would tick it |
+| Handing the screen over | `Sessions.anchor` flips `UILoop.drawn` and the dormancy of the two views. `Sessions.reclaim` does it unasked when the session holding the screen dies, because that runner unwinds on its own thread, where touching render trees would be wrong |
 
 **One lock direction, and it is load-bearing.** The tick never holds two UI monitors at once. The
 console does nest them — it runs inside the drawn UI's monitor and reaches into a member's — so that
-direction, anchor then member, is the only one anything may take. `Fleet.say` queues its text and
+direction, anchor then member, is the only one anything may take. `Sessions.say` queues its text and
 drains it on the tick rather than delivering it where it is thought, because delivering means taking
 the **anchor's** monitor from whatever thread happened to speak.
 

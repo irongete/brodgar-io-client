@@ -909,7 +909,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
      * undoing what the user just did in the session they were actually looking at. The one on screen
      * owns the layout; the rest keep their geometry and say nothing about it. */
     private boolean onscreen() {
-	return((ui != null) && (ui == io.brodgar.rts.Fleet.anchor()));
+	return((ui != null) && (ui == io.brodgar.session.Sessions.anchor()));
     }
 
     private void savewndpos() {

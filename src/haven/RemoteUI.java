@@ -146,11 +146,11 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 
     public void init(UI ui) {
 	ui.sess = sess;
-	/* rts: a fleet member must not capture the addon engine (F0, specs/rts/plan.md). AddonManager is
+	/* rts: a member session must not capture the addon engine (F0, specs/rts/plan.md). AddonManager is
 	 * a single-session static hub -- its `ui` and `view` are the client's one live pair -- so a
 	 * background session binding itself there would silently point every addon at a session nobody is
 	 * looking at. Per-session addon state is F6's problem; until then the anchor owns the engine. */
-	if(!io.brodgar.rts.Fleet.isfleet(sess))
+	if(!io.brodgar.session.Sessions.ismember(sess))
 	    io.brodgar.addon.AddonManager.init(ui);   // addon: (re)load addons for this session
     }
 

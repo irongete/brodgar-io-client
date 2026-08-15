@@ -1,4 +1,4 @@
-package io.brodgar.rts;
+package io.brodgar.session;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -20,7 +20,7 @@ import haven.Widget;
 /**
  * The RTS layer: who is selected, and what a click means while it is on.
  *
- * <p>{@link Fleet} holds the sessions; this holds the <em>control</em>. The two are separate because
+ * <p>{@link Sessions} holds the sessions; this holds the <em>control</em>. The two are separate because
  * they answer different questions — a session exists whether or not anyone is commanding it, and the
  * selection is about the anchor's screen, not about anybody's connection.
  *
@@ -64,11 +64,11 @@ public class Control {
     /** A character the client can command, as the anchor sees it. */
     public static class Unit {
 	public final long gobid;
-	public final Fleet.Member member;   // null means the anchor's own character
+	public final Sessions.Member member;   // null means the anchor's own character
 	public final Coord2d rc;            // in the ANCHOR's frame -- there is no other frame on screen
 	public final Coord sc;              // projected, or null when it cannot be placed on screen
 
-	Unit(long gobid, Fleet.Member member, Coord2d rc, Coord sc) {
+	Unit(long gobid, Sessions.Member member, Coord2d rc, Coord sc) {
 	    this.gobid = gobid;
 	    this.member = member;
 	    this.rc = rc;
@@ -93,7 +93,7 @@ public class Control {
 	 * OCache. The anchor stops streaming a character's gob the moment it walks out of range, and a
 	 * unit that cannot be clicked then is a unit you cannot call back. Since F5 that cuts both
 	 * ways: the main character is the one out of range while a member holds the screen. */
-	for(Fleet.Sess ss : Fleet.sessions()) {
+	for(Sessions.Placed ss : Sessions.placed()) {
 	    Coord2d rc = ss.charpos();
 	    if(rc != null)
 		add(ret, mv, ss.gui.plid, rc, ss.member);
@@ -101,7 +101,7 @@ public class Control {
 	return(ret);
     }
 
-    private static void add(List<Unit> ret, MapView mv, long id, Coord2d rc, Fleet.Member m) {
+    private static void add(List<Unit> ret, MapView mv, long id, Coord2d rc, Sessions.Member m) {
 	Coord sc = null;
 	try {
 	    Coord3f s = mv.screenxf(rc);
@@ -146,9 +146,9 @@ public class Control {
 		sel.add(un.gobid);
 	}
 	if(us.isEmpty() && !add)
-	    Fleet.say("selection cleared");
+	    Sessions.say("selection cleared");
 	else
-	    Fleet.say("selected: %s", names());
+	    Sessions.say("selected: %s", names());
     }
 
     private static String names() {
@@ -159,7 +159,7 @@ public class Control {
 	for(Long id : ids) {
 	    if(buf.length() > 0)
 		buf.append(", ");
-	    Fleet.Sess ss = Fleet.bysess(id);
+	    Sessions.Placed ss = Sessions.bysess(id);
 	    buf.append((ss == null) ? "?" : ss.user);
 	}
 	return(buf.toString());
@@ -259,7 +259,7 @@ public class Control {
 
     /**
      * The order, once the pick pass has said where the cursor actually was. Every selected unit is
-     * sent the same destination, named in the anchor's coordinates; {@link Fleet} translates it per
+     * sent the same destination, named in the anchor's coordinates; {@link Sessions} translates it per
      * member. A gob under the cursor is passed by <em>id</em>, never by the anchor's coordinates for
      * it — {@code GobClick.clickargs} encodes the observer's own frame, so each unit rebuilds those
      * arguments from its own {@code OCache}.
@@ -273,11 +273,11 @@ public class Control {
 	    return;   /* it was let through to the map view in the first place; nothing to say */
 	int n = 0;
 	for(Long id : ids) {
-	    if(Fleet.orderunit(id, mc, targetgob, btn, mods))
+	    if(Sessions.orderunit(id, mc, targetgob, btn, mods))
 		n++;
 	}
 	if(n < ids.size())
-	    Fleet.say("ordered %d of %d -- the rest are unanchored or not in the world", n, ids.size());
+	    Sessions.say("ordered %d of %d -- the rest are unanchored or not in the world", n, ids.size());
     }
 
     /* ------------------------------------------------------------------ *
@@ -329,7 +329,7 @@ public class Control {
 	    clear();
 	}
 	/* The camera comes with the mode. Playing a character and commanding a group want different
-	 * cameras, and asking the maintainer to remember `:cam rts` beside `:fleet rts on` would be
+	 * cameras, and asking the maintainer to remember `:cam rts` beside `:session rts on` would be
 	 * two switches for one decision. The camera is not the mode's, though -- it is one of the
 	 * client's, reachable on its own. The previous one is put back on the way out, and neither is
 	 * written to the `defcam` pref: this is a mode, not a preference. */
@@ -340,7 +340,7 @@ public class Control {
 		e.getKey().camera = e.getValue();
 	    prevcam.clear();
 	}
-	Fleet.say("rts mode %s", v ? "on -- alt-click or alt-drag selects, the usual clicks command the selection" : "off");
+	Sessions.say("rts mode %s", v ? "on -- alt-click or alt-drag selects, the usual clicks command the selection" : "off");
     }
 
     /**
@@ -351,7 +351,7 @@ public class Control {
     public static void recam() {
 	if(!on)
 	    return;
-	GameUI gui = Fleet.anchorgameui();
+	GameUI gui = Sessions.anchorgameui();
 	MapView mv = (gui == null) ? null : gui.map;
 	if((mv == null) || (mv.camera instanceof MapView.RTSCam))
 	    return;
@@ -368,7 +368,7 @@ public class Control {
 	if(!on)
 	    return(false);
 	if(MapView.kb_rtsnext.key().match(ev)) {
-	    Fleet.next();
+	    Sessions.next();
 	    return(true);
 	}
 	if(MapView.kb_rtsfocus.key().match(ev)) {
@@ -380,11 +380,11 @@ public class Control {
 
     /**
      * Centre the camera on the selection — the space bar, and the RTS gesture. With nothing selected
-     * it centres on the whole fleet instead, which is what you want when you have lost track of them.
+     * it centres on every session instead, which is what you want when you have lost track of them.
      */
     public static void focus(MapView mv) {
 	if(!(mv.camera instanceof MapView.RTSCam)) {
-	    Fleet.say("not on the rts camera");
+	    Sessions.say("not on the rts camera");
 	    return;
 	}
 	List<Unit> us = units(mv);
@@ -399,7 +399,7 @@ public class Control {
 	    n++;
 	}
 	if(n == 0) {
-	    Fleet.say("nothing to centre on");
+	    Sessions.say("nothing to centre on");
 	    return;
 	}
 	((MapView.RTSCam)mv.camera).focus(Coord2d.of(x / n, y / n));

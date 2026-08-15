@@ -45,7 +45,7 @@ public abstract class UILoop implements Console.Directory {
     public Environment env;
     public UI ui;
     /* rts: (F5, specs/rts/plan.md) which UI is actually DRAWN. Normally the main runner's, `ui`; a
-     * fleet member's while that member is the anchor. Two fields and not one because Client.Main owns
+     * member's while that member is the anchor. Two fields and not one because Client.Main owns
      * `ui` -- it replaces and destroys it as the runner chain advances -- and that must never be able
      * to destroy a member's UI, nor be confused by one being on screen. Everything the frame does
      * (dispatch, gtick, draw, tooltip, cursor) follows drawn(); everything not drawn is ticked as a
@@ -62,7 +62,7 @@ public abstract class UILoop implements Console.Directory {
 	setenv(wnd.env());
 	this.curscaps = wnd.toolkit().cursorcaps();
 	newui(null);
-	io.brodgar.rts.Fleet.init(this);   // rts: the fleet needs the loop to build a UI (F0)
+	io.brodgar.session.Sessions.init(this);   // rts: the sessions layer needs the loop to build a UI (F0)
 	this.th = new HackThread(this::run, "Haven UI thread");
     }
 
@@ -115,7 +115,7 @@ public abstract class UILoop implements Console.Directory {
 	return(newui);
     }
 
-    /** rts: (F5) the UI being drawn — the main runner's unless a fleet member has the anchor. */
+    /** rts: (F5) the UI being drawn — the main runner's unless a member has the anchor. */
     public UI drawn() {
 	UI d = drawui;
 	return((d != null) ? d : ui);
@@ -126,9 +126,9 @@ public abstract class UILoop implements Console.Directory {
 	drawui = (u == ui) ? null : u;
     }
 
-    /* rts: a fleet member's UI (F0, specs/rts/plan.md). Built exactly like the anchor's -- same window,
+    /* rts: a member session's UI (F0, specs/rts/plan.md). Built exactly like the anchor's -- same window,
      * same audio root, same environment -- but it does NOT become `this.ui`, so it replaces nothing,
-     * destroys nothing and is never drawn. The frame loop reaches it through Fleet.tick() instead, and
+     * destroys nothing and is never drawn. The frame loop reaches it through Sessions.tick() instead, and
      * the profiling fields are deliberately left off it: uprof/rprof/gprof describe the frame, and only
      * the anchor has one. */
     public UI bgui(UI.Runner fun) {
@@ -320,10 +320,10 @@ public abstract class UILoop implements Console.Directory {
 	}
 	if((ui.sess != null) && (ui.sess.conn instanceof Connection))
 	    buf.add(String.format("Connection: %s", ((Connection)ui.sess.conn).stats));
-	// rts: what the fleet is costing, beside the numbers it is compared against (F0)
-	String fleet = io.brodgar.rts.Fleet.stats();
-	if(!fleet.isEmpty())
-	    buf.add(String.format("Fleet: %s", fleet));
+	// rts: what the extra sessions are costing, beside the numbers it is compared against (F0)
+	String sstats = io.brodgar.session.Sessions.stats();
+	if(!sstats.isEmpty())
+	    buf.add(String.format("Sessions: %s", sstats));
 	buf.add(String.format("Async: L %s, D %s", ui.loader.stats(), Defer.gstats()));
 	int rqd = Resource.local().qdepth() + Resource.remote().qdepth();
 	if(rqd > 0)
@@ -553,19 +553,19 @@ public abstract class UILoop implements Console.Directory {
 		if(!ui.root.sz.equals(sz))
 		    ui.root.resize(sz);
 	    }
-	    /* rts: the fleet's background sessions (F0, specs/rts/plan.md). OUTSIDE the anchor's monitor,
+	    /* rts: the background sessions (F0, specs/rts/plan.md). OUTSIDE the anchor's monitor,
 	     * and each member under its own, so no two UI monitors are ever held at once -- the Loader
 	     * threads take exactly one, so there is no cycle to make. No gtick and no resize: a member has
 	     * nothing in a render tree and no pixels of its own. Its own phase, because the whole point of
-	     * F0 is to read what a second session costs. Empty fleet = one list check. */
+	     * F0 is to read what a second session costs. No members = one list check. */
 	    CPUProfile.phase(prof, "fleet");
-	    io.brodgar.rts.Fleet.tick();
+	    io.brodgar.session.Sessions.tick();
 	    /* rts: (F5) the main session is a background session whenever it is not the one on screen.
-	     * Nothing else would tick it -- Fleet owns its members and this one is not among them -- and
+	     * Nothing else would tick it -- Sessions owns its members and this one is not among them -- and
 	     * a session that stops ticking stops answering the server. */
 	    UI main = loop.ui;
 	    if((main != null) && (main != ui))
-		io.brodgar.rts.Fleet.tickbg(main);
+		io.brodgar.session.Sessions.tickbg(main);
 	}
 
 	protected void display() {

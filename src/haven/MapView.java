@@ -519,7 +519,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
      *
      * It belongs to no mode: it is one of the client's cameras, installed by name like any other, and
      * the RTS mode merely happens to install it. So it answers the client's own cam-* bindings and
-     * nothing else -- the keys the mode owns are dispatched by io.brodgar.rts.Control, which
+     * nothing else -- the keys the mode owns are dispatched by io.brodgar.session.Control, which
      * MapView.keydown already runs ahead of the camera.
      *
      * The middle button pans instead of rotating: rotation is on the arrow keys already, and an RTS
@@ -553,7 +553,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		lastz = p.z;
 		return(p.invy());
 	    } catch(Loading e) {
-		lastz = (float)io.brodgar.rts.Fleet.groundz(c, lastz);
+		lastz = (float)io.brodgar.session.Sessions.groundz(c, lastz);
 		return(new Coord3f((float)c.x, -(float)c.y, lastz));
 	    }
 	}
@@ -587,7 +587,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * No modifier collides here: mousedown sends ev.b == 2 straight to camera.click with no modifier
 	     * branch and no fallthrough, so the middle button on this widget is the camera and nothing else.
 	     * The other Ctrl gestures in reach are on different events -- StdPlace.rotate is Ctrl and the
-	     * wheel TURNING while placing, and the RTS marquee's additive select (io.brodgar.rts.Control)
+	     * wheel TURNING while placing, and the RTS marquee's additive select (io.brodgar.session.Control)
 	     * takes Shift or Ctrl on buttons 1 and 3. Read once, at the press, so letting go mid-drag does
 	     * not change what the drag is already doing. */
 	    rotating = (ui.modflags() & UI.MOD_CTRL) != 0;
@@ -734,7 +734,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * sprites and rasterizing a click-map for a picture nobody will ever look at. The voice channel
 	 * and the addon engine are the client's one live pair for the same reason: they follow the view
 	 * that is drawn. Promoting a member to anchor (F5) is what will need the inverse of this. */
-	this.dormant = io.brodgar.rts.Fleet.dormant(glob);
+	this.dormant = io.brodgar.session.Sessions.dormant(glob);
 	if(!dormant) {
 	    attachscene();
 	    io.brodgar.voice.Voice.attach(this);   // brodgar voice: connect on entering the game
@@ -1476,7 +1476,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     /* 068: the remembered ground's source -- an MCache of its own, filled out of the map database.
      * Built on the first tick that has a minimap to take sessloc from; RecallTerrain below is what
      * draws it, and :recall is what reports it. */
-    private io.brodgar.rts.Recall recall = null;
+    private io.brodgar.session.Recall recall = null;
     private RecallTerrain recallterrain = null;
     private RenderTree.Slot s_recall = null;
     private boolean recallon = true;
@@ -1490,7 +1490,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * haze over live-looking ground, not a memory of it. Desaturating is an operation on the fragment's own
      * three channels against each other, and the fragment shader is the only place that can be written.
      *
-     * io.brodgar.rts.Greyscale is that state, and the reason it reaches ground whose colour comes from a
+     * io.brodgar.session.Greyscale is that state, and the reason it reaches ground whose colour comes from a
      * tileset's own Material is that a program here is compiled from the COMPOSED Pipe of the slot being
      * drawn -- so a State installed once at this subtree's root is compiled into every material under it.
      * BaseColor and ColorMask work exactly this way.
@@ -1502,7 +1502,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private int washamt = 255;
 
     private Pipe.Op greyscale() {
-	return(new io.brodgar.rts.Greyscale(washamt / 255f));
+	return(new io.brodgar.session.Greyscale(washamt / 255f));
     }
 
     private void setwash(int a) {
@@ -1564,7 +1564,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    /* In grids rather than in cuts, because grids are the unit the source reads and the margin is
 	     * a grid wide. cutn is cmaps/cutsz, so a grid coord scales to the cut coord of its corner. */
 	    Coord gc = c.floor(tilesz).div(MCache.cmaps);
-	    int r = io.brodgar.rts.Recall.radius - 1;
+	    int r = io.brodgar.session.Recall.radius - 1;
 	    area = new Area(gc.sub(r, r).mul(MCache.cutn), gc.add(r + 1, r + 1).mul(MCache.cutn));
 	    vis.clear();
 	    for(Coord cc : area) {
@@ -1608,7 +1608,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    return;
 	}
 	if(recall == null)
-	    recall = new io.brodgar.rts.Recall(glob.sess);
+	    recall = new io.brodgar.session.Recall(glob.sess);
 	/* Where the ground is read around. The RTS camera is the one that leaves the character, and it
 	 * is the reason the record is read at all; every other camera is bolted to the player, where
 	 * getcc() says the same thing. */
@@ -1681,7 +1681,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private void fleettick2() {
-	List<io.brodgar.rts.Fleet.View> vs = io.brodgar.rts.Fleet.views();
+	List<io.brodgar.session.Sessions.View> vs = io.brodgar.session.Sessions.views();
 	if(vs.isEmpty() && fleetviews.isEmpty())
 	    return;
 	/* The anchor's own terrain claims its ground before anyone else is asked, so a member never
@@ -1693,7 +1693,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		claimed.add(cc);
 	}
 	Set<String> live = new HashSet<>();
-	for(io.brodgar.rts.Fleet.View v : vs) {
+	for(io.brodgar.session.Sessions.View v : vs) {
 	    live.add(v.user);
 	    FleetView fv = fleetviews.get(v.user);
 	    /* A relog gives the member a new Glob and a new frame: the old node is not adjustable, it
@@ -2426,7 +2426,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			     * it does not touch this arithmetic at all. A cut from a merged fleet view is
 			     * brought back into the anchor's frame here, once, so that everything downstream
 			     * (an order, a move, a placement) goes on speaking one coordinate system. */
-			    Coord2d off = io.brodgar.rts.Fleet.offsetfor(cut.map);
+			    Coord2d off = io.brodgar.session.Sessions.offsetfor(cut.map);
 			    if(off != null)
 				wc = wc.sub(off);
 			    cb.accept(wc);
@@ -2654,7 +2654,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    undelay(delayed2, g);
 	    poldraw(g);
 	    partydraw(g);
-	    io.brodgar.rts.Control.draw(this, g);   // rts: (F3) selection brackets and the marquee
+	    io.brodgar.session.Control.draw(this, g);   // rts: (F3) selection brackets and the marquee
 	    glob.map.reqarea(cc.floor(tilesz).sub(MCache.cutsz.mul(view + 1)),
 			     cc.floor(tilesz).add(MCache.cutsz.mul(view + 1)));
 	} catch(Loading e) {
@@ -3136,7 +3136,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
 	    Gob cg = clickedgob(inf);
-	    io.brodgar.rts.Control.hit(MapView.this, pc, mc, (cg == null) ? -1 : cg.id, btn, mods);
+	    io.brodgar.session.Control.hit(MapView.this, pc, mc, (cg == null) ? -1 : cg.id, btn, mods);
 	}
     }
 
@@ -3173,7 +3173,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    if(placing.lastmc != null)
 		wdgmsg("place", placing.rc.floor(posres), (int)Math.round(placing.a * 32768 / Math.PI), ev.b, ui.modflags());
 	} else if((grab != null) && grab.mmousedown(ev.c, ev.b)) {
-	} else if(io.brodgar.rts.Control.mousedown(this, ev)) {   // rts: (F3) alt starts a marquee, and a click with units selected is theirs -- everything else falls through to Click below, unchanged
+	} else if(io.brodgar.session.Control.mousedown(this, ev)) {   // rts: (F3) alt starts a marquee, and a click with units selected is theirs -- everything else falls through to Click below, unchanged
 	} else {
 	    new Click(ev.c, ev.b).run();
 	}
@@ -3191,7 +3191,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Loader.Future<Plob> placing_l = this.placing;
 	if(camdrag != null) {
 	    camera.drag(ev.c);
-	} else if(io.brodgar.rts.Control.mousemove(this, ev)) {   // rts: (F3) the marquee being dragged
+	} else if(io.brodgar.session.Control.mousemove(this, ev)) {   // rts: (F3) the marquee being dragged
 	} else if((placing_l != null) && placing_l.done()) {
 	    Plob placing = placing_l.get();
 	    if((placing.lastmc == null) || !placing.lastmc.equals(ev.c)) {
@@ -3215,7 +3215,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	} else if(grab != null) {
 	    grab.mmouseup(ev.c, ev.b);
 	} else {
-	    io.brodgar.rts.Control.mouseup(this, ev);   // rts: (F3) closes the marquee started above
+	    io.brodgar.session.Control.mouseup(this, ev);   // rts: (F3) closes the marquee started above
 	}
 	return(true);
     }
@@ -3284,7 +3284,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    io.brodgar.voice.Voice.setPushToTalk(true);   // brodgar voice: push-to-talk pressed
 	    return(true);
 	}
-	if(io.brodgar.rts.Control.keydown(this, ev))   // rts: (F5) the anchor switch, while RTS mode is on
+	if(io.brodgar.session.Control.keydown(this, ev))   // rts: (F5) the anchor switch, while RTS mode is on
 	    return(true);
 	if(camera.keydown(ev))
 	    return(true);
@@ -3578,7 +3578,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			} else
 			    throw(new Exception("recall: no such argument `" + args[1] + "' -- off, on, wash <alpha>, or nothing"));
 		    }
-		    io.brodgar.rts.Recall r = recall;
+		    io.brodgar.session.Recall r = recall;
 		    if(r == null)
 			throw(new Exception("recall: no source yet -- no minimap to take a session location from"));
 		    for(String ln : r.report())

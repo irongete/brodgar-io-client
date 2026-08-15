@@ -18,7 +18,7 @@ import static haven.render.sl.Function.PDir.*;
  * a treetop sway and a trunk stand still. `s_orig` is the gob's own position, and the two must be
  * measured in the SAME space or that distance means nothing.
  *
- * A fleet member's objects are drawn in the ANCHOR's scene, under a translation of the offset between
+ * A member session's objects are drawn in the ANCHOR's scene, under a translation of the offset between
  * the two sessions' coordinate frames -- so their vertices arrive here already translated while this
  * origin, taken from the gob's own session, is not. The subtraction then misses by exactly that offset,
  * and since the miss IS the amplitude, a tree hundreds of tiles' worth of offset away thrashes instead
@@ -73,7 +73,7 @@ public class GobSvaj extends GAttrib implements Gob.SetupMod {
 	/* rts: the one changed line. Put the origin in the same scene space the vertices will arrive in.
 	 * Null for the anchor's own objects and for a plain single-session client, where this is a
 	 * no-op and the whole file behaves exactly as the fetched original does. */
-	Coord2d off = io.brodgar.rts.Fleet.offsetfor(gob.glob.map);
+	Coord2d off = io.brodgar.session.Sessions.offsetfor(gob.glob.map);
 	if(off != null) {
 	    origin.x -= (float)off.x;
 	    origin.y += (float)off.y;

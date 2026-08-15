@@ -1,4 +1,4 @@
-package io.brodgar.rts;
+package io.brodgar.session;
 
 import haven.render.FragColor;
 import haven.render.Pipe;

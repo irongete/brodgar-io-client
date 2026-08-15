@@ -1,4 +1,4 @@
-package io.brodgar.rts;
+package io.brodgar.session;
 
 import java.util.ArrayList;
 import java.util.HashMap;
