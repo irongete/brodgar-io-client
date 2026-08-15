@@ -59,7 +59,7 @@
       not a rotate. Ctrl + middle drag — expect the rotate and elevate. Release Ctrl, drag again —
       expect the pan back. Options ▸ Keybindings ▸ Multi session — expect two rows, and no pivot row.
 
-- [ ] **066.5 — `opts:camera():mode()`.** `CameraOptions` gains a third `OptionsMethod` beside the two
+- [x] **066.5 — `opts:camera():mode()`.** `CameraOptions` gains a third `OptionsMethod` beside the two
       inversions. The read is `camname()` off `AddonManager.view`, falling back to the `defcam` pref
       when there is no view, so `camera()` keeps answering before the UI exists — the promise
       `docs/addons/api/client/README.md` line 144 makes. The write is 066.2's `setcam` plus the pref,

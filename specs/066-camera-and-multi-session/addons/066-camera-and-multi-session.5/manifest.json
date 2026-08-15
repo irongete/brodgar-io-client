@@ -1,0 +1,9 @@
+{
+  "name": "066.5 — opts:camera():mode()",
+  "id": "066-camera-and-multi-session.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 066.5: the camera in force reads and writes from Lua, the pair round-trips and chains, and an unknown name and an explicit nil are both refused naming the offender.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

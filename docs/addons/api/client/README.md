@@ -10,7 +10,7 @@ local opts = hafen.client():options()
 opts:interface()      -- UI scale, fine-placement granularity
 opts:video()          -- shadows, render scale, vsync, framerate, lighting
 opts:audio()          -- volumes and output latency
-opts:camera()         -- camera drag inversion
+opts:camera()         -- the camera in force, and drag inversion
 opts:client()         -- client-wide toggles
 opts:keybindings()    -- register, inspect and remap hotkeys
 ```
@@ -106,10 +106,28 @@ governs the world's ambient loops, which is what sounds like background music he
 
 | Method | Type | Description |
 |---|---|---|
+| `mode()` / `mode(name)` | string | the camera the world is drawn through: `"follow"`, `"worse"`, `"bad"`, `"ortho"` or `"rts"` |
 | `invertHorizontal()` / `invertHorizontal(b)` | bool | invert horizontal camera drag |
 | `invertVertical()` / `invertVertical(b)` | bool | invert vertical camera drag |
 
-Both apply live, on the very next drag.
+Every option here applies live. The inversions take effect on the very next drag; `mode` installs the
+camera as you write it, and persists it, so the next session comes up on it too — the same act as picking
+one in Options ▸ Camera or typing `:cam <name>`, and the panel shows your camera the next time it is opened.
+
+The names above are the whole set, so there is no list verb to call: a name outside them raises, and the
+message names both what you passed and every camera the client has.
+
+```lua
+local cam = hafen.client():options():camera()
+
+if cam:mode() ~= "rts" then cam:mode("rts") end
+```
+
+`mode()` reads the camera **installed**, which is not always the one that was chosen: multi-session mode
+puts its own camera on for as long as it is on, without disturbing the stored choice, and this reads what
+is on screen. Before the world is up there is nothing installed, so it reads the stored choice instead,
+and writing it there stores the camera the next session will come up on. It reads `nil` only when neither
+answers a camera the client has.
 
 ## `client()`
 
