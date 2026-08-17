@@ -187,10 +187,9 @@ public final class LuaManeuver {
     static List<FightWnd.Action> actions() {
         List<FightWnd.Action> out = new ArrayList<FightWnd.Action>();
         FightWnd fw = CharApi.fightwnd();
-        UI u = AddonManager.ui;
-        if((fw == null) || (u == null))
+        if(fw == null)
             return out;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(fw)) {
             out.addAll(fw.acts);
         }
         return out;

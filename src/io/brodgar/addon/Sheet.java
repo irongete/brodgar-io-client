@@ -1311,12 +1311,8 @@ final class Sheet {
      * it, because no Lua value crosses a sandbox boundary (D-017).
      */
     static LuaValue styleTable(Addon reader, Widget w) {
-        UI u = AddonManager.ui;
         Resolved r;
-        if(u == null)
-            r = styleOf(w);
-        else
-            synchronized(u) { r = styleOf(w); }
+        synchronized(LuaWidget.monitor(w)) { r = styleOf(w); }
         if(r == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();

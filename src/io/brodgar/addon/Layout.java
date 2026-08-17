@@ -218,7 +218,7 @@ final class Layout {
          * resolved at all — no parent, no size yet, or a widget target that has left the tree. Unresolvable is
          * deliberately <b>inert</b>: the widget stays where it is, because snapping it back to stock the moment its
          * anchor's target closed would be a worse answer than leaving it, and the next tick places it again if the
-         * target comes back. Caller holds the {@code ui} monitor.
+         * target comes back. Caller holds {@code w}'s own monitor ({@link LuaWidget#monitor}).
          *
          * <p><b>The answer is DEVICE pixels</b>, because it is a coordinate the client's own {@code c} takes: this
          * is where {@link #offset} — the one design number in the derivation — converts (058.3), and every other
@@ -326,7 +326,7 @@ final class Layout {
             // this API has moved its followers by the time it returns. A user's own drag has no such moment —
             // it is seen instead through the target's own MouseMoveEvent (042.10, installDragListener).
             if(depth < MAXDEPTH)
-                applyDependents(u, w, depth);
+                applyDependents(w, depth);
         }
     }
 
@@ -337,18 +337,18 @@ final class Layout {
      * hang the re-derive on.
      */
     static void moved(Widget w) {
-        UI u = AddonManager.ui;
-        if((u == null) || (w == null))
+        if(w == null)
             return;
-        synchronized(u) { applyDependents(u, w, 0); }
+        synchronized(LuaWidget.monitor(w)) { applyDependents(w, 0); }
     }
 
     /**
      * Re-derive every anchor that hangs off {@code w} (036.3). Bounded by {@link #MAXDEPTH} rather than by a
      * visited set: a chain of anchors is a legitimate thing to write and a cycle is not, so the depth limit ends
-     * the cycle without making the ordinary case carry a set. Caller holds the {@code ui} monitor.
+     * the cycle without making the ordinary case carry a set. Caller holds {@code w}'s own monitor
+     * ({@link LuaWidget#monitor}).
      */
-    private static void applyDependents(UI u, Widget w, int depth) {
+    private static void applyDependents(Widget w, int depth) {
         List<Widget> deps = null;
         synchronized(Layout.class) {
             if(derived.isEmpty())
@@ -368,7 +368,8 @@ final class Layout {
     /**
      * One half of one widget's layout: the winning value from the cascade (a tree rule, then the hand-named verb
      * on top), written through the same call the verb makes — or, when no level names this half any more, the
-     * stock value handed back and the record's half forgotten. Caller holds the {@code ui} monitor.
+     * stock value handed back and the record's half forgotten. Caller holds {@code w}'s own monitor
+     * ({@link LuaWidget#monitor}).
      *
      * <p><b>Both levels of the cascade carry DESIGN pixels</b> (058.3) — a rule's {@code size} as it was parsed,
      * the verb's as it was written — and each half converts at the one line where it meets the client: an
@@ -442,7 +443,7 @@ final class Layout {
      * <p>Idempotent, like the halves below: a widget already saying what the cascade says gets no write at all,
      * which is what lets the placement seam and the sweep call {@link #apply} freely — a {@code Button} rebuilds
      * its raster on every {@code change(String)}, so the comparison is not an optimisation but the thing that
-     * keeps a caption off the per-placement path. Caller holds the {@code ui} monitor.
+     * keeps a caption off the per-placement path. Caller holds {@code w}'s own monitor ({@link LuaWidget#monitor}).
      */
     private static void textHalf(Widget w) {
         if(!LuaWidget.anyMoved)
@@ -467,10 +468,9 @@ final class Layout {
      * {@code :text(nil)} and {@code widget:title(s)} / {@code :title(nil)}. Takes the {@code ui} monitor itself.
      */
     static void applyText(Widget w) {
-        UI u = AddonManager.ui;
-        if((u == null) || (w == null))
+        if(w == null)
             return;
-        synchronized(u) { textHalf(w); }
+        synchronized(LuaWidget.monitor(w)) { textHalf(w); }
     }
 
     /**
@@ -488,10 +488,9 @@ final class Layout {
      * screen and leaves the stock at the value that update replaced.
      */
     static void serverWroteText(Widget w) {
-        UI u = AddonManager.ui;
-        if((u == null) || (w == null))
+        if(w == null)
             return;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(w)) {
             LuaWidget.Moved top = LuaWidget.topWantText(w);
             if((top == null) || top.wantText.equals(LuaWidget.text(w)))
                 return;                               // nothing of ours here, or nothing landed on top of it

@@ -1,7 +1,6 @@
 package io.brodgar.addon;
 
 import haven.QuestWnd;
-import haven.UI;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -227,10 +226,9 @@ public final class LuaQuest {
     static List<QuestWnd.Quest> all() {
         List<QuestWnd.Quest> out = new ArrayList<QuestWnd.Quest>();
         QuestWnd qw = wnd();
-        UI u = AddonManager.ui;
-        if((qw == null) || (u == null))
+        if(qw == null)
             return out;
-        synchronized(u) {                        // both lists mutate off-thread (QuestWnd.uimsg)
+        synchronized(LuaWidget.monitor(qw)) {    // both lists mutate off-thread (QuestWnd.uimsg)
             out.addAll(qw.cqst.quests);          // "Current" (pending / disabled)
             out.addAll(qw.dqst.quests);          // "Completed" (done / failed)
         }
@@ -240,10 +238,9 @@ public final class LuaQuest {
     /** The live record for {@code qid}, or {@code null} once the quest has left the log. */
     static QuestWnd.Quest quest(int qid) {
         QuestWnd qw = wnd();
-        UI u = AddonManager.ui;
-        if((qw == null) || (u == null))
+        if(qw == null)
             return null;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(qw)) {
             QuestWnd.Quest q = qw.cqst.get(qid);
             return (q != null) ? q : qw.dqst.get(qid);
         }
@@ -252,10 +249,9 @@ public final class LuaQuest {
     /** The selected quest's {@code Box}, or {@code null} when nothing is open in the log. */
     static QuestWnd.Quest.Box box() {
         QuestWnd qw = wnd();
-        UI u = AddonManager.ui;
-        if((qw == null) || (u == null))
+        if(qw == null)
             return null;
-        synchronized(u) {                        // qw.quest is swapped off-thread (addchild / cdestroy)
+        synchronized(LuaWidget.monitor(qw)) {    // qw.quest is swapped off-thread (addchild / cdestroy)
             QuestWnd.Quest.Info info = qw.quest;
             return (info instanceof QuestWnd.Quest.Box) ? (QuestWnd.Quest.Box)info : null;
         }
@@ -271,11 +267,10 @@ public final class LuaQuest {
     static List<QuestWnd.Quest.Condition> conditions(int qid) {
         List<QuestWnd.Quest.Condition> out = new ArrayList<QuestWnd.Quest.Condition>();
         QuestWnd.Quest.Box b = selected(qid);
-        UI u = AddonManager.ui;
-        if((b == null) || (u == null))
+        if(b == null)
             return out;
         QuestWnd.Quest.Condition[] cond;
-        synchronized(u) {                        // cond[] is swapped wholesale on the "conds" uimsg
+        synchronized(LuaWidget.monitor(b)) {     // cond[] is swapped wholesale on the "conds" uimsg
             cond = b.cond;
         }
         if(cond != null) {

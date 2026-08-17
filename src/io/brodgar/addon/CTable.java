@@ -5,7 +5,6 @@ import haven.Coord;
 import haven.GOut;
 import haven.SListWidget;
 import haven.TableBox;
-import haven.UI;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -143,8 +142,7 @@ abstract class CTable extends TableBox<CTable.TRow> implements Owned.Control, Co
      */
     public void rows(LuaValue t) {
         List<TRow> parsed = resolveRows(t, cols);
-        UI u = AddonManager.ui;
-        synchronized(u) { curItems = parsed; }
+        synchronized(LuaWidget.monitor(this)) { curItems = parsed; }
         lastRows = t;
     }
 

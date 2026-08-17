@@ -4,7 +4,6 @@ import haven.CharWnd;
 import haven.Coord;
 import haven.GOut;
 import haven.SDropBox;
-import haven.UI;
 import haven.Widget;
 
 import org.luaj.vm2.LuaError;
@@ -124,8 +123,7 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
      */
     public void rows(LuaValue t) {
         List<LuaRows.Row> parsed = LuaRows.parse(t, "widget:rows");
-        UI u = AddonManager.ui;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(this)) {
             curItems = parsed;
             super.change(null);
         }
@@ -141,8 +139,7 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
     public void value(LuaValue v) {
         for(LuaRows.Row item : curItems) {
             if(item.raw.eq_b(v)) {
-                UI u = AddonManager.ui;
-                synchronized(u) { super.change(item); }   // D-153: bypasses THIS class's onChange-firing override
+                synchronized(LuaWidget.monitor(this)) { super.change(item); }   // D-153: bypasses THIS class's onChange-firing override
                 return;
             }
         }

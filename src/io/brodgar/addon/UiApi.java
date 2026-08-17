@@ -758,21 +758,15 @@ final class UiApi {
      * scope — exactly what {@code element.querySelector} does in CSS.
      */
     static LuaValue scopedFind(Addon owner, Widget scope, Selector sel) {
-        UI u = ui;
-        if(u == null)
-            return LuaValue.NIL;
         List<Widget> hits = new ArrayList<Widget>();
-        synchronized(u) { collect(scope, sel, hits); }
+        synchronized(LuaWidget.monitor(scope)) { collect(scope, sel, hits); }
         return one(owner, hits, sel, "widget:");
     }
 
     /** {@code widget:all(selector)} — every match inside {@code scope} (inclusive), 1-based; empty, never nil. */
     static LuaValue scopedAll(Addon owner, Widget scope, Selector sel) {
-        UI u = ui;
-        if(u == null)
-            return new LuaTable();
         List<Widget> hits = new ArrayList<Widget>();
-        synchronized(u) { collect(scope, sel, hits); }
+        synchronized(LuaWidget.monitor(scope)) { collect(scope, sel, hits); }
         return table(owner, hits);
     }
 
@@ -1440,19 +1434,13 @@ final class UiApi {
      * frame anyway (a view may hang off {@code ui.root} rather than the HUD). Click path, not the frame path.
      */
     private static void toggleView(final Widget view) {
-        UI u = ui;
-        Runnable act = () -> {
+        synchronized(LuaWidget.monitor(view)) {
             if(!view.show(!view.visible()))
                 return;                       // just closed it: nothing to raise or focus
             view.raise();
             fitView(view);
             if(view.parent != null)
                 view.parent.setfocus(view);
-        };
-        if(u != null) {
-            synchronized(u) { act.run(); }
-        } else {
-            act.run();
         }
     }
 
@@ -1557,8 +1545,7 @@ final class UiApi {
         LuaWidget.Moved m = LuaWidget.findMoved(owner, w);
         if(m == null)
             return;
-        UI u = ui;
-        Runnable act = () -> {
+        synchronized(LuaWidget.monitor(w)) {
             if(pos)
                 m.wantPos = null;
             else
@@ -1566,11 +1553,6 @@ final class UiApi {
             Layout.apply(w);                     // the fold again, one level shorter
             if(m.idle() && owner.movedNative.remove(m))
                 LuaWidget.recountMoved();
-        };
-        if(u != null) {
-            synchronized(u) { act.run(); }
-        } else {
-            act.run();
         }
     }
 
@@ -1585,17 +1567,11 @@ final class UiApi {
         LuaWidget.Moved m = LuaWidget.findMoved(owner, w);
         if(m == null)
             return;
-        UI u = ui;
-        Runnable act = () -> {
+        synchronized(LuaWidget.monitor(w)) {
             m.wantText = null;
             Layout.applyText(w);                 // the fold again, one level shorter
             if(m.idle() && owner.movedNative.remove(m))
                 LuaWidget.recountMoved();
-        };
-        if(u != null) {
-            synchronized(u) { act.run(); }
-        } else {
-            act.run();
         }
     }
 
@@ -1736,11 +1712,10 @@ final class UiApi {
      * there would silence the one notification a revert owes it.
      */
     static void revert(Addon owner, Widget w) {
-        UI u = ui;
-        if((u == null) || (w == null))
+        if(w == null)
             return;
         List<Owned> adopted = new ArrayList<Owned>();
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(w)) {
             List<Widget> sub = new ArrayList<Widget>();
             collectSubtree(w, sub);           // a snapshot: what follows destroys widgets and writes geometry
             for(int i = 0; i < sub.size(); i++) {
@@ -1920,12 +1895,7 @@ final class UiApi {
             h.view = view;
             destroyView(owner, old);
         }
-        UI u = ui;
-        if(u != null) {
-            synchronized(u) { wnd.hide(); }
-        } else {
-            wnd.hide();
-        }
+        synchronized(LuaWidget.monitor(wnd)) { wnd.hide(); }
         assertToggleTarget(owner, w, wnd);
     }
 
@@ -1966,14 +1936,8 @@ final class UiApi {
         if(v == null)
             return;
         owner.widgets.remove(v);
-        UI u = ui;
-        Runnable kill = () -> {
+        synchronized(LuaWidget.monitor(v)) {
             try { v.kill(); } catch(RuntimeException e) { /* best-effort: never abort a teardown/undo */ }
-        };
-        if(u != null) {
-            synchronized(u) { kill.run(); }
-        } else {
-            kill.run();
         }
     }
 

@@ -7,7 +7,7 @@
 | What | Where |
 |---|---|
 | Widget base (tree, `tick`, `draw`, input) | `Widget` |
-| Add/attach child | `Widget.add`, `add0`, `attach` |
+| Add/attach child | `Widget.add`, `add0`, `attach` — `attach(UI)` is what sets the public `Widget.ui` field, recursing the whole subtree, and `add0` calls it only where the child's is still null. So **every widget carries the `UI` whose tree it is in**, and the one to lock while writing a widget is `w.ui` rather than any field naming the session on screen ([multi-session.md](multi-session.md)). It is null on a widget that has never been added to a tree, and `remove()` does **not** take it back |
 | **Type registry (`@RName` → Factory)** ← replacement seam A | `Widget.types`, `Factory`, `initnames`, `gettype3` |
 | UI root / id map / dispatch | `UI`: `root`, `widgets`/`rwidgets`, `bind`/`getwidget`/`widgetid` |
 | **Server → widget create** | `UI.NewWidget.run`, `newwidgetp`  — its addon seam was **removed**: it only recorded the server type string for the retired descriptor |

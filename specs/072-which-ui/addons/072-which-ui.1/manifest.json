@@ -1,0 +1,9 @@
+{
+  "name": "072.1 — the monitor is the widget's own",
+  "id": "072-which-ui.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 072.1: the widget verbs whose implementations moved to the widget's own UI monitor still round-trip — title, position, rootPos, visible, size, children, the borrowed hide, and the refusal that names a missing argument.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

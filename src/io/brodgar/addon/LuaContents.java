@@ -3,7 +3,6 @@ package io.brodgar.addon;
 import haven.GItem;
 import haven.ItemInfo;
 import haven.Text;
-import haven.UI;
 import haven.Widget;
 import haven.res.ui.tt.level.Level;
 
@@ -268,10 +267,9 @@ public final class LuaContents {
     static List<GItem> items(GItem cont) {
         List<GItem> out = new ArrayList<GItem>();
         Widget w = widget(cont);
-        UI u = AddonManager.ui;
-        if((w == null) || (u == null))
+        if(w == null)
             return out;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(w)) {
             for(GItem it : w.children(GItem.class))
                 out.add(it);
         }

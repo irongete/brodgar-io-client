@@ -3,7 +3,6 @@ package io.brodgar.addon;
 import haven.Coord;
 import haven.GOut;
 import haven.GridList;
-import haven.UI;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -89,8 +88,7 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
      */
     public void rows(LuaValue t) {
         List<LuaValue> parsed = parseRows(t);
-        UI u = AddonManager.ui;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(this)) {
             curItems = parsed;
             group.update(curItems);
         }

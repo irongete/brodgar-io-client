@@ -1,7 +1,6 @@
 package io.brodgar.addon;
 
 import haven.FightWnd;
-import haven.UI;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -200,10 +199,9 @@ public final class LuaDeckCard {
     /** The current school's layout, copied under the UI monitor (its entries are reassigned there). */
     static FightWnd.Action[] order() {
         FightWnd fw = CharApi.fightwnd();
-        UI u = AddonManager.ui;
-        if((fw == null) || (u == null))
+        if(fw == null)
             return new FightWnd.Action[0];
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(fw)) {
             return Arrays.copyOf(fw.order, fw.order.length);
         }
     }

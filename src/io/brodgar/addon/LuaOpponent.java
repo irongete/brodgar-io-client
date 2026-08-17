@@ -2,7 +2,6 @@ package io.brodgar.addon;
 
 import haven.Fightview;
 import haven.GameUI;
-import haven.UI;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -180,10 +179,9 @@ public final class LuaOpponent {
     /** Are you still in a fight with {@code gobid}? The predicate {@code :exists()} answers. */
     private static boolean fighting(long gobid) {
         Fightview fv = view();
-        UI u = AddonManager.ui;
-        if((fv == null) || (u == null))
+        if(fv == null)
             return false;
-        synchronized(u) {                       // lsrel is added to / removed from on a loader thread
+        synchronized(LuaWidget.monitor(fv)) {   // lsrel is added to / removed from on a loader thread
             for(Fightview.Relation rel : fv.lsrel) {
                 if((rel.gobid == gobid) && !rel.invalid)
                     return true;
@@ -195,11 +193,10 @@ public final class LuaOpponent {
     /** {@code hafen.fight():target()} — the opponent the combat view has picked, or {@code NIL} out of a fight. */
     static LuaValue target(Addon owner) {
         Fightview fv = view();
-        UI u = AddonManager.ui;
-        if((fv == null) || (u == null))
+        if(fv == null)
             return LuaValue.NIL;
         Fightview.Relation rel;
-        synchronized(u) {                       // `current` is reassigned from the "cur" uimsg off-thread
+        synchronized(LuaWidget.monitor(fv)) {   // `current` is reassigned from the "cur" uimsg off-thread
             rel = fv.current;
         }
         return ((rel == null) || rel.invalid) ? LuaValue.NIL : of(owner, rel.gobid);

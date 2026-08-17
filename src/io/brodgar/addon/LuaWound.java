@@ -216,10 +216,9 @@ public final class LuaWound {
     static List<WoundWnd.Wound> all() {
         List<WoundWnd.Wound> out = new ArrayList<WoundWnd.Wound>();
         WoundWnd ww = wnd();
-        UI u = AddonManager.ui;
-        if((ww == null) || (u == null))
+        if(ww == null)
             return out;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(ww)) {
             out.addAll(ww.wounds.wounds);
         }
         return out;

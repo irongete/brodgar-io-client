@@ -724,13 +724,12 @@ final class CharApi {
 
         public void refresh() {
             QuestWnd qw = questwnd();
-            UI u = ui;
-            if((qw == null) || (u == null))
+            if(qw == null)
                 return;
             // Copy both quest lists under the ui monitor (QuestWnd.uimsg mutates them off-thread), then
             // build snapshots outside it (names may Loading) — the marker "copy under the lock" discipline.
             List<QuestWnd.Quest> all = new ArrayList<QuestWnd.Quest>();
-            synchronized(u) {
+            synchronized(LuaWidget.monitor(qw)) {
                 all.addAll(qw.cqst.quests);          // "Current" tab (pending / disabled)
                 all.addAll(qw.dqst.quests);          // "Completed" tab (done / failed)
             }

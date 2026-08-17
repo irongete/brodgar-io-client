@@ -439,10 +439,9 @@ public final class LuaItem {
     private static List<WItem> wits(GItem it) {
         List<WItem> out = new ArrayList<WItem>();
         Widget p = (it == null) ? null : it.parent;
-        UI u = AddonManager.ui;
-        if((p == null) || (u == null))
+        if(p == null)
             return out;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(p)) {
             for(WItem w : p.children(WItem.class)) {
                 if(w.item == it)
                     out.add(w);
@@ -463,10 +462,9 @@ public final class LuaItem {
      * ever answer the thing it is in.
      */
     static GItem container(GItem it) {
-        UI u = AddonManager.ui;
-        if((it == null) || (u == null))
+        if(it == null)
             return null;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(it)) {
             for(Widget p = it.parent; p != null; p = p.parent) {
                 if(p instanceof GItem.ContentsWindow)
                     return ((GItem.ContentsWindow)p).cont;
@@ -838,11 +836,10 @@ public final class LuaItem {
             return;
         out.put(it, parent);
         Widget w = LuaContents.widget(it);
-        UI u = AddonManager.ui;
-        if((w == null) || (u == null))
+        if(w == null)
             return;
         List<GItem> kids;
-        synchronized(u) { kids = new ArrayList<GItem>(w.children(GItem.class)); }
+        synchronized(LuaWidget.monitor(w)) { kids = new ArrayList<GItem>(w.children(GItem.class)); }
         for(GItem k : kids)
             collectDeep(k, it, out);
     }

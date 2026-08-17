@@ -4,7 +4,6 @@ import haven.CharWnd;
 import haven.Coord;
 import haven.GOut;
 import haven.SListBox;
-import haven.UI;
 import haven.Widget;
 
 import org.luaj.vm2.LuaError;
@@ -82,8 +81,7 @@ final class CList extends SListBox<LuaRows.Row, Widget> implements Owned.Control
      */
     public void rows(LuaValue t) {
         List<LuaRows.Row> parsed = LuaRows.parse(t, "widget:rows");
-        UI u = AddonManager.ui;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(this)) {
             curItems = parsed;
             sel = null;
         }

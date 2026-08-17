@@ -115,6 +115,30 @@ public final class LuaWidget {
         return owner.widgetObjs.of(w);
     }
 
+    /**
+     * <b>The monitor that guards a mutation of {@code w}</b> (072.1) — {@link Widget#ui}, the {@code UI} whose
+     * widget tree {@code w} is in. Every site in this layer that writes a widget, or reads one that the server
+     * mutates off-thread, takes it from the widget in hand: the client holds a {@code UI} per session
+     * ({@code docs/client/multi-session.md}) and locking one session's monitor while writing another session's
+     * widget serialises against the wrong tick. The widget always knows, because {@code Widget.attach(UI)} sets
+     * the field down the whole subtree as it enters a tree.
+     *
+     * <p><b>A widget that has never been in a tree has none</b>, and {@code Widget.remove()} does not take it
+     * back, so this is null for a widget built and not yet added and for nothing else — every door in this
+     * section hands out a widget that {@link UiApi#attach} has already put on a root, a pending one included.
+     * There is nothing there to race: such a widget is reachable from the code constructing it and from nowhere
+     * else, no tick walks it and no message is addressed to it. They share {@link #UNATTACHED} rather than each
+     * getting a lock no second thread could take, so every site keeps one shape — mutate under a monitor — with
+     * no branch and no null.
+     */
+    static Object monitor(Widget w) {
+        UI u = (w == null) ? null : w.ui;
+        return (u != null) ? (Object)u : UNATTACHED;
+    }
+
+    /** The stand-in monitor for a widget that is in no tree — see {@link #monitor(Widget)}. */
+    private static final Object UNATTACHED = new Object();
+
     /** The {@code LuaWidget} behind a Lua value, or {@code null} for anything that is not a Widget object. */
     static LuaWidget resolve(LuaValue v) {
         if((v == null) || !v.isuserdata())
@@ -326,8 +350,12 @@ public final class LuaWidget {
                         + " is the default, and hafen.ui():find(\"@GameUI\") is the HUD");
                 if(p == w.parent)
                     return self;
-                UI u = AddonManager.ui;
-                synchronized(u) {
+                // 072.1: the DESTINATION's monitor, and this is the one site that has to choose — a re-home
+                // writes two parents' child lists, and the lock direction forbids taking both (see
+                // docs/client/multi-session.md). `p` is the tree the widget is in when the block ends, so it is
+                // the one that names the mutation. The two are one UI in every case this verb can reach: `w`
+                // was put on a root by UiApi.attach and `p` was resolved out of that same root.
+                synchronized(monitor(p)) {
                     Coord at = w.c;
                     rehome(w);                            // detach from ui.root — a move, and NOT a death (061.7)
                     // Widget.add does NOT route through addchild, and a Scrollport-shaped parent only overrides
@@ -379,8 +407,7 @@ public final class LuaWidget {
                 }
                 Coord to = Coord.of(a.checkint(2), a.checkint(3));          // DESIGN pixels, as written
                 if(w != null) {
-                    UI u = AddonManager.ui;
-                    synchronized(u) {
+                    synchronized(monitor(w)) {
                         if(ownedContent(owner, w) == null) {
                             Moved rec = recordMoved(owner, w);     // BORROWED: name the level, then resolve it
                             rec.wantPos = Layout.Anchor.at(to);    // 036.3: the parent's top-left, plus (x, y)
@@ -431,8 +458,7 @@ public final class LuaWidget {
                     Coord dmin = Px.out(min);
                     if(width < dmin.x)
                         throw tooSmall(w, "widget:size(w)", width, dmin.x, "wide");
-                    UI u = AddonManager.ui;
-                    synchronized(u) {
+                    synchronized(monitor(w)) {
                         // The DEVICE height, not Px.in of the design one: in(out(d)) may land a device pixel
                         // under the art's own box, and a pixel under is a border that does not draw.
                         content.widget().resize(Coord.of(Px.in(width), min.y));
@@ -458,8 +484,7 @@ public final class LuaWidget {
                                 dev = Coord.of(dev.x, min.y);
                         }
                     }
-                    UI u = AddonManager.ui;
-                    synchronized(u) {
+                    synchronized(monitor(w)) {
                         if(content == null) {             // BORROWED (036.1): the layer remembers, then resizes
                             Moved rec = recordMoved(owner, w);
                             rec.wantSize = to;            // 036.2: ...and the resize is the cascade's to make
@@ -644,15 +669,13 @@ public final class LuaWidget {
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
                 if(v.toboolean()) {
-                    UI u = AddonManager.ui;
-                    synchronized(u) { w.show(); }
+                    synchronized(monitor(w)) { w.show(); }
                     dropHidden(owner, w);                 // restored by hand: teardown has nothing left to undo
                 } else {
                     boolean borrowed = (ownedContent(owner, w) == null);
                     if(borrowed)
                         refuseSecondOwner(owner, w, "widget:visible(false)");   // 031.2: one window, one owner
-                    UI u = AddonManager.ui;
-                    synchronized(u) { w.hide(); }
+                    synchronized(monitor(w)) { w.hide(); }
                     if(borrowed)                          // BORROWED: remember to give it back on teardown
                         recordHidden(owner, w);
                 }
@@ -762,8 +785,7 @@ public final class LuaWidget {
                         nativePack(owner, w);
                         return self;
                     }
-                    UI u = AddonManager.ui;
-                    synchronized(u) {
+                    synchronized(monitor(w)) {
                         Widget cw = content.widget();
                         cw.pack();
                         if(cw != w) {              // a window: refit the chrome, then give the canvas what is left
@@ -811,8 +833,7 @@ public final class LuaWidget {
                 Widget w = live(handle(self, "destroy"));
                 if(w != null) {
                     Owned content = owned(owner, w, "destroy()");
-                    UI u = AddonManager.ui;
-                    synchronized(u) { content.kill(); }
+                    synchronized(monitor(w)) { content.kill(); }
                     UiApi.dropPending(content);   // 039.6: one built and ended in the same statement is never placed
                     owner.widgets.remove(content);
                 }
@@ -902,8 +923,7 @@ public final class LuaWidget {
                         + " control's own caption is widget:text(s), on one of the client's controls exactly as"
                         + " on one you built.");
                 if(ownedContent(owner, w) != null) {
-                    UI u = AddonManager.ui;
-                    synchronized(u) { ((Window)w).chcap(v.tojstring()); }
+                    synchronized(monitor(w)) { ((Window)w).chcap(v.tojstring()); }
                     return self;
                 }
                 recordText(owner, w, v.tojstring());      // BORROWED: the caption is a level, and it restores
@@ -1012,8 +1032,7 @@ public final class LuaWidget {
                     throw new LuaError("widget:tooltip(s): the tooltip is a string, got " + v.typename());
                 owned(owner, w, "tooltip(s)");
                 String s = v.tojstring();
-                UI u = AddonManager.ui;
-                synchronized(u) { w.tooltip = s.isEmpty() ? null : s; }
+                synchronized(monitor(w)) { w.tooltip = s.isEmpty() ? null : s; }
                 return self;
             }
         });
@@ -1279,9 +1298,8 @@ public final class LuaWidget {
                 if(w == null)
                     return LuaValue.NIL;
                 Coord pt = Px.in(coordArg(a.arg(2), "widget:at(coord)"));   // a point is design px, like a size
-                UI u = AddonManager.ui;
                 Widget hit;
-                synchronized(u) { hit = hitTest(w, w.rootxlate(pt)); }
+                synchronized(monitor(w)) { hit = hitTest(w, w.rootxlate(pt)); }
                 return (hit == null) ? LuaValue.NIL : of(owner, hit);
             }
         });
@@ -1293,9 +1311,8 @@ public final class LuaWidget {
                 Widget w = live(handle(self, "rootPos"));
                 if(w == null)
                     return LuaValue.NIL;
-                UI u = AddonManager.ui;
                 Coord rp;
-                synchronized(u) { rp = w.rootpos(); }
+                synchronized(monitor(w)) { rp = w.rootpos(); }
                 return (rp == null) ? LuaValue.NIL : xyTable(Px.out(rp));
             }
         });
@@ -1862,8 +1879,7 @@ public final class LuaWidget {
                 + " is not one — a widget the client laid out is drawn in the box the client chose, and the"
                 + " window around it is what refits. widget:size(w, h) sets a borrowed widget's box by hand,"
                 + " and widget:size(nil) gives it back.");
-        UI u = AddonManager.ui;
-        synchronized(u) {
+        synchronized(monitor(w)) {
             Moved rec = recordMoved(owner, w);
             if(rec.size == null)
                 rec.size = UiApi.stockSizeArg(w);      // the box the USER had, read before the pack moves it
@@ -1929,10 +1945,7 @@ public final class LuaWidget {
         StoreApi.Placement p = StoreApi.placement(owner, name);
         if(p == null)
             return;                                   // nothing saved under it yet: the name is where it will go
-        UI u = AddonManager.ui;
-        if(u == null)
-            return;
-        synchronized(u) {
+        synchronized(monitor(w)) {
             Moved rec = recordMoved(owner, w);
             if(p.pos != null) {
                 rec.wantPos = Layout.Anchor.at(p.pos);
@@ -2213,10 +2226,9 @@ public final class LuaWidget {
 
     /** A copy of a container's {@link WItem} children (deep), taken under the {@code ui} monitor. */
     static List<WItem> witems(Widget w) {
-        UI u = AddonManager.ui;
-        if(u == null)
+        if(w == null)
             return new ArrayList<WItem>();
-        synchronized(u) { return new ArrayList<WItem>(w.children(WItem.class)); }
+        synchronized(monitor(w)) { return new ArrayList<WItem>(w.children(WItem.class)); }
     }
 
     // ---- liveness + the reads ----------------------------------------------------------------------
@@ -2261,8 +2273,7 @@ public final class LuaWidget {
 
     /** A copy of {@code w}'s child list, taken under the {@code ui} monitor so a walk never races tree mutation. */
     private static List<Widget> kids(Widget w) {
-        UI u = AddonManager.ui;
-        synchronized(u) { return new ArrayList<Widget>(w.children()); }
+        synchronized(monitor(w)) { return new ArrayList<Widget>(w.children()); }
     }
 
     /**
@@ -2556,8 +2567,7 @@ public final class LuaWidget {
 
     /** Name this addon's text level on a borrowed widget, and let {@link Layout} resolve what is on screen. */
     private static void recordText(Addon owner, Widget w, String s) {
-        UI u = AddonManager.ui;
-        synchronized(u) {
+        synchronized(monitor(w)) {
             Moved rec = recordMoved(owner, w);
             rec.wantText = s;
             rec.textSeq = Layout.nextSeq();        // the latest hand-named level wins, as it does for a position
@@ -2793,12 +2803,8 @@ public final class LuaWidget {
         if(!(w instanceof Window))
             return LuaValue.NIL;
         Window wnd = (Window)w;
-        UI u = AddonManager.ui;
         Window.Deco d;
-        if(u == null)
-            d = wnd.deco;
-        else
-            synchronized(u) { d = wnd.deco; }
+        synchronized(monitor(wnd)) { d = wnd.deco; }
         if(!(d instanceof Window.DefaultDeco))
             return LuaValue.NIL;              // a window that built a decoration of its own: not ours to read
         Window.DefaultDeco dd = (Window.DefaultDeco)d;

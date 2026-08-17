@@ -199,22 +199,19 @@ public final class AddonRegistry {
     private static void destroyWidgets(Addon a) {
         if(a.widgets.isEmpty())
             return;
-        UI u = ui;
         List<Owned> ws = new ArrayList<Owned>(a.widgets);
         a.widgets.clear();
-        Runnable kill = () -> {
-            for(Owned w : ws) {
+        // 072.1: one monitor per widget, taken from the widget — a teardown walks whatever this addon owns, and
+        // two of its windows may stand in two different sessions' trees. Nothing here needs the whole list to be
+        // one atomic act: each kill is a tree op, and each is serialised against the tick of its own tree.
+        for(Owned w : ws) {
+            synchronized(LuaWidget.monitor(w.rootw())) {
                 try {
                     w.kill();   // stop callbacks + destroy its root (the window chrome, or the widget)
                 } catch(RuntimeException e) {
                     /* a half-attached widget: best-effort, never abort teardown */
                 }
             }
-        };
-        if(u != null) {
-            synchronized(u) { kill.run(); }
-        } else {
-            kill.run();
         }
     }
 

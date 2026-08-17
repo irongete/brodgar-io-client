@@ -431,20 +431,17 @@ final class Controls {
      */
     static void text(Owned c, Widget w, String s) {
         if(c instanceof CtlButton) {
-            UI u = AddonManager.ui;
-            synchronized(u) { ((CtlButton)c).change(s); }
+            synchronized(LuaWidget.monitor(w)) { ((CtlButton)c).change(s); }
             WidgetSurface.touch(w);   // 044.1: if it is standing in the world, its picture is out of date
             return;
         }
         if(c instanceof CLabel) {
-            UI u = AddonManager.ui;
-            synchronized(u) { ((CLabel)c).settext(s); }   // resizes itself; see spec 040 risks/gotchas
+            synchronized(LuaWidget.monitor(w)) { ((CLabel)c).settext(s); }   // resizes itself; see spec 040
             WidgetSurface.touch(w);   // 044.1: if it is standing in the world, its picture is out of date
             return;
         }
         if(c instanceof CCheck) {
-            UI u = AddonManager.ui;
-            synchronized(u) { ((CCheck)c).settext(s); }   // resizes itself, same as CLabel above
+            synchronized(LuaWidget.monitor(w)) { ((CCheck)c).settext(s); }   // resizes itself, same as CLabel above
             WidgetSurface.touch(w);   // 044.1: if it is standing in the world, its picture is out of date
             return;
         }
@@ -628,8 +625,7 @@ final class Controls {
     static void replay(final Widget w, final Widget actor, final String key, final Object value) {
         unseamed(w, key, new Runnable() {
             public void run() {
-                UI u = AddonManager.ui;
-                synchronized(u) { Controls.run(actor, key, value); }
+                synchronized(LuaWidget.monitor(actor)) { Controls.run(actor, key, value); }
             }
         });
     }
@@ -935,7 +931,7 @@ final class Controls {
      * <p>Gated by {@code widget.value} at the call site, before this is reached (D-213).
      */
     static void drive(Widget w, LuaValue v) {
-        UI u = AddonManager.ui;
+        Object mon = LuaWidget.monitor(w);   // 072.1: the monitor of the tree THIS control is in
         if(w instanceof haven.Progress)
             throw new LuaError("widget:value(v) on a progress bar of the client's own — what it draws is a"
                 + " Supplier the client re-reads every frame, so a value written here would be gone before"
@@ -944,20 +940,20 @@ final class Controls {
             haven.RadioGroup.RadioButton rb = (haven.RadioGroup.RadioButton)w;
             haven.RadioGroup.RadioButton tgt = row(rb, str(v, "a radio button", "the LABEL of one of its"
                 + " group's rows"));
-            synchronized(u) { rb.group().check(tgt); }
+            synchronized(mon) { rb.group().check(tgt); }
             return;
         }
         if(w instanceof haven.ACheckBox) {                // a CheckBox and an ICheckBox alike
             if(!v.isboolean())
                 throw new LuaError("widget:value(v) on a checkbox is a BOOLEAN, got " + v.typename());
             boolean b = v.toboolean();
-            synchronized(u) { ((haven.ACheckBox)w).set(b); }
+            synchronized(mon) { ((haven.ACheckBox)w).set(b); }
             return;
         }
         if(w instanceof haven.HSlider) {
             final haven.HSlider s = (haven.HSlider)w;
             int to = clamp(num(v, "a slider"), s.min, s.max);
-            synchronized(u) {
+            synchronized(mon) {
                 if(to != s.val) {     // ...and driving one to what it already holds does nothing at all
                     s.val = to;
                     s.changed();      // the drag's own hook, then the release's: a drive is the whole gesture
@@ -969,7 +965,7 @@ final class Controls {
         if(w instanceof haven.Scrollbar) {
             final haven.Scrollbar s = (haven.Scrollbar)w;
             int to = clamp(num(v, "a scrollbar"), s.min, s.max);
-            synchronized(u) {
+            synchronized(mon) {
                 final int step = to - s.val;              // ch(int) is RELATIVE: there is no absolute setter
                 if(step != 0) {
                     unseamed(s, "Changed", new Runnable() {
@@ -981,7 +977,7 @@ final class Controls {
         }
         if(w instanceof haven.TextEntry) {
             String s = str(v, "a text entry", "a STRING");
-            synchronized(u) { ((haven.TextEntry)w).settext(s); }
+            synchronized(mon) { ((haven.TextEntry)w).settext(s); }
             return;
         }
         if(w instanceof haven.SListWidget) {              // a list, and a dropdown, which is one
@@ -996,7 +992,7 @@ final class Controls {
                 throw new LuaError("widget:value(v) — that row is not in this list. A row is only ever the"
                     + " one this list handed you, and the client rebuilds its own rows on its own schedule,"
                     + " so one kept across a refill is a row this list no longer has.");
-            synchronized(u) { haven.AddonWidgets.listChange(l, row); }
+            synchronized(mon) { haven.AddonWidgets.listChange(l, row); }
             return;
         }
         throw noValue(w);
@@ -1053,8 +1049,7 @@ final class Controls {
         Widget p = rb.parent;
         if(p == null)
             return out;
-        UI u = AddonManager.ui;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(p)) {
             for(Widget c : p.children()) {
                 if((c instanceof haven.RadioGroup.RadioButton)
                    && (((haven.RadioGroup.RadioButton)c).group() == rb.group()))

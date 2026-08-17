@@ -3,7 +3,6 @@ package io.brodgar.addon;
 import haven.Coord;
 import haven.GOut;
 import haven.RadioGroup;
-import haven.UI;
 import haven.Widget;
 
 import org.luaj.vm2.LuaError;
@@ -92,8 +91,7 @@ final class CRadio extends Widget implements Owned.Control, Controls.Value, Cont
                     + " be unique, since :value(label) is how one is chosen");
             labels[i - 1] = label;
         }
-        UI u = AddonManager.ui;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(this)) {
             for(RadioGroup.RadioButton rb : byLabel.values())
                 rb.destroy();
             byLabel.clear();
@@ -125,8 +123,7 @@ final class CRadio extends Widget implements Owned.Control, Controls.Value, Cont
         if(rb == null)
             throw new LuaError("widget:value(v) on a radio — no row named \"" + label + "\"; this radio's rows"
                 + " are " + rowNames());
-        UI u = AddonManager.ui;
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(this)) {
             RadioGroup.RadioButton old = (checkedLabel != null) ? byLabel.get(checkedLabel) : null;
             if((old != null) && (old != rb))
                 old.changed(false);

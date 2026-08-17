@@ -236,10 +236,7 @@ public final class LuaCraft {
     /** One side's slots as {@code {res, name, num, opt}} values, copied under the UI monitor. */
     private static LuaTable specList(Makewindow mw, boolean in) {
         List<Makewindow.Spec> specs = new ArrayList<Makewindow.Spec>();
-        UI u = AddonManager.ui;
-        if(u == null)
-            return new LuaTable();
-        synchronized(u) {                                  // both lists are swapped wholesale off-thread
+        synchronized(LuaWidget.monitor(mw)) {              // both lists are swapped wholesale off-thread
             if(in) {
                 for(Makewindow.Input w : mw.inputs)
                     specs.add(w.spec);
@@ -281,10 +278,7 @@ public final class LuaCraft {
     /** The quality inputs or the tools as {@code {res, name}} values, copied under the UI monitor. */
     private static LuaTable resList(Makewindow mw, boolean quality) {
         List<Indir<Resource>> reses = new ArrayList<Indir<Resource>>();
-        UI u = AddonManager.ui;
-        if(u == null)
-            return new LuaTable();
-        synchronized(u) {                                  // qmod is swapped, tools is appended to in place
+        synchronized(LuaWidget.monitor(mw)) {              // qmod is swapped, tools is appended to in place
             reses.addAll(quality ? mw.qmod : mw.tools);
         }
         LuaTable out = new LuaTable();

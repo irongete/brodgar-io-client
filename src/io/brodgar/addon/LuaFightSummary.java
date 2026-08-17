@@ -184,11 +184,10 @@ public final class LuaFightSummary {
      * the same number the window paints beside the cap.
      */
     private static int[] read(FightWnd fw) {
-        UI u = AddonManager.ui;
-        if((fw == null) || (u == null) || (fw != CharApi.fightwnd()))
+        if((fw == null) || (fw != CharApi.fightwnd()))
             return null;
         int[] out = new int[5];
-        synchronized(u) {
+        synchronized(LuaWidget.monitor(fw)) {
             out[0] = fw.maxact;
             int used = 0;
             for(FightWnd.Action a : fw.acts)

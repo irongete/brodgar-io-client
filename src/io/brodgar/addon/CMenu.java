@@ -4,7 +4,6 @@ import haven.CharWnd;
 import haven.Coord;
 import haven.GOut;
 import haven.SListMenu;
-import haven.UI;
 import haven.Widget;
 
 import org.luaj.vm2.LuaValue;
@@ -103,8 +102,7 @@ final class CMenu extends SListMenu<LuaRows.Row, Widget> implements Owned.Contro
      */
     public void rows(LuaValue t) {
         List<LuaRows.Row> parsed = LuaRows.parse(t, "widget:rows");
-        UI u = AddonManager.ui;
-        synchronized(u) { curItems = parsed; }
+        synchronized(LuaWidget.monitor(this)) { curItems = parsed; }
         lastRows = t;
     }
 
