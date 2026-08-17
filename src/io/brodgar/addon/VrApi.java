@@ -707,7 +707,7 @@ final class VrApi {
      */
     private static LuaGhost makeGhost(final Addon owner, LuaValue opts, final String resName, long tgt,
                                      LuaPosition.Anchor place) {
-        final MapView mv = view;
+        final MapView mv = screenView();
         final Glob g = glob();
         if((mv == null) || (g == null))
             return null;                               // not in the world yet — no scene to add to
@@ -1185,7 +1185,7 @@ final class VrApi {
      * (not in the world).
      */
     private static LuaObject makeObject(Addon owner, LuaValue opts, long tgt, LuaPosition.Anchor place) {
-        final MapView mv = view;
+        final MapView mv = screenView();
         final Glob g = glob();
         if((mv == null) || (g == null))
             return null;                               // not in the world yet — no scene to add to
@@ -1284,7 +1284,7 @@ final class VrApi {
      * where it was put (043.2). Returns {@code null} when there is no map view (not in the world).
      */
     private static LuaSprite makeSprite(Addon owner, LuaValue opts, long tgt, LuaPosition.Anchor place) {
-        final MapView mv = view;
+        final MapView mv = screenView();
         final Glob g = glob();
         if((mv == null) || (g == null))
             return null;                               // not in the world yet — no scene to add to
@@ -1473,7 +1473,7 @@ final class VrApi {
      */
     private static LuaWidgetEntity makeWidget(Addon owner, LuaValue opts, LuaValue wv, long tgt,
                                               LuaPosition.Anchor place) {
-        final MapView mv = view;
+        final MapView mv = screenView();
         final Glob g = glob();
         final UI u = host();
         if((mv == null) || (g == null) || (u == null) || (u.root == null))
@@ -1609,7 +1609,7 @@ final class VrApi {
         // ...and the world does not stand inside itself: a surface is drawn from the very frame that then draws
         // the scene the surface is standing in, so a widget with the MapView under it (the HUD, ui.root) would
         // be a picture of the world containing a picture of the world. Point at ONE window.
-        MapView mv = view;
+        MapView mv = screenView();
         if((mv != null) && ((w == mv) || mv.hasparent(w)))
             throw new LuaError("hafen.vr():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is (or"
                 + " contains) the 3D view itself, and the world cannot stand inside itself — the panel is"
@@ -1825,7 +1825,7 @@ final class VrApi {
     private static boolean groundDrawn(Coord2d rc) {
         if(rc == null)
             return false;                              // 045.1: no coordinate this session ⇒ no ground under it (rc == null ⇒ !grounded)
-        MapView mv = view;
+        MapView mv = screenView();
         if(mv == null)
             return true;
         try {

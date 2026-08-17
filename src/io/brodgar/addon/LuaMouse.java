@@ -55,13 +55,13 @@ final class LuaMouse {
         // and hafen.ui():at(x, y) speak, so the pointer can be handed straight to the hit test.
         m.set("x", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                UI u = AddonManager.ui;
+                UI u = AddonManager.screen();
                 return ((u == null) || (u.mc == null)) ? LuaValue.NIL : LuaValue.valueOf(Px.out(u.mc).x);
             }
         });
         m.set("y", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                UI u = AddonManager.ui;
+                UI u = AddonManager.screen();
                 return ((u == null) || (u.mc == null)) ? LuaValue.NIL : LuaValue.valueOf(Px.out(u.mc).y);
             }
         });
@@ -121,7 +121,7 @@ final class LuaMouse {
      * which is worse than being an identity: the two doors are documented as one question.
      */
     private static LuaValue over(Addon owner) {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.screen();
         if((u == null) || (u.root == null) || (u.mc == null))
             return LuaValue.NIL;
         Widget hit;
@@ -131,7 +131,7 @@ final class LuaMouse {
     }
 
     private static int mods() {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.screen();
         return (u == null) ? 0 : u.modflags();
     }
 }

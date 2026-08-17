@@ -97,7 +97,7 @@ parent is `host().root`. Four things `072.3` inherits rather than discovers:
   true right up to the line that deletes them.
 - **The `Docs impact` set is discharged there**, by the task that revises the page it names.
 
-- [ ] **072.3 — The screen is one, and the fields are gone.**
+- [x] **072.3 — The screen is one, and the fields are gone.**
       Adds `AddonManager.screen()` (the drawn `UI`) and `AddonManager.screenView()` (the drawn
       `MapView`), both derived from `Sessions.anchor()`. The pointer sites — `u.mc` and
       `u.modflags()` in `LuaMouse`, and the hit test that reads `u.root` beside them — become

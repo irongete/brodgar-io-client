@@ -35,6 +35,8 @@
 - `MCache.Grid.getolcut` builds the OUTLINE mesh (`MapMesh.makeolol`) beside every overlay mesh whether or not anything draws it, so an overlay whose `omat()` is null still pays two full tile-laying passes per cut, on the calling thread (filed: 068)
 - every pull-only counter group but `p:session()` swallows an argument instead of refusing it, so `p:net(1)` silently reads where arity is supposed to be the verb — one refusal per group, and a line on `counters.md`, is the fix (filed: 070)
 - `hafen.timer():every(0, fn)` fires once and is dropped: `interval <= 0` is the engine's own one-shot encoding, so a zero interval is stored indistinguishably from `:after`, while `timer.md` says a negative delay counts as `0` and a repeating timer fires at most once per tick — which reads as "every tick" and is the one spelling that silently does not repeat (filed: 070)
+- the session switcher blinks on every switch: `SessionWnd.tick` puts the anchor mark in the signature it compares and tests `cur.ui == an`, so an anchor change always fails both and the window is dropped and rebuilt on the new HUD — and the 0.25s throttle in front of it means the gap is visible (filed: 072)
+- `hafen.world():screenToWorld(sx, sy)` with the callback OMITTED meets the generic arity refusal ("fn is required") while only the non-function case is told the answer comes back a frame later — and the caller who left it out is exactly the one who wrote it as if it returned a Position (filed: 072)
 - the two emboss textures are loaded in different spaces — `Window.ctex` through `Resource.loadsimg` and `CharWnd.failtex` through `Resource.loadimg` — so on a scaled-up client a FAILED heading is carved at a finer grain than every other embossed surface (filed: 065)
 
 ## Candidates

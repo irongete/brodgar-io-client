@@ -37,9 +37,11 @@ lookup instead of a search.
 
 ## Client-wide gotchas
 
-- **One UI thread.** The frame loop is `tick → draw → swap` under `synchronized(ui)`, and Loader
-  threads apply server messages under the same monitor. Never call into a scripting layer from a
-  Connection worker — queue and drain on the tick.
+- **One UI thread, one monitor per session.** The frame loop is `tick → draw → swap` under
+  `synchronized(ui)`, and Loader threads apply that session's server messages under that same
+  monitor — but there is a `UI` per session and so a monitor per session, and the one guarding a
+  widget is `w.ui`'s ([multi-session.md](multi-session.md)). Never call into a scripting layer from
+  a Connection worker — queue and drain on the tick.
 - **`Loading` is control flow, not an error.** Any resource, gob or grid read can throw it. Swallow
   it to nil or partial, or defer to a loader task; never let it escape into user code.
 - **Widget creation runs off the UI lock** (on a Loader) before attach and bind, so tree work belongs

@@ -339,7 +339,7 @@ final class SurfaceInput {
      * {@code false} — which is precisely the moment {@code MapView} goes on to do what it always did.
      */
     static boolean pointer(String key, int rx, int ry, int arg) {
-        MapView mv = AddonManager.view;
+        MapView mv = AddonManager.screenView();
         Coord mr = viewOrigin(mv);
         if(mr == null)
             return false;
@@ -384,7 +384,7 @@ final class SurfaceInput {
                 s.origin(tl.add(mr));
             return;
         }
-        UI u = AddonManager.ui;
+        UI u = AddonManager.screen();
         if((u == null) || (u.mc == null))
             return;
         Coord l = local(s, u.mc.x - mr.x, u.mc.y - mr.y, false);
@@ -394,7 +394,7 @@ final class SurfaceInput {
 
     /** Where the map view sits in the UI's own coordinates — screen point &harr; map-view point. */
     private static Coord viewOrigin() {
-        return viewOrigin(AddonManager.view);
+        return viewOrigin(AddonManager.screenView());
     }
 
     private static Coord viewOrigin(MapView mv) {

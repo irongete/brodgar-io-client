@@ -105,7 +105,7 @@ final class CameraFacing extends SprDrawable {
     }
 
     private static Matrix4f camxf() {
-        MapView mv = AddonManager.view;
+        MapView mv = AddonManager.screenView();
         if(mv == null)
             return null;
         Matrix4f v;

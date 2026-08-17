@@ -191,7 +191,7 @@ final class LuaHand {
 
     /** The live map view, or a refusal naming the verb — every world-aimed arm needs one. */
     private static MapView view() {
-        MapView m = AddonManager.view;
+        MapView m = AddonManager.screenView();
         if(m == null)
             throw new LuaError(USE + ": no map view (not in the world yet)");
         return m;

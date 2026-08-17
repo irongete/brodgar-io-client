@@ -176,7 +176,7 @@ final class WorldApi {
                 if(!fn.isfunction())
                     throw new LuaError("hafen.world():screenToWorld(sx, sy, fn): fn must be a function — the"
                         + " answer comes back a frame later, so there is nothing to return here");
-                MapView mv = view;
+                MapView mv = screenView();
                 if(mv != null) {
                     Coord rp;
                     try {
@@ -238,7 +238,7 @@ final class WorldApi {
                 Section.self(self, "world", "place");
                 Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.world():place", "p");
                 double ang = number(a, 3, "hafen.world():place", "angle");
-                MapView mv = view;
+                MapView mv = screenView();
                 if(mv == null)
                     throw new LuaError("hafen.world():place: no map view (not in the world yet)");
                 mv.wdgmsg("place", placeArgs(rc, ang, a.arg(4).optint(1), a.arg(5).optint(0)));
@@ -256,7 +256,7 @@ final class WorldApi {
                 Section.self(self, "world", "select");
                 Coord2d p1 = LuaPosition.worldArg(a, 2, "hafen.world():select", "p1");
                 Coord2d p2 = LuaPosition.worldArg(a, 3, "hafen.world():select", "p2");
-                MapView mv = view;
+                MapView mv = screenView();
                 if(mv == null)
                     throw new LuaError("hafen.world():select: no map view (not in the world yet)");
                 mv.wdgmsg("sel", selArgs(p1, p2, a.arg(4).optint(0)));

@@ -897,7 +897,7 @@ final class CharApi {
         // the SAME object as hafen.gob(<player id>).
         methods.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                MapView m = view;
+                MapView m = screenView();
                 if((m == null) || (m.plgob < 0))
                     return LuaValue.NIL;
                 return LuaGob.of(owner, m.plgob);
@@ -924,7 +924,7 @@ final class CharApi {
         methods.set("worldToScreen", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.player():worldToScreen", "p");
-                MapView m = view;
+                MapView m = screenView();
                 if(m == null)
                     return LuaValue.NIL;
                 try {
@@ -951,7 +951,7 @@ final class CharApi {
             public Varargs invoke(Varargs a) {
                 requirePermission(owner, Permission.PLAYER_MOVE);
                 Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.player():move", "p");
-                MapView m = view;
+                MapView m = screenView();
                 if(m == null)
                     throw new LuaError("hafen.player():move: no map view (not in the world yet)");
                 Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;   // dummy screen coord, like MiniMap.mvclick

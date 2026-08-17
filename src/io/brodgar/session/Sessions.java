@@ -445,8 +445,11 @@ public class Sessions {
 	Control.take(ms.get((i + 1) % ms.size()));
     }
 
+    /* rts: public since 072.3 -- AddonManager.screenView() derives the drawn scene from the anchor
+     * through this, rather than keeping a hand-written copy of it. A recursive walk, so its one caller
+     * there caches what it gets and re-checks the answer instead of walking again. */
     @SuppressWarnings("deprecation")
-    static MapView mapview(UI u) {
+    public static MapView mapview(UI u) {
 	if((u == null) || (u.root == null))
 	    return(null);
 	return(u.root.findchild(MapView.class));

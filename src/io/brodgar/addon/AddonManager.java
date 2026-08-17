@@ -117,8 +117,6 @@ import javax.imageio.ImageIO;
  */
 public final class AddonManager {
 
-    static volatile MapView view;           // live map view (for gob:pos()) — pkg-private: shared hub state
-    static volatile UI ui;                  // live UI (for output; set at RemoteUI.init) — pkg-private: shared hub state
     static final List<Addon> addons = new CopyOnWriteArrayList<Addon>();
     static Addon consoleOwner;      // the :lua REPL, as a resource owner (persists across sessions)
 
@@ -298,20 +296,60 @@ public final class AddonManager {
         return Sessions.anchor();
     }
 
-    // ------------------------------------------------------------- lifecycle
-
-    /** Call site — end of the MapView constructor. Captures the live view and flags "entered world". */
-    public static void attach(MapView mv) {
-        if(mv != null) {
-            view = mv;
-            enterWorldPending = true;   // EnterWorld is fired on the next tick (UI thread)
-        }
+    /**
+     * <b>The screen</b> (072.3) — the {@code UI} the client actually draws, which is where the pointer is and
+     * what the modifier keys are being held over. Distinct from {@link #host()} in what it will become rather
+     * than in what it answers: both are {@link Sessions#anchor()} today, and when sessions become addressable
+     * {@code host()} grows an argument while this one cannot. <b>There is one pointer however many sessions
+     * are live</b>, so a verb reading it never has a session to be handed — and separating the two names is
+     * how the sites that must grow one stay told apart from the sites that must not.
+     */
+    static UI screen() {
+        return Sessions.anchor();
     }
 
-    /** Call site — first line of MapView.dispose(). */
-    public static void detach(MapView mv) {
-        if(view == mv)
-            view = null;
+    /**
+     * <b>The drawn {@link MapView}</b> (072.3) — the 3D scene on screen, and the one every world verb aims at.
+     * Never takes a session, for {@link #screen()}'s reason: the client draws one scene.
+     *
+     * <p><b>Derived, and cached against the thing it is derived from.</b> The answer is the {@code MapView} in
+     * {@code screen()}'s own tree, which {@link Sessions#mapview} finds with a recursive walk — far too much for
+     * {@code SurfaceInput}'s per-panel-per-frame origin read or for the per-entity ground pass. So the walk is
+     * paid once per view and the result kept, exactly as {@code Sessions.Member.gameui()} keeps its {@code
+     * GameUI} and for the same measured reason. <b>This is not the field it replaces</b>: that one was written
+     * by hand from the {@code MapView} constructor and could therefore disagree with the session on screen,
+     * where every read of this one re-checks its own answer — a cached view whose {@code ui} is no longer the
+     * drawn one, or that has left its tree, fails the test and is derived again. A stale answer is not
+     * reachable, only a repeated walk is.
+     *
+     * <p>{@code null} before the world is up, which every caller already guards for.
+     */
+    static MapView screenView() {
+        UI u = screen();
+        if(u == null)
+            return null;
+        MapView mv = viewcache;
+        if((mv != null) && (mv.ui == u) && (mv.parent != null))
+            return mv;
+        return viewcache = Sessions.mapview(u);
+    }
+
+    /** {@link #screenView()}'s memo. Volatile: written from whichever thread first re-derives, and a lost
+     *  race costs one extra walk, never a wrong answer — the reader re-checks what it reads. */
+    private static volatile MapView viewcache;
+
+    // ------------------------------------------------------------- lifecycle
+
+    /**
+     * Call site — end of the MapView constructor, for a view that is not dormant. <b>It flags "entered
+     * world", and that is all it does</b> (072.3): capturing the view here is what made the engine's idea of
+     * the drawn scene a hand-written copy, and {@link #screenView()} derives it from the session on screen
+     * instead. The flag stays because the moment a scene is built is not something the tree can be asked
+     * about afterwards — {@link #tick(double)} turns it into {@code EnterWorld} once the HUD is up.
+     */
+    public static void attach(MapView mv) {
+        if(mv != null)
+            enterWorldPending = true;   // EnterWorld is fired on the next tick (UI thread)
     }
 
     /**
@@ -345,7 +383,6 @@ public final class AddonManager {
      * addons, reset engine state, attach the tick pump + gob event source, then (re)load from disk.
      */
     public static synchronized void init(UI ui_) {
-        ui = ui_;
         Prof.init();  // 019.1: restore the persisted profiling switch (once per JVM)
         Prof.addonCost(AddonManager::luaNanosThisFrame);   // 019.2: the addons roll-up source
         Prof.addonReset(AddonManager::resetProfiling);     // 019.4: p:reset()/arming clears the per-addon rows too
@@ -2688,10 +2725,11 @@ public final class AddonManager {
 
     /** The live session root ({@link Glob}), or {@code null} before a session/world is up. */
     static Glob glob() {
-        MapView m = view;
-        if((m == null) || (m.ui == null) || (m.ui.sess == null))
-            return null;
-        return m.ui.sess.glob;
+        // 072.3: asked of the SESSION, not of the drawn view. The old read was `view.ui.sess.glob`, and
+        // `view.ui` is the session on screen — so the view was never anything but a pointer back to it, on
+        // the hottest path in the layer (every gob resolution comes through here, via oc()).
+        UI u = screen();
+        return ((u == null) || (u.sess == null)) ? null : u.sess.glob;
     }
 
     /** The live object cache, or {@code null} before a session/world is up. */
@@ -2719,7 +2757,7 @@ public final class AddonManager {
      * (its widget message arrives before the map view's). {@code null} before the HUD is up.
      */
     static GameUI gui() {
-        MapView m = view;
+        MapView m = screenView();
         if(m != null) {
             GameUI g = m.getparent(GameUI.class);
             if(g != null)
@@ -2904,7 +2942,7 @@ public final class AddonManager {
     }
 
     static Gob playerGob() {
-        MapView m = view;
+        MapView m = screenView();
         return (m == null) ? null : m.player();
     }
 

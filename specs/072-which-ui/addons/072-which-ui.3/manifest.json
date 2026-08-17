@@ -1,0 +1,9 @@
+{
+  "name": "072.3 — the screen is one, and the fields are gone",
+  "id": "072-which-ui.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 072.3: the pointer, the modifier keys and the drawn 3D view still answer once they are derived from the session on screen rather than from an ambient field.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

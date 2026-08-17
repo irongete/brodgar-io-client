@@ -9,7 +9,7 @@
 | Resource setup (global init point, no session) | `Client.setupres`, called at `main2` |
 | Runner state machine (`task.run(newui(task))`) | `Client.run` |
 | Login → session establishment → returns `RemoteUI` | `Bootstrap.run`, `Session.connect` |
-| **Per-session init (`ui.sess` bound)** ← engine attach point | `RemoteUI.init(UI)`, called from `UI`'s own constructor |
+| **Per-session init (`ui.sess` bound)** | `RemoteUI.init(UI)`, called from `UI`'s own constructor. It binds the session to its `UI` and nothing else: what the fork hangs off a session follows the **anchor** rather than the login order, and so attaches from the session layer instead ([multi-session.md](multi-session.md)) |
 | In-game HUD construction | `GameUI` ctor (`GameUI(String chrid, long plid, String genus)`) |
 
 ## The runner state machine
@@ -85,7 +85,7 @@ frame-time comparison, while still delaying the next frame. Time it directly or 
 |---|---|
 | **Which thread is the frame's** | `UILoop.th` — public final, the `HackThread` named `"Haven UI thread"`, assigned in the `UILoop` constructor and started by `UILoop.start`. It is the one handle on "am I on the thread that ticks and draws", so code that may only run there tests against it rather than recording a thread of its own. ⚠️ `th` is assigned **last** in the constructor, after `newui` and everything hooked beside it, so anything reached from there reads it null |
 | **A GPU readback answers on a third thread** | `GLEnvironment.callbacks`, a queue drained by `GLEnvironment.cbthread` — the `"Render-query callback thread"`, started on demand by `ckcbt()` and exiting after 5 s idle. Every `Render.pget`/`Clicklist.get` completion runs there: **not** the UI thread, and **not** the render thread that replays the command stream. So a callback body holds no `UI` monitor, is not ordered against the frame, and may run while the tick is midway through mutating whatever it reads — state it touches has to be published for it (`volatile`, or a snapshot the frame hands over), and taking a UI monitor from it inverts the client's one lock direction. `GLEnvironment.synccallbacks` is the barrier that waits the queue out |
-| Widget tree + event dispatch | serialized by the **`UI` monitor** (`synchronized(ui)`); writers: UI thread + Loader threads |
+| Widget tree + event dispatch | serialized by **that tree's own `UI` monitor** — `synchronized(w.ui)`, and there is one per session, not one per client ([multi-session.md](multi-session.md)). `Widget.ui` is what says which, set by `Widget.attach` down the whole subtree, so the widget in hand always carries the monitor that guards it and no ambient "the session" is ever the right answer. Writers: UI thread + Loader threads |
 | Deferred server widget ops | `UI.CommandQueue`; executed on Loader threads, each under `synchronized(UI.this)` |
 | OCache mutation | net receive on Connection worker (`OCache.receive`); apply on Loader (`GobInfo.apply`); `objs` under `synchronized(OCache)` |
 | MCache mutation | Connection worker (`mapdata`) under `synchronized(grids)`/`synchronized(req)` |

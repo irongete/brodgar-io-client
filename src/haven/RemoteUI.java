@@ -146,13 +146,12 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 
     public void init(UI ui) {
 	ui.sess = sess;
-	/* rts: a member session must not capture the addon engine (F0, specs/rts/plan.md). AddonManager is
-	 * a single-session static hub -- its `ui` and `view` are the client's one live pair -- so a
-	 * background session binding itself there would silently point every addon at a session nobody is
-	 * looking at. A member never binds it; the anchor does, and `Sessions.tickrebind` binds it again to
-	 * whichever session takes the screen, so the engine follows the view rather than the login order. */
-	if(!io.brodgar.session.Sessions.ismember(sess))
-	    io.brodgar.addon.AddonManager.init(ui);   // addon: (re)load addons for this session
+	/* rts: the addon engine is NOT bound here. Every game session is a Member, registered before its
+	 * UI exists -- Sessions.add and the bootstrap handoff both do it, and this method runs inside the
+	 * UI constructor -- so the guard that used to stand here ("bind unless this is a member") could
+	 * never be false, and binding on the login path would in any case bind whichever session connected
+	 * rather than the one on screen. Sessions.tickrebind is the only binder: it follows the anchor, so
+	 * the engine follows the view. */
     }
 
     public String title() {

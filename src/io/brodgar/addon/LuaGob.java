@@ -324,7 +324,7 @@ public final class LuaGob {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.GOB_CLICK);
                 LuaGob h = handle(self, "click");
-                MapView mv = AddonManager.view;
+                MapView mv = AddonManager.screenView();
                 if(mv == null)
                     throw new LuaError("gob:click: no map view (not in the world yet)");
                 Gob g = AddonManager.getgob(h.id);

@@ -58,7 +58,7 @@ public final class CameraOptions {
                  * the pref is the one thing that does not say what is on screen. A pref naming a camera the
                  * registry does not have reads nil rather than that dead name: restorecam silently comes up
                  * on ortho for it, so the name answers for nothing. Same rule as the dropdown's current(). */
-                MapView mv = AddonManager.view;
+                MapView mv = AddonManager.screenView();
                 String nm = (mv == null) ? Utils.getpref("defcam", null) : mv.camname();
                 for(String cand : MapView.camnames()) {
                     if(cand.equals(nm))
@@ -73,7 +73,7 @@ public final class CameraOptions {
                 if(!MapView.camnames().contains(nm))
                     throw new LuaError("camera:mode(name) — no such camera: \"" + nm + "\" — the client has "
                                        + String.join(", ", MapView.camnames()));
-                MapView mv = AddonManager.view;
+                MapView mv = AddonManager.screenView();
                 if(mv != null) {
                     mv.setcam(nm);
                 } else {

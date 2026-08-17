@@ -792,7 +792,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	if(!dormant) {
 	    attachscene();
 	    io.brodgar.voice.Voice.attach(this);   // brodgar voice: connect on entering the game
-	    io.brodgar.addon.AddonManager.attach(this);   // addon: capture the live view for the engine
+	    io.brodgar.addon.AddonManager.attach(this);   // addon: the world came up -> EnterWorld on the next tick
 	}
     }
 
@@ -857,7 +857,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     public void dispose() {
 	io.brodgar.voice.Voice.detach(this);   // brodgar voice: stop instantly on logout
-	io.brodgar.addon.AddonManager.detach(this);   // addon:
 	if(s_gobs != null) {   // rts: a dormant view never attached its scene (F0)
 	    s_gobs.remove();
 	    s_gobs = null;
