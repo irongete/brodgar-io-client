@@ -116,6 +116,46 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public abstract void tick(double dt);
 
 	public String stats() {return("N/A");}
+
+	/* rts: become the camera another session was being played with. A camera is an inner class of
+	 * the view it draws, so several sessions cannot share one object -- what is shared is its
+	 * STATE, copied here on every switch of screen so that the player has one camera and not one
+	 * per character.
+	 *
+	 * Copied by reflection, over the subclass chain and no further: the angle, the zoom, the
+	 * elevation and every option a camera type of its own invents are the player's settings and
+	 * are all it has, so listing them by hand would be five lists to keep in step with upstream and
+	 * one silently missed field per camera added. The chain stops at Camera itself because `view`
+	 * and `proj` are not settings -- they are this view's own render state, derived from a size the
+	 * other view need not share, and resized() below rebuilds them.
+	 *
+	 * A field holding a PLACE is nulled instead of copied, whatever its class invented it for.
+	 * Coordinates are per-session: the other login's frame is a different one, and its screen is a
+	 * drag that ended when the screen changed hands. Every such field in the shipped cameras is a
+	 * cache the next tick refills -- except the RTS camera's pan, which is a setting, and is put
+	 * back in this session's own frame by the override there.
+	 *
+	 * @param off this session's frame minus the other's, or null when the two cannot be related. */
+	public void restate(Camera from, Coord2d off) {
+	    if((from == null) || (from.getClass() != getClass()))
+		return;
+	    for(Class<?> c = getClass(); (c != Camera.class) && (c != null); c = c.getSuperclass()) {
+		for(Field f : c.getDeclaredFields()) {
+		    int mod = f.getModifiers();
+		    if(Modifier.isStatic(mod) || Modifier.isFinal(mod) || f.isSynthetic())
+			continue;
+		    Class<?> t = f.getType();
+		    boolean place = (t == Coord.class) || (t == Coord2d.class) || (t == Coord3f.class);
+		    try {
+			f.setAccessible(true);
+			f.set(this, place ? null : f.get(from));
+		    } catch(ReflectiveOperationException e) {
+			new Warning(e, "camera: could not carry " + f.getName() + " across").issue();
+		    }
+		}
+	    }
+	    resized();
+	}
     }
     
     public class FollowCam extends Camera {
@@ -574,6 +614,20 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void focus(Coord2d c) {this.center = c;}
 	public void follow()         {this.center = null;}
 
+	/* rts: the pan is the one place this camera holds that is a SETTING and not a cache, so it is
+	 * the one Camera.restate cannot simply drop. It is carried over translated: a panned camera
+	 * looking at a patch of ground goes on looking at that same patch when the screen changes
+	 * hands, which is what one camera across the characters means. Untranslatable -- the two
+	 * sessions share no ground and `off` is null -- and it falls back to following the character
+	 * this view draws, since a coordinate from another login would point at nowhere in particular. */
+	public void restate(Camera from, Coord2d off) {
+	    super.restate(from, off);
+	    if((off != null) && (from instanceof RTSCam)) {
+		Coord2d c = ((RTSCam)from).center;
+		this.center = (c == null) ? null : c.add(off);
+	    }
+	}
+
 	public boolean click(Coord sc) {
 	    /* Ctrl keeps FreeCam's own gesture -- rotate and elevate -- because this camera is that camera
 	     * in every other respect and there is nowhere else to put it. Bare drag pans.
@@ -887,6 +941,38 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			current.put(ob, nslot);
 		    else
 			nslot.remove();
+		}
+	    }
+	    dedupe(ob);   // rts: outside both monitors held here -- it reaches into another Gobs and takes its
+	}
+
+	/* rts: the merged views reconcile their dedupe on a quarter-second timer, which is right for
+	 * geometry -- the boundary between two sessions' worlds moves at walking pace -- but not for an
+	 * object the anchor has just this moment learned about. A member's copy of it is already in the
+	 * tree, so for that quarter second BOTH copies are drawn and both tick: coincident geometry, and
+	 * an effect that fires in the window is played twice. This view gaining a gob is the one event
+	 * that changes the answer, so the copies go with it, and they go once the anchor's own is
+	 * actually in the tree rather than when it was merely promised -- otherwise the object blinks
+	 * out for however long its model takes to build. */
+	void dedupe(Gob ob) {
+	    for(SessionView fv : fvorder)
+		fv.fgobs.drop(ob.id);
+	}
+
+	/* rts: this view's copy of an object somebody else has claimed.
+	 *
+	 * Under the gob's OWN monitor, which is not the one addgob was holding -- that one is the
+	 * anchor's copy, and this is the member's, a different object. A gob's monitor is what TickList
+	 * serializes its subtree on (GobState preps a Monitor of it), so an unsynchronized removal from
+	 * a Loader thread tears the slot out from under a sprite's autotick, and the SlotRemoved that
+	 * escapes TickList.tick kills the UI thread. Every other caller of removed(Gob) already holds
+	 * it: OCache invokes its callbacks inside synchronized(ob), and the reconcile timer runs on the
+	 * tick thread itself. */
+	void drop(long id) {
+	    Gob ob = oc.getgob(id);
+	    if(ob != null) {
+		synchronized(ob) {
+		    removed(ob);
 		}
 	    }
 	}
@@ -1204,6 +1290,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * order, whose session can see it. That needs no shared set and no agreement about who ran
 	 * first, which matters because this is called from Loader threads as well as from the tick --
 	 * hence the immutable snapshot rather than the live map. */
+	/* rts: a merged view claims nothing from anybody -- the anchor's own view is the only one whose
+	 * gaining an object settles the question. Ownership between two merged views is positional and
+	 * needs no eviction: skipgob answers it the same way on every thread. */
+	void dedupe(Gob ob) {}
+
 	boolean skipgob(Gob ob) {
 	    if(glob.oc.getgob(ob.id) != null)
 		return(true);
@@ -3165,42 +3256,59 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
-	    // addon: V2 virtual entities (hafen.vr()) — a click that resolved to a CLICKABLE client ghost is
-	    //        dispatched to the addon and CONSUMED here, BEFORE wdgmsg (the same choke point the voice
-	    //        feature hooks below): the ghost is a virtual Gob with no server id, so a "click" send would be
-	    //        bogus, and client-only detection means no server contact ⇒ this stays SAFE-tier (D-032). Fast
-	    //        path: only a virtual gob can be a client ghost (real gobs are non-virtual), so nothing is asked
-	    //        of the addon layer for ordinary clicks; a non-clickable ghost carries no GobClick and never
-	    //        wins the pick, so normal game clicks fall straight through it.
-	    Gob cg = clickedgob(inf);
-	    if((cg != null) && cg.virtual && io.brodgar.addon.AddonManager.onGhostClick(cg, clickb, mc))
-		return;
-	    if(inf == null) io.brodgar.voice.Voice.onMove(MapView.this, mc);   // brodgar voice: report move intent
-	    VoiceTarget.note(clickedgob(inf), plgob);   // brodgar voice: remember clicked player for the radial menu
-	    io.brodgar.addon.AddonManager.noteClick(cg, ui.lcc);   // addon: 047.3 -> hafen.flowermenu():gob(). The server's "sm" carries no gob, so the client correlates it here, keyed on the press point (ui.lcc) the menu will place itself at.
-	    Object[] args = {pc, mc.floor(posres), clickb, ui.modflags()};
-	    if(inf != null)
-		args = Utils.extend(args, inf.clickargs());
-	    wdgmsg("click", args);
+	    clickhit(pc, mc, inf, clickb);
 	}
     }
-    
-    /* rts: (F3, specs/rts/plan.md) an order's destination, resolved by the client's OWN pick pass --
-     * the same machinery a real click uses, so an order lands exactly where a click would have.
-     * It sends nothing itself: it hands the resolved point, and the id of any gob under it, to the RTS
-     * controller, which decides who receives it and rebuilds the arguments in each recipient's frame. */
-    public class ClickOrder extends Hittest {
-	private final int btn, mods;
 
-	public ClickOrder(Coord c, int btn, int mods) {
+    /* rts: what an ordinary left click does, said apart from the pick pass that resolved it, because
+     * ClickOrder below reaches the same conclusion by a different road: a click that landed on a gob was
+     * never an order and has to be dispatched exactly as this one is -- through this very code, not
+     * through an imitation of it. */
+    private void clickhit(Coord pc, Coord2d mc, ClickData inf, int clickb) {
+	// addon: V2 virtual entities (hafen.vr()) — a click that resolved to a CLICKABLE client ghost is
+	//        dispatched to the addon and CONSUMED here, BEFORE wdgmsg (the same choke point the voice
+	//        feature hooks below): the ghost is a virtual Gob with no server id, so a "click" send would be
+	//        bogus, and client-only detection means no server contact ⇒ this stays SAFE-tier (D-032). Fast
+	//        path: only a virtual gob can be a client ghost (real gobs are non-virtual), so nothing is asked
+	//        of the addon layer for ordinary clicks; a non-clickable ghost carries no GobClick and never
+	//        wins the pick, so normal game clicks fall straight through it.
+	Gob cg = clickedgob(inf);
+	if((cg != null) && cg.virtual && io.brodgar.addon.AddonManager.onGhostClick(cg, clickb, mc))
+	    return;
+	if(inf == null) io.brodgar.voice.Voice.onMove(MapView.this, mc);   // brodgar voice: report move intent
+	VoiceTarget.note(clickedgob(inf), plgob);   // brodgar voice: remember clicked player for the radial menu
+	io.brodgar.addon.AddonManager.noteClick(cg, ui.lcc);   // addon: 047.3 -> hafen.flowermenu():gob(). The server's "sm" carries no gob, so the client correlates it here, keyed on the press point (ui.lcc) the menu will place itself at.
+	Object[] args = {pc, mc.floor(posres), clickb, ui.modflags()};
+	if(inf != null)
+	    args = Utils.extend(args, inf.clickargs());
+	wdgmsg("click", args);
+    }
+    
+    /* rts: (F3, specs/rts/plan.md) a move order's destination, resolved by the client's OWN pick pass
+     * -- the same machinery a real click uses, so an order lands exactly where a click would have.
+     * It sends nothing itself: it hands the resolved point to the RTS controller, which decides who
+     * receives it. What the pick found under the cursor decides WHETHER there is an order at all: the
+     * selection is only ever told to walk, and a gob is somebody to interact with, which is the drawn
+     * character's own business and travels no further. */
+    public class ClickOrder extends Hittest {
+	private final int clickb, mods;
+
+	public ClickOrder(Coord c, int b, int mods) {
 	    super(c);
-	    this.btn = btn;
+	    this.clickb = b;
 	    this.mods = mods;
 	}
 
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
-	    Gob cg = clickedgob(inf);
-	    io.brodgar.session.Control.hit(MapView.this, pc, mc, (cg == null) ? -1 : cg.id, btn, mods);
+	    if(inf != null) {
+		/* It landed on something, so it was never an order -- and the press was swallowed before
+		 * the pick could say so, which is why it is given back here rather than in mousedown. The
+		 * ordinary click it always was, down the very path it always took: one press is still one
+		 * pick pass and one message, just decided a frame later. */
+		clickhit(pc, mc, inf, clickb);
+		return;
+	    }
+	    io.brodgar.session.Control.hit(mc, mods);
 	}
     }
 
@@ -3553,6 +3661,27 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    throw(new RuntimeException(e));
 	}
 	throw(new RuntimeException("No valid constructor found for camera " + ct.getName()));
+    }
+
+    /* rts: one camera across the characters, not one per character. Called on every switch of screen
+     * with the camera the session losing it was being played with: the type is adopted first -- `:cam`
+     * installs a camera on the view that is drawn, so the others are still on whatever they were built
+     * with -- and then its state is copied over by Camera.restate.
+     *
+     * Rebuilt bare, with none of the arguments `:cam` was given, because restate copies every field a
+     * camera parsed those arguments into anyway. A type that cannot be built here is left alone rather
+     * than reported: the view is a frame from being drawn, and its own camera is a working camera. */
+    public void adoptcam(Camera from, Coord2d off) {
+	if((from == null) || (from == camera))
+	    return;
+	if(from.getClass() != camera.getClass()) {
+	    try {
+		camera = makecam(from.getClass());
+	    } catch(RuntimeException e) {
+		return;
+	    }
+	}
+	camera.restate(from, off);
     }
 
     private Camera restorecam() {

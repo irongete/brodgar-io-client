@@ -306,11 +306,12 @@ public class Client implements Console.Directory {
 		    } else if(sub.equals("wnd")) {
 			io.brodgar.session.SessionWnd.reopen();   // rts: the session switcher, after it has been closed
 		    } else if(sub.equals("anchor")) {
-			/* rts: (F5) hand the screen to another session. */
+			/* rts: (F5) go to another session -- Control.take, the same one gesture the switcher
+			 * window's buttons and the cycle key spell: its screen, its selection alone, its camera. */
 			if(args.length < 3)
 			    throw(new Exception("usage: session anchor USER|main"));
 			if(args[2].equals("main")) {
-			    io.brodgar.session.Sessions.anchor(null);
+			    io.brodgar.session.Control.take(null);
 			} else {
 			    io.brodgar.session.Sessions.Member am = null;
 			    for(io.brodgar.session.Sessions.Member m : io.brodgar.session.Sessions.members()) {
@@ -320,7 +321,7 @@ public class Client implements Console.Directory {
 			    if(am == null)
 				io.brodgar.session.Sessions.say("no such session: %s", args[2]);
 			    else
-				io.brodgar.session.Sessions.anchor(am);
+				io.brodgar.session.Control.take(am);
 			}
 		    } else if(sub.equals("users")) {
 			List<String> us = io.brodgar.session.Sessions.savedusers();

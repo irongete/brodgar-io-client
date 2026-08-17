@@ -452,13 +452,25 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		try {
 		    ol.init();
 		} catch(Loading e) {}
-	    } else {
-		boolean done = ol.tick(dt);
-		if((!ol.delign || (ol.spr instanceof Sprite.CDel)) && done) {
-		    ol.remove0();
-		    i.remove();
-		    io.brodgar.addon.AddonManager.gobOverlayGone(this, ol);   // addon: 038.3 -> GobOverlayRemoved (a sprite that ended by itself)
-		}
+		/* rts: an overlay was ticked only once it stood in a render tree, and a session that is
+		 * not drawn has none: `slots` never filled, so the sprite never aged, never ended and
+		 * never left `ols`. Every effect a background session was told about piled up there --
+		 * each one holding an audio stream it had already opened -- and the whole backlog was
+		 * added to the tree in one frame the moment that session took the screen, which is where
+		 * the burst of sfx came from. A session nobody is looking at CONSUMES its effects
+		 * instead: they run on their own clock, they are neither seen nor heard, and they end by
+		 * themselves. A sprite whose only ending is being played through is told that it will
+		 * not be. */
+		if(!glob.dormant)
+		    continue;
+		if(ol.spr != null)
+		    ol.spr.unheard();
+	    }
+	    boolean done = ol.tick(dt);
+	    if((!ol.delign || (ol.spr instanceof Sprite.CDel)) && done) {
+		ol.remove0();
+		i.remove();
+		io.brodgar.addon.AddonManager.gobOverlayGone(this, ol);   // addon: 038.3 -> GobOverlayRemoved (a sprite that ended by itself)
 	    }
 	}
 	updstate();

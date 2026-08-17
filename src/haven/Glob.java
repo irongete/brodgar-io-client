@@ -139,6 +139,11 @@ public class Glob {
 	}
     }
 
+    /* rts: is this the session the client draws? Asked once per gob per frame by Gob.ctick, and the
+     * answer walks the membership, so it is settled once here instead. False for a session the
+     * sessions layer knows nothing about, which is every session when there is only one. */
+    public boolean dormant = false;
+
     private double lastctick = 0;
     public void ctick() {
 	double now = Utils.rtime();
@@ -162,6 +167,7 @@ public class Glob {
 	    }
 	}
 
+	dormant = io.brodgar.session.Sessions.dormant(this);   // rts:
 	tickgtime(now, dt);
 	oc.ctick(dt);
 	map.ctick(dt);

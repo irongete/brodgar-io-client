@@ -10,7 +10,6 @@ import haven.Coord;
 import haven.Coord2d;
 import haven.Coord3f;
 import haven.GOut;
-import haven.GameUI;
 import haven.Glob;
 import haven.Gob;
 import haven.MapView;
@@ -126,6 +125,26 @@ public class Control {
 	}
     }
 
+    /**
+     * Is there anybody to command who is not simply the character on screen?
+     *
+     * <p>Ordering your own character to walk somewhere <em>is</em> a left click, so the mode must not
+     * stand in front of one — and this is not a corner case but the state the client is in for most of
+     * its life: {@link #take} makes the anchor's own character the whole selection on every switch, so
+     * without this the very first thing a second session costs you is the left button, on every gob,
+     * for as long as the mode is on. The mode adds a recipient; when the recipient is the character
+     * already receiving your clicks, it adds nothing and stays out of the way.
+     */
+    private static boolean commands() {
+	List<Long> ids = selection();
+	if(ids.isEmpty())
+	    return(false);
+	if(ids.size() > 1)
+	    return(true);
+	Sessions.Placed an = Sessions.anchorsess();
+	return((an == null) || (ids.get(0) != an.gui.plid));
+    }
+
     public static boolean selected(long gobid) {
 	synchronized(Control.class) {
 	    return(sel.contains(gobid));
@@ -136,6 +155,19 @@ public class Control {
 	synchronized(Control.class) {
 	    sel.clear();
 	}
+    }
+
+    /**
+     * Make one character the whole selection, whatever was selected before. The list's own gesture:
+     * naming a character is naming exactly one, and anything else left selected would take the next
+     * order with it.
+     */
+    public static void only(long gobid) {
+	synchronized(Control.class) {
+	    sel.clear();
+	    sel.add(gobid);
+	}
+	Sessions.say("selected: %s", names());
     }
 
     private static void select(List<Unit> us, boolean add) {
@@ -179,17 +211,18 @@ public class Control {
 	    grab = mv.ui.grabmouse(mv);
 	    return(true);
 	}
-	if(((ev.b == 1) || (ev.b == 3)) && !selection().isEmpty()) {
-	    /* The button travels with the order: what a click means is Haven's business, not ours, and
-	     * the selection is only the list of characters it is asked of. The destination is resolved by
+	if((ev.b == 1) && commands()) {
+	    /* The left button alone, and it means one thing: walk there. The destination is resolved by
 	     * the client's OWN pick pass -- the same machinery a real click uses -- so an order lands
 	     * exactly where a click would have. It answers a frame or two later, on the UI thread, in
-	     * Control.hit below. */
+	     * Control.hit below, and it is that answer that decides whether there was an order at all:
+	     * a click that landed on a gob is handed straight back to the map view. */
 	    mv.new ClickOrder(ev.c, ev.b, mods).run();
 	    return(true);
 	}
-	/* Nothing selected, or the middle button: the map view does what it has always done -- the
-	 * camera's drag stays the camera's, and a click still walks the character on screen. */
+	/* Nothing selected, or a button that is not the left one: the map view does what it has always
+	 * done. The right button in particular is never an order -- interacting with what is under the
+	 * cursor is the drawn character's own business, and stays where the player can see it. */
 	return(false);
     }
 
@@ -216,10 +249,20 @@ public class Control {
 	    return(true);
 	/* Shift or ctrl -- alongside the ALT already held -- extends instead of replacing. */
 	boolean add = (mv.ui.modflags() & (UI.MOD_SHIFT | UI.MOD_CTRL)) != 0;
-	if(a.dist(b) < slop)
-	    select(nearest(units(mv), b), add);
-	else
+	if(a.dist(b) > slop) {
+	    /* A box is a group gesture: it says who is commanded and nothing about whose screen this is. */
 	    select(inside(units(mv), a, b), add);
+	    return(true);
+	}
+	List<Unit> us = nearest(units(mv), b);
+	if(!add && !us.isEmpty()) {
+	    /* Naming ONE character, which is the switcher window's gesture said on the map instead of in
+	     * the list -- so it does what the list does: its screen, and it alone selected. Extending with
+	     * shift or ctrl is not naming one, and a click on empty ground clears; both fall through. */
+	    take(us.get(0).member);
+	    return(true);
+	}
+	select(us, add);
 	return(true);
     }
 
@@ -258,22 +301,21 @@ public class Control {
     }
 
     /**
-     * The order, once the pick pass has said where the cursor actually was. Every selected unit is
-     * sent the same destination, named in the anchor's coordinates; {@link Sessions} translates it per
-     * member. A gob under the cursor is passed by <em>id</em>, never by the anchor's coordinates for
-     * it — {@code GobClick.clickargs} encodes the observer's own frame, so each unit rebuilds those
-     * arguments from its own {@code OCache}.
+     * The move order, once the pick pass has said where the cursor actually was. Every selected unit
+     * is sent the same destination, named in the anchor's coordinates; {@link Sessions} translates it
+     * per session.
      *
-     * <p>The button is the one that was pressed, so each unit receives the very message that button
-     * would have produced for the character on screen.
+     * <p>A destination is <b>all</b> that travels. What the pick found under the cursor is not asked
+     * for and not sent: the one thing this layer ever says to another login is where to walk, and a
+     * click that means anything else stays with the character on screen.
      */
-    public static void hit(MapView mv, Coord pc, Coord2d mc, long targetgob, int btn, int mods) {
+    public static void hit(Coord2d mc, int mods) {
 	List<Long> ids = selection();
 	if(ids.isEmpty())
 	    return;   /* it was let through to the map view in the first place; nothing to say */
 	int n = 0;
 	for(Long id : ids) {
-	    if(Sessions.orderunit(id, mc, targetgob, btn, mods))
+	    if(Sessions.orderunit(id, mc, mods))
 		n++;
 	}
 	if(n < ids.size())
@@ -315,28 +357,19 @@ public class Control {
      * The switch
      * ------------------------------------------------------------------ */
 
-    private static final java.util.Map<MapView, MapView.Camera> prevcam = new java.util.HashMap<MapView, MapView.Camera>();
-
     /**
      * Take the mode on or off. Package-visible because {@link Sessions#tick} derives it from the
      * membership and is the only caller there is.
      *
-     * @return false when going on found no view to put the camera on, having changed nothing — the
-     *         caller offers the edge again on the next frame.
+     * <p><b>The camera is not the mode's.</b> A second session changes who can be commanded and
+     * nothing about how the world is looked at, so no view is touched here and none is remembered to
+     * be put back: whatever camera each character was being played with is the camera it keeps. The
+     * RTS camera ({@link haven.MapView.RTSCam}) stays a camera among the client's own, installed by
+     * hand with {@code :cam rts} by whoever wants it, mode or no mode.
      */
-    static boolean mode(boolean v) {
+    static void mode(boolean v) {
 	on = v;
-	/* The camera comes with the mode. Playing a character and commanding a group want different
-	 * cameras, and asking the maintainer to install one by hand beside a mode that arrives on its
-	 * own would be two halves of one decision. The camera is not the mode's, though -- it is one
-	 * of the client's, reachable on its own. The previous one is put back on the way out, and
-	 * neither is written to the `defcam` pref: this is a mode, not a preference. */
-	if(v) {
-	    if(!recam()) {
-		on = false;
-		return(false);
-	    }
-	} else {
+	if(!v) {
 	    dragging = false;
 	    dragfrom = dragto = null;
 	    if(grab != null) {
@@ -344,34 +377,37 @@ public class Control {
 		grab = null;
 	    }
 	    clear();
-	    for(java.util.Map.Entry<MapView, MapView.Camera> e : prevcam.entrySet())
-		e.getKey().camera = e.getValue();
-	    prevcam.clear();
 	}
-	Sessions.say("rts mode %s", v ? "on -- alt-click or alt-drag selects, the usual clicks command the selection" : "off");
-	return(true);
+	Sessions.say("rts mode %s", v ? "on -- alt-click or alt-drag selects, a left click walks the selection" : "off");
     }
 
     /**
-     * rts: (F5) give the session now on screen the RTS camera, remembering what it had. Called on
-     * every anchor switch as well as when the mode goes on, because each session has its own MapView
-     * and therefore its own camera -- there is no one camera to move across.
+     * Go to a character: give it the screen, and make it the whole selection. The one gesture behind
+     * every way of naming a single character — the switcher window's buttons, an ALT-click on one of
+     * them in the world, the {@code rts-next-anchor} key and {@code :session anchor} — because they
+     * are the same intent spelled four times, and a switch that left the previous character selected
+     * would send the next order to somebody off screen.
      *
-     * @return false only when the anchor has no map view to install it on. The mode being off, and
-     *         the camera already being the RTS one, are both nothing to do rather than a failure.
+     * <p>Nothing here duplicates {@link Sessions#anchor}: that call is the whole UI switch, since every
+     * other part of the layer reads {@code Sessions.anchor()} and follows by itself. What is added is
+     * the selection, which the anchor knows nothing about — and <b>only</b> that. Each session's camera
+     * is its own and is left exactly as the player had it, here as everywhere else in this layer.
+     *
+     * @param m the member to go to, or {@code null} for the main session.
      */
-    public static boolean recam() {
-	if(!on)
-	    return(true);
-	GameUI gui = Sessions.anchorgameui();
-	MapView mv = (gui == null) ? null : gui.map;
-	if(mv == null)
-	    return(false);
-	if(mv.camera instanceof MapView.RTSCam)
-	    return(true);
-	prevcam.put(mv, mv.camera);
-	mv.camera = mv.new RTSCam();
-	return(true);
+    public static void take(Sessions.Member m) {
+	Sessions.anchor(m);
+	/* Already the anchor is not a failure -- the selection still follows. A switch that did NOT
+	 * happen (a session with no screen yet) is, and it leaves the character on screen alone rather
+	 * than selecting somebody the player did not ask for. */
+	if(Sessions.anchormember() != m)
+	    return;
+	/* Asked of the anchor rather than of m: the same character either way, and this spelling is
+	 * uniform over the main session, which has no Member to ask. */
+	Sessions.Placed ss = Sessions.anchorsess();
+	if((ss == null) || !on)
+	    return;
+	only(ss.gui.plid);
     }
 
     /**

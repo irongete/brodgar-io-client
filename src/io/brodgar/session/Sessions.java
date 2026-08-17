@@ -149,8 +149,12 @@ public class Sessions {
      * console verb for it: a verb would be a second authority over one boolean, and the one the user
      * typed is the one that goes stale the moment a session joins.
      *
-     * <p>Only the edge acts. {@link Control#mode} swaps the camera and clears the selection, so
-     * calling it on a frame that changed nothing would wipe a selection the user had just made.
+     * <p>Only the edge acts. {@link Control#mode} clears the selection, so calling it on a frame that
+     * changed nothing would wipe a selection the user had just made.
+     *
+     * <p>The mode takes on any frame at all, because it touches nothing but its own state: no camera
+     * is installed, no view is needed, and a session that has not reached the world yet simply has
+     * nothing to select until it does.
      *
      * <p>Called from {@link #tick()} <b>above</b> its {@code members.isEmpty()} return: dropping the
      * last member is exactly the frame on which the list is empty and the mode still has to go off.
@@ -159,11 +163,7 @@ public class Sessions {
 	boolean want = !members.isEmpty();
 	if(want == modeon)
 	    return;
-	/* An edge the mode could not take is left pending, not swallowed. Going on installs a camera
-	 * on the anchor's MapView, and the frame a session enters may have none yet; recording the
-	 * flip anyway would leave the mode on under the wrong camera with nothing left to notice it. */
-	if(!Control.mode(want))
-	    return;
+	Control.mode(want);
 	modeon = want;
     }
 
@@ -254,19 +254,30 @@ public class Sessions {
     }
 
     /* rts: (F6) one shared Audio.Root feeds every session, so without this they all play at once --
-     * a member's chat pings and its ambient noise over the view you are actually watching. Only ever
-     * on a change of anchor: nothing else can alter the answer, and this runs every frame. */
-    private static UI mutedfor = null;
-
+     * a member's chat pings, its minimap alerts and every sound the server sends it, over the view
+     * you are actually watching. The server tells all of them about the same event when they stand
+     * together, and each UI rate-limits only its own (UI.lastmsgsfx), so what that sounds like is
+     * one noise played four times.
+     *
+     * Every live session, every frame, and deliberately not through placed(): a member added without
+     * the anchor changing would never be silenced at all, and one still on the character list or
+     * standing too far away to be anchored is absent from placed() while already making noise.
+     * RootChannel.mute returns on no change, so a frame that alters nothing costs a comparison. */
     private static void applymute() {
 	UI an = anchor();
-	if(an == mutedfor)
-	    return;
-	mutedfor = an;
-	for(Placed ss : placed()) {
-	    if(ss.ui.audio != null)
-		ss.ui.audio.mute(!ss.isanchor);
+	UI mu = mainui();
+	if(mu != null)
+	    mute(mu, mu != an);
+	for(Member m : members) {
+	    UI u = m.ui;
+	    if(u != null)
+		mute(u, u != an);
 	}
+    }
+
+    private static void mute(UI u, boolean m) {
+	if(u.audio != null)
+	    u.audio.mute(m);
     }
 
     /* rts: (F5) a session that has gone must not keep the screen. A member holding the anchor can die
@@ -336,6 +347,21 @@ public class Sessions {
 	if(target == cur)
 	    return;
 	MapView oldmv = mapview(cur), newmv = mapview(target);
+	/* One camera across the characters. Each session's MapView owns a camera object -- a camera is
+	 * an inner class of the view it draws -- so the one the player has been using is carried over
+	 * as state, before the switch and while the offsets are still measured against the session that
+	 * still holds the screen. That is also the frame the outgoing camera's pan is named in, and
+	 * `offset` is exactly what turns it into the incoming session's. */
+	if((oldmv != null) && (newmv != null)) {
+	    Coord2d off = null;
+	    for(Placed ss : placed()) {
+		if(ss.ui == target)
+		    off = ss.offset;
+	    }
+	    synchronized(target) {
+		newmv.adoptcam(oldmv.camera, off);
+	    }
+	}
 	lp.drawn(target);
 	if(newmv != null) {
 	    synchronized(target) {
@@ -348,24 +374,27 @@ public class Sessions {
 	    }
 	}
 	/* The session cache says which one is the anchor, and it was built before this line. Anything
-	 * asked between here and the next tick -- recam() first of all -- would otherwise be answered
-	 * about the session that just lost the screen. */
+	 * asked between here and the next tick -- Control.take's selection first of all -- would
+	 * otherwise be answered about the session that just lost the screen. */
 	invalidate();
-	Control.recam();
 	rebind = true;
 	say("anchor: %s", (m == null) ? "main" : m.user);
     }
 
-    /** Cycle: main, then each member in turn, then back. */
+    /**
+     * Cycle: main, then each member in turn, then back. Through {@link Control#take} rather than
+     * {@link #anchor} directly — cycling to a character and picking it out of the switcher window are
+     * the same intent, and both leave it on screen, alone in the selection and under the camera.
+     */
     public static void next() {
 	List<Member> ms = members();
 	Member cur = anchormember();
 	if(cur == null) {
-	    anchor(ms.isEmpty() ? null : ms.get(0));
+	    Control.take(ms.isEmpty() ? null : ms.get(0));
 	    return;
 	}
 	int i = ms.indexOf(cur);
-	anchor(((i < 0) || (i + 1 >= ms.size())) ? null : ms.get(i + 1));
+	Control.take(((i < 0) || (i + 1 >= ms.size())) ? null : ms.get(i + 1));
     }
 
     @SuppressWarnings("deprecation")
@@ -386,38 +415,6 @@ public class Sessions {
 	    buf.append(m.status());
 	}
 	return(buf.toString());
-    }
-
-    /* ------------------------------------------------------------------ *
-     * F2: the order
-     * ------------------------------------------------------------------ */
-
-    /**
-     * Walk a member to a place named in the <em>anchor's</em> coordinates.
-     *
-     * <p>This is the whole thesis of the project in six lines. The member is not drawn, has no camera,
-     * no click-map and no scene — and none of that is needed, because an order is not a mouse event.
-     * It is the widget message a left-click on that patch of ground would have produced, and
-     * {@code UI.rawWdgmsg} resolves the widget id from the member's <em>own</em> tree and hands it to
-     * the member's <em>own</em> session. The one thing that has to be right is the coordinate, and
-     * that is F1.
-     *
-     * <p>The screen coord the protocol carries is not what picks the destination — the map coord is.
-     * The centre of the member's own view is passed for it, which is both plausible and meaningless.
-     *
-     * @return false if the member cannot be ordered yet — no offset, or not in the world.
-     */
-    public static boolean order(Member m, Coord2d anchorpos, long targetgob, int btn, int mods) {
-	Coord2d mc = m.tomember(anchorpos);
-	if(mc == null)
-	    return(false);
-	GameUI gui = m.gameui();
-	UI u = m.ui;
-	Session s = m.sess;
-	if((gui == null) || (gui.map == null) || (u == null) || (s == null))
-	    return(false);
-	send(u, gui.map, s.glob, mc, targetgob, btn, mods, true);
-	return(true);
     }
 
     /**
@@ -642,43 +639,43 @@ public class Sessions {
     }
 
     /**
-     * Order one unit, named by its gob id. Ids are global, so the same number identifies the character
-     * in the anchor's view, in its own session, and in the selection — there is no per-session
-     * bookkeeping to keep straight. An id that belongs to no member is the anchor's own character,
-     * which needs no translation and sends through its ordinary click path.
+     * Walk one unit, named by its gob id, to a place named in the <em>anchor's</em> coordinates. Ids
+     * are global, so the same number identifies the character in the anchor's view, in its own
+     * session, and in the selection — there is no per-session bookkeeping to keep straight.
+     *
+     * <p>This is the whole thesis of the project in six lines. A member is not drawn, has no camera,
+     * no click-map and no scene — and none of that is needed, because an order is not a mouse event.
+     * It is the widget message a left-click on that patch of ground would have produced, and
+     * {@code UI.rawWdgmsg} resolves the widget id from that session's <em>own</em> tree and hands it
+     * to that session's <em>own</em> receiver. The one thing that has to be right is the coordinate.
      */
-    public static boolean orderunit(long unitid, Coord2d anchorpos, long targetgob, int btn, int mods) {
+    public static boolean orderunit(long unitid, Coord2d anchorpos, int mods) {
 	Placed ss = bysess(unitid);
 	if((ss == null) || (ss.gui.map == null))
 	    return(false);
 	/* One rule for every session: translate into its frame, send down its own socket. The anchor's
 	 * offset is zero, so it needs no special case -- and the session on screen sends through wdgmsg
 	 * so its orders stay indistinguishable from real clicks to the addon action hooks. */
-	send(ss.ui, ss.gui.map, ss.glob, anchorpos.add(ss.offset), targetgob, btn, mods, !ss.isanchor);
+	send(ss.ui, ss.gui.map, anchorpos.add(ss.offset), mods, !ss.isanchor);
 	return(true);
     }
 
     /**
-     * The message a left-click would have produced, built in the recipient's own frame.
+     * The message a left-click on empty ground would have produced, built in the recipient's own
+     * frame. <b>Ground and nothing else</b>: no gob travels with an order, and none is looked up
+     * here. A click that landed on something is an interaction, which belongs to the character the
+     * player is actually looking at and is never handed to another login — the only thing a session
+     * is ever told from outside is where to walk.
      *
-     * <p>A target gob is passed by <b>id</b> and looked up here, in the recipient's own {@code OCache},
-     * rather than relayed: {@code Gob.GobClick.clickargs} is
-     * {@code {0, id, gob.rc.floor(posres), 0, -1}} and that {@code rc} is in the <em>observer's</em>
-     * frame. Copying the anchor's version of it would send every member a coordinate belonging to
-     * somebody else's login. A unit that cannot see the target walks to the spot instead, which is
-     * what a click on ground it could not identify would have done anyway.
+     * <p>The screen coord the protocol carries is not what picks the destination — the map coord is.
+     * The centre of the recipient's own view is passed for it, which is both plausible and meaningless.
      *
      * <p>The anchor sends through {@code wdgmsg} — its orders are indistinguishable from real clicks
      * and should stay visible to the addon action hooks. A member sends through {@code rawWdgmsg}:
      * that chain belongs to the anchor and knows nothing about the session it would be walking for.
      */
-    private static void send(UI u, MapView mv, Glob glob, Coord2d mc, long targetgob, int btn, int mods, boolean raw) {
-	Object[] args = {mv.sz.div(2), mc.floor(OCache.posres), btn, mods};
-	if(targetgob >= 0) {
-	    Gob g = glob.oc.getgob(targetgob);
-	    if(g != null)
-		args = Utils.extend(args, new Object[] {0, (int)g.id, g.rc.floor(OCache.posres), 0, -1});
-	}
+    private static void send(UI u, MapView mv, Coord2d mc, int mods, boolean raw) {
+	Object[] args = {mv.sz.div(2), mc.floor(OCache.posres), 1, mods};
 	synchronized(u) {
 	    if(raw)
 		u.rawWdgmsg(mv, "click", args);

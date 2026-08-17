@@ -94,6 +94,14 @@ public class AudioSprite {
 	    }
 	}
 
+	/* rts: nobody is looking at this session, so this clip will never reach an ActAudio and can only
+	 * end here. It is the same answer `added` gives when the mixer is full: the sound does not
+	 * happen. Deferring it instead is what left every sfx of a background session alive, stream and
+	 * all, until the session was promoted and the whole backlog played at once. */
+	public void unheard() {
+	    done = true;
+	}
+
 	public boolean tick(double dt) {
 	    /* XXX: This is slightly bad, because virtual sprites that
 	     * are stuck as loading (by getting outside the map, for

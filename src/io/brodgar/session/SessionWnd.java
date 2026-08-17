@@ -81,7 +81,9 @@ public class SessionWnd extends Window {
 	     * platform default and a non-ASCII literal would reach the screen as mojibake on some
 	     * machines and not others. */
 	    String cap = (s.isanchor ? "> " : "") + label(s);
-	    w.add(new Button(btnw, cap, () -> Sessions.anchor(m)), new Coord(0, y));
+	    /* Control.take rather than Sessions.anchor: naming a character in the list means going to it
+	     * -- its screen, its selection alone, and the camera on it -- not just handing over the frame. */
+	    w.add(new Button(btnw, cap, () -> Control.take(m)), new Coord(0, y));
 	    y += UI.scale(24);
 	}
 	w.pack();

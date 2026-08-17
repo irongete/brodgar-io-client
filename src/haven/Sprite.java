@@ -188,6 +188,13 @@ public abstract class Sprite implements RenderTree.Node {
     public void age() {
     }
 
+    /* rts: this sprite belongs to a session the client holds but does not draw, so it is in no render
+     * tree at all: nothing it draws will be seen and nothing it plays will be heard. A sprite that
+     * ends only by being played through must be told so, or it never ends -- see
+     * AudioSprite.ClipSprite, whose `done` is otherwise set only by the audio reaching its end. */
+    public void unheard() {
+    }
+
     public void dispose() {
     }
 
