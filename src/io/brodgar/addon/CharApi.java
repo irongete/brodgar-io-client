@@ -147,7 +147,7 @@ final class CharApi {
      * The widget-removal seam's body for the tree adapters (behind {@link AddonManager#onWidgetRemoved}, spec
      * {@code 042-event-driven-reads} M1): offer the just-removed widget to every adapter that has moved its
      * "did a widget disappear" detection off {@code poll()} and onto this seam. Reached from {@link
-     * AddonManager#tick(double)}'s drain of the removal queue, on the UI thread, so firing Lua here is safe.
+     * AddonManager#tick(haven.UI, double)}'s drain of the removal queue, on the UI thread, so firing Lua here is safe.
      */
     static void dispatchRemoved(Widget wdg) {
         if((wdg == null) || treeAdapters.isEmpty())
@@ -166,7 +166,7 @@ final class CharApi {
      * 042-event-driven-reads} D-178): re-check the one slot whose {@code glob.loader.defer}-red write has
      * now landed — the uimsg tap already re-diffed the whole bar against the OLD value for these two
      * paths, so only {@link ActionbarAdapter} needs to hear this. Reached from {@link
-     * AddonManager#tick(double)}'s drain of the belt-set queue, on the UI thread.
+     * AddonManager#tick(haven.UI, double)}'s drain of the belt-set queue, on the UI thread.
      */
     static void dispatchBeltSet(int slot) {
         for(TreeAdapter a : treeAdapters) {

@@ -957,7 +957,7 @@ final class UiApi {
 
     /**
      * Arm every surface built since the last tick — the "arming tick" of §2.5, called first thing from
-     * {@link AddonManager#tick(double)}. Until this runs, a built widget answers every read and takes every
+     * {@link AddonManager#tick(haven.UI, double)}. Until this runs, a built widget answers every read and takes every
      * setter, and paints nothing.
      *
      * <p><b>Attached inert, rather than held out of the tree</b> — D-112's answer, one level up. Deferring the

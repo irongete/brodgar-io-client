@@ -217,9 +217,21 @@ public final class AddonRegistry {
 
     // ------------------------------------------------------------- reload + enabled set (1f-2)
 
-    /** Queue a full addon-layer reload; applied on the next UI-thread tick (see {@link #tick}). */
+    /**
+     * Queue a full addon-layer reload; applied on the next UI-thread tick (see {@link #tick}).
+     *
+     * <p>Queued against the session on screen (073.1), and that is not the drawn-session default the rest of
+     * the layer has stopped taking: both doors into here are the <b>user's own gesture</b> — {@code :reload}
+     * typed into a console, and the AddOns panel's button — and both belong to the client they are looking at.
+     * With no session at all there is nothing to reload and nothing draining a flag, so it says so.
+     */
     static void queueReload() {
-        reloadPending = true;
+        AddonManager.SessionState st = AddonManager.state(host());
+        if(st == null) {
+            log("no session: nothing to reload");
+            return;
+        }
+        st.reloadPending = true;
         log("reload queued");
     }
 

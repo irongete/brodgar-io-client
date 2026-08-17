@@ -737,7 +737,7 @@ public final class Addon {
      * Soft per-tick CPU-budget accounting (D-018 layer 2). {@link #tickLuaNanos} is the total time this
      * addon spent in Lua during the current engine tick (summed across its {@code Update}/timers/event
      * handlers by {@link AddonManager#callLua}); {@link #overBudgetStrikes} counts consecutive ticks over
-     * the budget. {@link AddonManager#tick(double)} zeroes {@code tickLuaNanos} each tick and
+     * the budget. {@link AddonManager#tick(haven.UI, double)} zeroes {@code tickLuaNanos} each tick and
      * {@link AddonManager#enforceSoftBudget()} evaluates the strikes — see {@link Sandbox#SOFT_BUDGET_NANOS}.
      */
     public long tickLuaNanos;
@@ -800,7 +800,7 @@ public final class Addon {
 
     /**
      * Close the frame: move this frame's accounting into the "last completed frame" fields and start the
-     * next one at zero. Called from {@link AddonManager#tick(double)} immediately before
+     * next one at zero. Called from {@link AddonManager#tick(haven.UI, double)} immediately before
      * {@code tickLuaNanos} is zeroed, which is exactly the point at which that field holds the whole of the
      * previous frame (it accrues through the tick <b>and</b> the draw callbacks that follow it).
      */

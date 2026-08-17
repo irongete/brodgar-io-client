@@ -138,7 +138,7 @@ public final class BeltHold {
         g.belt[n] = drawn;
         holds.put(key, new Hold(pag, displaced, drawn));
         place(n, pag.id);                       // 059.5: and this is where that entry belongs, from now on
-        AddonManager.onBeltSet(n);              // ActionbarChanged for the taking edge, on the next tick
+        AddonManager.onBeltSet(g, n);           // ActionbarChanged for the taking edge, on the next tick
     }
 
     /**
@@ -194,7 +194,7 @@ public final class BeltHold {
         GameUI g = AddonManager.gui();
         if((g != null) && (g.belt != null) && (n >= 0) && (n < g.belt.length) && (g.belt[n] == h.drawn))
             g.belt[n] = h.displaced;
-        AddonManager.onBeltSet(n);              // ActionbarChanged for the releasing edge too
+        AddonManager.onBeltSet(g, n);           // ActionbarChanged for the releasing edge too
         return true;
     }
 

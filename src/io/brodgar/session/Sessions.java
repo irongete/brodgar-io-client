@@ -114,6 +114,26 @@ public class Sessions {
 	return(false);
     }
 
+    /**
+     * The session running this world, or null when no live member does.
+     *
+     * <p>Asked where a seam is handed a {@link Glob} and nothing else — a gob's decoration arriving on a
+     * loader thread, a {@link MapView} whose constructor has not been added to a tree yet — and has to say
+     * which session that is. The alternative at those two sites is {@link #anchor()}, which would file one
+     * session's things under whichever one holds the screen, and that is exactly what a per-session cache
+     * exists to stop. A walk of a list with as many entries as the client has logins.
+     */
+    public static UI uifor(Glob glob) {
+	if(glob == null)
+	    return(null);
+	for(Member m : members) {
+	    UI u = m.ui;
+	    if((u != null) && (u.sess != null) && (u.sess.glob == glob))
+		return(u);
+	}
+	return(null);
+    }
+
     /* ------------------------------------------------------------------ *
      * The per-frame tick
      * ------------------------------------------------------------------ */
@@ -279,7 +299,7 @@ public class Sessions {
 	io.brodgar.addon.AddonManager.init(u);
 	MapView mv = mapview(u);
 	if(mv != null)
-	    io.brodgar.addon.AddonManager.attach(mv);
+	    io.brodgar.addon.AddonManager.attach(mv, u.sess.glob);
 	say("addons rebound in %d ms", (System.nanoTime() - t0) / 1000000L);
     }
 

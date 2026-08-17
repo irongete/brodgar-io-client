@@ -113,56 +113,38 @@ import javax.imageio.ImageIO;
  *
  * <p>All-static facade, mirroring {@code io.brodgar.voice.Voice}. Everything Lua runs on the UI
  * thread (principle P5): the {@link OCache} callback fires on network/loader threads, so it only
- * <em>enqueues</em> deltas that {@link #tick(double)} drains and dispatches on the UI thread.
+ * <em>enqueues</em> deltas that {@link #tick(UI, double)} drains and dispatches on the UI thread.
  */
 public final class AddonManager {
 
     static final List<Addon> addons = new CopyOnWriteArrayList<Addon>();
     static Addon consoleOwner;      // the :lua REPL, as a resource owner (persists across sessions)
 
-    // -- engine runtime state (all touched on the UI thread, except the gob queue) ---------------
-    private static AddonRoot addonRoot;                 // the attached tick widget (per session)
-    private static OCache.ChangeCallback ocCb;          // strong ref: OCache keeps callbacks weakly
-    private static volatile boolean enterWorldPending;  // set off-thread (MapView attach), read on tick
-    private static double hudUpSince = -1;              // when GameUI entered the tree; -1 = not yet (UI thread)
+    // -- engine runtime state ---------------------------------------------------------------------
+    // 073.1: the engine's own per-session state stands in ONE {@link SessionState} per session, reached
+    // through {@link #state(UI)} and through no field anything writes by hand. What is left here is what
+    // does NOT name one login's things, and each of those has its verdict and its reason written down in
+    // specs/073-caches-know-their-session/census.md, which is where the split is decided once.
+
     /** How long EnterWorld waits for the server to place the action menu before firing without it. */
     private static final double MENU_WAIT = 5.0;
-    static volatile boolean reloadPending;      // set by :reload (any thread), applied on the UI tick
     static double clock;                        // seconds accumulated from tick dt (UI thread)
-    private static final Queue<GobEvent> gobEvents = new ConcurrentLinkedQueue<GobEvent>();
-    // 038.3: the same marshalling for the two gob-overlay events. `overlaySubs` is a FAST PATH, not a
-    // correctness gate: Gob.addol runs on the loader threads for every decoration the server sends, so the
-    // seam must cost one volatile read when nobody listens. It is set by a subscription and cleared per
-    // session/reload; a stale `true` (someone unsubscribed) only means the drain finds no subscriber and drops
-    // the event, which is exactly what hasSub does for every other event here.
-    private static final Queue<OverlayEvent> overlayEvents = new ConcurrentLinkedQueue<OverlayEvent>();
+    // 038.3: `overlaySubs` is a FAST PATH, not a correctness gate: Gob.addol runs on the loader threads for
+    // every decoration the server sends, so the seam must cost one volatile read when nobody listens. It is
+    // set by a subscription and cleared per session/reload; a stale `true` (someone unsubscribed) only means
+    // the drain finds no subscriber and drops the event, which is exactly what hasSub does for every other
+    // event here. It ARMS a seam in Gob, which belongs to no session, so it stays one flag for the client.
     static volatile boolean overlaySubs;
-    // 042.1: the widget-removal seam (M1) — Widget.remove() runs on whatever thread reached it (a Loader
-    // thread under synchronized(ui) from the server command queue, or the UI thread from a client-side
-    // destroy()), so the tap only enqueues; tick() drains one frame's worth (D-106) and dispatches to the
-    // adapters that fire *Removed. Cleared on session init like the queues above.
-    private static final Queue<Widget> removedWidgets = new ConcurrentLinkedQueue<Widget>();
     // 042.1: the Resolve (M2) marshalling queue — a Loading's wnotify() runs on whichever thread finished
     // the load (Loader, Defer pool), so a retry callback never touches Lua directly; it enqueues here and
-    // tick() drains it on the UI thread (P5), same shape as the queues above.
+    // tick() drains it on the UI thread (P5), same shape as the per-session queues in SessionState. A retry
+    // is owned by an ADDON and cancelled by that addon's teardown, so it is indexed where `addons` is.
     private static final Queue<Runnable> resolveQueue = new ConcurrentLinkedQueue<Runnable>();
-    // 042.6: the deferred-belt-write notify — two of GameUI's five setbelt/setbelt2 paths write belt[slot]
-    // from a glob.loader.defer task that runs on a Loader thread AFTER the uimsg tap already fired (D-178:
-    // the notify goes where the write lands, not where the message arrived), so this only enqueues; tick()
-    // drains it on the UI thread, same shape as the queues above.
-    private static final Queue<Integer> beltSetQueue = new ConcurrentLinkedQueue<Integer>();
-    // 042.10: the geometry seam (M4) — Widget.resize() runs on whatever thread reached it (same uncertainty
-    // as onWidgetRemoved), so the tap only enqueues; tick() drains one frame's worth (D-106) and offers each
-    // to Layout.dispatchResized, which re-derives whatever hangs off it and is free when nothing does.
-    private static final Queue<Widget> resizedWidgets = new ConcurrentLinkedQueue<Widget>();
-    // 061.6: the text level's re-apply queue — a server update that rewrites a Label's, a Button's or a
-    // Window's caption may have painted over a level an addon holds (widget:text(s)/:title(s)). The tap that
-    // sees it (onUimsg) runs on a Loader thread OUTSIDE the ui monitor, and text rasterisation belongs on the
-    // UI thread anyway, so it only records the widget; tick() re-reads and re-applies, same shape as above.
-    private static final Queue<Widget> textRewrites = new ConcurrentLinkedQueue<Widget>();
     // 042.11: marker-change notify — MapFile.markerseq bumps from add/remove/update on the processor thread
     // or the UI thread, and from segment merges on the loader thread. The notify is marshalled onto the tick
-    // to avoid deadlock with the map DB's RW lock. Only the count is queued (041.1).
+    // to avoid deadlock with the map DB's RW lock. Only the count is queued (041.1). The seam is handed a
+    // MapFile and nothing else — the on-disk map database, which no session holds — so there is no session
+    // to key it on until MapApi's own per-session map state can name one.
     private static final Queue<Integer> markerChangeQueue = new ConcurrentLinkedQueue<Integer>();
 
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
@@ -338,6 +320,180 @@ public final class AddonManager {
      *  race costs one extra walk, never a wrong answer — the reader re-checks what it reads. */
     private static volatile MapView viewcache;
 
+    // ------------------------------------------------------------- whose state it is (073.1)
+
+    /**
+     * <b>One session's worth of the engine's own runtime</b> (073.1) — the tick pump attached to that
+     * session's tree, the gob source registered on its {@link OCache}, how far it has got into the world, and
+     * the queues its own seams fill from the Loader and network threads.
+     *
+     * <p><b>What belongs here is what names one login's things.</b> A widget in a queue is a widget of one
+     * tree; a {@link GobEvent} names a gob id, which means a different object in the next session; "the world
+     * came up" is one session's world. What does not is left where it was, with its reason written down in
+     * the census — the engine clock the addons' timers are due on, the volatile that arms a seam in
+     * {@link Gob}, the two queues whose seam is handed no session at all.
+     *
+     * <p><b>Threading.</b> The queues are concurrent because their seams are not the UI thread's — that is
+     * unchanged, and all that moved is which queue an enqueue picks. Everything else here is written on the
+     * UI thread, except the two flags a seam off it raises, which are volatile exactly as they were.
+     */
+    static final class SessionState {
+        /** The session this state is for. Held so the sweep and the accessor can say so; never read as
+         *  "the session", which is the ambient answer this whole sequence is deleting. */
+        final UI ui;
+
+        /** The attached tick widget, on <i>this</i> session's root. */
+        AddonRoot addonRoot;
+        /** Strong ref to this session's gob callback: {@link OCache} keeps callbacks weakly. */
+        OCache.ChangeCallback ocCb;
+
+        /** Set off-thread (the {@link MapView} that came up), read on the tick. */
+        volatile boolean enterWorldPending;
+        /** When this session's {@link GameUI} entered the tree; -1 = not yet (UI thread). */
+        double hudUpSince = -1;
+        /** A {@code :reload} queued against this session (set off the tick, applied on it). */
+        volatile boolean reloadPending;
+        /** Re-entrancy guard for {@link #dispatchAction}: a handler body that itself sends a {@code wdgmsg}. */
+        boolean dispatchingAction;
+
+        /** Gob spawn/despawn from this session's {@link OCache}, captured on the network/loader threads. */
+        final Queue<GobEvent> gobEvents = new ConcurrentLinkedQueue<GobEvent>();
+        /** 038.3: the same marshalling for the two gob-overlay events. */
+        final Queue<OverlayEvent> overlayEvents = new ConcurrentLinkedQueue<OverlayEvent>();
+        // 042.1: the widget-removal seam (M1) — Widget.remove() runs on whatever thread reached it (a Loader
+        // thread under synchronized(ui) from the server command queue, or the UI thread from a client-side
+        // destroy()), so the tap only enqueues; tick() drains one frame's worth (D-106) and dispatches to the
+        // adapters that fire *Removed.
+        final Queue<Widget> removedWidgets = new ConcurrentLinkedQueue<Widget>();
+        // 042.6: the deferred-belt-write notify — two of GameUI's five setbelt/setbelt2 paths write belt[slot]
+        // from a glob.loader.defer task that runs on a Loader thread AFTER the uimsg tap already fired (D-178:
+        // the notify goes where the write lands, not where the message arrived), so this only enqueues.
+        final Queue<Integer> beltSetQueue = new ConcurrentLinkedQueue<Integer>();
+        // 042.10: the geometry seam (M4) — Widget.resize() runs on whatever thread reached it (same
+        // uncertainty as onWidgetRemoved), so the tap only enqueues; tick() drains one frame's worth (D-106)
+        // and offers each to Layout.dispatchResized, which is free when nothing is anchored.
+        final Queue<Widget> resizedWidgets = new ConcurrentLinkedQueue<Widget>();
+        // 061.6: the text level's re-apply queue — a server update that rewrites a Label's, a Button's or a
+        // Window's caption may have painted over a level an addon holds (widget:text(s)/:title(s)). The tap
+        // that sees it (onUimsg) runs on a Loader thread OUTSIDE the ui monitor, and text rasterisation
+        // belongs on the UI thread anyway, so it only records the widget; tick() re-reads and re-applies.
+        final Queue<Widget> textRewrites = new ConcurrentLinkedQueue<Widget>();
+
+        SessionState(UI ui) {
+            this.ui = ui;
+        }
+
+        /**
+         * What {@link AddonManager#init} used to clear, for one session. {@code init} still means <i>the
+         * session ended</i> and still runs on every anchor change (criterion 5), so it goes on clearing this
+         * — the only thing that changed is that there is one of these per session instead of one for the
+         * client. It does <b>not</b> drop the state itself: that happens when the {@code UI} dies.
+         */
+        void reset() {
+            enterWorldPending = false;
+            hudUpSince = -1;
+            reloadPending = false;
+            gobEvents.clear();
+            overlayEvents.clear();
+            removedWidgets.clear();
+            beltSetQueue.clear();
+            resizedWidgets.clear();
+            textRewrites.clear();
+            addonRoot = null;
+            ocCb = null;
+        }
+    }
+
+    /**
+     * Every live session's state, keyed by the {@link UI} it runs in. Identity-keyed by construction:
+     * {@code haven.UI} overrides neither {@code equals} nor {@code hashCode}. Concurrent because an enqueue
+     * reaches it from the Loader and network threads.
+     */
+    private static final Map<UI, SessionState> states = new ConcurrentHashMap<UI, SessionState>();
+
+    /**
+     * <b>The engine's state for one session</b> (073.1), created on first ask — and the only door to it.
+     *
+     * <p><b>The key is the {@code UI}</b>, for three reasons that agree. It is what the engine already holds
+     * at nearly every site after {@code 072} ({@code w.ui} at a monitor, {@link #host()} at a tree read); it
+     * is what a relogin <i>replaces</i>, through {@code UILoop.bgui}, which is exactly the moment every cached
+     * widget id, gob id and slot index stops meaning anything; and it is not {@code Sessions.Member}, which
+     * survives a relogin by swapping its {@code sess} and {@code ui} and so means "this slot in the switcher".
+     *
+     * <p><b>There is no argumentless form.</b> An accessor that guesses which session it is about is the
+     * ambient field {@code 072} spent three tasks deleting, under a longer name — every site that could call
+     * it is a site that has stopped saying which session it meant.
+     *
+     * <p><b>{@code null} for a {@code UI} that is not a session</b>: none at all, the login screen (which
+     * holds no {@code Session} and runs no addons), or one already destroyed. A destroyed {@code UI} must
+     * never mint an entry here, or {@link #sweepStates()} and this would race each other forever — and the
+     * caller's own guard is the same one it already had for a null {@code host()}.
+     */
+    static SessionState state(UI u) {
+        if((u == null) || (u.sess == null) || u.destroyed)
+            return null;
+        SessionState st = states.get(u);
+        if(st != null)
+            return st;
+        SessionState mk = new SessionState(u);
+        st = states.putIfAbsent(u, mk);
+        return (st != null) ? st : mk;
+    }
+
+    /**
+     * The state to <b>file an event under</b>, which asks the one thing a read does not: <b>is anything
+     * draining it?</b> A session's queues are drained by that session's own tick pump, and a session that
+     * does not hold the addon engine has none — so an event filed there would sit for the life of the client.
+     *
+     * <p>It is also what those events did before 073.1, minus the pile: they went into <i>one</i> queue for
+     * the whole client, and the session that did have the pump drained them and handed another session's
+     * widgets to adapters that could only find nothing in them. Dropping them is that outcome, said out loud.
+     */
+    private static SessionState queueState(UI u) {
+        SessionState st = state(u);
+        return ((st != null) && (st.addonRoot != null)) ? st : null;
+    }
+
+    /**
+     * <b>A session's {@code UI} died, so its state does</b> (073.1) — the {@code // addon:} line at the end
+     * of {@link UI#destroy()}, which is the one place every {@code UI} in the client is taken down: a session
+     * ending or being handed on ({@code Sessions.Member.discard} → {@code UILoop.bgdestroy}) and the login
+     * slot being replaced ({@code UILoop.newui}) both arrive here.
+     *
+     * <p>Hung on the {@code UI}'s death and not on the anchor moving: a session tabbed away from is still
+     * live, still ticking and still answering the server, and its widgets and gobs still mean what they meant.
+     * What ends them is the {@code UI} being replaced, which is what a relogin does.
+     */
+    public static void uiDestroyed(UI u) {
+        if(u != null)
+            states.remove(u);
+    }
+
+    /**
+     * The backstop under {@link #uiDestroyed}: drop any state whose {@code UI} is destroyed. A missed hook is
+     * a leak of one entry per relogin and would show as nothing at all — so it is checked rather than trusted,
+     * and {@code states} in {@code hafen.client():profiling():session()} is what makes the check readable.
+     * A handful of entries, so it costs a walk of a one-element map on the frames it runs.
+     */
+    private static void sweepStates() {
+        for(Iterator<Map.Entry<UI, SessionState>> it = states.entrySet().iterator(); it.hasNext(); ) {
+            if(it.next().getKey().destroyed)
+                it.remove();
+        }
+    }
+
+    /**
+     * How many sessions hold engine state right now — the {@code states} figure of
+     * {@code hafen.client():profiling():session()}, whose whole claim is that it <b>equals {@code live}</b>.
+     * Higher means a {@code UI} died without its state going with it; lower means a session is holding none
+     * yet, which is true for the beat between a member registering and its {@code UI} being built.
+     * It sweeps before answering, so the number is honest on a client whose tick has stopped.
+     */
+    public static int stateCount() {
+        sweepStates();
+        return states.size();
+    }
+
     // ------------------------------------------------------------- lifecycle
 
     /**
@@ -345,11 +501,20 @@ public final class AddonManager {
      * world", and that is all it does</b> (072.3): capturing the view here is what made the engine's idea of
      * the drawn scene a hand-written copy, and {@link #screenView()} derives it from the session on screen
      * instead. The flag stays because the moment a scene is built is not something the tree can be asked
-     * about afterwards — {@link #tick(double)} turns it into {@code EnterWorld} once the HUD is up.
+     * about afterwards — {@link #tick(UI, double)} turns it into {@code EnterWorld} once the HUD is up.
+     *
+     * <p><b>It is handed the scene's own {@link Glob}</b> (073.1), because that is what names the session
+     * this world came up for. {@code mv.ui} cannot: the seam is the <i>end of the constructor</i>, and a
+     * widget gets its {@code ui} when it is added to a tree, which has not happened yet. Reading
+     * {@link #host()} here would be worse than useless — a session reaching the world while another is on
+     * screen would raise the flag on the session the player is looking at.
      */
-    public static void attach(MapView mv) {
-        if(mv != null)
-            enterWorldPending = true;   // EnterWorld is fired on the next tick (UI thread)
+    public static void attach(MapView mv, Glob glob) {
+        if(mv == null)
+            return;
+        SessionState st = state(io.brodgar.session.Sessions.uifor(glob));
+        if(st != null)
+            st.enterWorldPending = true;   // EnterWorld is fired on the next tick (UI thread)
     }
 
     /**
@@ -379,8 +544,10 @@ public final class AddonManager {
     }
 
     /**
-     * Per-session init (from RemoteUI.init, where ui.sess is bound): tear down the previous session's
-     * addons, reset engine state, attach the tick pump + gob event source, then (re)load from disk.
+     * Per-session init (from {@code Sessions.tickrebind}, with the session that now holds the screen): tear
+     * down the previous session's addons, reset engine state, attach the tick pump + gob event source, then
+     * (re)load from disk. It <b>replaces</b> rather than constructs, and it still does: what 073.1 changed is
+     * where the state it clears actually lives, never what it means.
      */
     public static synchronized void init(UI ui_) {
         Prof.init();  // 019.1: restore the persisted profiling switch (once per JVM)
@@ -391,30 +558,24 @@ public final class AddonManager {
         addons.clear();
 
         clock = 0;
-        enterWorldPending = false;
-        hudUpSince = -1;              // 059.5: and the menu-wait clock with it — the next HUD is another session's
-        gobEvents.clear();
-        overlayEvents.clear();        // 038.3: and the overlay queue with it — the gobs it named are the old session's
-        overlaySubs = false;          //   (loadAll below re-subscribes whoever listens, which re-arms the seams)
+        // 073.1: what this cleared was ONE set of queues and flags for the whole client; per session that is
+        // every one of them, and clearing them all is exactly the same act. It goes on meaning "the session
+        // ended" — init still runs on every anchor change — so it is the state's contents that go, never the
+        // state itself, which dies with the UI it belongs to (see SessionState.reset and uiDestroyed).
+        for(SessionState s : states.values())
+            s.reset();
+        overlaySubs = false;          // 038.3: (loadAll below re-subscribes whoever listens, which re-arms the seams)
         VrApi.resetEntityIndex();     // 043.2/044.9: and both indexes of standing hafen.vr() entities — a gob id
                                       //   means a different gob next session, and the addons' own were just torn down
-        removedWidgets.clear();       // 042.1: and the widget-removal queue — the old session's widgets are gone
         resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
-        beltSetQueue.clear();         // 042.6: and any deferred belt-write notify queued from the old session
         BeltHold.flush();             // 059.5: persist the placements while the OLD charScope is still set (as
                                       //   the teardown above flushes saved vars) — they name the bar just left
         BeltHold.resetSession();      // 059.4: ...and every bar slot an addon was holding — a slot index names
                                       //   another character's bar now, and the addons above were just torn down
-        resizedWidgets.clear();       // 042.10: and any resize notify queued from the old session
-        textRewrites.clear();         // 061.6: and any caption rewrite queued from the old session — the levels
-                                      //   it would re-apply went with the teardown above
         markerChangeQueue.clear();    // 042.11: and any marker-change notify queued from the old session
         HttpApi.reset();              // N2a: drop stale HTTP completions (their requests were torn down above)
-        addonRoot = null;
-        ocCb = null;
 
         StoreApi.resetSession();      // per-char scope + auto-save clock reset for the new session
-        reloadPending = false;        // drop any :reload queued against the previous session
 
         UiApi.resetSession();         // 2b/3a/3b/3c: reset overlay sweep + per-session widget registries
         MapApi.resetMarkers();      // A1: drop per-session marker maps + re-prime MarkersChanged
@@ -423,36 +584,48 @@ public final class AddonManager {
                                             //   map file (the addons' went with the teardown above)
         CharApi.resetSession();       // re-register the change-detection adapters
 
-        attachRoot(ui_);              // invisible per-frame tick widget (drives the engine)
-        registerOcache(ui_);          // GobAdded/GobRemoved source (marshalled to the UI thread)
+        SessionState st = state(ui_);
+        if(st == null) {
+            log("no session behind that ui; tick pump not attached");
+            return;
+        }
+        attachRoot(st, ui_);          // invisible per-frame tick widget (drives the engine)
+        registerOcache(st, ui_);      // GobAdded/GobRemoved source (marshalled to the UI thread)
         AddonRegistry.loadAll();                    // discover + run addons, fire Load for each
     }
 
     /** Attach the invisible tick widget to {@code ui.root} (guarded — root must exist). */
-    private static void attachRoot(UI u) {
-        if((u == null) || (u.root == null)) {
+    private static void attachRoot(SessionState st, UI u) {
+        if(u.root == null) {
             log("no ui.root; tick pump not attached");
             return;
         }
         try {
             AddonRoot r = new AddonRoot();
             u.root.add(r);            // add() synchronizes on ui; the widget then ticks each frame
-            addonRoot = r;
+            st.addonRoot = r;
         } catch(RuntimeException e) {
             log("failed to attach tick widget: " + e);
         }
     }
 
-    /** Register a weak-safe {@link OCache} callback that enqueues gob spawn/despawn for the tick. */
-    private static void registerOcache(UI u) {
+    /**
+     * Register a weak-safe {@link OCache} callback that enqueues gob spawn/despawn for the tick. The callback
+     * <b>closes over its own session's state</b> (073.1) rather than looking one up when it fires: it runs on
+     * the network and Loader threads of <i>this</i> session, which are not the drawn session's, so
+     * {@link #host()} at that moment would file another session's gobs under whichever one holds the screen.
+     */
+    private static void registerOcache(final SessionState st, UI u) {
         try {
             OCache oc = u.sess.glob.oc;
             OCache.ChangeCallback cb = new OCache.ChangeCallback() {
-                public void added(Gob g)   { gobEvents.add(new GobEvent(true, g)); }
-                public void removed(Gob g) { gobEvents.add(new GobEvent(false, g)); }
+                // ...and only while a pump is attached to drain it: a callback OCache has not yet collected
+                // goes on firing for a session whose engine was torn down at the last switch.
+                public void added(Gob g)   { if(st.addonRoot != null) st.gobEvents.add(new GobEvent(true, g)); }
+                public void removed(Gob g) { if(st.addonRoot != null) st.gobEvents.add(new GobEvent(false, g)); }
             };
             oc.callback(cb);
-            ocCb = cb;                // hold a strong ref (OCache stores callbacks in a WeakList)
+            st.ocCb = cb;             // hold a strong ref (OCache stores callbacks in a WeakList)
         } catch(RuntimeException e) {
             log("failed to register gob callback: " + e);
         }
@@ -464,18 +637,27 @@ public final class AddonManager {
      * One engine step, driven by {@link AddonRoot#tick(double)} on the UI thread each frame. Order
      * per {@code 04-engine.md}: drain the marshalled event queue, then {@code Update}, then timers.
      * Everything is error-isolated so an addon bug never breaks the frame or another addon.
+     *
+     * <p><b>It is told which session it is stepping</b> (073.1): the pump is a widget on one session's root,
+     * so the tree it was reached through is the answer, and what it drains is that session's own queues.
+     * A tree with no session behind it drives nothing — there is nothing queued for it and no addon of its
+     * own to tell.
      */
-    static void tick(double dt) {
+    static void tick(UI u, double dt) {
         try {
+            SessionState st = state(u);
+            if(st == null)
+                return;
+            sweepStates();   // the backstop under uiDestroyed, on the one thread that is always running
             clock += dt;
 
             // 0. A queued :reload / Reload UI — rebuild the addon layer on the UI thread (spec 1f-2,
             //    D-005). Done first + return so the reloaded addons begin their own tick cleanly next
             //    frame (this frame's Update/timers belonged to the addons we just tore down).
-            if(reloadPending) {
-                reloadPending = false;
-                overlayEvents.clear();   // 038.3: the addons that queued these are being torn down
-                overlaySubs = false;     //   (the reloaded ones re-subscribe inside reload())
+            if(st.reloadPending) {
+                st.reloadPending = false;
+                st.overlayEvents.clear();   // 038.3: the addons that queued these are being torn down
+                overlaySubs = false;        //   (the reloaded ones re-subscribe inside reload())
                 AddonRegistry.reload();
                 return;
             }
@@ -517,7 +699,7 @@ public final class AddonManager {
 
             // 1. Gob spawn/despawn captured on network/loader threads → dispatch on the UI thread.
             GobEvent ge;
-            while((ge = gobEvents.poll()) != null) {
+            while((ge = st.gobEvents.poll()) != null) {
                 // 038.2: an overlay dies with its gob. Done BEFORE the event reaches Lua, so a GobRemoved handler
                 // already reads the truth — and it is what a world-space overlay costs: its visual is a
                 // client-only gob of its own, which nothing disposes just because the target left OCache.
@@ -535,7 +717,7 @@ public final class AddonManager {
             //     gob that just spawned is reported after the GobAdded that introduced it — and a removal caused
             //     by the gob leaving has already been fired synchronously by LuaGobOverlay.gobGone above, before
             //     that gob's own GobRemoved, so an overlay is never reported dying after the thing it was on.
-            drainOverlayEvents();
+            drainOverlayEvents(st);
 
             // 1a. HTTP results (N2a): a pool worker finished a request → deliver its res table to the addon's
             //     callback on the UI thread (armed + isolated, like every other event). A cancelled/torn-down
@@ -552,7 +734,7 @@ public final class AddonManager {
             // 1b'. Widget removals (M1, 042.1) captured off-thread by the Widget.remove() tap → dispatched on
             //      the UI thread, one frame's worth (D-106). After refresh, so a removal never races a content
             //      update the same frame.
-            drainRemovedWidgets();
+            drainRemovedWidgets(st);
 
             // 1b'a. WidgetSubs' deep ItemAdded/ItemRemoved diff (064.3), once per tick now that this tick's
             //       placements and removals have landed: a container and everything it gains or loses arrives
@@ -571,19 +753,19 @@ public final class AddonManager {
             //        (D-106). The uimsg tap already re-diffed the whole bar against the OLD value for
             //        these two paths (the write lands after the message is dispatched); this re-checks
             //        just the one slot now that the write is actually there.
-            drainBeltSet();
+            drainBeltSet(st);
 
             // 1b''''. Widget resizes (M4, 042.10) captured off-thread by the Widget.resize() tap → offered on
             //         the UI thread, one frame's worth (D-106), to Layout.dispatchResized — an anchor target
             //         resizing, a window packing itself, or the screen changing all funnel through this one
             //         seam, and it is free (derived.isEmpty()) for a client with nothing anchored.
-            drainResizedWidgets();
+            drainResizedWidgets(st);
 
             // 1b'''''. Caption rewrites (061.6) recorded off-thread by the inbound-uimsg tap → re-read and
             //          re-applied on the UI thread, one frame's worth (D-106). BEFORE the caption-driven
             //          drains below: each of those re-offers a widget to Layout.apply, which would put the
             //          level back on before this one has read what the server actually wrote.
-            drainTextRewrites();
+            drainTextRewrites(st);
 
             // 1c. Replacements (032.1, event-driven since 042.8): the server destroying a window an addon
             //     replaced with widget:replace(view) is a removal, so it is offered at the removal seam
@@ -656,16 +838,16 @@ public final class AddonManager {
             //    BOUNDED, because nothing here can prove the server always sends one: after MENU_WAIT seconds
             //    EnterWorld fires anyway, with a log line saying the menu never came, so a session that has no
             //    action menu at all still gets everything else.
-            if(enterWorldPending) {
+            if(st.enterWorldPending) {
                 GameUI hud = gui();
                 if((hud != null) && (hud.parent != null)) {
-                    if(hudUpSince < 0)
-                        hudUpSince = clock;
-                    boolean late = (clock - hudUpSince) >= MENU_WAIT;
+                    if(st.hudUpSince < 0)
+                        st.hudUpSince = clock;
+                    boolean late = (clock - st.hudUpSince) >= MENU_WAIT;
                     if((hud.menu != null) || late) {
                         if(late && (hud.menu == null))
                             log("EnterWorld: no action menu after " + MENU_WAIT + "s — firing without it");
-                        enterWorldPending = false;
+                        st.enterWorldPending = false;
                         StoreApi.restorePerChar(); // now <genus>_<char> is known → load per-char saved vars BEFORE
                         BeltHold.restore();        // 059.5: ...and this character's action-bar placements, so the
                                                    //   first :add an addon makes puts its button straight back
@@ -684,9 +866,9 @@ public final class AddonManager {
             //     (see the field note): UI.drawafter is one-shot, tick precedes draw, so it paints above the
             //     HUD this frame. The gob-overlay sweep that used to stand here is GONE (038.1) — the state
             //     lives on the gob, so there is nothing to match and nothing to attach per tick.
-            UI u = host();
-            if((u != null) && UiApi.anyHudOverlays())
-                u.drawafter(UiApi.hudAfterDraw);
+            UI hu = host();   // the SCREEN's after-draw: a HUD overlay paints over what is drawn
+            if((hu != null) && UiApi.anyHudOverlays())
+                hu.drawafter(UiApi.hudAfterDraw);
 
             // 5. Throttled auto-save of saved variables (mirrors GameUI's window-position saves). Covers
             //    an unclean exit; a relog also flushes via teardown. flush() skips unchanged files, so
@@ -827,7 +1009,7 @@ public final class AddonManager {
      * this tap, that read must take the monitor itself or move to the UI-thread drain. Much high-value
      * state (vitals, buffs, FEP, …) lives in widget trees updated by targeted {@code uimsg} (audit B1);
      * this is where the engine learns about it. It must <b>not</b> touch Lua — it only flags the
-     * interested adapter(s) dirty; {@link #tick(double)} drains them and fires the semantic event on the
+     * interested adapter(s) dirty; {@link #tick(UI, double)} drains them and fires the semantic event on the
      * UI thread (principle P5).
      */
     public static void onUimsg(Widget w, String msg) {
@@ -836,8 +1018,11 @@ public final class AddonManager {
         // the widget and nothing else — this thread holds no monitor, and the level goes back on at the tick
         // ({@link #drainTextRewrites}). One volatile read for a client nobody is holding anything on; a client
         // being laid out but not captioned enqueues a widget the drain then finds nothing standing on.
-        if(LuaWidget.anyMoved && LuaWidget.rewritesText(w, msg))
-            textRewrites.add(w);
+        if(LuaWidget.anyMoved && LuaWidget.rewritesText(w, msg)) {
+            SessionState st = queueState(w.ui);   // 073.1: the widget's OWN session, never the drawn one
+            if(st != null)
+                st.textRewrites.add(w);
+        }
     }
 
     /**
@@ -1138,9 +1323,6 @@ public final class AddonManager {
 
     // ------------------------------------------------- the two message streams (hafen.event():action/:message)
 
-    /** Re-entrancy guard for {@link #dispatchAction}: a handler body that itself sends a {@code wdgmsg}. */
-    private static boolean dispatchingAction;
-
     /**
      * One addon's <b>stream emitter</b> — the object {@code hafen.event():action()} and
      * {@code hafen.event():message()} hand back (041.2). It is minted once per addon and per stream, and the
@@ -1200,13 +1382,17 @@ public final class AddonManager {
     static boolean dispatchAction(Widget sender, String msg, Object[] args) {
         if(!anyStreamSub(msg, true))
             return true;                              // fast path: nothing anywhere listens to this action
-        UI u = host();
-        if((u == null) || !Thread.holdsLock(u))
+        // 073.1: the SENDER's own session, which is the tree the message is leaving and the monitor that
+        // guards it. host() would have answered the same thing today and the wrong thing the moment a
+        // message is sent from a session that is not the one drawn.
+        UI u = (sender == null) ? null : sender.ui;
+        SessionState st = state(u);
+        if((st == null) || !Thread.holdsLock(u))
             return true;                              // only run Lua on a UI-locked (Lua-safe) send path
-        if(dispatchingAction)
+        if(st.dispatchingAction)
             return true;                              // re-entrancy: a handler body sent another wdgmsg
         Subs.Cancel c = new Subs.Cancel();
-        dispatchingAction = true;
+        st.dispatchingAction = true;
         try {
             for(Addon a : addons)
                 fireAction(a, sender, msg, args, c, u);
@@ -1214,7 +1400,7 @@ public final class AddonManager {
             if(co != null)
                 fireAction(co, sender, msg, args, c, u);
         } finally {
-            dispatchingAction = false;
+            st.dispatchingAction = false;
         }
         return !c.prevented();
     }
@@ -1368,16 +1554,29 @@ public final class AddonManager {
                 return;                 // its sprite has not resolved: no name to be addressed by, so not there yet
             if(LuaGobOverlay.countNative(g, key) != (added ? 1 : 0))
                 return;                 // the union still has (or already had) another of this resource
-            overlayEvents.add(new OverlayEvent(added, g.id, key, true, null));
+            queueOverlayEvent(g, new OverlayEvent(added, g.id, key, true, null));
         } catch(RuntimeException e) {
             /* the engine's overlay path is not ours to break */
         }
     }
 
     /** An addon's own attach/remove ({@code gob:overlay}), queued onto the tick like the game's. */
-    static void queueGobOverlay(boolean added, long gobId, String key, Addon owner) {
-        if(overlaySubs)
-            overlayEvents.add(new OverlayEvent(added, gobId, key, false, owner));
+    static void queueGobOverlay(boolean added, Gob g, String key, Addon owner) {
+        if(overlaySubs && (g != null))
+            queueOverlayEvent(g, new OverlayEvent(added, g.id, key, false, owner));
+    }
+
+    /**
+     * File one overlay event under <b>the session the gob is in</b> (073.1). A {@link Gob} carries its own
+     * {@link Glob}, which is what names that session — and it has to, because this runs on the loader threads
+     * of whichever session the decoration arrived for, which is not the one on screen: a gob id means a
+     * different object in each. Dropped for a gob whose session holds no state, which is a gob of a world
+     * nothing is draining.
+     */
+    private static void queueOverlayEvent(Gob g, OverlayEvent oe) {
+        SessionState st = queueState(io.brodgar.session.Sessions.uifor(g.glob));
+        if(st != null)
+            st.overlayEvents.add(oe);
     }
 
     /**
@@ -1386,9 +1585,9 @@ public final class AddonManager {
      * would let a handler that re-attaches under the same key spin the frame forever. One frame's worth per
      * frame turns that into a slow loop the addon can see and its watchdog can price, instead of a hang.
      */
-    private static void drainOverlayEvents() {
-        for(int n = overlayEvents.size(); n > 0; n--) {
-            OverlayEvent oe = overlayEvents.poll();
+    private static void drainOverlayEvents(SessionState st) {
+        for(int n = st.overlayEvents.size(); n > 0; n--) {
+            OverlayEvent oe = st.overlayEvents.poll();
             if(oe == null)
                 break;
             fireGobOverlay(oe.added ? "GobOverlayAdded" : "GobOverlayRemoved", oe.gobId, oe.key, oe.nat, oe.owner);
@@ -1407,10 +1606,12 @@ public final class AddonManager {
      *
      * <p><b>Must not touch Lua.</b> {@code remove()} can run on a Loader thread (the server command queue) or
      * the UI thread (a client-side {@code destroy()}) — neither is guaranteed, so this only enqueues; {@link
-     * #tick(double)} drains and dispatches on the UI thread, exactly like {@link #gobEvents}/{@link
-     * #overlayEvents} (038.3).
+     * #tick(UI, double)} drains and dispatches on the UI thread, exactly like the gob and overlay queues
+     * beside it in {@link SessionState} (038.3) — and, since 073.1, into the state of the tree the widget
+     * was actually in ({@code w.ui}), which on these threads is not the tree on screen.
      */
     public static void onWidgetRemoved(Widget w) {
+        SessionState st = queueState(w.ui);   // 073.1: the tree the widget was in, and no other
         // 044.8: mark a standing panel's content as GONE here, at the tap, rather than when the queue below is
         // drained. A widget announces its removal before it unlinks (a Window says so as its fade starts, which
         // is the path the server's own destroy takes), so between this line and the drain there is a window in
@@ -1420,7 +1621,8 @@ public final class AddonManager {
         // Marking here makes "it is on its way out" true for every door at once. Flag-only, so it is safe on
         // whatever thread reached remove().
         VrApi.markContentGone(w);
-        removedWidgets.add(w);
+        if(st != null)
+            st.removedWidgets.add(w);
     }
 
     /**
@@ -1587,9 +1789,9 @@ public final class AddonManager {
      * {@link VrApi#dispatchStandingRemoved}, for a widget standing in the 3D world — the same removal, one
      * subsystem along, and the two meet where a replaced stand-in is also a standing panel.
      */
-    private static void drainRemovedWidgets() {
-        for(int n = removedWidgets.size(); n > 0; n--) {
-            Widget w = removedWidgets.poll();
+    private static void drainRemovedWidgets(SessionState st) {
+        for(int n = st.removedWidgets.size(); n > 0; n--) {
+            Widget w = st.removedWidgets.poll();
             if(w == null)
                 break;
             CharApi.dispatchRemoved(w);
@@ -1645,19 +1847,21 @@ public final class AddonManager {
      * immediately after {@code belt[slot] = …}, the only place the change happens.
      *
      * <p><b>Must not touch Lua.</b> {@code loader.defer} runs the lambda on a Loader thread, so this only
-     * enqueues; {@link #tick(double)} drains it on the UI thread, exactly like {@link #onWidgetRemoved}.
+     * enqueues; {@link #tick(UI, double)} drains it on the UI thread, exactly like {@link #onWidgetRemoved}.
      */
-    public static void onBeltSet(int slot) {
-        beltSetQueue.add(slot);
+    public static void onBeltSet(Widget gui, int slot) {
+        SessionState st = queueState((gui == null) ? null : gui.ui);   // 073.1: whose bar the slot is on
+        if(st != null)
+            st.beltSetQueue.add(slot);
     }
 
     /**
      * Deliver the deferred belt-slot writes captured since the last tick, one frame's worth (D-106) — the
      * same bound as the other marshalled queues, for the same reason.
      */
-    private static void drainBeltSet() {
-        for(int n = beltSetQueue.size(); n > 0; n--) {
-            Integer slot = beltSetQueue.poll();
+    private static void drainBeltSet(SessionState st) {
+        for(int n = st.beltSetQueue.size(); n > 0; n--) {
+            Integer slot = st.beltSetQueue.poll();
             if(slot == null)
                 break;
             try {
@@ -1676,7 +1880,7 @@ public final class AddonManager {
     /**
      * Map marker count changed — the on-disk map DB's {@link haven.MapFile#markerseq} bumped on add/remove/
      * update (UI or processor thread) or segment merge (loader thread). Fire MarkersChanged with the new count
-     * payload. This only enqueues; {@link #tick(double)} drains it on the UI thread, same shape as the other
+     * payload. This only enqueues; {@link #tick(UI, double)} drains it on the UI thread, same shape as the other
      * marshalled queues (D-106, to avoid deadlock with the map DB's RW lock).
      *
      * <p><b>Must not touch Lua.</b>
@@ -1714,11 +1918,13 @@ public final class AddonManager {
      * — the root is just another resize).
      *
      * <p><b>Must not touch Lua.</b> {@code resize()} is not guaranteed to run on the UI thread (it is reached
-     * from server message application as well as from tick/draw), so this only enqueues; {@link #tick(double)}
+     * from server message application as well as from tick/draw), so this only enqueues; {@link #tick(UI, double)}
      * drains and dispatches on the UI thread, exactly like {@link #onWidgetRemoved}.
      */
     public static void onWidgetResized(Widget w) {
-        resizedWidgets.add(w);
+        SessionState st = queueState(w.ui);   // 073.1: the tree the widget is in, and no other
+        if(st != null)
+            st.resizedWidgets.add(w);
     }
 
     /**
@@ -1726,9 +1932,9 @@ public final class AddonManager {
      * {@link Layout#dispatchResized}, which re-derives whatever hangs off {@code w} (M4) and is a near-zero
      * cost ({@code derived.isEmpty()}) for a client with nothing anchored.
      */
-    private static void drainResizedWidgets() {
-        for(int n = resizedWidgets.size(); n > 0; n--) {
-            Widget w = resizedWidgets.poll();
+    private static void drainResizedWidgets(SessionState st) {
+        for(int n = st.resizedWidgets.size(); n > 0; n--) {
+            Widget w = st.resizedWidgets.poll();
             if(w == null)
                 break;
             try {
@@ -1746,9 +1952,9 @@ public final class AddonManager {
      * same bound and the same shape as the queues above, and the body is {@link Layout#serverWroteText}: the
      * stock caption becomes what the widget is showing, and this addon's level goes back on top of it.
      */
-    private static void drainTextRewrites() {
-        for(int n = textRewrites.size(); n > 0; n--) {
-            Widget w = textRewrites.poll();
+    private static void drainTextRewrites(SessionState st) {
+        for(int n = st.textRewrites.size(); n > 0; n--) {
+            Widget w = st.textRewrites.poll();
             if(w == null)
                 break;
             try {

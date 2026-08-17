@@ -191,8 +191,8 @@ public final class LuaOverlay {
                         + " (a vr key is generated, so it always looks like \"vr#7\")");
                 LuaGobOverlay.Attach old = LuaGobOverlay.ensure(g).put(new LuaGobOverlay.Attach(owner, k));
                 if(old != null)
-                    AddonManager.queueGobOverlay(false, gobId, k, owner);
-                AddonManager.queueGobOverlay(true, gobId, k, owner);
+                    AddonManager.queueGobOverlay(false, g, k, owner);
+                AddonManager.queueGobOverlay(true, g, k, owner);
                 return of(owner, gobId, k, MINE);
             }
 
@@ -232,7 +232,7 @@ public final class LuaOverlay {
                 if(store == null)
                     return;
                 if(store.remove(owner, k) != null)
-                    AddonManager.queueGobOverlay(false, gobId, k, owner);
+                    AddonManager.queueGobOverlay(false, g, k, owner);
                 LuaGobOverlay.prune(g);
             }
         }, null);

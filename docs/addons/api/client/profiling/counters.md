@@ -7,9 +7,9 @@ always agree with it field by field.
 
 Nothing here is sampled over time — each call is the value right now. The exceptions are the running
 tallies, and each says so: `surfaces()`'s uploads and frames, `entities()`'s passes and `session()`'s
-three ground and click counters are cumulative since the client started, and `textcache()`'s hit, miss
-and eviction totals since the addon loaded. `session()`'s `live` is not one of them: it is a count of
-what exists right now, like `surfaces()`'s `live`.
+ground and click counters are cumulative since the client started, and `textcache()`'s hit, miss
+and eviction totals since the addon loaded. `session()`'s `live` and `states` are not among them: they
+count what exists right now, like `surfaces()`'s `live`.
 
 **An absent key means "not measured", never zero.**
 
@@ -149,6 +149,7 @@ looking at.
 | Key | Description |
 |---|---|
 | `live` | how many sessions the client holds right now, **the one on screen included** |
+| `states` | how many of those hold client-side state of their own, which is **every one of them** |
 | `groundAnswered` | times another session supplied the ground height under the camera, **cumulative since client start** |
 | `groundMissed` | times none of them had that ground, so the camera kept the height it last had, **cumulative since client start** |
 | `placedRebuiltOffTick` | times a click was resolved before the client had said where the sessions stand, **cumulative since client start** |
@@ -157,6 +158,13 @@ looking at.
 ends, and the character you are looking at is one of them — with one account in the world it reads `1`,
 and on the login screen, with nobody logged in, `0`. There is no separate reading for the drawn session,
 because there is nothing separate about it: the client holds sessions and draws one of them.
+
+`states` is the same instantaneous count seen from the other side, and it is worth reading for one reason:
+**it equals `live`**. The client keeps a set of caches for each session it holds — the widgets your
+selectors have matched, the objects it has seen, the slots your addon is holding on that character's action
+bar — and those are made when a session first needs them and dropped when that session ends. A number above
+`live` means a session that has gone is still being remembered; a number below it means one has joined and
+not yet needed anything, which is true for the moment between logging an account in and its world coming up.
 
 The ground pair climbs only while a free camera is looking at ground the drawn session has never loaded —
 panned over another character's surroundings, which is the one place the drawn session's own terrain cannot
@@ -182,9 +190,9 @@ being ignored.
 local a = hafen.client():profiling():session()
 hafen.timer():after(5, function()
   local b = hafen.client():profiling():session()
-  hafen.log():write(string.format("%d sessions; %d answers, %d misses over 5 s; %d clicks answered early",
-                          b.live, b.groundAnswered - a.groundAnswered, b.groundMissed - a.groundMissed,
-                          b.placedRebuiltOffTick))
+  hafen.log():write(string.format("%d sessions (%d holding state); %d answers, %d misses over 5 s; %d clicks answered early",
+                          b.live, b.states, b.groundAnswered - a.groundAnswered,
+                          b.groundMissed - a.groundMissed, b.placedRebuiltOffTick))
 end)
 ```
 

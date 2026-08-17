@@ -792,7 +792,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	if(!dormant) {
 	    attachscene();
 	    io.brodgar.voice.Voice.attach(this);   // brodgar voice: connect on entering the game
-	    io.brodgar.addon.AddonManager.attach(this);   // addon: the world came up -> EnterWorld on the next tick
+	    io.brodgar.addon.AddonManager.attach(this, glob);   // addon: the world came up -> EnterWorld on the next tick (073.1: the scene's own glob says whose world it is; this widget has no ui yet)
 	}
     }
 

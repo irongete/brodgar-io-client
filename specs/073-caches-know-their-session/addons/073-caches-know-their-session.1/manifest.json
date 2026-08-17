@@ -1,0 +1,9 @@
+{
+  "name": "073.1 — the engine's state gets a session to belong to",
+  "id": "073-caches-know-their-session.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 073.1: the engine's per-session state is minted per session and released with its UI (states == live), and the marshalling queues still carry an event end to end now that an enqueue picks the state of the session it was handed.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -973,12 +973,20 @@ public class UI {
 	return(env);
     }
 
+    /* addon: (073.1) this UI has been taken down. Every per-session cache the addon layer holds is keyed on
+     * the UI the session runs in, and a UI is what a relogin replaces -- so this is the flag that says an
+     * entry may no longer be minted for it, and the one the layer's sweep tests. Set before the tree is
+     * disposed, because disposing it fires the removal seam for every widget in it. */
+    public volatile boolean destroyed = false;
+
     public void destroy() {
 	queue.drain();
 	synchronized(this) {
+	    destroyed = true;   // addon: 073.1 -- no new state for a UI being taken apart
 	    root.destroy();
 	    audio.clear();
 	}
+	io.brodgar.addon.AddonManager.uiDestroyed(this);   // addon: 073.1 -- the session's engine state dies with it
     }
 
     public void sfx(Audio.CS clip) {

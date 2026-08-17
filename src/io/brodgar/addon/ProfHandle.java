@@ -538,7 +538,15 @@ public final class ProfHandle {
      * two reads</b>: take one, pan, take another. A client with one session up misses every time by
      * construction, since only the anchor is placed and the anchor is exactly the map that already threw.
      *
-     * <p>{@code placedRebuiltOffTick} is the third, and it is the one whose interesting value is the one it
+     * <p>{@code states} is how many sessions hold <b>engine state</b> right now — the per-session caches the
+     * addon layer keys on the {@code UI} its session runs in — and its whole claim is that it <b>equals
+     * {@code live}</b>. It is the one number this feature's inertness can be checked by: a state is minted
+     * when a session first needs one and released when its {@code UI} is destroyed, so {@code states > live}
+     * says a relogin left one behind (a leak of one entry per relogin, which shows as nothing at all
+     * otherwise) and {@code states < live} says a session is holding none yet, which is true for the beat
+     * between a session registering and its {@code UI} being built. Instantaneous, like {@code live}.
+     *
+     * <p>{@code placedRebuiltOffTick} is the fourth, and it is the one whose interesting value is the one it
      * holds: the layer caches where every session stands, that cache is built by walking a widget tree the
      * frame is mutating, and so the frame's own thread builds it and everything else reads what the frame
      * published. The pick pass is the everything else — a click resolves in a GPU readback callback, on a
@@ -557,6 +565,7 @@ public final class ProfHandle {
     private static LuaTable session() {
         LuaTable t = new LuaTable();
         t.set("live", LuaValue.valueOf(Sessions.live()));
+        t.set("states", LuaValue.valueOf(AddonManager.stateCount()));
         t.set("groundAnswered", LuaValue.valueOf((double)Sessions.groundAnswered()));
         t.set("groundMissed", LuaValue.valueOf((double)Sessions.groundMissed()));
         t.set("placedRebuiltOffTick", LuaValue.valueOf((double)Sessions.placedRebuiltOffTick()));
