@@ -189,8 +189,9 @@ public final class Addon {
      * function that minted it). Hiding a widget the addon does not own is the one write that reaches the client's
      * own UI, so it is bridge-owned like everything else: {@link UiApi#teardownHidden} restores each entry on
      * {@code :reload}/disable under the one rule (<i>the window ends up as the user was seeing it</i>) and destroys
-     * the stand-in with it, guarded on the widget still being the same live one (so a relog — which rebinds
-     * {@code ui} before the teardown loop — correctly skips it while a same-session {@code :reload} performs it).
+     * the stand-in with it, guarded on the widget still being the same live one (so a relog — where the host
+     * is the NEW session by the time the teardown runs — correctly skips it while a same-session
+     * {@code :reload} performs it).
      * {@code widget:visible(true)} drops its own entry: nothing left to undo. Copy-on-write like the other owned lists.
      */
     public final List<LuaWidget.Hidden> hiddenNative = new CopyOnWriteArrayList<LuaWidget.Hidden>();

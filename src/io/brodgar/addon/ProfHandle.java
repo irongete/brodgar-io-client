@@ -372,7 +372,7 @@ public final class ProfHandle {
      */
     private static LuaTable net() {
         LuaTable t = new LuaTable();
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((u == null) || (u.sess == null) || !(u.sess.conn instanceof Connection))
             return t;
         Connection.Stats s = ((Connection)u.sess.conn).stats;
@@ -395,7 +395,7 @@ public final class ProfHandle {
      */
     private static LuaTable loader() {
         LuaTable t = new LuaTable();
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if(u == null)
             return t;
         int[] l = u.loader.statcounts();
@@ -428,7 +428,7 @@ public final class ProfHandle {
     @SuppressWarnings("deprecation")
     private static LuaTable render() {
         LuaTable t = new LuaTable();
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if(u == null)
             return t;
         t.set("stateSlots", LuaValue.valueOf(State.Slot.numslots()));
@@ -741,7 +741,7 @@ public final class ProfHandle {
      */
     private static LuaTable widgets() {
         LuaTable out = new LuaTable();
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if(!Prof.armed() || (u == null) || (u.root == null))
             return out;
         Map<String, double[]> types = new HashMap<String, double[]>();

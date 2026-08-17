@@ -234,7 +234,7 @@ public final class AddonRegistry {
      * teardown/load is error-isolated so one bad addon cannot abort the reload.
      */
     public static synchronized void reload() {
-        if(ui == null) {
+        if(host() == null) {
             log("reload: no active session");
             return;
         }

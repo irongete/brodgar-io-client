@@ -423,7 +423,7 @@ final class UiApi {
                 LuaValue y = Args.required(a, 3, "hafen.ui():tipAt", "y");
                 if(!x.isnumber() || !y.isnumber())
                     throw new LuaError("hafen.ui():tipAt(x, y) expects numbers");
-                UI u = ui;
+                UI u = host();
                 if((u == null) || (u.root == null))
                     return LuaValue.NIL;
                 Widget from = LuaWidget.tipAt(u, Px.in(new Coord(x.toint(), y.toint())));   // design px, like :at
@@ -728,7 +728,7 @@ final class UiApi {
      * being advice and became load-bearing.
      */
     private static LuaValue selectFirst(Addon owner, Selector sel) {
-        UI u = ui;
+        UI u = host();
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         List<Widget> hits = new ArrayList<Widget>();
@@ -743,7 +743,7 @@ final class UiApi {
      * the {@code ui} monitor, so it never races tree mutation, and the matcher calls no Lua.
      */
     private static LuaValue selectAll(Addon owner, Selector sel) {
-        UI u = ui;
+        UI u = host();
         if((u == null) || (u.root == null))
             return new LuaTable();
         List<Widget> hits = new ArrayList<Widget>();
@@ -871,7 +871,7 @@ final class UiApi {
 
     /** The UI, or a clear error naming the builder that has nothing to attach to yet. */
     static UI requireUi(String what) {
-        UI u = ui;
+        UI u = host();
         if((u == null) || (u.root == null))
             throw new LuaError("hafen.ui():" + what + "(): no UI is up yet");
         return u;
@@ -920,9 +920,11 @@ final class UiApi {
      * image, and a box wider than the face would draw the picture in a corner of empty space.
      */
     static void rebuild(Addon owner, Owned old, Owned neu) {
-        UI u = ui;
         Widget oldw = old.rootw(), neww = neu.rootw();
-        synchronized(u) {
+        // 072.2: the monitor is the widget's own (072.1's rule — this block mutates oldw and neww), and the
+        // root the new one falls back to is host()'s: a control this layer built is in the tree it built it in.
+        UI u = host();
+        synchronized(LuaWidget.monitor(oldw)) {
             Widget parent = oldw.parent;
             Coord at = oldw.c;
             boolean shown = oldw.visible();
@@ -1045,7 +1047,7 @@ final class UiApi {
      * {@code disappear} one records silently, which is what lets a later close still fire.
      */
     private static void scanForWatch(LuaSelectorWatch w) {
-        UI u = ui;
+        UI u = host();
         if((u == null) || (u.root == null))
             return;
         // Under the ui monitor for the WHOLE scan, not just the walk: the placement seam and the tick both hold it,
@@ -1169,7 +1171,7 @@ final class UiApi {
     static void drainSelectorCaptionCheck() {
         if(capChanged.isEmpty())
             return;
-        UI u = ui;
+        UI u = host();
         if((u == null) || (u.root == null) || selectorWatches.isEmpty()) {
             capChanged.clear();       // no tree, or nothing left watching: the recorded windows are owed nothing
             return;
@@ -1287,16 +1289,16 @@ final class UiApi {
      * (026.1) do not. Since 031.1 a hidden window's <i>toggle</i> is owned as well, which makes {@code :reload}
      * the escape hatch for a hide typed into the console: without this the key stays swallowed until a relog.
      *
-     * <p><b>The guard decides relog vs {@code :reload}.</b> {@code AddonManager.init} binds the NEW session's
-     * {@code ui} <i>before</i> the teardown loop, so after a relog a server-bound entry's id no longer maps to the
-     * recorded widget (and a client-only one is no longer under the live root) — the restore is correctly skipped,
+     * <p><b>The guard decides relog vs {@code :reload}.</b> The anchor has already moved to the NEW session by
+     * the time this teardown runs, so {@link AddonManager#host()} is that session's and after a relog a
+     * server-bound entry's id no longer maps to the recorded widget (and a client-only one is no longer under the live root) — the restore is correctly skipped,
      * the old tree being gone entirely. Within one session both tests still hold and the widget is put back.
      * Tree ops → under the {@code ui} monitor, like every other write into the client's tree.
      */
     static void teardownHidden(Addon a) {
         if((a == null) || a.hiddenNative.isEmpty())    // null: the :lua REPL owner, which exists only once used
             return;
-        final UI u = ui;
+        final UI u = host();
         final List<LuaWidget.Hidden> hs = new ArrayList<LuaWidget.Hidden>(a.hiddenNative);
         a.hiddenNative.clear();
         LuaWidget.recountHidden();      // 031.1: the toggles this addon owned go back to the client
@@ -1338,7 +1340,7 @@ final class UiApi {
             return;
         h.owner.hiddenNative.remove(h);
         LuaWidget.recountHidden();
-        UI u = ui;
+        UI u = host();
         if(u != null) {
             synchronized(u) { restoreHidden(u, h); }
         } else {
@@ -1482,8 +1484,9 @@ final class UiApi {
     /**
      * Give back every native widget this addon moved or resized ({@code :reload}/disable), then drop the list.
      * The counterpart of {@link #teardownHidden} one property along, and the same guard: a record whose widget is
-     * no longer the live one is skipped, so a relog — which rebinds {@code ui} <i>before</i> the teardown loop —
-     * correctly restores nothing (that tree is gone), while a same-session {@code :reload} puts every widget back.
+     * no longer the live one is skipped, so a relog — where {@link AddonManager#host()} is the NEW session by
+     * the time the teardown runs — correctly restores nothing (that tree is gone), while a same-session
+     * {@code :reload} puts every widget back.
      *
      * <p><b>The restore is the exact inverse of the write</b>: the position half goes back through
      * {@link Widget#move}, the size half through {@link Widget#resize} with the argument
@@ -1500,7 +1503,7 @@ final class UiApi {
     static void teardownMoved(Addon a) {
         if((a == null) || a.movedNative.isEmpty())    // null: the :lua REPL owner, which exists only once used
             return;
-        final UI u = ui;
+        final UI u = host();
         final List<LuaWidget.Moved> ms = new ArrayList<LuaWidget.Moved>(a.movedNative);
         a.movedNative.clear();
         LuaWidget.recountMoved();
@@ -1797,7 +1800,7 @@ final class UiApi {
      * window — or names one directly with a selector.
      */
     private static LuaValue nodeRoot(Addon owner) {
-        UI u = ui;
+        UI u = host();
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         return LuaWidget.of(owner, u.root);
@@ -1811,7 +1814,7 @@ final class UiApi {
     private static LuaValue nodeById(Addon owner, LuaValue idv) {
         if(!idv.isnumber())
             throw new LuaError("hafen.ui.node(id) expects a widget id (number)");
-        UI u = ui;
+        UI u = host();
         if(u == null)
             return LuaValue.NIL;
         Widget w = u.getwidget(idv.toint());
@@ -1830,7 +1833,7 @@ final class UiApi {
     private static LuaValue nodeAt(Addon owner, LuaValue xv, LuaValue yv) {
         if(!xv.isnumber() || !yv.isnumber())
             throw new LuaError("hafen.ui.at(x, y) expects numbers");
-        UI u = ui;
+        UI u = host();
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         Widget hit;
@@ -2077,7 +2080,7 @@ final class UiApi {
      * teardowns like any other entity this addon placed.
      */
     static void teardownGobOverlays(Addon a) {
-        UI u = ui;
+        UI u = host();
         Runnable detach = () -> {
             try {
                 for(Gob g : allGobs()) {
@@ -2109,7 +2112,7 @@ final class UiApi {
      * twin, because teardown may run off the UI thread (session bind) while {@code ctick} rebuilds the state.
      */
     static void teardownGobScales(Addon a) {
-        UI u = ui;
+        UI u = host();
         Runnable unscale = () -> {
             try {
                 for(Gob g : allGobs())

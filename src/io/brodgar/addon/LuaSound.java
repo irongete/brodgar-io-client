@@ -245,7 +245,7 @@ public final class LuaSound {
      * asking IS the prune), and answer whether anything of this name is still sounding or still resolving.
      */
     private static boolean prune(Live l) {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         ActAudio.Root au = (u == null) ? null : u.audio;
         synchronized(l) {
             if(au == null) {                    // no session: the mixer that held them is gone with it
@@ -269,7 +269,7 @@ public final class LuaSound {
      * started after. (Lock order is always {@code Live} → the channel/mixer, never the other way.)
      */
     private static void silence(Live l) {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         synchronized(l) {
             l.gen++;            // a deferred play stamped with the old generation now drops its clip
             l.pending = 0;
@@ -398,7 +398,7 @@ public final class LuaSound {
      */
     private static void play(final Addon owner, final String name, final double vol) {
         final Glob g = AddonManager.glob();
-        final UI u = AddonManager.ui;
+        final UI u = AddonManager.host();
         if((g == null) || (u == null))
             return;
         final Live live = owner.sounds.sounding(name);

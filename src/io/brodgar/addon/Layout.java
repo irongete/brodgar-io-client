@@ -61,7 +61,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * same act read backwards — when no level names a half any more, the stock value goes back and the record's half
  * is dropped.
  *
- * <p>Package-private, carries no Lua, and every tree write happens under the {@code ui} monitor. Not instantiable.
+ * <p>Package-private, carries no Lua, and every tree write happens under the monitor of the {@code UI} the
+ * widget being written belongs to — {@link LuaWidget#monitor}, never an ambient one. Not instantiable.
  */
 final class Layout {
     private Layout() {}
@@ -108,7 +109,7 @@ final class Layout {
      * map in this layer ({@code Sheet.cache},
      * {@code LuaWidget.Cache}): {@code Widget} overrides neither {@code equals} nor {@code hashCode}, so it is an
      * identity map for free, and a strong one would pin every window an anchor ever named. Guarded by
-     * {@code Layout.class}, always taken <b>inside</b> the {@code ui} monitor.
+     * {@code Layout.class}, always taken <b>inside</b> the widget's own {@code UI} monitor.
      */
     private static final Map<Widget, Anchor> derived = new WeakHashMap<Widget, Anchor>();
 
@@ -311,13 +312,20 @@ final class Layout {
         apply(w, 0);
     }
 
+    /**
+     * <b>The {@code UI} is {@code w}'s own</b> (072.2), and it is one read answering both questions this method
+     * asks of it: which monitor guards the write, and which tree the anchor derivation measures in. Neither is a
+     * question about the session on screen — the widget being written is not always the drawn one — so
+     * {@link AddonManager#host()} would be the wrong answer to both, and the widget has carried the right one
+     * all along. An unattached widget has a null {@code ui} and gets {@link LuaWidget#monitor}'s stand-in,
+     * exactly as it did before this task: it still takes its text and its style, and every step of the geometry
+     * that needs a tree already guards on {@code u} being null.
+     */
     private static void apply(Widget w, int depth) {
         if(w == null)
             return;
-        UI u = AddonManager.ui;
-        if(u == null)
-            return;
-        synchronized(u) {
+        UI u = w.ui;
+        synchronized(LuaWidget.monitor(w)) {
             textHalf(w);                              // 061.5: WHAT it says, before the box it says it in
             Sheet.Resolved r = Sheet.styleOf(w);      // ONE fold, read once and used for both halves
             applyHalf(u, w, r, false);
@@ -591,7 +599,7 @@ final class Layout {
      */
     private static Coord fit(UI u, Widget w, Coord c) {
         Widget p = w.parent;
-        if((p == null) || ((p != u.root) && !(p instanceof GameUI)))
+        if((p == null) || (u == null) || ((p != u.root) && !(p instanceof GameUI)))
             return c;
         return UiApi.fitc(w, c);
     }
@@ -610,7 +618,7 @@ final class Layout {
     static void sweep() {
         if(!active())
             return;                                   // no rule, nothing held: a stock client sweeps nothing
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((u == null) || (u.root == null))
             return;
         synchronized(u) {
@@ -663,7 +671,7 @@ final class Layout {
         capDirty = false;
         if(pending.isEmpty())
             return;
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((u == null) || (u.root == null))
             return;
         for(Pending p : pending) {                // copy-on-write: entries drop out as we go
@@ -714,7 +722,7 @@ final class Layout {
      * screen resize.
      */
     static void dispatchResized(Widget w) {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((u != null) && (w == u.root))
             rederiveScreenAnchored();
         moved(w);

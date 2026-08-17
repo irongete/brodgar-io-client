@@ -104,6 +104,11 @@ grep -rniE "UI thread|session on screen|drawn session|which session" docs/
 - `src/io/brodgar/addon/CameraOptions.java` — 3
 - `src/io/brodgar/addon/CameraFacing.java` — 3
 - `src/io/brodgar/addon/VrApi.java` — 3
+- `src/io/brodgar/addon/CharApi.java` — 3
+- `src/io/brodgar/addon/WorldApi.java` — 3
+- `src/io/brodgar/addon/LuaGob.java` — 3
+- `src/io/brodgar/addon/LuaHand.java` — 3
+- `docs/client/multi-session.md` — 3
 - `src/io/brodgar/session/Sessions.java` — 2, 3
 - `src/haven/Widget.java` — 1
 - `src/haven/UI.java` — 1, 2, 3

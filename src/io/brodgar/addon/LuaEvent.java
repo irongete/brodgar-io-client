@@ -364,7 +364,7 @@ public final class LuaEvent {
      */
     static LuaValue control(Addon owner, String key, Widget w, Widget actor, Object value, Subs.Cancel c,
                             boolean moved) {
-        LuaEvent e = new LuaEvent(owner, Shape.CONTROL, c, key, w, null, AddonManager.ui, null);
+        LuaEvent e = new LuaEvent(owner, Shape.CONTROL, c, key, w, null, AddonManager.host(), null);
         e.nval = value;
         e.actor = actor;
         e.moved = moved;

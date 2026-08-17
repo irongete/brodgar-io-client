@@ -54,7 +54,7 @@ public final class LuaGrab {
      * its Lua wrapper. {@code nil} if the UI is not up yet (there is nothing to capture on).
      */
     static LuaValue create(Addon owner) {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         LuaMouseGrab g = new LuaMouseGrab(owner);

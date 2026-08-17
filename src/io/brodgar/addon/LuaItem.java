@@ -420,7 +420,7 @@ public final class LuaItem {
     static GItem live(GItem it) {
         if(it == null)
             return null;
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((u == null) || (u.root == null))
             return null;
         return it.hasparent(u.root) ? it : null;

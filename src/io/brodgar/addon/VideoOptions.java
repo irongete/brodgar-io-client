@@ -30,13 +30,13 @@ public final class VideoOptions {
 
     /** The live GSettings, or null before the UI exists. */
     private static GSettings prefs() {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         return (u == null) ? null : u.gprefs;
     }
 
     /** Apply one setting: rebuild the GSettings and hand it to the UI (which validates + persists it). */
     private static <T> void apply(GSettings.Setting<T> setting, T val, String method) {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if(u == null)
             return;
         try {

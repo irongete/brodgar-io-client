@@ -1,0 +1,9 @@
+{
+  "name": "072.2 — the tree says whose it is",
+  "id": "072-which-ui.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 072.2: the widget tree is still found, placed in and walked now that every root read names the host session rather than an ambient field.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

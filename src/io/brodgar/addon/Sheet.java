@@ -1256,7 +1256,7 @@ final class Sheet {
     static void drainCaptionInvalidation() {
         if(capChanged.isEmpty())
             return;
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((u == null) || (u.root == null)) {
             capChanged.clear();       // the tree those windows belonged to is gone; so is anything cached for it
             return;

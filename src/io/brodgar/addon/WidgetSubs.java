@@ -233,7 +233,7 @@ final class WidgetSubs {
      * what enters afterward.
      */
     private void startListening() {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         this.boundId = (u == null) ? -1 : u.widgetid(wdg);
         if((u != null) && !live(u)) {
             subs.fire("Destroy");

@@ -32,7 +32,7 @@ public final class AudioOptions {
 
     /** The live audio roots, or null before the UI exists. */
     private static ActAudio.Root audio() {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         return (u == null) ? null : u.audio;
     }
 

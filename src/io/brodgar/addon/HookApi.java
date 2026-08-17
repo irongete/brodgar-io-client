@@ -131,7 +131,7 @@ final class HookApi {
                 // install the ONE engine-lifetime dispatcher that forever routes to slashHandlers.get(cmd) (C1).
                 boolean exists = false;
                 try {
-                    UI u = AddonManager.ui;
+                    UI u = AddonManager.host();
                     exists = (u != null) && (u.cons != null) && (u.cons.findcmd(cmd) != null);
                 } catch(RuntimeException e) {
                     /* best-effort collision check — proceed if the console can't be queried right now */

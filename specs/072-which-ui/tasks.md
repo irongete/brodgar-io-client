@@ -59,7 +59,7 @@ argument the task after it has to settle rather than sweep:
   the field for `u.getwidget`/`u.widgetid`/`u.root` — the two-branch liveness test — so all five are tree
   sites and land here.
 
-- [ ] **072.2 — The tree says whose it is.**
+- [x] **072.2 — The tree says whose it is.**
       Adds `AddonManager.host()` — the `UI` whose widget tree this addon layer works in: where an
       addon's own windows live and where a selector searches. It answers `Sessions.anchor()` and is
       **derived, never stored**, because a second copy of "which session is drawn" kept in sync by
@@ -76,6 +76,26 @@ argument the task after it has to settle rather than sweep:
       `widget:parent()` walks from a found widget up to a root, and `pcall`s `hafen.ui():find()` with
       a malformed selector, asserting the refusal names the selector grammar.
       `[manual]`: open the Inventory. Expect: the suite's line for it reports found, with its title.
+
+**Carried from `072.2`, because re-deriving it costs a second read of thirty files.** The tree group was
+**56 sites in 19 files**, and all of them are converted, `AddonManager.host()` answering `Sessions.anchor()`.
+The rule it applied is the plan's: a `u.root` reader names the tree it searches, and only `Layout.apply`
+takes its `UI` from `w` instead — that one hands `u` on to `Anchor.resolve` and `fit`, so `w.ui` is the
+answer to the geometry as well as to the lock, and `fit` grew the null guard the unattached case then needs.
+`UiApi.rebuild` was the one mixed site: its monitor is now the widget's own (072.1's rule) and its fallback
+parent is `host().root`. Four things `072.3` inherits rather than discovers:
+
+- **The pointer group left standing is FIVE reads, not four**: `LuaMouse`'s `:x`, `:y`, `over()` and `mods()`,
+  plus `SurfaceInput.refreshOrigin`'s own `u.mc` — which this plan's task list does not name, and which is a
+  `screen()` site by exactly the same argument as the other four.
+- **The `view` group is 22 reads in 9 files, not seven.** The count was taken over `AddonManager.view` and
+  missed every file reading the same field as a bare `view` through `import static AddonManager.*`
+  (`CharApi` ×3, `VrApi` ×6, `WorldApi` ×3) and `AddonManager`'s own three (`glob`, `gui`, and the gob-position
+  read below them).
+- **`docs/client/multi-session.md` owes a row too**, beside the `boot-and-loop.md` one already charged: *"It
+  does not take the addon engine"* says that hub's `ui` and `view` "are the client's one live pair", which is
+  true right up to the line that deletes them.
+- **The `Docs impact` set is discharged there**, by the task that revises the page it names.
 
 - [ ] **072.3 — The screen is one, and the fields are gone.**
       Adds `AddonManager.screen()` (the drawn `UI`) and `AddonManager.screenView()` (the drawn

@@ -258,7 +258,7 @@ final class Gesture extends Widget {
     private static boolean press(Widget handle, Widget.MouseDownEvent ev) {
         if(ev.b != 1)
             return false;
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((u == null) || (u.root == null) || !handle.hasparent(u.root))
             return false;
         Coord at = handle.rootpos().add(ev.c);            // the press, in root pixels

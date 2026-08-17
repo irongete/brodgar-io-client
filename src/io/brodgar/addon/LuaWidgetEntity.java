@@ -126,13 +126,13 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
      * <p>Four guards, each for a case that really happens: the content must not be <b>dying</b>
      * ({@link #contentGone} — a window announces its removal before it unlinks, so "is it still in the surface"
      * cannot tell a live widget from one halfway through its own destruction); the surface must still be under
-     * the <b>live</b> root (after a relogin {@code AddonManager.ui} is already the NEW session's, and the old
+     * the <b>live</b> root (after a relogin {@code AddonManager.host()} is already the NEW session's, and the old
      * tree's widget must not be re-homed into it — the whole tree it belongs to is gone); the recorded parent
      * must still be in that tree (else the widget goes to the root rather than into a dead frame); and the
      * content must still be in the surface at all.
      */
     void destroyed() {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         WidgetSurface s = surface;
         if(!contentGone && (u != null) && (u.root != null) && (content != null) && (content.parent == s)
            && s.hasparent(u.root)) {

@@ -166,7 +166,7 @@ final class FlowerMenuApi {
      * door onto the same widget.
      */
     static FlowerMenu open() {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((u == null) || (u.root == null))
             return null;
         for(FlowerMenu fm : u.root.children(FlowerMenu.class))   // only one is ever open (it grabs input)
@@ -197,13 +197,13 @@ final class FlowerMenuApi {
     /**
      * The press point a menu is placed at — {@code added()} does {@code c = parent.ui.lcc}, and that is the very
      * value {@link ClickToken} keys on. Read off the widget's own {@code ui} so a probe can drive the seam
-     * without the manager's live one; {@link AddonManager#ui} is the fallback for a menu asked before it is
+     * without the manager's live one; {@link AddonManager#host()} is the fallback for a menu asked before it is
      * parented.
      */
     private static haven.Coord lcc(FlowerMenu fm) {
         if((fm != null) && (fm.ui != null))
             return fm.ui.lcc;
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         return (u == null) ? null : u.lcc;
     }
 

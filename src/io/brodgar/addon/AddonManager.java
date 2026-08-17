@@ -64,6 +64,7 @@ import haven.WoundWnd;
 import haven.render.RenderTree;
 import haven.resutil.Curiosity;
 import io.brodgar.prof.Prof;
+import io.brodgar.session.Sessions;
 
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
@@ -265,6 +266,36 @@ public final class AddonManager {
         });
         // :reload  reload the addon layer from disk (D-005) — no relog. Queued to the UI-thread tick.
         Console.setscmd("reload", (cons, args) -> AddonRegistry.queueReload());
+    }
+
+    // ------------------------------------------------------------- which UI
+
+    /**
+     * <b>The {@code UI} whose widget tree this addon layer works in</b> (072.2) — where an addon's own windows
+     * live, where a selector searches, whose console a slash command is registered against, and whose audio,
+     * settings and connection the read verbs report. It is <b>not</b> "the screen": the pointer and the drawn
+     * {@link MapView} are one however many sessions are live, and they get their own names ({@code screen()},
+     * {@code screenView()}) precisely so that this one — the only genuinely session-shaped question in the
+     * layer — can grow a session argument later without dragging them along. Its callers are then exactly the
+     * list of sites that must grow one.
+     *
+     * <p><b>Derived, never stored.</b> It answers {@link Sessions#anchor()} — the session the client draws —
+     * rather than a field kept in sync by hand, which is the shape {@code 071} spent three tasks deleting one
+     * layer down: two copies of "which session is drawn" disagree eventually, and the one that disagrees is
+     * the one nothing reads on the tick. {@code Sessions.tickrebind} calls {@link #init(UI)} with that very
+     * value on every anchor change, so this is the same object the field held, read at its source.
+     *
+     * <p><b>The one place the derivation is not the identity</b> is the client holding no session at all: the
+     * field kept the last game session's {@code UI} until the next {@link #init}, and {@link Sessions#anchor()}
+     * answers the login screen's, because that is what is drawn. The newer answer is the live tree and the
+     * older one a destroyed one, so nothing regresses — and the layer is not running there anyway: the tick
+     * pump is a widget on the session's own root, so it stops with the session that carried it.
+     *
+     * <p>{@code null} before {@link Sessions#init} has a loop, and the {@link UI#root} of what it answers may
+     * be null as well — every caller guards, exactly as it guarded the field.
+     */
+    static UI host() {
+        return Sessions.anchor();
     }
 
     // ------------------------------------------------------------- lifecycle
@@ -616,7 +647,7 @@ public final class AddonManager {
             //     (see the field note): UI.drawafter is one-shot, tick precedes draw, so it paints above the
             //     HUD this frame. The gob-overlay sweep that used to stand here is GONE (038.1) — the state
             //     lives on the gob, so there is nothing to match and nothing to attach per tick.
-            UI u = ui;
+            UI u = host();
             if((u != null) && UiApi.anyHudOverlays())
                 u.drawafter(UiApi.hudAfterDraw);
 
@@ -1132,7 +1163,7 @@ public final class AddonManager {
     static boolean dispatchAction(Widget sender, String msg, Object[] args) {
         if(!anyStreamSub(msg, true))
             return true;                              // fast path: nothing anywhere listens to this action
-        UI u = ui;
+        UI u = host();
         if((u == null) || !Thread.holdsLock(u))
             return true;                              // only run Lua on a UI-locked (Lua-safe) send path
         if(dispatchingAction)
@@ -1435,7 +1466,7 @@ public final class AddonManager {
         }
         UI u = (w == null) ? null : w.ui;
         if(u == null)
-            u = ui;
+            u = host();
         return ((u == null) || (u.root == null)) ? w : u.root;
     }
 
@@ -1481,7 +1512,7 @@ public final class AddonManager {
             return null;
         LuaWidgetEntity e = ((WidgetSurface)w).ent;
         Widget p = (e == null) ? null : e.prevParent;
-        UI u = ui;
+        UI u = host();
         if((p == null) || (p == w) || (u == null) || (u.root == null) || !p.hasparent(u.root))
             return null;
         return p;
@@ -2545,7 +2576,7 @@ public final class AddonManager {
     /** Engine-level output: stdout (prefixed) and in-game notice when available. */
     static void log(String msg) {
         System.out.println("[addon] " + msg);
-        UI u = ui;
+        UI u = host();
         if(u != null) {
             try {
                 u.msg(clampMsg(msg));
@@ -2579,7 +2610,7 @@ public final class AddonManager {
     static void log(Addon owner, String msg) {
         String id = ownerName(owner);
         System.out.println("[" + id + "] " + msg);
-        UI u = ui;
+        UI u = host();
         if(u != null) {
             try {
                 u.msg(clampMsg(id + ": " + msg));
@@ -2625,7 +2656,7 @@ public final class AddonManager {
     private static void eval(String src) {
         if(src.isEmpty())
             return;
-        UI u = ui;
+        UI u = host();
         System.out.println("[console] :lua " + src);               // echo the input to the terminal
         try {
             LuaValue chunk;
@@ -2694,7 +2725,7 @@ public final class AddonManager {
             if(g != null)
                 return g;
         }
-        UI u = ui;
+        UI u = host();
         return (u == null) ? null : findGui(u.root);
     }
 

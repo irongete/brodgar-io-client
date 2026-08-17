@@ -1608,7 +1608,7 @@ public final class LuaWidget {
             return mine;
         if(UiApi.hiddenOwner(w) != null)
             return null;                      // 031.2: somebody else's window
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         Hidden h = new Hidden(owner, w, (u == null) ? -1 : u.widgetid(w));
         owner.hiddenNative.add(h);
         anyHidden = true;                     // 031.1: this addon now owns that window's toggle
@@ -1824,7 +1824,7 @@ public final class LuaWidget {
         Moved m = findMoved(owner, w);
         if(m != null)
             return m;
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         m = new Moved(owner, w, (u == null) ? -1 : u.widgetid(w));
         owner.movedNative.add(m);
         anyMoved = true;
@@ -2023,7 +2023,7 @@ public final class LuaWidget {
 
     /** Is this widget still hanging under the live root? (A raw {@link Widget}, so not the {@link #live} test.) */
     private static boolean inTree(Widget w) {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         return (u != null) && (u.root != null) && (w.parent != null) && w.hasparent(u.root);
     }
 
@@ -2247,7 +2247,7 @@ public final class LuaWidget {
         Widget w = n.wdg;
         if(w == null)
             return null;
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((u == null) || (u.root == null))
             return null;                       // no UI yet: unresolvable now, but not proven dead — keep the ref
         if(!w.hasparent(u.root)) {             // detached from the tree → destroyed
@@ -2645,7 +2645,7 @@ public final class LuaWidget {
      * root exactly as it does from a window on the flat UI, and the key comes back down the same chain.
      */
     static boolean focusPath(Widget w) {
-        UI u = AddonManager.ui;
+        UI u = AddonManager.host();
         if((w == null) || (u == null) || (u.root == null))
             return false;
         synchronized(u) {
