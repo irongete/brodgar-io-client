@@ -97,18 +97,15 @@ public class Sessions {
     }
 
     /**
-     * The same question, asked where only the {@code Glob} is in hand — and since F5 it has a second
-     * half. A session is dormant when it is not the one being drawn, and that now includes the
-     * <em>main</em> session, which gives up the screen whenever a member takes it.
+     * The same question, asked where only the {@code Glob} is in hand. A session is dormant when it is
+     * not the one being drawn — which is this one list minus whichever member currently holds the
+     * screen, and no second place to look: every game session the client holds is in it.
      */
     public static boolean dormant(Glob glob) {
 	if(glob == null)
 	    return(false);
 	if(glob == anchorglob())
 	    return(false);
-	UI mu = mainui();
-	if((mu != null) && (mu.sess != null) && (mu.sess.glob == glob))
-	    return(true);
 	for(Member m : members) {
 	    Session s = m.sess;
 	    if((s != null) && (s.glob == glob))
@@ -134,7 +131,6 @@ public class Sessions {
 	SessionWnd.tick();    // rts: the session switcher, on the HUD of whichever session is drawn
 	tickmode();         // rts: (F3) the mode, derived from the membership, outside the branch below
 	if(!members.isEmpty()) {
-	    tickmainoffset();   // rts: (F5)
 	    UI an = anchor();
 	    for(Member m : members) {
 		UI u = m.ui;
@@ -490,53 +486,6 @@ public class Sessions {
 	return(d);
     }
 
-    static Coord2d worldoff(Coord gcoff) {
-	Coord t = gcoff.mul(MCache.cmaps);
-	return(Coord2d.of(t.x * MCache.tilesz.x, t.y * MCache.tilesz.y));
-    }
-
-    /* rts: (F5) the MAIN session's own offset. It was never needed while the main session WAS the
-     * anchor -- an offset to itself is zero -- but the moment a member can hold the screen, the main
-     * session becomes just another session standing somewhere else, and everything the members needed
-     * (a merged patch, a selectable character, an order in its own frame) it needs too. */
-    private static Coord2d mainoff = null;
-    private static Glob mainoffanchor = null, mainoffglob = null;
-    private static double mainofftry = 0;
-
-    private static void tickmainoffset() {
-	UI mu = mainui();
-	Glob an = anchorglob();
-	if((mu == null) || (mu.sess == null) || (an == null))
-	    return;
-	Glob mine = mu.sess.glob;
-	if(mine == an) {
-	    mainoff = Coord2d.of(0, 0);
-	    mainoffanchor = an;
-	    mainoffglob = mine;
-	    return;
-	}
-	if((mainoffanchor != an) || (mainoffglob != mine)) {
-	    mainoff = null;
-	    mainoffanchor = an;
-	    mainoffglob = mine;
-	    mainofftry = 0;
-	}
-	if(mainoff != null)
-	    return;
-	double now = Utils.rtime();
-	if((mainofftry != 0) && (now - mainofftry < 1.0))
-	    return;
-	mainofftry = now;
-	int[] n = new int[1];
-	boolean[] conflict = new boolean[1];
-	Coord d = findoffgc(an, mine, n, conflict);
-	if(d == null)
-	    return;
-	mainoff = worldoff(d);
-	say("main session anchored on %d shared grid%s%s", n[0], (n[0] == 1) ? "" : "s",
-	    conflict[0] ? " -- GRIDS DISAGREE" : "");
-    }
-
     /**
      * rts: (F5) one live session, located relative to whichever session currently holds the screen.
      *
@@ -552,7 +501,7 @@ public class Sessions {
 	public final GameUI gui;
 	public final Glob glob;
 	public final Coord2d offset;   // this session's frame minus the anchor's
-	public final Member member;    // null for the main session
+	public final Member member;    // the session itself, and never null: every session is a member
 	public final boolean isanchor;
 
 	Placed(String user, UI ui, GameUI gui, Glob glob, Coord2d offset, Member member, boolean isanchor) {
@@ -577,7 +526,7 @@ public class Sessions {
      * the cache above) a tree walk per session every single time. Nothing it reports can change
      * within a frame: the tick is the only thing that moves any of it.
      *
-     * Volatile, and with exactly ONE builder. buildplaced() runs mainguiof() -> Widget.findchild, a
+     * Volatile, and with exactly ONE builder. buildplaced() runs Member.gameui() -> Widget.findchild, a
      * recursive walk of a widget tree the UI thread is mutating, so the thread that walks it has to be
      * the thread that mutates it. The pick pass arrives here from somewhere else entirely: MapView's
      * checkmapclick reads offsetfor(cut.map) inside a GPU readback callback, which GLEnvironment runs on
@@ -605,7 +554,7 @@ public class Sessions {
      * answered out of what is published, so "nothing was published this frame" and "no session holds that
      * map" have to come out as the same answer, and only a list that is always there makes them one. The
      * cost is a list and a Placed per session per frame; the tree walk each Placed once needed is already
-     * cached (mainguiof, Member.gameui). */
+     * cached (Member.gameui). */
     private static void republish() {
 	placedcache = buildplaced();
     }
@@ -654,16 +603,12 @@ public class Sessions {
 	return(placedRebuiltOffTick.get());
     }
 
+    /* rts: (071.2) one loop, and no second kind of row. Every session the client holds is a member, so a
+     * Placed always carries the member it describes and is always named by the ACCOUNT that member logged
+     * in as -- there is no session here for which the client has to invent a name. */
     private static List<Placed> buildplaced() {
 	List<Placed> ret = new ArrayList<Placed>();
 	UI an = anchor();
-	UI mu = mainui();
-	if((mu != null) && (mu.sess != null) && (mu.root != null)) {
-	    GameUI gui = mainguiof(mu);
-	    Coord2d off = (mu == an) ? Coord2d.of(0, 0) : mainoff;
-	    if((gui != null) && (off != null))
-		ret.add(new Placed("main", mu, gui, mu.sess.glob, off, null, mu == an));
-	}
 	for(Member m : members) {
 	    UI u = m.ui;
 	    GameUI gui = m.gameui();
@@ -742,9 +687,8 @@ public class Sessions {
      * answer "how high is it here" without the anchor's map is a camera that blacks the screen out
      * the moment it is panned somewhere interesting.
      *
-     * <p>Every placed session but the anchor's own is asked, each in the frame it is actually in.
-     * {@link #placed()} is the whole reason both halves of that are right: the main session is in it
-     * through {@link #mainoff} and was never in {@code members} at all, and the {@code isanchor ?
+     * <p>Every placed session but the anchor's own is asked, each in the frame it is actually in, and
+     * {@link #placed()} rather than {@code members} is why the frames are right: the {@code isanchor ?
      * zero : offset} correction it applies is the one {@link Member#offset()} does not carry once a
      * member takes the screen ({@code tickoffset} returns early when it is the anchor, so that field
      * keeps whatever it last held). The anchor's own entry is skipped because the caller is here
@@ -844,18 +788,6 @@ public class Sessions {
     @SuppressWarnings("deprecation")
     static GameUI findgui(UI u) {
 	return(((u == null) || (u.root == null)) ? null : u.root.findchild(GameUI.class));
-    }
-
-    private static UI mainguifor = null;
-    private static GameUI mainguicache = null;
-
-    static GameUI mainguiof(UI u) {
-	if(u == null)
-	    return(null);
-	if((mainguifor == u) && (mainguicache != null) && (mainguicache.parent != null))
-	    return(mainguicache);
-	mainguifor = u;
-	return(mainguicache = findgui(u));
     }
 
     static Placed anchorsess() {

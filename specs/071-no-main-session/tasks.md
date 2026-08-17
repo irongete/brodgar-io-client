@@ -42,7 +42,7 @@ is exactly what would break it.
       `[manual]`: log out from the game menu with no other session up. Expect: the login screen comes
       back and the client stays running, exactly as before this change.
 
-- [ ] **071.2 — One list, and the second copy of everything is deleted.**
+- [x] **071.2 — One list, and the second copy of everything is deleted.**
       With every session a `Member`, the parallel machinery is unreferenced. Delete `Sessions.mainoff`,
       `mainoffanchor`, `mainoffglob`, `mainofftry`, `tickmainoffset()`, `mainguiof()`, `mainguifor`
       and `mainguicache`. `Sessions.dormant(Glob)` loses its explicit `mainui()` branch and keeps its

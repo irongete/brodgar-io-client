@@ -1,0 +1,9 @@
+{
+  "name": "071.2 — one list, and no second copy",
+  "id": "071-no-main-session.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 071.2: the session group still reads after the duplicate machinery was deleted, and the one-loop session cache is still built only by the frame.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
