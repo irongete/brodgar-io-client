@@ -1,0 +1,9 @@
+{
+  "name": "071.3 — the words drop the main",
+  "id": "071-no-main-session.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 071.3: live holds still through a duplicate :session add and falls by one when any session is dropped, with the session cache still built only by the frame.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

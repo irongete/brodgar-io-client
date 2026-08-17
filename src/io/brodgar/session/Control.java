@@ -63,7 +63,7 @@ public class Control {
     /** A character the client can command, as the anchor sees it. */
     public static class Unit {
 	public final long gobid;
-	public final Sessions.Member member;   // null means the anchor's own character
+	public final Sessions.Member member;   // the session it belongs to, and never null: every session is a member
 	public final Coord2d rc;            // in the ANCHOR's frame -- there is no other frame on screen
 	public final Coord sc;              // projected, or null when it cannot be placed on screen
 
@@ -72,10 +72,6 @@ public class Control {
 	    this.member = member;
 	    this.rc = rc;
 	    this.sc = sc;
-	}
-
-	public String name() {
-	    return((member == null) ? "main" : member.user);
 	}
     }
 
@@ -90,8 +86,8 @@ public class Control {
 	List<Unit> ret = new ArrayList<Unit>();
 	/* Every session, located by its OWN session and translated -- not by asking the anchor's
 	 * OCache. The anchor stops streaming a character's gob the moment it walks out of range, and a
-	 * unit that cannot be clicked then is a unit you cannot call back. Since F5 that cuts both
-	 * ways: the main character is the one out of range while a member holds the screen. */
+	 * unit that cannot be clicked then is a unit you cannot call back. It cuts every way: any session
+	 * can be the one on screen, so any of them can be the one out of range. */
 	for(Sessions.Placed ss : Sessions.placed()) {
 	    Coord2d rc = ss.charpos();
 	    if(rc != null)
@@ -393,17 +389,25 @@ public class Control {
      * the selection, which the anchor knows nothing about — and <b>only</b> that. Each session's camera
      * is its own and is left exactly as the player had it, here as everywhere else in this layer.
      *
-     * @param m the member to go to, or {@code null} for the main session.
+     * <p>It takes a <b>session</b>, and there is no spelling here for the login screen: going to a
+     * character is what this is, and the login screen is not one — it is where dropping the last session
+     * leaves you, which {@link Sessions#relinquish} and {@link Sessions#reclaim} reach through
+     * {@code Sessions.anchor(null)}. A null here is a caller that still thinks one session is different
+     * from the others, so it is refused rather than quietly emptying the screen.
+     *
+     * @param m the session to go to, never null.
      */
     public static void take(Sessions.Member m) {
+	if(m == null)
+	    throw(new IllegalArgumentException("session: take needs a session to go to -- the login screen is not one"));
 	Sessions.anchor(m);
 	/* Already the anchor is not a failure -- the selection still follows. A switch that did NOT
 	 * happen (a session with no screen yet) is, and it leaves the character on screen alone rather
 	 * than selecting somebody the player did not ask for. */
 	if(Sessions.anchormember() != m)
 	    return;
-	/* Asked of the anchor rather than of m: the same character either way, and this spelling is
-	 * uniform over the main session, which has no Member to ask. */
+	/* Asked of the anchor rather than of m: the same character either way, and the anchor's own row
+	 * is where the character id has already been worked out. */
 	Sessions.Placed ss = Sessions.anchorsess();
 	if((ss == null) || !on)
 	    return;

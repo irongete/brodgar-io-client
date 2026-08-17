@@ -236,12 +236,12 @@ public class Sessions {
 
 
     /**
-     * The login slot: {@code UILoop.ui}, the UI {@code Client.Main}'s own chain owns and replaces. Since
-     * the handoff it holds the login screen and never a game session, so this is what the screen falls
-     * back to when no session holds it — the client with nobody logged in, which is where dropping the
-     * last session leaves you.
+     * The login slot: {@code UILoop.ui}, the UI {@code Client.Main}'s own chain owns and replaces. It
+     * holds the login screen and never a game session, so this is what the screen falls back to when no
+     * session holds it — the client with nobody logged in, which is where dropping the last session
+     * leaves you.
      */
-    public static UI mainui() {
+    public static UI loginui() {
 	UILoop lp = loop;
 	return((lp == null) ? null : lp.ui);
     }
@@ -295,7 +295,7 @@ public class Sessions {
      * RootChannel.mute returns on no change, so a frame that alters nothing costs a comparison. */
     private static void applymute() {
 	UI an = anchor();
-	UI mu = mainui();
+	UI mu = loginui();
 	if(mu != null)
 	    mute(mu, mu != an);
 	for(Member m : members) {
@@ -321,7 +321,7 @@ public class Sessions {
      * and logging out is the login screen. */
     private static void reclaim() {
 	UI an = anchor();
-	if((an == null) || (an == mainui()))
+	if((an == null) || (an == loginui()))
 	    return;   /* the login screen holds it: there is no dead session under it to reclaim */
 	Member next = null;
 	for(Member m : members) {
@@ -381,7 +381,7 @@ public class Sessions {
 	UILoop lp = loop;
 	if(lp == null)
 	    return;
-	UI target = (m == null) ? mainui() : m.ui;
+	UI target = (m == null) ? loginui() : m.ui;
 	if(target == null) {
 	    say("that session has no screen yet");
 	    return;
@@ -425,19 +425,24 @@ public class Sessions {
     }
 
     /**
-     * Cycle: main, then each member in turn, then back. Through {@link Control#take} rather than
-     * {@link #anchor} directly — cycling to a character and picking it out of the switcher window are
-     * the same intent, and both leave it on screen, alone in the selection and under the camera.
+     * Cycle to the session after the one on screen, and round. One flat list with <b>no distinguished
+     * stop</b>: every session is a member, so tabbing visits each of them exactly once per lap. The
+     * login screen is not one of the stops — it is where dropping the last session leaves you, not
+     * somewhere to tab to — so the list is never left, and with nothing on screen yet the cycle starts
+     * at the first member.
+     *
+     * <p>Through {@link Control#take} rather than {@link #anchor} directly — cycling to a character and
+     * picking it out of the switcher window are the same intent, and both leave it on screen, alone in
+     * the selection and under the camera.
      */
     public static void next() {
 	List<Member> ms = members();
-	Member cur = anchormember();
-	if(cur == null) {
-	    Control.take(ms.isEmpty() ? null : ms.get(0));
+	if(ms.isEmpty())
 	    return;
-	}
-	int i = ms.indexOf(cur);
-	Control.take(((i < 0) || (i + 1 >= ms.size())) ? null : ms.get(i + 1));
+	/* No member holding the screen answers -1, which is exactly the index before the first: the cycle
+	 * starts at ms.get(0) with no branch of its own. */
+	int i = ms.indexOf(anchormember());
+	Control.take(ms.get((i + 1) % ms.size()));
     }
 
     @SuppressWarnings("deprecation")
@@ -489,11 +494,11 @@ public class Sessions {
     /**
      * rts: (F5) one live session, located relative to whichever session currently holds the screen.
      *
-     * <p>Introduced because the anchor stopped being the main session. Up to F4 "the anchor's own
-     * character" and "the main character" were the same thing and every lookup could special-case it;
-     * once a member can hold the screen they are different, and the special case turns into a
-     * character that cannot be seen, selected or ordered the moment you tab away from it. One uniform
-     * list, the anchor being simply the session whose offset is zero.
+     * <p>The equality abstraction this layer is read through: <b>one uniform list, the anchor being
+     * simply the session whose offset is zero</b>. Any session can be the one on screen and any of them
+     * can be the one you have tabbed away from, so a lookup that names one of them differently is a
+     * lookup that loses it — a character that cannot be seen, selected or ordered the moment it stops
+     * being the one drawn.
      */
     public static class Placed {
 	public final String user;
@@ -944,8 +949,8 @@ public class Sessions {
 	}
 
 	/**
-	 * The member's own runner chain, exactly the shape {@code Client.Main} runs for the anchor: a
-	 * {@code RemoteUI} that returns another one when the server hands the session on, and null when
+	 * This session's own runner chain, the same shape {@code Client.run} drives for the login screen:
+	 * a {@code RemoteUI} that returns another one when the server hands the session on, and null when
 	 * it is over.
 	 */
 	private void run(UILoop lp, UI.Runner fun, UI first) {

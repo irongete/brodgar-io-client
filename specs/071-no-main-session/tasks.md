@@ -66,7 +66,7 @@ is exactly what would break it.
       ground stays solid and the camera holds its height — `groundz` reads `placed()`, whose body this
       task rewrote.
 
-- [ ] **071.3 — The words drop the main, and the last one out reaches the login screen.**
+- [x] **071.3 — The words drop the main, and the last one out reaches the login screen.**
       `:session anchor` takes an account name and the `main` keyword is retired — a spelling that
       throws naming what to write instead, not one that reads as an unknown account.
       `:session drop <account>` reaches any session, and dropping the **last** live one leaves the

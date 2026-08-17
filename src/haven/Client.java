@@ -344,20 +344,22 @@ public class Client implements Console.Directory {
 			/* rts: (F5) go to another session -- Control.take, the same one gesture the switcher
 			 * window's buttons and the cycle key spell: its screen, its selection alone, its camera. */
 			if(args.length < 3)
-			    throw(new Exception("usage: session anchor USER|main"));
-			if(args[2].equals("main")) {
-			    io.brodgar.session.Control.take(null);
-			} else {
-			    io.brodgar.session.Sessions.Member am = null;
-			    for(io.brodgar.session.Sessions.Member m : io.brodgar.session.Sessions.members()) {
-				if(m.user.equals(args[2]))
-				    am = m;
-			    }
-			    if(am == null)
-				io.brodgar.session.Sessions.say("no such session: %s", args[2]);
-			    else
-				io.brodgar.session.Control.take(am);
+			    throw(new Exception("usage: session anchor USER"));
+			/* rts: (071.3) `main` named the session the client's own runner chain kept, and there
+			 * is no such session: every one is named by the account it logged in as. Refused by
+			 * name rather than left to fall through the account lookup below, which would answer
+			 * "no such session: main" and send the maintainer looking for an account called that. */
+			if(args[2].equals("main"))
+			    throw(new Exception("session anchor main: name an ACCOUNT instead -- `:session list` says which are live"));
+			io.brodgar.session.Sessions.Member am = null;
+			for(io.brodgar.session.Sessions.Member m : io.brodgar.session.Sessions.members()) {
+			    if(m.user.equals(args[2]))
+				am = m;
 			}
+			if(am == null)
+			    io.brodgar.session.Sessions.say("no such session: %s", args[2]);
+			else
+			    io.brodgar.session.Control.take(am);
 		    } else if(sub.equals("users")) {
 			List<String> us = io.brodgar.session.Sessions.savedusers();
 			    if(us.isEmpty())
