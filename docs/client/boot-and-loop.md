@@ -9,8 +9,31 @@
 | Resource setup (global init point, no session) | `Client.setupres`, called at `main2` |
 | Runner state machine (`task.run(newui(task))`) | `Client.run` |
 | Login → session establishment → returns `RemoteUI` | `Bootstrap.run`, `Session.connect` |
-| **Per-session init (`ui.sess` bound)** ← engine attach point | `RemoteUI.init(UI)` |
+| **Per-session init (`ui.sess` bound)** ← engine attach point | `RemoteUI.init(UI)`, called from `UI`'s own constructor |
 | In-game HUD construction | `GameUI` ctor (`GameUI(String chrid, long plid, String genus)`) |
+
+## The runner state machine
+
+A `UI.Runner` is a step: `run(UI)` returns the next step, or `null` when there is none. Two loops turn
+that into the client's life, and they are not the same loop.
+
+| What | Where |
+|---|---|
+| **The outer one, and the client's own lifetime** | `Client.run(UI.Runner)` — `while(task != null) task = task.run(newui(task))`, with `finally {newui(null);}`. Falling out of it is how the client **exits**, so the task it is given must never return |
+| The one that never returns | `Client.Main.run` — an endless `while(true)`: build a `Bootstrap`, title the window from `Runner.title()`, run it, and go round again. It is the task `main2` hands to `Client.run` in the ordinary case |
+| Building the runner's UI | `UILoop.newui(fun)` — puts the new `UI` in the `UILoop.ui` **slot**, waits on `uilock` while a frame still holds the previous one, then **destroys** that previous one |
+| Building a UI that owns no slot | `UILoop.bgui(fun)` — the same construction minus the slot, the wait and the destroy. Both build **outside `uilock`**, because `UI`'s constructor runs `Runner.init` and no other lock may be taken under that one |
+| Which UI the frame actually draws | `UILoop.drawn()` / `drawn(UI)` — the slot is what is drawn only while nothing else claims it |
+| **The seam (fork)** | `Client.Main.run` hands a `RemoteUI` to `Sessions.adopt` instead of running it, so the slot holds the **login screen** and every game session is built with `bgui` on a thread of its own ([multi-session.md](multi-session.md)) |
+| The other two entries, which use neither | `Client.main2` with `haven.servargs`/`replay` set, and `HeadlessClient.main2` — both hand a bare `RemoteUI` to their own `run`, so there is no `Bootstrap` and no `Main` |
+
+**Gotchas.** (a) `Runner.init` runs **inside `new UI(…)`**, before the constructor returns and before any
+caller has the reference — so anything that init asks about the session has to be true *before* the UI is
+built, not after. (b) `newui` destroys the UI it replaces, which is why a UI that another owner may still be
+using must never be built through it. (c) `Bootstrap.useinitauth` is a **static one-shot**: only the first
+`Bootstrap` can auto-login from the launcher's cookie or token, every later one shows the login screen.
+(d) `Bootstrap.run` needs no ticks to sit and wait — it blocks on its own message queue, which only user
+input fills — so an undrawn login screen simply waits, and works the moment it is drawn again.
 
 ## Frame, tick loop
 

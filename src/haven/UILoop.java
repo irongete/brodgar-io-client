@@ -44,12 +44,13 @@ public abstract class UILoop implements Console.Directory {
     public final GPUProfile gprof = new GPUProfile(300);
     public Environment env;
     public UI ui;
-    /* rts: (F5, specs/rts/plan.md) which UI is actually DRAWN. Normally the main runner's, `ui`; a
-     * member's while that member is the anchor. Two fields and not one because Client.Main owns
-     * `ui` -- it replaces and destroys it as the runner chain advances -- and that must never be able
-     * to destroy a member's UI, nor be confused by one being on screen. Everything the frame does
-     * (dispatch, gtick, draw, tooltip, cursor) follows drawn(); everything not drawn is ticked as a
-     * background session instead. */
+    /* rts: (071.1) which UI is actually DRAWN: the session holding the screen, or `ui` -- the LOGIN
+     * screen -- when no session does. Two fields and not one because Client.Main owns `ui` and replaces
+     * and destroys it as its chain advances, and that must never be able to destroy a session's UI nor
+     * be confused by one being on screen. That reason is stronger since the handoff, not weaker: `ui`
+     * holds no game session at all now, so newui's destroy cannot reach one. Everything the frame does
+     * (dispatch, gtick, draw, tooltip, cursor) follows drawn(); every session that is not drawn is
+     * ticked by Sessions.tick(). */
     private volatile UI drawui = null;
     private final Cursor.Caps curscaps;
     private final Object uilock = new Object();
@@ -115,15 +116,42 @@ public abstract class UILoop implements Console.Directory {
 	return(newui);
     }
 
-    /** rts: (F5) the UI being drawn — the main runner's unless a member has the anchor. */
+    /** rts: (071.1) the UI being drawn — the session holding the screen, or the login screen when none does. */
     public UI drawn() {
 	UI d = drawui;
 	return((d != null) ? d : ui);
     }
 
-    /** rts: (F5) draw this UI instead. Passing the main runner's own UI hands the anchor back. */
+    /** rts: (071.1) draw this UI instead. Passing the runner's own UI hands the screen to the login screen. */
     public void drawn(UI u) {
 	drawui = (u == ui) ? null : u;
+    }
+
+    /* rts: (071.1) destroy a UI that may be on screen, from a thread that is not the frame's.
+     *
+     * A session owns its UI and ends on its OWN thread, where newui's guard does not apply -- and a widget
+     * tree disposed between a frame's tick and its draw takes its render slots with it, so that draw throws
+     * SlotRemoved and the loop's thread dies. This is newui's own handshake, minus the replace: the caller
+     * has already taken the screen off this UI, and here we wait until no frame is still holding it.
+     *
+     * The screen is taken off it here too if the caller did not, because a UI that is still drawn is one
+     * `drawn()` goes on answering with, and the wait below would never end. */
+    public void bgdestroy(UI u) {
+	if(u == null)
+	    return;
+	synchronized(uilock) {
+	    if(drawui == u)
+		drawui = null;
+	    while((this.lockedui != null) && (this.lockedui == u)) {
+		try {
+		    uilock.wait();
+		} catch(InterruptedException e) {
+		    Thread.currentThread().interrupt();
+		    break;
+		}
+	    }
+	}
+	u.destroy();
     }
 
     /* rts: a member session's UI (F0, specs/rts/plan.md). Built exactly like the anchor's -- same window,
@@ -468,7 +496,10 @@ public abstract class UILoop implements Console.Directory {
     }
 
     protected double framedur() {
-	GSettings gp = this.ui.gprefs;
+	/* rts: (071.1) the DRAWN UI's settings, which is where the player changes them. `ui` is the login
+	 * screen and holds the copy it loaded when it was built, so reading it here would cap the frame
+	 * rate at whatever the FPS setting was before the session on screen was logged in. */
+	GSettings gp = drawn().gprefs;
 	double hz = gp.hz.val, bghz = gp.bghz.val;
 	if(bgmode()) {
 	    if(bghz != Double.POSITIVE_INFINITY)
@@ -560,12 +591,6 @@ public abstract class UILoop implements Console.Directory {
 	     * F0 is to read what a second session costs. No members = one list check. */
 	    CPUProfile.phase(prof, "sessions");
 	    io.brodgar.session.Sessions.tick();
-	    /* rts: (F5) the main session is a background session whenever it is not the one on screen.
-	     * Nothing else would tick it -- Sessions owns its members and this one is not among them -- and
-	     * a session that stops ticking stops answering the server. */
-	    UI main = loop.ui;
-	    if((main != null) && (main != ui))
-		io.brodgar.session.Sessions.tickbg(main);
 	}
 
 	protected void display() {

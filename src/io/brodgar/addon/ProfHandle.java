@@ -525,6 +525,12 @@ public final class ProfHandle {
     /**
      * {@code p:session()} — what the layer holding the other sessions actually answered.
      *
+     * <p>{@code live} is how many sessions the client holds, the one on screen included — a <b>gauge</b>,
+     * and the one number in this group that is not a running total: it goes up when a session joins and
+     * down when one ends, and reads zero on the login screen. Since 071.1 the drawn session is one of
+     * them rather than the client's own, so with one character in the world this reads 1, where before
+     * it could only have read 0.
+     *
      * <p>{@code groundAnswered} and {@code groundMissed} are the two exits of {@code Sessions.groundz}: the
      * free camera panned over ground the drawn session has never loaded asks every other session it holds for
      * the height there, and either one of them has that ground or the camera keeps the height it last had.
@@ -550,6 +556,7 @@ public final class ProfHandle {
      */
     private static LuaTable session() {
         LuaTable t = new LuaTable();
+        t.set("live", LuaValue.valueOf(Sessions.live()));
         t.set("groundAnswered", LuaValue.valueOf((double)Sessions.groundAnswered()));
         t.set("groundMissed", LuaValue.valueOf((double)Sessions.groundMissed()));
         t.set("placedRebuiltOffTick", LuaValue.valueOf((double)Sessions.placedRebuiltOffTick()));

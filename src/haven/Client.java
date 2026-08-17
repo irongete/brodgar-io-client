@@ -152,6 +152,15 @@ public class Client implements Console.Directory {
 	    return(ui);
 	}
 
+	/* rts: (071.1) a game session's UI is built here now rather than by newui, so the client's own
+	 * console directory has to be added here too -- otherwise :session, :q, :fs and :sz would exist
+	 * only on the login screen, which is exactly the UI nobody is looking at while a session is up. */
+	public UI bgui(UI.Runner fun) {
+	    UI ui = super.bgui(fun);
+	    ui.cons.add(cl);
+	    return(ui);
+	}
+
 	private AudioSystem.SinkLine audiosink = null;
 	protected AudioSystem.SinkLine audiosink() {
 	    if(audiosink == null) {
@@ -181,12 +190,38 @@ public class Client implements Console.Directory {
 	return(loop.newui(fun));
     }
 
+    /**
+     * The client's own runner chain: a login screen, and then another one.
+     *
+     * <p>rts: (071.1) it no longer plays the session it logs in. A {@code RemoteUI} reached here is
+     * handed to {@code Sessions}, which builds its UI through {@code UILoop.bgui} — replacing nothing,
+     * destroying nothing, taking no {@code uilock} — and runs it on a thread of its own, exactly as a
+     * session added with a saved token is run. Running it here instead would put it in the slot
+     * {@code newui} replaces, which is what used to make the first session different from every other
+     * one.
+     *
+     * <p>This loop then goes back to a {@code Bootstrap} and waits on the login screen, as it does
+     * after a logout today — and it must go on <b>never returning</b>: {@code Client.run}'s
+     * {@code while(task != null)} ends the client the moment it does, so a session ending would close
+     * the program instead of showing the login screen again.
+     */
     public class Main implements UI.Runner {
 	public UI.Runner run(UI ui) throws InterruptedException {
 	    UI.Runner fun = null;
 	    while(true) {
 		if(fun == null)
 		    fun = new Bootstrap();
+		if(fun instanceof RemoteUI) {
+		    try {
+			io.brodgar.session.Sessions.adopt((RemoteUI)fun);
+		    } catch(RuntimeException e) {
+			/* The session is closed and the account is back on the login screen, which is the
+			 * one place a login that did not take can be retried from. */
+			new Warning(e, "session: could not take over the session just logged in").issue();
+		    }
+		    fun = null;
+		    continue;
+		}
 		String t= fun.title();
 		if(t == null)
 		    wnd.title("Haven & Hearth");

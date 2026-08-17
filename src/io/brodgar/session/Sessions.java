@@ -36,14 +36,17 @@ import haven.Utils;
 import haven.Warning;
 
 /**
- * The sessions this client holds open beside the one it draws.
+ * The game sessions this client holds open, of which it draws one.
  *
- * <p>The client renders exactly one session — the <em>anchor</em>, which is {@code UILoop.ui} and is
- * reached the way it always was. A member is a second, third, fourth session: a real
- * {@link Session} with a real {@link UI} and a real widget tree, connected, ticked and answering the
- * server, whose view is never drawn. When the characters stand in the same area the anchor already
- * sees them all — its {@code OCache} receives every nearby object — so there is nothing to compose,
- * and a member exists to be <em>commanded</em>, not to be looked at.
+ * <p>Every game session the client holds is a <em>member</em> of this one list, the one on screen
+ * included: a real {@link Session} with a real {@link UI} and a real widget tree, connected, ticked and
+ * answering the server. Exactly one of them is the <em>anchor</em>, the session the frame draws and
+ * dispatches to; the rest are live with no view of their own. {@code UILoop.ui} holds the <b>login
+ * screen</b> and no game session at all — {@code Client.Main} logs one in and hands it to
+ * {@link #adopt}, so no session arrives differently from the others and none is privileged. When the
+ * characters stand in the same area the anchor already sees them all — its {@code OCache} receives
+ * every nearby object — so there is nothing to compose, and a session that is not drawn exists to be
+ * <em>commanded</em>, not to be looked at.
  *
  * <p>All-static, mirroring {@code io.brodgar.addon.AddonManager}: there is one client process and one
  * set of sessions in it. {@link #tick()} runs on the UI thread from {@code UILoop.Frame.tick}, outside the
@@ -64,6 +67,18 @@ public class Sessions {
 
     public static List<Member> members() {
 	return(new ArrayList<Member>(members));
+    }
+
+    /**
+     * How many game sessions the client holds right now, the one on screen included.
+     *
+     * <p>A <b>gauge</b>, not a total: it goes up when a session joins and down when one ends, and the
+     * login screen is not one of them — with nobody logged in it is zero. It is the one number that
+     * makes the set readable from outside the layer, which is what
+     * {@code hafen.client():profiling():session()} publishes it for.
+     */
+    public static int live() {
+	return(members.size());
     }
 
     /**
@@ -129,6 +144,13 @@ public class Sessions {
 		    continue;
 		try {
 		    synchronized(u) {
+			/* rts: (071.1) re-read under the UI's own monitor. A session ends on its own thread
+			 * and clears `ui` before destroying it, and UI.destroy takes this same monitor -- so a
+			 * UI the member still names while this is held is one that cannot be taken apart
+			 * underneath the tick. Read outside it, the answer can be a frame old, which is a tick
+			 * into a disposed widget tree. */
+			if(m.ui != u)
+			    continue;
 			if(u.sess != null)
 			    u.sess.glob.ctick();
 			u.tick();
@@ -148,9 +170,13 @@ public class Sessions {
 
     /**
      * The RTS mode, derived rather than switched. It is wanted exactly while there is a second
-     * session to command, so {@code members} being non-empty <em>is</em> the switch and there is no
-     * console verb for it: a verb would be a second authority over one boolean, and the one the user
-     * typed is the one that goes stale the moment a session joins.
+     * session to command, so <em>more than one member</em> is the switch and there is no console verb
+     * for it: a verb would be a second authority over one boolean, and the one the user typed is the
+     * one that goes stale the moment a session joins.
+     *
+     * <p>The count, and not merely a non-empty list: since the handoff the session on screen is a
+     * member too, so one member is the ordinary single-character client and turning the mode on for it
+     * would cost the player the left button for a selection of exactly themselves.
      *
      * <p>Only the edge acts. {@link Control#mode} clears the selection, so calling it on a frame that
      * changed nothing would wipe a selection the user had just made.
@@ -163,7 +189,7 @@ public class Sessions {
      * member is exactly the frame on which the list is empty and the mode still has to go off.
      */
     private static void tickmode() {
-	boolean want = !members.isEmpty();
+	boolean want = (members.size() > 1);
 	if(want == modeon)
 	    return;
 	Control.mode(want);
@@ -213,7 +239,12 @@ public class Sessions {
     }
 
 
-    /** rts: (F5) the main runner's session — the one {@code Client.Main} owns, drawn or not. */
+    /**
+     * The login slot: {@code UILoop.ui}, the UI {@code Client.Main}'s own chain owns and replaces. Since
+     * the handoff it holds the login screen and never a game session, so this is what the screen falls
+     * back to when no session holds it — the client with nobody logged in, which is where dropping the
+     * last session leaves you.
+     */
     public static UI mainui() {
 	UILoop lp = loop;
 	return((lp == null) ? null : lp.ui);
@@ -286,39 +317,51 @@ public class Sessions {
     /* rts: (F5) a session that has gone must not keep the screen. A member holding the anchor can die
      * at any moment -- dropped, disconnected, logged out from the other end -- and its run() unwinds
      * on its own thread, where touching the render trees would be wrong. It leaves the corpse in
-     * `members`-minus-one and this notices, on the UI thread, on the next frame. */
+     * `members`-minus-one and this notices, on the UI thread, on the next frame.
+     *
+     * Where the screen goes is the whole of what the handoff changed here: there is no session to fall
+     * back to any more, so it goes to another live one, and to the LOGIN SCREEN when that was the last.
+     * Nothing has to enforce "the client cannot close its last session" -- closing it is logging out,
+     * and logging out is the login screen. */
     private static void reclaim() {
 	UI an = anchor();
-	UI mu = mainui();
-	if((an == null) || (an == mu))
-	    return;
+	if((an == null) || (an == mainui()))
+	    return;   /* the login screen holds it: there is no dead session under it to reclaim */
+	Member next = null;
 	for(Member m : members) {
 	    if(m.ui == an)
 		return;
+	    if((next == null) && !m.dead && (m.ui != null))
+		next = m;
 	}
-	anchor(null);
+	anchor(next);
     }
 
-    /** rts: (F5) advance a session that is alive but not on screen. */
-    public static void tickbg(UI u) {
-	if(u == null)
+    /* rts: (071.1) the screen leaves a UI before that UI does.
+     *
+     * Called from a session's own thread as it ends or is handed on, and it cannot wait for reclaim():
+     * reclaim notices a frame later, and a frame later is a frame the loop spent drawing a widget tree
+     * that was being taken apart underneath it. Another live session takes the screen, or the login
+     * screen does -- the same choice reclaim() makes, made a frame earlier by the one thread that knows
+     * the session is going. */
+    static void relinquish(UI u) {
+	if((u == null) || (anchor() != u))
 	    return;
-	try {
-	    synchronized(u) {
-		if(u.sess != null)
-		    u.sess.glob.ctick();
-		u.tick();
+	Member next = null;
+	for(Member m : members) {
+	    if((m.ui != u) && !m.dead && (m.ui != null)) {
+		next = m;
+		break;
 	    }
-	} catch(RuntimeException e) {
-	    new Warning(e, "rts: background tick failed").issue();
 	}
+	anchor(next);
     }
 
     /* ------------------------------------------------------------------ *
      * F5: whose screen it is
      * ------------------------------------------------------------------ */
 
-    /** The member currently holding the anchor, or null when the main session has it. */
+    /** The member currently holding the anchor, or null when the login screen has it. */
     public static Member anchormember() {
 	UI an = anchor();
 	for(Member m : members) {
@@ -329,7 +372,8 @@ public class Sessions {
     }
 
     /**
-     * Hand the screen to a member, or back to the main session with {@code null}.
+     * Hand the screen to a member, or to the <em>login screen</em> with {@code null} — which is where
+     * it goes when the client holds no session at all.
      *
      * <p>Three things move, and nothing else has to: which UI the frame draws and dispatches to, and
      * the dormancy of the two views involved. Everything else in the project reads
@@ -381,7 +425,7 @@ public class Sessions {
 	 * otherwise be answered about the session that just lost the screen. */
 	invalidate();
 	rebind = true;
-	say("anchor: %s", (m == null) ? "main" : m.user);
+	say("anchor: %s", (m == null) ? "the login screen" : m.user);
     }
 
     /**
@@ -855,6 +899,49 @@ public class Sessions {
 	return(m);
     }
 
+    /**
+     * Adopt the session the client's own runner chain just logged in, and hold it like every other.
+     *
+     * <p>{@code Client.Main} hands its {@link RemoteUI} here instead of running it: the slot it would
+     * otherwise have gone in is {@code UILoop.ui}, which the runner chain replaces and destroys as it
+     * advances, and a session living there is one this layer does not own — no offset, no
+     * {@link Member#drop()}, no row in {@link #placed()}. It is built through {@code UILoop.bgui},
+     * which replaces nothing, destroys nothing and takes no {@code uilock}, and runs on a thread of its
+     * own, exactly as {@link #add} does for a saved token. The one difference is where the runner came
+     * from: this one is already logged in, so it is used rather than made.
+     *
+     * <p>The account name is the one the auth server returned ({@code Session.User.name}) — the same
+     * string {@link #add} is given for a saved token — so a session is named the same way whichever
+     * door it came through.
+     *
+     * <p>It takes the screen unless a live session already holds it: a login the player has just
+     * performed is one they want to look at, and a character already on screen is not one they asked to
+     * leave. {@link #anchor} directly rather than {@link Control#take}: this runs on the client's main
+     * thread, {@code take} ends in {@link #anchorsess()}, and a {@link #placed()} read off the frame's
+     * own thread is exactly what {@link #placedRebuiltOffTick()} counts. There is nothing to select
+     * either — the session has not reached the world yet, so there is no character to name.
+     */
+    public static Member adopt(RemoteUI fun) {
+	UILoop lp = loop;
+	if(lp == null)
+	    throw(new IllegalStateException("session: no UI loop yet"));
+	Session sess = fun.sess;
+	Member m = new Member(sess.user.name, null, sess);
+	/* Registered BEFORE the UI exists, for the reason add() gives: UI's constructor runs
+	 * RemoteUI.init, which asks ismember(sess), and the server's first widgets can arrive at once. */
+	members.add(m);
+	try {
+	    m.start(lp, fun);
+	} catch(RuntimeException e) {
+	    members.remove(m);
+	    sess.close();
+	    throw(e);
+	}
+	if(anchormember() == null)
+	    anchor(m);
+	return(m);
+    }
+
     public static boolean drop(String user) {
 	for(Member m : members) {
 	    if(m.user.equals(user)) {
@@ -909,10 +996,16 @@ public class Sessions {
 	}
 
 	private void start(UILoop lp) {
-	    RemoteUI rui = new RemoteUI(sess);
-	    UI u = lp.bgui(rui);
+	    start(lp, new RemoteUI(sess));
+	}
+
+	/* The adopted session brings its OWN runner: Client.Main's login produced it and it is already
+	 * bound to this Session, so making a second one would be making a second session. Everything else
+	 * is the same call either way -- bgui, which replaces and destroys nothing, and one thread. */
+	private void start(UILoop lp, UI.Runner fun) {
+	    UI u = lp.bgui(fun);
 	    this.ui = u;
-	    Thread t = new HackThread(() -> run(lp, rui, u), "session-" + user);
+	    Thread t = new HackThread(() -> run(lp, fun, u), "session-" + user);
 	    t.setDaemon(true);
 	    this.th = t;
 	    t.start();
@@ -928,7 +1021,13 @@ public class Sessions {
 	    try {
 		while(true) {
 		    UI.Runner next = fun.run(u);
-		    u.destroy();
+		    boolean drawn = (anchor() == u);
+		    /* Cleared BEFORE the UI is taken down, never after: the tick reads this field every
+		     * frame, and a field still naming a destroyed UI is a tick into a disposed widget tree.
+		     * Ordering it this way is half of what makes that impossible; the re-check under the
+		     * UI's own monitor in tick() is the other half. */
+		    this.ui = null;
+		    discard(lp, u);
 		    u = null;
 		    if(next == null)
 			break;
@@ -938,6 +1037,10 @@ public class Sessions {
 			this.sess = ((RemoteUI)fun).sess;
 		    this.played = false;
 		    this.ui = u = lp.bgui(fun);
+		    /* The session did not go anywhere -- the server handed it on, which is what choosing
+		     * another character is -- so the screen it held comes back to it, on its new UI. */
+		    if(drawn)
+			anchor(this);
 		}
 	    } catch(InterruptedException e) {
 	    } catch(RuntimeException e) {
@@ -951,11 +1054,24 @@ public class Sessions {
 		    say("%s: session ended", user);
 		if(u != null) {
 		    try {
-			u.destroy();
+			discard(lp, u);
 		    } catch(RuntimeException e) {
 		    }
 		}
 	    }
+	}
+
+	/**
+	 * Take this session's UI down, in the one order that is safe from the session's own thread: the
+	 * screen leaves it first, and the destroy then waits out any frame still holding it. Destroying it
+	 * where it is finished with instead is a widget tree disposed between a frame's tick and its draw,
+	 * which is a {@code SlotRemoved} on the loop's thread and the end of the loop.
+	 */
+	private void discard(UILoop lp, UI u) {
+	    if(u == null)
+		return;
+	    relinquish(u);
+	    lp.bgdestroy(u);
 	}
 
 	/**

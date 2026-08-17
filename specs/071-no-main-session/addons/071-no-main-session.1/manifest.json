@@ -1,0 +1,9 @@
+{
+  "name": "071.1 — the first session is one of the sessions",
+  "id": "071-no-main-session.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 071.1: the session on screen is one the client holds (live), and the published session cache is still built only by the frame.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -6,9 +6,10 @@ cost nothing while you are not asking. The first four are the numbers the client
 always agree with it field by field.
 
 Nothing here is sampled over time — each call is the value right now. The exceptions are the running
-tallies, and each says so: `surfaces()`'s uploads and frames, `entities()`'s passes and every one of
-`session()`'s are cumulative since the client started, and `textcache()`'s hit, miss and eviction totals
-since the addon loaded.
+tallies, and each says so: `surfaces()`'s uploads and frames, `entities()`'s passes and `session()`'s
+three ground and click counters are cumulative since the client started, and `textcache()`'s hit, miss
+and eviction totals since the addon loaded. `session()`'s `live` is not one of them: it is a count of
+what exists right now, like `surfaces()`'s `live`.
 
 **An absent key means "not measured", never zero.**
 
@@ -140,16 +141,22 @@ hafen.log():write(string.format("%d standing, %d waiting for their ground", e.pl
 
 ## `session()`
 
-What the client answered for the **other accounts** it is holding logged in. The client can keep several
-sessions open at once (`:session add`) and draws exactly one of them; the rest are live, ticking and
-answering the server with no view of their own, and their ground is merged into the scene you are looking
-at.
+How many accounts the client is holding logged in, and what it answered for them. The client can keep
+several sessions open at once (`:session add`) and draws exactly one of them; the rest are live, ticking
+and answering the server with no view of their own, and their ground is merged into the scene you are
+looking at.
 
 | Key | Description |
 |---|---|
+| `live` | how many sessions the client holds right now, **the one on screen included** |
 | `groundAnswered` | times another session supplied the ground height under the camera, **cumulative since client start** |
 | `groundMissed` | times none of them had that ground, so the camera kept the height it last had, **cumulative since client start** |
 | `placedRebuiltOffTick` | times a click was resolved before the client had said where the sessions stand, **cumulative since client start** |
+
+`live` is an **instantaneous count, never a total**: it goes up when a session joins and down when one
+ends, and the character you are looking at is one of them — with one account in the world it reads `1`,
+and on the login screen, with nobody logged in, `0`. There is no separate reading for the drawn session,
+because there is nothing separate about it: the client holds sessions and draws one of them.
 
 The ground pair climbs only while a free camera is looking at ground the drawn session has never loaded —
 panned over another character's surroundings, which is the one place the drawn session's own terrain cannot
@@ -164,7 +171,7 @@ the drawn session's coordinates rather than that session's, which puts the desti
 cursor as the two characters are from each other. Any number above zero is the whole finding.
 
 **A zero here is a count, not an absent key.** The client counts from the frame it starts, so `0` on the
-ground pair means the query has not run — over your own ground it never does. With a single session up
+ground pair means the query has not run — over your own ground it never does. With `live == 1`
 `groundMissed` is the only one of the two that can climb: the session that would be asked is the one already
 looking.
 
@@ -175,8 +182,8 @@ being ignored.
 local a = hafen.client():profiling():session()
 hafen.timer():after(5, function()
   local b = hafen.client():profiling():session()
-  hafen.log():write(string.format("%d answers, %d misses over 5 s; %d clicks answered early",
-                          b.groundAnswered - a.groundAnswered, b.groundMissed - a.groundMissed,
+  hafen.log():write(string.format("%d sessions; %d answers, %d misses over 5 s; %d clicks answered early",
+                          b.live, b.groundAnswered - a.groundAnswered, b.groundMissed - a.groundMissed,
                           b.placedRebuiltOffTick))
 end)
 ```
