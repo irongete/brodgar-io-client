@@ -34,6 +34,7 @@
 - `MCache.trim`/`trimall` dispose a `Grid`'s cut meshes while `MapView.MapRaster.Grid.tick` still holds their slots, and the `LoadingMap` the disposed `Deferred` then throws is caught into `curload` without removing anything — so the scene goes on drawing a disposed `MapMesh` until the grid comes back (filed: 068)
 - `MCache.Grid.getolcut` builds the OUTLINE mesh (`MapMesh.makeolol`) beside every overlay mesh whether or not anything draws it, so an overlay whose `omat()` is null still pays two full tile-laying passes per cut, on the calling thread (filed: 068)
 - every pull-only counter group but `p:session()` swallows an argument instead of refusing it, so `p:net(1)` silently reads where arity is supposed to be the verb — one refusal per group, and a line on `counters.md`, is the fix (filed: 070)
+- `hafen.timer():every(0, fn)` fires once and is dropped: `interval <= 0` is the engine's own one-shot encoding, so a zero interval is stored indistinguishably from `:after`, while `timer.md` says a negative delay counts as `0` and a repeating timer fires at most once per tick — which reads as "every tick" and is the one spelling that silently does not repeat (filed: 070)
 - the two emboss textures are loaded in different spaces — `Window.ctex` through `Resource.loadsimg` and `CharWnd.failtex` through `Resource.loadimg` — so on a scaled-up client a FAILED heading is carved at a finer grain than every other embossed surface (filed: 065)
 
 ## Candidates

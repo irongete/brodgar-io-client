@@ -1,0 +1,9 @@
+{
+  "name": "070.2 — the pick pass reads the session cache",
+  "id": "070-session-layer-fixes.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 070.2: the p:session() group reads with the profiler off and refuses a write, and driving the ground pick hundreds of times while the frame rebuilds the session cache underneath it answers coherently every time without ever reaching the builder.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -41,7 +41,7 @@ Read `spec.md` and `plan.md` first. Every file either task may open is listed in
       `[manual]`: with only one session up, the suite still runs and reports its shape checks —
       confirm it says so rather than passing silently.
 
-- [ ] **070.2 — The pick pass reads the session cache; it never builds it.**
+- [x] **070.2 — The pick pass reads the session cache; it never builds it.**
       `Sessions.placedcache` becomes `volatile`, and `Sessions.placed()` gains two callers instead of
       one: the tick may build, anything else reads what is published. `buildplaced()` and
       `mainguiof()` — which runs `Widget.findchild`, a recursive walk of a widget tree another thread
@@ -56,8 +56,15 @@ Read `spec.md` and `plan.md` first. Every file either task may open is listed in
       **Click dispatch** row that already says the pick is asynchronous: it names what the pick cannot
       *serve*, and not what the callback may *touch*, which is the omission that hid this. Upstream
       `haven` only — nothing about `Sessions`, `placed()` or `groundz` goes on that page.
-      *Its suite* re-asserts the `p:session()` group from scratch, assuming `070.1`'s suite is never
-      run. It then hammers the closed route from Lua: `hafen.world():screenToWorld(sx, sy, fn)` goes
+      **That page is 151 lines against a 150 ceiling and `070.1` filed it on `ROADMAP.md`, so this
+      must not grow it**: the Click dispatch row is a single unwrapped table line, so the consequence
+      is written *into that sentence*, not as a new row, a new paragraph or a new section. Adding a
+      line here worsens a violation this feature already declined to take on, and the ROADMAP line
+      stays standing.
+      *Its suite* re-asserts the `hafen.client():profiling():session()` group from scratch, assuming
+      `070.1`'s suite is never run — `groundAnswered` and `groundMissed` read as numbers with the
+      profiler off, and `placedRebuiltOffTick` beside them.
+      It then hammers the closed route from Lua: `hafen.world():screenToWorld(sx, sy, fn)` goes
       through `MapView.Maptest` → `checkmapclick` → `offsetfor` → `placed()`, so a timer firing it at
       every tick across a spread of pixels over drawn ground drives the render thread onto that path
       hundreds of times while the tick mutates the cache underneath. It asserts every callback

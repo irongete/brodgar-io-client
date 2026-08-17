@@ -131,3 +131,16 @@ the readback are upstream `haven`, which is what that subtree maps. Nothing abou
   code does".
 - **Fixing `ROADMAP.md`'s `multi-session.md` line here** — it is a page-shape decision (split, or a
   written exception) that outlives these three defects and would double the feature.
+- **Making the main session an ordinary member, so D1 could not exist** — the correct fix, and not
+  this one. `groundz` forgot a branch because there are two lists where there should be one, and
+  routing it through `placed()` removes the branch without removing the reason branches keep
+  appearing. Erasing the reason reaches `UILoop`'s bootstrap: the main session is `Client.Main`'s own
+  runner chain, so making it ordinary means the login path *produces* session one and steps back
+  rather than owning it — a change to how the client starts, landing in the same commit as a camera
+  altitude. Split out as **feature `071`**, which runs immediately after this one rather than being
+  queued: the longer two lists coexist, the more code is written against both and has to be rewritten
+  against one, and it has to land before `hafen.session()` publishes `buildplaced`'s literal `"main"`
+  as a member name, because a special case in a published collection is one every addon author
+  inherits. **`070.2` is deliberately first of the two**: it establishes that only the tick may build
+  the `placed()` cache, and `071` rewrites `buildplaced`'s body under that rule rather than
+  discovering it afterwards.

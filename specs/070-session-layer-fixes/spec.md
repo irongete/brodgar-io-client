@@ -93,6 +93,15 @@ comment claims about the engine.
   standing.** `groundz`, `placed()` and `Sessions` are `io.brodgar`, so by `DOCUMENTATION.md` §12.3
   none of D1 or D2 is written to that page — this feature neither worsens the violation nor takes on
   the split.
+- **Making the main session an ordinary member.** D1 is a *symptom* of that asymmetry — `groundz`
+  iterated `members`, which the main session is not in — and this feature fixes the symptom by routing
+  through `placed()`, which already treats the two as equals. Erasing the cause means merging
+  `mainoff`, `mainguicache`, `tickbg`, `anchor(null)` and `next()`'s distinguished stop into the
+  per-session machinery, and moving `UILoop`'s bootstrap from *owning* the first session to *producing*
+  it. That is structural work on the client's startup, not a defect fix, so it is **feature `071`**
+  and runs immediately after this one — not queued. It cannot be deferred further: every lookup
+  written against two lists in the meantime has to be rewritten against one, and `buildplaced` names
+  that session with the literal `"main"`, which `hafen.session()` would publish as a member name.
 - The `Fonts` subsystem.
 - The uncommitted camera work in the tree (`adoptcam`, the RTS mode without a camera, `applymute`,
   `order`→`orderunit`). Verified not to touch `groundz`, `placedcache`, `mainguifor` or

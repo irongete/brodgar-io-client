@@ -6,7 +6,7 @@ cost nothing while you are not asking. The first four are the numbers the client
 always agree with it field by field.
 
 Nothing here is sampled over time — each call is the value right now. The exceptions are the running
-tallies, and each says so: `surfaces()`'s uploads and frames, `entities()`'s passes and both of
+tallies, and each says so: `surfaces()`'s uploads and frames, `entities()`'s passes and every one of
 `session()`'s are cumulative since the client started, and `textcache()`'s hit, miss and eviction totals
 since the addon loaded.
 
@@ -149,15 +149,24 @@ at.
 |---|---|
 | `groundAnswered` | times another session supplied the ground height under the camera, **cumulative since client start** |
 | `groundMissed` | times none of them had that ground, so the camera kept the height it last had, **cumulative since client start** |
+| `placedRebuiltOffTick` | times a click was resolved before the client had said where the sessions stand, **cumulative since client start** |
 
-Both climb only while a free camera is looking at ground the drawn session has never loaded — panned over
-another character's surroundings, which is the one place the drawn session's own terrain cannot answer.
-Anywhere else neither moves, so like `surfaces()` they mean something as a **delta between two reads**: take
-one, pan the camera, take another.
+The ground pair climbs only while a free camera is looking at ground the drawn session has never loaded —
+panned over another character's surroundings, which is the one place the drawn session's own terrain cannot
+answer. Anywhere else neither moves, so like `surfaces()` they mean something as a **delta between two
+reads**: take one, pan the camera, take another.
 
-**A zero here is a count, not an absent key.** The client counts from the frame it starts, so `0` means the
-query has not run — over your own ground it never does. With a single session up `groundMissed` is the only
-one that can climb: the session that would be asked is the one already looking.
+`placedRebuiltOffTick` is not a rate to watch, and the only value it is meant to hold is **zero**. Where each
+session stands is worked out once a frame and read everywhere else, and a click on the ground is resolved
+off the frame's own thread, a frame or so after the button went down — so this counts the clicks that got
+there before the frame had said anything. Each one is a click on another session's merged ground answered in
+the drawn session's coordinates rather than that session's, which puts the destination as far from the
+cursor as the two characters are from each other. Any number above zero is the whole finding.
+
+**A zero here is a count, not an absent key.** The client counts from the frame it starts, so `0` on the
+ground pair means the query has not run — over your own ground it never does. With a single session up
+`groundMissed` is the only one of the two that can climb: the session that would be asked is the one already
+looking.
 
 `session()` is read-only in the strict sense — it takes no argument, and passing one raises rather than
 being ignored.
@@ -166,8 +175,9 @@ being ignored.
 local a = hafen.client():profiling():session()
 hafen.timer():after(5, function()
   local b = hafen.client():profiling():session()
-  hafen.log():write(string.format("%d ground answers, %d misses over 5 s",
-                          b.groundAnswered - a.groundAnswered, b.groundMissed - a.groundMissed))
+  hafen.log():write(string.format("%d answers, %d misses over 5 s; %d clicks answered early",
+                          b.groundAnswered - a.groundAnswered, b.groundMissed - a.groundMissed,
+                          b.placedRebuiltOffTick))
 end)
 ```
 

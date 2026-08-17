@@ -5,11 +5,13 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 import haven.AuthClient;
 import haven.Bootstrap;
@@ -105,39 +107,40 @@ public class Sessions {
      * ------------------------------------------------------------------ */
 
     /**
-     * Advance every member by one frame. Deliberately no {@code gtick}: a member has nothing in a
-     * render tree, so there is no render stream of its own to feed. No members at all is one list check.
+     * Advance every member by one frame, and publish where they all are. Deliberately no {@code gtick}:
+     * a member has nothing in a render tree, so there is no render stream of its own to feed. No members
+     * at all is one list check and the publication below.
      */
     public static void tick() {
-	invalidate();
 	flushsay();
 	reclaim();          // rts: (F5)
 	tickrebind();       // rts: (F6)
 	applymute();        // rts: (F6)
 	SessionWnd.tick();    // rts: the session switcher, on the HUD of whichever session is drawn
-	tickmode();         // rts: (F3) the mode, derived from the membership above the return below
-	if(members.isEmpty())
-	    return;
-	tickmainoffset();   // rts: (F5)
-	UI an = anchor();
-	for(Member m : members) {
-	    UI u = m.ui;
-	    /* The member holding the anchor is ticked by the frame itself, in full. Ticking it again
-	     * here would advance its clock twice a frame. */
-	    if((u == null) || m.dead || (u == an))
-		continue;
-	    try {
-		synchronized(u) {
-		    if(u.sess != null)
-			u.sess.glob.ctick();
-		    u.tick();
+	tickmode();         // rts: (F3) the mode, derived from the membership, outside the branch below
+	if(!members.isEmpty()) {
+	    tickmainoffset();   // rts: (F5)
+	    UI an = anchor();
+	    for(Member m : members) {
+		UI u = m.ui;
+		/* The member holding the anchor is ticked by the frame itself, in full. Ticking it again
+		 * here would advance its clock twice a frame. */
+		if((u == null) || m.dead || (u == an))
+		    continue;
+		try {
+		    synchronized(u) {
+			if(u.sess != null)
+			    u.sess.glob.ctick();
+			u.tick();
+		    }
+		    m.autoplay(u);
+		    m.tickoffset(anchorglob());
+		} catch(RuntimeException e) {
+		    new Warning(e, String.format("session: tick failed for %s", m.user)).issue();
 		}
-		m.autoplay(u);
-		m.tickoffset(anchorglob());
-	    } catch(RuntimeException e) {
-		new Warning(e, String.format("session: tick failed for %s", m.user)).issue();
 	    }
 	}
+	republish();
     }
 
     /** What the membership last asked the mode to be, so that only a change acts. */
@@ -156,8 +159,8 @@ public class Sessions {
      * is installed, no view is needed, and a session that has not reached the world yet simply has
      * nothing to select until it does.
      *
-     * <p>Called from {@link #tick()} <b>above</b> its {@code members.isEmpty()} return: dropping the
-     * last member is exactly the frame on which the list is empty and the mode still has to go off.
+     * <p>Called from {@link #tick()} <b>outside</b> the branch that ticks the members: dropping the last
+     * member is exactly the frame on which the list is empty and the mode still has to go off.
      */
     private static void tickmode() {
 	boolean want = !members.isEmpty();
@@ -528,18 +531,83 @@ public class Sessions {
     /* rts: rebuilt at most once a frame. It is asked for by the merged views, by the selection, by
      * the switcher window and by the mute -- and it allocates a list, a Placed per session and (before
      * the cache above) a tree walk per session every single time. Nothing it reports can change
-     * within a frame: the tick is the only thing that moves any of it. */
-    private static List<Placed> placedcache = null;
+     * within a frame: the tick is the only thing that moves any of it.
+     *
+     * Volatile, and with exactly ONE builder. buildplaced() runs mainguiof() -> Widget.findchild, a
+     * recursive walk of a widget tree the UI thread is mutating, so the thread that walks it has to be
+     * the thread that mutates it. The pick pass arrives here from somewhere else entirely: MapView's
+     * checkmapclick reads offsetfor(cut.map) inside a GPU readback callback, which GLEnvironment runs on
+     * a queue thread of its own, neither the UI thread nor the render thread. That caller READS what the
+     * tick published and never builds -- letting it take the anchor's monitor and build safely instead
+     * inverts the one lock direction this layer permits (flushsay states it), which is a new class of
+     * deadlock rather than a fix. */
+    private static volatile List<Placed> placedcache = null;
 
+    /** What a caller that may not build is answered with: as far as it can tell, no session is placed. */
+    private static final List<Placed> unpublished = Collections.emptyList();
+
+    /**
+     * Drop what was published, because what it describes has moved. The tick republishes at its end, and
+     * {@link #anchor(Member)} leaves it unpublished until then on purpose — between an anchor switch and the
+     * next frame the truthful answer about who holds the screen is "not known yet", and a caller that may
+     * not rebuild is better told that than told the session that has just lost it.
+     */
     static void invalidate() {
 	placedcache = null;
     }
 
+    /* rts: the tick's own build, and the reason nothing else needs one. Unconditional -- with no members,
+     * and on the login screen where it publishes an empty list -- because everything off this thread is
+     * answered out of what is published, so "nothing was published this frame" and "no session holds that
+     * map" have to come out as the same answer, and only a list that is always there makes them one. The
+     * cost is a list and a Placed per session per frame; the tree walk each Placed once needed is already
+     * cached (mainguiof, Member.gameui). */
+    private static void republish() {
+	placedcache = buildplaced();
+    }
+
+    /* rts: the thread the frame runs on, and the only one that may build the cache above. Asked of the
+     * loop rather than recorded here: UILoop.th is the loop's own field, so there is no second copy of it
+     * to fall out of step. */
+    private static boolean ontick() {
+	UILoop lp = loop;
+	return((lp != null) && (Thread.currentThread() == lp.th));
+    }
+
+    /**
+     * Every live session, located against the one on screen — and two kinds of caller, of which only one
+     * may build.
+     *
+     * <p>On the thread that runs the frame this is the ordinary lazy cache: a null means {@link
+     * #invalidate()} discarded it and the next ask rebuilds it. Off that thread it is a <em>read of what
+     * the tick published</em>, and an empty list when the tick has published nothing yet — which is what
+     * {@link #offsetfor(MCache)} already answers for a map it does not recognise, so no caller of that
+     * gains a case to handle. Each such ask is counted by {@link #placedRebuiltOffTick()}, whose whole
+     * meaning is that it stays at zero.
+     */
     public static List<Placed> placed() {
 	List<Placed> c = placedcache;
 	if(c != null)
 	    return(c);
+	if(!ontick()) {
+	    placedRebuiltOffTick.incrementAndGet();
+	    return(unpublished);
+	}
 	return(placedcache = buildplaced());
+    }
+
+    /* rts: the times placed() was asked to build where it may not. The one counter in this class written
+     * from a thread that is not the frame's, hence atomic rather than a volatile ++: several readback
+     * callbacks can be in flight at once, and a lost increment on a number whose entire claim is "still
+     * zero" is the one error it cannot afford. */
+    private static final AtomicLong placedRebuiltOffTick = new AtomicLong(0);
+
+    /**
+     * Times {@link #placed()} was asked to build its cache off the frame's own thread, cumulative since
+     * the client started. Zero says the pick pass never reached the builder.
+     */
+    public static long placedRebuiltOffTick() {
+	return(placedRebuiltOffTick.get());
     }
 
     private static List<Placed> buildplaced() {
@@ -607,6 +675,12 @@ public class Sessions {
      * Whose map is this, and how far is its frame from the anchor's? Asked by the pick pass: a click
      * resolves against a cut, and a cut knows which {@code MCache} produced it, so the answer needs no
      * tagging of the geometry.
+     *
+     * <p>That caller is <b>not on the UI thread</b> — the pick resolves in a GPU readback callback — so
+     * this goes through {@link #placed()}'s read-only path and never builds anything. {@code null}
+     * already meant two things the caller treats alike, the anchor's own map and a map this client has
+     * not placed; a frame the tick has not published yet is a third, and it is the same answer: use the
+     * coordinate the cut gave, untranslated.
      */
     public static Coord2d offsetfor(MCache map) {
 	if(map == null)

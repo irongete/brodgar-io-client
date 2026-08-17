@@ -520,7 +520,7 @@ public final class ProfHandle {
         return t;
     }
 
-    // ------------------------------------------------------------------------- the session layer (070.1)
+    // ------------------------------------------------------------------------- the session layer (070)
 
     /**
      * {@code p:session()} — what the layer holding the other sessions actually answered.
@@ -532,7 +532,15 @@ public final class ProfHandle {
      * two reads</b>: take one, pan, take another. A client with one session up misses every time by
      * construction, since only the anchor is placed and the anchor is exactly the map that already threw.
      *
-     * <p>Neither key is ever absent. A zero here is a real count — the query has not run — rather than the
+     * <p>{@code placedRebuiltOffTick} is the third, and it is the one whose interesting value is the one it
+     * holds: the layer caches where every session stands, that cache is built by walking a widget tree the
+     * frame is mutating, and so the frame's own thread builds it and everything else reads what the frame
+     * published. The pick pass is the everything else — a click resolves in a GPU readback callback, on a
+     * thread of the graphics environment's own — and this counts the times it arrived before the frame had
+     * published anything. A number that climbs does not say the walk went wrong; it says a click was
+     * answered in the drawn session's frame when it should have been translated out of another's.
+     *
+     * <p>No key is ever absent. A zero here is a real count — the query has not run — rather than the
      * "not measured" an absent key means elsewhere in this surface (D-050), because the layer counts from the
      * frame the client starts.
      *
@@ -544,6 +552,7 @@ public final class ProfHandle {
         LuaTable t = new LuaTable();
         t.set("groundAnswered", LuaValue.valueOf((double)Sessions.groundAnswered()));
         t.set("groundMissed", LuaValue.valueOf((double)Sessions.groundMissed()));
+        t.set("placedRebuiltOffTick", LuaValue.valueOf((double)Sessions.placedRebuiltOffTick()));
         return t;
     }
 

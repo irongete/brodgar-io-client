@@ -60,6 +60,8 @@ frame-time comparison, while still delaying the next frame. Time it directly or 
 
 | Concern | Rule / where |
 |---|---|
+| **Which thread is the frame's** | `UILoop.th` — public final, the `HackThread` named `"Haven UI thread"`, assigned in the `UILoop` constructor and started by `UILoop.start`. It is the one handle on "am I on the thread that ticks and draws", so code that may only run there tests against it rather than recording a thread of its own. ⚠️ `th` is assigned **last** in the constructor, after `newui` and everything hooked beside it, so anything reached from there reads it null |
+| **A GPU readback answers on a third thread** | `GLEnvironment.callbacks`, a queue drained by `GLEnvironment.cbthread` — the `"Render-query callback thread"`, started on demand by `ckcbt()` and exiting after 5 s idle. Every `Render.pget`/`Clicklist.get` completion runs there: **not** the UI thread, and **not** the render thread that replays the command stream. So a callback body holds no `UI` monitor, is not ordered against the frame, and may run while the tick is midway through mutating whatever it reads — state it touches has to be published for it (`volatile`, or a snapshot the frame hands over), and taking a UI monitor from it inverts the client's one lock direction. `GLEnvironment.synccallbacks` is the barrier that waits the queue out |
 | Widget tree + event dispatch | serialized by the **`UI` monitor** (`synchronized(ui)`); writers: UI thread + Loader threads |
 | Deferred server widget ops | `UI.CommandQueue`; executed on Loader threads, each under `synchronized(UI.this)` |
 | OCache mutation | net receive on Connection worker (`OCache.receive`); apply on Loader (`GobInfo.apply`); `objs` under `synchronized(OCache)` |
