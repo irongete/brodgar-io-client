@@ -33,6 +33,7 @@
 - `MapFile.update` passes `prios[i]` into every `TileInfo` from the loop ABOVE the one that fills `prios`, so every grid recorded off the live map carries `prio 0` — which flattens `DataGrid.render`'s tile-border pass and leaves `View.fin`'s topological tile sort ordering by the grid's own array order instead of the server's (filed: 068)
 - `MCache.trim`/`trimall` dispose a `Grid`'s cut meshes while `MapView.MapRaster.Grid.tick` still holds their slots, and the `LoadingMap` the disposed `Deferred` then throws is caught into `curload` without removing anything — so the scene goes on drawing a disposed `MapMesh` until the grid comes back (filed: 068)
 - `MCache.Grid.getolcut` builds the OUTLINE mesh (`MapMesh.makeolol`) beside every overlay mesh whether or not anything draws it, so an overlay whose `omat()` is null still pays two full tile-laying passes per cut, on the calling thread (filed: 068)
+- every pull-only counter group but `p:session()` swallows an argument instead of refusing it, so `p:net(1)` silently reads where arity is supposed to be the verb — one refusal per group, and a line on `counters.md`, is the fix (filed: 070)
 - the two emboss textures are loaded in different spaces — `Window.ctex` through `Resource.loadsimg` and `CharWnd.failtex` through `Resource.loadimg` — so on a scaled-up client a FAILED heading is carved at a finer grain than every other embossed surface (filed: 065)
 
 ## Candidates
@@ -53,6 +54,7 @@
 - **`docs/addons/api/event.md` is over its 300-line ceiling**: the bus catalogue and the two message streams are two subjects in one page, so every event added and every verb the streams grow pushes it further over (filed: 067)
 - **`docs/addons/api/types.md` is at its 300-line ceiling**: the snapshot catalogue needs a split by subject, so a feature adding one shape stops pushing it over (filed: 064)
 - **`docs/addons/api/ui/style/chrome.md` is at its 300-line ceiling**: its per-surface prose (the ornaments) is what `surfaces.md` is for, so the property pages stop growing with every surface routed (filed: 065)
+- **`docs/client/world-3d.md` is over its 150-line ceiling**: the pick pass and what a click reaches, the terrain rasters, and the camera registry are three maps in one page, so every seam read there pushes it further over (filed: 070)
 - **`docs/client/ui-chrome.md` is at its 150-line ceiling**: the boxes drawn in code and the addon seam are two maps in one page, so the next surface routed pushes it over (filed: 065)
 - **`docs/client/ui-lists.md` is at its 150-line ceiling**: the sliders, the text field and the model-backed lists are three maps in one page, so the next control read pushes it over (filed: 065)
 - **`docs/addons/api/ui/style/surfaces.md` is at its 300-line ceiling**: one section per site key, so every key this grammar adds pushes it over — the split is by surface, the text sites apart from the ones that draw a box (filed: 065)

@@ -1,13 +1,14 @@
 # hafen.client: the counters
 
-`memory()`, `net()`, `loader()`, `render()`, `surfaces()`, `entities()` and `textcache()` are **pull-only**:
-they read counters the client keeps anyway, so they answer with [profiling](README.md) off and cost nothing
-while you are not asking. The first four are the numbers the client's own stats HUD formats, and always
-agree with it field by field.
+`memory()`, `net()`, `loader()`, `render()`, `surfaces()`, `entities()`, `session()` and `textcache()` are
+**pull-only**: they read counters the client keeps anyway, so they answer with [profiling](README.md) off and
+cost nothing while you are not asking. The first four are the numbers the client's own stats HUD formats, and
+always agree with it field by field.
 
 Nothing here is sampled over time — each call is the value right now. The exceptions are the running
-tallies, and each says so: `surfaces()`'s uploads and frames and `entities()`'s passes are cumulative since
-the client started, and `textcache()`'s hit, miss and eviction totals since the addon loaded.
+tallies, and each says so: `surfaces()`'s uploads and frames, `entities()`'s passes and both of
+`session()`'s are cumulative since the client started, and `textcache()`'s hit, miss and eviction totals
+since the addon loaded.
 
 **An absent key means "not measured", never zero.**
 
@@ -135,6 +136,39 @@ return the same number.
 ```lua
 local e = hafen.client():profiling():entities()
 hafen.log():write(string.format("%d standing, %d waiting for their ground", e.placed, e.waiting))
+```
+
+## `session()`
+
+What the client answered for the **other accounts** it is holding logged in. The client can keep several
+sessions open at once (`:session add`) and draws exactly one of them; the rest are live, ticking and
+answering the server with no view of their own, and their ground is merged into the scene you are looking
+at.
+
+| Key | Description |
+|---|---|
+| `groundAnswered` | times another session supplied the ground height under the camera, **cumulative since client start** |
+| `groundMissed` | times none of them had that ground, so the camera kept the height it last had, **cumulative since client start** |
+
+Both climb only while a free camera is looking at ground the drawn session has never loaded — panned over
+another character's surroundings, which is the one place the drawn session's own terrain cannot answer.
+Anywhere else neither moves, so like `surfaces()` they mean something as a **delta between two reads**: take
+one, pan the camera, take another.
+
+**A zero here is a count, not an absent key.** The client counts from the frame it starts, so `0` means the
+query has not run — over your own ground it never does. With a single session up `groundMissed` is the only
+one that can climb: the session that would be asked is the one already looking.
+
+`session()` is read-only in the strict sense — it takes no argument, and passing one raises rather than
+being ignored.
+
+```lua
+local a = hafen.client():profiling():session()
+hafen.timer():after(5, function()
+  local b = hafen.client():profiling():session()
+  hafen.log():write(string.format("%d ground answers, %d misses over 5 s",
+                          b.groundAnswered - a.groundAnswered, b.groundMissed - a.groundMissed))
+end)
 ```
 
 ## `textcache()`

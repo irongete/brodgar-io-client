@@ -14,6 +14,8 @@ import haven.render.State;
 import haven.render.gl.GLEnvironment;
 import io.brodgar.prof.Overhead;
 import io.brodgar.prof.Prof;
+import io.brodgar.session.Sessions;
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -54,7 +56,8 @@ import java.util.Map;
  * beside those strings rather than re-counting anything, so there is one source of truth with the HUD and
  * no cost when disarmed. The frame surface above is the opposite: it exists only while armed. {@code :textcache()}
      * (026.2) joins them on the same terms: the text cache counts its own hits and bytes in order to bound
-     * itself, so reading them needs nothing armed.
+     * itself, so reading them needs nothing armed. {@code :session()} (070.1) joins them for the sharper
+     * reason stated on the method: what it counts happens on a camera nobody arms a profiler to watch.
  *
  * <p>Task 019.2 ships {@code :frame()}, {@code :history(n)} and {@code :reset()}; 019.3 the four counters;
  * 019.4 {@code :addons()} plus {@code :scope()}/{@code :measure()}; 019.5 {@code :widgets()}.
@@ -212,6 +215,21 @@ public final class ProfHandle {
         m.set("entities", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return entities();
+            }
+        });
+
+        // p:session() -- what the session layer answered for the sessions this client holds open beside the one
+        // it draws (070). Pull-only like the counters above, and for a sharper reason than any of them: the
+        // ground query it counts runs on a camera panned over another session's ground, which is a case nobody
+        // arms a profiler for. A counter that needed arming would be unreadable exactly where it is wanted.
+        // Read-only in the strict sense too -- an argument is refused rather than ignored, because there is
+        // nothing here to write and a caller who passed one meant something else.
+        m.set("session", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {   // colon call: arg(1) is the handle
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():session() is read-only — it counts what the session"
+                                       + " layer did and takes no argument; call it with none to read.");
+                return session();
             }
         });
 
@@ -499,6 +517,33 @@ public final class ProfHandle {
         t.set("placed", LuaValue.valueOf(VrApi.freeCount()));
         t.set("waiting", LuaValue.valueOf(VrApi.waitingCount()));
         t.set("passes", LuaValue.valueOf((double)VrApi.regroundPasses()));
+        return t;
+    }
+
+    // ------------------------------------------------------------------------- the session layer (070.1)
+
+    /**
+     * {@code p:session()} — what the layer holding the other sessions actually answered.
+     *
+     * <p>{@code groundAnswered} and {@code groundMissed} are the two exits of {@code Sessions.groundz}: the
+     * free camera panned over ground the drawn session has never loaded asks every other session it holds for
+     * the height there, and either one of them has that ground or the camera keeps the height it last had.
+     * Both are <b>cumulative since the client started</b> and therefore mean something as a <b>delta between
+     * two reads</b>: take one, pan, take another. A client with one session up misses every time by
+     * construction, since only the anchor is placed and the anchor is exactly the map that already threw.
+     *
+     * <p>Neither key is ever absent. A zero here is a real count — the query has not run — rather than the
+     * "not measured" an absent key means elsewhere in this surface (D-050), because the layer counts from the
+     * frame the client starts.
+     *
+     * <p><b>Pull-only</b> (D-051): it answers whether profiling is armed or not. The case it describes is a
+     * camera over another session's ground, which nobody arms a profiler to watch, so a counter that needed
+     * arming would be blind precisely where it is worth reading.
+     */
+    private static LuaTable session() {
+        LuaTable t = new LuaTable();
+        t.set("groundAnswered", LuaValue.valueOf((double)Sessions.groundAnswered()));
+        t.set("groundMissed", LuaValue.valueOf((double)Sessions.groundMissed()));
         return t;
     }
 

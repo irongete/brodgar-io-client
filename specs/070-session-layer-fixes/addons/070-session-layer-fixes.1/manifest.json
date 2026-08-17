@@ -1,0 +1,9 @@
+{
+  "name": "070.1 — the ground query asks every session",
+  "id": "070-session-layer-fixes.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 070.1: the p:session() counter group answers with the profiler off, refuses a write, and records the ground query answering over another session's map instead of falling through.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

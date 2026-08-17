@@ -623,19 +623,47 @@ public class Sessions {
      * has that ground. Over a merged patch the anchor has no map at all — and a camera that cannot
      * answer "how high is it here" without the anchor's map is a camera that blacks the screen out
      * the moment it is panned somewhere interesting.
+     *
+     * <p>Every placed session but the anchor's own is asked, each in the frame it is actually in.
+     * {@link #placed()} is the whole reason both halves of that are right: the main session is in it
+     * through {@link #mainoff} and was never in {@code members} at all, and the {@code isanchor ?
+     * zero : offset} correction it applies is the one {@link Member#offset()} does not carry once a
+     * member takes the screen ({@code tickoffset} returns early when it is the anchor, so that field
+     * keeps whatever it last held). The anchor's own entry is skipped because the caller is here
+     * <em>because</em> the anchor's map threw {@link Loading} for this place.
+     *
+     * <p>{@code Loading} is caught per session rather than once around the loop: one session lacking
+     * that ground is the ordinary case and must not stop the next from answering.
      */
     public static double groundz(Coord2d anchorpos, double dflt) {
-	for(Member m : members) {
-	    Coord2d off = m.offset();
-	    Session s = m.sess;
-	    if((off == null) || (s == null))
+	for(Placed ss : placed()) {
+	    if(ss.isanchor)
 		continue;
 	    try {
-		return(s.glob.map.getzp(anchorpos.add(off)).z);
+		double z = ss.glob.map.getzp(anchorpos.add(ss.offset)).z;
+		groundAnswered++;
+		return(z);
 	    } catch(Loading e) {
 	    }
 	}
+	groundMissed++;
 	return(dflt);
+    }
+
+    /* rts: what the layer answered, for hafen.client():profiling():session(). Written at the two exits
+     * above and read from Lua, both on the UI thread -- the camera asks from its own tick. Volatile
+     * rather than plain for the same reason every other field a reader crosses into is: this class
+     * states its threading rather than assuming a caller's. */
+    private static volatile long groundAnswered = 0, groundMissed = 0;
+
+    /** Times {@link #groundz} found a session holding that ground, cumulative since the client started. */
+    public static long groundAnswered() {
+	return(groundAnswered);
+    }
+
+    /** Times {@link #groundz} fell through to its default instead, cumulative since the client started. */
+    public static long groundMissed() {
+	return(groundMissed);
     }
 
     /**

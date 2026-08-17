@@ -38,6 +38,7 @@ until you open it — which is the shape any profiling addon should have. It als
 | `render()` | table | [graphics counters](counters.md#render) — **always answers** |
 | `surfaces()` | table | [widgets standing in the world](counters.md#surfaces) — **always answers** |
 | `entities()` | table | [things standing at a point in the world](counters.md#entities) — **always answers** |
+| `session()` | table | [what the other sessions answered](counters.md#session) — **always answers** |
 | `textcache()` | table | [the rendered-text cache](counters.md#textcache) — **always answers** |
 
 The handle is a stateless proxy: keep it in a variable forever and it never goes stale. What the read verbs
@@ -45,9 +46,10 @@ answer are plain **snapshot tables**, not handles — frozen numbers with nothin
 hundreds of samples for a frame graph is that many table lookups, not that many bridge calls.
 
 **Two kinds of verb.** `frame()`, `history()`, `addons()`, `widgets()`, `passes()`, `gl()` and `overhead()`
-are *frame sampling*: they exist only while [the switch](../README.md#client) is on. The seven
-[counters](counters.md) are *pull-only* — every number in them is one the client already keeps for its own
-reasons — so they answer whether profiling is armed or not, and reading them costs nothing when it is not.
+are *frame sampling*: they exist only while [the switch](../README.md#client) is on. The
+[counters](counters.md) below them are *pull-only* — every number in them is one the client already keeps
+for its own reasons — so they answer whether profiling is armed or not, and reading them costs nothing when
+it is not.
 `scope()` and `measure()` sit across both: they are always callable and always run your code, and only
 *record* while armed.
 
@@ -112,7 +114,7 @@ for _, f in ipairs(p:history(60)) do … end          -- simply does nothing whi
 
 The first valid sample arrives on the **second** frame after arming, since arming itself is next-frame, so
 a freshly armed profiler answers empty for one frame. `reset()` empties the ring and every per-addon,
-per-scope and per-widget figure the same way, as does arming the switch. The seven counters are unaffected —
+per-scope and per-widget figure the same way, as does arming the switch. The counters are unaffected —
 they answer the same numbers armed or not, and `reset()` deliberately leaves
 [`textcache()`](counters.md#textcache)'s tallies alone, since it owns the frame ring rather than a cache's
 own bookkeeping.
@@ -122,7 +124,7 @@ keys; no world yet, no scene keys in `render()`. Check with `if r.drawSlots then
 
 ## See also
 
-- [counters](counters.md) — the seven that answer whether profiling is armed or not
+- [counters](counters.md) — the ones that answer whether profiling is armed or not
 - [attribution](attribution.md) — who spent the frame: addons, widgets, passes, GL, and the overhead
 - [`hafen.client():options()`](../README.md#client) — the switch that arms all of this
 - [drawing](../../ui/drawing.md#text-is-cached-across-frames) — the cache `textcache()` reports on

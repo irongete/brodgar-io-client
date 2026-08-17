@@ -118,7 +118,7 @@ The verbs that act are on the pages of what they change — [`hafen.player`](pla
 | [`hafen.client`](client/README.md) | the settings the Options window edits: interface, video, audio, camera, client |
 | [keybindings](client/keybindings.md) | the hotkey registry: declare your own, read or remap any |
 | [profiling](client/profiling/README.md) | arming the frame profiler, and reading a frame, a history and its overhead |
-| [the counters](client/profiling/counters.md) | memory, net, loader, render, standing-surface and text-cache counters, readable with it off |
+| [the counters](client/profiling/counters.md) | memory, net, loader, render, what stands in the world, the other sessions, the text cache — readable with it off |
 | [attribution](client/profiling/attribution.md) | who spent the frame: addons, your own scopes, widgets, passes, GL |
 
 ## Infrastructure

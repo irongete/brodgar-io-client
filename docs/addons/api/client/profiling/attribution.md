@@ -247,5 +247,5 @@ always sum to `totalMs`. `modelledMs` is reported alongside, so nothing hides be
 ## See also
 
 - [profiling](README.md) — the handle, `frame()` and `history()`
-- [counters](counters.md) — the five that answer whether profiling is armed or not
+- [counters](counters.md) — the ones that answer whether profiling is armed or not
 - [`hafen.client():options()`](../README.md#client) — the switch every verb here needs
