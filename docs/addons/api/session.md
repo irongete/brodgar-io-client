@@ -72,9 +72,9 @@ could not have meant.
 ## Sessions that come and go
 
 The four [session events](event/bus.md#sessions) are where an addon learns that a session connected,
-reached the world, took the screen or ended. They report changes rather than state: an addon loaded
-while three characters are up hears about none of the three, and `hafen.session():list()` is how it
-learns what is already there.
+reached the world, took the screen or ended, and each hands your handler the `Session` it is about. They
+report changes rather than state: an addon loaded while three characters are up hears about none of the
+three, and `hafen.session():list()` is how it learns what is already there.
 
 ```lua
 for _, s in ipairs(hafen.session():list()) do                -- what the client already holds

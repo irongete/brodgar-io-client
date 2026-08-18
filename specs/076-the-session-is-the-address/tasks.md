@@ -26,7 +26,7 @@ set goes to **0** in `076.4`; the never-move set stays at **211** throughout.
       `:current():user()` is the account tabbed to.
       `[manual]`: `:session drop` one and re-run. Expect: its ref still names the account, dead.
 
-- [ ] **076.2 — The four session events carry the session.**
+- [x] **076.2 — The four session events carry the session.**
       The four hand a Session instead of an account string — minted per addon at fire time, the way
       `AddonManager.fireGob` mints a Gob. A hard cut: the string payload is gone, and the one `SessionDestroyed` carries
       reports `:exists() == false` while still naming its account. Revises `api/event/bus.md`: the

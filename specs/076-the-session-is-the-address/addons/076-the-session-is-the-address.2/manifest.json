@@ -1,0 +1,9 @@
+{
+  "name": "076.2 — the four session events carry the session",
+  "id": "076-the-session-is-the-address.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 076.2: the four session events hand a Session object rather than an account string, a destroyed one reads dead while still naming its account, and a misspelt session key is refused naming all four.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

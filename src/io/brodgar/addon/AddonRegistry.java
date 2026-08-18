@@ -306,7 +306,7 @@ public final class AddonRegistry {
             StoreApi.enterWorld(st, g);              // reload per-char saved vars (the scope is still valid)
             String who = io.brodgar.session.Sessions.nameof(st.ui);   // 074.3: the session, not the addon
             if(who != null)
-                fire("SessionEnteredWorld", LuaValue.valueOf(who));
+                fireSession("SessionEnteredWorld", who);
         }
         reloadGen++;                                 // notify any live AddOns panel to rebuild its rows
         log("reload complete (" + addons.size() + " addon[s] active)");

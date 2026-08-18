@@ -35,7 +35,7 @@ id, and your other handlers, the other addons and the client all keep going.
 hafen.event():on("Load", function() end)               -- every file has run; not in the world yet
 hafen.event():on("Update", function(dt) end)           -- every frame; dt is seconds since the last one
 hafen.event():on("Disable", function() end)            -- reload, disable, or the client closing
-hafen.event():on("SessionEnteredWorld", function(user) -- a character's HUD, map and player exist
+hafen.event():on("SessionEnteredWorld", function(s)     -- a character's HUD, map and player exist
 end)
 ```
 
@@ -45,9 +45,9 @@ logged in. `Disable` is your last chance to write anything you care about; the e
 never inside another handler.
 
 `SessionEnteredWorld` is where most addons really start, and it belongs to a **session** rather than to
-you: it fires once for each character that reaches the world, handing you that account's name, and again
-on a `:reload` for the character on screen — so an addon that builds its window there is correct after an
-edit as well as after a login. The other three
+you: it fires once for each character that reaches the world, handing you that
+[`Session`](../api/session.md), and again on a `:reload` for the character on screen — so an addon that
+builds its window there is correct after an edit as well as after a login. The other three
 [session events](../api/event/bus.md#sessions) tell you when one connects, takes the screen and ends.
 
 ## The bus, a timer, or every frame

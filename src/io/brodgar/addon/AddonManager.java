@@ -1116,10 +1116,10 @@ public final class AddonManager {
                         // 074.3: fired DIRECTLY and not through the session queue — this already runs on the UI
                         //   thread, and the ordering that matters is the one above it: the per-character saved
                         //   variables and the held slots are in place before any handler reads them (spec 1e).
-                        //   The payload is THIS session's own account name, never the screen's.
+                        //   The payload names THIS session, never the one on screen.
                         String who = io.brodgar.session.Sessions.nameof(st.ui);
                         if(who != null)
-                            fire("SessionEnteredWorld", LuaValue.valueOf(who));
+                            fireSession("SessionEnteredWorld", who);
                         else       // the member went between the world coming up and this tick. The flag
                             log("SessionEnteredWorld: the session ended before it could be named");
                     }
@@ -1555,10 +1555,11 @@ public final class AddonManager {
      * moved one of those again: an addon no longer enters the world, a <b>session</b> does, so the moment is
      * {@code SessionEnteredWorld} and the spelling it replaced throws (see {@link Retired#eventKey}).
      *
-     * <p><b>The session family is four keys and one payload</b> (074.3): the account <b>name</b>, which after
-     * 071 is what every session has whichever door it came through. They are the vocabulary the addon layer
-     * needs now that it outlives a character switch — nothing else says the screen changed, or that the
-     * character an addon cached a handle from is gone.
+     * <p><b>The session family is four keys and one payload</b> (076.2): a {@link LuaSession}, the address
+     * every read the handler goes on to make is named by. They are the vocabulary the addon layer needs now
+     * that it outlives a character switch — nothing else says the screen changed, or that the character an
+     * addon cached a handle from is gone — and a near miss among them is refused naming all four
+     * ({@link #busKeyRefusal}), because three of the four differ by a single word.
      */
     static final String[] BUS_KEYS = {
         "Load", "Update", "Disable",
@@ -1571,6 +1572,21 @@ public final class AddonManager {
         "FlowerMenuOpened", "FlowerMenuClosed",
         "GhostClicked", "SpriteClicked", "ObjectClicked",
     };
+
+    /**
+     * The refusal for a key that is not one of the {@link #BUS_KEYS}. A near miss inside the <b>session
+     * family</b> gets all four spelled out (076.2): they differ by one word each, they are what an addon
+     * subscribes to before it has anything to read, and a subscription that silently never fires is the most
+     * expensive way there is to learn a name.
+     */
+    private static String busKeyRefusal(String key) {
+        String hint = key.toLowerCase().startsWith("session")
+            ? " — the session family is SessionAdded, SessionEnteredWorld, SessionSelected and"
+                + " SessionDestroyed"
+            : "";
+        return "hafen.event():on(key, fn): unknown event '" + key + "'" + hint
+            + " — see docs/addons/api/event/bus.md for the catalogue";
+    }
 
     /** Is {@code key} one of the {@link #BUS_KEYS}? (Linear over the constants, once per subscription.) */
     private static boolean busKey(String key) {
@@ -1718,10 +1734,10 @@ public final class AddonManager {
 
     /**
      * <b>Sessions coming, being picked, and going</b> — captured wherever they happen and fired on the
-     * layer's own tick. Each entry is {@code {key, account name}}: the payload is a <i>name</i> because after
-     * 071 that is what every session has whichever door it came through, and because {@code hafen.session()}
-     * does not exist yet — inventing a provisional object to replace one feature later would be two hard cuts
-     * where one will do.
+     * layer's own tick. Each entry is {@code {key, account name}}: what the <i>queue</i> carries is the account
+     * name, because a seam on another thread may hold nothing else by the time the tick reads it — and because
+     * the name is the whole of a {@link LuaSession} anyway, so the payload is minted from it at fire time by
+     * {@link #fireSession}.
      *
      * <p><b>Queued, never fired at the seam.</b> A session is added from a slash command's thread, picked
      * from whatever thread reached {@code Sessions.anchor}, and destroyed from its own runner thread; Lua
@@ -1753,7 +1769,30 @@ public final class AddonManager {
      */
     private static void drainSessionEvents() {
         for(String[] e = sessionEvents.poll(); e != null; e = sessionEvents.poll())
-            fire(e[0], LuaValue.valueOf(e[1]));
+            fireSession(e[0], e[1]);
+    }
+
+    /**
+     * Fire one of the four session events, whose payload is a <b>Session object</b> (076.2) — the address an
+     * addon names a character by, rather than a bare account name a handler would have to hand back to
+     * {@code hafen.session():get} before it could read anything with it.
+     *
+     * <p>The {@link #fireGob} shape exactly, and for its two reasons: interning is <b>per addon</b> (D-045),
+     * so the payload cannot be shared — one object handed to every owner would cross a sandbox boundary — and
+     * it is minted only for an owner that actually subscribes, so the addons that do not listen pay nothing.
+     *
+     * <p>A {@code SessionDestroyed} payload names a session that is <b>already gone</b>: the account name is
+     * the whole of the ref, so {@code :user()} answers there while {@code :exists()} is {@code false}, which
+     * is what lets a handler drop its own tables by the very key it was handed.
+     */
+    static void fireSession(String event, String user) {
+        for(Addon a : addons) {
+            if(hasSub(a, event))
+                fireTo(a, event, LuaSession.of(a, user));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, event))
+            fireTo(c, event, LuaSession.of(c, user));
     }
 
     /** Fire an event to every owner (all addons + the REPL). */
@@ -3027,8 +3066,7 @@ public final class AddonManager {
                 if(retired != null)
                     throw new LuaError(retired);
                 if(!busKey(key))
-                    throw new LuaError("hafen.event():on(key, fn): unknown event '" + key + "' — see"
-                        + " docs/addons/api/event/bus.md for the catalogue");
+                    throw new LuaError(busKeyRefusal(key));
                 if(key.startsWith("GobOverlay"))   // 038.3: arm the two Gob seams (see `overlaySubs`)
                     overlaySubs = true;
                 return owner.subs.on(key, fn);

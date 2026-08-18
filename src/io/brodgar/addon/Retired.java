@@ -61,8 +61,8 @@ final class Retired {
         // ---- addon, many logins, and the moment belongs to one of them. Two spellings reach it -- the
         // ---- key itself, and the On-prefixed one 041 retired into it -- and both name the replacement.
         String why = "an addon no longer enters the world, a SESSION does: hafen.event()"
-            + ":on(\"SessionEnteredWorld\", fn) fires once per session, with that session's account name,"
-            + " and your addon is loaded once for the client";
+            + ":on(\"SessionEnteredWorld\", fn) fires once per session, and hands your handler THAT"
+            + " session, while your addon is loaded once for the client";
         eventKeyWhy("hafen.event()", "EnterWorld", why);
         eventKeyWhy("hafen.event()", "OnEnterWorld", why);
     }
