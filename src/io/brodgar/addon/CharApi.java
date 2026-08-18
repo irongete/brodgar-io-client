@@ -87,6 +87,23 @@ import static io.brodgar.addon.AddonManager.*;
 final class CharApi {
     private CharApi() {}
 
+    // ---- how each of these sections is reached, and so how every one of its messages spells itself ----
+    // 077.1: the six read-only sections of the character sheet hang on a Session rather than off `hafen`,
+    // so a refusal quotes the call the author actually has to fix rather than a door that is not there.
+
+    /** {@code s:char()} — the sheet. */
+    static final String C = "session:char()";
+    /** {@code s:meter()} — the HUD bars. */
+    static final String M = "session:meter()";
+    /** {@code s:buff()} — the buff bar. */
+    static final String B = "session:buff()";
+    /** {@code s:study()} — the study window. */
+    static final String ST = "session:study()";
+    /** {@code s:quest()} — the quest log. */
+    static final String Q = "session:quest()";
+    /** {@code s:wound()} — the wound list. */
+    static final String WD = "session:wound()";
+
     /**
      * <b>The nine change-detection adapters, for one session</b> (073.3) — built when that session's
      * {@code SessionState} is and held by it, which is what makes each of them a reader of <i>that</i>
@@ -256,8 +273,8 @@ final class CharApi {
      * <p><b>Event-driven since 042.1.</b> A meter appearing is the widget-placement seam ({@link #placed},
      * fired after {@code GameUI.addchild}'s {@code place == "meter"} branch has both positioned the widget
      * and appended it to {@code meters}) and a meter being destroyed is the removal seam ({@link #removed},
-     * M1) — no more per-tick diff of {@link LuaMeter#hud()} against the cache. Membership is still checked
-     * through that same {@code hud()} scan (not a bare {@code instanceof IMeter}), so a widget of this type
+     * M1) — no more per-tick diff of the HUD's own bars against the cache. Membership is still checked
+     * through {@link LuaMeter#exists} (not a bare {@code instanceof IMeter}), so a widget of this type
      * placed somewhere other than the HUD meter slot — hypothetical today, since {@code GameUI} is the only
      * {@code IMeter} placement site — could never be miscounted as a bar. The bar CONTENT is pushed by the
      * server as a targeted {@code "set"} (values) or {@code "col"} (colours) {@code uimsg}, so <b>refresh</b>
@@ -266,7 +283,7 @@ final class CharApi {
      * ignored.
      *
      * <p>All three carry the <b>Meter object</b> ({@link AddonManager#fireMeter}), so a handler reads the payload
-     * with the same methods as {@code hafen.meter():list()}. The per-meter snapshot stays, purely as the diff KEY: an
+     * with the same methods as {@code s:meter():list()}. The per-meter snapshot stays, purely as the diff KEY: an
      * interned object compares by identity and so cannot detect a content change (the 025.2 lesson). It is never
      * handed to Lua — {@code meter:info()} is that, on demand.
      */
@@ -294,7 +311,7 @@ final class CharApi {
             if(!(w instanceof IMeter))
                 return;
             IMeter m = (IMeter)w;
-            if(cache.containsKey(m) || !contains(LuaMeter.hud(), m))
+            if(cache.containsKey(m) || !LuaMeter.exists(m))
                 return;
             // Seed the diff key with the meter's current segments AT add time (027.2) — the seed, not tick
             // ordering, is what keeps a bar that arrives already filled from surfacing as MeterChanged-then-
@@ -315,14 +332,6 @@ final class CharApi {
             cache.remove(m);
         }
 
-        /** Identity membership (an {@link IMeter} is compared as a widget, never by equals). */
-        private static boolean contains(List<IMeter> hud, IMeter m) {
-            for(IMeter c : hud) {
-                if(c == m)
-                    return true;
-            }
-            return false;
-        }
     }
 
     /**
@@ -374,7 +383,7 @@ final class CharApi {
      * <p>The reads themselves live on {@link LuaBuff} since {@code 025-buffs-oop} (the entity owns them);
      * only change <i>detection</i> — the per-buff snapshot diff — is this adapter's business. Since 025.2 the
      * three events carry the <b>Buff object</b> ({@link AddonManager#fireBuff}), so a handler reads the
-     * payload with the same methods as {@code hafen.buff():list()}. The snapshot stays, purely as the diff KEY: it
+     * payload with the same methods as {@code s:buff():list()}. The snapshot stays, purely as the diff KEY: it
      * is the cheap value-comparable form of the buff, and it is what makes {@code BuffChanged} fire on real
      * content changes only. It is never handed to Lua any more — {@code buff:info()} is that, on demand.
      */
@@ -434,7 +443,7 @@ final class CharApi {
      * server change, so {@code FepChanged} fires whenever one lands (no change-detection needed).
      *
      * <p>The payload is the <b>Food object</b> ({@link AddonManager#fireFood}), so a handler reads it with
-     * the same verbs as {@code hafen.char():food()} and a stashed payload goes on tracking the meal after
+     * the same verbs as {@code s:char():food()} and a stashed payload goes on tracking the meal after
      * it. The reads themselves live on {@link LuaFood}; only firing is this adapter's business.
      */
     private static final class FepAdapter implements TreeAdapter {
@@ -443,7 +452,7 @@ final class CharApi {
         }
 
         public void refresh() {
-            BAttrWnd w = battrwnd();
+            BAttrWnd w = battrwnd(drawnUser());
             if(w != null)
                 fireFood(w);
         }
@@ -470,7 +479,7 @@ final class CharApi {
      * throw.
      *
      * <p>The payload is the current {@code List<GItem>} in study-window order ({@link
-     * AddonManager#fireStudy}), the same items {@code hafen.study():slot():list()} hands back, so a
+     * AddonManager#fireStudy}), the same items {@code s:study():slot():list()} hands back, so a
      * handler reads it with the {@link LuaStudySlot} verbs.
      */
     private static final class StudyAdapter implements TreeAdapter {
@@ -489,12 +498,12 @@ final class CharApi {
             if(!(w instanceof GItem))
                 return;
             GItem it = (GItem)w;
-            Widget study = studyWidget();
+            Widget study = studyWidget(drawnUser());
             if((study == null) || (it.parent != study) || cache.containsKey(it))
                 return;
             cache.put(it, LuaStudySlot.snapshot(it));
             resolveInfo(it);
-            fireStudy(LuaStudySlot.items());
+            fireStudy(LuaStudySlot.items(drawnUser()));
         }
 
         public void removed(Widget w) {
@@ -503,7 +512,7 @@ final class CharApi {
             GItem it = (GItem)w;
             if(cache.remove(it) == null)
                 return;
-            fireStudy(LuaStudySlot.items());
+            fireStudy(LuaStudySlot.items(drawnUser()));
         }
 
         /**
@@ -522,7 +531,7 @@ final class CharApi {
                         LuaValue snap = LuaStudySlot.snapshot(it);
                         if(cache.containsKey(it) && !studySlotEqual(snap, cache.get(it))) {
                             cache.put(it, snap);
-                            fireStudy(LuaStudySlot.items());
+                            fireStudy(LuaStudySlot.items(drawnUser()));
                         }
                     }
                 });
@@ -750,7 +759,7 @@ final class CharApi {
      * quest history doesn't spam events.
      *
      * <p>The payload is the <b>Quest object</b> ({@link AddonManager#fireQuest}), so a handler reads it with
-     * the same verbs as {@code hafen.quest():get(id)}. That matters more here than anywhere else in the API:
+     * the same verbs as {@code s:quest():get(id)}. That matters more here than anywhere else in the API:
      * {@code QuestDone} fires <i>as</i> the status changes, and a snapshot froze the very field the event is
      * about — a stashed Quest goes on answering {@code :status()} afterwards. The {@code id -> done} cache
      * stays, purely as the diff KEY: an interned object compares by identity and so cannot detect a status
@@ -766,7 +775,8 @@ final class CharApi {
         }
 
         public void refresh() {
-            QuestWnd qw = questwnd();
+            String user = drawnUser();
+            QuestWnd qw = questwnd(user);
             if(qw == null)
                 return;
             // Copy both quest lists under the ui monitor (QuestWnd.uimsg mutates them off-thread), then
@@ -780,7 +790,7 @@ final class CharApi {
             for(QuestWnd.Quest q : all)
                 fresh.put(q.id, q.done);
             for(Object[] ev : questDiff(cache, fresh))            // pure diff (also updates the cache)
-                fireQuest((String)ev[0], ((Integer)ev[1]).intValue());
+                fireQuest(user, (String)ev[0], ((Integer)ev[1]).intValue());
         }
     }
 
@@ -839,10 +849,10 @@ final class CharApi {
      * screen.
      *
      * <p>The payload is an array of <b>Wound objects</b> ({@link AddonManager#fireWounds}), so a handler
-     * reads it with the same verbs as {@code hafen.wound():list()} and can key a table by one. The snapshots
+     * reads it with the same verbs as {@code s:wound():list()} and can key a table by one. The snapshots
      * stay as the diff KEY only — an interned object compares by identity, and a severity resolving or a
      * wound worsening is precisely the change identity cannot see. Read the initial state with
-     * {@code hafen.wound():list()}; listen for deltas after.
+     * {@code s:wound():list()}; listen for deltas after.
      */
     private static final class WoundAdapter implements TreeAdapter {
         private LuaValue cache;   // last wound snapshot list (UI thread; change-detect)
@@ -857,10 +867,11 @@ final class CharApi {
         }
 
         private void diff() {
-            LuaValue snap = LuaWound.snapshotList();
+            String user = drawnUser();
+            LuaValue snap = LuaWound.snapshotList(user);
             if(!woundListEqual(snap, cache)) {
                 cache = snap;
-                fireWounds(LuaWound.ids());
+                fireWounds(user, LuaWound.ids(user));
             }
         }
 
@@ -871,14 +882,14 @@ final class CharApi {
          * on the list and its severity actually changed.
          */
         private void resolveSeverities() {
-            for(final WoundWnd.Wound w : LuaWound.all()) {
+            for(final WoundWnd.Wound w : LuaWound.all(drawnUser())) {
                 try {
                     w.info();
                 } catch(Loading l) {
                     final int wid = w.id;
                     Resolve.on(l, null, new Resolve.Retry() {
                         public void run() throws Loading {
-                            WoundWnd.Wound cur = LuaWound.wound(wid);
+                            WoundWnd.Wound cur = LuaWound.wound(drawnUser(), wid);
                             if(cur == null)
                                 return;   // healed before the resource landed
                             cur.info();
@@ -913,10 +924,10 @@ final class CharApi {
         return true;
     }
 
-    /** The character sheet's Base-Attributes widget ({@code CharWnd.battr}), or {@code null}. The one
+    /** That character's Base-Attributes widget ({@code CharWnd.battr}), or {@code null}. The one
      *  resolve funnel {@link LuaFood} re-reads through, every call (D-012). */
-    static BAttrWnd battrwnd() {
-        CharWnd c = charwnd();
+    static BAttrWnd battrwnd(String user) {
+        CharWnd c = charwnd(user);
         return (c == null) ? null : c.battr;
     }
 
@@ -955,7 +966,7 @@ final class CharApi {
                 return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, user, id);
             }
         });
-        /* vitals() is GONE (027-meters-oop's hard cut): the HUD bars are hafen.meter():list(), which is every meter
+        /* vitals() is GONE (027-meters-oop's hard cut): the HUD bars are s:meter():list(), which is every meter
          * the server puts in the slot rather than a hard-coded hp/stamina/energy triple read by position. */
         // worldToScreen(p) — project a PLACE IN THE WORLD to a SCREEN POINT. It takes a Position (§2.7) and
         // answers a plain {x, y} in px, which is deliberately NOT one: the two spaces have the same shape and
@@ -1077,7 +1088,8 @@ final class CharApi {
     // :items(). What a container hands back is the Item entity ({@link LuaItem}), keyed on the item widget.
 
     /**
-     * Build {@code hafen.char()} for {@code owner}. From installHafen.
+     * Build the char section object for {@code (owner, user)} — <b>one character's sheet</b>, reached as
+     * {@code s:char()} (077.1). Called once per pair by {@link LuaSession}.
      *
      * <p><b>Four collections and three scalars</b> (spec {@code 039-uniform-api} §2.3/§4.1). The flat
      * singular/plural pairs — {@code attr}/{@code attrs}, {@code skills}/{@code skill},
@@ -1088,33 +1100,37 @@ final class CharApi {
      * belongs to. Each collection is minted <b>once</b> and handed back by identity, as the section object
      * is — a panel that reads the sheet every frame must allocate nothing to do it.
      *
+     * <p><b>Every verb reads the session it hangs on.</b> {@code user} is the account, and each read
+     * re-resolves that character's own {@code CharWnd} through {@link #charwnd(String)} — so a handle kept
+     * across a character switch answers about that login, and goes {@code nil}-shaped when it is gone.
+     *
      * <p>{@code :lp()} and {@code :weight()} stay plain scalar reads: they are one number each and there is
      * nothing to address into. {@code :food()} hands back the interned {@link LuaFood}, or {@code nil}
      * until the base-attributes tab exists.
      */
-    static void installChar(LuaTable hafen, final Addon owner) {
-        final LuaValue attrs = LuaAttr.collection(owner);
-        final LuaValue skills = LuaSkill.collection(owner);
-        final LuaValue credos = LuaCredo.collection(owner);
-        final LuaValue exps = LuaExperience.collection(owner);
+    static LuaValue chr(final Addon owner, final String user) {
+        final LuaValue attrs = LuaAttr.collection(owner, user);
+        final LuaValue skills = LuaSkill.collection(owner, user);
+        final LuaValue credos = LuaCredo.collection(owner, user);
+        final LuaValue exps = LuaExperience.collection(owner, user);
         LuaTable chr = new LuaTable();
-        chr.set("attr", collection("attr", attrs));
-        chr.set("skill", collection("skill", skills));
-        chr.set("credo", collection("credo", credos));
-        chr.set("experience", collection("experience", exps));
+        chr.set("attr", collection("char", C, "attr", attrs));
+        chr.set("skill", collection("char", C, "skill", skills));
+        chr.set("credo", collection("char", C, "credo", credos));
+        chr.set("experience", collection("char", C, "experience", exps));
         // lp() — the learning points the character has banked (CharWnd.exp), nil before the sheet exists.
         chr.set("lp", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "char", "lp");
-                CharWnd c = charwnd();
+                Section.self(a.arg1(), "char", "lp", C);
+                CharWnd c = charwnd(user);
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.exp);
             }
         });
         // weight() — what the character is carrying (CharWnd.enc), nil before the sheet exists.
         chr.set("weight", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "char", "weight");
-                CharWnd c = charwnd();
+                Section.self(a.arg1(), "char", "weight", C);
+                CharWnd c = charwnd(user);
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.enc);
             }
         });
@@ -1122,48 +1138,50 @@ final class CharApi {
         // until the base-attributes tab streams in. Subscribe to FepChanged for updates.
         chr.set("food", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "char", "food");
-                return LuaFood.of(owner, battrwnd());
+                Section.self(a.arg1(), "char", "food", C);
+                return LuaFood.of(owner, battrwnd(user));
             }
         });
-        Section.install(hafen, "char", chr);
+        return Section.object("char", chr, C);
     }
 
     /** One collection accessor on a section object: a colon call, no arguments, the collection back. */
-    private static LuaValue collection(final String nm, final LuaValue coll) {
+    private static LuaValue collection(final String nm, final String how, final String verb,
+                                       final LuaValue coll) {
         return new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), sectionOf(nm), nm);
+                Section.self(a.arg1(), nm, verb, how);
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen." + sectionOf(nm) + "():" + nm + "() takes no arguments — it"
+                    throw new LuaError(how + ":" + verb + "() takes no arguments — it"
                         + " IS the collection, and :list(filter) / :find(filter) search it");
                 return coll;
             }
         };
     }
 
-    /** Which section a collection accessor lives on ({@code slot} is study's; everything else is char's). */
-    private static String sectionOf(String nm) {
-        return "slot".equals(nm) ? "study" : "char";
-    }
-
     /**
-     * Build {@code hafen.study()} for {@code owner}. From installHafen. The window's contents become the
-     * {@link LuaStudySlot} collection {@code :slot()} (§4.2); {@code :summary()} stays a scalar read,
-     * because the three totals are one value and there is nothing to address into.
+     * Build the study section object for {@code (owner, user)} — <b>one character's study window</b>,
+     * reached as {@code s:study()} (077.1). Its contents become the {@link LuaStudySlot} collection
+     * {@code :slot()} (§4.2); {@code :summary()} stays a scalar read, because the three totals are one
+     * value and there is nothing to address into.     *
+     * <p><b>077.1: it is built per {@code (addon, session)}</b> and hung on the interned Session handle, the
+     * shape {@link WorldApi#world} established — so {@code s:study() == s:study()} and every collection under it
+     * is minted once for that pair. Every read resolves through that character's own sheet, so a session
+     * nobody is looking at answers about itself; one with no HUD yet answers {@code nil}-shaped rather than
+     * throwing, exactly as it does before entering the world.
      */
-    static void installStudy(LuaTable hafen, final Addon owner) {
-        final LuaValue slots = LuaStudySlot.collection(owner);
+    static LuaValue study(final Addon owner, final String user) {
+        final LuaValue slots = LuaStudySlot.collection(owner, user);
         LuaTable study = new LuaTable();
-        study.set("slot", collection("slot", slots));
+        study.set("slot", collection("study", ST, "slot", slots));
         // summary() — the live totals {lp, attention, cost} across the slots, nil before the window is up.
         study.set("summary", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "study", "summary");
-                return studySummary();
+                Section.self(a.arg1(), "study", "summary", ST);
+                return studySummary(user);
             }
         });
-        Section.install(hafen, "study", study);
+        return Section.object("study", study, ST);
     }
 
     /**
@@ -1190,25 +1208,36 @@ final class CharApi {
     }
 
     /**
-     * Install {@code hafen.quest} for owner. From installHafen. <b>The section object IS the log</b> (uniform
-     * grammar §2.1): {@code hafen.quest()} is the {@link LuaQuest} collection over both tabs, one quest is
-     * {@code hafen.quest():get(id)} and {@code :selected()} is the distinguished member (R8) — the quest the
-     * player has open, and the only one whose objectives the client is sent. The section is the SINGULAR name
-     * (§2.3): the noun says the kind and the verb says how many.
+     * Build the quest section object for {@code (owner, user)} — <b>one character's log</b>, reached as
+     * {@code s:quest()} (077.1). <b>The section object IS the log</b> (uniform grammar §2.1): it is the
+     * {@link LuaQuest} collection over both tabs, one quest is {@code s:quest():get(id)} and
+     * {@code :selected()} is the distinguished member (R8) — the quest that character has open, and the only
+     * one whose objectives the client is sent. The section is the SINGULAR name (§2.3): the noun says the
+     * kind and the verb says how many.     *
+     * <p><b>077.1: it is built per {@code (addon, session)}</b> and hung on the interned Session handle, the
+     * shape {@link WorldApi#world} established — so {@code s:quest() == s:quest()} and every collection under it
+     * is minted once for that pair. Every read resolves through that character's own sheet, so a session
+     * nobody is looking at answers about itself; one with no HUD yet answers {@code nil}-shaped rather than
+     * throwing, exactly as it does before entering the world.
      */
-    static void installQuest(LuaTable hafen, final Addon owner) {
-        Section.mount(hafen, "quest", LuaQuest.collection(owner), null);
+    static LuaValue quests(Addon owner, String user) {
+        return LuaQuest.collection(owner, user);
     }
 
     /**
-     * Install {@code hafen.wound} for owner. From installHafen. <b>The section object IS the wound list</b>
-     * (uniform grammar §2.1): {@code hafen.wound()} is the {@link LuaWound} collection in the window's own
-     * tree order, and the old presence test is {@code hafen.wound():find(needle)} — which hands back the
-     * Wound rather than a boolean, and is still truthy where the boolean was. Singular, like every other
-     * section (§2.3).
+     * Build the wound section object for {@code (owner, user)} — <b>one character's wounds</b>, reached as
+     * {@code s:wound()} (077.1). <b>The section object IS the wound list</b> (uniform grammar §2.1): it is
+     * the {@link LuaWound} collection in the window's own tree order, and {@code s:wound():find(needle)} is
+     * the presence test, handing back the Wound rather than a boolean. Singular, like every other section
+     * (§2.3).     *
+     * <p><b>077.1: it is built per {@code (addon, session)}</b> and hung on the interned Session handle, the
+     * shape {@link WorldApi#world} established — so {@code s:wound() == s:wound()} and every collection under it
+     * is minted once for that pair. Every read resolves through that character's own sheet, so a session
+     * nobody is looking at answers about itself; one with no HUD yet answers {@code nil}-shaped rather than
+     * throwing, exactly as it does before entering the world.
      */
-    static void installWound(LuaTable hafen, final Addon owner) {
-        Section.mount(hafen, "wound", LuaWound.collection(owner), null);
+    static LuaValue wounds(Addon owner, String user) {
+        return LuaWound.collection(owner, user);
     }
 
     /**
@@ -1255,28 +1284,36 @@ final class CharApi {
     }
 
     /**
-     * Build the buff namespace for owner. From installHafen. <b>The section object IS the buff bar</b>
-     * (uniform grammar §2.1): {@code hafen.buff()} is the {@link LuaCollection} of the active buffs and
-     * {@code hafen.buff():find(needle)} the first whose res or name contains it. A buff has no key, so the
-     * collection carries no {@code :get}; the reads live on the {@link LuaBuff} object itself.
+     * Build the buff section object for {@code (owner, user)} — <b>one character's buff bar</b>, reached as
+     * {@code s:buff()} (077.1). <b>The section object IS the bar</b> (uniform grammar §2.1): it is the
+     * {@link LuaCollection} of that character's active buffs and {@code s:buff():find(needle)} the first
+     * whose res or name contains it. A buff has no key, so the collection carries no {@code :get}; the reads
+     * live on the {@link LuaBuff} object itself.     *
+     * <p><b>077.1: it is built per {@code (addon, session)}</b> and hung on the interned Session handle, the
+     * shape {@link WorldApi#world} established — so {@code s:buff() == s:buff()} and every collection under it
+     * is minted once for that pair. Every read resolves through that character's own sheet, so a session
+     * nobody is looking at answers about itself; one with no HUD yet answers {@code nil}-shaped rather than
+     * throwing, exactly as it does before entering the world.
      */
-    static void installBuffs(LuaTable hafen, final Addon owner) {
-        Section.mount(hafen, "buff", LuaBuff.collection(owner),
-                      "hafen.buff(needle) is now hafen.buff():find(needle), and hafen.buff() is"
-                      + " hafen.buff():list()");
+    static LuaValue buffs(Addon owner, String user) {
+        return LuaBuff.collection(owner, user);
     }
 
     /**
-     * Install {@code hafen.meter} — <b>the section object IS the meter slot</b> (uniform grammar §2.1, spec
-     * {@code 027-meters-oop}): {@code hafen.meter()} is the {@link LuaCollection} of every meter in the HUD's
-     * meter slot and {@code hafen.meter():find(needle)} the first whose server-published res name contains it.
-     * A meter has no key, so the collection carries no {@code :get}; the reads live on the {@link LuaMeter}
-     * object itself.
+     * Build the meter section object for {@code (owner, user)} — <b>one character's HUD bars</b>, reached as
+     * {@code s:meter()} (077.1). <b>The section object IS the meter slot</b> (uniform grammar §2.1, spec
+     * {@code 027-meters-oop}): it is the {@link LuaCollection} of every meter in that HUD's meter slot and
+     * {@code s:meter():find(needle)} the first whose server-published res name contains it. A meter has no
+     * key, so the collection carries no {@code :get}; the reads live on the {@link LuaMeter} object
+     * itself.     *
+     * <p><b>077.1: it is built per {@code (addon, session)}</b> and hung on the interned Session handle, the
+     * shape {@link WorldApi#world} established — so {@code s:meter() == s:meter()} and every collection under it
+     * is minted once for that pair. Every read resolves through that character's own sheet, so a session
+     * nobody is looking at answers about itself; one with no HUD yet answers {@code nil}-shaped rather than
+     * throwing, exactly as it does before entering the world.
      */
-    static void installMeters(LuaTable hafen, final Addon owner) {
-        Section.mount(hafen, "meter", LuaMeter.collection(owner),
-                      "hafen.meter(needle) is now hafen.meter():find(needle), and hafen.meter() is"
-                      + " hafen.meter():list()");
+    static LuaValue meters(Addon owner, String user) {
+        return LuaMeter.collection(owner, user);
     }
 
     /**
@@ -1317,7 +1354,20 @@ final class CharApi {
         return null;
     }
 
-    /** The character window (created hidden at login, but live), or {@code null} before it exists. */
+    /**
+     * <b>That character's</b> sheet (created hidden at login, but live), or {@code null} before it exists —
+     * the one funnel every read of the six session-addressed sections resolves through, every call (D-012).
+     *
+     * <p>077.1: off {@link AddonManager#gameui(String)}, the named session's own HUD, and never off the
+     * drawn one. Two characters have two sheets, and a read taken through {@code s:char()} is about the
+     * character {@code s} names whether or not the player is looking at it.
+     */
+    static CharWnd charwnd(String user) {
+        GameUI g = gameui(user);
+        return (g == null) ? null : g.chrwdg;
+    }
+
+    /** The DRAWN session's character window, for the sections not addressed through a Session yet. */
     private static CharWnd charwnd() {
         GameUI g = gui();
         return (g == null) ? null : g.chrwdg;
@@ -1360,8 +1410,8 @@ final class CharApi {
      * {@code null} until the sattr tab streams in (a beat after enter-world, like {@code battr}). There
      * is exactly one StudyInfo per study inventory, so the first hit is it.
      */
-    static SAttrWnd.StudyInfo studyInfo() {
-        CharWnd c = charwnd();
+    static SAttrWnd.StudyInfo studyInfo(String user) {
+        CharWnd c = charwnd(user);
         if((c == null) || (c.sattr == null))
             return null;
         for(SAttrWnd.StudyInfo si : c.sattr.children(SAttrWnd.StudyInfo.class))
@@ -1372,8 +1422,8 @@ final class CharApi {
     /** The study inventory widget itself ({@code StudyInfo.study}), or {@code null} before the sattr tab
      *  has streamed in — {@link StudyAdapter}'s parent filter for placement/removal, the study analogue
      *  of {@link #equipory}. */
-    static Widget studyWidget() {
-        SAttrWnd.StudyInfo si = studyInfo();
+    static Widget studyWidget(String user) {
+        SAttrWnd.StudyInfo si = studyInfo(user);
         return (si == null) ? null : si.study;
     }
 
@@ -1393,8 +1443,8 @@ final class CharApi {
      * with {@code hafen.char.attr("int").comp}, the cap), {@code cost} (total experience cost). nil
      * until the study window exists.
      */
-    private static LuaValue studySummary() {
-        SAttrWnd.StudyInfo si = studyInfo();
+    private static LuaValue studySummary(String user) {
+        SAttrWnd.StudyInfo si = studyInfo(user);
         if(si == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
@@ -1404,9 +1454,9 @@ final class CharApi {
         return t;
     }
 
-    /** The character sheet's "Lore &amp; Skills" widget ({@link SkillWnd}), or {@code null}. */
-    static SkillWnd skillwnd() {
-        CharWnd c = charwnd();
+    /** That character's "Lore &amp; Skills" widget ({@link SkillWnd}), or {@code null}. */
+    static SkillWnd skillwnd(String user) {
+        CharWnd c = charwnd(user);
         return (c == null) ? null : c.skill;
     }
 
@@ -1646,8 +1696,8 @@ final class CharApi {
 
     /** The Quest Log window (the character sheet's "Quest Log" tab — created hidden at login but live),
      *  or {@code null} before it exists. Via the public {@code CharWnd.quest} field (no tree-walk). */
-    static QuestWnd questwnd() {
-        CharWnd c = charwnd();
+    static QuestWnd questwnd(String user) {
+        CharWnd c = charwnd(user);
         return (c == null) ? null : c.quest;
     }
 
@@ -1676,8 +1726,8 @@ final class CharApi {
 
     /** The Health &amp; Wounds window (the character sheet's "Health & Wounds" tab — created hidden at login
      *  but live), or {@code null} before it exists. Via the public {@code CharWnd.wound} field (no tree-walk). */
-    static WoundWnd woundwnd() {
-        CharWnd c = charwnd();
+    static WoundWnd woundwnd(String user) {
+        CharWnd c = charwnd(user);
         return (c == null) ? null : c.wound;
     }
 

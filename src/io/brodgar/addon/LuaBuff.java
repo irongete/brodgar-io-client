@@ -26,7 +26,7 @@ import java.util.Map;
  * successor of the flat {@code hafen.buffs.list()}/{@code has()} snapshot reader. Built on exactly the
  * mechanism {@link LuaGob} (017), {@link LuaKin} (020), {@link LuaSlot} (021), {@link LuaPagina} (023) and
  * {@link LuaSound} (024) established; <b>the section object IS the buff bar</b> (uniform grammar §2.1):
- * {@code hafen.buff()} is the collection of the active buffs and {@code hafen.buff():find(needle)} is one of
+ * {@code s:buff()} is the collection of the active buffs and {@code s:buff():find(needle)} is one of
  * them.
  *
  * <p><b>The handle wraps the {@link Buff} widget and nothing else.</b> Every read goes through it live, so a
@@ -239,27 +239,36 @@ public final class LuaBuff {
     private static LuaBuff handle(LuaValue self, String method) {
         LuaBuff h = resolve(self);
         if(h == null)
-            throw new LuaError("buff:" + method + "() — use a COLON call on a Buff object (hafen.buff():find(needle),"
-                + " hafen.buff():list()[i])");
+            throw new LuaError("buff:" + method + "() — use a COLON call on a Buff object (s:buff():find(needle),"
+                + " s:buff():list()[i])");
         return h;
     }
 
     // ---- the reads (all Loading-guarded) -----------------------------------------------------------
 
-    /** The player's buff bar ({@link GameUI#buffs}), or {@code null} before the HUD is up. */
-    private static Bufflist bufflist() {
-        GameUI g = AddonManager.gui();
+    /** That character's buff bar ({@link GameUI#buffs}), or {@code null} before its HUD is up. */
+    private static Bufflist bufflist(String user) {
+        GameUI g = AddonManager.gameui(user);
         return (g == null) ? null : g.buffs;
     }
 
     /**
-     * The buffs currently ON the bar, in {@link Bufflist} child order (which is the order they are drawn):
-     * one pass over the live children, minus any fading out after a server removal. The single scan both
-     * {@code :list()} and the {@code BuffsAdapter} share.
+     * The bar <b>a buff is standing on</b>, walked up from the widget itself rather than named by an account:
+     * a Buff handle wraps the icon, and the icon already knows whose HUD it hangs in, so {@code :exists()}
+     * answers about that character's bar however many sessions are live.
      */
-    static List<Buff> actives() {
+    private static Bufflist barOf(Buff b) {
+        return (b == null) ? null : b.getparent(Bufflist.class);
+    }
+
+    /**
+     * The buffs currently ON that character's bar, in {@link Bufflist} child order (which is the order they
+     * are drawn): one pass over the live children, minus any fading out after a server removal. The single
+     * scan both {@code :list()} and the {@code BuffsAdapter} share.
+     */
+    static List<Buff> actives(String user) {
         List<Buff> out = new ArrayList<Buff>();
-        Bufflist bl = bufflist();
+        Bufflist bl = bufflist(user);
         if(bl != null) {
             for(Buff b : bl.children(Buff.class)) {
                 if(!AddonWidgets.buffDest(b))
@@ -273,7 +282,7 @@ public final class LuaBuff {
     static boolean active(Buff b) {
         if((b == null) || AddonWidgets.buffDest(b))
             return false;
-        Bufflist bl = bufflist();
+        Bufflist bl = barOf(b);
         if(bl == null)
             return false;
         for(Buff c : bl.children(Buff.class)) {
@@ -381,7 +390,7 @@ public final class LuaBuff {
     // ---- the collection ----------------------------------------------------------------------------
 
     /**
-     * {@code hafen.buff()} — the active buffs, as the {@link LuaCollection} the section object IS:
+     * {@code s:buff()} — the active buffs, as the {@link LuaCollection} the section object IS:
      * {@code :list(filter)} is a fresh 1-based array of (interned) Buff objects in bar order,
      * {@code :find(needle)} the first that matches, {@code :count(filter)} how many.
      *
@@ -390,10 +399,10 @@ public final class LuaBuff {
      * <i>search</i>, never an address — {@code coll:get} would promise an identity the subsystem does not
      * have. A string filter matches the res <b>or</b> the display name, which is what the old lookup did.
      */
-    static LuaValue collection(final Addon owner) {
-        return LuaCollection.create("hafen.buff()", new LuaCollection.Source() {
+    static LuaValue collection(final Addon owner, final String user) {
+        return LuaCollection.create(CharApi.B, new LuaCollection.Source() {
             public List<LuaValue> members() {
-                List<Buff> active = actives();
+                List<Buff> active = actives(user);
                 List<LuaValue> out = new ArrayList<LuaValue>(active.size());
                 for(int i = 0; i < active.size(); i++)
                     out.add(of(owner, active.get(i)));

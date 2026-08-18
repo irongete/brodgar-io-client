@@ -34,11 +34,11 @@ you came for from the tables below. Every page in the tree is listed here.
 |---|---|
 | [`session:player`](player.md) | one of the characters you are logged in as, and the anchor for its own Gob |
 | [`hafen.time`](time.md) | the game clock, the day, the night and the season |
-| [`hafen.char`](char.md) | attributes, learning points, weight, food, skills, credos, lore |
-| [`hafen.study`](study.md) | the study window: the curiosities in it, and their LP and attention |
+| [`session:char`](char.md) | attributes, learning points, weight, food, skills, credos, lore |
+| [`session:study`](study.md) | the study window: the curiosities in it, and their LP and attention |
 | [`hafen.party`](party.md) | the party roster, in party sequence order |
-| [`hafen.buff`](buff.md) | the buffs on the buff bar |
-| [`hafen.meter`](meter.md) | the HUD meter bars — health, stamina, energy, and whatever else the server puts there |
+| [`session:buff`](buff.md) | the buffs on the buff bar |
+| [`session:meter`](meter.md) | the HUD meter bars — health, stamina, energy, and whatever else the server puts there |
 
 ## Character-sheet subsystems
 
@@ -47,8 +47,8 @@ you came for from the tables below. Every page in the tree is listed here.
 | [`hafen.kin`](kin.md) | the kin roster, and the writes that add, rename and re-group |
 | [`hafen.speed`](speed.md) | the crawl, walk, run and sprint selector |
 | [`hafen.craft`](craft.md) | the open recipe window, and its Craft button |
-| [`hafen.quest`](quest.md) | the quest log, current and completed, and a quest's objectives |
-| [`hafen.wound`](wound.md) | the wounds on the Health and Wounds tab, as a tree |
+| [`session:quest`](quest.md) | the quest log, current and completed, and a quest's objectives |
+| [`session:wound`](wound.md) | the wounds on the Health and Wounds tab, as a tree |
 | [`hafen.fight`](fight.md) | the maneuver-deck builder, and who you are fighting |
 | [`hafen.actionbar`](actionbar.md) | the hotbar: read a slot, use it, assign one, hold one for an entry of your own |
 

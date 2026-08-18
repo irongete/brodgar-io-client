@@ -1,30 +1,47 @@
-# hafen.meter: the HUD meter bars
+# session:meter: the HUD meter bars
 
-Read the bars in the HUD's meter slot — health, stamina, energy, and whatever else the server puts
-there. `hafen.meter()` **is** the meter slot.
+Read the bars in one character's HUD meter slot — health, stamina, energy, and whatever else the server
+puts there. You reach it through the [session](session.md) whose character you mean, and `s:meter()`
+**is** that character's meter slot.
 
 ```lua
-local hp = hafen.meter():find("hp")
+local s = hafen.session():current()                    -- the character on screen
+local hp = s and s:meter():find("hp")
 if hp and (hp:value() or 1) < 0.3 then hafen.log():write("low health!") end
 ```
 
 | Call | Returns |
 |---|---|
-| `hafen.meter():list(filter)` | every HUD meter — a 1-based array of `Meter` objects, in HUD layout order |
-| `hafen.meter():count(filter)` | how many match |
-| `hafen.meter():find(filter)` | the first meter that matches, else `nil` |
+| `s:meter():list(filter)` | every bar in that HUD — a 1-based array of `Meter` objects, in layout order |
+| `s:meter():count(filter)` | how many match |
+| `s:meter():find(filter)` | the first meter that matches, else `nil` |
 
 A string [filter](conventions.md#the-filter-argument) is a plain substring match against the resource
 name, and is not trimmed. A miss is plain `nil`.
 
 **There is no `:get`**: a meter has no key, only a server-published resource name several bars could
-share, so a needle is a *search*. Asking for `:get` raises an error naming `:find`, and a position is
-`hafen.meter():list()[n]`.
+share, so a needle is a *search*. `s:meter():get(…)` raises, saying the collection has no such verb; the
+search is `:find(needle)` and a position is `s:meter():list()[n]`.
 
-Meter objects are **interned per addon**, so `hafen.meter():find("hp") == hafen.meter():list()[1]` and
+## Whose bars they are
+
+Two characters have two meter slots, and a health bar read off the wrong one is the wrong body's. So the
+read says which character it is about:
+
+```lua
+hafen.session():current():meter():find("hp")     -- the health of the character on screen
+hafen.session():get("alt"):meter():find("hp")    -- that character's, while you watch someone else
+```
+
+`s:meter()` is the same object every call, minted once for that session, so a draw callback reading it at
+60 fps allocates nothing. A session the client no longer holds answers an empty array rather than raising.
+
+Meter objects are **interned per addon**, so `s:meter():find("hp") == s:meter():list()[1]` and
 `seen[m] = true` work. A `Meter` wraps only the meter widget and re-reads it on every call, so a
 stashed one tracks its bar as the server updates it — see
-[snapshots vs handles](conventions.md#snapshots-vs-handles).
+[snapshots vs handles](conventions.md#snapshots-vs-handles). It also carries its own character with it:
+`meter:exists()` and `meter:index()` answer about the slot that bar is standing in, whichever session
+that is.
 
 ## There is no fixed hp, stamina and energy triple
 
@@ -34,7 +51,7 @@ key this API knows: it is a substring that happens to identify a bar on this ser
 you read the real names off a live client:
 
 ```lua
-:lua for _, m in ipairs(hafen.meter():list()) do hafen.log():write(tostring(m:res())) end
+:lua for _, m in ipairs(hafen.session():current():meter():list()) do hafen.log():write(tostring(m:res())) end
 ```
 
 What this server publishes:
@@ -49,7 +66,7 @@ What this server publishes:
 
 Treat that table as observed rather than as a contract — re-derive it with `:res()` on the server you
 are on. One of the names is **non-ASCII**, so prefer an ASCII needle such as `"st"`, `"mount"` or
-`"hp"`, or iterate `hafen.meter():list()` and compare `:res()` yourself, rather than typing an accented
+`"hp"`, or iterate `s:meter():list()` and compare `:res()` yourself, rather than typing an accented
 literal into your Lua source.
 
 ## Read
@@ -57,11 +74,11 @@ literal into your Lua source.
 | Method | Returns | Description |
 |---|---|---|
 | `meter:res()` | string \| nil | the background resource name — the identity |
-| `meter:index()` | number \| nil | its 1-based HUD position; `nil` once the meter is gone |
+| `meter:index()` | number \| nil | its 1-based position in its own HUD; `nil` once the meter is gone |
 | `meter:value()` | number \| nil | the first segment's fill fraction, `0..1` |
 | `meter:color()` | `{r, g, b, a}` \| nil | the first segment's colour, `0..255` per channel |
 | `meter:segments()` | `{{value=, color=}, …}` | the whole bar, 1-based — never `nil`, may be empty |
-| `meter:exists()` | boolean | whether this meter is still in the HUD slot — always answers |
+| `meter:exists()` | boolean | whether this meter is still in its HUD slot — always answers |
 | `meter:info()` | [`Meter`](types.md#meter) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
 
 Every read is guarded and may answer `nil`: a brand-new meter is nameless for a beat and its segments
@@ -73,7 +90,7 @@ bar with more shows them all in `:segments()`.
 
 > `:value()` is a **bar fraction only**. There are no absolute hp, stamina or energy numbers, and no
 > hunger figure, in the client. The one place absolute numbers exist is FEP:
-> see [`hafen.char():food()`](char.md#food).
+> see [`s:char():food()`](char.md#food).
 
 There is no write side. Meters are server-pushed presentation and there is nothing to set. You can
 freeze the bars client-side by swallowing their updates through an
@@ -117,6 +134,6 @@ exactly the predicate `:list()` filters on.
 ## See also
 
 - [`Meter`](types.md#meter) — the snapshot shape `:info()` returns
-- [`hafen.char`](char.md) — `:food()`, the one absolute reading about your character
-- [`hafen.buff`](buff.md) — the other keyless status collection
+- [`session:char`](char.md) — `:food()`, the one absolute reading about your character
+- [`session:buff`](buff.md) — the other keyless status collection
 - [events](event/bus.md#character-and-status) — the three meter events

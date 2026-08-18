@@ -18,10 +18,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A <b>Wound object</b> — one of the character's wounds ({@code hafen.wound()}). <b>The section object IS
- * the wound list</b> (uniform grammar §2.1): {@code hafen.wound()} is the collection,
- * {@code hafen.wound():find(needle)} the first whose name or resource contains it, and
- * {@code hafen.wound():get(id)} one wound by its id.
+ * A <b>Wound object</b> — one of the character's wounds ({@code s:wound()}). <b>The section object IS
+ * the wound list</b> (uniform grammar §2.1): {@code s:wound()} is the collection,
+ * {@code s:wound():find(needle)} the first whose name or resource contains it, and
+ * {@code s:wound():get(id)} one wound by its id.
  *
  * <p><b>Wounds are a TREE and the object is what makes that readable.</b> The client keeps a flat list in
  * tree order, each entry carrying the id of its parent and the depth the window indents it by; a complication
@@ -41,10 +41,13 @@ import java.util.Map;
  * names and severities outside it (both may still be Loading).
  */
 public final class LuaWound {
-    /** The wound's id — the whole state of a handle. */
+    /** The account this wound is on — half the address, and what makes the id mean one thing. */
+    public final String user;
+    /** The wound's id, on that character. */
     public final int id;
 
-    private LuaWound(int id) {
+    private LuaWound(String user, int id) {
+        this.user = user;
         this.id = id;
     }
 
@@ -53,9 +56,9 @@ public final class LuaWound {
         return "Wound(" + id + ")";
     }
 
-    /** An interned Wound object for {@code id} in {@code owner}'s env. */
-    static LuaValue of(Addon owner, int id) {
-        return owner.wounds.of(id);
+    /** An interned Wound object for wound {@code id} <b>of session {@code user}</b>, in {@code owner}'s env. */
+    static LuaValue of(Addon owner, String user, int id) {
+        return owner.wounds.of(user, id);
     }
 
     /** The {@code LuaWound} behind a Lua value, or {@code null} for anything else. */
@@ -68,10 +71,14 @@ public final class LuaWound {
 
     // ---- the per-addon intern cache + metatable ----------------------------------------------------
 
-    /** One addon's Wound cache and metatable (its {@link Addon#wounds}), keyed by the wound id. */
+    /**
+     * One addon's Wound cache and metatable (its {@link Addon#wounds}), keyed by the <b>account plus</b> the
+     * wound id: a wound id counts within one character's own list, so the same number on two characters is
+     * two different wounds and must be two handles. Two levels of map, the {@link LuaGob} shape.
+     */
     static final class Cache {
         private final Addon owner;
-        private final Map<Integer, Ref> live = new HashMap<Integer, Ref>();
+        private final Map<String, Map<Integer, Ref>> live = new HashMap<String, Map<Integer, Ref>>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
@@ -79,18 +86,21 @@ public final class LuaWound {
             this.owner = owner;
         }
 
-        synchronized LuaValue of(int wid) {
+        synchronized LuaValue of(String user, int wid) {
             drain();
+            Map<Integer, Ref> byid = live.get(user);
+            if(byid == null)
+                live.put(user, byid = new HashMap<Integer, Ref>());
             Integer key = Integer.valueOf(wid);
-            Ref r = live.get(key);
+            Ref r = byid.get(key);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(key);
+                byid.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaWound(wid), meta());
-            live.put(key, new Ref(v, key, dead));
+            LuaValue v = LuaValue.userdataOf(new LuaWound(user, wid), meta());
+            byid.put(key, new Ref(v, user, key, dead));
             return v;
         }
 
@@ -98,8 +108,13 @@ public final class LuaWound {
             Reference<? extends LuaValue> r;
             while((r = dead.poll()) != null) {
                 Ref wr = (Ref)r;
-                if(live.get(wr.key) == wr)
-                    live.remove(wr.key);
+                Map<Integer, Ref> byid = live.get(wr.user);
+                if(byid == null)
+                    continue;
+                if(byid.get(wr.key) == wr)
+                    byid.remove(wr.key);
+                if(byid.isEmpty())
+                    live.remove(wr.user);
             }
         }
 
@@ -111,10 +126,12 @@ public final class LuaWound {
     }
 
     private static final class Ref extends WeakReference<LuaValue> {
+        final String user;
         final Integer key;
 
-        Ref(LuaValue v, Integer key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, String user, Integer key, ReferenceQueue<LuaValue> q) {
             super(v, q);
+            this.user = user;
             this.key = key;
         }
     }
@@ -145,7 +162,8 @@ public final class LuaWound {
         // name() — the wound's display name, nil for the beat before its data resolves.
         m.set("name", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                WoundWnd.Wound w = wound(handle(self, "name").id);
+                LuaWound h = handle(self, "name");
+                WoundWnd.Wound w = wound(h.user, h.id);
                 String nm = (w == null) ? null : nameOf(w);
                 return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
             }
@@ -153,7 +171,8 @@ public final class LuaWound {
         // res() — the wound's stable resource name.
         m.set("res", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                WoundWnd.Wound w = wound(handle(self, "res").id);
+                LuaWound h = handle(self, "res");
+                WoundWnd.Wound w = wound(h.user, h.id);
                 String r = (w == null) ? null : AddonManager.resIdent(w.res);
                 return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
             }
@@ -161,7 +180,8 @@ public final class LuaWound {
         // severity() — the magnitude the client shows beside the wound. A string, and NOT seconds.
         m.set("severity", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                WoundWnd.Wound w = wound(handle(self, "severity").id);
+                LuaWound h = handle(self, "severity");
+                WoundWnd.Wound w = wound(h.user, h.id);
                 String s = (w == null) ? null : severityOf(w);
                 return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
             }
@@ -169,29 +189,33 @@ public final class LuaWound {
         // parent() — the wound this one is a complication of, or nil at a root of the tree.
         m.set("parent", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                WoundWnd.Wound w = wound(handle(self, "parent").id);
-                if((w == null) || (w.parentid < 0) || (wound(w.parentid) == null))
+                LuaWound h = handle(self, "parent");
+                WoundWnd.Wound w = wound(h.user, h.id);
+                if((w == null) || (w.parentid < 0) || (wound(h.user, w.parentid) == null))
                     return LuaValue.NIL;
-                return of(owner, w.parentid);
+                return of(owner, h.user, w.parentid);
             }
         });
         // level() — how deep in the tree the window indents this wound; 0 at a root.
         m.set("level", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                WoundWnd.Wound w = wound(handle(self, "level").id);
+                LuaWound h = handle(self, "level");
+                WoundWnd.Wound w = wound(h.user, h.id);
                 return (w == null) ? LuaValue.NIL : LuaValue.valueOf(w.level);
             }
         });
         // exists() — is this wound still on the character? (Healing takes it off the list.)
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(wound(handle(self, "exists").id) != null);
+                LuaWound h = handle(self, "exists");
+                return LuaValue.valueOf(wound(h.user, h.id) != null);
             }
         });
         // info() — the one SNAPSHOT escape hatch.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return snapshot(wound(handle(self, "info").id));
+                LuaWound h = handle(self, "info");
+                return snapshot(wound(h.user, h.id));
             }
         });
         return m;
@@ -201,21 +225,21 @@ public final class LuaWound {
         LuaWound h = resolve(self);
         if(h == null)
             throw new LuaError("wound:" + method + "() — use a COLON call on a Wound object"
-                + " (hafen.wound():find(needle), :get(id) or :list()[i])");
+                + " (" + CharApi.WD + ":find(needle), :get(id) or :list()[i])");
         return h;
     }
 
     // ---- the reads ----------------------------------------------------------------------------------
 
     /** The Health &amp; Wounds window (created hidden at login but live), or {@code null} before it exists. */
-    static WoundWnd wnd() {
-        return CharApi.woundwnd();
+    static WoundWnd wnd(String user) {
+        return CharApi.woundwnd(user);
     }
 
     /** The live wound list, copied under the {@code ui} monitor, in the window's own tree order. */
-    static List<WoundWnd.Wound> all() {
+    static List<WoundWnd.Wound> all(String user) {
         List<WoundWnd.Wound> out = new ArrayList<WoundWnd.Wound>();
-        WoundWnd ww = wnd();
+        WoundWnd ww = wnd(user);
         if(ww == null)
             return out;
         synchronized(LuaWidget.monitor(ww)) {
@@ -225,8 +249,8 @@ public final class LuaWound {
     }
 
     /** The live record for {@code wid}, or {@code null} once the wound has healed. */
-    static WoundWnd.Wound wound(int wid) {
-        for(WoundWnd.Wound w : all()) {
+    static WoundWnd.Wound wound(String user, int wid) {
+        for(WoundWnd.Wound w : all(user)) {
             if(w.id == wid)
                 return w;
         }
@@ -289,17 +313,17 @@ public final class LuaWound {
     }
 
     /** Every wound as a snapshot, in tree order — the change-detection input of {@code WoundChanged}. */
-    static LuaTable snapshotList() {
+    static LuaTable snapshotList(String user) {
         LuaTable out = new LuaTable();
         int i = 0;
-        for(WoundWnd.Wound w : all())
+        for(WoundWnd.Wound w : all(user))
             out.set(++i, snapshot(w));
         return out;
     }
 
     /** Every wound id, in tree order — the {@code WoundChanged} payload, before it is interned per owner. */
-    static int[] ids() {
-        List<WoundWnd.Wound> ws = all();
+    static int[] ids(String user) {
+        List<WoundWnd.Wound> ws = all(user);
         int[] out = new int[ws.size()];
         for(int i = 0; i < ws.size(); i++)
             out[i] = ws.get(i).id;
@@ -309,17 +333,17 @@ public final class LuaWound {
     // ---- the collection -----------------------------------------------------------------------------
 
     /**
-     * {@code hafen.wound()} — every wound, flat and in the window's own tree order, so indenting by
+     * {@code s:wound()} — every wound, flat and in the window's own tree order, so indenting by
      * {@code w:level()} prints the shape. Addressable by wound id. There is no {@code :add}/{@code :remove}:
      * wounds heal by playing and by tending, and no client can add or take one away.
      */
-    static LuaValue collection(final Addon owner) {
-        return LuaCollection.create("hafen.wound()", new LuaCollection.Source() {
+    static LuaValue collection(final Addon owner, final String user) {
+        return LuaCollection.create(CharApi.WD, new LuaCollection.Source() {
             public List<LuaValue> members() {
-                List<WoundWnd.Wound> ws = all();
+                List<WoundWnd.Wound> ws = all(user);
                 List<LuaValue> out = new ArrayList<LuaValue>(ws.size());
                 for(int i = 0; i < ws.size(); i++)
-                    out.add(of(owner, ws.get(i).id));
+                    out.add(of(owner, user, ws.get(i).id));
                 return out;
             }
 
@@ -327,7 +351,7 @@ public final class LuaWound {
             // presence test matched. The separator is a newline, which neither half ever contains.
             public String needle(LuaValue member) {
                 LuaWound h = resolve(member);
-                WoundWnd.Wound w = (h == null) ? null : wound(h.id);
+                WoundWnd.Wound w = (h == null) ? null : wound(user, h.id);
                 if(w == null)
                     return "";
                 String r = AddonManager.resIdent(w.res), nm = nameOf(w);
@@ -345,10 +369,10 @@ public final class LuaWound {
 
             public LuaValue getMember(LuaValue key) {
                 if(!key.isnumber())
-                    throw new LuaError("hafen.wound():get(id): a wound is addressed by its ID, a number —"
-                        + " hafen.wound():find(\"<name>\") is the search by name or resource");
+                    throw new LuaError(CharApi.WD + ":get(id): a wound is addressed by its ID, a number —"
+                        + " " + CharApi.WD + ":find(\"<name>\") is the search by name or resource");
                 int wid = key.toint();
-                return (wound(wid) == null) ? LuaValue.NIL : of(owner, wid);
+                return (wound(user, wid) == null) ? LuaValue.NIL : of(owner, user, wid);
             }
         }, null);
     }

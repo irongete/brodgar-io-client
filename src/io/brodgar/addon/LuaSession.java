@@ -36,12 +36,14 @@ import java.util.Map;
  * {@code :get(u) == :get(u)} and {@code seen[s] = true} reliable. Never static: no Lua value crosses a
  * sandbox boundary, and the cache dies whole with the {@link Addon} on {@code :reload}.
  *
- * <p><b>What hangs on it.</b> {@code s:world()} and {@code s:player()} (076.3) are the first two namespaces
- * addressed through a Session rather than off {@code hafen}, and both are minted once per
- * {@code (addon, session)} and kept on the handle — see {@link #worldObj}. Every verb under them reads the
- * session named rather than the one on screen; the ones that are inherently the screen's say so where they are
- * defined ({@code screenToWorld}, {@code worldToScreen}) and the ones that <b>send</b> go through
- * {@link AddonManager#sendView}, because a walk is the whole of what a character nobody is looking at takes.
+ * <p><b>What hangs on it.</b> {@code s:world()} and {@code s:player()} (076.3) were the first two namespaces
+ * addressed through a Session rather than off {@code hafen}, and 077.1 adds the six read-only sections of the
+ * character sheet — {@code s:char()}, {@code s:meter()}, {@code s:buff()}, {@code s:study()},
+ * {@code s:quest()} and {@code s:wound()}. Each is minted once per {@code (addon, session)} and kept on the
+ * handle — see {@link #worldObj}. Every verb under them reads the session named rather than the one on
+ * screen; the ones that are inherently the screen's say so where they are defined ({@code screenToWorld},
+ * {@code worldToScreen}) and the ones that <b>send</b> go through {@link AddonManager#sendView}, because a
+ * walk is the whole of what a character nobody is looking at takes.
  *
  * <p><b>Threading.</b> Every read runs on the UI thread. {@code Sessions.members()} copies the membership
  * list, and a member's {@code ui} is null in the gaps ({@code Sessions.Member.run} clears it while the UI is
@@ -53,17 +55,19 @@ public final class LuaSession {
     public final String user;
 
     /**
-     * <b>The namespaces that hang on this session</b> (076.3), minted lazily and held here rather than on the
-     * {@link Addon}: they belong to a {@code (addon, session)} pair, and this handle <i>is</i> that pair. So
-     * {@code s:world() == s:world()} and {@code s:player() == s:player()} come out of interning the handle and
-     * need no cache of their own — and when the addon drops its last reference to {@code s}, the whole bundle
-     * goes with it, because the handle is weakly held (see {@link Cache}).
+     * <b>The namespaces that hang on this session</b> (076.3, 077.1), minted lazily and held here rather than
+     * on the {@link Addon}: they belong to a {@code (addon, session)} pair, and this handle <i>is</i> that
+     * pair. So {@code s:world() == s:world()} and {@code s:meter() == s:meter()} come out of interning the
+     * handle and need no cache of their own — and when the addon drops its last reference to {@code s}, the
+     * whole bundle goes with it, because the handle is weakly held (see {@link Cache}).
      *
      * <p>They are <b>not</b> discarded when the session ends. A handle held past the end still answers
      * {@code :user()}, and its {@code :world()} answers {@code nil}-shaped rather than throwing — every verb
      * re-resolves the member, so there is no stale state for an ended session to leave behind.
      */
     private LuaValue worldObj, playerObj;
+    /** The character sheet's six read-only namespaces (077.1), interned on the handle exactly as above. */
+    private LuaValue charObj, meterObj, buffObj, studyObj, questObj, woundObj;
 
     private LuaSession(String user) {
         this.user = user;
@@ -210,6 +214,63 @@ public final class LuaSession {
                 if(h.playerObj == null)
                     h.playerObj = CharApi.player(owner, h.user);
                 return h.playerObj;
+            }
+        });
+        // char() — THIS character's sheet: its attributes, its learning points, what it is carrying, what it
+        // has eaten, what it knows. Every one of those is a number about one character, and this is where an
+        // addon says whose.
+        m.set("char", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "char");
+                if(h.charObj == null)
+                    h.charObj = CharApi.chr(owner, h.user);
+                return h.charObj;
+            }
+        });
+        // meter() — THIS character's HUD bars. The section object IS the meter slot: two characters have two
+        // slots, and a bar read through the wrong one is a health figure for the wrong body.
+        m.set("meter", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "meter");
+                if(h.meterObj == null)
+                    h.meterObj = CharApi.meters(owner, h.user);
+                return h.meterObj;
+            }
+        });
+        // buff() — THIS character's buff bar. The section object IS the bar.
+        m.set("buff", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "buff");
+                if(h.buffObj == null)
+                    h.buffObj = CharApi.buffs(owner, h.user);
+                return h.buffObj;
+            }
+        });
+        // study() — THIS character's study window: the curiosities in it and the totals across them.
+        m.set("study", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "study");
+                if(h.studyObj == null)
+                    h.studyObj = CharApi.study(owner, h.user);
+                return h.studyObj;
+            }
+        });
+        // quest() — THIS character's quest log. The section object IS the log, over both tabs.
+        m.set("quest", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "quest");
+                if(h.questObj == null)
+                    h.questObj = CharApi.quests(owner, h.user);
+                return h.questObj;
+            }
+        });
+        // wound() — THIS character's wounds. The section object IS the list, in the window's own tree order.
+        m.set("wound", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "wound");
+                if(h.woundObj == null)
+                    h.woundObj = CharApi.wounds(owner, h.user);
+                return h.woundObj;
             }
         });
         // info() — the one SNAPSHOT escape hatch, and always a table: a Session that does not exist is

@@ -18,9 +18,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A <b>Quest object</b> — one entry of the quest log ({@code hafen.quest()}). <b>The section object IS the
- * log</b> (uniform grammar §2.1): {@code hafen.quest()} is the collection over both tabs, the Current one
- * and the Completed one, {@code hafen.quest():get(id)} is one quest and {@code hafen.quest():selected()}
+ * A <b>Quest object</b> — one entry of the quest log ({@code s:quest()}). <b>The section object IS the
+ * log</b> (uniform grammar §2.1): {@code s:quest()} is the collection over both tabs, the Current one
+ * and the Completed one, {@code s:quest():get(id)} is one quest and {@code s:quest():selected()}
  * the distinguished member (R8) — the one the player has open, and the only one whose objectives the
  * client is sent at all.
  *
@@ -43,10 +43,13 @@ import java.util.Map;
  * copies what it needs inside it and resolves names outside it ({@code res.get()} may still be Loading).
  */
 public final class LuaQuest {
-    /** The quest's server id — the whole state of a handle. */
+    /** The account whose log this quest is in — half the address, and what makes the id mean one thing. */
+    public final String user;
+    /** The quest's server id, in that character's own log. */
     public final int id;
 
-    private LuaQuest(int id) {
+    private LuaQuest(String user, int id) {
+        this.user = user;
         this.id = id;
     }
 
@@ -55,9 +58,9 @@ public final class LuaQuest {
         return "Quest(" + id + ")";
     }
 
-    /** An interned Quest object for {@code id} in {@code owner}'s env. */
-    static LuaValue of(Addon owner, int id) {
-        return owner.quests.of(id);
+    /** An interned Quest object for quest {@code id} <b>of session {@code user}</b>, in {@code owner}'s env. */
+    static LuaValue of(Addon owner, String user, int id) {
+        return owner.quests.of(user, id);
     }
 
     /** The {@code LuaQuest} behind a Lua value, or {@code null} for anything else. */
@@ -70,10 +73,14 @@ public final class LuaQuest {
 
     // ---- the per-addon intern cache + metatable ----------------------------------------------------
 
-    /** One addon's Quest cache and metatable (its {@link Addon#quests}), keyed by the server's quest id. */
+    /**
+     * One addon's Quest cache and metatable (its {@link Addon#quests}), keyed by the <b>account plus</b> the
+     * server's quest id: a quest id is one character's own, so two characters both carrying quest 7 carry two
+     * different quests and must have two handles. Two levels of map, the {@link LuaGob} shape.
+     */
     static final class Cache {
         private final Addon owner;
-        private final Map<Integer, Ref> live = new HashMap<Integer, Ref>();
+        private final Map<String, Map<Integer, Ref>> live = new HashMap<String, Map<Integer, Ref>>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
@@ -81,18 +88,21 @@ public final class LuaQuest {
             this.owner = owner;
         }
 
-        synchronized LuaValue of(int qid) {
+        synchronized LuaValue of(String user, int qid) {
             drain();
+            Map<Integer, Ref> byid = live.get(user);
+            if(byid == null)
+                live.put(user, byid = new HashMap<Integer, Ref>());
             Integer key = Integer.valueOf(qid);
-            Ref r = live.get(key);
+            Ref r = byid.get(key);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(key);
+                byid.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaQuest(qid), meta());
-            live.put(key, new Ref(v, key, dead));
+            LuaValue v = LuaValue.userdataOf(new LuaQuest(user, qid), meta());
+            byid.put(key, new Ref(v, user, key, dead));
             return v;
         }
 
@@ -100,8 +110,13 @@ public final class LuaQuest {
             Reference<? extends LuaValue> r;
             while((r = dead.poll()) != null) {
                 Ref qr = (Ref)r;
-                if(live.get(qr.key) == qr)
-                    live.remove(qr.key);
+                Map<Integer, Ref> byid = live.get(qr.user);
+                if(byid == null)
+                    continue;
+                if(byid.get(qr.key) == qr)
+                    byid.remove(qr.key);
+                if(byid.isEmpty())
+                    live.remove(qr.user);
             }
         }
 
@@ -113,10 +128,12 @@ public final class LuaQuest {
     }
 
     private static final class Ref extends WeakReference<LuaValue> {
+        final String user;
         final Integer key;
 
-        Ref(LuaValue v, Integer key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, String user, Integer key, ReferenceQueue<LuaValue> q) {
             super(v, q);
+            this.user = user;
             this.key = key;
         }
     }
@@ -147,7 +164,8 @@ public final class LuaQuest {
         // title() — the quest's name: the explicit title the server sent, else the resource tooltip.
         m.set("title", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                QuestWnd.Quest q = quest(handle(self, "title").id);
+                LuaQuest h = handle(self, "title");
+                QuestWnd.Quest q = quest(h.user, h.id);
                 String t = (q == null) ? null : title(q);
                 return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t);
             }
@@ -155,7 +173,8 @@ public final class LuaQuest {
         // res() — the quest's stable resource name.
         m.set("res", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                QuestWnd.Quest q = quest(handle(self, "res").id);
+                LuaQuest h = handle(self, "res");
+                QuestWnd.Quest q = quest(h.user, h.id);
                 String r = (q == null) ? null : AddonManager.resIdent(q.res);
                 return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
             }
@@ -163,45 +182,50 @@ public final class LuaQuest {
         // status() — "pending" / "done" / "failed" / "disabled". It changes under a stashed handle.
         m.set("status", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                QuestWnd.Quest q = quest(handle(self, "status").id);
+                LuaQuest h = handle(self, "status");
+                QuestWnd.Quest q = quest(h.user, h.id);
                 return (q == null) ? LuaValue.NIL : LuaValue.valueOf(status(q.done));
             }
         });
         // modified() — the server's change stamp; higher is more recent, and it is what the log sorts on.
         m.set("modified", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                QuestWnd.Quest q = quest(handle(self, "modified").id);
+                LuaQuest h = handle(self, "modified");
+                QuestWnd.Quest q = quest(h.user, h.id);
                 return (q == null) ? LuaValue.NIL : LuaValue.valueOf(q.mtime);
             }
         });
         // selected() — is this the quest open in the log? The one that has objectives at all.
         m.set("selected", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(selected(handle(self, "selected").id) != null);
+                LuaQuest h = handle(self, "selected");
+                return LuaValue.valueOf(selected(h.user, h.id) != null);
             }
         });
         // conditions() — the objectives, a plain array (a layout, not a set to address into). EMPTY on
         // every quest but the selected one: the client is sent conditions for that one alone.
         m.set("conditions", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                int qid = handle(self, "conditions").id;
+                LuaQuest h = handle(self, "conditions");
                 LuaTable t = new LuaTable();
                 int i = 0;
-                for(QuestWnd.Quest.Condition c : conditions(qid))
-                    t.set(++i, LuaCondition.of(owner, qid, c.desc));
+                for(QuestWnd.Quest.Condition c : conditions(h.user, h.id))
+                    t.set(++i, LuaCondition.of(owner, h.user, h.id, c.desc));
                 return t;
             }
         });
         // exists() — is this quest still in the log? (The server drops one by sending it with no resource.)
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(quest(handle(self, "exists").id) != null);
+                LuaQuest h = handle(self, "exists");
+                return LuaValue.valueOf(quest(h.user, h.id) != null);
             }
         });
         // info() — the one SNAPSHOT escape hatch.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return snapshot(quest(handle(self, "info").id));
+                LuaQuest h = handle(self, "info");
+                return snapshot(quest(h.user, h.id));
             }
         });
         return m;
@@ -211,21 +235,21 @@ public final class LuaQuest {
         LuaQuest h = resolve(self);
         if(h == null)
             throw new LuaError("quest:" + method + "() — use a COLON call on a Quest object"
-                + " (hafen.quest():get(id), :selected() or :list()[i])");
+                + " (" + CharApi.Q + ":get(id), :selected() or :list()[i])");
         return h;
     }
 
     // ---- the reads ----------------------------------------------------------------------------------
 
-    /** The Quest Log window (created hidden at login but live), or {@code null} before it exists. */
-    static QuestWnd wnd() {
-        return CharApi.questwnd();
+    /** That character's Quest Log window (hidden at login but live), or {@code null} before it exists. */
+    static QuestWnd wnd(String user) {
+        return CharApi.questwnd(user);
     }
 
     /** Every quest, Current tab then Completed tab, copied under the {@code ui} monitor. */
-    static List<QuestWnd.Quest> all() {
+    static List<QuestWnd.Quest> all(String user) {
         List<QuestWnd.Quest> out = new ArrayList<QuestWnd.Quest>();
-        QuestWnd qw = wnd();
+        QuestWnd qw = wnd(user);
         if(qw == null)
             return out;
         synchronized(LuaWidget.monitor(qw)) {    // both lists mutate off-thread (QuestWnd.uimsg)
@@ -236,8 +260,8 @@ public final class LuaQuest {
     }
 
     /** The live record for {@code qid}, or {@code null} once the quest has left the log. */
-    static QuestWnd.Quest quest(int qid) {
-        QuestWnd qw = wnd();
+    static QuestWnd.Quest quest(String user, int qid) {
+        QuestWnd qw = wnd(user);
         if(qw == null)
             return null;
         synchronized(LuaWidget.monitor(qw)) {
@@ -247,8 +271,8 @@ public final class LuaQuest {
     }
 
     /** The selected quest's {@code Box}, or {@code null} when nothing is open in the log. */
-    static QuestWnd.Quest.Box box() {
-        QuestWnd qw = wnd();
+    static QuestWnd.Quest.Box box(String user) {
+        QuestWnd qw = wnd(user);
         if(qw == null)
             return null;
         synchronized(LuaWidget.monitor(qw)) {    // qw.quest is swapped off-thread (addchild / cdestroy)
@@ -258,15 +282,15 @@ public final class LuaQuest {
     }
 
     /** The selected {@code Box} <i>if it is quest {@code qid}'s</i>, else {@code null}. */
-    static QuestWnd.Quest.Box selected(int qid) {
-        QuestWnd.Quest.Box b = box();
+    static QuestWnd.Quest.Box selected(String user, int qid) {
+        QuestWnd.Quest.Box b = box(user);
         return ((b != null) && (b.id == qid)) ? b : null;
     }
 
     /** Quest {@code qid}'s objectives, or empty — which is every quest but the selected one. */
-    static List<QuestWnd.Quest.Condition> conditions(int qid) {
+    static List<QuestWnd.Quest.Condition> conditions(String user, int qid) {
         List<QuestWnd.Quest.Condition> out = new ArrayList<QuestWnd.Quest.Condition>();
-        QuestWnd.Quest.Box b = selected(qid);
+        QuestWnd.Quest.Box b = selected(user, qid);
         if(b == null)
             return out;
         QuestWnd.Quest.Condition[] cond;
@@ -323,35 +347,35 @@ public final class LuaQuest {
     // ---- the collection -----------------------------------------------------------------------------
 
     /**
-     * {@code hafen.quest()} — the log, Current tab first and Completed second, each list in the order the
+     * {@code s:quest()} — the log, Current tab first and Completed second, each list in the order the
      * window itself holds it. Addressable by quest id; {@code :selected()} is the distinguished member
      * (§2.2's R8). There is no {@code :add}/{@code :remove}: accepting and abandoning a quest is the
      * server's business and no client can do either.
      */
-    static LuaValue collection(final Addon owner) {
+    static LuaValue collection(final Addon owner, final String user) {
         LuaTable extra = new LuaTable();
         extra.set("selected", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "selected");
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen.quest():selected() takes no arguments — it reads which quest"
+                    throw new LuaError(CharApi.Q + ":selected() takes no arguments — it reads which quest"
                         + " is open in the log, and which one that is is the player's choice");
-                QuestWnd.Quest.Box b = box();
-                return (b == null) ? LuaValue.NIL : of(owner, b.id);
+                QuestWnd.Quest.Box b = box(user);
+                return (b == null) ? LuaValue.NIL : of(owner, user, b.id);
             }
         });
-        return LuaCollection.create("hafen.quest()", new LuaCollection.Source() {
+        return LuaCollection.create(CharApi.Q, new LuaCollection.Source() {
             public List<LuaValue> members() {
-                List<QuestWnd.Quest> qs = all();
+                List<QuestWnd.Quest> qs = all(user);
                 List<LuaValue> out = new ArrayList<LuaValue>(qs.size());
                 for(int i = 0; i < qs.size(); i++)
-                    out.add(of(owner, qs.get(i).id));
+                    out.add(of(owner, user, qs.get(i).id));
                 return out;
             }
 
             public String needle(LuaValue member) {
                 LuaQuest h = resolve(member);
-                return needleOf((h == null) ? null : quest(h.id));
+                return needleOf((h == null) ? null : quest(user, h.id));
             }
 
             /** These have a name, so a string filter is a substring test over {@link #needle}. */
@@ -365,10 +389,10 @@ public final class LuaQuest {
 
             public LuaValue getMember(LuaValue key) {
                 if(!key.isnumber())
-                    throw new LuaError("hafen.quest():get(id): a quest is addressed by its server ID, a"
-                        + " number — hafen.quest():find(\"<title>\") is the search by name");
+                    throw new LuaError(CharApi.Q + ":get(id): a quest is addressed by its server ID, a"
+                        + " number — " + CharApi.Q + ":find(\"<title>\") is the search by name");
                 int qid = key.toint();
-                return (quest(qid) == null) ? LuaValue.NIL : of(owner, qid);
+                return (quest(user, qid) == null) ? LuaValue.NIL : of(owner, user, qid);
             }
         }, extra);
     }

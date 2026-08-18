@@ -251,7 +251,7 @@ public final class LuaCollection {
      * out of the call that contains it.
      *
      * <p>Package-visible and static because a collection's own <b>extra</b> verbs filter too — a sub-list
-     * like {@code hafen.char():skill():available(filter)} is the same argument over a different set, and it
+     * like {@code s:char():skill():available(filter)} is the same argument over a different set, and it
      * has to behave identically or the filter would mean two things one verb apart.
      */
     static boolean keeps(LuaValue filter, LuaValue member, boolean named, String needle, String coll,

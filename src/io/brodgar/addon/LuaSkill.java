@@ -19,7 +19,7 @@ import java.util.Map;
 
 /**
  * A <b>Skill object</b> — one entry of the character sheet's "Lore &amp; Skills" tab, known or buyable
- * ({@code hafen.char():skill()}). One type covers both groups, because they are one set the server
+ * ({@code s:char():skill()}). One type covers both groups, because they are one set the server
  * partitions: buying a skill moves it from <i>available</i> to <i>known</i> without it becoming a different
  * thing, and an addon that stashed the handle goes on reading the same skill afterwards.
  *
@@ -36,8 +36,11 @@ import java.util.Map;
 public final class LuaSkill {
     /** The server's skill token — the whole state of a handle, and its intern key. */
     public final String token;
+    /** The account whose sheet this skill is on — the other half of the address. */
+    public final String user;
 
-    private LuaSkill(String token) {
+    private LuaSkill(String user, String token) {
+        this.user = user;
         this.token = token;
     }
 
@@ -46,9 +49,9 @@ public final class LuaSkill {
         return "Skill(" + token + ")";
     }
 
-    /** An interned Skill object for the token {@code nm} in {@code owner}'s env. */
-    static LuaValue of(Addon owner, String nm) {
-        return owner.skills.of(nm);
+    /** An interned Skill object for the token {@code nm} <b>on session {@code user}</b>, in {@code owner}'s env. */
+    static LuaValue of(Addon owner, String user, String nm) {
+        return owner.skills.of(user, nm);
     }
 
     /** The {@code LuaSkill} behind a Lua value, or {@code null} for anything that is not a Skill object. */
@@ -61,28 +64,35 @@ public final class LuaSkill {
 
     // ---- the per-addon intern cache + metatable ---------------------------------------------------
 
-    /** One addon's Skill interning cache and metatable (its {@link Addon#skills}), keyed by the token. */
+    /**
+     * One addon's Skill interning cache and metatable (its {@link Addon#skills}), keyed by the <b>account
+     * plus</b> the server's token: knowing a skill is one character's fact, so two characters are two
+     * handles. Two levels of map, the {@link LuaGob} shape.
+     */
     static final class Cache {
-        private final Map<String, Ref> live = new HashMap<String, Ref>();
+        private final Map<String, Map<String, Ref>> live = new HashMap<String, Map<String, Ref>>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
         Cache(Addon owner) {
         }
 
-        synchronized LuaValue of(String nm) {
+        synchronized LuaValue of(String user, String nm) {
             drain();
             if(nm == null)
                 return LuaValue.NIL;
-            Ref r = live.get(nm);
+            Map<String, Ref> byname = live.get(user);
+            if(byname == null)
+                live.put(user, byname = new HashMap<String, Ref>());
+            Ref r = byname.get(nm);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(nm);
+                byname.remove(nm);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaSkill(nm), meta());
-            live.put(nm, new Ref(v, nm, dead));
+            LuaValue v = LuaValue.userdataOf(new LuaSkill(user, nm), meta());
+            byname.put(nm, new Ref(v, user, nm, dead));
             return v;
         }
 
@@ -90,8 +100,13 @@ public final class LuaSkill {
             Reference<? extends LuaValue> r;
             while((r = dead.poll()) != null) {
                 Ref br = (Ref)r;
-                if(live.get(br.key) == br)
-                    live.remove(br.key);
+                Map<String, Ref> byname = live.get(br.user);
+                if(byname == null)
+                    continue;
+                if(byname.get(br.key) == br)
+                    byname.remove(br.key);
+                if(byname.isEmpty())
+                    live.remove(br.user);
             }
         }
 
@@ -103,10 +118,12 @@ public final class LuaSkill {
     }
 
     private static final class Ref extends WeakReference<LuaValue> {
+        final String user;
         final String key;
 
-        Ref(LuaValue v, String key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, String user, String key, ReferenceQueue<LuaValue> q) {
             super(v, q);
+            this.user = user;
             this.key = key;
         }
     }
@@ -132,7 +149,7 @@ public final class LuaSkill {
         m.set("name", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaSkill h = handle(self, "name");
-                SkillWnd.Skill s = find(h.token);
+                SkillWnd.Skill s = find(h.user, h.token);
                 return (s == null) ? LuaValue.valueOf(h.token)
                                    : LuaValue.valueOf(AddonManager.resTipName(s.res, h.token));
             }
@@ -140,7 +157,8 @@ public final class LuaSkill {
         // res() — the icon resource name (stable identity), or nil while it is still Loading.
         m.set("res", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                SkillWnd.Skill s = find(handle(self, "res").token);
+                LuaSkill h = handle(self, "res");
+                SkillWnd.Skill s = find(h.user, h.token);
                 String r = (s == null) ? null : AddonManager.resIdent(s.res);
                 return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
             }
@@ -148,27 +166,31 @@ public final class LuaSkill {
         // cost() — the learning-point price the server published for this skill, or nil once it is gone.
         m.set("cost", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                SkillWnd.Skill s = find(handle(self, "cost").token);
+                LuaSkill h = handle(self, "cost");
+                SkillWnd.Skill s = find(h.user, h.token);
                 return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s.cost);
             }
         });
         // known() — is it learnt, rather than merely buyable? Buying one flips this and nothing else.
         m.set("known", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                SkillWnd.Skill s = find(handle(self, "known").token);
+                LuaSkill h = handle(self, "known");
+                SkillWnd.Skill s = find(h.user, h.token);
                 return LuaValue.valueOf((s != null) && s.has);
             }
         });
         // exists() — is this skill still listed at all? False once the window is gone or the server drops it.
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(find(handle(self, "exists").token) != null);
+                LuaSkill h = handle(self, "exists");
+                return LuaValue.valueOf(find(h.user, h.token) != null);
             }
         });
         // info() — the one SNAPSHOT escape hatch.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return snapshot(handle(self, "info").token);
+                LuaSkill h = handle(self, "info");
+                return snapshot(h.user, h.token);
             }
         });
         return m;
@@ -178,20 +200,20 @@ public final class LuaSkill {
         LuaSkill h = resolve(self);
         if(h == null)
             throw new LuaError("skill:" + method + "() — use a COLON call on a Skill object"
-                + " (hafen.char():skill():list()[i], :find(name), :available()[i])");
+                + " (" + CharApi.C + ":skill():list()[i], :find(name), :available()[i])");
         return h;
     }
 
     // ---- the reads (all Loading-guarded, all through the token) --------------------------------------
 
-    /** The character sheet's "Lore &amp; Skills" widget, or {@code null}. */
-    static SkillWnd skillwnd() {
-        return CharApi.skillwnd();
+    /** That character's "Lore &amp; Skills" widget, or {@code null}. */
+    static SkillWnd skillwnd(String user) {
+        return CharApi.skillwnd(user);
     }
 
     /** The live record for a token, known group first, or {@code null} — the one resolve funnel (D-012). */
-    static SkillWnd.Skill find(String token) {
-        SkillWnd w = skillwnd();
+    static SkillWnd.Skill find(String user, String token) {
+        SkillWnd w = skillwnd(user);
         if((w == null) || (token == null))
             return null;
         try {
@@ -210,9 +232,9 @@ public final class LuaSkill {
     }
 
     /** A copy of one group's tokens, in the window's own order ({@code known} = the learnt group). */
-    static List<String> tokens(boolean known) {
+    static List<String> tokens(String user, boolean known) {
         List<String> out = new ArrayList<String>();
-        SkillWnd w = skillwnd();
+        SkillWnd w = skillwnd(user);
         if(w == null)
             return out;
         try {
@@ -225,8 +247,8 @@ public final class LuaSkill {
     }
 
     /** The documented {@code Skill} snapshot {@code {name, res, cost, known}}, or nil once it is gone. */
-    static LuaValue snapshot(String token) {
-        SkillWnd.Skill s = find(token);
+    static LuaValue snapshot(String user, String token) {
+        SkillWnd.Skill s = find(user, token);
         if(s == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
@@ -244,7 +266,7 @@ public final class LuaSkill {
         LuaSkill h = resolve(member);
         if(h == null)
             return "";
-        SkillWnd.Skill s = find(h.token);
+        SkillWnd.Skill s = find(h.user, h.token);
         String res = (s == null) ? null : AddonManager.resIdent(s.res);
         String name = (s == null) ? h.token : AddonManager.resTipName(s.res, h.token);
         return ((name == null) ? "" : name) + "\n" + ((res == null) ? "" : res);
@@ -253,7 +275,7 @@ public final class LuaSkill {
     // ---- the collection ------------------------------------------------------------------------------
 
     /**
-     * {@code hafen.char():skill()} — the skills the character <b>knows</b>, with the buyable ones a verb
+     * {@code s:char():skill()} — the skills the character <b>knows</b>, with the buyable ones a verb
      * away. {@code :available(filter)} is the second group: a distinguished sub-list is a verb on the
      * collection (§2.3), never a second accessor, which is what the flat {@code skillsAvailable()} was.
      *
@@ -261,7 +283,7 @@ public final class LuaSkill {
      * what anyone writes. {@code :find(name)} searches the display name and the resource, exactly as the
      * flat membership test did — and it now hands back the skill rather than a boolean.
      */
-    static LuaValue collection(final Addon owner) {
+    static LuaValue collection(final Addon owner, final String user) {
         LuaTable extra = new LuaTable();
         extra.set("available", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -269,20 +291,20 @@ public final class LuaSkill {
                 LuaValue filter = a.arg(2);
                 LuaTable t = new LuaTable();
                 int n = 0;
-                for(String nm : tokens(false)) {
-                    LuaValue member = of(owner, nm);
+                for(String nm : tokens(user, false)) {
+                    LuaValue member = of(owner, user, nm);
                     if(LuaCollection.keeps(filter, member, true, needleOf(member),
-                                           "hafen.char():skill()", "available"))
+                                           CharApi.C + ":skill()", "available"))
                         t.set(++n, member);
                 }
                 return t;
             }
         });
-        return LuaCollection.create("hafen.char():skill()", new LuaCollection.Source() {
+        return LuaCollection.create(CharApi.C + ":skill()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
-                for(String nm : tokens(true))
-                    out.add(of(owner, nm));
+                for(String nm : tokens(user, true))
+                    out.add(of(owner, user, nm));
                 return out;
             }
 

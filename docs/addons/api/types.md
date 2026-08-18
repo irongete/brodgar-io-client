@@ -97,12 +97,12 @@ It is `nil` for a place that is not durable, and it is what `s:world():position(
 ## Attr
 
 From [`attr:info()`](char.md#attributes). `{ base = number, comp = number }` — the raw base value against
-the computed, buffed value. `hafen.char():attr()` hands out live [`Attr` objects](char.md#attributes),
+the computed, buffed value. `s:char():attr()` hands out live [`Attr` objects](char.md#attributes),
 not this table.
 
 ## Food
 
-From [`food:info()`](char.md#food), the one snapshot escape hatch. `hafen.char():food()` and the
+From [`food:info()`](char.md#food), the one snapshot escape hatch. `s:char():food()` and the
 `FepChanged` event hand you a live [`Food` object](char.md#food), not this table. Either half is absent
 until its meter arrives.
 
@@ -121,7 +121,7 @@ until its meter arrives.
 
 ## StudySlot
 
-From [`slot:info()`](study.md#a-slot), the one snapshot escape hatch. `hafen.study():slot()` and the
+From [`slot:info()`](study.md#a-slot), the one snapshot escape hatch. `s:study():slot()` and the
 `StudyChanged` event hand you live [`StudySlot` objects](study.md#a-slot), not this table.
 
 | Field | Type | Notes |
@@ -134,11 +134,11 @@ From [`slot:info()`](study.md#a-slot), the one snapshot escape hatch. `hafen.stu
 | `time` | number | **total** study time in seconds; there is no per-item countdown; optional |
 | `progress` | number | 0..1 study progress; best-effort, optional |
 
-`hafen.study():summary()` returns the live totals `{ lp, attention, cost }`.
+`s:study():summary()` returns the live totals `{ lp, attention, cost }`.
 
 ## Skill, Credo, Experience
 
-From `:info()` on each. [`hafen.char`](char.md) hands out the live objects; these are the snapshots.
+From `:info()` on each. [`session:char`](char.md) hands out the live objects; these are the snapshots.
 
 - **Skill** — `{ name = string, res = string?, cost = number, known = bool }`, where `known`
   distinguishes a learnt skill from one that can still be bought.
@@ -165,7 +165,7 @@ loose numbers — `:color()` and `:leader()`.
 
 ## Buff
 
-From [`buff:info()`](buff.md#read), the one snapshot escape hatch. `hafen.buff():list()` and the
+From [`buff:info()`](buff.md#read), the one snapshot escape hatch. `s:buff():list()` and the
 `BuffAdded`/`BuffRemoved`/`BuffChanged` events hand you live [`Buff` objects](buff.md), not this table.
 
 | Field | Type | Notes |
@@ -177,7 +177,7 @@ From [`buff:info()`](buff.md#read), the one snapshot escape hatch. `hafen.buff()
 
 ## Meter
 
-From [`meter:info()`](meter.md#read), the one snapshot escape hatch. `hafen.meter():list()` and the
+From [`meter:info()`](meter.md#read), the one snapshot escape hatch. `s:meter():list()` and the
 `MeterAdded`/`MeterRemoved`/`MeterChanged` events hand you live [`Meter` objects](meter.md), not this
 table.
 
@@ -214,7 +214,7 @@ on it is `hafen.speed():current() == sp`, since the objects are interned.
 
 ## Quest and Condition
 
-What `q:info()` and `c:info()` hand back on [`hafen.quest`](quest.md)'s objects; the reads themselves
+What `q:info()` and `c:info()` hand back on [`session:quest`](quest.md)'s objects; the reads themselves
 are verbs on those objects.
 
 **Quest** — `{ id, title?, res?, status, mtime }`, where `status` is `"pending"`, `"done"`, `"failed"`
@@ -225,7 +225,7 @@ is what `c:description()` reads.
 
 ## Wound
 
-What `w:info()` hands back on [`hafen.wound`](wound.md)'s objects. Wounds form a **tree**, and the
+What `w:info()` hands back on [`session:wound`](wound.md)'s objects. Wounds form a **tree**, and the
 `parentid` here is the id `w:parent()` resolves to the wound itself.
 
 | Field | Type | Notes |

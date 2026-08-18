@@ -30,7 +30,7 @@ nothing is sandboxed and every protected verb works there.
 ```text
 :lua hafen.session():current():world():gob():count("terobjs/tree")
 :lua hafen.ui():find("window[title=Inventory]"):info()
-:lua for _, m in ipairs(hafen.meter():list()) do hafen.log():write(tostring(m:res())) end
+:lua for _, m in ipairs(hafen.session():current():meter():list()) do hafen.log():write(tostring(m:res())) end
 ```
 
 Anything that reads is safe to try. Anything that writes is a real change to your client — that is the

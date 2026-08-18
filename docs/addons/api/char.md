@@ -1,42 +1,60 @@
-# hafen.char: the character sheet
+# session:char: the character sheet
 
-Read the character sheet: attributes, learning points, carried weight, food and hunger, skills, credos
-and lore. The curiosities being studied are next door, in [`hafen.study`](study.md).
+Read one of your characters' sheets: attributes, learning points, carried weight, food and hunger, skills,
+credos and lore. You reach it through the [session](session.md) whose character you mean. The curiosities
+that character is studying are next door, in [`session:study`](study.md).
 
 ```lua
-local str = hafen.char():attr():get("str")
-hafen.log():write("strength " .. str:base() .. " (" .. str:composite() .. " buffed)")
+local s = hafen.session():current()                  -- the character on screen
+local str = s and s:char():attr():get("str")
+if str then
+  hafen.log():write("strength " .. (str:base() or 0) .. " (" .. (str:composite() or 0) .. " buffed)")
+end
 
-if hafen.char():skill():find("Alchemy") then hafen.log():write("I know Alchemy") end
+if s and s:char():skill():find("Alchemy") then hafen.log():write("I know Alchemy") end
 ```
 
 The sheet lives in HUD widgets that build after login, so it streams in a beat after `SessionEnteredWorld`: an
 immediate read answers `nil` or an empty array. Read on a short timer, or on the matching event.
 
+## Whose sheet it is
+
+There is no such thing as *the* character sheet. `s:char()` is the sheet of the character that session is
+playing, and two of your characters agree about none of it. So the read says which one it is about:
+
+```lua
+hafen.session():current():char():lp()        -- the learning points of the character on screen
+hafen.session():get("alt"):char():lp()       -- that character's, whether or not you are looking at it
+```
+
+`s:char()` is the same object every call, and so is each of its four collections — minted once for that
+session — so a panel that reads the sheet every frame allocates nothing to do it. A session the client no
+longer holds answers `nil`-shaped rather than raising, the same shape as before entering the world;
+[`s:exists()`](session.md#read) tells the two apart.
+
 ## Read
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.char():attr()` | collection | the base attributes |
-| `hafen.char():skill()` | collection | the skills the character knows |
-| `hafen.char():credo()` | collection | the Credos tab |
-| `hafen.char():experience()` | collection | the Lore tab |
-| `hafen.char():food()` | [`Food`](#food) \| nil | FEP and hunger, once the sheet is up |
-| `hafen.char():lp()` | number \| nil | current learning points |
-| `hafen.char():weight()` | number \| nil | carried weight, the encumbrance figure |
+| `s:char():attr()` | collection | the base attributes |
+| `s:char():skill()` | collection | the skills the character knows |
+| `s:char():credo()` | collection | the Credos tab |
+| `s:char():experience()` | collection | the Lore tab |
+| `s:char():food()` | [`Food`](#food) \| nil | FEP and hunger, once the sheet is up |
+| `s:char():lp()` | number \| nil | current learning points |
+| `s:char():weight()` | number \| nil | carried weight, the encumbrance figure |
 
-Each collection is the same object every call, so a panel that reads the sheet every frame allocates
-nothing to do it. Nothing on this page throws once the sheet is up, and nothing is protected: the character
-sheet is a display of server state, and every change to it is an action taken elsewhere.
+Nothing on this page throws once the sheet is up, and nothing is protected: the character sheet is a display
+of server state, and every change to it is an action taken elsewhere.
 
 ## Attributes
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.char():attr():get(name)` | `Attr` | one attribute — **never nil** for a real name |
-| `hafen.char():attr():list(filter)` | `Attr[]` | every attribute the server has published |
-| `hafen.char():attr():count(filter)` | number | how many match |
-| `hafen.char():attr():find(filter)` | `Attr` \| nil | the first that matches |
+| `s:char():attr():get(name)` | `Attr` | one attribute — **never nil** for a real name |
+| `s:char():attr():list(filter)` | `Attr[]` | every attribute the server has published |
+| `s:char():attr():count(filter)` | number | how many match |
+| `s:char():attr():find(filter)` | `Attr` \| nil | the first that matches |
 
 The base attribute names are `str`, `agi`, `int`, `con`, `prc`, `csm`, `dex`, `wil` and `psy`. **That set
 is closed**, so a name outside it is refused with an error listing the nine rather than answered with
@@ -52,17 +70,18 @@ typo and nothing else.
 
 `:get(name)` always hands back the attribute, whether or not the server has sent anything for it yet; it
 is `:base()` and `:composite()` that answer `nil` until it has, and `:list()` that holds only the
-published ones. An `Attr` is interned by name, so `:get("str") == :get("str")` and `seen[attr] = true`
-work.
+published ones. An `Attr` is interned on its session and its name, so `:get("str") == :get("str")` on one
+session and `seen[attr] = true` work, while the same name on two characters is two objects — which is what
+keeps two strengths from being one number.
 
 ## Skills
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.char():skill():list(filter)` | `Skill[]` | the skills the character knows |
-| `hafen.char():skill():available(filter)` | `Skill[]` | the skills that can be bought, each with a `:cost()` |
-| `hafen.char():skill():count(filter)` | number | how many known ones match |
-| `hafen.char():skill():find(filter)` | `Skill` \| nil | the first known skill that matches |
+| `s:char():skill():list(filter)` | `Skill[]` | the skills the character knows |
+| `s:char():skill():available(filter)` | `Skill[]` | the skills that can be bought, each with a `:cost()` |
+| `s:char():skill():count(filter)` | number | how many known ones match |
+| `s:char():skill():find(filter)` | `Skill` \| nil | the first known skill that matches |
 
 | Method | Returns | Description |
 |---|---|---|
@@ -74,7 +93,7 @@ work.
 | `skill:info()` | [`Skill`](types.md#skill-credo-experience) \| nil | a plain-table **snapshot** |
 
 A string [filter](conventions.md#the-filter-argument) matches the display name **and** the resource name.
-`:find(name)` hands back the skill itself, which is truthy, so `if hafen.char():skill():find("x") then`
+`:find(name)` hands back the skill itself, which is truthy, so `if s:char():skill():find("x") then`
 reads as a membership test and also gives you the thing.
 
 **One type covers both groups.** Buying a skill moves it from `:available()` to `:list()` without making
@@ -84,11 +103,11 @@ it a different skill: the handle you stashed goes on reading it, and `:known()` 
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.char():credo():list(filter)` | `Credo[]` | every credo the tab lists, acquired and available |
-| `hafen.char():credo():pursuing()` | `Credo` \| nil | the one being pursued, if any |
-| `hafen.char():credo():cost()` | number \| nil | the learning-point price of beginning one |
-| `hafen.char():credo():count(filter)` | number | how many match |
-| `hafen.char():credo():find(filter)` | `Credo` \| nil | the first that matches |
+| `s:char():credo():list(filter)` | `Credo[]` | every credo the tab lists, acquired and available |
+| `s:char():credo():pursuing()` | `Credo` \| nil | the one being pursued, if any |
+| `s:char():credo():cost()` | number \| nil | the learning-point price of beginning one |
+| `s:char():credo():count(filter)` | number | how many match |
+| `s:char():credo():find(filter)` | `Credo` \| nil | the first that matches |
 
 | Method | Returns | Description |
 |---|---|---|
@@ -98,7 +117,7 @@ it a different skill: the handle you stashed goes on reading it, and `:known()` 
 | `credo:pursuing()` | boolean | whether it is the one being pursued |
 | `credo:level()`, `credo:levelTotal()` | number \| nil | pursuit progress — only on the pursued credo |
 | `credo:quest()`, `credo:questTotal()` | number \| nil | quest progress within the current level |
-| `credo:questId()` | number \| nil | the id of the credo quest, for [`hafen.quest`](quest.md) |
+| `credo:questId()` | number \| nil | the id of the credo quest, for [`session:quest`](quest.md) |
 | `credo:exists()` | boolean | whether it is still listed |
 | `credo:info()` | [`Credo`](types.md#skill-credo-experience) \| nil | a plain-table **snapshot** |
 
@@ -109,9 +128,9 @@ credo found in `:list()`. The five progress reads answer `nil` on every credo bu
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.char():experience():list(filter)` | `Experience[]` | the lore the character has seen |
-| `hafen.char():experience():count(filter)` | number | how many match |
-| `hafen.char():experience():find(filter)` | `Experience` \| nil | the first that matches |
+| `s:char():experience():list(filter)` | `Experience[]` | the lore the character has seen |
+| `s:char():experience():count(filter)` | number | how many match |
+| `s:char():experience():find(filter)` | `Experience` \| nil | the first that matches |
 
 | Method | Returns | Description |
 |---|---|---|
@@ -130,9 +149,9 @@ demand, after your own action.
 
 ## Food
 
-`hafen.char():food()` is the one place in the client with **absolute** numbers about your character —
-everywhere else, a bar is a fraction. See [`hafen.meter`](meter.md). It answers `nil` until the sheet is
-up.
+`s:char():food()` is the one place in the client with **absolute** numbers about a character —
+everywhere else, a bar is a fraction. See [`session:meter`](meter.md). It answers `nil` until that
+character's sheet is up.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -142,7 +161,7 @@ up.
 | `food:hunger()` | number \| nil | the hunger level |
 | `food:label()` | string \| nil | the client's own word for that level |
 | `food:efficacy()` | number \| nil | the multiplier on what you eat next at this hunger |
-| `food:exists()` | boolean | whether this is still the live sheet |
+| `food:exists()` | boolean | whether this is still that character's live sheet |
 | `food:info()` | [`Food`](types.md#food) \| nil | a plain-table **snapshot** |
 
 Subscribe to [`FepChanged`](event/bus.md#character-and-status), whose payload is the `Food` object itself.
@@ -155,8 +174,8 @@ end)
 
 ## See also
 
-- [`hafen.study`](study.md) — the curiosities and their learning-point totals
-- [`hafen.meter`](meter.md) — the HUD bars, which are fractions rather than numbers
-- [`hafen.wound`](wound.md) — the other half of the Health and Wounds tab
+- [`session:study`](study.md) — the curiosities and their learning-point totals
+- [`session:meter`](meter.md) — the HUD bars, which are fractions rather than numbers
+- [`session:wound`](wound.md) — the other half of the Health and Wounds tab
 - [types](types.md#attr) — `Attr`, `Food`, `Skill`, `Credo` and `Experience`
 - [events](event/bus.md#character-and-status) — `FepChanged`

@@ -93,14 +93,14 @@ final class Retired {
     static {
         // ---- sections whose NAME changed (§2.3: the three surviving plurals go singular) ----------------
         put("hafen.events", "hafen.events is now hafen.event() — subscribe with hafen.event():on(name, fn)");
-        put("hafen.quests", "hafen.quests is now hafen.quest(), which IS the collection over both tabs:"
-            + " hafen.quests.list(f) is hafen.quest():list(f), hafen.quests.selected() is"
-            + " hafen.quest():selected(), and hafen.quest():get(id) is one quest by its id. Each member is a"
+        put("hafen.quests", "hafen.quests is now session:quest(), which IS the collection over both tabs:"
+            + " hafen.quests.list(f) is s:quest():list(f), hafen.quests.selected() is s:quest():selected(),"
+            + " and s:quest():get(id) is one quest by its id. Each member is a"
             + " Quest object: q:id() :title() :res() :status() :modified() :selected() :conditions()"
             + " :exists() :info()");
-        put("hafen.wounds", "hafen.wounds is now hafen.wound(), which IS the collection:"
-            + " hafen.wounds.list(f) is hafen.wound():list(f) and hafen.wounds.has(needle) is"
-            + " hafen.wound():find(needle), which hands back the Wound rather than a boolean — still truthy."
+        put("hafen.wounds", "hafen.wounds is now session:wound(), which IS the collection:"
+            + " hafen.wounds.list(f) is s:wound():list(f) and hafen.wounds.has(needle) is"
+            + " s:wound():find(needle), which hands back the Wound rather than a boolean — still truthy."
             + " Each member is a Wound object: w:id() :name() :res() :severity() :parent() :level()"
             + " :exists() :info()");
 
@@ -146,6 +146,26 @@ final class Retired {
         sectionObj("world", "gob", "grid", "position", "tile", "height", "tileToWorld", "tileToGrid",
                    "screenToWorld", "snapPlace", "snapAngle", "place", "select");
         sectionObj("player", "gob", "move", "hand", "worldToScreen");
+
+        // ---- 077.1: the character sheet's six READ-ONLY sections follow them. Each names one character's ---
+        // ---- own state and nothing else, so each is a Session verb: one row per section on the hafen
+        // ---- table's own __index answers every spelling at once, and the per-verb rows below are the
+        // ---- inventory -- unreachable in practice, and the guarantee that no verb moved without a row.
+        put("hafen.char", "hafen.char() is now session:char()" + addr + ". A sheet is one character's:"
+            + " its attributes, its learning points, what it is carrying and what it has eaten.");
+        put("hafen.meter", "hafen.meter() is now session:meter()" + addr + ". Two characters have two"
+            + " HUD meter slots, and a health bar read off the wrong one is the wrong body's.");
+        put("hafen.buff", "hafen.buff() is now session:buff()" + addr + ".");
+        put("hafen.study", "hafen.study() is now session:study()" + addr + ".");
+        put("hafen.quest", "hafen.quest() is now session:quest()" + addr + ". A quest id counts inside one"
+            + " character's own log.");
+        put("hafen.wound", "hafen.wound() is now session:wound()" + addr + ". A wound is on one body.");
+        sectionObj("char", "attr", "skill", "credo", "experience", "food", "lp", "weight");
+        sectionObj("meter", "list", "count", "find");
+        sectionObj("buff", "list", "count", "find");
+        sectionObj("study", "slot", "summary");
+        sectionObj("quest", "list", "count", "find", "get", "selected");
+        sectionObj("wound", "list", "count", "find", "get");
 
         // ---- ...and the character a login is playing is the SESSION's read, not the Player's: one fact with
         // ---- two spellings whose only difference was which door you came through is the dual style §2 cuts.
@@ -510,24 +530,24 @@ final class Retired {
             + " and writes it, like every other property in the API");
 
         // ---- the character sheet: four flat readers become four collections, and one of them a sub-list ----
-        put("hafen.char.attr", "hafen.char.attr(name) is now hafen.char():attr():get(name), and what it"
+        put("hafen.char.attr", "hafen.char.attr(name) is now s:char():attr():get(name), and what it"
             + " hands back is an Attr object: a:base() and a:composite() are the two numbers");
-        put("hafen.char.attrs", "hafen.char.attrs() is now hafen.char():attr():list() — a plain array of"
+        put("hafen.char.attrs", "hafen.char.attrs() is now s:char():attr():list() — a plain array of"
             + " Attr objects rather than a table keyed by name, and a:name() says which one it is");
-        put("hafen.char.skills", "hafen.char.skills() is now hafen.char():skill():list()");
-        put("hafen.char.skill", "hafen.char.skill(name) is now hafen.char():skill():find(name), and it"
+        put("hafen.char.skills", "hafen.char.skills() is now s:char():skill():list()");
+        put("hafen.char.skill", "hafen.char.skill(name) is now s:char():skill():find(name), and it"
             + " hands back the Skill rather than a boolean — still truthy, so `if ... then` is unchanged");
         put("hafen.char.skillsAvailable", "hafen.char.skillsAvailable() is now"
-            + " hafen.char():skill():available() — the buyable skills are a verb on the skill collection,"
+            + " s:char():skill():available() — the buyable skills are a verb on the skill collection,"
             + " and each one carries s:cost()");
-        put("hafen.char.credos", "hafen.char.credos() is now hafen.char():credo():list() — acquired and"
-            + " available in one collection with cr:acquired() saying which, hafen.char():credo():pursuing()"
-            + " for the one being pursued, and hafen.char():credo():cost() for the price of beginning one");
-        put("hafen.char.experiences", "hafen.char.experiences() is now hafen.char():experience():list()");
+        put("hafen.char.credos", "hafen.char.credos() is now s:char():credo():list() — acquired and"
+            + " available in one collection with cr:acquired() saying which, s:char():credo():pursuing()"
+            + " for the one being pursued, and s:char():credo():cost() for the price of beginning one");
+        put("hafen.char.experiences", "hafen.char.experiences() is now s:char():experience():list()");
         section("char", "lp", "weight", "food");
 
         // ---- the study window: the slots become a collection, the totals stay one read ------------------
-        put("hafen.study.slots", "hafen.study.slots() is now hafen.study():slot():list()");
+        put("hafen.study.slots", "hafen.study.slots() is now s:study():slot():list()");
         section("study", "summary");
 
         // ---- the party: the section object IS the roster, and a member finally resolves its gob ---------

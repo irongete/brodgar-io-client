@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.BAttrWnd;
+import haven.CharWnd;
 import haven.Resource;
 
 import org.luaj.vm2.LuaError;
@@ -16,7 +17,7 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
- * A <b>Food object</b> — the character's food-event points and hunger ({@code hafen.char():food()}), read
+ * A <b>Food object</b> — the character's food-event points and hunger ({@code s:char():food()}), read
  * off the character sheet's base-attributes tab. It is <b>the one place in the client with absolute numbers
  * about the character</b>: everywhere else a bar is a fraction.
  *
@@ -25,7 +26,7 @@ import java.util.Map;
  * identity and the lifetime — the same choice {@link LuaBuff} and {@link LuaMeter} make.
  *
  * <p><b>Every read is a live re-read and may answer {@code nil}</b> while the numbers stream in, which they
- * do for a beat after entering the world and again after every meal. {@code hafen.char():food()} itself is
+ * do for a beat after entering the world and again after every meal. {@code s:char():food()} itself is
  * {@code nil} until the tab exists at all.
  */
 public final class LuaFood {
@@ -170,9 +171,14 @@ public final class LuaFood {
             }
         });
         // exists() — is this still the live base-attributes tab? False after a relog rebuilt it.
+        //   077.1: asked of the tab itself — is it still the `battr` of the sheet it hangs in — rather than
+        // compared against the drawn session's, which would report a background character's own live tab as
+        // gone the moment the player tabbed away from it.
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "exists").wdg == CharApi.battrwnd());
+                BAttrWnd w = handle(self, "exists").wdg;
+                CharWnd c = (w == null) ? null : w.getparent(CharWnd.class);
+                return LuaValue.valueOf((c != null) && (c.battr == w));
             }
         });
         // info() — the one SNAPSHOT escape hatch, the whole of the above in the documented shape.
@@ -188,7 +194,7 @@ public final class LuaFood {
         LuaFood h = resolve(self);
         if(h == null)
             throw new LuaError("food:" + method + "() — use a COLON call on a Food object"
-                + " (hafen.char():food())");
+                + " (s:char():food())");
         return h;
     }
 

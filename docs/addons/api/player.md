@@ -64,7 +64,7 @@ back.
 > answer both questions.
 
 The hp, stamina and energy bars are not here. They are a HUD slot the server fills rather than
-per-player state, so they live in [`hafen.meter`](meter.md).
+per-player state, so they live in [`session:meter`](meter.md).
 
 ## Write (protected)
 
@@ -177,6 +177,6 @@ cases.
 - [`hafen.session`](session.md) — the address this hangs off, and the character it is playing
 - [Gob](gob.md) — everything positional about that character, and `gob:click`
 - [items](ui/items.md) — the Item the hand carries, and the verbs on one in a container
-- [`hafen.meter`](meter.md) — the HUD bars
-- [`hafen.char`](char.md) — attributes, skills and food
+- [`session:meter`](meter.md) — the HUD bars
+- [`session:char`](char.md) — attributes, skills and food
 - [`session:world`](world.md#screen-to-world-and-placement-snapping) — `screenToWorld`, the inverse projection

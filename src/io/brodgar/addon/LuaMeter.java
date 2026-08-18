@@ -23,7 +23,7 @@ import java.util.Map;
  * the flat {@code vitals()} snapshot the player used to carry. Built on exactly the mechanism {@link LuaGob} (017),
  * {@link LuaKin} (020), {@link LuaSlot} (021), {@link LuaPagina} (023), {@link LuaSound} (024) and
  * {@link LuaBuff} (025) established; <b>the section object IS the meter slot</b> (uniform grammar §2.1):
- * {@code hafen.meter()} is the collection of every HUD meter and {@code hafen.meter():find(needle)} is one of
+ * {@code s:meter()} is the collection of every HUD meter and {@code s:meter():find(needle)} is one of
  * them.
  *
  * <p><b>There is no fixed vitals triple.</b> The HUD's {@code place == "meter"} slot takes an arbitrary
@@ -170,7 +170,7 @@ public final class LuaMeter {
      */
     private static LuaTable methods() {
         LuaTable m = new LuaTable();
-        // res() — the meter's background resource name, its identity and the thing hafen.meter():find(needle)
+        // res() — the meter's background resource name, its identity and the thing s:meter():find(needle)
         // searches. SERVER-published, so it is never hard-coded here; nil for a beat while it loads.
         m.set("res", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -230,7 +230,7 @@ public final class LuaMeter {
         LuaMeter h = resolve(self);
         if(h == null)
             throw new LuaError("meter:" + method + "() — use a COLON call on a Meter object"
-                + " (hafen.meter():find(needle), hafen.meter():list()[i])");
+                + " (s:meter():find(needle), s:meter():list()[i])");
         return h;
     }
 
@@ -241,16 +241,27 @@ public final class LuaMeter {
      * list, filtered to {@link IMeter} ({@link AddonWidgets#hudMeters}). The single scan {@code :list()},
      * the lookup, {@code :index()}, {@code :exists()} and the {@code MeterAdapter} all share.
      */
-    static List<IMeter> hud() {
-        GameUI g = AddonManager.gui();
+    static List<IMeter> hud(String user) {
+        GameUI g = AddonManager.gameui(user);
         return (g == null) ? new ArrayList<IMeter>() : AddonWidgets.hudMeters(g);
     }
 
-    /** Is {@code m} in the HUD meter slot right now? — {@code :exists()}. */
+    /**
+     * The meter slot <b>a bar is standing in</b>, walked up from the widget itself rather than named by an
+     * account. A Meter handle wraps the widget, and the widget already knows whose HUD it hangs in, so
+     * {@code :exists()} and {@code :index()} answer about that character's slot however many sessions are
+     * live. Empty once the bar is unlinked, which is exactly what makes those two report its absence.
+     */
+    private static List<IMeter> slotOf(IMeter m) {
+        GameUI g = (m == null) ? null : m.getparent(GameUI.class);
+        return (g == null) ? new ArrayList<IMeter>() : AddonWidgets.hudMeters(g);
+    }
+
+    /** Is {@code m} in its own session's HUD meter slot right now? — {@code :exists()}. */
     static boolean exists(IMeter m) {
         if(m == null)
             return false;
-        for(IMeter c : hud()) {
+        for(IMeter c : slotOf(m)) {
             if(c == m)
                 return true;
         }
@@ -261,7 +272,7 @@ public final class LuaMeter {
     static Integer index(IMeter m) {
         if(m == null)
             return null;
-        List<IMeter> hud = hud();
+        List<IMeter> hud = slotOf(m);
         for(int i = 0; i < hud.size(); i++) {
             if(hud.get(i) == m)
                 return Integer.valueOf(i + 1);
@@ -346,7 +357,7 @@ public final class LuaMeter {
     // ---- the collection ----------------------------------------------------------------------------
 
     /**
-     * {@code hafen.meter()} — the HUD's bars, as the {@link LuaCollection} the section object IS:
+     * {@code s:meter()} — the HUD's bars, as the {@link LuaCollection} the section object IS:
      * {@code :list(filter)} is a fresh 1-based array of (interned) Meter objects in HUD order,
      * {@code :find(needle)} the first that matches, {@code :count(filter)} how many. Legitimately empty for a
      * beat after {@code SessionEnteredWorld} — the meters stream in; {@code MeterAdded} (027.2) is the
@@ -357,10 +368,10 @@ public final class LuaMeter {
      * knows — it is a substring that happens to identify a bar on this server, and {@code :res()} is how to
      * list the real ones.
      */
-    static LuaValue collection(final Addon owner) {
-        return LuaCollection.create("hafen.meter()", new LuaCollection.Source() {
+    static LuaValue collection(final Addon owner, final String user) {
+        return LuaCollection.create(CharApi.M, new LuaCollection.Source() {
             public List<LuaValue> members() {
-                List<IMeter> hud = hud();
+                List<IMeter> hud = hud(user);
                 List<LuaValue> out = new ArrayList<LuaValue>(hud.size());
                 for(int i = 0; i < hud.size(); i++)
                     out.add(of(owner, hud.get(i)));

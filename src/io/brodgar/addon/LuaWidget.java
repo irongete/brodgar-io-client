@@ -2368,7 +2368,7 @@ public final class LuaWidget {
      *       directly rather than calling {@code Resource.classres}, which <b>blocks</b> on a
      *       {@code remote().loadwait} for the annotated case and throws for everything else;</li>
      *   <li>a {@link WItem} &rarr; its item's resource (the same key {@code widget:items()} entries carry);</li>
-     *   <li>an {@link IMeter} &rarr; its background resource — the identity {@code hafen.meter():find(needle)} already
+     *   <li>an {@link IMeter} &rarr; its background resource — the identity {@code s:meter():find(needle)} already
      *       matches on (027, D-063).</li>
      * </ol>
      *

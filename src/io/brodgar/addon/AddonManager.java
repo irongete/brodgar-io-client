@@ -2496,14 +2496,14 @@ public final class AddonManager {
      * changed, and a snapshot would freeze the very field the handler is being told about. A stashed Quest
      * goes on reading — including through the completion that fired this.
      */
-    static void fireQuest(String event, int id) {
+    static void fireQuest(String user, String event, int id) {
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, LuaQuest.of(a, id));
+                fireTo(a, event, LuaQuest.of(a, user, id));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, LuaQuest.of(c, id));
+            fireTo(c, event, LuaQuest.of(c, user, id));
     }
 
     /**
@@ -2514,21 +2514,21 @@ public final class AddonManager {
      * <p>Change <i>detection</i> stays in {@code CharApi}'s wound adapter (the per-wound snapshot diff, which
      * is what sees a severity resolve or a wound worsen); the ids arrive already diffed.
      */
-    static void fireWounds(int[] ids) {
+    static void fireWounds(String user, int[] ids) {
         for(Addon a : addons) {
             if(hasSub(a, "WoundChanged"))
-                fireTo(a, "WoundChanged", woundPayload(a, ids));
+                fireTo(a, "WoundChanged", woundPayload(a, user, ids));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "WoundChanged"))
-            fireTo(c, "WoundChanged", woundPayload(c, ids));
+            fireTo(c, "WoundChanged", woundPayload(c, user, ids));
     }
 
     /** One owner's {@code WoundChanged} payload: its own interned Wound objects, in tree order. */
-    private static LuaValue woundPayload(Addon owner, int[] ids) {
+    private static LuaValue woundPayload(Addon owner, String user, int[] ids) {
         LuaTable t = new LuaTable();
         for(int i = 0; i < ids.length; i++)
-            t.set(i + 1, LuaWound.of(owner, ids[i]));
+            t.set(i + 1, LuaWound.of(owner, user, ids[i]));
         return t;
     }
 
@@ -2731,18 +2731,15 @@ public final class AddonManager {
         // entity keyed on the number would silently start naming a different item and a protected write through it
         // would move the wrong thing. The four item verbs are ON the object (048.3) and never take a number.
 
-        // hafen.char.* — character attributes (Glob.getcattr; a zero-info entry is reported as nil),
-        // plus learning points (CharWnd.exp) and encumbrance/weight (CharWnd.enc) — public live fields
-        // on the character window (created hidden at login). attrs() returns the nine base attributes
-        // that have data, keyed by name. ("char" is a Java keyword → the local is named "chr".)
-        CharApi.installChar(hafen, owner);
-
-        // hafen.study.* — the study window (curiosities being studied), via the widget-tree mechanism
-        // (1d-3). slots() = the curiosities, each {res,name,lp,attention,cost,time,progress?}; summary()
-        // = the live totals {lp,attention,cost}. Both empty/nil until the character sheet's "Abilities"
-        // (sattr) tab streams in, a beat after enter-world. Subscribe to StudyChanged (fired when the
-        // slots change — an add/remove or study data resolving — event-driven, never per frame).
-        CharApi.installStudy(hafen, owner);
+        // 077.1: hafen.char, hafen.study, hafen.buff, hafen.meter, hafen.quest and hafen.wound are GONE onto
+        // the Session, where LuaSession mints each per (addon, session) and hangs it on the interned handle.
+        // Every one of them names ONE CHARACTER's own state, and the client holds several logins at once, so
+        // the read says which: hafen.session():current():meter():list() are the bars on screen and
+        // hafen.session():get(user):meter():list() are another character's. Reading `hafen.meter` at all now
+        // throws from the hafen table's own __index (Retired.hafenIndex), naming the replacement.
+        //   The reads themselves did not change shape — what changed is the funnel each resolves through:
+        // CharApi.charwnd(user) and AddonManager.gameui(user), the named session's own HUD, in place of the
+        // drawn one. The six factories are CharApi.chr/study/buffs/meters/quests/wounds.
 
         // hafen.party.* — the party roster (Glob.party). Members are ordered by Member.seq. A PartyMember is
         // DERIVED: id=gobid, x,y=getc() (live gob pos if in view, else last-known), color={r,g,b,a},
@@ -2798,34 +2795,6 @@ public final class AddonManager {
         // only when the player opens one).
         ActApi.installCraft(hafen, owner);
 
-        // hafen.quest() — the quest log (A9), read from the character sheet's "Quest Log" tab (QuestWnd,
-        // reached via CharWnd.quest — created hidden at login but live, so quests are readable without ever
-        // opening the window). The section object IS the collection over BOTH tabs (039.13): :list(filter)
-        // every quest, :get(id) one by its server id, :find(filter) the first match and :selected() the one
-        // the player has open. A Quest reads live per call — :id() :title() :res() :status()
-        // ("pending"/"done"/"failed"/"disabled") :modified() (the server change stamp; higher = more recent)
-        // :selected() :conditions() :exists() :info() — and is interned on the quest id, which is what the
-        // "quests" uimsg itself looks a quest up by before mutating it in place, so a stashed Quest reports
-        // its own completion. :conditions() is a plain array of Condition objects and is EMPTY on every quest
-        // but the selected one: the client is sent objectives for that one alone. Subscribe to QuestAdded (a
-        // new active quest appears) and QuestDone (an active quest is completed/failed), both carrying the
-        // Quest. Read-only — there is no quest action tier.
-        CharApi.installQuest(hafen, owner);
-
-        // hafen.wound() — the character's wounds (A9-2), read from the character sheet's "Health & Wounds"
-        // tab (WoundWnd, reached via CharWnd.wound — created hidden at login but live, so wounds read without
-        // ever opening the window). The section object IS the collection (039.13): :list(filter) in the
-        // window's own TREE order, :get(id) one by id, :find(needle) the first whose name or res contains it
-        // (the old presence test, now handing back the Wound — still truthy). A Wound reads live per call:
-        // :id() :name() :res() :severity() (the magnitude string the client paints beside it — content-
-        // defined, usually a number, NOT seconds, and nil for the beat before it resolves) :parent() (the
-        // wound this one complicates, nil at a root — the parent id, resolved) :level() (the indent depth)
-        // :exists() :info(). Interned on the wound id, which decwound itself looks a wound up by before
-        // mutating it in place, so a stashed Wound reports its own worsening. Subscribe to WoundChanged (the
-        // wound set or a severity changed; payload = the new list of Wound objects). Read-only — there is no
-        // wound action tier (wounds heal by playing / tending).
-        CharApi.installWound(hafen, owner);
-
         // hafen.fight.* — combat schools / the maneuver deck builder (A10), read from the character
         // sheet's "Martial Arts & Combat Schools" tab (FightWnd, @RName("fmg"), reached via CharWnd.fight —
         // created hidden at login but live, so it reads without opening the window). This is the OUT-OF-COMBAT
@@ -2842,40 +2811,6 @@ public final class AddonManager {
         // action, like A4 skills / A8 craft — read on demand). Saved-school NAMES are deferred (the private
         // FightWnd.saves[] would need a haven-package accessor; usesave/nsave identify the active slot).
         CharApi.installFight(hafen, owner);
-
-        // hafen.buff — the active buffs (GameUI.buffs → Buff widgets), via the widget-tree mechanism
-        // (1d-2); the section object IS the collection (039.9): hafen.buff():list() is the active buffs as a
-        // 1-based array of Buff objects in bar order, hafen.buff():find(needle) the FIRST one whose res or name
-        // contains that substring (the old has(), now handing back the object; nil on a miss). A buff has no
-        // key, so there is no :get. Reads on the object, live
-        // per call: :res()/:name()/:amount()/:duration() (0..1 fractions from resource-published ItemInfo,
-        // often nil, NOT seconds — :duration() is the radial meter, i.e. how much of the buff's run is
-        // left; the action bar calls the same meter a cooldown because there it is one)/:number()/:exists()/:info() (the old flat snapshot). A buff fading out
-        // after removal is excluded (:exists() false) but still READS — Widget.destroy() does not clear it —
-        // which is what makes a stashed BuffRemoved payload useful. Subscribe to BuffAdded/BuffRemoved
-        // (add/remove seen at the placement/removal seams, the removal at the server's own "gone" moment,
-        // not the fade's late unlink — 042.2, D-180)/BuffChanged (content changes on the buff's "ch"/"tt"
-        // uimsg) — since 025.2 all three carry the Buff OBJECT (fireBuff), not a snapshot table.
-        CharApi.installBuffs(hafen, owner);
-
-        // hafen.meter — the HUD's meter bars (GameUI's `place == "meter"` slot → IMeter widgets), via the
-        // widget-tree mechanism (1d-1); the section object IS the collection (039.9): hafen.meter():list() is
-        // EVERY HUD meter as a 1-based array of Meter objects in HUD order, hafen.meter():find(needle) the
-        // FIRST one whose res name contains that substring (nil on a miss). A meter has no key, so there is no
-        // :get. There is no hp/stamina/energy triple: the slot takes any
-        // number of meters and a meter is identified by its SERVER-published bg resource name, so "hp" is a
-        // substring that happens to hit a bar on this server, not a key the code knows — :res() is how to list
-        // the real ones off a live client. Reads on the object, live per call: :res()/:index() (1-based HUD
-        // position)/:value() (the first segment, 0..1 — what vitals() used to return)/:color() ({r,g,b,a}
-        // 0..255)/:segments() (the whole multi-segment bar)/:exists()/:info() (the snapshot). A destroyed meter
-        // still READS — Widget.destroy() does not clear it — but reports :exists() false. The bars stream in a
-        // beat after enter-world, so hafen.meter():list() is legitimately empty for a moment. Subscribe to
-        // MeterAdded/MeterRemoved (the bars streaming in / a meter being destroyed, seen at the
-        // placement/removal seams — 042.1) and MeterChanged (the server's "set"/"col" uimsg, fired only on
-        // a real value-OR-colour change) — all
-        // three carry the Meter OBJECT (fireMeter), so MeterAdded is the honest "the bars are up" signal.
-        // (the flat vitals() triple and VitalsChanged are GONE.)
-        CharApi.installMeters(hafen, owner);
 
         // hafen.actionbar — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
         // BeltSlot[144]), via the widget-tree mechanism (1d-4); the section object IS the collection (039.9):

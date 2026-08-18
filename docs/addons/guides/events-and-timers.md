@@ -86,9 +86,9 @@ and the kin roster stream in over the next few seconds, so a read at the top of 
 answers `nil`. Two ways round it, both ordinary:
 
 ```lua
-hafen.event():on("SessionEnteredWorld", function()
+hafen.event():on("SessionEnteredWorld", function(s)
   hafen.timer():after(2, function()                       -- ask again in a moment...
-    local hp = hafen.meter():find("hp")
+    local hp = s:meter():find("hp")                        -- that character's own bars
     hafen.log():write("hp: " .. tostring(hp and hp:value()))
   end)
 end)

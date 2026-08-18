@@ -1,10 +1,12 @@
-# hafen.study: curiosities being studied
+# session:study: curiosities being studied
 
-Read the study window: the curiosities in it, and the learning-point and attention totals across them.
-The rest of the character sheet is next door, in [`hafen.char`](char.md).
+Read one character's study window: the curiosities in it, and the learning-point and attention totals
+across them. You reach it through the [session](session.md) whose character you mean. The rest of that
+character's sheet is next door, in [`session:char`](char.md).
 
 ```lua
-for _, slot in ipairs(hafen.study():slot():list()) do
+local s = hafen.session():current()                    -- the character on screen
+for _, slot in ipairs(s and s:study():slot():list() or {}) do
   hafen.log():write((slot:name() or slot:res()) .. "  lp=" .. (slot:lp() or 0))
 end
 ```
@@ -12,21 +14,33 @@ end
 Like the rest of the sheet, the study window builds after login, so a read right at `SessionEnteredWorld`
 answers an empty array.
 
+## Whose study it is
+
+Every character studies its own curiosities, so the read says which one it is about:
+
+```lua
+hafen.session():current():study():summary()      -- the totals of the character on screen
+hafen.session():get("alt"):study():summary()     -- that character's, while you watch someone else
+```
+
+`s:study()` and its `:slot()` collection are the same objects every call, minted once for that session.
+A session the client no longer holds answers an empty array and a `nil` summary rather than raising.
+
 ## Read
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.study():slot():list(filter)` | `StudySlot[]` | the curiosities currently in the window |
-| `hafen.study():slot():count(filter)` | number | how many match |
-| `hafen.study():slot():find(filter)` | `StudySlot` \| nil | the first that matches |
-| `hafen.study():summary()` | `{lp, attention, cost}` \| nil | live totals across the slots |
+| `s:study():slot():list(filter)` | `StudySlot[]` | the curiosities currently in the window |
+| `s:study():slot():count(filter)` | number | how many match |
+| `s:study():slot():find(filter)` | `StudySlot` \| nil | the first that matches |
+| `s:study():summary()` | `{lp, attention, cost}` \| nil | live totals across the slots |
 
 A string [filter](conventions.md#the-filter-argument) matches the resource name **and** the display name.
 `:summary()` answers `nil` until the window has built. Neither throws and neither is protected.
 
 **There is no `:get`, and that is the shape rather than an omission.** A study slot has no key: the same
 curiosity can sit in two slots at once, and the window has no index the server addresses. So a string is
-a *search*, and a position is `hafen.study():slot():list()[n]`.
+a *search*, and a position is `s:study():slot():list()[n]`.
 
 ## A slot
 
@@ -39,7 +53,7 @@ a *search*, and a position is `hafen.study():slot():list()[n]`.
 | `slot:cost()` | number \| nil | experience cost |
 | `slot:time()` | number \| nil | study time in seconds |
 | `slot:progress()` | number \| nil | `0..1` study progress; best-effort |
-| `slot:exists()` | boolean | whether it is still in the window — always answers |
+| `slot:exists()` | boolean | whether it is still in a study window — always answers |
 | `slot:info()` | [`StudySlot`](types.md#studyslot) \| nil | a plain-table **snapshot** |
 
 > A slot's `time` is the **total** study time for that curiosity, not what is left. The client is not
@@ -51,7 +65,8 @@ is normal, not an error, and the moment they resolve is itself a `StudyChanged`.
 
 A slot is interned on the item in the window, so `:list()[1] == :list()[1]` and `seen[slot] = true` work,
 and **a curiosity taken out of study keeps answering**: `:exists()` is `false` while `:res()` and the
-numbers still read what it had.
+numbers still read what it had. It carries its own character with it, so `:exists()` is about the window
+that curiosity was taken from, whichever session that is.
 
 Subscribe to [`StudyChanged`](event/bus.md#character-and-status), whose payload is the array of slots.
 
@@ -63,6 +78,6 @@ end)
 
 ## See also
 
-- [`hafen.char`](char.md) — attributes, learning points and skills
+- [`session:char`](char.md) — attributes, learning points and skills
 - [`StudySlot`](types.md#studyslot) — the snapshot shape `slot:info()` returns
 - [events](event/bus.md#character-and-status) — `StudyChanged`

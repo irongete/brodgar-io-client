@@ -37,6 +37,25 @@ hand in `resize`/`updfold`; `NKeyBelt` (`super(nkeybg.sz())`) blits that plate, 
 half of the Options belt setting — draws **no background at all**, only its twelve squares. Both blit
 `Inventory.invsq` for those, the same raster the action grid uses, so neither is an `Inventory` draw.
 
+## Where a server-placed HUD widget actually HANGS
+
+A widget's own `ui` says which session it belongs to; **which HUD it belongs to is the upward
+`getparent` walk**, so what it is parented to is the whole of what that walk can find. `GameUI.addchild`
+does not add most of them to `GameUI`.
+
+| Widget | Its parent |
+|---|---|
+| `IMeter` (`place == "meter"`) | **`ulpanel`**, not `GameUI` — `GameUI.meters` is a separate ordered record, not a child list |
+| `Buff` (`place == "buff"`) | `GameUI.buffs`, and `Bufflist.addchild` is a plain `add` — so a buff IS a direct child of the `Bufflist` |
+| `BAttrWnd` / `SAttrWnd` / `SkillWnd` / `FightWnd` / `QuestWnd` / `WoundWnd` | the matching `Tabs.Tab` inside `CharWnd` (`CharWnd.battrtab.add(...)` and its siblings), not `CharWnd` itself |
+| The study inventory | **`SAttrWnd`** — `SAttrWnd.addchild`'s `place == "study"` branch does `add(child)` on itself and then builds a `StudyInfo` **beside** it, handing the inventory in as a constructor argument |
+
+⚠️ **`StudyInfo` does not contain the study inventory it reports on** — the two are siblings under
+`SAttrWnd`, and `StudyInfo.study` is a reference. `getparent(StudyInfo.class)` from one of its `GItem`s
+finds nothing; the walk is up to `SAttrWnd` and back down through `children(StudyInfo.class)`. The same
+shape holds for `CharWnd`: a walk from `BAttrWnd` reaches `CharWnd` only because `Tabs.Tab` is a widget
+in between, so the hop count is never one.
+
 ## The client's own position store (`wndc-*`, and every place it is written)
 
 | What | Where |

@@ -36,12 +36,15 @@ import java.util.Map;
  * every read takes it inside the monitor and works off that reference.
  */
 public final class LuaCondition {
-    /** The id of the quest this objective belongs to. */
+    /** The account whose log this objective's quest is in. */
+    public final String user;
+    /** The id of the quest this objective belongs to, in that character's log. */
     public final int quest;
-    /** The objective's description — the engine's own key for it, and half of ours. */
+    /** The objective's description — the engine's own key for it, and the last third of ours. */
     public final String desc;
 
-    private LuaCondition(int quest, String desc) {
+    private LuaCondition(String user, int quest, String desc) {
+        this.user = user;
         this.quest = quest;
         this.desc = desc;
     }
@@ -51,9 +54,12 @@ public final class LuaCondition {
         return "Condition(" + quest + ", \"" + desc + "\")";
     }
 
-    /** An interned Condition object for objective {@code desc} of quest {@code quest} in {@code owner}'s env. */
-    static LuaValue of(Addon owner, int quest, String desc) {
-        return owner.conditions.of(quest, desc);
+    /**
+     * An interned Condition object for objective {@code desc} of quest {@code quest} <b>of session
+     * {@code user}</b>, in {@code owner}'s env.
+     */
+    static LuaValue of(Addon owner, String user, int quest, String desc) {
+        return owner.conditions.of(user, quest, desc);
     }
 
     /** The {@code LuaCondition} behind a Lua value, or {@code null} for anything else. */
@@ -66,7 +72,11 @@ public final class LuaCondition {
 
     // ---- the per-addon intern cache + metatable ----------------------------------------------------
 
-    /** One addon's Condition cache and metatable (its {@link Addon#conditions}), keyed by quest id + text. */
+    /**
+     * One addon's Condition cache and metatable (its {@link Addon#conditions}), keyed by the account, the
+     * quest id and the objective's own text: the id counts within one character's log, so the account is
+     * what stops two characters' quest 7 sharing an objective.
+     */
     static final class Cache {
         private final Addon owner;
         private final Map<String, Ref> live = new HashMap<String, Ref>();
@@ -77,9 +87,10 @@ public final class LuaCondition {
             this.owner = owner;
         }
 
-        synchronized LuaValue of(int quest, String desc) {
+        synchronized LuaValue of(String user, int quest, String desc) {
             drain();
-            String key = quest + "\n" + desc;   // the pair IS the identity; no text carries a newline
+            // The triple IS the identity; neither an account name nor an objective's text carries a newline.
+            String key = user + "\n" + quest + "\n" + desc;
             Ref r = live.get(key);
             if(r != null) {
                 LuaValue v = r.get();
@@ -87,7 +98,7 @@ public final class LuaCondition {
                     return v;
                 live.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaCondition(quest, desc), meta());
+            LuaValue v = LuaValue.userdataOf(new LuaCondition(user, quest, desc), meta());
             live.put(key, new Ref(v, key, dead));
             return v;
         }
@@ -160,7 +171,8 @@ public final class LuaCondition {
         // Quest whose :exists() is false, exactly as every id-keyed handle in the API does.
         m.set("quest", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaQuest.of(owner, handle(self, "quest").quest);
+                LuaCondition h = handle(self, "quest");
+                return LuaQuest.of(owner, h.user, h.quest);
             }
         });
         // exists() — is this still an objective of the quest open in the log?
@@ -182,7 +194,7 @@ public final class LuaCondition {
         LuaCondition h = resolve(self);
         if(h == null)
             throw new LuaError("condition:" + method + "() — use a COLON call on a Condition object"
-                + " (hafen.quest():selected():conditions()[i])");
+                + " (" + CharApi.Q + ":selected():conditions()[i])");
         return h;
     }
 
@@ -190,7 +202,7 @@ public final class LuaCondition {
 
     /** The live objective record, or {@code null} once its quest is no longer the one open in the log. */
     private static QuestWnd.Quest.Condition live(LuaCondition h) {
-        for(QuestWnd.Quest.Condition c : LuaQuest.conditions(h.quest)) {
+        for(QuestWnd.Quest.Condition c : LuaQuest.conditions(h.user, h.quest)) {
             if((c.desc == null) ? (h.desc == null) : c.desc.equals(h.desc))
                 return c;
         }

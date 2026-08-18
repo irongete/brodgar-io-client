@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * An <b>Attr object</b> — one of the character's base attributes ({@code hafen.char():attr():get("str")}),
+ * An <b>Attr object</b> — one of the character's base attributes ({@code s:char():attr():get("str")}),
  * the OOP successor of the flat {@code {base, comp}} snapshot. Built on the mechanism {@link LuaGob},
  * {@link LuaKin} and {@link LuaBuff} established: userdata + a per-addon weak-valued intern cache, so
  * {@code ==} is the identity test and a stashed handle stays live.
@@ -42,10 +42,13 @@ public final class LuaAttr {
     static final String[] NAMES =
         {"str", "agi", "int", "con", "prc", "csm", "dex", "wil", "psy"};
 
-    /** The attribute name this handle addresses — the whole state of a handle. */
+    /** The account whose sheet this attribute is on — half the address. */
+    public final String user;
+    /** The attribute name this handle addresses. */
     public final String name;
 
-    private LuaAttr(String name) {
+    private LuaAttr(String user, String name) {
+        this.user = user;
         this.name = name;
     }
 
@@ -54,9 +57,9 @@ public final class LuaAttr {
         return "Attr(" + name + ")";
     }
 
-    /** An interned Attr object for {@code name} in {@code owner}'s env. */
-    static LuaValue of(Addon owner, String name) {
-        return owner.attrs.of(name);
+    /** An interned Attr object for {@code name} <b>on session {@code user}</b>, in {@code owner}'s env. */
+    static LuaValue of(Addon owner, String user, String name) {
+        return owner.attrs.of(user, name);
     }
 
     /** The {@code LuaAttr} behind a Lua value, or {@code null} for anything that is not an Attr object. */
@@ -86,28 +89,35 @@ public final class LuaAttr {
 
     // ---- the per-addon intern cache + metatable ---------------------------------------------------
 
-    /** One addon's Attr interning cache and metatable (its {@link Addon#attrs}), keyed by name. */
+    /**
+     * One addon's Attr interning cache and metatable (its {@link Addon#attrs}), keyed by the <b>account plus</b>
+     * the attribute name: {@code "str"} names a different number on each character, so the two must be two
+     * handles. Two levels of map, the {@link LuaGob} shape.
+     */
     static final class Cache {
-        private final Map<String, Ref> live = new HashMap<String, Ref>();
+        private final Map<String, Map<String, Ref>> live = new HashMap<String, Map<String, Ref>>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
         Cache(Addon owner) {
         }
 
-        synchronized LuaValue of(String nm) {
+        synchronized LuaValue of(String user, String nm) {
             drain();
             if(nm == null)
                 return LuaValue.NIL;
-            Ref r = live.get(nm);
+            Map<String, Ref> byname = live.get(user);
+            if(byname == null)
+                live.put(user, byname = new HashMap<String, Ref>());
+            Ref r = byname.get(nm);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(nm);
+                byname.remove(nm);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaAttr(nm), meta());
-            live.put(nm, new Ref(v, nm, dead));
+            LuaValue v = LuaValue.userdataOf(new LuaAttr(user, nm), meta());
+            byname.put(nm, new Ref(v, user, nm, dead));
             return v;
         }
 
@@ -116,8 +126,13 @@ public final class LuaAttr {
             Reference<? extends LuaValue> r;
             while((r = dead.poll()) != null) {
                 Ref br = (Ref)r;
-                if(live.get(br.key) == br)
-                    live.remove(br.key);
+                Map<String, Ref> byname = live.get(br.user);
+                if(byname == null)
+                    continue;
+                if(byname.get(br.key) == br)
+                    byname.remove(br.key);
+                if(byname.isEmpty())
+                    live.remove(br.user);
             }
         }
 
@@ -130,10 +145,12 @@ public final class LuaAttr {
 
     /** A weak handle reference that remembers its map key, so the {@link ReferenceQueue} drain can unmap it. */
     private static final class Ref extends WeakReference<LuaValue> {
+        final String user;
         final String key;
 
-        Ref(LuaValue v, String key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, String user, String key, ReferenceQueue<LuaValue> q) {
             super(v, q);
+            this.user = user;
             this.key = key;
         }
     }
@@ -167,21 +184,24 @@ public final class LuaAttr {
         // base() — the raw base value, or nil until the server has published this attribute.
         m.set("base", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Glob.CAttr a = attr(handle(self, "base").name);
+                LuaAttr h = handle(self, "base");
+                Glob.CAttr a = attr(h.user, h.name);
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.base);
             }
         });
         // composite() — the computed, buffed value: base plus whatever food, gear and buffs add to it.
         m.set("composite", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Glob.CAttr a = attr(handle(self, "composite").name);
+                LuaAttr h = handle(self, "composite");
+                Glob.CAttr a = attr(h.user, h.name);
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.comp);
             }
         });
         // info() — the one SNAPSHOT escape hatch, or nil while the attribute is unpublished.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return snapshot(handle(self, "info").name);
+                LuaAttr h = handle(self, "info");
+                return snapshot(h.user, h.name);
             }
         });
         return m;
@@ -192,7 +212,7 @@ public final class LuaAttr {
         LuaAttr h = resolve(self);
         if(h == null)
             throw new LuaError("attr:" + method + "() — use a COLON call on an Attr object"
-                + " (hafen.char():attr():get(name))");
+                + " (" + CharApi.C + ":attr():get(name))");
         return h;
     }
 
@@ -203,8 +223,8 @@ public final class LuaAttr {
      * has published nothing for it. {@code getcattr} auto-creates a zero entry for any name, so a
      * {@code base == 0 && comp == 0} record is <i>unpublished</i> rather than an attribute of zero.
      */
-    static Glob.CAttr attr(String name) {
-        Glob g = AddonManager.glob();
+    static Glob.CAttr attr(String user, String name) {
+        Glob g = AddonManager.glob(user);
         if(g == null)
             return null;
         Glob.CAttr a = g.getcattr(name);
@@ -212,8 +232,8 @@ public final class LuaAttr {
     }
 
     /** The documented {@code Attr} snapshot {@code {base, comp}}, or nil while unpublished. */
-    static LuaValue snapshot(String name) {
-        Glob.CAttr a = attr(name);
+    static LuaValue snapshot(String user, String name) {
+        Glob.CAttr a = attr(user, name);
         if(a == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
@@ -225,17 +245,17 @@ public final class LuaAttr {
     // ---- the collection ------------------------------------------------------------------------------
 
     /**
-     * {@code hafen.char():attr()} — the base attributes. {@code :list()} is every one the server has
+     * {@code s:char():attr()} — the base attributes. {@code :list()} is every one the server has
      * <b>populated</b>, in the client's own order; {@code :get(name)} is one of the nine and is never
      * {@code nil}; a name outside the nine is refused naming them all.
      */
-    static LuaValue collection(final Addon owner) {
-        return LuaCollection.create("hafen.char():attr()", new LuaCollection.Source() {
+    static LuaValue collection(final Addon owner, final String user) {
+        return LuaCollection.create(CharApi.C + ":attr()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
                 for(String nm : NAMES) {
-                    if(attr(nm) != null)
-                        out.add(of(owner, nm));
+                    if(attr(user, nm) != null)
+                        out.add(of(owner, user, nm));
                 }
                 return out;
             }
@@ -259,13 +279,13 @@ public final class LuaAttr {
                 // :get(3) through to the name test and report it as a missing ATTRIBUTE rather than as the
                 // wrong kind of key.
                 if(key.type() != LuaValue.TSTRING)
-                    throw new LuaError("hafen.char():attr():get(name): expected an attribute name, got "
+                    throw new LuaError(CharApi.C + ":attr():get(name): expected an attribute name, got "
                         + key.typename());
                 String nm = key.tojstring();
                 if(!known(nm))
-                    throw new LuaError("hafen.char():attr():get(\"" + nm + "\"): there is no such attribute."
+                    throw new LuaError(CharApi.C + ":attr():get(\"" + nm + "\"): there is no such attribute."
                         + " The base attributes are: " + namesList());
-                return of(owner, nm);
+                return of(owner, user, nm);
             }
         }, null);
     }

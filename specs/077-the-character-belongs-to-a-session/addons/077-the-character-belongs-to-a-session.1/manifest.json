@@ -1,0 +1,9 @@
+{
+  "name": "077.1 — the character sheet belongs to a character",
+  "id": "077-the-character-belongs-to-a-session.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 077.1: char, meter, buff, study, quest and wound are reached through a Session, interned on its handle, reading the character that session names — and the six loose spellings are retired.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

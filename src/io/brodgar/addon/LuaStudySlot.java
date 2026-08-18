@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A <b>StudySlot object</b> — one curiosity in the study window ({@code hafen.study():slot()}), with the
+ * A <b>StudySlot object</b> — one curiosity in the study window ({@code s:study():slot()}), with the
  * study profile the item's resource publishes: learning points, mental weight, experience cost and the
  * total study time.
  *
@@ -194,7 +194,7 @@ public final class LuaStudySlot {
         LuaStudySlot h = resolve(self);
         if(h == null)
             throw new LuaError("slot:" + method + "() — use a COLON call on a StudySlot object"
-                + " (hafen.study():slot():list()[i])");
+                + " (s:study():slot():list()[i])");
         return h;
     }
 
@@ -211,11 +211,14 @@ public final class LuaStudySlot {
         }
     }
 
-    /** The curiosities in the study window right now, in the order the window holds them. */
-    static List<GItem> items() {
+    /** The curiosities in that character's study window, in the order the window holds them. */
+    static List<GItem> items(String user) {
+        return under(CharApi.studyWidget(user));
+    }
+
+    /** The curiosities under one study inventory widget, in its own child order. */
+    private static List<GItem> under(Widget study) {
         List<GItem> out = new ArrayList<GItem>();
-        SAttrWnd.StudyInfo si = CharApi.studyInfo();
-        Widget study = (si == null) ? null : si.study;
         if(study != null) {
             for(GItem it : study.children(GItem.class))
                 out.add(it);
@@ -223,12 +226,24 @@ public final class LuaStudySlot {
         return out;
     }
 
-    /** Is {@code it} still in the study window? The predicate {@code :exists()} answers. */
+    /**
+     * Is {@code it} still in a study window? The predicate {@code :exists()} answers — asked of the item
+     * itself rather than of a named character, so a slot handle reports about the window it was taken from
+     * however many sessions are live. It is the study inventory the item has to be a child of: an item
+     * dragged into an ordinary inventory has left study, and its own {@link SAttrWnd.StudyInfo} is what says
+     * which container counts.
+     */
     static boolean inStudy(GItem it) {
-        if(it == null)
+        if((it == null) || (it.parent == null))
             return false;
-        for(GItem c : items()) {
-            if(c == it)
+        // The study inventory and its StudyInfo are SIBLINGS under SAttrWnd -- the info panel holds the
+        // inventory rather than containing it -- so the walk goes up to the tab and back down, exactly as
+        // CharApi.studyInfo does. Walking up to StudyInfo itself would never find one.
+        SAttrWnd w = it.getparent(SAttrWnd.class);
+        if(w == null)
+            return false;
+        for(SAttrWnd.StudyInfo si : w.children(SAttrWnd.StudyInfo.class)) {
+            if(si.study == it.parent)
                 return true;
         }
         return false;
@@ -260,15 +275,15 @@ public final class LuaStudySlot {
     // ---- the collection ------------------------------------------------------------------------------
 
     /**
-     * {@code hafen.study():slot()} — the curiosities in the window. <b>There is no {@code :get}</b>: a slot
+     * {@code s:study():slot()} — the curiosities in the window. <b>There is no {@code :get}</b>: a slot
      * has no key, since the same curiosity can occupy two of them, so a string is a search
      * ({@code :find(needle)} over the resource and the display name) and a position is
      * {@code :list()[n]}.
      */
-    static LuaValue collection(final Addon owner) {
-        return LuaCollection.create("hafen.study():slot()", new LuaCollection.Source() {
+    static LuaValue collection(final Addon owner, final String user) {
+        return LuaCollection.create(CharApi.ST + ":slot()", new LuaCollection.Source() {
             public List<LuaValue> members() {
-                List<GItem> its = items();
+                List<GItem> its = items(user);
                 List<LuaValue> out = new ArrayList<LuaValue>(its.size());
                 for(int i = 0; i < its.size(); i++)
                     out.add(of(owner, its.get(i)));

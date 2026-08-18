@@ -17,7 +17,7 @@ import java.util.Map;
 
 /**
  * An <b>Experience object</b> — one entry of the character sheet's Lore tab
- * ({@code hafen.char():experience()}): a piece of lore the character has seen, its score, and when the
+ * ({@code s:char():experience()}): a piece of lore the character has seen, its score, and when the
  * server last touched it.
  *
  * <p><b>The intern key is the resource name</b> (D-094). An experience carries no token of its own — the
@@ -33,8 +33,11 @@ import java.util.Map;
 public final class LuaExperience {
     /** The resource name this handle addresses — the whole state of a handle, and its intern key. */
     public final String res;
+    /** The account whose sheet this lore entry is on — the other half of the address. */
+    public final String user;
 
-    private LuaExperience(String res) {
+    private LuaExperience(String user, String res) {
+        this.user = user;
         this.res = res;
     }
 
@@ -43,9 +46,12 @@ public final class LuaExperience {
         return "Experience(" + res + ")";
     }
 
-    /** An interned Experience object for the resource name {@code nm} in {@code owner}'s env. */
-    static LuaValue of(Addon owner, String nm) {
-        return owner.experiences.of(nm);
+    /**
+     * An interned Experience object for the resource name {@code nm} <b>on session {@code user}</b>, in
+     * {@code owner}'s env.
+     */
+    static LuaValue of(Addon owner, String user, String nm) {
+        return owner.experiences.of(user, nm);
     }
 
     /** The {@code LuaExperience} behind a Lua value, or {@code null} for anything else. */
@@ -58,28 +64,35 @@ public final class LuaExperience {
 
     // ---- the per-addon intern cache + metatable ---------------------------------------------------
 
-    /** One addon's Experience cache and metatable (its {@link Addon#experiences}), keyed by resource name. */
+    /**
+     * One addon's Experience cache and metatable (its {@link Addon#experiences}), keyed by the <b>account
+     * plus</b> the resource name: lore is seen by one character, so two characters are two handles. Two
+     * levels of map, the {@link LuaGob} shape.
+     */
     static final class Cache {
-        private final Map<String, Ref> live = new HashMap<String, Ref>();
+        private final Map<String, Map<String, Ref>> live = new HashMap<String, Map<String, Ref>>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
         Cache(Addon owner) {
         }
 
-        synchronized LuaValue of(String nm) {
+        synchronized LuaValue of(String user, String nm) {
             drain();
             if(nm == null)
                 return LuaValue.NIL;
-            Ref r = live.get(nm);
+            Map<String, Ref> byname = live.get(user);
+            if(byname == null)
+                live.put(user, byname = new HashMap<String, Ref>());
+            Ref r = byname.get(nm);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(nm);
+                byname.remove(nm);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaExperience(nm), meta());
-            live.put(nm, new Ref(v, nm, dead));
+            LuaValue v = LuaValue.userdataOf(new LuaExperience(user, nm), meta());
+            byname.put(nm, new Ref(v, user, nm, dead));
             return v;
         }
 
@@ -87,8 +100,13 @@ public final class LuaExperience {
             Reference<? extends LuaValue> r;
             while((r = dead.poll()) != null) {
                 Ref br = (Ref)r;
-                if(live.get(br.key) == br)
-                    live.remove(br.key);
+                Map<String, Ref> byname = live.get(br.user);
+                if(byname == null)
+                    continue;
+                if(byname.get(br.key) == br)
+                    byname.remove(br.key);
+                if(byname.isEmpty())
+                    live.remove(br.user);
             }
         }
 
@@ -100,10 +118,12 @@ public final class LuaExperience {
     }
 
     private static final class Ref extends WeakReference<LuaValue> {
+        final String user;
         final String key;
 
-        Ref(LuaValue v, String key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, String user, String key, ReferenceQueue<LuaValue> q) {
             super(v, q);
+            this.user = user;
             this.key = key;
         }
     }
@@ -129,7 +149,7 @@ public final class LuaExperience {
         m.set("name", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaExperience h = handle(self, "name");
-                SkillWnd.Experience e = find(h.res);
+                SkillWnd.Experience e = find(h.user, h.res);
                 String nm = (e == null) ? h.res : AddonManager.resTipName(e.res, h.res);
                 return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
             }
@@ -143,27 +163,31 @@ public final class LuaExperience {
         // score() — the experience points this lore is worth, or nil once it is no longer listed.
         m.set("score", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                SkillWnd.Experience e = find(handle(self, "score").res);
+                LuaExperience h = handle(self, "score");
+                SkillWnd.Experience e = find(h.user, h.res);
                 return (e == null) ? LuaValue.NIL : LuaValue.valueOf(e.score);
             }
         });
         // modified() — the server's own time field for this entry, passed through unchanged.
         m.set("modified", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                SkillWnd.Experience e = find(handle(self, "modified").res);
+                LuaExperience h = handle(self, "modified");
+                SkillWnd.Experience e = find(h.user, h.res);
                 return (e == null) ? LuaValue.NIL : LuaValue.valueOf(e.mtime);
             }
         });
         // exists() — is this lore still listed?
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(find(handle(self, "exists").res) != null);
+                LuaExperience h = handle(self, "exists");
+                return LuaValue.valueOf(find(h.user, h.res) != null);
             }
         });
         // info() — the one SNAPSHOT escape hatch.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return snapshot(handle(self, "info").res);
+                LuaExperience h = handle(self, "info");
+                return snapshot(h.user, h.res);
             }
         });
         return m;
@@ -173,15 +197,15 @@ public final class LuaExperience {
         LuaExperience h = resolve(self);
         if(h == null)
             throw new LuaError("experience:" + method + "() — use a COLON call on an Experience object"
-                + " (hafen.char():experience():list()[i], :find(name))");
+                + " (" + CharApi.C + ":experience():list()[i], :find(name))");
         return h;
     }
 
     // ---- the reads ----------------------------------------------------------------------------------
 
     /** The live record for a resource name, or {@code null} — the one resolve funnel (D-012). */
-    static SkillWnd.Experience find(String nm) {
-        SkillWnd w = CharApi.skillwnd();
+    static SkillWnd.Experience find(String user, String nm) {
+        SkillWnd w = CharApi.skillwnd(user);
         if((w == null) || (nm == null))
             return null;
         try {
@@ -196,9 +220,9 @@ public final class LuaExperience {
     }
 
     /** Every listed lore resource name, in the tab's own order; an unresolved one is not listed yet. */
-    static List<String> names() {
+    static List<String> names(String user) {
         List<String> out = new ArrayList<String>();
-        SkillWnd w = CharApi.skillwnd();
+        SkillWnd w = CharApi.skillwnd(user);
         if(w == null)
             return out;
         try {
@@ -214,8 +238,8 @@ public final class LuaExperience {
     }
 
     /** The documented {@code Experience} snapshot {@code {name, res, score, mtime}}, or nil once gone. */
-    static LuaValue snapshot(String nm) {
-        SkillWnd.Experience e = find(nm);
+    static LuaValue snapshot(String user, String nm) {
+        SkillWnd.Experience e = find(user, nm);
         if(e == null)
             return LuaValue.NIL;
         LuaTable t = new LuaTable();
@@ -231,16 +255,16 @@ public final class LuaExperience {
     // ---- the collection ------------------------------------------------------------------------------
 
     /**
-     * {@code hafen.char():experience()} — the lore the character has seen. There is no {@code :get}: the
+     * {@code s:char():experience()} — the lore the character has seen. There is no {@code :get}: the
      * key is a full resource path nobody types, and {@code :find(name)} searches the display name and the
      * resource together, which is the question anyone actually has.
      */
-    static LuaValue collection(final Addon owner) {
-        return LuaCollection.create("hafen.char():experience()", new LuaCollection.Source() {
+    static LuaValue collection(final Addon owner, final String user) {
+        return LuaCollection.create(CharApi.C + ":experience()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
-                for(String nm : names())
-                    out.add(of(owner, nm));
+                for(String nm : names(user))
+                    out.add(of(owner, user, nm));
                 return out;
             }
 
@@ -248,7 +272,7 @@ public final class LuaExperience {
                 LuaExperience h = resolve(member);
                 if(h == null)
                     return "";
-                SkillWnd.Experience e = find(h.res);
+                SkillWnd.Experience e = find(h.user, h.res);
                 String disp = (e == null) ? null : AddonManager.resTipName(e.res, h.res);
                 return ((disp == null) ? "" : disp) + "\n" + h.res;
             }
