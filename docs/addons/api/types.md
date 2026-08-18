@@ -11,6 +11,18 @@ underlying data is not available yet or is still resolving, so guard for it. See
 > shape the client holds, handed over as it is — `isplayer`, `mtime`, `qmod` — so what you serialise is
 > what the client said. Each table below names the verb beside the field wherever the two differ.
 
+## Session
+
+From [`s:info()`](session.md#read), the snapshot escape hatch for one of the logins this client holds.
+[`hafen.session`](session.md) hands out live `Session` objects, not this table.
+
+| Field | Type | Notes |
+|---|---|---|
+| `user` | string | the account name, and the session's identity; present for a session that has ended |
+| `character` | string | the character this login is playing; optional (absent until its HUD is up) |
+| `exists` | bool | whether the client still holds this session |
+| `current` | bool | whether it is the one on screen; the live read is `hafen.session():current() == s` |
+
 ## GobInfo
 
 A game object's fields as one plain table, the snapshot [`gob:info()`](gob.md) returns. It is the

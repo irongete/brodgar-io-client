@@ -388,6 +388,22 @@ public class Sessions {
 	return(null);
     }
 
+    /* addon: (076.1) THE MEMBER LOGGED IN AS THIS ACCOUNT, or null when the client holds none. The account
+     * name is what addresses a session from outside this layer -- it is what `:session add` took, what
+     * `:session list` prints, what the session events carry and what a Lua Session object wraps -- and this
+     * is the one funnel that turns it back into a member. A member is off this list before anything is told
+     * its session ended, so a name that answers null here has no session, which is exactly what a handle
+     * held across the end has to report. */
+    public static Member byuser(String user) {
+	if(user == null)
+	    return(null);
+	for(Member m : members) {
+	    if(m.user.equals(user))
+		return(m);
+	}
+	return(null);
+    }
+
     /** The member currently holding the anchor, or null when the login screen has it. */
     public static Member anchormember() {
 	UI an = anchor();

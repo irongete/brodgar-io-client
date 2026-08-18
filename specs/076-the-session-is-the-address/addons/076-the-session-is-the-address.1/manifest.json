@@ -1,0 +1,9 @@
+{
+  "name": "076.1 — the session is a thing you can name",
+  "id": "076-the-session-is-the-address.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 076.1: hafen.session() is the collection of interned Session refs keyed by account, :current() agrees with the drawn character, and a ref outlives its session.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -96,6 +96,15 @@ public final class LuaCollection {
             return LuaValue.NIL;
         }
 
+        /**
+         * What {@code :get}'s argument is called when it is missing — {@code "key"} unless the collection
+         * addresses its members by something the reader would name otherwise ({@code "user"}). The arity
+         * refusal is the one message a caller who omitted it ever sees, so it is worth its own word.
+         */
+        public String keyName() {
+            return "key";
+        }
+
         /** Does {@code :add(…)} apply? */
         public boolean creatable() {
             return false;
@@ -188,7 +197,7 @@ public final class LuaCollection {
             m.set("get", new VarArgFunction() {
                 public Varargs invoke(Varargs a) {
                     LuaCollection c = receiver(a.arg1(), "get");
-                    return c.src.getMember(Args.required(a, 2, c.name + ":get", "key"));
+                    return c.src.getMember(Args.required(a, 2, c.name + ":get", c.src.keyName()));
                 }
             });
         }

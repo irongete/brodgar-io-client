@@ -425,6 +425,16 @@ public final class Addon {
     final LuaGob.Cache gobs = new LuaGob.Cache(this);
 
     /**
+     * This addon's <b>Session interning cache</b> ({@code hafen.session():get(user)}): the weak-valued
+     * {@code account name → Session object} map, its {@link java.lang.ref.ReferenceQueue} and the per-addon
+     * metatable. Same contract as {@link #gobs} — per-addon so no Lua value crosses a sandbox boundary
+     * (D-017), and the whole cache dies with this {@link Addon} on {@code :reload}/disable with nothing to
+     * tear down (weak values, and a handle holds only the name). Keyed on the <b>account</b> because that is
+     * what survives a character switch, and what a handle held past the end of a session still answers with.
+     */
+    final LuaSession.Cache sessions = new LuaSession.Cache(this);
+
+    /**
      * This addon's <b>Position metatable</b> ({@link LuaPosition}). A Position is a <b>value</b>, not an entity:
      * it is never interned and has no lifetime, so unlike every cache around it this holds nothing but the
      * metatable — built once, lazily, and per addon for the one reason the caches are (no Lua value crosses a

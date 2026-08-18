@@ -2595,6 +2595,15 @@ public final class AddonManager {
     static void installHafen(Globals g, final Addon owner) {
         LuaTable hafen = new LuaTable();
 
+        // hafen.session() — the LOGINS this client holds, and the ADDRESS a character is named by (076.1).
+        // The section object IS the collection: :list/:count/:find enumerate the membership in the order it
+        // joined, :get(user) addresses one by its ACCOUNT name and always hands back an object (the name is
+        // the whole of the ref, so a name out of a saved file is holdable before that account logs in and
+        // after it goes), and :current() is the session on screen — nil on the login screen, and a read
+        // only, since taking the screen is the player's own gesture. A Session answers :user(), :character()
+        // (that session's own GameUI.chrid, not the name `:session add` asked for), :exists() and :info().
+        SessionApi.installSession(hafen, owner);
+
         // hafen.gob is GONE into hafen.world():gob() (039.2, D-066): a gob lives IN the world, so the by-id
         // door is the world's Gob collection, :get(id) — still never nil, still interned per addon, and the
         // Gob OBJECT itself (gob:position()/:name()/:health()/…) is unchanged. See WorldApi.
