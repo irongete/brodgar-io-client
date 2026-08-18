@@ -36,7 +36,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [`hafen.time`](time.md) | the game clock, the day, the night and the season |
 | [`session:char`](char.md) | attributes, learning points, weight, food, skills, credos, lore |
 | [`session:study`](study.md) | the study window: the curiosities in it, and their LP and attention |
-| [`hafen.party`](party.md) | the party roster, in party sequence order |
+| [`session:party`](party.md) | the party roster, in party sequence order |
 | [`session:buff`](buff.md) | the buffs on the buff bar |
 | [`session:meter`](meter.md) | the HUD meter bars — health, stamina, energy, and whatever else the server puts there |
 
@@ -44,7 +44,7 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [`hafen.kin`](kin.md) | the kin roster, and the writes that add, rename and re-group |
+| [`session:kin`](kin.md) | the kin roster, and the writes that add, rename and re-group |
 | [`hafen.speed`](speed.md) | the crawl, walk, run and sprint selector |
 | [`hafen.craft`](craft.md) | the open recipe window, and its Craft button |
 | [`session:quest`](quest.md) | the quest log, current and completed, and a quest's objectives |

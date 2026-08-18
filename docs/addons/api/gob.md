@@ -52,7 +52,7 @@ None of them throws.
 | `gob:speech()` | string \| nil | the floating speech text above it |
 | `gob:icon()` | string \| nil | minimap icon category name |
 | `gob:isPlayer()` | bool \| nil | whether it is a player body |
-| `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if this gob is one of your kin |
+| `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if this gob is on that character's roster |
 | `gob:distance(other)` | number \| nil | world distance to `other`, a Gob read through the same session; defaults to that character |
 | `gob:info()` | [`GobInfo`](types.md#gobinfo) \| nil | everything above as one plain snapshot table |
 
@@ -138,7 +138,8 @@ appear in, so a gob read through any other session raises naming `hafen.session(
 
 ## Kin
 
-`gob:kin()` answers the [`Kin`](kin.md) this gob belongs to, and `kin:gob()` goes back the other way.
+`gob:kin()` answers the [`Kin`](kin.md) this gob belongs to, on the roster of the character whose world
+you read the gob from, and `kin:gob()` goes back the other way.
 
 ```lua
 local g = hafen.session():current():world():gob():nearest(function(g) return g:isPlayer() end)
@@ -146,12 +147,12 @@ local k = g and g:kin()
 hafen.log():write(k and ("that is " .. k:name()) or "nobody you know")
 ```
 
-The link is **server-side**: the game marks a kinned player's gob for you, so `gob:kin()` is a single
-attribute read and never guesses from a name. A kin's **hearth fire** carries the mark too, so
+The link is **server-side**: the game marks a kinned player's gob for that character, so `gob:kin()` is a
+single attribute read and never guesses from a name. A kin's **hearth fire** carries the mark too, so
 `gob:kin()` answers on that as well.
 
-> `nil` from `gob:kin()` is ambiguous. The player may not be on your roster, or the gob may not be a
-> player at all — you cannot tell which.
+> `nil` from `gob:kin()` is ambiguous. The player may not be on that character's roster, or the gob may
+> not be a player at all — you cannot tell which.
 
 ## Identity
 
@@ -202,7 +203,7 @@ Anything that acts on a gob takes the **Gob object**, not an id: `me:overlay():a
 
 - [`session:world`](world.md) — finding the gobs you want to read
 - [Overlay](overlay.md) — everything drawn at a gob, and the labels and painters you add
-- [`hafen.kin`](kin.md) — the roster side of `gob:kin()`
+- [`session:kin`](kin.md) — the roster side of `gob:kin()`
 - [`session:player`](player.md#write-protected) — walking to a gob, and the cursor you aim at one
 - [`GobInfo`](types.md#gobinfo) — the shape `:info()` returns
 - [events](event/bus.md#world) — reacting to gobs appearing and leaving instead of polling

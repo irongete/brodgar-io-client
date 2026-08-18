@@ -413,12 +413,15 @@ public final class LuaGob {
         });
         // kin() — the O(1) half of the Kin <-> Gob link (020.2): the SERVER marks a kinned player's gob with
         // the `ui/obj/buddy` attrib, which carries the buddy id, so this is a single attribute read. nil is
-        // AMBIGUOUS on purpose: not on your roster / the gob is gone / it is not a player at all.
+        // AMBIGUOUS on purpose: not on that character's roster / the gob is gone / it is not a player at all.
+        // The Kin it hands back is THIS gob's session's (077.2): a buddy id counts inside one roster, and
+        // this gob is the one that session can see, so the mark on it is a number in that same roster.
         m.set("kin", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
+                LuaGob h = handle(self, "kin");
                 Gob g = gob(self, "kin");
                 Integer bid = LuaKin.buddyId(g);
-                return (bid == null) ? LuaValue.NIL : LuaKin.of(owner, bid.intValue());
+                return (bid == null) ? LuaValue.NIL : LuaKin.of(owner, h.user, bid.intValue());
             }
         });
         // distance([other]) — world distance to another Gob; `other` defaults to the player.

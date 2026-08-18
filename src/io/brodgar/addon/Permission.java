@@ -26,6 +26,13 @@ import java.util.Map;
  * <p>The gate is always the FIRST statement of the verb it guards (D-213), so an addon that declared nothing
  * hears about its manifest even when its arguments were wrong too — which is also what lets a suite prove a
  * grant without acting on the world: reaching the argument refusal IS the grant.
+ *
+ * <p><b>A key names the ACTION, not the target</b> (077.2). A verb addressed at a character the player is not
+ * looking at needs no second key: the definition of protection is <i>an action the player could have
+ * performed</i>, and the player could have tabbed to that character and performed it. A grant per session
+ * would mean an addon the user allowed to add kin cannot add kin on an alt, a distinction the user never
+ * drew — every one of those characters is theirs. So the {@code line} each entry carries is written to be
+ * read across every login the client holds.
  */
 public enum Permission {
     PLAYER_MOVE      ("player.move",        "session:player():move",          "walk your character to a place"),
@@ -43,11 +50,11 @@ public enum Permission {
     CRAFT_MAKE       ("craft.make",         "hafen.craft():current():make",   "press the Craft button"),
     ACTIONBAR_USE    ("actionbar.use",      "slot:use",                       "press your action-bar buttons"),
     ACTIONBAR_RES    ("actionbar.res",      "slot:res",                       "change what your action-bar buttons hold"),
-    KIN_ADD          ("kin.add",            "hafen.kin():add",                "add someone to your kin list"),
-    KIN_RENAME       ("kin.rename",         "kin:rename",                     "rename someone on your kin list"),
-    KIN_GROUP        ("kin.group",          "kin:group",                      "change someone's kin group"),
-    KIN_END          ("kin.endKin",         "kin:endKin",                     "end kinship with someone"),
-    KIN_FORGET       ("kin.forget",         "kin:forget",                     "forget someone from your kin list"),
+    KIN_ADD          ("kin.add",            "session:kin():add",              "add someone to any of your characters' kin lists"),
+    KIN_RENAME       ("kin.rename",         "kin:rename",                     "rename someone on any of your characters' kin lists"),
+    KIN_GROUP        ("kin.group",          "kin:group",                      "change someone's kin group, on any of your characters"),
+    KIN_END          ("kin.endKin",         "kin:endKin",                     "end kinship with someone, on any of your characters"),
+    KIN_FORGET       ("kin.forget",         "kin:forget",                     "forget someone from any of your characters' kin lists"),
     SPEED_SET        ("speed.set",          "hafen.speed():set",              "change your movement speed"),
     WIDGET_SEND      ("widget.send",        "widget:send",                    "send any message the client itself could send"),
     WIDGET_VALUE     ("widget.value",       "widget:value",                   "flip the client's own controls — a box it ticks,"

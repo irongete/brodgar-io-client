@@ -122,10 +122,10 @@ session ending: `s:user()` answers for a session that is over, and `s:exists()` 
 `hafen.session():current()` is the session on screen, `nil` on the login screen, and a different object
 after the player tabs — so take it inside your handler rather than keeping one.
 
-**A Session is also the address.** What is one character's is reached through it — [`s:world()`](world.md)
-and [`s:player()`](player.md) — so a read says which character it is about instead of meaning whichever is
-drawn. What belongs to the **screen** rather than to a character stays where it was: there is one pointer
-and one scene however many logins are live.
+**A Session is also the address.** What is one character's is reached through it — [`s:world()`](world.md),
+[`s:player()`](player.md), [`s:kin()`](kin.md) — so a read says which character it is about instead of
+meaning whichever is drawn. What belongs to the **screen** rather than to a character stays where it was:
+there is one pointer and one scene however many logins are live.
 
 Your own addon is the client's, not a login's: it is loaded once, runs beside every session the client
 holds, and nothing of yours is torn down or rebuilt when the screen moves.
@@ -141,7 +141,7 @@ holds, and nothing of yours is torn down or rebuilt when the screen moves.
 
 ## The filter argument
 
-Every enumerating verb — `s:world():gob():list`, `hafen.kin():list`, `hafen.map():icon():list`,
+Every enumerating verb — `s:world():gob():list`, `s:kin():list`, `hafen.map():icon():list`,
 `hafen.fight():maneuver():list`, … — takes one optional **filter**, always in the same form:
 
 | `filter` | Keeps |
@@ -156,10 +156,11 @@ work. A member whose name has simply **not arrived yet** does not match, and doe
 entry your predicate receives is always the **object**, never a snapshot: read it with its own verbs.
 
 ```lua
-local gobs = hafen.session():current():world():gob()
+local s = hafen.session():current()
+local gobs = s:world():gob()
 gobs:list("rabbit")                                        -- name contains "rabbit"
 gobs:list(function(g) return (g:health() or 1) < 1 end)    -- injured gobs (a Gob object)
-hafen.kin():list(function(k) return k:online() end)        -- online kin (a Kin object)
+s:kin():list(function(k) return k:online() end)            -- online kin (a Kin object)
 hafen.map():marker():list(function(m) return m:type() == "player" end)   -- a Marker object
 ```
 
@@ -210,7 +211,9 @@ the sandbox's instruction watchdog aborts a runaway one.
 
 A verb that **starts an action the player could have performed** is **protected**: it runs only
 if **your** addon declared that verb's own permission key in its
-[manifest](../runtime.md#the-manifest) and the user enabled it. Such an addon is disabled the first time
+[manifest](../runtime.md#the-manifest) and the user enabled it. **A key names the action, not the
+character**: the player could have tabbed to any of their logins and performed it there, so one grant
+covers every character the client holds. Such an addon is disabled the first time
 the client sees it and enabling it raises a consent dialog; one that never declared the key gets an error
 naming the verb and the key it needs, before anything is sent.
 

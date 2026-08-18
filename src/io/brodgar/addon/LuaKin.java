@@ -26,12 +26,17 @@ import java.util.Map;
  * A <b>Kin object</b> — the OOP successor of the flat kin table (spec {@code 020-kin-oop}),
  * built on exactly the {@link LuaGob} mechanism 017 established. <b>The section object IS the roster</b>
  * (uniform grammar §2.1 — a section that contains exactly one thing <i>is</i> that thing):
- * {@code hafen.kin()} is the collection, {@code hafen.kin():get(idOrName)} is one Kin.
+ * {@code s:kin()} is the collection, {@code s:kin():get(idOrName)} is one Kin.
  *
- * <p><b>Wraps only the buddy id.</b> Every method re-resolves through one funnel —
- * {@link CharApi#buddywnd()}{@code .find(id)} — so a stashed Kin tracks renames, regroups and
+ * <p><b>Wraps the account and the buddy id.</b> Every method re-resolves through one funnel —
+ * {@link CharApi#buddywnd(String)}{@code .find(id)} — so a stashed Kin tracks renames, regroups and
  * online/offline flips, and goes {@code :exists() == false} once the kin is forgotten (D-012's freshness,
  * verbatim). {@code :info()} is the one snapshot escape hatch (today's {@code KinEntry} shape).
+ *
+ * <p><b>A buddy id counts inside one roster</b> (077.2), which is why the account is half the handle. The
+ * Kin window is {@link haven.GameUI#buddies}, one login's HUD, and the server numbers each roster on its
+ * own — so id 7 on two characters is two different people, and a handle that carried the id alone would
+ * call them one. Two levels of intern map, on {@code (account, id)}: the {@link LuaGob} shape.
  *
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045), identical to {@link LuaGob}: the handle crosses
  * as {@code LuaValue.userdataOf(luaKin, mt)} so Lua cannot scribble on it, and the {@link Cache} on the
@@ -41,7 +46,7 @@ import java.util.Map;
  * {@code :get(<that id>)}. Never static: no Lua value crosses a sandbox boundary and the cache dies
  * whole with the {@link Addon} on {@code :reload}.
  *
- * <p><b>The roster is a {@link LuaCollection}, and it is a view.</b> {@code hafen.kin():list(filter)} builds a
+ * <p><b>The roster is a {@link LuaCollection}, and it is a view.</b> {@code s:kin():list(filter)} builds a
  * fresh array of Kin objects in {@link BuddyWnd} sort order every call; {@code :count}/{@code :find} read the
  * same members without building one. The <b>array</b> is the roster at call time; the <b>Kin objects</b> in it
  * are live.
@@ -51,16 +56,27 @@ import java.util.Map;
  * {@link BuddyWnd.Buddy} methods (wrap-not-reimplement, D-009); each returns <b>self</b> so they chain.
  * {@code :group} is one name for the pair: {@code kin:group()} reads it and {@code kin:group(g)} writes it.
  *
+ * <p><b>Each keeps the ONE key it has, addressed or not</b> (077.2). A key names the <i>action</i>, not the
+ * target: a verb is protected when it starts something the player could have performed, and the player could
+ * have tabbed to that character and performed it. A second grant per session would mean an addon the user
+ * allowed to add kin cannot add kin on an alt, a distinction the user never drew. Nor does the send need the
+ * anchor: {@link BuddyWnd.Buddy}'s own methods go through the widget's own tree ({@code Widget.wdgmsg} to
+ * that {@code UI}, and so to that {@code Session}), so a write lands on the character it was addressed at
+ * whether or not anyone is looking at it.
+ *
  * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / slash command);
  * {@code BuddyWnd.iterator()} copies the list under the window's own lock, so iterating it is snapshot-safe
  * even though the server mutates it from the network thread. The {@link Cache} map is guarded on its own
  * monitor (UI + REPL threads touch it).
  */
 public final class LuaKin {
-    /** The buddy id — the whole state of a handle. */
+    /** The account whose roster this kin is on — half the address, and what makes the id mean one person. */
+    public final String user;
+    /** The buddy id, in that character's own roster. */
     public final int id;
 
-    private LuaKin(int id) {
+    private LuaKin(String user, int id) {
+        this.user = user;
         this.id = id;
     }
 
@@ -69,9 +85,9 @@ public final class LuaKin {
         return "Kin(" + id + ")";
     }
 
-    /** An interned Kin object for {@code id} in {@code owner}'s env — the one way a Kin reaches Lua. */
-    static LuaValue of(Addon owner, int id) {
-        return owner.kins.of(id);
+    /** An interned Kin object for {@code id} <b>on {@code user}'s roster</b>, in {@code owner}'s env. */
+    static LuaValue of(Addon owner, String user, int id) {
+        return owner.kins.of(user, id);
     }
 
     /** The {@code LuaKin} behind a Lua value, or {@code null} for anything that is not a Kin object. */
@@ -85,14 +101,16 @@ public final class LuaKin {
     // ---- the per-addon intern cache + metatable ----------------------------------------------------
 
     /**
-     * One addon's Kin interning cache and metatable (its {@link Addon#kins}). Weak values + a
+     * One addon's Kin interning cache and metatable (its {@link Addon#kins}), keyed by the <b>account plus</b>
+     * the buddy id: a buddy id is one roster's own, so two characters both carrying kin 7 carry two different
+     * people and must have two handles. Two levels of map, the {@link LuaGob} shape. Weak values + a
      * {@link ReferenceQueue} drained on every access; the Kin metatable is built once, lazily. Holds its
      * {@link Addon} because the protected write verbs need the owner to check the {@code kin.*} permissions
      * against.
      */
     static final class Cache {
         private final Addon owner;
-        private final Map<Integer, Ref> live = new HashMap<Integer, Ref>();
+        private final Map<String, Map<Integer, Ref>> live = new HashMap<String, Map<Integer, Ref>>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
@@ -100,19 +118,22 @@ public final class LuaKin {
             this.owner = owner;
         }
 
-        /** The interned handle for {@code id} — a cache hit, or a freshly minted (and inserted) one. */
-        synchronized LuaValue of(int id) {
+        /** The interned handle for {@code (user, id)} — a cache hit, or a freshly minted (inserted) one. */
+        synchronized LuaValue of(String user, int id) {
             drain();
+            Map<Integer, Ref> byid = live.get(user);
+            if(byid == null)
+                live.put(user, byid = new HashMap<Integer, Ref>());
             Integer key = Integer.valueOf(id);
-            Ref r = live.get(key);
+            Ref r = byid.get(key);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(key);
+                byid.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaKin(id), meta());
-            live.put(key, new Ref(v, key, dead));
+            LuaValue v = LuaValue.userdataOf(new LuaKin(user, id), meta());
+            byid.put(key, new Ref(v, user, key, dead));
             return v;
         }
 
@@ -121,8 +142,13 @@ public final class LuaKin {
             Reference<? extends LuaValue> r;
             while((r = dead.poll()) != null) {
                 Ref kr = (Ref)r;
-                if(live.get(kr.key) == kr)      // not already replaced by a fresh handle for the same id
-                    live.remove(kr.key);
+                Map<Integer, Ref> byid = live.get(kr.user);
+                if(byid == null)
+                    continue;
+                if(byid.get(kr.key) == kr)      // not already replaced by a fresh handle for the same id
+                    byid.remove(kr.key);
+                if(byid.isEmpty())
+                    live.remove(kr.user);
             }
         }
 
@@ -135,10 +161,12 @@ public final class LuaKin {
 
     /** A weak handle reference that remembers its map key, so the {@link ReferenceQueue} drain can unmap it. */
     private static final class Ref extends WeakReference<LuaValue> {
+        final String user;
         final Integer key;
 
-        Ref(LuaValue v, Integer key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, String user, Integer key, ReferenceQueue<LuaValue> q) {
             super(v, q);
+            this.user = user;
             this.key = key;
         }
     }
@@ -239,21 +267,21 @@ public final class LuaKin {
         // therefore PREFER THE PLAYER BODY — "where is this kin" is the question :gob() answers — and only
         // fall back to another marked gob (typically the hearth fire of a kin who is offline) when no body
         // is loaded. For ALL of them, filter the world by the inverse instead:
-        //   hafen.world.gobs(function(g) return g:kin() == k end)
+        //   s:world():gob():list(function(g) return g:kin() == k end)
         m.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                int id = handle(self, "gob").id;
+                LuaKin h = handle(self, "gob");
                 Gob other = null;
-                for(Gob g : AddonManager.allGobs()) {   // copied under the OCache lock
+                for(Gob g : AddonManager.allGobs(h.user)) {   // THAT session's cache, under its own lock
                     Integer bid = buddyId(g);
-                    if((bid == null) || (bid.intValue() != id))
+                    if((bid == null) || (bid.intValue() != h.id))
                         continue;
                     if(AddonManager.gobIsPlayer(g))
-                        return LuaGob.of(owner, AddonManager.drawnUser(), g.id);
+                        return LuaGob.of(owner, h.user, g.id);
                     if(other == null)
                         other = g;
                 }
-                return (other == null) ? LuaValue.NIL : LuaGob.of(owner, AddonManager.drawnUser(), other.id);
+                return (other == null) ? LuaValue.NIL : LuaGob.of(owner, h.user, other.id);
             }
         });
         // -- protected writes (D-027/D-028): drive the client's own Buddy methods (D-009), return self ------
@@ -294,26 +322,28 @@ public final class LuaKin {
     private static LuaKin handle(LuaValue self, String method) {
         LuaKin h = resolve(self);
         if(h == null)
-            throw new LuaError("kin:" + method + "() — use a COLON call on a Kin object (hafen.kin():get(idOrName), hafen.kin():list()[n])");
+            throw new LuaError("kin:" + method + "() — use a COLON call on a Kin object ("
+                + CharApi.KN + ":get(idOrName), " + CharApi.KN + ":list()[n])");
         return h;
     }
 
     /** The LIVE buddy behind a method's {@code self}: re-resolved every call, {@code null} once it is gone. */
     private static BuddyWnd.Buddy buddy(LuaValue self, String method) {
-        int id = handle(self, method).id;
-        BuddyWnd bw = CharApi.buddywnd();
-        return (bw == null) ? null : bw.find(id);
+        LuaKin h = handle(self, method);
+        BuddyWnd bw = CharApi.buddywnd(h.user);
+        return (bw == null) ? null : bw.find(h.id);
     }
 
     /** {@link #buddy} but a guiding error when there is no Kin window, or the kin is off the roster. */
     private static BuddyWnd.Buddy require(LuaValue self, String method) {
-        int id = handle(self, method).id;
-        BuddyWnd bw = CharApi.buddywnd();
+        LuaKin h = handle(self, method);
+        BuddyWnd bw = CharApi.buddywnd(h.user);
         if(bw == null)
-            throw new LuaError("kin:" + method + "(): no Kin window (not in the world yet)");
-        BuddyWnd.Buddy b = bw.find(id);
+            throw new LuaError("kin:" + method + "(): no Kin window (that character is not in the world yet)");
+        BuddyWnd.Buddy b = bw.find(h.id);
         if(b == null)
-            throw new LuaError("kin:" + method + "(): no such kin — id " + id + " is not on your roster");
+            throw new LuaError("kin:" + method + "(): no such kin — id " + h.id + " is not on "
+                + h.user + "'s roster");
         return b;
     }
 
@@ -388,22 +418,22 @@ public final class LuaKin {
     // ---- the roster ------------------------------------------------------------------------------
 
     /**
-     * {@code hafen.kin()} — the roster, as the {@link LuaCollection} the section object IS: {@code :get(idOrName)}
-     * addresses one kin, {@code :list}/{@code :count}/{@code :find} read the roster in the Kin window's sort
-     * order, and the protected {@code :add(secret)} is the "Add kin" field. No Kin window yet (pre-HUD, or
-     * mid-{@code :reload}) ⇒ an empty roster, never an error.
+     * {@code s:kin()} — <b>that character's</b> roster, as the {@link LuaCollection} the section object IS:
+     * {@code :get(idOrName)} addresses one kin, {@code :list}/{@code :count}/{@code :find} read the roster in
+     * the Kin window's sort order, and the protected {@code :add(secret)} is the "Add kin" field. No Kin
+     * window yet (pre-HUD, or mid-{@code :reload}) means an empty roster, never an error.
      *
      * <p>A <b>string</b> filter matches the kin's <b>name</b> as a substring; a kin the window has not named
      * yet matches nothing rather than refusing the filter.
      */
-    static LuaValue collection(final Addon owner) {
-        return LuaCollection.create("hafen.kin()", new LuaCollection.Source() {
+    static LuaValue collection(final Addon owner, final String user) {
+        return LuaCollection.create(CharApi.KN, new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
-                BuddyWnd bw = CharApi.buddywnd();
+                BuddyWnd bw = CharApi.buddywnd(user);
                 if(bw != null) {
                     for(BuddyWnd.Buddy b : bw)      // iterator() copies under the BuddyWnd's own lock
-                        out.add(of(owner, b.id));
+                        out.add(of(owner, user, b.id));
                 }
                 return out;
             }
@@ -423,7 +453,7 @@ public final class LuaKin {
             }
 
             public LuaValue getMember(LuaValue key) {
-                return find(owner, key, "hafen.kin():get(idOrName)");
+                return find(owner, user, key, CharApi.KN + ":get(idOrName)");
             }
 
             public boolean creatable() {
@@ -431,23 +461,25 @@ public final class LuaKin {
             }
 
             // add(secret) — the Kin window's "Add kin" field: kinning needs the other player's HEARTH SECRET
-            // (no add-by-name message exists). Protected. It hands back the COLLECTION rather than a Kin, because
-            // there is no Kin yet: the server decides whether the secret is valid and the roster changes on a
-            // later tick, which is what KinChanged reports.
+            // (no add-by-name message exists). Protected, with the one key it has whichever character it is
+            // addressed at (077.2), and the send goes through THAT session's own BuddyWnd. It hands back the
+            // COLLECTION rather than a Kin, because there is no Kin yet: the server decides whether the secret
+            // is valid and the roster changes on a later tick, which is what KinChanged reports.
             public LuaValue addMember(Varargs a) {
                 AddonManager.requirePermission(owner, Permission.KIN_ADD);
-                LuaValue secret = Args.required(a, 2, "hafen.kin():add", "secret");
+                LuaValue secret = Args.required(a, 2, CharApi.KN + ":add", "secret");
                 if(!secret.isstring())
-                    throw new LuaError("hafen.kin():add(secret): secret must be a string (the other player's"
-                        + " hearth secret)");
+                    throw new LuaError(CharApi.KN + ":add(secret): secret must be a string (the other"
+                        + " player's hearth secret)");
                 String s = secret.tojstring();
                 if(s.isEmpty())
-                    throw new LuaError("hafen.kin():add(secret): secret must not be empty (the other player's"
-                        + " hearth secret)");
-                BuddyWnd bw = CharApi.buddywnd();
+                    throw new LuaError(CharApi.KN + ":add(secret): secret must not be empty (the other"
+                        + " player's hearth secret)");
+                BuddyWnd bw = CharApi.buddywnd(user);
                 if(bw == null)
-                    throw new LuaError("hafen.kin():add(secret): no Kin window (not in the world yet)");
-                bw.wdgmsg("bypwd", s);      // BuddyWnd :504/:509 — exactly what the "Add kin" button sends
+                    throw new LuaError(CharApi.KN + ":add(secret): no Kin window (that character is not in"
+                        + " the world yet)");
+                bw.wdgmsg("bypwd", s);      // BuddyWnd's own "Add kin" field sends exactly this
                 return a.arg1();
             }
         }, null);
@@ -456,27 +488,29 @@ public final class LuaKin {
     /** The live buddy behind a Kin handle, for the filter's needle; {@code null} once it is off the roster. */
     private static BuddyWnd.Buddy live(LuaValue member) {
         LuaKin h = resolve(member);
-        BuddyWnd bw = CharApi.buddywnd();
-        return ((h == null) || (bw == null)) ? null : bw.find(h.id);
+        if(h == null)
+            return null;
+        BuddyWnd bw = CharApi.buddywnd(h.user);
+        return (bw == null) ? null : bw.find(h.id);
     }
 
     /**
      * One kin BY KEY: a <b>number</b> is a buddy id and always yields a Kin — an unknown one simply reports
      * {@code :exists() == false}, the same deliberate asymmetry {@code s:world():gob():get(id)} has, so an
-     * id read out of a saved file can be held before the roster streams in. A <b>string</b> is an exact
+     * id read out of a saved file can be held before that character's roster streams in. A <b>string</b> is an exact
      * (case-insensitive) name and answers {@code nil} when nobody on the roster carries it.
      */
-    private static LuaValue find(Addon owner, LuaValue key, String where) {
+    private static LuaValue find(Addon owner, String user, LuaValue key, String where) {
         if(key.isnumber())                     // isnumber FIRST: in LuaJ isstring() is true for numbers too
-            return of(owner, key.toint());
+            return of(owner, user, key.toint());
         if(key.isstring()) {
-            BuddyWnd bw = CharApi.buddywnd();
+            BuddyWnd bw = CharApi.buddywnd(user);
             if(bw == null)
                 return LuaValue.NIL;
             String needle = key.tojstring();
             for(BuddyWnd.Buddy b : bw) {
                 if((b.name != null) && b.name.equalsIgnoreCase(needle))
-                    return of(owner, b.id);
+                    return of(owner, user, b.id);
             }
             return LuaValue.NIL;
         }

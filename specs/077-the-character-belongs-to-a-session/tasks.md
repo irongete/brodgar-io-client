@@ -40,7 +40,7 @@ must still be **212**. A cut this size fails by moving too much.
       `get("<the other account>"):meter():list()` answers **that** character's bars, not the drawn
       one's — read from a character you are not looking at.
 
-- [ ] **077.2 — The roster, and what a permission key names.**
+- [x] **077.2 — The roster, and what a permission key names.**
       Moves `kin` and `party`, and with them the first protected verbs to become addressable:
       `kin.add`, `kin.rename`, `kin.group`, `kin.endKin`, `kin.forget`. **Each keeps the one key it
       has**, and the reason goes in the code and on the page: `conventions.md` defines a protected

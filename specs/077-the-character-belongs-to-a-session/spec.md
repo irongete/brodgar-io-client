@@ -123,6 +123,9 @@ the cache becomes two levels of map on `(account, key)` — `LuaGob`'s shape. An
 opens its own:
 
 - `src/io/brodgar/addon/LuaKin.java`, `LuaPartyMember.java` — 2
+- `src/io/brodgar/addon/LuaGob.java` — 2, 3, 4 (a Gob MINTS other sections' entities: `gob:kin()` hands
+  back a Kin, so re-keying an entity on `(account, key)` breaks the call site here too — grep
+  `Lua<Entity>.of(` across the package before assuming the entity file is the whole of it)
 - `src/io/brodgar/addon/LuaSlot.java`, `LuaSpeed.java`, `ActApi.java`, `LuaCraft.java`,
   `LuaPagina.java` — 3 (`menugrid` is mounted from `AddonManager` over `LuaPagina.collection`)
 - `src/io/brodgar/addon/LuaManeuver.java`, `LuaDeckCard.java`, `LuaFightSummary.java`,

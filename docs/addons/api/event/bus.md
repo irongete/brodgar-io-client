@@ -181,8 +181,8 @@ The payload is the same `Slot`, and while the hold is on it `slot:res()` is the 
 | `MarkersChanged` | `n` (number) | a map marker is added or removed |
 
 `KinChanged` hands you the **whole roster** as live [`Kin` objects](../kin.md), in Kin-window sort order —
-the same interned objects `hafen.kin():list()` returns, so `payload[1]` and
-`hafen.kin():get(payload[1]:id())` are one object and you can key a table by it. It tells you *that* the
+the same interned objects `s:kin():list()` returns, so `payload[1]` and
+`s:kin():get(payload[1]:id())` are one object and you can key a table by it. It tells you *that* the
 roster changed, not *what* changed: keep your own map of the last state if you want to name who just came
 online, and key it **by the `Kin` itself** rather than by `:name()`, so a rename does not read as one kin
 leaving and another arriving.

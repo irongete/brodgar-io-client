@@ -46,7 +46,7 @@ always fresh. [`session:world`](world.md) and the `GobAdded`/`GobRemoved` events
 
 > **Other players' display names are not available**, a limit of the client and the protocol. `name` is
 > the body resource. A name resolves only for a character of your own,
-> [`s:character()`](session.md#read), or for a kin, [`hafen.kin`](kin.md).
+> [`s:character()`](session.md#read), or for a kin, [`session:kin`](kin.md).
 
 ## Item
 
@@ -149,7 +149,7 @@ From `:info()` on each. [`session:char`](char.md) hands out the live objects; th
 
 ## PartyMember
 
-From [`member:info()`](party.md#a-member), the one snapshot escape hatch. `hafen.party():list()` hands
+From [`member:info()`](party.md#a-member), the one snapshot escape hatch. `s:party():list()` hands
 you live [`PartyMember` objects](party.md), not this table. There is **no name** field: the client is
 never sent one.
 

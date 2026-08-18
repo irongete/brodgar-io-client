@@ -62,8 +62,8 @@ g:visible(true)                               -- ...and put it back
 - **`:alpha`** is opacity `0..1`. Below `1` the prop becomes see-through; a translucent 3D object does not
   self-occlude, so you see its far faces through its near ones, the usual hologram appearance.
 - **`:tint`** is a colour overlay in the **same shape** [`marker:color`](../map/markers.md),
-  [`hafen.party`](../party.md) and [`hafen.kin`](../kin.md) use. Its fourth component is the blend strength,
-  how strongly the colour is mixed in, and it is independent of `:alpha`.
+  [`session:party`](../party.md) and [`session:kin`](../kin.md) use. Its fourth component is the blend
+  strength, how strongly the colour is mixed in, and it is independent of `:alpha`.
 - **`:res(name)`** swaps the resource; like `:add`, the new visual resolves on a loader thread and streams
   in a beat later, so the call returns immediately.
 - **`:visible(false)`** removes the ghost from the scene while keeping it alive, with its position, look and

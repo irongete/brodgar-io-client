@@ -1,0 +1,10 @@
+{
+  "name": "077.2 — the roster, and what a permission key names",
+  "id": "077-the-character-belongs-to-a-session.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 077.2: kin and party are reached through a Session and read that character's own roster, and a protected kin verb keeps its one key whichever character it is addressed at — refusing by key where none was declared, and reaching the argument check where one was.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["kin.add"]
+}

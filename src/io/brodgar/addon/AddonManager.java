@@ -2337,14 +2337,14 @@ public final class AddonManager {
      * <p>Change <i>detection</i> is unchanged and stays in {@code CharApi}'s kin adapter: the snapshot diff, NOT
      * {@code BuddyWnd.serial} (which does not bump on an online/offline flip). The ids arrive already diffed.
      */
-    static void fireKin(int[] ids) {
+    static void fireKin(String user, int[] ids) {
         for(Addon a : addons) {
             if(hasSub(a, "KinChanged"))
-                fireTo(a, "KinChanged", kinPayload(a, ids));
+                fireTo(a, "KinChanged", kinPayload(a, user, ids));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "KinChanged"))
-            fireTo(c, "KinChanged", kinPayload(c, ids));
+            fireTo(c, "KinChanged", kinPayload(c, user, ids));
     }
 
     /**
@@ -2560,10 +2560,10 @@ public final class AddonManager {
     }
 
     /** One owner's {@code KinChanged} payload: its own interned Kin objects, in roster order. */
-    private static LuaValue kinPayload(Addon owner, int[] ids) {
+    private static LuaValue kinPayload(Addon owner, String user, int[] ids) {
         LuaTable t = new LuaTable();
         for(int i = 0; i < ids.length; i++)
-            t.set(i + 1, LuaKin.of(owner, ids[i]));
+            t.set(i + 1, LuaKin.of(owner, user, ids[i]));
         return t;
     }
 
@@ -2741,21 +2741,19 @@ public final class AddonManager {
         // CharApi.charwnd(user) and AddonManager.gameui(user), the named session's own HUD, in place of the
         // drawn one. The six factories are CharApi.chr/study/buffs/meters/quests/wounds.
 
-        // hafen.party.* — the party roster (Glob.party). Members are ordered by Member.seq. A PartyMember is
-        // DERIVED: id=gobid, x,y=getc() (live gob pos if in view, else last-known), color={r,g,b,a},
-        // leader=(member==party.leader). There is NO name field for party members (a client/protocol
-        // limitation). A member's gob is hafen.gob(m.id) until Party itself migrates to OOP.
-        CharApi.installParty(hafen, owner);
-
-        // hafen.kin() — the kin/buddy roster (A6), read from the Kin window (GameUI.buddies, a BuddyWnd — the
-        // same list the in-client Kin tab shows). The section object IS the roster collection (039.9):
-        // :list([filter]) is a fresh array of interned Kin objects in the window's sort order, :count/:find the
-        // usual pair, :get(id) / :get(name) one Kin (a number is a buddy id and is NEVER nil — :exists() is the
-        // liveness test — while a name that nobody carries is), and :add(secret) is the protected add.
-        // A Kin wraps only the buddy id and re-resolves through buddywnd().find(id) every call (D-012), so
-        // it tracks renames/regroups/online flips; see LuaKin. Subscribe to KinChanged (a Kin[] payload, minted
-        // per subscribing addon by fireKin) for a kin added/removed, renamed/regrouped, or flipping
-        // online/offline. The PROTECTED verbs (the "kin.*" keys) drive BuddyWnd.Buddy's own methods (D-009):
+        // s:kin() and s:party() — the two ROSTERS (077.2), off the Session and no longer off `hafen`. Each is
+        // one character's: a kin roster is that login's Kin window (GameUI.buddies, a BuddyWnd) and a party is
+        // that login's Glob.party, so the buddy ids, the colours and the last-known positions are all read
+        // through the character the addon named. The section object IS the roster in both cases (039.9), and
+        // the entities carry the account beside their key — a buddy id counts inside one roster, and one
+        // person in two of your characters' parties is two members with two positions. See LuaKin and
+        // LuaPartyMember. Subscribe to KinChanged (a Kin[] payload, minted per subscribing addon by fireKin)
+        // for a kin added/removed, renamed/regrouped, or flipping online/offline.
+        //   The five PROTECTED kin verbs (the "kin.*" keys) drive BuddyWnd.Buddy's own methods (D-009) and are
+        // now ADDRESSABLE, each keeping the one key it has: a key names the ACTION and not the target, since
+        // the player could have tabbed to that character and performed it, and a second grant per session
+        // would mean an addon allowed to add kin cannot add kin on an alt. The send needs no anchor either —
+        // Widget.wdgmsg walks that widget's own tree to that session's own UI.
         //   :add(secret)   — kinning needs the other player's HEARTH SECRET (wdgmsg("bypwd", secret), the
         //                  Kin window's "Add kin" field); there is no add-by-NAME message.
         //   kin:endKin()   = END KINSHIP (Buddy.endkin) — ends the kinship; the kin STAYS in the list, now
@@ -2765,7 +2763,6 @@ public final class AddonManager {
         // Both send the same wdgmsg("rm", id); the SERVER advances the state (active → memorized → gone), exactly
         // as clicking the two petals in turn does. kin:rename(name)=wdgmsg("nick"), kin:group(g)=wdgmsg("grp")
         // with g validated 0..254 (the range the SERVER accepts; the client only draws 8 colours).
-        CharApi.installKin(hafen, owner);
 
         // hafen.speed() — movement speed (A7, re-shaped in 060), read from the speed selector widget (Speedget:
         // the four-way crawl/walk/run/sprint toggle at the bottom of the HUD). The section contains exactly one

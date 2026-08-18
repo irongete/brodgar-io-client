@@ -134,8 +134,8 @@ few-times-a-second timer that is both the retry and the "did the picture change?
 ## What the client does not know
 
 A gob's name is its *type*, so there is no display name for an arbitrary player; `gob:isPlayer()` is the
-test, and [`gob:kin()`](../api/kin.md) names the ones on your roster. Beyond that, reading tells you what
-the client itself has been told: an object outside your view has not been loaded and does not exist as far
-as your addon is concerned.
+test, and [`gob:kin()`](../api/kin.md) names the ones on that character's own roster. Beyond that, reading
+tells you what the client itself has been told: an object outside your view has not been loaded and does
+not exist as far as your addon is concerned.
 
 **Next:** [events and timers](events-and-timers.md) — when your code runs, and what to hang it off.

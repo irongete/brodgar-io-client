@@ -37,9 +37,10 @@ import java.util.Map;
  * sandbox boundary, and the cache dies whole with the {@link Addon} on {@code :reload}.
  *
  * <p><b>What hangs on it.</b> {@code s:world()} and {@code s:player()} (076.3) were the first two namespaces
- * addressed through a Session rather than off {@code hafen}, and 077.1 adds the six read-only sections of the
+ * addressed through a Session rather than off {@code hafen}, 077.1 adds the six read-only sections of the
  * character sheet — {@code s:char()}, {@code s:meter()}, {@code s:buff()}, {@code s:study()},
- * {@code s:quest()} and {@code s:wound()}. Each is minted once per {@code (addon, session)} and kept on the
+ * {@code s:quest()} and {@code s:wound()} — and 077.2 the two rosters, {@code s:kin()} and
+ * {@code s:party()}. Each is minted once per {@code (addon, session)} and kept on the
  * handle — see {@link #worldObj}. Every verb under them reads the session named rather than the one on
  * screen; the ones that are inherently the screen's say so where they are defined ({@code screenToWorld},
  * {@code worldToScreen}) and the ones that <b>send</b> go through {@link AddonManager#sendView}, because a
@@ -68,6 +69,8 @@ public final class LuaSession {
     private LuaValue worldObj, playerObj;
     /** The character sheet's six read-only namespaces (077.1), interned on the handle exactly as above. */
     private LuaValue charObj, meterObj, buffObj, studyObj, questObj, woundObj;
+    /** The two rosters (077.2) — the first namespaces here to carry protected verbs. */
+    private LuaValue kinObj, partyObj;
 
     private LuaSession(String user) {
         this.user = user;
@@ -271,6 +274,29 @@ public final class LuaSession {
                 if(h.woundObj == null)
                     h.woundObj = CharApi.wounds(owner, h.user);
                 return h.woundObj;
+            }
+        });
+        // kin() — THIS character's kin roster. The section object IS the roster, and the buddy ids in it are
+        // that roster's own: id 7 on two characters is two different people, which is why a Kin handle carries
+        // the account beside the id. The five protected verbs are addressable and keep the one key each has —
+        // a key names the ACTION, not the target, and the player could have tabbed here and done it.
+        m.set("kin", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "kin");
+                if(h.kinObj == null)
+                    h.kinObj = CharApi.kin(owner, h.user);
+                return h.kinObj;
+            }
+        });
+        // party() — the party THIS character is in. The section object IS the roster. Two of your characters
+        // in one party are two Party objects (a party hangs off the session's own Glob), each holding the
+        // colours and the last-known positions the server sent that login.
+        m.set("party", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "party");
+                if(h.partyObj == null)
+                    h.partyObj = CharApi.party(owner, h.user);
+                return h.partyObj;
             }
         });
         // info() — the one SNAPSHOT escape hatch, and always a table: a Session that does not exist is

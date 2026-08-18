@@ -29,17 +29,32 @@ consent dialog tells the user, word for word.
 | `craft.make` | [`hafen.craft():current():make`](../api/craft.md#write-protected) | press the Craft button |
 | `actionbar.use` | [`slot:use`](../api/actionbar.md#write-protected) | press your action-bar buttons |
 | `actionbar.res` | [`slot:res`](../api/actionbar.md#write-protected) | change what your action-bar buttons hold |
-| `kin.add` | [`hafen.kin():add`](../api/kin.md#write-protected) | add someone to your kin list |
-| `kin.rename` | [`kin:rename`](../api/kin.md#write-protected) | rename someone on your kin list |
-| `kin.group` | [`kin:group`](../api/kin.md#write-protected) | change someone's kin group |
-| `kin.endKin` | [`kin:endKin`](../api/kin.md#write-protected) | end kinship with someone |
-| `kin.forget` | [`kin:forget`](../api/kin.md#write-protected) | forget someone from your kin list |
+| `kin.add` | [`s:kin():add`](../api/kin.md#write-protected) | add someone to any of your characters' kin lists |
+| `kin.rename` | [`kin:rename`](../api/kin.md#write-protected) | rename someone on any of your characters' kin lists |
+| `kin.group` | [`kin:group`](../api/kin.md#write-protected) | change someone's kin group, on any of your characters |
+| `kin.endKin` | [`kin:endKin`](../api/kin.md#write-protected) | end kinship with someone, on any of your characters |
+| `kin.forget` | [`kin:forget`](../api/kin.md#write-protected) | forget someone from any of your characters' kin lists |
 | `speed.set` | [`hafen.speed():set`](../api/speed.md#write-protected) | change your movement speed |
 | `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected) | the escape hatch: any message the client itself could send |
 | `widget.value` | [`widget:value`](../api/ui/edit.md#driving-one-protected) | flip the client's own controls — a box it ticks, a field it types into — which the server sees |
 
 That is the whole set. Nothing else in the API is protected, and **no key grants the tier as a whole**: an
 addon that declared `gob.click` can click objects and none of the other things on that list.
+
+## A key names the action, not the character
+
+The client holds several logins at once, and a protected verb is addressed at one of them: `s:kin():add`
+adds a kin to the character `s` names, drawn or not. **The key you declared covers every one of them.**
+There is no second grant for acting on a character the player is not looking at, and none is coming: a
+verb is protected because it starts something the player could have performed, and the player could have
+tabbed to that character and performed it there. Every one of those characters is theirs — a distinction
+between them is one the user never drew, and an addon they allowed to add kin that could not add kin on an
+alt would be obeying a rule nobody wrote.
+
+So read every line of the table above across the whole client. "Change your movement speed" is any
+character's speed; "add someone to any of your characters' kin lists" says the same thing in the one place
+the plural is easy to miss. What the user approves is a **capability**, and the character it is pointed at
+is your addon's to choose.
 
 ## Groups
 
@@ -156,6 +171,7 @@ Three habits, in the order they bite:
   ship either way, read your own `manifest.json` rather than provoking the error.
 - **Act from `SessionEnteredWorld` onwards.** Every verb here needs a live map view or a live object and
   throws before there is one, so an action fired from a file body is an error rather than an early start.
+  A verb addressed at a character that is not in the world yet says so and sends nothing.
 - **Make the user ask.** Bind actions to a [hotkey or a command](hotkeys-and-commands.md) rather than to a
   timer. An addon that acts on its own the moment it loads is the one thing a permission dialog cannot
   really warn about, and the bundled write example is deliberately built the other way round.

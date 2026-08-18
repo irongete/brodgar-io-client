@@ -56,9 +56,10 @@ import java.util.Map;
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * The character-read subsystem:
- * {@code hafen.player}/{@code char}/{@code items}/{@code study}/{@code party}/{@code kin}/{@code buffs}/
- * {@code actionbar}/{@code quests}/{@code wounds}/{@code fight} — the widget-tree reads of character state,
+ * The character-read subsystem: the sections a Session hands back — {@code s:player()}, {@code s:char()},
+ * {@code s:study()}, {@code s:party()}, {@code s:kin()}, {@code s:buff()}, {@code s:meter()},
+ * {@code s:quest()}, {@code s:wound()} — plus {@code hafen.actionbar}, {@code hafen.fight} and the item
+ * reads: the widget-tree reads of character state,
  * plus the change-detection {@link TreeAdapter}s that fire the semantic events (BuffAdded, FepChanged,
  * ...). {@link AddonManager} drives it via {@link #dispatchUimsg} (the onUimsg tap),
  * {@link #refreshTreeAdapters} (the tick), {@link #dispatchPlaced}/{@link #dispatchRemoved} (M1/M3) and
@@ -90,6 +91,9 @@ final class CharApi {
     // ---- how each of these sections is reached, and so how every one of its messages spells itself ----
     // 077.1: the six read-only sections of the character sheet hang on a Session rather than off `hafen`,
     // so a refusal quotes the call the author actually has to fix rather than a door that is not there.
+    // 077.2: the two ROSTERS follow them, and with them the first protected verbs to be addressed at a
+    // character nobody is looking at -- each keeping the one key it has, because a key names the action and
+    // not the target (Permission, guides/permissions.md).
 
     /** {@code s:char()} — the sheet. */
     static final String C = "session:char()";
@@ -103,6 +107,10 @@ final class CharApi {
     static final String Q = "session:quest()";
     /** {@code s:wound()} — the wound list. */
     static final String WD = "session:wound()";
+    /** {@code s:kin()} — the kin roster. */
+    static final String KN = "session:kin()";
+    /** {@code s:party()} — the party roster. */
+    static final String PT = "session:party()";
 
     /**
      * <b>The nine change-detection adapters, for one session</b> (073.3) — built when that session's
@@ -727,7 +735,7 @@ final class CharApi {
      *
      * <p>The snapshots are the diff's <i>input only</i>: what reaches Lua is a per-addon array of <b>Kin
      * objects</b> ({@link AddonManager#fireKin}, 020.3), so a handler reads the payload with the same
-     * methods as {@code hafen.kin():list()} and can key a table by an entry.
+     * methods as {@code s:kin():list()} and can key a table by an entry.
      */
     private static final class KinAdapter implements TreeAdapter {
         private LuaValue cache = LuaValue.NIL;   // last kin snapshot list (UI thread; change-detect)
@@ -738,10 +746,11 @@ final class CharApi {
         }
 
         public void refresh() {
-            LuaValue snap = kinSnapshotList();
+            String user = drawnUser();
+            LuaValue snap = kinSnapshotList(user);
             if(!kinListEqual(snap, cache)) {
                 cache = snap;
-                fireKin(kinIds(snap));
+                fireKin(user, kinIds(snap));
             }
         }
     }
@@ -1185,26 +1194,42 @@ final class CharApi {
     }
 
     /**
-     * Install {@code hafen.party} for owner. From installHafen. <b>The section object IS the roster</b> (uniform
-     * grammar §2.1): {@code hafen.party()} is the {@link LuaPartyMember} collection, one member is
-     * {@code hafen.party():get(gobId)} and {@code :leader()} is the distinguished member (R8) rather than a
-     * second accessor. Every member hands back a live Gob through {@code member:gob()}, which is the read the
-     * roster never had.
+     * Build the party section object for {@code (owner, user)} — <b>the party THAT character is in</b>,
+     * reached as {@code s:party()} (077.2). <b>The section object IS the roster</b> (uniform grammar §2.1):
+     * it is the {@link LuaPartyMember} collection, one member is {@code s:party():get(gobId)} and
+     * {@code :leader()} is the distinguished member (R8) rather than a second accessor. Every member hands
+     * back a live Gob through {@code member:gob()}, and it is <b>that session's</b> copy of the object.
+     *
+     * <p><b>Two characters are two parties</b>, even when both are in one: a party is read off
+     * {@link Glob#party}, and a {@link Glob} is one login's. So the roster, the leader and every member's
+     * position answer for the character {@code s} names — including the last-known position the server
+     * sent <i>that</i> session, which is not the one it sent the other.
      */
-    static void installParty(LuaTable hafen, final Addon owner) {
-        Section.mount(hafen, "party", LuaPartyMember.collection(owner), null);
+    static LuaValue party(Addon owner, String user) {
+        return LuaPartyMember.collection(owner, user);
     }
 
     /**
-     * Install {@code hafen.kin} for owner. From installHafen. <b>The section object IS the roster</b> (uniform
-     * grammar §2.1): {@code hafen.kin()} is the {@link LuaCollection} {@link LuaKin#collection} builds, and one
-     * kin is {@code hafen.kin():get(idOrName)}. Only the kin-side plumbing the event adapter still needs
-     * ({@link #buddywnd}, {@link #kinSnapshot}, {@link #kinListEqual}, {@link #kinIds}) stays here.
+     * Build the kin section object for {@code (owner, user)} — <b>that character's roster</b>, reached as
+     * {@code s:kin()} (077.2). <b>The section object IS the roster</b> (uniform grammar §2.1): it is the
+     * {@link LuaCollection} {@link LuaKin#collection} builds, and one kin is {@code s:kin():get(idOrName)}.
+     * Only the kin-side plumbing the event adapter still needs ({@link #buddywnd}, {@link #kinSnapshot},
+     * {@link #kinListEqual}, {@link #kinIds}) stays here.
+     *
+     * <p><b>A buddy id counts inside one roster.</b> The Kin window is {@link GameUI#buddies}, which is one
+     * login's HUD, so id 7 on two characters is two different people — which is why a Kin handle carries
+     * the account beside the id and interns on the pair.
+     *
+     * <p><b>The five protected verbs are addressable, and keep the one key they have.</b> A key names the
+     * action, not the target: {@code conventions.md} calls a verb protected when it starts an action the
+     * player could have performed, and the player could have tabbed to that character and performed it. A
+     * second grant per session would mean an addon the user allowed to add kin cannot add kin on an alt, a
+     * distinction the user never drew — every one of those characters is theirs. The send needs no
+     * anchor either: {@link BuddyWnd.Buddy}'s own methods go through the widget's own tree
+     * ({@code Widget.wdgmsg} → that {@code UI}), so a write lands on the session it was addressed at.
      */
-    static void installKin(LuaTable hafen, final Addon owner) {
-        Section.mount(hafen, "kin", LuaKin.collection(owner),
-                      "hafen.kin(idOrName) is now hafen.kin():get(idOrName), and hafen.kin() is"
-                      + " hafen.kin():list()");
+    static LuaValue kin(Addon owner, String user) {
+        return LuaKin.collection(owner, user);
     }
 
     /**
@@ -1572,20 +1597,27 @@ final class CharApi {
         return luaFieldEq(a, b, "res") && luaFieldEq(a, b, "name");
     }
 
-    /** The live {@link Party}, or {@code null} before a session is up. Read by {@link LuaPartyMember}. */
-    static Party party() {
-        Glob g = glob();
+    /**
+     * <b>That character's</b> {@link Party}, or {@code null} before its session has a world. Read by
+     * {@link LuaPartyMember}, every call (D-012).
+     *
+     * <p>077.2: off {@link AddonManager#glob(String)}, the named session's own {@link Glob}, and never off
+     * the drawn one. Two characters in one party are still two {@code Party} objects, each holding the
+     * positions and colours the server sent <i>that</i> login.
+     */
+    static Party partyOf(String user) {
+        Glob g = glob(user);
         return (g == null) ? null : g.party;
     }
 
     /**
-     * Party members ordered by {@link Party.Member#seq} — the roster order {@code hafen.party():list()} hands
-     * out. {@code party.memb} is replaced wholesale off-thread, so a {@code values()} copy is snapshot-safe
-     * (defensive catch for the rare in-flight swap).
+     * That character's party members ordered by {@link Party.Member#seq} — the roster order
+     * {@code s:party():list()} hands out. {@code party.memb} is replaced wholesale off-thread, so a
+     * {@code values()} copy is snapshot-safe (defensive catch for the rare in-flight swap).
      */
-    static List<Party.Member> partyMembers() {
+    static List<Party.Member> partyMembers(String user) {
         List<Party.Member> out = new ArrayList<Party.Member>();
-        Party p = party();
+        Party p = partyOf(user);
         if(p == null)
             return out;
         try {
@@ -1598,7 +1630,7 @@ final class CharApi {
     }
 
 
-    // ---- kin / buddy (A6: hafen.kin) -------------------------------------------------------------
+    // ---- kin / buddy (A6: s:kin()) ---------------------------------------------------------------
     // The kin/buddy roster lives in the BuddyWnd (GameUI.buddies) — the same widget the in-client Kin tab
     // shows. Its Buddy list is mutated on the network/loader thread as the server pushes add/rm/chst/upd
     // uimsgs; BuddyWnd.iterator() copies the list under its own lock, so iterating it is snapshot-safe.
@@ -1606,15 +1638,21 @@ final class CharApi {
     // 0 offline, -1 hearth-secret-only) that we expose as a boolean (online == 1) — the common "is this
     // kin online" question; the group index maps to a fixed colour palette (BuddyWnd.gc).
     //
-    // Since 020-kin-oop the Lua-facing surface is OOP and lives in LuaKin (hafen.kin() = the roster
+    // Since 020-kin-oop the Lua-facing surface is OOP and lives in LuaKin (s:kin() = the roster
     // collection, :get(idOrName) = an interned Kin object, protected verbs on the object). What stays HERE is the
-    // plumbing LuaKin and the KinAdapter share: the buddywnd() resolve funnel, the kinSnapshot() escape
+    // plumbing LuaKin and the KinAdapter share: the buddywnd(user) resolve funnel, the kinSnapshot() escape
     // hatch (kin:info()) and the snapshot diff that drives KinChanged.
 
-    /** The Kin/buddy window ({@link GameUI#buddies}), or {@code null} before the HUD/Kin window exists.
-     *  The one resolve funnel: {@link LuaKin} re-reads every Kin object through it, every call (D-012). */
-    static BuddyWnd buddywnd() {
-        GameUI g = gui();
+    /**
+     * <b>That character's</b> Kin window ({@link GameUI#buddies}), or {@code null} before its HUD exists.
+     * The one resolve funnel: {@link LuaKin} re-reads every Kin object through it, every call (D-012).
+     *
+     * <p>077.2: off {@link AddonManager#gameui(String)}, the named session's own HUD, and never off the
+     * drawn one. Two characters have two rosters and two id spaces, so a kin read — or renamed — through
+     * the wrong one is somebody else entirely.
+     */
+    static BuddyWnd buddywnd(String user) {
+        GameUI g = gameui(user);
         return (g == null) ? null : g.buddies;
     }
 
@@ -1636,9 +1674,9 @@ final class CharApi {
 
     /** The whole roster as snapshots, in the window's current sort order — the {@link KinAdapter}'s
      *  change-detection input (never a Lua-facing list any more: Lua sees Kin objects, {@link LuaKin}). */
-    private static LuaValue kinSnapshotList() {
+    private static LuaValue kinSnapshotList(String user) {
         LuaTable out = new LuaTable();
-        BuddyWnd bw = buddywnd();
+        BuddyWnd bw = buddywnd(user);
         if(bw == null)
             return out;
         int i = 0;

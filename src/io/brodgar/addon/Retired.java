@@ -167,6 +167,16 @@ final class Retired {
         sectionObj("quest", "list", "count", "find", "get", "selected");
         sectionObj("wound", "list", "count", "find", "get");
 
+        // ---- 077.2: the two ROSTERS, and with them the first PROTECTED verbs to be addressed. Each keeps --
+        // ---- the one key it has: a key names the ACTION and not the target, and the player could have
+        // ---- tabbed to that character and performed it. So what moves is the door, not the grant.
+        put("hafen.kin", "hafen.kin() is now session:kin()" + addr + ". A roster is one character's, and so"
+            + " are the buddy ids in it: id 7 on two characters is two different people.");
+        put("hafen.party", "hafen.party() is now session:party()" + addr + ". Two of your characters in one"
+            + " party read two rosters, each with the positions the server sent that login.");
+        sectionObj("kin", "list", "count", "find", "get", "add");
+        sectionObj("party", "list", "count", "find", "get", "leader");
+
         // ---- ...and the character a login is playing is the SESSION's read, not the Player's: one fact with
         // ---- two spellings whose only difference was which door you came through is the dual style §2 cuts.
         put("session:player():name", "session:player():name() is now s:character(), on the Session itself: a"

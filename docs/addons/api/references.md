@@ -23,10 +23,10 @@ never an id.
 
 ## Kin: a roster entry
 
-A kin is an object too, and `hafen.kin()` **is** the roster collection: `:list(filter)` is the array of
-`Kin`, `:get(idOrName)` one of them. A `Kin` re-reads the roster on every call, so a stashed one tracks
-renames, regroups and online flips, and `hafen.kin():get(7) == hafen.kin():get(7)`. `gob:kin()` and
-`kin:gob()` cross between the two. See [`hafen.kin`](kin.md).
+A kin is an object too, and `s:kin()` **is** that character's roster collection: `:list(filter)` is the
+array of `Kin`, `:get(idOrName)` one of them. A `Kin` re-reads the roster on every call, so a stashed one
+tracks renames, regroups and online flips, and `s:kin():get(7) == s:kin():get(7)`. `gob:kin()` and
+`kin:gob()` cross between the two. See [`session:kin`](kin.md).
 
 ## Slot: an action-bar slot
 
