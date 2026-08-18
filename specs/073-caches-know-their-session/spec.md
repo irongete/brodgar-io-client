@@ -80,8 +80,9 @@ here, each proving it changed nothing, and the switch thrown next.**
 
 **Written**: nothing. No page under `docs/addons/**` states anything this feature makes false —
 criterion 4 is that no reachable behaviour changes, and the impact set is how that is checked rather
-than assumed. No `docs/client/` page maps `io.brodgar`, by `DOCUMENTATION.md` §12.3, and this feature
-reads no upstream `haven` it would owe a page for.
+than assumed. No `docs/client/` page maps `io.brodgar`, by `DOCUMENTATION.md` §12.3. The one map toll it
+does owe is `4`'s: routing a marker notify to a session rests on where a `MapFile` instance comes from and
+how many there are, which is `GameUI`'s doing and which `client/mapfile.md` did not say.
 
 **Derived set:**
 
@@ -107,7 +108,7 @@ each survives unrevised:
 - `specs/073-caches-know-their-session/census.md` — 2, 3, 4, 5 (written by 1)
 - `src/io/brodgar/addon/AddonManager.java` — 1, 2, 3, 4, 5, 6
 - `src/io/brodgar/addon/AddonRoot.java` — 1
-- `src/io/brodgar/addon/LuaOverlay.java` — 1
+- `src/io/brodgar/addon/LuaOverlay.java` — 1, 4 (`gob:overlay()`, the only reader of the anchored index)
 - `src/io/brodgar/addon/ProfHandle.java` — 1
 - `src/io/brodgar/addon/UiApi.java` — 2
 - `src/io/brodgar/addon/LuaWidget.java` — 2
@@ -124,7 +125,9 @@ each survives unrevised:
 - `src/io/brodgar/addon/BeltHold.java` — 3
 - `src/io/brodgar/addon/LuaSlot.java` — 3 (`slot:pagina()`, the Lua caller of every `BeltHold` hold verb)
 - `src/io/brodgar/addon/VrApi.java` — 2 (it builds a `WidgetSurface`), 4
+- `src/io/brodgar/addon/LuaWorldEntity.java` — 4 (an entity records whose world it stands in)
 - `src/io/brodgar/addon/MapApi.java` — 4
+- `src/io/brodgar/addon/LuaMarker.java` — 4 (every Lua caller of the marker refs)
 - `src/io/brodgar/addon/HttpApi.java` — 5
 - `src/io/brodgar/addon/StoreApi.java` — 5
 - `src/io/brodgar/addon/AddonRegistry.java` — 1, 3 (an addon's holds are given back at its teardown), 6
@@ -133,7 +136,9 @@ each survives unrevised:
 - `src/io/brodgar/prof/Prof.java` — 3
 - `src/haven/UI.java` — 1, 6
 - `src/haven/GameUI.java` — 1 (the belt seam), 3 (`Belt.mousedown`/`dropthing` and both `setbelt` arms hand
-  `BeltHold` the bar they are about)
+  `BeltHold` the bar they are about), 4 (`addchild("mapview")` builds the `MapFile` and hands the one
+  instance to both readers)
 - `src/haven/MapView.java` — 1 (the enter-world seam)
+- `src/haven/MapFile.java` — 4 (the marker-change seam, and what it is handed)
 - `src/io/brodgar/voice/Voice.java` — 6
 - `DOCUMENTATION.md` — 6

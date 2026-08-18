@@ -9,6 +9,13 @@
 - `haven/MapFile.java` — `MapFile(ResCache store, String filename)`: the store is a **constructor
   argument**, so a throwaway in-memory `ResCache` gives you the whole subsystem headlessly.
   `load(store, filename)` (``) reads only the *index*: `knownsegs` (``) and every `Marker` (``).
+- **Who makes one, and how many there are.** `GameUI.addchild` builds it on the `"mapview"` placement:
+  `MapFile.load(mapstore, mapfilename())`, where `mapfilename()` is `genus` plus the `mapfile/<chrid>` pref
+  (so the file **on disk** is one character's) and `mapstore` is `ResCache.global` unless `MapFile.mapbase`
+  names a directory. That one instance is then handed to **both** readers — `CornerMap` (`GameUI.mmap`) and
+  `MapWnd` (`GameUI.mapfile`) — and a fresh one is loaded on every re-placement, the old windows destroyed
+  first. So a `MapFile` **object** names one `GameUI`: two HUDs of the same character are two instances over
+  one store, and object identity is a usable answer to *whose map is this*.
 - **One `ReentrantReadWriteLock`** (``) guards everything; `checklock()` (``) makes several methods
   *assert* the caller holds it. The **processor thread** (``–``) takes the WRITE lock for segment
   saves and the index save, **across disk I/O** — so a UI-thread reader must `tryLock`, never `lock`

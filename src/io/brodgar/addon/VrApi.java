@@ -32,6 +32,8 @@ import org.luaj.vm2.lib.VarArgFunction;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.brodgar.addon.AddonManager.SessionState;
+
 import static io.brodgar.addon.AddonManager.*;
 
 /**
@@ -510,45 +512,44 @@ final class VrApi {
 
     // ---- ANCHORED, AND FREE: the index that lets an anchored entity die with its gob (043.2) ------------------
 
-    /**
-     * The entities anchored to a gob, by target id. It was written for one reader, {@link #anchorGone}: D-102 says
-     * the end of a derived thing rides the event its source already raises, and the client already raises
-     * {@code GobRemoved} — but the record that made that O(1) for a {@code gob:overlay()} lived <i>on the gob</i>,
-     * and an entity {@code hafen.vr():sprite():add(img, gob)} placed has no such record. One id→entities map
-     * restores the O(1) without restoring the thing D-100 deleted: it is written only when an anchored entity is
-     * created or destroyed, and read only on an event about that one gob. Nothing walks it per frame, and nothing
-     * walks it to find anything else.
-     *
-     * <p><b>043.3 gave it a second reader of exactly the same shape</b>, {@link #anchoredMembers}: with the world
-     * kinds gone from {@code gob:overlay()}, "what is at this gob?" answers through this index rather than through
-     * a record on the gob — the same key, the same O(1), still nothing swept.
-     *
-     * <p>Guarded by its own monitor (creates run on the UI thread, teardown may sweep from a session-bind thread).
-     */
-    private static final java.util.Map<Long, List<LuaWorldEntity>> anchored =
-        new java.util.HashMap<Long, List<LuaWorldEntity>>();
+    // 073.4: BOTH INDEXES ARE ONE SESSION'S (SessionState.vrAnchored / .vrFree) — the first is keyed by GOB ID,
+    // which names a different object in the next session, and the second holds entities standing in one session's
+    // coordinate frame. The session is the one whose SCENE the entity stands in: an entity is a client-only gob
+    // added to one MapView, so that view's ui is the answer, and it is recorded on the entity at registration
+    // (LuaWorldEntity.ui) so a removal cannot reach a different index than its create did. The two seams that
+    // arrive with no entity in hand are handed the GOB instead — anchorGone from the drain that already filed
+    // the event under its gob's session, anchoredMembers from a live Gob — and a gob names its session through
+    // Sessions.uifor(glob). Those two answers agree by construction: a gob anchor is resolved out of the very
+    // OCache the scene it is added to belongs to.
+    //
+    // The anchored map was written for one reader, anchorGone: D-102 says the end of a derived thing rides the
+    // event its source already raises, and the client already raises GobRemoved — but the record that made that
+    // O(1) for a gob:overlay() lived ON THE GOB, and an entity hafen.vr():sprite():add(img, gob) placed has no
+    // such record. One id->entities map restores the O(1) without restoring the thing D-100 deleted: it is
+    // written only when an anchored entity is created or destroyed, and read only on an event about that one
+    // gob. 043.3 gave it a second reader of exactly the same shape (anchoredMembers), and neither walks it per
+    // frame. The free list is its mirror for the other anchor (044.9): a free entity has no gob to be reached
+    // through, and the one thing that has to reach it is the ground moving under it, which is drainGround and
+    // nothing else. Each is guarded by itself (creates run on the UI thread, a teardown may sweep from a
+    // session-bind thread).
 
     /**
-     * <b>Every free entity</b>, the mirror of {@link #anchored} for the other anchor (044.9). An anchored entity
-     * ends with its gob and is reached through the map above; a free one has no gob to be reached through, and
-     * the one thing that has to reach it is the ground moving under it. Read only when the terrain's own cut map
-     * changes ({@link #drainGround}) — nothing walks it per frame.
-     */
-    private static final List<LuaWorldEntity> free = new ArrayList<LuaWorldEntity>();
-
-    /**
-     * Index a freshly created entity: by target id when it follows a gob, in the flat {@link #free} list when it
-     * stands where it was put. A free one also has the ground under it read once, right here, so a create over
+     * Index a freshly created entity <b>in the state of the session whose scene it stands in</b> (073.4): by
+     * target id when it follows a gob, in that session's flat free list when it stands where it was put. A free one also has the ground under it read once, right here, so a create over
      * ground that is not drawn simply does not enter the scene (044.9) — and the cut arriving is what puts it
      * there, rather than a bounded {@link Resolve} retry chain on the {@code Loading} the add would have thrown.
      */
-    private static void entityRegister(LuaWorldEntity e, LuaPosition.Anchor place) {
+    private static void entityRegister(UI u, LuaWorldEntity e, LuaPosition.Anchor place) {
+        e.ui = u;                                      // 073.4: whose world it stands in, said once and kept
+        SessionState st = state(u);
+        if(st == null)
+            return;                                    // no session behind that scene: nothing to index it in
         if(e.followTgt != 0) {
             Long k = Long.valueOf(e.followTgt);
-            synchronized(anchored) {
-                List<LuaWorldEntity> l = anchored.get(k);
+            synchronized(st.vrAnchored) {
+                List<LuaWorldEntity> l = st.vrAnchored.get(k);
                 if(l == null)
-                    anchored.put(k, l = new ArrayList<LuaWorldEntity>());
+                    st.vrAnchored.put(k, l = new ArrayList<LuaWorldEntity>());
                 l.add(e);
             }
             return;
@@ -562,23 +563,26 @@ final class VrApi {
             e.agy = place.y;
             e.grounded = groundDrawn(e.rc);
         }
-        synchronized(free) { free.add(e); }
+        synchronized(st.vrFree) { st.vrFree.add(e); }
     }
 
     /** Drop an entity from the index — every ending goes through {@link #destroyEntity}, so this is its one caller. */
     private static void entityUnregister(LuaWorldEntity e) {
+        SessionState st = state(e.ui);                 // 073.4: the very index the create put it in
+        if(st == null)
+            return;
         if(e.followTgt == 0) {
-            synchronized(free) { free.remove(e); }
+            synchronized(st.vrFree) { st.vrFree.remove(e); }
             return;
         }
         Long k = Long.valueOf(e.followTgt);
-        synchronized(anchored) {
-            List<LuaWorldEntity> l = anchored.get(k);
+        synchronized(st.vrAnchored) {
+            List<LuaWorldEntity> l = st.vrAnchored.get(k);
             if(l == null)
                 return;
             l.remove(e);
             if(l.isEmpty())
-                anchored.remove(k);
+                st.vrAnchored.remove(k);
         }
     }
 
@@ -590,16 +594,18 @@ final class VrApi {
      * of the session just ended has nothing to say about the one starting.
      */
     static void resetEntityIndex() {
-        synchronized(anchored) {
-            anchored.clear();
-        }
-        synchronized(free) {
-            free.clear();
+        for(SessionState st : AddonManager.allStates()) {   // 073.4: init is not told which session ended
+            synchronized(st.vrAnchored) {
+                st.vrAnchored.clear();
+            }
+            synchronized(st.vrFree) {
+                st.vrFree.clear();
+            }
+            synchronized(st.vrSessLock) {
+                st.vrSessSeen = false;                 // 045.2: and the memo — the next session's first location is news
+            }
         }
         groundDirty = false;
-        synchronized(sessLock) {
-            sessSeen = false;                          // 045.2: and the memo — the next session's first location is news
-        }
     }
 
     /**
@@ -608,10 +614,12 @@ final class VrApi {
      * reaches Lua, so a handler already reads {@code :exists() == false}. A free entity is untouched — it was
      * never derived from anything, so nothing ends it but its own collection.
      */
-    static void anchorGone(long id) {
+    static void anchorGone(SessionState st, long id) {
+        if(st == null)
+            return;
         List<LuaWorldEntity> l;
-        synchronized(anchored) {
-            l = anchored.remove(Long.valueOf(id));
+        synchronized(st.vrAnchored) {
+            l = st.vrAnchored.remove(Long.valueOf(id));
         }
         if(l == null)
             return;
@@ -633,10 +641,13 @@ final class VrApi {
      * <p>"What is at this gob?" therefore keeps ONE complete answer even though the thing itself now lives in
      * {@code hafen.vr()} — you read it there and you address it through the collection that owns it.
      */
-    static List<LuaWorldEntity> anchoredMembers(Addon owner, long gobId) {
+    static List<LuaWorldEntity> anchoredMembers(Addon owner, Gob g) {
         List<LuaWorldEntity> out = new ArrayList<LuaWorldEntity>();
-        synchronized(anchored) {
-            List<LuaWorldEntity> l = anchored.get(Long.valueOf(gobId));
+        SessionState st = (g == null) ? null : state(io.brodgar.session.Sessions.uifor(g.glob));
+        if(st == null)
+            return out;
+        synchronized(st.vrAnchored) {
+            List<LuaWorldEntity> l = st.vrAnchored.get(Long.valueOf(g.id));
             if(l == null)
                 return out;
             for(LuaWorldEntity e : l) {
@@ -648,8 +659,8 @@ final class VrApi {
     }
 
     /** The one this addon has standing at that gob under {@code key} ({@link LuaWorldEntity#overlayKey()}), or null. */
-    static LuaWorldEntity anchoredAt(Addon owner, long gobId, String key) {
-        for(LuaWorldEntity e : anchoredMembers(owner, gobId)) {
+    static LuaWorldEntity anchoredAt(Addon owner, Gob g, String key) {
+        for(LuaWorldEntity e : anchoredMembers(owner, g)) {
             if(e.overlayKey().equals(key))
                 return e;
         }
@@ -729,7 +740,7 @@ final class VrApi {
         if(onclickv.isfunction())
             gh.onClick = onclickv;
         owner.ghosts.add(gh);
-        entityRegister(gh, place);                     // 043.2: so it dies with the gob it follows (D-102),
+        entityRegister(mv.ui, gh, place);              // 043.2: so it dies with the gob it follows (D-102),
                                                        //   or 044.9: with the ground under it when it is free
         LuaValue handle = ghostHandle(gh);
         gh.handle = handle;
@@ -1203,7 +1214,7 @@ final class VrApi {
             ob.onClick = onclickv;
         ob.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.objects.add(ob);
-        entityRegister(ob, place);                     // 043.2/044.9/045.1: dies with its gob, or holds its own place
+        entityRegister(mv.ui, ob, place);              // 043.2/044.9/045.1: dies with its gob, or holds its own place
         LuaValue handle = objectHandle(ob);
         ob.handle = handle;
         // Build the gob + visual, then publish atomically. No defer: the glTF geometry is already parsed (R3), so
@@ -1302,7 +1313,7 @@ final class VrApi {
             sp.onClick = onclickv;
         sp.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.sprites.add(sp);
-        entityRegister(sp, place);                     // 043.2/044.9/045.1: dies with its gob, or holds its own place
+        entityRegister(mv.ui, sp, place);              // 043.2/044.9/045.1: dies with its gob, or holds its own place
         LuaValue handle = spriteHandle(sp);
         sp.handle = handle;
         // Build the gob + visual OUTSIDE the sprite lock (no scene mutation yet), then publish atomically. No defer:
@@ -1491,7 +1502,7 @@ final class VrApi {
         we.prevPos = new Coord(content.c);
         we.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         owner.surfaces.add(we);
-        entityRegister(we, place);                     // 044.2/044.9/045.1: dies with its gob, or holds its own place
+        entityRegister(mv.ui, we, place);              // 044.2/044.9/045.1: dies with its gob, or holds its own place
         we.handle = widgetHandle(we);
         synchronized(u) {
             u.root.add(surf, Coord.z);                 // in the tree: liveness, ticking and focus all keep resolving
@@ -1848,15 +1859,25 @@ final class VrApi {
      */
     private static long passes;
 
-    /** {@code p:entities()}: free entities standing right now, how many of them are waiting, and {@link #passes}. */
+    /**
+     * {@code p:entities()}: free entities standing right now, how many of them are waiting, and {@link #passes}.
+     * <b>One figure for the whole client</b> (073.4), summed over every session's own list: the profiler reports
+     * what the client is carrying, and a per-session breakdown is a question no counter here asks yet.
+     */
     static int freeCount() {
-        synchronized(free) { return free.size(); }
+        int n = 0;
+        for(SessionState st : AddonManager.allStates()) {
+            synchronized(st.vrFree) { n += st.vrFree.size(); }
+        }
+        return n;
     }
 
-    /** Of those, how many hold a place this session cannot locate — the ones waiting for their ground (045.2). */
+    /** Of those, how many hold a place their session cannot locate — the ones waiting for their ground (045.2). */
     static int waitingCount() {
-        List<LuaWorldEntity> l;
-        synchronized(free) { l = new ArrayList<LuaWorldEntity>(free); }
+        List<LuaWorldEntity> l = new ArrayList<LuaWorldEntity>();
+        for(SessionState st : AddonManager.allStates()) {
+            synchronized(st.vrFree) { l.addAll(st.vrFree); }
+        }
         int n = 0;
         for(LuaWorldEntity e : l) {
             synchronized(e) {
@@ -1885,12 +1906,6 @@ final class VrApi {
         groundDirty = true;
     }
 
-    /** The last session location the tap below let through — the equality test that keeps it from being a poll. */
-    private static final Object sessLock = new Object();
-    private static long sessSeg;
-    private static Coord sessTc;
-    private static boolean sessSeen;
-
     /**
      * <b>The session coordinate space itself moved</b> (045.2) — the second of the drain's two sources, and the
      * one the first cannot cover. A free entity's coordinate is derived through {@code MiniMap.sessloc}, and
@@ -1906,34 +1921,48 @@ final class VrApi {
      * carries a second one, ticking the same locator against the same file, and letting both through would let
      * the earlier of the two consume the change for the later — the memo would already match by the time the
      * instance the derivation actually reads had been assigned.
+     *
+     * <p><b>The memo is the minimap's own session's</b> (073.4): a segment id and a tile origin are a coordinate
+     * space, and each login has its own — remembering one client-wide would let one session's re-base answer for
+     * another's. The seam is handed the {@code MiniMap}, so {@code mm.ui} is the session and nothing has to be
+     * guessed. The guard above still asks the DRAWN corner minimap, because 073 indexes the caches and changes
+     * no read; what it buys is that when that read takes a session, the state it writes already names one.
      */
     static void sessionRebased(MiniMap mm, MiniMap.Location loc) {
         if((loc == null) || (mm != MapApi.minimap()))
             return;
-        synchronized(sessLock) {
-            if(sessSeen && (sessSeg == loc.seg.id) && loc.tc.equals(sessTc))
+        SessionState st = state(mm.ui);
+        if(st == null)
+            return;
+        synchronized(st.vrSessLock) {
+            if(st.vrSessSeen && (st.vrSessSeg == loc.seg.id) && loc.tc.equals(st.vrSessTc))
                 return;                                // same place, a new object: the frame said nothing
-            sessSeen = true;
-            sessSeg = loc.seg.id;
-            sessTc = loc.tc;
+            st.vrSessSeen = true;
+            st.vrSessSeg = loc.seg.id;
+            st.vrSessTc = loc.tc;
         }
         groundDirty = true;
     }
 
     /**
-     * Re-ask the ground question for every free entity, on the addon tick, and only when something moved. An
-     * entity whose answer changed is attached or detached exactly as a {@code :visible(b)} would be — the same
-     * two helpers, so there is one way in and out of the scene and not a fourth.
+     * Re-ask the ground question for every free entity of this session, on its own tick, and only when something
+     * moved. An entity whose answer changed is attached or detached exactly as a {@code :visible(b)} would be —
+     * the same two helpers, so there is one way in and out of the scene and not a fourth.
+     *
+     * <p><b>The list is one session's and the flag is the client's</b> (073.4), and that is not a discrepancy:
+     * what the flag reports is the DRAWN scene's cut map, and there is one scene ({@link #groundDrawn} asks
+     * {@code screenView()}, which this task leaves exactly as it is). So the pass that consumes it is the pass
+     * over the entities standing in that scene — today the only session with a tick pump at all.
      */
-    static void drainGround() {
-        if(!groundDirty)
+    static void drainGround(SessionState st) {
+        if(!groundDirty || (st == null))
             return;
         groundDirty = false;
         List<LuaWorldEntity> l;
-        synchronized(free) {
-            if(free.isEmpty())
+        synchronized(st.vrFree) {
+            if(st.vrFree.isEmpty())
                 return;
-            l = new ArrayList<LuaWorldEntity>(free);
+            l = new ArrayList<LuaWorldEntity>(st.vrFree);
         }
         passes++;                                      // 045.2: what p:entities() reports, and the poll test
         for(LuaWorldEntity e : l) {

@@ -1,0 +1,9 @@
+{
+  "name": "073.4 — the world indexes belong to one world",
+  "id": "073-caches-know-their-session.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 073.4: the vr entity indexes and the map marker refs are one session's, and every surface over them answers exactly as before.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

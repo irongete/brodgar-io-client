@@ -117,7 +117,7 @@ public final class LuaOverlay {
             for(String k : store.keys(owner))
                 out.add(of(owner, gobId, k, MINE));
         }
-        for(LuaWorldEntity e : VrApi.anchoredMembers(owner, gobId))
+        for(LuaWorldEntity e : VrApi.anchoredMembers(owner, g))
             out.add(of(owner, gobId, e.overlayKey(), VR));
         for(String k : LuaGobOverlay.nativeKeys(g))
             out.add(of(owner, gobId, k, NATIVE));
@@ -161,7 +161,7 @@ public final class LuaOverlay {
                 LuaGobOverlay store = LuaGobOverlay.on(g);
                 if((store != null) && (store.get(owner, k) != null))
                     return of(owner, gobId, k, MINE);
-                if(VrApi.anchoredAt(owner, gobId, k) != null)
+                if(VrApi.anchoredAt(owner, g, k) != null)
                     return of(owner, gobId, k, VR);
                 return LuaGobOverlay.findNative(g, k) ? of(owner, gobId, k, NATIVE) : LuaValue.NIL;
             }
@@ -184,7 +184,7 @@ public final class LuaOverlay {
                     throw new LuaError("gob:overlay():add(\"" + k + "\"): that key names one of the GAME's own"
                         + " overlays, which are read-only -- pick a key of your own (a native key is a resource"
                         + " name; gob:overlay():list() lists them)");
-                LuaWorldEntity vr = VrApi.anchoredAt(owner, gobId, k);
+                LuaWorldEntity vr = VrApi.anchoredAt(owner, g, k);
                 if(vr != null)
                     throw new LuaError("gob:overlay():add(\"" + k + "\"): that key names a hafen.vr():" + vr.kind()
                         + "() standing at this gob, which is listed here read-only -- pick a key of your own"
@@ -222,7 +222,7 @@ public final class LuaOverlay {
                 if(LuaGobOverlay.findNative(g, k))
                     throw new LuaError("gob:overlay():remove(\"" + k + "\"): that key names one of the GAME's own"
                         + " overlays, which are read-only");
-                LuaWorldEntity vr = VrApi.anchoredAt(owner, gobId, k);
+                LuaWorldEntity vr = VrApi.anchoredAt(owner, g, k);
                 if(vr != null)
                     throw new LuaError("gob:overlay():remove(\"" + k + "\"): that is a hafen.vr():" + vr.kind()
                         + "() standing at this gob, listed here read-only -- the collection placed it, so the"
@@ -523,7 +523,7 @@ public final class LuaOverlay {
         if(h.src == NATIVE)
             return LuaGobOverlay.findNative(g, h.key) ? h : null;
         if(h.src == VR)
-            return VrApi.anchoredAt(owner, h.gob, h.key);
+            return VrApi.anchoredAt(owner, g, h.key);
         LuaGobOverlay store = LuaGobOverlay.on(g);
         return (store == null) ? null : store.get(owner, h.key);
     }

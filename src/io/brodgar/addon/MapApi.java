@@ -11,6 +11,8 @@ import haven.MapView;
 import haven.MapWnd;
 import haven.MCache;
 import haven.MiniMap;
+import haven.UI;
+import haven.Widget;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -22,10 +24,10 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+
+import io.brodgar.addon.AddonManager.SessionState;
 
 import static io.brodgar.addon.AddonManager.*;
 
@@ -287,13 +289,17 @@ final class MapApi {
         }
     }
 
-    /** Session init: drop the per-session marker-ref maps + re-prime MarkersChanged (from AddonManager.init). */
+    /** Session init: drop the per-session marker-ref maps + re-prime MarkersChanged (from AddonManager.init).
+     *  Every session's, since 073.4: {@code init} is not told which one ended. */
     static void resetMarkers() {
-        synchronized(markerById) {
-            markerIds.clear();
-            markerById.clear();
+        for(SessionState st : AddonManager.allStates()) {
+            synchronized(st.markerById) {
+                st.markerIds.clear();
+                st.markerById.clear();
+            }
+            st.markersPrimed = false;
+            st.mapFile = null;                    // the file it named is being replaced with the session
         }
-        markersPrimed = false;
     }
 
     // ---- markers (hafen.map():marker()) ------------------------------------------------------------
@@ -309,24 +315,58 @@ final class MapApi {
 
     private static final java.awt.Color DEFAULT_MARKER_COLOR = new java.awt.Color(255, 215, 0);  // gold pin
 
-    /** Facade-safe marker refs (P1: no Java Marker crosses to Lua). Per-session (Marker identity is per-session). */
-    private static final IdentityHashMap<MapFile.Marker, Long> markerIds = new IdentityHashMap<MapFile.Marker, Long>();
-    private static final Map<Long, MapFile.Marker> markerById = new HashMap<Long, MapFile.Marker>();
-    private static long markerIdSeq = 0;
+    // 073.4: THE MARKER REFS ARE ONE SESSION'S (SessionState.markerIds / .markerById / .markersPrimed /
+    // .lastMarkerSeq). A ref names a MapFile.Marker by OBJECT IDENTITY, and those objects are read out of one
+    // login's map database — the next session reads the same file again into different objects, so a ref that
+    // outlived the session would resolve onto nothing or, worse, onto a merge's replacement. The session is the
+    // one whose GameUI holds the file (see mapState), which is also what lets a marker-change notify name a
+    // session at all: the seam is handed a MapFile and nothing else.
 
-    /** MarkersChanged is primed (not fired) the first time the map DB is seen, then fired on each markerseq change. */
-    private static boolean markersPrimed = false;
-    private static int lastMarkerSeq = 0;
+    /** The id sequence the refs are minted from. Process-wide: two sessions minting from one counter collide
+     *  with nobody, and a ref that is unique for the client's life is one that can never be misread. */
+    private static long markerIdSeq = 0;
 
     /** The client's on-disk map DB (markers/segments), or null before the HUD/map is up. */
     static MapFile mapfile() {
-        GameUI g = gui();
+        return mapfileOf(gui());
+    }
+
+    /** The map database one HUD holds — the map window's, or the corner minimap's, which are the same instance. */
+    private static MapFile mapfileOf(GameUI g) {
         if(g == null)
             return null;
         if(g.mapfile != null)          // the big Map window (MapWnd.file)
             return g.mapfile.file;
         MiniMap mm = g.mmap;            // fall back to the corner minimap (same MapFile instance)
         return (mm == null) ? null : mm.file;
+    }
+
+    /**
+     * <b>The state a map read is about, claiming the file it reads from</b> (073.4). Both halves come out of the
+     * SAME {@code GameUI} — the session is that HUD's, and the file is the one that HUD holds — so a session can
+     * only ever claim its own map, however many are live. {@code null} before the HUD is up, which is what every
+     * caller here already had to handle.
+     */
+    private static SessionState mapState() {
+        GameUI g = gui();
+        if(g == null)
+            return null;
+        SessionState st = state(g.ui);
+        if(st != null) {
+            MapFile f = mapfileOf(g);
+            if(f != null)
+                st.mapFile = f;
+        }
+        return st;
+    }
+
+    /**
+     * Refresh the claim, from the tick (073.4) — {@link AddonManager#onMarkersChanged} matches a bump against
+     * {@code SessionState.mapFile} and has nothing else to go on, so the claim cannot wait for an addon to call
+     * a map verb: an addon that only subscribes to {@code MarkersChanged} would then never hear one.
+     */
+    static void claimMapFile() {
+        mapState();
     }
 
     /**
@@ -351,21 +391,34 @@ final class MapApi {
         return (g == null) ? null : g.mmap;
     }
 
-    /** Assign (or look up) a stable per-session ref id for a marker. Touched from UI + REPL threads → guarded. */
+    /** Assign (or look up) a stable per-session ref id for a marker. Touched from UI + REPL threads → guarded.
+     *  {@code 0} when there is no session to intern it in, which is a ref that resolves to nothing. */
     static long markerId(MapFile.Marker m) {
-        synchronized(markerById) {
-            Long id = markerIds.get(m);
+        SessionState st = mapState();
+        if(st == null)
+            return 0;
+        synchronized(st.markerById) {
+            Long id = st.markerIds.get(m);
             if(id == null) {
-                id = Long.valueOf(++markerIdSeq);
-                markerIds.put(m, id);
-                markerById.put(id, m);
+                id = Long.valueOf(nextMarkerId());
+                st.markerIds.put(m, id);
+                st.markerById.put(id, m);
             }
             return id.longValue();
         }
     }
+
+    /** The next ref id. Synchronized on the class: the counter is the client's, the maps it feeds are not. */
+    private static synchronized long nextMarkerId() {
+        return ++markerIdSeq;
+    }
+
     static MapFile.Marker markerByRef(long id) {
-        synchronized(markerById) {
-            return markerById.get(Long.valueOf(id));
+        SessionState st = mapState();
+        if(st == null)
+            return null;
+        synchronized(st.markerById) {
+            return st.markerById.get(Long.valueOf(id));
         }
     }
 
@@ -452,32 +505,35 @@ final class MapApi {
      * does not cause seqchanges and does not arrive as an event; only user/server-initiated changes do.
      * On the first notify after session init, prime to capture the post-change state, and fire to report
      * the change.
+     *
+     * <p><b>It reads the file the notify was about</b> (073.4) — {@code st.mapFile}, which is how the bump found
+     * this session in the first place — rather than re-asking which map is drawn, and the prime state is that
+     * session's own, because "has this one been told its count once" is a question about one login.
      */
-    static void fireMarkersChanged(int seq) {
-        MapFile file = mapfile();
+    static void fireMarkersChanged(SessionState st, int seq) {
+        MapFile file = (st == null) ? null : st.mapFile;
         if(file == null)
             return;
-        if(!markersPrimed) {
+        if(!st.markersPrimed) {
             // First notify after login: prime with current state and fire to report the first real change
-            markersPrimed = true;
-            lastMarkerSeq = seq;
-            int count;
-            file.lock.readLock().lock();
-            try { count = file.markers.size(); }
-            finally { file.lock.readLock().unlock(); }
+            st.markersPrimed = true;
+            st.lastMarkerSeq = seq;
             // The COUNT itself, not a { count = n } wrapper (041.1): one thing to say is said directly, and
             // the wrapper was the only field this payload ever had.
-            fire("MarkersChanged", LuaValue.valueOf(count));
+            fire("MarkersChanged", LuaValue.valueOf(markerCount(file)));
             return;
         }
-        if(seq != lastMarkerSeq) {
-            lastMarkerSeq = seq;
-            int count;
-            file.lock.readLock().lock();
-            try { count = file.markers.size(); }
-            finally { file.lock.readLock().unlock(); }
-            fire("MarkersChanged", LuaValue.valueOf(count));
+        if(seq != st.lastMarkerSeq) {
+            st.lastMarkerSeq = seq;
+            fire("MarkersChanged", LuaValue.valueOf(markerCount(file)));
         }
+    }
+
+    /** How many markers that database holds right now, under its read lock. */
+    private static int markerCount(MapFile file) {
+        file.lock.readLock().lock();
+        try { return file.markers.size(); }
+        finally { file.lock.readLock().unlock(); }
     }
 
     // ---- icons (hafen.map():icon()) ----------------------------------------------------------------
@@ -887,23 +943,36 @@ final class MapApi {
     }
 
     /**
-     * The undo of one hold, guarded on the side still being the <b>same live one</b> — a relog builds a new
-     * {@code MapView}/{@code MapWnd} whose overlay state was never ours, exactly as {@code teardownHidden}
-     * guards on the widget still being live.
+     * The undo of one hold, applied to <b>the very side it was taken on</b> (073.4) and guarded on that side
+     * still being live — exactly as {@code teardownHidden} guards on the widget still being live. A hold names
+     * one session's {@code MapView}/{@code MapWnd}: the {@code +1} it left is on that multiset and no other, so
+     * asking which map is DRAWN now (what this used to do) would hand the displaced state of one session's
+     * overlays to another's the moment two are alive, and does the same thing today for a teardown that runs
+     * from {@code init}, when the anchor has already moved on. A side whose session is gone is simply forgotten:
+     * its overlay state went with the tree.
      */
     private static void apply(Hold h) {
-        Object was = h.on.get(), now = sideOf(h.tag);
-        if((was == null) || (was != now))
+        Object was = h.on.get();
+        if(!live(was))
             return;
         try {
             if(h.recorded) {
                 if(!h.stock)
-                    ((MapWnd)now).overlays.remove(h.tag);
+                    ((MapWnd)was).overlays.remove(h.tag);
             } else {
-                ((MapView)now).disol(h.tag);
+                ((MapView)was).disol(h.tag);
             }
         } catch(RuntimeException e) {      // best-effort: never abort a teardown
         }
+    }
+
+    /** Is that side still standing in its own session's tree? (A relog leaves the old one behind, unreachable.) */
+    private static boolean live(Object side) {
+        if(!(side instanceof Widget))
+            return false;
+        Widget w = (Widget)side;
+        UI u = w.ui;
+        return (u != null) && !u.destroyed && (u.root != null) && w.hasparent(u.root);
     }
 
     /** Give back every display toggle this addon was holding — {@code :reload}/disable. */

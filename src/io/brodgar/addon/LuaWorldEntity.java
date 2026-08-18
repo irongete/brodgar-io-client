@@ -6,6 +6,7 @@ import haven.Coord2d;
 import haven.Coord3f;
 import haven.Gob;
 import haven.MapView;
+import haven.UI;
 import haven.render.RenderTree;
 
 import org.luaj.vm2.LuaValue;
@@ -116,6 +117,15 @@ public abstract class LuaWorldEntity {
 
     private static final java.util.concurrent.atomic.AtomicLong nextEid =
         new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * <b>The session whose world it stands in</b> (073.4) — the {@code ui} of the {@link MapView} it was created
+     * into, taken once at registration and kept. An entity IS a client-only gob added to one scene, so that is
+     * not a guess about which session it belongs to but the thing itself; and holding it is what lets the
+     * removal reach the very index the create wrote to, whichever session is being drawn by then. Set at create
+     * only, like {@link #followTgt}.
+     */
+    UI ui;
 
     Gob gob;                       // the client-only Gob, or null until the (possibly deferred) create publishes it
     RenderTree.Slot slot;          // its scene slot, or null until added / while hidden; removed on destroy/teardown

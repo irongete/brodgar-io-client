@@ -294,7 +294,7 @@ public class MapFile {
 	    } else {
 		seq++;
 		file.markerseq++;
-		io.brodgar.addon.AddonManager.onMarkersChanged(file.markerseq);  // addon: marker-change seam (042.11)
+		io.brodgar.addon.AddonManager.onMarkersChanged(file, file.markerseq);  // addon: marker-change seam (042.11, 073.4: whose map)
 	    }
 	}
     }
@@ -405,7 +405,7 @@ public class MapFile {
 		defersave();
 		markerseq++;
 		mark.seq++;
-		io.brodgar.addon.AddonManager.onMarkersChanged(markerseq);  // addon: marker-change seam (042.11)
+		io.brodgar.addon.AddonManager.onMarkersChanged(this, markerseq);  // addon: marker-change seam (042.11, 073.4: whose map)
 	    }
 	} finally {
 	    lock.writeLock().unlock();
@@ -419,7 +419,7 @@ public class MapFile {
 		defersave();
 		markerseq++;
 		mark.seq++;
-		io.brodgar.addon.AddonManager.onMarkersChanged(markerseq);  // addon: marker-change seam (042.11)
+		io.brodgar.addon.AddonManager.onMarkersChanged(this, markerseq);  // addon: marker-change seam (042.11, 073.4: whose map)
 	    }
 	} finally {
 	    lock.writeLock().unlock();
@@ -433,7 +433,7 @@ public class MapFile {
 		defersave();
 		markerseq++;
 		mark.seq++;
-		io.brodgar.addon.AddonManager.onMarkersChanged(markerseq);  // addon: marker-change seam (042.11)
+		io.brodgar.addon.AddonManager.onMarkersChanged(this, markerseq);  // addon: marker-change seam (042.11, 073.4: whose map)
 	    }
 	} finally {
 	    lock.readLock().unlock();
@@ -1553,7 +1553,7 @@ public class MapFile {
 	}
 	if(mf) {
 	    markerseq++;
-	    io.brodgar.addon.AddonManager.onMarkersChanged(markerseq);  // addon: marker-change seam (042.11)
+	    io.brodgar.addon.AddonManager.onMarkersChanged(this, markerseq);  // addon: marker-change seam (042.11, 073.4: whose map)
 	}
 	knownsegs.remove(src.id);
 	defersave();

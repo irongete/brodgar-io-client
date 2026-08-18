@@ -78,7 +78,7 @@ calls each `resetSession`. What changes is where the state those calls clear act
       `[manual]`: eat something, or take a step to move stamina. Expect: the `MeterChanged` line
       reports fired.
 
-- [ ] **073.4 — The world indexes belong to one world.**
+- [x] **073.4 — The world indexes belong to one world.**
       Converts `VrApi` and `MapApi`. `VrApi`'s two standing-entity indexes name **gob ids**, which
       mean different objects in different sessions, and its ground pass reads `screenView()`, which
       stays as it is — the scene is one. `MapApi`'s per-session marker maps and its overlay holds name

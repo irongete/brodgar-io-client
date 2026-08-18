@@ -141,12 +141,6 @@ public final class AddonManager {
     // tick() drains it on the UI thread (P5), same shape as the per-session queues in SessionState. A retry
     // is owned by an ADDON and cancelled by that addon's teardown, so it is indexed where `addons` is.
     private static final Queue<Runnable> resolveQueue = new ConcurrentLinkedQueue<Runnable>();
-    // 042.11: marker-change notify — MapFile.markerseq bumps from add/remove/update on the processor thread
-    // or the UI thread, and from segment merges on the loader thread. The notify is marshalled onto the tick
-    // to avoid deadlock with the map DB's RW lock. Only the count is queued (041.1). The seam is handed a
-    // MapFile and nothing else — the on-disk map database, which no session holds — so there is no session
-    // to key it on until MapApi's own per-session map state can name one.
-    private static final Queue<Integer> markerChangeQueue = new ConcurrentLinkedQueue<Integer>();
 
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
@@ -433,6 +427,43 @@ public final class AddonManager {
         /** The last serialization written (or read) for this character, so an unchanged map writes nothing. */
         String beltLastJson;
 
+        // ---- the world (073.4) -------------------------------------------------------------------
+        // A gob id, a marker ref and a session coordinate each name ONE LOGIN'S world: the same number is a
+        // different object in the next session, and the same marker on disk is interned afresh. Each is
+        // reached with the ui of the thing the seam was handed — the MapView an entity was stood in, the
+        // MiniMap that re-based, the map file a notify names — and never through screen(), which answers the
+        // scene being DRAWN while the seams here run on a loader thread and on the disk layer's own.
+
+        /** Gob id &rarr; the entities of this session anchored to it ({@link VrApi}, 043.2). Guarded by itself. */
+        final Map<Long, List<LuaWorldEntity>> vrAnchored = new HashMap<Long, List<LuaWorldEntity>>();
+        /** Every entity standing at a PLACE in this session's world ({@link VrApi}, 044.9). Guarded by itself. */
+        final List<LuaWorldEntity> vrFree = new ArrayList<LuaWorldEntity>();
+        /** The last session location this session's re-ground let through — the equality memo that keeps that
+         *  drain an event rather than a per-frame poll (045.2). The three below are guarded by it. */
+        final Object vrSessLock = new Object();
+        long vrSessSeg;
+        Coord vrSessTc;
+        boolean vrSessSeen;
+
+        /** Facade-safe marker refs into THIS session's map database ({@link MapApi}): a {@code Marker} is an
+         *  object read from a file one session holds, so the ref that names it is that session's. Both maps
+         *  are guarded by {@link #markerById} (the UI and REPL threads reach them). */
+        final IdentityHashMap<MapFile.Marker, Long> markerIds = new IdentityHashMap<MapFile.Marker, Long>();
+        final Map<Long, MapFile.Marker> markerById = new HashMap<Long, MapFile.Marker>();
+        /** Has this session been told its marker count once, and at which seq ({@link MapApi}). */
+        boolean markersPrimed;
+        int lastMarkerSeq;
+        /**
+         * <b>The on-disk map database this session's HUD holds</b> (073.4) — and the one thing that can name
+         * a session for a marker-change notify, which is handed a {@link MapFile} and nothing else. Claimed
+         * by the session's own tick from the {@code GameUI} the file was read out of, so a session claims no
+         * file but its own; volatile, because the seam that matches against it runs on whichever thread bumped
+         * the seq (the processor's, the UI's, a loader's).
+         */
+        volatile MapFile mapFile;
+        /** The marker-count changes captured since this session's last tick (042.11, per session since 073.4). */
+        final Queue<Integer> markerChanges = new ConcurrentLinkedQueue<Integer>();
+
         SessionState(UI ui) {
             this.ui = ui;
         }
@@ -458,6 +489,7 @@ public final class AddonManager {
             beltSetQueue.clear();
             resizedWidgets.clear();
             textRewrites.clear();
+            markerChanges.clear();
             addonRoot = null;
             ocCb = null;
         }
@@ -643,7 +675,6 @@ public final class AddonManager {
                                       //   (073.3: every session's, since init is not told which one ended)
         BeltHold.resetSession();      // 059.4: ...and every bar slot an addon was holding — a slot index names
                                       //   another character's bar now, and the addons above were just torn down
-        markerChangeQueue.clear();    // 042.11: and any marker-change notify queued from the old session
         HttpApi.reset();              // N2a: drop stale HTTP completions (their requests were torn down above)
 
         StoreApi.resetSession();      // per-char scope + auto-save clock reset for the new session
@@ -780,7 +811,7 @@ public final class AddonManager {
                 // record on the gob to be found through — VrApi's by-target index is what makes that O(1) too.
                 if(!ge.added) {
                     LuaGobOverlay.gobGone(ge.gob);
-                    VrApi.anchorGone(ge.gob.id);
+                    VrApi.anchorGone(st, ge.gob.id);
                 }
                 fireGob(ge.added ? "GobAdded" : "GobRemoved", ge.gob.id);
             }
@@ -882,7 +913,7 @@ public final class AddonManager {
             //     markobj, the player/addon adds PMarkers, and segment merges re-key them; all bump markerseq).
             //     The bump is caught at its source and marshalled onto the tick to avoid deadlock with the
             //     map DB's RW lock. Global event.
-            drainMarkerChanges();
+            drainMarkerChanges(st);
 
             // 1e. The ground under a free hafen.vr() entity (044.9): the terrain's own cut map changed — the
             //     player crossed a cut boundary, or a grid streamed in or out — so re-ask which of the
@@ -890,7 +921,7 @@ public final class AddonManager {
             //     points inside MapView's render tick and drained here (D-106), because a client-only gob is
             //     in no OCache and so nothing else would ever take it out of the scene. Free when nothing
             //     moved: one boolean read.
-            VrApi.drainGround();
+            VrApi.drainGround(st);
 
             // 2. "Entered the world" — fire EnterWorld once the HUD (GameUI) is not just built but
             //    ATTACHED to ui.root. The map view sets enterWorldPending from its ctor (loader thread),
@@ -1956,23 +1987,41 @@ public final class AddonManager {
      * payload. This only enqueues; {@link #tick(UI, double)} drains it on the UI thread, same shape as the other
      * marshalled queues (D-106, to avoid deadlock with the map DB's RW lock).
      *
+     * <p><b>It is handed the file that bumped</b> (073.4), which is the only thing here that names a session:
+     * a {@code MapFile} is one HUD's map database, and the session holding that HUD claims it on its own tick
+     * ({@link SessionState#mapFile}). A notify no session claims is <b>dropped</b> — the alternative is what
+     * this replaces, one queue for the client whose drain reported every bump against whichever map was drawn.
+     *
      * <p><b>Must not touch Lua.</b>
      */
-    public static void onMarkersChanged(int count) {
-        markerChangeQueue.add(count);
+    public static void onMarkersChanged(MapFile file, int count) {
+        if(file == null)
+            return;
+        for(SessionState st : states.values()) {
+            if(st.mapFile == file) {          // identity: one HUD, one MapFile instance
+                st.markerChanges.add(count);
+                return;
+            }
+        }
     }
 
     /**
-     * Deliver the marker-count changes captured since the last tick, one frame's worth (D-106) — fire
-     * MarkersChanged with each count.
+     * Deliver the marker-count changes captured since this session's last tick, one frame's worth (D-106) —
+     * fire MarkersChanged with each count.
+     *
+     * <p>The claim is refreshed first, and by the drawn session's own map read (073.4): a session learns which
+     * {@code MapFile} is its own through the {@code GameUI} that holds it, so it is never told about another
+     * one's. Done every tick rather than at a marker read, so an addon that only <i>subscribes</i> — and never
+     * calls a map verb — still hears the server's own markers arrive.
      */
-    private static void drainMarkerChanges() {
-        for(int n = markerChangeQueue.size(); n > 0; n--) {
-            Integer count = markerChangeQueue.poll();
+    private static void drainMarkerChanges(SessionState st) {
+        MapApi.claimMapFile();
+        for(int n = st.markerChanges.size(); n > 0; n--) {
+            Integer count = st.markerChanges.poll();
             if(count == null)
                 break;
             try {
-                MapApi.fireMarkersChanged(count);
+                MapApi.fireMarkersChanged(st, count);
             } catch(RuntimeException e) {
                 log("marker-change dispatch error: " + e);
             }
