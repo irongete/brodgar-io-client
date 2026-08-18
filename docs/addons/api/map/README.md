@@ -6,14 +6,14 @@ the minimap icon settings that decide what is drawn on it. Reach for it to read 
 the client wrote down about a piece of ground, and to draw a map of your own.
 
 ```lua
-local p = hafen.player():gob():position()
+local p = hafen.session():current():player():gob():position()
 local pin = hafen.map():marker():add("Camp", p):color(0, 200, 0):onMap(true)
 hafen.store():get("cfg").camp = pin:position()       -- durable: it survives the relog
 hafen.map():marker():remove(pin)
 ```
 
 > **Recorded, not live.** Nothing under `hafen.map` reads the terrain streamed around you — that is
-> [`hafen.world`](../world.md), which owns `tile`, `height`, the Position type and the rest of the
+> [`session:world`](../world.md), which owns `tile`, `height`, the Position type and the rest of the
 > coordinate space. `hafen.map` is the database behind the map window and the corner minimap.
 
 ## One map for the client
@@ -83,6 +83,6 @@ that decides which gob icons the minimap draws.
 
 ## See also
 
-- [`hafen.world`](../world.md) — the live half: terrain, the coordinate spaces, and the same Grid entity
+- [`session:world`](../world.md) — the live half: terrain, the coordinate spaces, and the same Grid entity
 - [coordinates](../conventions.md#coordinates) — why a Position is the only place worth storing
 - [Gob](../gob.md) — `gob:icon()`, the category name on a live object

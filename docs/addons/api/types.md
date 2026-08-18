@@ -27,7 +27,7 @@ From [`s:info()`](session.md#read), the snapshot escape hatch for one of the log
 
 A game object's fields as one plain table, the snapshot [`gob:info()`](gob.md) returns. It is the
 escape hatch for logging and serialising; to *read* a gob, call its [methods](gob.md#read), which are
-always fresh. [`hafen.world`](world.md) and the `GobAdded`/`GobRemoved` events hand out Gob
+always fresh. [`session:world`](world.md) and the `GobAdded`/`GobRemoved` events hand out Gob
 **objects**, not this table.
 
 | Field | Type | Notes |
@@ -45,14 +45,14 @@ always fresh. [`hafen.world`](world.md) and the `GobAdded`/`GobRemoved` events h
 | `overlays` | string[] | active overlay resource names (crop stage, fire, …); optional |
 
 > **Other players' display names are not available**, a limit of the client and the protocol. `name` is
-> the body resource. A name resolves only for the local player,
-> [`hafen.player():name()`](player.md), or for a kin, [`hafen.kin`](kin.md).
+> the body resource. A name resolves only for a character of your own,
+> [`s:character()`](session.md#read), or for a kin, [`hafen.kin`](kin.md).
 
 ## Item
 
 From [`item:info()`](ui/items.md#the-item-object), the one snapshot escape hatch. Any widget's
 [`:items()`](ui/items.md) — your backpack (`hafen.ui():inventory()`), your worn gear
-(`hafen.ui():equipment()`), a chest, a cupboard — and [`hafen.player():hand()`](player.md#the-hand) for
+(`hafen.ui():equipment()`), a chest, a cupboard — and [`s:player():hand()`](player.md#the-hand) for
 the cursor item hand you a live [`Item` object](ui/items.md#the-item-object), not this table. Every field
 is optional.
 
@@ -85,14 +85,14 @@ rest, so which fields are present is what tells the two apart.
 
 ## Tile
 
-From [`hafen.world():tile`](world.md#terrain-and-coordinates). `{ id = number, name = string? }` —
+From [`s:world():tile`](world.md#terrain-and-coordinates). `{ id = number, name = string? }` —
 tileset id plus resource name.
 
 ## Position
 
 From [`p:info()`](world.md#the-position-type). `{ gridId = number, x = number, y = number }` — a grid id
 and the offset **within** that grid, which is the durable form and not the same numbers as `p:x()`/`p:y()`.
-It is `nil` for a place that is not durable, and it is what `hafen.world():position(saved)` rebuilds from.
+It is `nil` for a place that is not durable, and it is what `s:world():position(saved)` rebuilds from.
 
 ## Attr
 

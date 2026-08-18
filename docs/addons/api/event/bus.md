@@ -89,7 +89,7 @@ variables were just put back, and says nothing about the others.
 | `GobOverlayAdded` | `ev` — `:gob()` `:key()` `:native()` | something is attached to a game object — see [`gob:overlay()`](../overlay.md) |
 | `GobOverlayRemoved` | `ev` — `:gob()` `:key()` `:native()` | something attached to a game object goes away |
 
-Prefer these over scanning [`hafen.world():gob():list`](../world.md) every frame. `ev:gob()` is a live
+Prefer these over scanning [`s:world():gob():list`](../world.md) every frame. `ev:gob()` is a live
 [Gob object](../gob.md). On `GobRemoved` the gob is **already gone**, so only `gob:id()` answers there; if
 you need its name, index it on `GobAdded`.
 

@@ -2,7 +2,7 @@
 
 `hafen.ui():mouse()` is the pointer — where it is, what is under it, which modifiers are down, and the
 capture that makes a drag yours. It is not a [Widget](widget.md): `:mouse()` hands back the pointer
-**itself**, the same shape [`hafen.player()`](../player.md) has.
+**itself**, the same shape a [session's Player](../player.md) has.
 
 ```lua
 local m = hafen.ui():mouse()
@@ -56,15 +56,16 @@ local g = hafen.ui():mouse():grab()
 
 g:on("Move", function(ev)
   local fine = ev:shift()                                  -- SHIFT picks the fine grid
-  hafen.world():screenToWorld(ev:x(), ev:y(), function(p)  -- p is a Position, a frame later
-    if p then ghost:position(hafen.world():snapPlace(p, fine)) end
+  local w = hafen.session():current():world()              -- the pointer is the screen's
+  w:screenToWorld(ev:x(), ev:y(), function(p)              -- p is a Position, a frame later
+    if p then ghost:position(w:snapPlace(p, fine)) end
   end)
 end)
 
 g:on("Up", function(ev) hafen.log():write("dropped with button " .. ev:button()) end)
 ```
 
-Pair it with [`hafen.world():screenToWorld`](../world.md#screen-to-world-and-placement-snapping) and
+Pair it with [`s:world():screenToWorld`](../world.md#screen-to-world-and-placement-snapping) and
 `snapPlace` to drag something along the ground.
 
 **`ev:x()`/`ev:y()` go into `screenToWorld` as they come** — a grab reports the pointer in root

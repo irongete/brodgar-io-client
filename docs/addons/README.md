@@ -9,12 +9,13 @@ with the user's permission, drive the character.
 
 ```lua
 -- addons/myaddon/main.lua
-hafen.event():on("SessionEnteredWorld", function()
-  hafen.log():write("hello from " .. (hafen.player():name() or "?"))
+hafen.event():on("SessionEnteredWorld", function(s)
+  hafen.log():write("hello from " .. (s:character() or "?"))
 end)
 
 hafen.timer():every(5, function()
-  hafen.log():write("trees nearby: " .. hafen.world():gob():count("terobjs/tree"))
+  local s = hafen.session():current()
+  if s then hafen.log():write("trees nearby: " .. s:world():gob():count("terobjs/tree")) end
 end)
 ```
 

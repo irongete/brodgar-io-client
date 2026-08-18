@@ -10,7 +10,7 @@ one and hands it back, `:list(filter)` reads them, `:remove(g)` ends one — the
 [collection shape](README.md#the-collections-unprotected).
 
 ```lua
-local p = hafen.player():gob():position()
+local p = hafen.session():current():player():gob():position()
 local g = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p):alpha(0.5)
 g:position(p:offset(33, 0))                 -- 3 tiles east; a tile is 11 world units
 g:rotate(math.pi)
@@ -126,9 +126,10 @@ You can drag a ghost along the terrain, snapping exactly as placing a real build
 primitives and then `g:position(p)`:
 
 1. [the mouse's grab](../ui/mouse.md#the-grab) captures the pointer, so the camera stays put.
-2. [`hafen.world():screenToWorld`](../world.md#screen-to-world-and-placement-snapping) turns the cursor
-   pixel into a ground Position.
-3. [`hafen.world():snapPlace`](../world.md#screen-to-world-and-placement-snapping) snaps it to the placement
+2. [`s:world():screenToWorld`](../world.md#screen-to-world-and-placement-snapping) turns the cursor
+   pixel into a ground Position. It reads a pixel, so it is the drawn character's:
+   `s` is [`hafen.session():current()`](../session.md).
+3. [`s:world():snapPlace`](../world.md#screen-to-world-and-placement-snapping) snaps it to the placement
    grid, with Shift for the fine grid.
 
 Wired into a move mode they read: select a ghost, take the grab, and it follows the cursor snapped
@@ -139,6 +140,6 @@ full.
 
 - [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [sprites](sprites.md) — your own image in the world, on the same core
-- [`hafen.world`](../world.md#the-position-type) — the Position type, and the snapping a drag uses
-- [`hafen.world():place`](../world.md#write-protected) — committing a real build, protected
+- [`session:world`](../world.md#the-position-type) — the Position type, and the snapping a drag uses
+- [`session:world():place`](../world.md#write-protected) — committing a real build, protected
 - [events](../event/bus.md#world-ghosts-and-sprites) — `GhostClicked`

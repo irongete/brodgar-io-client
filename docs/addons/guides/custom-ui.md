@@ -12,13 +12,13 @@ content you paint yourself. Build it when the world is up, and keep the handle:
 ```lua
 local window
 
-hafen.event():on("SessionEnteredWorld", function()
+hafen.event():on("SessionEnteredWorld", function(s)
   window = hafen.ui():window():title("Scout"):size(180, 48):position(80, 120)
 
   window:on("Draw", function(ev)
     local g = ev:g()
     g:color(220, 220, 220)
-    g:text("players nearby: " .. hafen.world():gob():count("gfx/borka/body"), 6, 6)
+    g:text("players nearby: " .. s:world():gob():count("gfx/borka/body"), 6, 6)
   end)
   window:on("Close", function() hafen.log():write("closed") end)
 end)
@@ -77,7 +77,8 @@ local function tag(gob)
   if gob:isPlayer() then gob:overlay():add("tag"):text("player"):color(0, 255, 0) end
 end
 hafen.event():on("GobAdded", tag)                         -- everyone who walks in...
-for _, g in ipairs(hafen.world():gob():list()) do tag(g) end     -- ...and everyone already here
+local w = hafen.session():current():world()
+for _, g in ipairs(w:gob():list()) do tag(g) end          -- ...and everyone already here
 ```
 
 The label is drawn at that object's projected screen point, just above the head, and it follows the gob

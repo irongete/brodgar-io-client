@@ -6,7 +6,7 @@ client-only world-entity core a [sprite](sprites.md) uses. It is the fourth coll
 is the one that is not a picture.
 
 ```lua
-local cupboard = hafen.world():gob():nearest("cupboard")
+local cupboard = hafen.session():current():world():gob():nearest("cupboard")
 
 local win = hafen.ui():window():title("Cupboard"):size(128, 96)
 win:on("Draw", function(ev) ev:g():text("4 / 16 slots", 8, 8) end)

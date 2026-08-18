@@ -13,7 +13,8 @@ Because it is an image handle, everything that already draws an image draws a ma
 widget, [a world sprite](../vr/sprites.md), and a stylesheet's `bg = { image = … }`.
 
 ```lua
-local g = hafen.map():grid():get(hafen.player():gob():position():info().gridId)
+local here = hafen.session():current():player():gob():position()
+local g = hafen.map():grid():get(here:info().gridId)
 local win = hafen.ui():window():title("Here"):size(100, 100)
 win:on("Draw", function(ev)
   local img = g:image(0)                    -- nil while it renders; ask again next frame

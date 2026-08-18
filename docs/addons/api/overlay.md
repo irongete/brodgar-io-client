@@ -6,7 +6,8 @@ and whatever you have [standing in the world](vr/README.md) anchored to it — a
 for one of yours.
 
 ```lua
-local me = hafen.player():gob()          -- nil until you are in the world
+local s = hafen.session():current()      -- the character on screen
+local me = s and s:player():gob()        -- nil until that session is in the world
 if me then me:overlay():add("mark"):text("here"):color(255, 90, 90) end
 ```
 
@@ -145,7 +146,7 @@ Both halves of this read are also **events**:
 for what the game attaches, so you can watch a gob become decorated instead of polling it.
 
 There is no filter form. "Every player gets a label" is a [`GobAdded`](event/bus.md#world) handler plus a
-loop over [`hafen.world():gob():list()`](world.md#objects) — you name the gob, so nothing is searched
+loop over [`s:world():gob():list()`](world.md#objects) — you name the gob, so nothing is searched
 per frame.
 
 > A `draw` callback runs inside the client's draw pass, which is **outside** the per-tick CPU budget.

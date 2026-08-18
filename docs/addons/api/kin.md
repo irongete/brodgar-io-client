@@ -83,7 +83,7 @@ in view still has a `kin:gob()`. `kin:gob()` prefers their body whenever it is l
 theirs, filter the world by the inverse:
 
 ```lua
-local mine = hafen.world():gob():list(function(g) return g:kin() == k end)
+local mine = hafen.session():current():world():gob():list(function(g) return g:kin() == k end)
 ```
 
 > **`nil` is ambiguous, both ways.** `kin:gob()` is `nil` for a kin who is offline, out of view, or

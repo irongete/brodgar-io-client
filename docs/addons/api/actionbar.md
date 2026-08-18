@@ -75,7 +75,7 @@ optional modifier bitfield — Shift = 1, Ctrl = 2, Alt = 4.
 
 `use` raises an error on an empty slot, so check `:empty()` first. A ground-targeted ability enters
 targeting mode when used, just as clicking the button would; supply the target with
-[`gob:click`](gob.md#write-protected) or [`hafen.world():place`](world.md#write-protected).
+[`gob:click`](gob.md#write-protected) or [`session:world():place`](world.md#write-protected).
 
 **`slot:res()` is one name for the pair**: with no argument it reads the slot's resource name, with one
 it assigns that action. The name it takes is the same string it reads back — so the way to learn a name

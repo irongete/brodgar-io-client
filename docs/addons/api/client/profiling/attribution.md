@@ -50,7 +50,7 @@ your own row of [`addons()`](#addons).
 local p = hafen.client():profiling()
 
 p:measure("scan-gobs", function()                  -- the wrapper form: you cannot forget to finish
-  for _, g in ipairs(hafen.world():gob():list()) do … end
+  for _, g in ipairs(hafen.session():current():world():gob():list()) do … end
 end)
 
 local s = p:scope("rebuild")              -- the explicit form, for a section you cannot wrap

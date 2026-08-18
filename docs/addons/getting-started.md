@@ -66,14 +66,15 @@ addon hangs off [events](api/event/README.md). Replace the line from step 2 with
 ```lua
 hafen.log():write("myaddon loaded")
 
-hafen.event():on("SessionEnteredWorld", function()
-  hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
+hafen.event():on("SessionEnteredWorld", function(s)
+  hafen.log():write("in the world as " .. (s:character() or "?"))
 end)
 ```
 
 `SessionEnteredWorld` fires when a character's HUD is up — at login, and again on a `:reload` while you
-are in-world — so it is where an addon starts its real work. It is handed the account name that entered;
-this addon has no use for it yet. [`hafen.player`](api/player.md) is the character on screen.
+are in-world — so it is where an addon starts its real work. It hands your handler the
+[session](api/session.md) that entered — the client can hold several logins at once, so the moment says
+which one it is about — and `s:character()` is the character that session is playing.
 
 ## Step 5: draw a window
 
@@ -84,8 +85,8 @@ you enter the world, and keep the handle:
 local window                                    -- the window, once we are in the world
 local trees = 0                                 -- what it displays
 
-hafen.event():on("SessionEnteredWorld", function()
-  hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
+hafen.event():on("SessionEnteredWorld", function(s)
+  hafen.log():write("in the world as " .. (s:character() or "?"))
   window = hafen.ui():window():title("My Addon"):size(150, 24):position(60, 60)
   window:on("Draw", function(ev)
     local g = ev:g()
@@ -106,12 +107,15 @@ window read the result. Add this below the block from step 5:
 
 ```lua
 hafen.timer():every(1, function()
-  trees = hafen.world():gob():count("terobjs/tree")
+  local s = hafen.session():current()            -- the character on screen, nil on the login screen
+  trees = s and s:world():gob():count("terobjs/tree") or 0
 end)
 ```
 
-[`hafen.world():gob():count`](api/world.md) counts the game objects whose resource name contains what
-you passed — every tree the client has loaded around you. Reload, and the number moves as you walk.
+[`s:world():gob():count`](api/world.md) counts the game objects whose resource name contains what you
+passed — every tree the client has loaded around that character. A world belongs to a character, so the
+read says which one: [`hafen.session():current()`](api/session.md) is the one on screen. Reload, and the
+number moves as you walk.
 
 ## Step 7: add a hotkey
 
@@ -179,8 +183,8 @@ local trees = 0                                 -- what it displays
 
 hafen.log():write("myaddon loaded")
 
-hafen.event():on("SessionEnteredWorld", function()
-  hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
+hafen.event():on("SessionEnteredWorld", function(s)
+  hafen.log():write("in the world as " .. (s:character() or "?"))
   window = hafen.ui():window():title("My Addon"):size(150, 24):position(60, 60)
   window:on("Draw", function(ev)
     local g = ev:g()
@@ -191,7 +195,8 @@ hafen.event():on("SessionEnteredWorld", function()
 end)
 
 hafen.timer():every(1, function()
-  trees = hafen.world():gob():count("terobjs/tree")
+  local s = hafen.session():current()
+  trees = s and s:world():gob():count("terobjs/tree") or 0
 end)
 
 hafen.client():options():keybindings():register("toggle", function()

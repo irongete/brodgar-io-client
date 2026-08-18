@@ -7,20 +7,21 @@ since both are in the world, but **whose** it is: nothing here ever reaches the 
 protected.
 
 ```lua
-local p = hafen.player():gob():position()
+local s = hafen.session():current()                        -- the character on screen
+local p = s:player():gob():position()
 hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)     -- the game's own prop, at a point
 hafen.vr():sprite():add(hafen.asset():get("icon.png"), p)  -- your own image
 hafen.vr():object():add(chair, p)                          -- your own glTF model
 hafen.vr():widget():add(win, p)                            -- a window, drawn in the world
 
-local rabbit = hafen.world():gob():nearest("rabbit")
+local rabbit = s:world():gob():nearest("rabbit")
 hafen.vr():sprite():add(icon, rabbit)                      -- following a game object
 ```
 
 > **Unprotected.** These are visualizations with no server id: the server never learns one exists and none of
 > them grants a gameplay advantage, so they need no permission and no consent dialog. They sit
 > alongside [a HUD overlay](../ui/custom.md#overlays), not beside a verb that acts. Committing a *real*
-> build is still the protected [`hafen.world():place`](../world.md#write-protected).
+> build is still the protected [`session:world():place`](../world.md#write-protected).
 
 Everything here is **bridge-owned**: every entity your addon stands is torn down automatically on reload,
 disable and relogin, leaking neither a scene slot nor a GPU texture.
@@ -142,7 +143,7 @@ and its `:exists()`, and every verb goes on answering.
 
 **Ground the client merely remembers does not hold one up.** Past what is streaming, the client can draw the
 greyed-out ground it recorded on disk — and that is a picture, not a place: it carries no height for anything
-to stand on, so one standing there is still not drawn, and [`hafen.world`](../world.md) still answers `nil`
+to stand on, so one standing there is still not drawn, and [`session:world`](../world.md) still answers `nil`
 for its tile. Drawn ground and locatable ground are two questions, and `:drawn()` answers the second.
 
 **The numbers move under it, and it does not move with them.** Stepping into a cave or a house makes the
@@ -265,7 +266,7 @@ which also depends on where the camera is pointing.
 ## See also
 
 - [`hafen.asset`](../asset.md) — the one door for the images and meshes these collections take
-- [`hafen.world`](../world.md#the-position-type) — the Position type, and placement snapping
+- [`session:world`](../world.md#the-position-type) — the Position type, and placement snapping
 - [`gob:overlay()`](../overlay.md) — what is drawn *at* a gob, including these read-only
 - [the Widget object](../ui/widget.md) — what a standing widget goes on answering, unchanged
 - [drawing](../ui/drawing.md) — the same images, drawn on screen instead

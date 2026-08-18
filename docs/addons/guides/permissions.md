@@ -14,15 +14,15 @@ consent dialog tells the user, word for word.
 
 | Key | Verb | What it lets an addon do |
 |---|---|---|
-| `player.move` | [`hafen.player():move`](../api/player.md#write-protected) | walk your character to a place |
-| `player.hand.use` | [`hafen.player():hand():use`](../api/player.md#the-hand) | use whatever it is holding on things |
+| `player.move` | [`session:player():move`](../api/player.md#write-protected) | walk your character to a place |
+| `player.hand.use` | [`session:player():hand():use`](../api/player.md#the-hand) | use whatever it is holding on things |
 | `gob.click` | [`gob:click`](../api/gob.md#write-protected) | click objects in the world |
 | `item.use` | [`item:use`](../api/ui/items.md#write-protected) | use items |
 | `item.take` | [`item:take`](../api/ui/items.md#write-protected) | pick items up onto the cursor |
 | `item.drop` | [`item:drop`](../api/ui/items.md#write-protected) | drop items |
 | `item.transfer` | [`item:transfer`](../api/ui/items.md#write-protected) | move items between containers |
-| `world.place` | [`hafen.world():place`](../api/world.md#write-protected) | place buildings and objects |
-| `world.select` | [`hafen.world():select`](../api/world.md#write-protected) | select an area of the ground |
+| `world.place` | [`session:world():place`](../api/world.md#write-protected) | place buildings and objects |
+| `world.select` | [`session:world():select`](../api/world.md#write-protected) | select an area of the ground |
 | `menugrid.use` | [`pag:use`](../api/menugrid.md#use-protected) | invoke entries of the action menu |
 | `flowermenu.select` | [`hafen.flowermenu():select`](../api/flowermenu.md#write-protected) | choose from the radial menu |
 | `flowermenu.cancel` | [`hafen.flowermenu():cancel`](../api/flowermenu.md#write-protected) | dismiss the radial menu |
@@ -140,10 +140,11 @@ and these are not.
 
 ```lua
 hafen.slash():register("gotree", function()
-  local tree = hafen.world():gob():nearest("terobjs/tree")
+  local s = hafen.session():current()           -- the character on screen
+  local tree = s:world():gob():nearest("terobjs/tree")
   if tree then
-    hafen.player():move(tree:position())       -- player.move
-    tree:click(3)                              -- gob.click, and open its radial menu
+    s:player():move(tree:position())            -- player.move
+    tree:click(3)                               -- gob.click, and open its radial menu
   end
 end)
 ```

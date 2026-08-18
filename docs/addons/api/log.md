@@ -6,7 +6,7 @@ first tool you reach for when an addon is not doing what you expected.
 
 ```lua
 hafen.log():write("started")
-hafen.log():write("gobs in view: " .. #hafen.world():gob():list())
+hafen.log():write("gobs in view: " .. #hafen.session():current():world():gob():list())
 ```
 
 ## Print

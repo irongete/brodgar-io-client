@@ -11,7 +11,7 @@ hafen.event():on("Load", function()
 end)
 
 -- later, in the world:
-local p = hafen.player():gob():position()
+local p = hafen.session():current():player():gob():position()
 local o = hafen.vr():object():add(mdl, p)
 o:rotate(math.pi / 4):scale(1.5)                   -- face 45 degrees, 1.5 times bigger; chained
 ```

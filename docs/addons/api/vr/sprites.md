@@ -6,10 +6,11 @@ and nothing here is protected.
 
 ```lua
 local icon = hafen.asset():get("icon.png")
-local p = hafen.player():gob():position()
-local s = hafen.vr():sprite():add(icon, p):scale(3)      -- ~3 tiles tall, at your feet
-s:rotate(math.pi / 2):alpha(0.8)                         -- face 90 degrees, slightly translucent
-hafen.vr():sprite():remove(s)                            -- or let reload or disable clean it up
+local s = hafen.session():current()                      -- the character on screen
+local p = s:player():gob():position()
+local sprite = hafen.vr():sprite():add(icon, p):scale(3) -- ~3 tiles tall, at its feet
+sprite:rotate(math.pi / 2):alpha(0.8)                    -- face 90 degrees, slightly translucent
+hafen.vr():sprite():remove(sprite)                       -- or let reload or disable clean it up
 ```
 
 `asset` is a [`hafen.asset`](../asset.md) **image handle** —
@@ -62,7 +63,7 @@ local c = hafen.vr():sprite():add(icon, prey):facing("camera"):offset(0, 0, 14)
 > camera tilted.
 
 A `"screen"` sprite is the ergonomic, world-anchored version of drawing an image at
-[`hafen.player():worldToScreen`](../player.md) inside a [HUD overlay](../ui/custom.md#overlays). It is drawn
+[`s:player():worldToScreen`](../player.md) inside a [HUD overlay](../ui/custom.md#overlays). It is drawn
 at the image's own size in [design pixels](../ui/pixels.md), times the scale, and bottom-centred on its world
 point so it "stands" there — and it draws **on top** of the 3D scene, with no depth occlusion. Because it is
 a flat 2D image, `:rotate` is stored but has no visible effect and `:scale` acts as a screen-size
@@ -101,7 +102,8 @@ Pass a [Gob](../gob.md) as the anchor and the sprite tracks it every frame, wher
 ```lua
 -- a marker that floats above a creature and follows it around
 local icon = hafen.asset():get("marker.png")
-local prey = hafen.world():gob():nearest(function(g) return (g:name() or ""):find("rabbit") end)
+local w = hafen.session():current():world()
+local prey = w:gob():nearest(function(g) return (g:name() or ""):find("rabbit") end)
 if prey then
   hafen.vr():sprite():add(icon, prey):scale(1.5):offset(0, 0, 14)
 end

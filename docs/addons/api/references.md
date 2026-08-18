@@ -6,17 +6,20 @@ pass back when a verb asks for it. The grammar those verbs are spelled in is
 [conventions](conventions.md).
 
 ```lua
-local tree = hafen.world():gob():nearest("terobjs/tree")   -- a Gob, never an id
+local s = hafen.session():current()                        -- the character on screen
+local tree = s:world():gob():nearest("terobjs/tree")       -- a Gob, never an id
 if tree then tree:overlay():add("mark"):text("here") end   -- and a Gob is what a verb takes
 ```
 
 ## Gob: a game object
 
-`hafen.world():gob()` is the collection of loaded game objects and everything on it hands back a
-[**Gob**](gob.md) whose methods read the live one; `hafen.player():gob()` is your own. Every method
-re-resolves, so it answers `nil` once the gob is gone while `:id()` still answers. Anywhere a single gob
-is addressed — [`gob:overlay()`](overlay.md), [`hafen.player():hand():use(gob)`](player.md#the-hand)
-— you pass the Gob itself, never an id.
+`s:world():gob()` is the collection of the game objects one of your characters has loaded, and everything
+on it hands back a [**Gob**](gob.md) whose methods read the live one; `s:player():gob()` is that character
+itself. `s` is a [Session](session.md), which is what says **which** character the read is about, and a Gob
+carries the session it was read through — see [identity](gob.md#identity). Every method re-resolves, so it
+answers `nil` once the gob is gone while `:id()` still answers. Anywhere a single gob is addressed —
+[`gob:overlay()`](overlay.md), [`s:player():hand():use(gob)`](player.md#the-hand) — you pass the Gob itself,
+never an id.
 
 ## Kin: a roster entry
 

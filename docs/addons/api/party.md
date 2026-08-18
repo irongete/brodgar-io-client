@@ -45,7 +45,7 @@ a party member has nothing to match it against — see below.
 That is also why `:get` takes a gob id and a string filter is refused: a name is the one thing the roster
 cannot match on, and matching nothing quietly would be worse than saying so.
 
-`member:gob()` is never `nil`, exactly like [`hafen.world():gob():get(id)`](gob.md) — a member whose
+`member:gob()` is never `nil`, exactly like [`s:world():gob():get(id)`](gob.md) — a member whose
 object the world does not currently hold answers a Gob whose `:exists()` is `false`. So the way to ask
 whether you can see someone is `member:gob():exists()`, not a `nil` test.
 

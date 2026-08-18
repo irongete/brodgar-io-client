@@ -236,7 +236,7 @@ win:on("Draw", function(ev)
 end)
 
 hafen.slash():register("stand", function()
-  local p = hafen.player():gob():position()
+  local p = hafen.session():current():player():gob():position()
   hafen.vr():object():add(chair, p)               -- the handle, again
 end)
 ```

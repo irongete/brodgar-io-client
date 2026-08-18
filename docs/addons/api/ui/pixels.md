@@ -37,14 +37,15 @@ hafen.ui():at(m:x(), m:y()) == m:over()          -- true: one pair, asked two wa
 ```
 
 **A point in the world enters and leaves through the same space.**
-[`hafen.player():worldToScreen(p)`](../player.md) answers a root pair in this unit, and
-[`hafen.world():screenToWorld(sx, sy, fn)`](../world.md#screen-to-world-and-placement-snapping) takes one,
+[`s:player():worldToScreen(p)`](../player.md) answers a root pair in this unit, and
+[`s:world():screenToWorld(sx, sy, fn)`](../world.md#screen-to-world-and-placement-snapping) takes one,
 so a projected point is hit-tested, drawn and fed back to the ground with nothing in between — and the
 pointer drives either of them directly:
 
 ```lua
 local m = hafen.ui():mouse()
-hafen.world():screenToWorld(m:x(), m:y(), function(p)   -- the ground under the cursor, a frame later
+local w = hafen.session():current():world()      -- a pixel is the screen's
+w:screenToWorld(m:x(), m:y(), function(p)        -- the ground under the cursor, a frame later
   if p then hafen.log():write("standing spot: " .. tostring(p:tileCoord().x)) end
 end)
 ```

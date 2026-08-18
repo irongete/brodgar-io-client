@@ -10,8 +10,9 @@ for _, it in ipairs(hafen.ui():inventory():items()) do
   hafen.log():write((it:name() or it:res() or "?") .. " x" .. (it:quantity() or 1))
 end
 
-local h = hafen.player():hand()                -- the cursor, or nil while it is empty
-local cursor = h and h:item()                  -- the item on it
+local s = hafen.session():current()              -- the character on screen
+local h = s:player():hand()                      -- the cursor, or nil while it is empty
+local cursor = h and h:item()                    -- the item on it
 ```
 
 ## Read
@@ -19,7 +20,7 @@ local cursor = h and h:item()                  -- the item on it
 | Method | Returns | Description |
 |---|---|---|
 | `widget:items()` | [`Item`](#the-item-object)`[]` | the items inside this widget, in the container's own order |
-| [`hafen.player():hand():item()`](../player.md#the-hand) | [`Item`](#the-item-object) \| nil | the item on the cursor |
+| [`s:player():hand():item()`](../player.md#the-hand) | [`Item`](#the-item-object) \| nil | the item on the cursor |
 
 - The search is **deep**, so a whole window answers for the grid inside it: `hafen.ui():node(chestId):items()`
   works whether you point at the window or at its `Inventory` child.
@@ -27,6 +28,9 @@ local cursor = h and h:item()                  -- the item on it
   `item:slots()` names them all — so a two-slot piece of gear is one entry, not two. The window does not
   publish a display name for every one of its places; a slot that has none is listed by its own identifier
   instead, so a worn item always names where it is and an empty `:slots()` means exactly *not worn*.
+- **The cursor belongs to a character**, so it is read on the [session](../session.md) that names one: `s`
+  above is `hafen.session():current()`, and one you are not looking at can perfectly well be carrying
+  something.
 - A non-container, or a stale widget, answers with an **empty array**, never `nil`.
 - There is no `find` verb: it is a one-liner over `:items()`, and it would have to pick a container for you.
 
@@ -215,7 +219,7 @@ All four raise on a **stale** item, and send nothing: an item that moved, was us
 the item that took its place. Re-read the container and retry.
 
 Applying what you are carrying **onto** an item is the cursor's verb, not the item's:
-[`hafen.player():hand():use(item)`](../player.md#the-hand). On an arbitrary item that gesture would name
+[`s:player():hand():use(item)`](../player.md#the-hand). On an arbitrary item that gesture would name
 whatever happens to be on the cursor rather than the receiver, which is why it lives on the hand.
 
 ## The container lifecycle
@@ -283,7 +287,7 @@ one — a chest standing in the world is opened, and read as the container widge
 ## See also
 
 - [`Item`](../types.md#item) — the snapshot `:info()` hands back
-- [`hafen.player`](../player.md#the-hand) — the cursor: what it carries, and applying it to something
+- [`session:player`](../player.md#the-hand) — the cursor: what it carries, and applying it to something
 - [widget](widget.md) — the object `:items()` is a method on
 - [replace](replace.md#watching-for-a-widget) — waiting for a container to open in the first place
 - [events](../event/bus.md#character-and-status) — `EquipChanged` and the other global lists

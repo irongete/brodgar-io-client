@@ -24,7 +24,10 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 | `hafen.ui():mouse()` | the pointer — not a Widget, see [the mouse](mouse.md) |
 | `hafen.ui():inventory()` | your main backpack grid, a container like any other |
 | `hafen.ui():equipment()` | your worn-equipment grid |
-| [`hafen.player():hand()`](../player.md#the-hand) | the cursor, and the [`Item`](items.md#the-item-object) on it |
+| [`s:player():hand()`](../player.md#the-hand) | one character's cursor, and the [`Item`](items.md#the-item-object) on it |
+
+The last row hangs off a [Session](../session.md) rather than off `hafen.ui()`, because a cursor belongs to
+a character: `s` is `hafen.session():current()` for the one on screen.
 
 A Widget is opaque, facade-safe userdata: no raw widget crosses into Lua and one cannot be forged. It is
 **interned per addon**, so two lookups of the same live widget are the *same* Lua value:
@@ -230,8 +233,8 @@ answer.
 [design pixels](pixels.md) and hand back a plain `{x=, y=}` table, never a
 [Position](../world.md#the-position-type). The verb is the
 same word because the question is the same one — *where is this thing, in the space it lives in* — and the
-object says which space, so [`hafen.player():move`](../player.md#write-protected) refuses a
-widget's coordinates instead of walking you somewhere that merely has the same two numbers.
+object says which space, so [`s:player():move`](../player.md#write-protected) refuses a
+widget's coordinates instead of walking a character somewhere that merely has the same two numbers.
 
 ## Send a message (protected)
 

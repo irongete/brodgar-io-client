@@ -1,0 +1,9 @@
+{
+  "name": "076.4 — no page teaches an address that is gone",
+  "id": "076-the-session-is-the-address.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 076.4: every canonical chain the swept pages now teach — hafen.session() to :current()/:get(user), then s:character(), s:world() and s:player() and the verbs under them — is a call the engine answers, and the two retired sections still refuse.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

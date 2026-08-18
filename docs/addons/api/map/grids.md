@@ -6,7 +6,7 @@ ground the client wrote down, and to ask what it says about a place.
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.map():segment():current()` | [`Segment`](#the-segment-object) \| nil | the segment the player is standing in; `nil` until the map has streamed in |
+| `hafen.map():segment():current()` | [`Segment`](#the-segment-object) \| nil | the segment the character **on screen** is standing in; `nil` until the map has streamed in |
 | `hafen.map():segment():get(id)` | [`Segment`](#the-segment-object) \| nil | one segment by its id; `nil` if the database has no such segment |
 | `hafen.map():segment():list()` | `Segment[]` | every segment [the database](README.md#one-map-for-the-client) holds, in id order |
 | `hafen.map():grid():get(gridId)` | [`Grid`](#the-grid-object) \| nil | one grid by the **server's** grid id; `nil` if the database never recorded it |
@@ -22,8 +22,9 @@ holds every grid you have ever walked over. Address one by id, or walk a rectang
 
 A grid is **one entity** whichever half of the world you reach it from. The live world publishes the
 server's grid id and the database keys on the same number, so
-[`hafen.world():grid():at(p)`](../world.md#terrain-and-coordinates) and `hafen.map():grid():get(id)` hand
-back the *same object*, and each door answers `nil` for what its own half does not have.
+[`s:world():grid():at(p)`](../world.md#terrain-and-coordinates) — read on the
+[session](../session.md) whose character you mean — and `hafen.map():grid():get(id)` hand back the *same
+object*, and each door answers `nil` for what its own half does not have.
 
 | Method | Asks |
 |---|---|
@@ -32,7 +33,7 @@ back the *same object*, and each door answers `nil` for what its own half does n
 
 Ground under your feet the client has not saved yet is `:live()` true and `:exists()` false, and every
 recorded read on it is `nil`. Ground you explored last year is the mirror. That is also why `grid:tile(c)`
-and [`hafen.world():tile(p)`](../world.md#terrain-and-coordinates) agree where both answer: they are two
+and [`s:world():tile(p)`](../world.md#terrain-and-coordinates) agree where both answer: they are two
 reads of one thing rather than two subsystems you have to reconcile.
 
 ## The Segment object
@@ -53,8 +54,9 @@ it walks the grid coords of the rectangle it is drawing, and so do you. `seg:gri
 your back.
 
 ```lua
+local s = hafen.session():current()                   -- the character on screen
 local seg = hafen.map():segment():current()
-local here = hafen.world():grid():at(hafen.player():gob():position())
+local here = s:world():grid():at(s:player():gob():position())
 local sc = here:segmentCoord()
 for _, g in ipairs(seg:grid():list{ x = sc.x - 2, y = sc.y - 2, w = 5, h = 5 }) do
   local at = g:position()                            -- a Position: durable, and locatable here
@@ -81,21 +83,22 @@ end
 | `grid:info()` | table | `{ id, seg, sc, pos?, live, mtime?, loaded, size }` — the snapshot escape hatch |
 
 `grid:tile` gives you the tileset **resource name**, not a tile id: the live
-[`hafen.world():tile`](../world.md#terrain-and-coordinates) `id` is a session-local number, so the name is
+[`s:world():tile`](../world.md#terrain-and-coordinates) `id` is a number one session made up, so the name is
 the thing the two halves can be compared on — and they agree.
 
 ```lua
-local p  = hafen.player():gob():position()
-local gp = p:info()                                  -- where the player is, in its durable form
+local s  = hafen.session():current()                 -- the character on screen
+local p  = s:player():gob():position()
+local gp = p:info()                                  -- where it stands, in the durable form
 local g  = hafen.map():grid():get(gp.gridId)
 local c  = { x = math.floor(gp.x / 11), y = math.floor(gp.y / 11) }
-print(g:tile(c).name, hafen.world():tile(p).name)    -- the same tileset
+print(g:tile(c).name, s:world():tile(p).name)        -- the same tileset
 ```
 
 A within-grid tile coord is `0..99`; anything else is refused rather than read as a segment coord.
 
-> **What you read is what the client wrote down, not what is there.** For the ground under the player
-> it is current — the client re-records the grids around you as they change — and for somewhere you
+> **What you read is what the client wrote down, not what is there.** For the ground under a character of
+> yours it is current — the client re-records the grids around each of them as they move — and for somewhere
 > explored a year ago it is a year old. `grid:modified()` is the honest answer to "how old is this".
 
 ## Storing a place
@@ -113,12 +116,12 @@ the server, means the same thing to every player, and no merge ever moves.
 
 `hafen.store` and `hafen.json` marshal a Position by themselves, so there is nothing to convert; the
 `{gridId, x, y}` table `p:info()` hands out is for a shape that has to leave the client some other way,
-and `hafen.world():position(saved)` brings it back.
+and [`s:world():position(saved)`](../world.md#the-position-type) brings it back.
 
 ## See also
 
 - [the map database](README.md) — the `nil`-until-loaded rule these reads follow, and interning
-- [`hafen.world`](../world.md) — the live half, and the other door onto this same Grid
+- [`session:world`](../world.md) — the live half, and the other door onto this same Grid
 - [drawings](drawings.md) — what `grid:image` hands back
 - [overlays](overlays.md) — what `grid:overlay()` hands back
 - [coordinates](../conventions.md#coordinates) — the coordinate spaces, and which one you may store

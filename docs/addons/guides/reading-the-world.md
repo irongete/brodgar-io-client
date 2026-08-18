@@ -6,14 +6,17 @@ objects, reads one, and asks what the ground under them is.
 
 ## Find the objects you want
 
-[`hafen.world`](../api/world.md) scans what the client has loaded, and every one of its verbs takes the
-same [filter](../api/conventions.md#the-filter-argument): nothing, a substring of the resource name, or a
+A world belongs to a character, so a read says which character it is about:
+[`hafen.session():current()`](../api/session.md) is the one on screen and `hafen.session():get(user)` is any
+other. [`s:world()`](../api/world.md) scans what that character has loaded, and every one of its verbs takes
+the same [filter](../api/conventions.md#the-filter-argument): nothing, a substring of the resource name, or a
 predicate.
 
 ```lua
-local trees   = hafen.world():gob():count("terobjs/tree")            -- how many, by name
-local nearest = hafen.world():gob():nearest("terobjs/tree")          -- the closest one, or nil
-local players = hafen.world():gob():within(50, function(g)      -- everything matching, in a radius
+local s       = hafen.session():current()                            -- the character on screen
+local trees   = s:world():gob():count("terobjs/tree")                -- how many, by name
+local nearest = s:world():gob():nearest("terobjs/tree")              -- the closest one, or nil
+local players = s:world():gob():within(50, function(g)               -- matching, in a radius
   return g:isPlayer()
 end)
 ```
@@ -24,7 +27,7 @@ log what is around you once and read the list:
 
 ```lua
 hafen.slash():register("what", function()
-  for _, g in ipairs(hafen.world():gob():within(15)) do
+  for _, g in ipairs(hafen.session():current():world():gob():within(15)) do
     hafen.log():write(g:name() or "?")
   end
 end)
@@ -37,15 +40,17 @@ on every call, so one you keep in a variable tracks its object as it moves and a
 object is gone. Nothing goes stale, and nothing has to be refreshed.
 
 ```lua
-local tree = hafen.world():gob():nearest("terobjs/tree")
+local tree = hafen.session():current():world():gob():nearest("terobjs/tree")
 if tree and tree:exists() then
   local p = tree:position()
   hafen.log():write(("tree at %.0f, %.0f, %.1f away"):format(p:x(), p:y(), tree:distance()))
 end
 ```
 
-Two Gobs for the same object are the **same value**, so `==` compares them and a table can be keyed by one
-directly — which is how you remember what you have already seen without juggling ids.
+Two Gobs read through the same session for the same object are the **same value**, so `==` compares them and
+a table can be keyed by one directly — which is how you remember what you have already seen without juggling
+ids. Across two characters the same object is two Gobs, and [`gob:id()`](../api/gob.md#identity) is what
+crosses them.
 
 ## Do not scan every frame
 
@@ -68,30 +73,33 @@ end)
 When you do have to poll — a value with no event behind it — poll on a [timer](events-and-timers.md), not
 in `Update`.
 
-## Your own character
+## The character itself
 
-[`hafen.player()`](../api/player.md) is the anchor, and everything positional about you is read on your own
-Gob, exactly as it is on any other object:
+[`s:player()`](../api/player.md) is the anchor, and everything positional about that character is read on
+its own Gob, exactly as it is on any other object:
 
 ```lua
-local me = hafen.player():gob()          -- nil until you are in the world
+local s  = hafen.session():current()
+local me = s:player():gob()              -- nil until that session is in the world
 if me then
   local p = me:position()
   hafen.log():write(("standing at %.0f, %.0f"):format(p:x(), p:y()))
 end
 ```
 
-`gob == hafen.player():gob()` is how a filter or a handler tells "is this me?" without comparing ids.
+`gob == s:player():gob()` is how a filter or a handler tells "is this the character I am reading?" without
+comparing ids — for gobs read through that same session.
 
 ## The ground
 
-[`hafen.world`](../api/world.md#terrain-and-coordinates) answers for terrain at a world point, and
+[`s:world()`](../api/world.md#terrain-and-coordinates) answers for terrain at a world point, and
 converts between the coordinate spaces — world units, tiles, grids and screen pixels. Terrain reads
 answer `nil` while that part of the map is still streaming in, which is normal rather than an error.
 
 ```lua
-local p = hafen.player():gob():position()
-local t = hafen.world():tile(p)
+local s = hafen.session():current()
+local p = s:player():gob():position()
+local t = s:world():tile(p)
 hafen.log():write(t and (t.name or t.id) or "not loaded yet")
 ```
 
@@ -103,16 +111,18 @@ hafen.log():write(t and (t.name or t.id) or "not loaded yet")
 
 ## The map you explored
 
-Everything above is the world **streamed around you**. The ground you walked over last month is a different
-thing entirely — it is on disk, it outlives the session, and it is [`hafen.map`](../api/map/README.md):
+Everything above is the world **streamed around that character**. The ground you walked over last month is
+a different thing entirely — it is on disk, it outlives the session, and it is
+[`hafen.map`](../api/map/README.md):
 segments and grids, the claims and provinces that covered them, your markers, and the drawings the corner
 minimap paints. A [Position](../api/world.md#the-position-type) is the door between the two halves, in
 both directions:
 
 ```lua
-local gp = hafen.player():gob():position():info()      -- where I am, as {gridId, x, y}
-local g  = hafen.map():grid():get(gp.gridId)           -- ...the same Grid, from the recorded side
-local t  = g and g:tile({ x = 0, y = 0 })              -- nil until the grid is read off the disk
+local s  = hafen.session():current()
+local gp = s:player():gob():position():info()     -- where it is, as {gridId, x, y}
+local g  = hafen.map():grid():get(gp.gridId)      -- ...the same Grid, from the recorded side
+local t  = g and g:tile({ x = 0, y = 0 })         -- nil until the grid is read off the disk
 hafen.log():write(t and t.name or "not loaded yet — ask again next tick")
 ```
 

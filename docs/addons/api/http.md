@@ -74,7 +74,7 @@ Lua error at call time. `nil` sends an empty POST.
 ```lua
 -- POST a Lua table as JSON, read JSON back
 hafen.http():post("https://api.example.com/report",
-  { char = hafen.player():name(), lp = hafen.char():lp() },
+  { char = hafen.session():current():character(), lp = hafen.char():lp() },
   function(res)
     if res.ok and res.status == 200 then
       local reply = hafen.json():parse(res.body)

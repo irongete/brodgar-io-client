@@ -91,7 +91,7 @@ every maneuver you know.
 > health, where it is — belongs to the gob and is read there. There is no per-moment combat state here:
 > the client's own fight numbers are drawn from state it is not asked to publish.
 
-`target:gob()` is never `nil`, exactly like [`hafen.world():gob():get(id)`](gob.md) — ask
+`target:gob()` is never `nil`, exactly like [`s:world():gob():get(id)`](gob.md) — ask
 `target:gob():exists()` rather than testing for `nil`. The target is interned on the gob id, so
 `hafen.fight():target() == hafen.fight():target()` and `seen[target] = true` work, and a stashed one goes
 `:exists() == false` when the fight ends.

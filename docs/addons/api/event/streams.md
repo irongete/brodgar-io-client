@@ -52,7 +52,7 @@ rather than sending a number that would walk you somewhere else.
 hafen.event():action():on("click", function(ev)
   if ev:sender():type() ~= "MapView" then return end
   local a = ev:args()
-  a[2] = hafen.world():snapPlace(ev:position(2))
+  a[2] = hafen.session():current():world():snapPlace(ev:position(2))
   ev:send(a)
 end)
 ```
@@ -104,5 +104,5 @@ Like `action`, a `message` key is open: any string is accepted and may never fir
 - [`hafen.event()`](README.md) — subscribing, and the handle that ends one
 - [the catalogue](bus.md) — the closed set of client-wide facts, for what a message is not
 - [the Widget object](../ui/widget.md) — what `ev:sender()` and `ev:target()` hand you
-- [`hafen.world`](../world.md#the-position-type) — the Position type both streams take and answer with
+- [`session:world`](../world.md#the-position-type) — the Position type both streams take and answer with
 - [conventions](../conventions.md#threading) — why a handler must not block

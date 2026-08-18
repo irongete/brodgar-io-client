@@ -26,7 +26,8 @@ its own resource on the server, and no client-side list of them can be complete 
 opposite: that set is the client's own, so a tag it does not own is refused.)
 
 ```lua
-local g = hafen.map():grid():get(hafen.player():gob():position():info().gridId)
+local here = hafen.session():current():player():gob():position()
+local g = hafen.map():grid():get(here:info().gridId)
 for _, m in ipairs(g:overlay():list()) do
   print(m:tag(), m:count(), "tiles")                 -- e.g. "cplot 812 tiles"
 end

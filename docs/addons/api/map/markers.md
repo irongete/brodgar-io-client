@@ -9,7 +9,7 @@ server and quest pins, which carry a name and an icon.
 | `hafen.map():marker():list(filter)` | [`Marker`](#the-marker-object)`[]` | every marker matching the [filter](../conventions.md#the-filter-argument) |
 | `hafen.map():marker():find(filter)` | [`Marker`](#the-marker-object) \| nil | the first match |
 | `hafen.map():marker():count(filter)` | number | how many match |
-| `hafen.map():marker():nearest(filter)` | [`Marker`](#the-marker-object) \| nil | the closest match to the player, within your current segment |
+| `hafen.map():marker():nearest(filter)` | [`Marker`](#the-marker-object) \| nil | the closest match to the character **on screen**, within that character's segment |
 
 All four answer empty, `0` or `nil` before the map database is ready, and none throws. A string filter
 matches the marker's name; a function filter is called with the Marker itself.
@@ -23,7 +23,7 @@ matches the marker's name; a function filter is called with the Marker itself.
 | `marker:position()` | [Position](../world.md#the-position-type) \| nil | where it is — the form you may **store or send** |
 | `marker:segmentTile()` | `{x, y}` | its segment tile coord — where it really lives in the database |
 | `marker:segment()` | [`Segment`](grids.md#the-segment-object) | the segment it is recorded in |
-| `marker:distance()` | number \| nil | how far the player is from it |
+| `marker:distance()` | number \| nil | how far the character **on screen** is from it |
 | `marker:icon()` | string \| nil | system markers only: the icon resource name |
 | `marker:exists()` | bool | is it still in the database? |
 | `marker:info()` | [`Marker` snapshot](../types.md#marker) | the snapshot escape hatch |
@@ -54,7 +54,8 @@ A pin is created **bare**, with the client's own gold and off the main map, and 
 which is also how you read it back, since arity is the verb:
 
 ```lua
-local pin = hafen.map():marker():add("Camp", hafen.player():gob():position())
+local here = hafen.session():current():player():gob():position()
+local pin = hafen.map():marker():add("Camp", here)
 pin:color(0, 200, 0):onMap(true)
 print(pin:color().g, pin:onMap())                    -- 200  true
 ```
@@ -78,4 +79,4 @@ add, remove or edit, including ones the player makes.
 - [segments and grids](grids.md) — `seg:markers()`, and why a Position is what you store
 - [`Marker`](../types.md#marker) — the snapshot `marker:info()` hands back
 - [events](../event/bus.md#roster-quests-markers) — `MarkersChanged`
-- [`hafen.world`](../world.md#the-position-type) — the Position type, and rebuilding one from a stored form
+- [`session:world`](../world.md#the-position-type) — the Position type, and rebuilding one from a stored form

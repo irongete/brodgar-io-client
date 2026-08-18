@@ -58,9 +58,9 @@ of positions, a chosen action is [a resource name](../api/ui/custom.md#drop-make
 you can draw again. Rebuild the live objects from that on load.
 
 ```lua
-hafen.event():on("SessionEnteredWorld", function()
+hafen.event():on("SessionEnteredWorld", function(s)
   for _, prop in ipairs(hafen.store():get("settings").props or {}) do
-    local p = hafen.world():position(prop.at)      -- :x() is nil until that grid is reachable
+    local p = s:world():position(prop.at)          -- :x() is nil until that grid is reachable
     if p then hafen.vr():ghost():add(prop.res, p) end
   end
 end)

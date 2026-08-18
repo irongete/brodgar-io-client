@@ -57,7 +57,7 @@ set goes to **0** in `076.4`; the never-move set stays at **211** throughout.
       `[manual]`: with the two apart, read the other one's `:player():gob():position():info()`.
       Expect: the grid **that** character stands on, not yours.
 
-- [ ] **076.4 — No page teaches an address that is gone.**
+- [x] **076.4 — No page teaches an address that is gone.**
       The sweep the cut in `076.3` charges: every page in `spec.md`'s derived set re-spelled through
       `hafen.session():current()` or `:get(user)`, whichever the passage means — and a passage that
       meant *the character on screen* says so rather than implying it. Re-points every link the
