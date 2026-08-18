@@ -379,6 +379,36 @@ public final class AddonManager {
         // belongs on the UI thread anyway, so it only records the widget; tick() re-reads and re-applies.
         final Queue<Widget> textRewrites = new ConcurrentLinkedQueue<Widget>();
 
+        // ---- the widget layer (073.2) ------------------------------------------------------------
+        // Every one of these names WIDGETS OF ONE TREE, and each is filled from the widget it is about:
+        // w.ui at the placement, removal and caption seams, the handle's own ui at a press, the tree a
+        // builder attached to. None of them is reached through host(), which answers "the session on
+        // screen" — the taps that fill them run on a Loader thread as often as not, and the addon
+        // teardown that empties them runs from init() at a moment when host() ALREADY answers the
+        // session being switched TO. See the reason column of census.md's widget-layer table for each.
+
+        /** {@code hafen.ui():on(sel, …)} subscriptions watching THIS tree ({@link UiApi}, 030.2). */
+        final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
+        /** Widgets of this tree still awaiting a late {@code [title=]}/{@code [res=]} (030.2's re-check). */
+        final List<UiApi.PendingMatch> selectorPending = new CopyOnWriteArrayList<UiApi.PendingMatch>();
+        /** Windows of this tree whose caption changed, for that re-check (042.9/049.3). Appended off the
+         *  UI thread by the caption seam, drained on this session's own tick. */
+        final Queue<Widget> selectorCapChanged = new ConcurrentLinkedQueue<Widget>();
+        /** {@code widget:on("ItemAdded"/"ItemRemoved"/"Destroy", fn)} records on widgets of this tree (041.4). */
+        final List<WidgetSubs> widgetSubsWatching = new CopyOnWriteArrayList<WidgetSubs>();
+        /** Surfaces built into this tree since its last tick and not yet painting (039.6's arming tick). */
+        final List<Owned> unarmed = new ArrayList<Owned>();
+        /** Widgets of this tree whose layout rule may still start matching ({@link Layout}, 036.2). */
+        final List<Layout.Pending> layoutPending = new CopyOnWriteArrayList<Layout.Pending>();
+        /** Windows of this tree whose caption invalidated a cached style ({@link Sheet}, 049.3). */
+        final Queue<Widget> styleCapChanged = new ConcurrentLinkedQueue<Widget>();
+        /** Popups of this tree to re-raise before the next draw ({@link CDropdown}, 040.10). */
+        final List<Widget> dropdownRaises = new ArrayList<Widget>();
+        /** The gesture running on this tree right now — normally none, and at most one (062). */
+        final List<Gesture> gesturesRunning = new CopyOnWriteArrayList<Gesture>();
+        /** Every widget standing in THIS session's 3D world (044.1) — the render pass walks one session's. */
+        final CopyOnWriteArrayList<WidgetSurface> surfaces = new CopyOnWriteArrayList<WidgetSurface>();
+
         SessionState(UI ui) {
             this.ui = ui;
         }
@@ -388,6 +418,11 @@ public final class AddonManager {
          * session ended</i> and still runs on every anchor change (criterion 5), so it goes on clearing this
          * — the only thing that changed is that there is one of these per session instead of one for the
          * client. It does <b>not</b> drop the state itself: that happens when the {@code UI} dies.
+         *
+         * <p><b>The widget layer above clears itself</b> (073.2), from the same {@code init}, through each
+         * subsystem's own {@code resetSession()} walking {@link AddonManager#allStates()} — a gesture has to
+         * be released before it is forgotten and a console record has to be pruned by whose tree it named,
+         * so those clears stay beside the reasons they carry rather than becoming ten more lines here.
          */
         void reset() {
             enterWorldPending = false;
@@ -467,6 +502,17 @@ public final class AddonManager {
     public static void uiDestroyed(UI u) {
         if(u != null)
             states.remove(u);
+    }
+
+    /**
+     * <b>Every session's state</b>, for the handful of sweeps that are about all of them at once (073.2):
+     * {@code init}'s per-subsystem {@code resetSession()}, an addon teardown dropping records it made in
+     * whichever tree it was running in, and the two profiler counters that roll one figure up for the whole
+     * client. Not a door to "the" session: nothing here picks one, which is the point — a caller that wants
+     * one names it, through {@link #state(UI)}.
+     */
+    static Iterable<SessionState> allStates() {
+        return states.values();
     }
 
     /**
@@ -667,8 +713,8 @@ public final class AddonManager {
             //     ui.tick() — is on screen in the very frame it was asked for, fully configured, rather than a
             //     frame later. Not before the reload above: a widget whose addon is being torn down is never
             //     placed at all.
-            UiApi.armPending();
-            CDropdown.drainRaises();      // 040.10: re-raise a popup the enclosing window's own click-to-raise
+            UiApi.armPending(st);
+            CDropdown.drainRaises(st);    // 040.10: re-raise a popup the enclosing window's own click-to-raise
                                            //   buried this same frame (see CDropdown's class doc)
 
             // Soft CPU-budget accounting (D-018 layer 2): zero every addon's per-tick Lua time before any
@@ -741,7 +787,7 @@ public final class AddonManager {
             //       as SEPARATE messages, one per widget id, not one for the whole move — diffing inline at
             //       each would report every contained item on its own instead of once for the outermost. See
             //       UiApi.flushItemWatchers / WidgetSubs.markDirty.
-            UiApi.flushItemWatchers();
+            UiApi.flushItemWatchers(st);
 
             // 1b''. Resolve (M2, 042.1) retries queued by a Loading resolving off-thread → run on the UI thread.
             //       Same one-frame-per-tick bound as the queues above (a retry that re-registers must not spin
@@ -785,13 +831,13 @@ public final class AddonManager {
             //       happens here, on the UI thread — an idle client, or one with no subscription at all, pays one
             //       isEmpty(). Since 049.3 the captioned window's own SUBTREE is re-offered as well, because a
             //       chain's [title=] sits on an ancestor step and what starts matching is a widget below it.
-            UiApi.drainSelectorCaptionCheck();
+            UiApi.drainSelectorCaptionCheck(st);
 
             // 1c''''. The stylesheet's per-widget resolution cache (049.3): the same caption seam, one consumer
             //         along. A chain tree key (["window[title=Cupboard] label"]) makes a widget's style depend on
             //         an ANCESTOR's caption, so a settled answer below a renamed window is an answer to a question
             //         that changed. Drops those cache entries; the next draw re-folds them.
-            Sheet.drainCaptionInvalidation();
+            Sheet.drainCaptionInvalidation(st);
 
             // 1c'''. Layout (036.2, event-driven since 042.10): the late [title=]/[res=] refiner's bounded
             //        re-check is woken by the same caption uimsg as the line above (CharApi.dispatchUimsg ->
@@ -802,7 +848,7 @@ public final class AddonManager {
             //        Layout.dispatchResized) above — redrive() and its per-tick fold over every anchored
             //        widget are DELETED (D-181, superseding D-091): an anchored widget re-derives on its
             //        inputs' own events now, never on a fold.
-            Layout.drainPendingCaption();
+            Layout.drainPendingCaption(st);
 
             // 1d. Map markers (A1, 042.11, event-driven): fire MarkersChanged when the on-disk map DB's
             //     markerseq changes (a marker add/remove is not a uimsg — the server pushes SMarkers via
@@ -1795,14 +1841,14 @@ public final class AddonManager {
             if(w == null)
                 break;
             CharApi.dispatchRemoved(w);
-            UiApi.dispatchWidgetSubsRemoved(w);
+            UiApi.dispatchWidgetSubsRemoved(st, w);
             UiApi.dispatchReplacedRemoved(w);
             VrApi.dispatchStandingRemoved(w);             // addon: 044.6 — a widget standing in the 3D world whose
                                                           //   content was destroyed (the server closing a container,
                                                           //   a replaced stand-in dying with its substitution) ends
                                                           //   its entity and frees its surface
-            UiApi.dispatchSelectorRemoved(w);             // addon: 042.9 — widget removal → fire selector disappear
-            Layout.dispatchRemoved(w);                    // addon: 042.10 — drop its layout record, its pending
+            UiApi.dispatchSelectorRemoved(st, w);         // addon: 042.9 — widget removal → fire selector disappear
+            Layout.dispatchRemoved(st, w);                // addon: 042.10 — drop its layout record, its pending
                                                            // late-caption entry, and (if it was an anchor target)
                                                            // any now-unused drag listener
         }

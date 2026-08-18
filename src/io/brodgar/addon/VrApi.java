@@ -1480,7 +1480,7 @@ final class VrApi {
             return null;                               // not in the world yet — no scene to add to
         Widget content = standable(owner, wv);         // AFTER the world check (don't re-home when there is no scene)
         Coord2d rc = optPlace(opts);                   // 045.2: null ⇒ the place is not locatable this session
-        WidgetSurface surf = new WidgetSurface(owner, content.sz);
+        WidgetSurface surf = new WidgetSurface(u, owner, content.sz);   // 073.2: the tree it is about to stand in
         LuaWidgetEntity we = new LuaWidgetEntity(owner, surf, content, rc, 0.0);
         surf.ent = we;                                 // 044.4: the surface asks the entity whether it takes the pointer
         we.clickable = true;                           // ...and it does, by default — a window on screen takes clicks
@@ -1680,7 +1680,9 @@ final class VrApi {
      * whichever thread reached {@code remove()}.
      */
     static void markContentGone(Widget w) {
-        if((w == null) || (WidgetSurface.liveCount() == 0))
+        // 073.2: the fast path asks its own tree — a session with nothing standing pays the same one read it
+        // paid before, and a removal on a Loader thread never has to know which session holds the screen.
+        if((w == null) || (WidgetSurface.liveCount(w.ui) == 0))
             return;
         List<Addon> as = AddonManager.addons;
         for(int i = 0, n = as.size(); i < n; i++)

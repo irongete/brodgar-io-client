@@ -113,14 +113,20 @@ each survives unrevised:
 - `src/io/brodgar/addon/LuaWidget.java` — 2
 - `src/io/brodgar/addon/Layout.java` — 2
 - `src/io/brodgar/addon/Gesture.java` — 2
+- `src/io/brodgar/addon/Sheet.java` — 2 (its own caption queue, beside `UiApi`'s)
+- `src/io/brodgar/addon/CDropdown.java` — 2 (the popup re-raise)
+- `src/io/brodgar/addon/WidgetSurface.java` — 2 (the standing panels of one world)
+- `src/io/brodgar/addon/SurfaceInput.java` — 2 (the pointer walk over that list)
+- `src/io/brodgar/addon/LuaSelectorWatch.java` — 2 (the tree a subscription records)
+- `src/io/brodgar/addon/WidgetSubs.java` — 2 (the tree a widget record is about)
 - `src/io/brodgar/addon/CharApi.java` — 3
 - `src/io/brodgar/addon/BeltHold.java` — 3
-- `src/io/brodgar/addon/VrApi.java` — 4
+- `src/io/brodgar/addon/VrApi.java` — 2 (it builds a `WidgetSurface`), 4
 - `src/io/brodgar/addon/MapApi.java` — 4
 - `src/io/brodgar/addon/HttpApi.java` — 5
 - `src/io/brodgar/addon/StoreApi.java` — 5
 - `src/io/brodgar/addon/AddonRegistry.java` — 1, 6
-- `src/io/brodgar/addon/Addon.java` — 1, 6
+- `src/io/brodgar/addon/Addon.java` — 1, 2 (the `:lua` console's own widget records), 6
 - `src/io/brodgar/session/Sessions.java` — 1, 6
 - `src/io/brodgar/prof/Prof.java` — 3
 - `src/haven/UI.java` — 1, 6

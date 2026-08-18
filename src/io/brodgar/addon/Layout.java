@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The <b>layout layer</b> — where the stylesheet's {@code position} and {@code size} properties reach a widget
@@ -83,7 +82,7 @@ final class Layout {
         Integer.getInteger("haven.addon.layoutrecheck", 20).intValue();
 
     /** One recently-placed widget whose layout rule may still start matching (030.2's re-check, this time for layout). */
-    private static final class Pending {
+    static final class Pending {
         final Widget wdg;
         final int id;                 // server widget id, or -1 (client-only) — the two-branch death test
         int ticks = RECHECK_TICKS;
@@ -94,7 +93,11 @@ final class Layout {
         }
     }
 
-    private static final List<Pending> pending = new CopyOnWriteArrayList<Pending>();
+    // 073.2: the list is ONE TREE'S ({@code SessionState.layoutPending}). It holds widgets waiting for a
+    // caption of their own session, filled at the placement seam from w.ui — the thread there is a Loader
+    // thread of whichever session sent the message, so host() would queue one session's window for another
+    // session's re-check, and that re-check would then walk a tree the widget is not in.
+
 
     /**
      * The widgets an anchor is holding <b>derived</b> (036.3) — the ones whose position is a function of geometry
@@ -137,7 +140,8 @@ final class Layout {
 
     /** Session init / relog: the tree of the session just ended, so nothing is waiting for a caption any more. */
     static void resetSession() {
-        pending.clear();
+        for(AddonManager.SessionState s : AddonManager.allStates())
+            s.layoutPending.clear();
         capDirty = false;
         synchronized(Layout.class) {
             derived.clear();
@@ -644,14 +648,19 @@ final class Layout {
      */
     static void placed(Widget w, int id) {
         apply(w);
-        if(Sheet.lateLayoutCandidate(w))
-            pending.add(new Pending(w, id));
+        if(!Sheet.lateLayoutCandidate(w))
+            return;
+        AddonManager.SessionState st = AddonManager.state(w.ui);   // 073.2: the tree it was placed into
+        if(st != null)
+            st.layoutPending.add(new Pending(w, id));
     }
 
     // 042.10: `pending`'s late caption/res is woken by the window "cap" uimsg (CharApi.dispatchUimsg ->
     // markCaptionChanged), exactly like UiApi's own selector re-check (030.2/042.9) does for the same tap. That
     // tap runs off the UI thread (UI.java:730-732 closes synchronized(ui) before calling AddonManager.onUimsg),
     // so it may only set a flag — the actual widget reads happen on the tick, under synchronized(ui).
+    // 073.2: the FLAG stays one for the client (census.md: it says some caption changed and gates the
+    // re-check, never says whose or decides what it finds) — the list it gates is the per-session one above.
     private static volatile boolean capDirty;
 
     /** Mark that some window's caption changed (from {@code CharApi.dispatchUimsg}, window "cap" message). */
@@ -662,25 +671,26 @@ final class Layout {
     /**
      * Tick-side drain (UI thread, {@link AddonManager#tick}): if a caption changed since the last tick,
      * re-offer every pending widget once — the same shape as {@link UiApi#drainSelectorCaptionCheck}. Gated on
-     * both the flag and {@link #pending} being non-empty, so an idle client — or one with no late-refiner
+     * both the flag and the session's own pending list being non-empty, so an idle client — or one with no
+     * late-refiner
      * layout rule at all — pays only the flag check and one {@code isEmpty()}.
      */
-    static void drainPendingCaption() {
+    static void drainPendingCaption(AddonManager.SessionState st) {
         if(!capDirty)
             return;
         capDirty = false;
-        if(pending.isEmpty())
+        if(st.layoutPending.isEmpty())
             return;
-        UI u = AddonManager.host();
-        if((u == null) || (u.root == null))
+        UI u = st.ui;                             // 073.2: the tree whose tick this is
+        if(u.root == null)
             return;
-        for(Pending p : pending) {                // copy-on-write: entries drop out as we go
+        for(Pending p : st.layoutPending) {       // copy-on-write: entries drop out as we go
             if(!alive(u, p.wdg, p.id)) {
-                pending.remove(p);                // it died before its caption arrived
+                st.layoutPending.remove(p);       // it died before its caption arrived
                 continue;
             }
             if(--p.ticks <= 0)
-                pending.remove(p);                // ...still offered this one last time
+                st.layoutPending.remove(p);       // ...still offered this one last time
             apply(p.wdg);
         }
     }
@@ -694,10 +704,10 @@ final class Layout {
      * the drag listener installed for it (042.10 — {@code redrive}'s per-tick fold over every anchor is gone;
      * this is the one place a departure is handled instead).
      */
-    static void dispatchRemoved(Widget w) {
-        for(Pending p : pending) {
+    static void dispatchRemoved(AddonManager.SessionState st, Widget w) {
+        for(Pending p : st.layoutPending) {
             if(p.wdg == w) {
-                pending.remove(p);
+                st.layoutPending.remove(p);
                 break;
             }
         }
@@ -722,9 +732,9 @@ final class Layout {
      * screen resize.
      */
     static void dispatchResized(Widget w) {
-        UI u = AddonManager.host();
-        if((u != null) && (w == u.root))
-            rederiveScreenAnchored();
+        UI u = w.ui;   // 073.2: "is this the SCREEN?" is a question about the widget's own tree — host() asked
+        if((u != null) && (w == u.root))   //   whether it was the DRAWN one's root, which a background
+            rederiveScreenAnchored();      //   session's root never is however often it resizes
         moved(w);
     }
 

@@ -61,6 +61,17 @@ final class LuaSelectorWatch {
     static final int APPEAR = 0, DISAPPEAR = 1;
 
     final Addon owner;
+    /**
+     * <b>The tree this subscription watches</b> (073.2) — the session's {@code UI}, recorded once at
+     * registration and never re-derived. A subscription is not about a widget, so nothing else on it can say
+     * which session it belongs to; without this the only answer available at teardown would be
+     * {@code AddonManager.host()}, which by then is the session the anchor has already moved TO, and the
+     * subscription would be dropped from that session's list while staying in the one it was made against.
+     *
+     * <p>{@code null} when there was no session to register in (the login screen's {@code :lua} console) — the
+     * subscription exists, is owned and can be removed, and never fires, which is exactly what it did before.
+     */
+    final haven.UI ui;
     /** The selector, parsed ONCE at subscription time — never per widget, never per tick. */
     final Selector sel;
     /** {@link #APPEAR} or {@link #DISAPPEAR}. */
@@ -76,8 +87,9 @@ final class LuaSelectorWatch {
      */
     final Map<Widget, Integer> matched = new LinkedHashMap<Widget, Integer>();
 
-    LuaSelectorWatch(Addon owner, Selector sel, int event, LuaValue fn) {
+    LuaSelectorWatch(Addon owner, haven.UI ui, Selector sel, int event, LuaValue fn) {
         this.owner = owner;
+        this.ui = ui;
         this.sel = sel;
         this.event = event;
         this.fn = fn;

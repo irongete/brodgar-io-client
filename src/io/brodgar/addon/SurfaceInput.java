@@ -187,10 +187,10 @@ final class SurfaceInput {
      * (which records a depth of {@code -1}, being drawn over the whole scene) wins over every world quad, again
      * the way it looks.
      */
-    private static Hit hit(Coord pc) {
+    private static Hit hit(MapView mv, Coord pc) {
         Hit best = null;
         float bd = Float.MAX_VALUE;
-        for(WidgetSurface s : WidgetSurface.all()) {
+        for(WidgetSurface s : WidgetSurface.all(mv.ui)) {   // 073.2: the panels of the scene being pointed at
             if(!s.takesPointer())
                 continue;
             Coord l = local(s, pc.x, pc.y, true);
@@ -208,7 +208,7 @@ final class SurfaceInput {
     // ---------------------------------------------------------------- the four entries MapView calls
 
     static boolean mouseDown(MapView mv, Widget.MouseDownEvent ev) {
-        Hit h = hit(ev.c);
+        Hit h = hit(mv, ev.c);
         held = (h == null) ? null : h.s;
         heldFrame = WidgetSurface.frames();
         return deliver(mv, h, ev);
@@ -218,17 +218,17 @@ final class SurfaceInput {
         Hit h = grabbed(ev.c);
         held = null;
         if(h == null)
-            h = hit(ev.c);
+            h = hit(mv, ev.c);
         return deliver(mv, h, ev);
     }
 
     static boolean mouseMove(MapView mv, Widget.MouseMoveEvent ev) {
         Hit h = grabbed(ev.c);
-        return deliver(mv, (h == null) ? hit(ev.c) : h, ev);
+        return deliver(mv, (h == null) ? hit(mv, ev.c) : h, ev);
     }
 
     static boolean mouseWheel(MapView mv, Widget.MouseWheelEvent ev) {
-        return deliver(mv, hit(ev.c), ev);
+        return deliver(mv, hit(mv, ev.c), ev);
     }
 
     /** The gesture in progress, if a press is still down on a surface — extrapolated, so it survives leaving it. */
@@ -284,10 +284,11 @@ final class SurfaceInput {
     static boolean query(Widget.PointerEvent ev, Coord c) {
         if((ev == null) || (c == null))
             return false;
-        Coord mr = viewOrigin();
+        MapView mv = AddonManager.screenView();   // 073.2: this is the flat UI asking, so it is the drawn scene
+        Coord mr = viewOrigin(mv);
         if(mr == null)
             return false;
-        Hit h = hit(new Coord(c.x - mr.x, c.y - mr.y));
+        Hit h = hit(mv, new Coord(c.x - mr.x, c.y - mr.y));
         if(h == null)
             return false;
         Widget.PointerEvent dev = ev.derive(h.local);
@@ -318,10 +319,11 @@ final class SurfaceInput {
     static boolean drop(Widget.PointerEvent ev, Coord c) {
         if((ev == null) || (c == null))
             return false;
-        Coord mr = viewOrigin();
+        MapView mv = AddonManager.screenView();   // 073.2: the dragged item is on the drawn HUD
+        Coord mr = viewOrigin(mv);
         if(mr == null)
             return false;
-        Hit h = hit(new Coord(c.x - mr.x, c.y - mr.y));
+        Hit h = hit(mv, new Coord(c.x - mr.x, c.y - mr.y));
         if(h == null)
             return false;
         try {

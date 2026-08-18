@@ -1,0 +1,9 @@
+{
+  "name": "073.2 — the widget caches know whose tree they hold",
+  "id": "073-caches-know-their-session.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 073.2: the widget layer's caches are indexed by the session of the widget they name, and every surface they carry — the builders, the selector subscriptions and their late-caption re-check, the tree-key removal, the arming tick and the borrowed hide — behaves exactly as it did.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

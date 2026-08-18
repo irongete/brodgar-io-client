@@ -45,7 +45,7 @@ calls each `resetSession`. What changes is where the state those calls clear act
       2 and `states` is 2. Then `:session drop` it and re-run. Expect: both fall back to 1 — the
       release fired, and nothing was left behind.
 
-- [ ] **073.2 — The widget caches know whose tree they hold.**
+- [x] **073.2 — The widget caches know whose tree they hold.**
       Converts the cluster named in `census.md` as the widget layer: `UiApi`'s `selectorWatches`,
       `widgetSubsWatching`, `pending` and `capChanged`; `LuaWidget`'s hidden and moved counts;
       `Layout`'s pending captions; `Gesture`'s armed handles. Each keys on the `UI` of the **widget it

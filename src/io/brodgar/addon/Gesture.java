@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+
 
 /**
  * <b>One live gesture, and the bindings that start one</b> (spec {@code 062-drag-handles}) — the Java half of
@@ -115,8 +115,10 @@ final class Gesture extends Widget {
     private static final Map<Widget, EventHandler<Widget.MouseDownEvent>> arms =
         new WeakHashMap<Widget, EventHandler<Widget.MouseDownEvent>>();
 
-    /** The gesture running right now — normally none, and at most one, since a press is one object. */
-    private static final List<Gesture> running = new CopyOnWriteArrayList<Gesture>();
+    // 073.2: the gesture running right now — normally none, and at most one, since a press is one object —
+    // is ONE SESSION'S ({@code SessionState.gesturesRunning}), because the press that started it landed on a
+    // widget of one tree and the target it drags is another. The handle's own ui answers that at every point:
+    // at the press, at the release, and at the teardown that has to end it early.
 
     // ---- the bindings: arm, read, drop ---------------------------------------------------------------
 
@@ -159,9 +161,14 @@ final class Gesture extends Widget {
     static void teardown(Addon a) {
         if(a == null)
             return;
-        for(Gesture g : running) {
-            if(g.owns(a))
-                g.release();
+        // 073.2: over every tree, because an addon knows which gestures are its own and not which session it
+        // was running in — and this is called from init, when host() already answers the session being
+        // switched TO. With one session live it is the same single list it always was.
+        for(AddonManager.SessionState s : AddonManager.allStates()) {
+            for(Gesture g : s.gesturesRunning) {
+                if(g.owns(a))
+                    g.release();
+            }
         }
         for(Bind b : a.gestures)
             forget(a, b);
@@ -170,9 +177,11 @@ final class Gesture extends Widget {
 
     /** Session init / relog: the tree of the session just ended, so nothing is armed and nothing is running. */
     static void resetSession() {
-        for(Gesture g : running)
-            g.release();
-        running.clear();
+        for(AddonManager.SessionState s : AddonManager.allStates()) {
+            for(Gesture g : s.gesturesRunning)
+                g.release();                     // ...which takes it out of s.gesturesRunning itself
+            s.gesturesRunning.clear();           // (belt and braces: a release that threw leaves nothing behind)
+        }
         synchronized(Gesture.class) { arms.clear(); }
     }
 
@@ -258,8 +267,12 @@ final class Gesture extends Widget {
     private static boolean press(Widget handle, Widget.MouseDownEvent ev) {
         if(ev.b != 1)
             return false;
-        UI u = AddonManager.host();
-        if((u == null) || (u.root == null) || !handle.hasparent(u.root))
+        // 073.2: the tree the HANDLE is in, not the one on screen. They are the same tree whenever this fires
+        // — a press reaches the widget the pointer is over — but asking host() said "the drawn session" where
+        // what is meant is "this widget's session", and the gesture is added to u.root a few lines down.
+        UI u = handle.ui;
+        AddonManager.SessionState st = AddonManager.state(u);
+        if((st == null) || (u.root == null) || !handle.hasparent(u.root))
             return false;
         Coord at = handle.rootpos().add(ev.c);            // the press, in root pixels
         List<Move> moves = new ArrayList<Move>(2);
@@ -270,7 +283,7 @@ final class Gesture extends Widget {
         if(moves.isEmpty())
             return false;
         Gesture g = new Gesture(moves, at);
-        running.add(g);
+        st.gesturesRunning.add(g);
         u.root.add(g);
         g.arm(u);
         return true;
@@ -493,7 +506,9 @@ final class Gesture extends Widget {
         }
         if(alive) {
             alive = false;
-            running.remove(this);
+            AddonManager.SessionState st = AddonManager.state(this.ui);   // 073.2: the tree it was pressed in
+            if(st != null)
+                st.gesturesRunning.remove(this);
         }
     }
 }

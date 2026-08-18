@@ -16,9 +16,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.WeakHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * One addon's <b>stylesheet</b> as the engine holds it — the applied form of {@code hafen.ui():sheet()}
@@ -1228,7 +1226,9 @@ final class Sheet {
      * destroyed in between is simply walked (or not) and dropped, since invalidating a cache entry for a dead
      * widget costs nothing and the map's keys are weak anyway.
      */
-    private static final Queue<Widget> capChanged = new ConcurrentLinkedQueue<Widget>();
+    // 073.2: ONE TREE'S ({@code SessionState.styleCapChanged}) — a renamed window is a window of one session,
+    // recorded here from w.ui because chcap runs on whichever Loader thread applied the message and the
+    // subtree walk that follows must be of the tree the window is actually in.
 
     /**
      * Record that {@code w}'s caption changed (049.3). Appends one reference — no widget read, no tree walk — so it
@@ -1239,7 +1239,9 @@ final class Sheet {
     static void markCaptionChanged(Widget w) {
         if((w == null) || !anyLate)
             return;
-        capChanged.add(w);
+        AddonManager.SessionState st = AddonManager.state(w.ui);
+        if(st != null)
+            st.styleCapChanged.add(w);
     }
 
     /**
@@ -1253,18 +1255,18 @@ final class Sheet {
      * walk to notice that with. Walking down from the window that actually changed is the exact answer to "whose
      * cached style could this have changed", and it costs one walk per rename rather than anything per frame.
      */
-    static void drainCaptionInvalidation() {
-        if(capChanged.isEmpty())
+    static void drainCaptionInvalidation(AddonManager.SessionState st) {
+        if(st.styleCapChanged.isEmpty())
             return;
-        UI u = AddonManager.host();
-        if((u == null) || (u.root == null)) {
-            capChanged.clear();       // the tree those windows belonged to is gone; so is anything cached for it
+        UI u = st.ui;                 // 073.2: the tree whose tick this is, which is the tree those windows are in
+        if(u.root == null) {
+            st.styleCapChanged.clear();   // the tree those windows belonged to is gone; so is anything cached for it
             return;
         }
         synchronized(u) {
             synchronized(Sheet.class) {          // ui -> Sheet.class, the order every other reader takes
-                for(int n = capChanged.size(); n > 0; n--) {
-                    Widget w = capChanged.poll();
+                for(int n = st.styleCapChanged.size(); n > 0; n--) {
+                    Widget w = st.styleCapChanged.poll();
                     if(w == null)
                         break;
                     invalidateSubtree(w);

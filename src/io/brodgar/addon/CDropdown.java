@@ -60,8 +60,11 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
     /** Defaults, in DESIGN pixels; {@code :size(w, h)} overrides the width, {@code :rowHeight(n)} the item height. */
     static final int DEF_W = 200, DEF_LISTH = 160;
 
-    /** Popups queued by {@link #drop} this frame, raised by {@link #drainRaises} before the next draw. */
-    private static final List<Widget> toRaise = new java.util.ArrayList<Widget>();
+    // 073.2: popups queued by {@link #drop} this frame, raised by {@link #drainRaises} before the next draw —
+    // and ONE TREE'S ({@code SessionState.dropdownRaises}), because the popup was just added under this
+    // dropdown's own popuproot() and it is that session's tick, one line after its own armPending(), that
+    // raises it. Reached with this widget's ui, which is the tree the click landed in.
+
 
     private final Owned.State own;
     private List<LuaRows.Row> curItems = Collections.<LuaRows.Row>emptyList();
@@ -183,19 +186,22 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
             for(Widget w = popuproot().child; w != null; w = w.next)
                 last = w;
             if(last instanceof SDropBox.SDropList) {
-                synchronized(toRaise) { toRaise.add(last); }
+                AddonManager.SessionState ss = AddonManager.state(this.ui);
+                if(ss != null)
+                    synchronized(ss.dropdownRaises) { ss.dropdownRaises.add(last); }
             }
         }
     }
 
     /** Called from {@code AddonManager.tick()}, right beside {@code UiApi.armPending()} — see the class doc. */
-    static void drainRaises() {
-        if(toRaise.isEmpty())
+    static void drainRaises(AddonManager.SessionState st) {
+        List<Widget> queue = st.dropdownRaises;
+        if(queue.isEmpty())
             return;
         List<Widget> due;
-        synchronized(toRaise) {
-            due = new java.util.ArrayList<Widget>(toRaise);
-            toRaise.clear();
+        synchronized(queue) {
+            due = new java.util.ArrayList<Widget>(queue);
+            queue.clear();
         }
         for(Widget w : due) {
             if(w.parent != null)

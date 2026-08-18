@@ -24,7 +24,7 @@ import haven.render.Texture;
 import haven.render.Texture2D;
 import haven.render.VectorFormat;
 
-import java.util.concurrent.CopyOnWriteArrayList;
+
 
 /**
  * <b>The surface a standing widget is drawn on</b> ({@code hafen.vr():widget()}, 044.1) — an offscreen colour
@@ -79,8 +79,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * leaves — so nothing inside a panel drifts out of date while the player is facing the other way.
  */
 final class WidgetSurface extends Widget {
-    /** Every live surface, across all addons — the render pass walks this and nothing else. */
-    private static final CopyOnWriteArrayList<WidgetSurface> live = new CopyOnWriteArrayList<WidgetSurface>();
+    // 073.2: every live surface of ONE SESSION ({@code SessionState.surfaces}) — the render pass walks that
+    // list and nothing else. A standing panel is a widget re-homed under one session's ui.root, drawn into a
+    // texture the quad of a gob in THAT session's scene samples, so a list for the client would have the
+    // drawn session's offscreen pass rendering another session's widget tree.
+
 
     /** Offscreen passes actually issued, and frames the pass was offered — the {@code p:surfaces()} counters. */
     private static volatile long uploads, frames;
@@ -103,6 +106,13 @@ final class WidgetSurface extends Widget {
     private static final int MAXDIM = 2048;
 
     final Addon owner;
+    /**
+     * <b>The session whose tree this panel stands in</b> (073.2). Held rather than read off {@link Widget#ui}
+     * because a surface joins the render list at construction, one line before it is added to that tree — and
+     * because {@link #free} must reach the very list {@link #WidgetSurface} joined even if the add never
+     * happened.
+     */
+    private final UI sui;
     /** The entity standing this surface, set the moment it is built — see {@link #takesPointer}. */
     LuaWidgetEntity ent;
     private Texture2D tex;
@@ -129,8 +139,9 @@ final class WidgetSurface extends Widget {
      */
     private volatile Coord origin = Coord.z;
 
-    WidgetSurface(Addon owner, Coord sz) {
+    WidgetSurface(UI ui, Addon owner, Coord sz) {
         super(clamp(sz));
+        this.sui = ui;
         this.owner = owner;
         this.visible = false;          // not drawn by the flat pass, not hit-tested, still ticked
         this.tsz = this.sz;
@@ -153,7 +164,9 @@ final class WidgetSurface extends Widget {
                 super.render(g, gc, f);
             }
         };
-        live.add(this);
+        AddonManager.SessionState st = AddonManager.state(ui);
+        if(st != null)
+            st.surfaces.add(this);
     }
 
     /** A surface is at least one pixel and at most {@link #MAXDIM} on a side. */
@@ -169,9 +182,10 @@ final class WidgetSurface extends Widget {
 
     // ---------------------------------------------------------------- input (044.4)
 
-    /** Every live surface — the pointer walk reads this, exactly as the render pass does. */
-    static java.util.List<WidgetSurface> all() {
-        return live;
+    /** Every live surface of one session — the pointer walk reads this, exactly as the render pass does. */
+    static java.util.List<WidgetSurface> all(UI u) {
+        AddonManager.SessionState st = AddonManager.state(u);
+        return (st == null) ? java.util.Collections.<WidgetSurface>emptyList() : st.surfaces;
     }
 
     /**
@@ -308,11 +322,14 @@ final class WidgetSurface extends Widget {
      * monitor for the same reason {@code ui.draw} does: this walks widgets.
      */
     static void renderAll(UI u, Render out) {
-        if((u == null) || (out == null) || live.isEmpty())
+        if((u == null) || (out == null))
+            return;
+        java.util.List<WidgetSurface> mine = all(u);   // 073.2: the panels of the tree being drawn
+        if(mine.isEmpty())
             return;
         frames++;
         synchronized(u) {
-            for(WidgetSurface s : live)                // copy-on-write: a draw callback may stand or end one
+            for(WidgetSurface s : mine)                // copy-on-write: a draw callback may stand or end one
                 s.render(out);
         }
     }
@@ -506,7 +523,9 @@ final class WidgetSurface extends Widget {
         if(freed)
             return;
         freed = true;
-        live.remove(this);
+        AddonManager.SessionState st = AddonManager.state(sui);
+        if(st != null)
+            st.surfaces.remove(this);
         SurfaceInput.forget(this);         // no half-finished gesture goes on being delivered to a dead panel
         TexRender t = tr;
         tr = null;
@@ -524,16 +543,30 @@ final class WidgetSurface extends Widget {
 
     // ---------------------------------------------------------------- the counters (p:surfaces())
 
+    /** How many panels stand in ONE session's world — the fast path a per-widget seam takes (073.2). */
+    static int liveCount(UI u) {
+        return all(u).size();
+    }
+
+    /**
+     * The same figure rolled up for the whole client, which is what {@code p:surfaces()} has always reported
+     * and goes on reporting: the profiler describes the client's frame, not one login's (073.2).
+     */
     static int liveCount() {
-        return live.size();
+        int n = 0;
+        for(AddonManager.SessionState s : AddonManager.allStates())
+            n += s.surfaces.size();
+        return n;
     }
 
     /** How many of those are being skipped right now because nothing is looking at them (044.7). */
     static int culledCount() {
         int n = 0;
-        for(WidgetSurface s : live) {
-            if(s.culled())
-                n++;
+        for(AddonManager.SessionState st : AddonManager.allStates()) {
+            for(WidgetSurface s : st.surfaces) {
+                if(s.culled())
+                    n++;
+            }
         }
         return n;
     }

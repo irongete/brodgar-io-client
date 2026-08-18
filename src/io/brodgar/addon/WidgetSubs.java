@@ -72,6 +72,16 @@ final class WidgetSubs {
 
     private final Addon owner;
     private final Widget wdg;
+
+    /**
+     * <b>The tree this record is about</b> (073.2) — the {@code UI} of the very widget it watches, which is
+     * what indexes it in {@link UiApi}'s per-session watch list. Never {@code AddonManager.host()}: this
+     * record is offered every placement and every removal in its own tree, and a subscription on a widget of
+     * a background session must not be walked by the drawn session's seams.
+     */
+    UI ui() {
+        return wdg.ui;
+    }
     /**
      * <b>The widget the four input listeners are installed on</b> (063.1) — the addon's own content leaf where
      * there is one ({@link LuaWidget#ownedContent}'s {@link Owned#widget()}), and {@link #wdg} itself

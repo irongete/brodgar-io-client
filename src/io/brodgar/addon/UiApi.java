@@ -23,10 +23,9 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 
@@ -86,13 +85,19 @@ final class UiApi {
     // (UI.java:730-732), which is why it only appends a Widget (markCaptionChanged) rather than walking the tree or
     // calling Lua inline (P5) — so the UI monitor guards every actual reader/writer here and each subscription's
     // `matched` map needs no lock of its own.
-    private static final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
-    private static final List<PendingMatch> pending = new CopyOnWriteArrayList<PendingMatch>();
+    // 073.2: and BOTH LISTS ARE ONE SESSION'S. They hold widgets of a tree, so they are
+    // {@code SessionState.selectorWatches} / {@code .selectorPending}, reached with the ui of the widget the
+    // seam was handed — never {@link AddonManager#host()}, which answers the session on screen and is a
+    // different one at every seam here: the placement seam runs on a Loader thread of whichever session sent
+    // the message, and the teardown below runs from {@code init} once the anchor has ALREADY moved to the
+    // session being switched to. A subscription records the tree it was made against ({@link
+    // LuaSelectorWatch#ui}), which is what lets it be dropped from that tree's list rather than from the
+    // list of whichever session happens to hold the screen when the addon is torn down.
     private static final int RECHECK_TICKS =              // how long a late caption/res has to land (in ticks)
         Integer.getInteger("haven.addon.selrecheck", 20).intValue();
 
     /** One recently-placed widget still awaiting a late {@code [title=]}/{@code [res=]} (030.2's bounded re-check). */
-    private static final class PendingMatch {
+    static final class PendingMatch {
         final Widget wdg;
         final int id;                 // server widget id, or -1 (client-only) — the two-branch death test
         int ticks = RECHECK_TICKS;
@@ -110,18 +115,23 @@ final class UiApi {
     // (dispatchWidgetSubsPlaced/Removed) instead of diffed every tick — hasSub-GATED by construction (WidgetSubs
     // registers/unregisters itself, see its Idle hook), so a widget nobody subscribed to costs nothing and an
     // idle client pays one isEmpty(). Owned copies live on each Addon's widgetSubs map for teardown.
-    // Session-scoped (cleared per init; the tree is rebuilt).
-    private static final List<WidgetSubs> widgetSubsWatching = new CopyOnWriteArrayList<WidgetSubs>();
+    // 073.2: ONE SESSION'S — the list holds records of widgets of one tree, so it is
+    // {@code SessionState.widgetSubsWatching}, reached with the ui of the very widget each record was made
+    // on ({@link WidgetSubs#ui}). Still cleared per init; the tree is rebuilt.
 
     /** {@link WidgetSubs#on}: the first tree-key ({@code ItemAdded}/{@code ItemRemoved}/{@code Destroy})
-     *  subscription on a widget joins the flat watch list. */
+     *  subscription on a widget joins its own tree's flat watch list. */
     static void registerInterest(WidgetSubs s) {
-        widgetSubsWatching.add(s);
+        SessionState st = state(s.ui());
+        if(st != null)
+            st.widgetSubsWatching.add(s);
     }
 
     /** {@link Subs.Idle}, or {@link WidgetSubs#offerRemoved} on the watched widget's own death. */
     static void unregisterInterest(WidgetSubs s) {
-        widgetSubsWatching.remove(s);
+        SessionState st = state(s.ui());
+        if(st != null)
+            st.widgetSubsWatching.remove(s);
     }
 
     /**
@@ -129,9 +139,10 @@ final class UiApi {
      * have just entered one of their subtrees. Fast-paths out when nobody is watching, the normal case.
      */
     static void dispatchWidgetSubsPlaced(Widget w) {
-        if(widgetSubsWatching.isEmpty())
+        SessionState st = state(w.ui);        // 073.2: the tree the widget was placed into, and no other
+        if((st == null) || st.widgetSubsWatching.isEmpty())
             return;
-        for(WidgetSubs s : widgetSubsWatching) {   // copy-on-write: a firing handler may (un)subscribe here
+        for(WidgetSubs s : st.widgetSubsWatching) {   // copy-on-write: a firing handler may (un)subscribe here
             try {
                 s.offerPlaced(w);
             } catch(RuntimeException e) {
@@ -145,10 +156,10 @@ final class UiApi {
      * widget one of them is watching (fires {@code Destroy}) or it may be a {@code WItem} that just left one of
      * their subtrees. Fast-paths out when nobody is watching, the normal case.
      */
-    static void dispatchWidgetSubsRemoved(Widget w) {
-        if(widgetSubsWatching.isEmpty())
+    static void dispatchWidgetSubsRemoved(SessionState st, Widget w) {
+        if(st.widgetSubsWatching.isEmpty())
             return;
-        for(WidgetSubs s : widgetSubsWatching) {   // copy-on-write: a firing handler may (un)subscribe here
+        for(WidgetSubs s : st.widgetSubsWatching) {   // copy-on-write: a firing handler may (un)subscribe here
             try {
                 s.offerRemoved(w);
             } catch(RuntimeException e) {
@@ -163,10 +174,10 @@ final class UiApi {
      * {@link WidgetSubs#markDirty} for why the diff waits for the tick boundary rather than running inline at
      * {@code offerPlaced}/{@code offerRemoved}. Fast-paths out when nobody is watching.
      */
-    static void flushItemWatchers() {
-        if(widgetSubsWatching.isEmpty())
+    static void flushItemWatchers(SessionState st) {
+        if(st.widgetSubsWatching.isEmpty())
             return;
-        for(WidgetSubs s : widgetSubsWatching) {   // copy-on-write: a firing handler may (un)subscribe here
+        for(WidgetSubs s : st.widgetSubsWatching) {   // copy-on-write: a firing handler may (un)subscribe here
             try {
                 s.flush();
             } catch(RuntimeException e) {
@@ -182,8 +193,12 @@ final class UiApi {
     // Second consumer since 042.1 (dispatchPlaced, added in AddonManager.onWidgetPlaced itself); third since
     // 042.7's dispatchWidgetSubsPlaced above.
     static void onWidgetPlaced(int id, Widget wdg) {
-        if(!selectorWatches.isEmpty())
-            offerPlaced(wdg, id);
+        // 073.2: whose tree the widget entered is the widget's own question — this seam runs inside
+        // AddWidget.run on a Loader thread, which is the thread of the session that sent the message and
+        // not of the one on screen, so host() here could offer another session's placement to these lists.
+        SessionState st = state(wdg.ui);
+        if((st != null) && !st.selectorWatches.isEmpty())
+            offerPlaced(st, wdg, id);
         if(Sheet.anyLayout)               // 036.2: a layout rule reaches a window the moment it opens, not a frame
             Layout.placed(wdg, id);       //   later — and never at the draw (035.1's chdeco lesson)
         dispatchWidgetSubsPlaced(wdg);
@@ -805,26 +820,84 @@ final class UiApi {
             collect(c, sel, out);
     }
 
-    /** Session init: drop every per-session widget record (from AddonManager.init). */
+    /**
+     * Session init: drop every per-session widget record (from AddonManager.init).
+     *
+     * <p><b>Every session's, because {@code init} is not told which one ended</b> (073.2). It is handed the
+     * session that now holds the screen and still means <i>the session ended</i> (criterion 5), so the four
+     * lists below are emptied for each state exactly as they were emptied once for the client — with one
+     * session live that is the very same act.
+     */
     static void resetSession() {
-        widgetSubsWatching.clear();    // 041.4: last session's widgets are gone; nothing left to watch
-        selectorWatches.clear();      // 030.2: the tree of the session just ended; nothing matches any more
-        pending.clear();
-        capChanged.clear();           // 042.9/049.3: and no re-check is owed to a tree that no longer exists
-        if(consoleOwner != null) {
-            consoleOwner.hiddenNative.clear();   // 029.2: last session's widgets are gone; nothing left to restore
-            consoleOwner.movedNative.clear();    // 036.1: ...nor is there anything left to put back where it was
-            consoleOwner.gestures.clear();       // 062: ...nor is anything of the old tree left armed for the user
-            consoleOwner.remembered.clear();     // 062: ...nor remembered (the RECORDS are per character, and
-                                                 //   StoreApi.resetSession drops those with the session)
-            consoleOwner.widgetSubs.clear();     // 041.3/041.4: ...and so is every widget:on() subscription
-            consoleOwner.selectorWatches.clear();// 030.2: ...and the selectors it was watching for
+        for(SessionState s : AddonManager.allStates()) {
+            s.widgetSubsWatching.clear();  // 041.4: last session's widgets are gone; nothing left to watch
+            s.selectorWatches.clear();    // 030.2: the tree of the session just ended; nothing matches any more
+            s.selectorPending.clear();
+            s.selectorCapChanged.clear(); // 042.9/049.3: and no re-check is owed to a tree that no longer exists
         }
+        pruneConsole();                          // 073.2: the REPL's own records, of the trees that are gone
         resetPending();                          // 039.6: ...and nothing built for the old tree is waiting to be placed
         LuaWidget.recountHidden();               // 031.1: nothing is hidden in a session that has not started
         LuaWidget.recountMoved();                // 036.1: ...and nothing is laid out in one either
         Layout.resetSession();                   // 036.2: ...and no widget of the old tree is awaiting its caption
         Gesture.resetSession();                  // 062: ...nor is one of them armed for the user to drag or resize
+    }
+
+    /**
+     * <b>The one place a process-wide object holds one session's records</b> (073.2, and the census flags it as
+     * such): {@code consoleOwner} is the {@code :lua} REPL's addon record and persists across sessions <i>by
+     * design</i> — that is what makes a hide typed into the console outlive the reload that follows it — while
+     * six of its collections name <b>widgets of a tree</b>: what it hid, what it moved, what it armed, what it
+     * remembered by name, what it subscribed on, and what it was watching for.
+     *
+     * <p><b>So the object stays where it is and the clearing moves.</b> It used to be a wholesale
+     * {@code clear()} of all six on every {@code init}, which is "the session ended" written for a client that
+     * had one; here each record is dropped only when the tree it names is <b>actually gone</b> — its widget's
+     * {@code UI} destroyed, which is what a relogin does and what {@code AddonManager.state} refuses to mint for.
+     * With one session live the two are the same act, because the only {@code init} that follows a session
+     * ending follows that session's {@code UI} being destroyed. With two, the wholesale clear was the bug: an
+     * anchor switch would forget a hidden window of the session the player is coming BACK to, leaving it hidden
+     * with nothing left holding the toggle that reopens it.
+     *
+     * <p>A subscription names no single widget, so it is dropped by the tree it was registered against
+     * ({@link LuaSelectorWatch#ui}) instead. On the UI thread, from {@code init}, like the clear it replaces.
+     */
+    private static void pruneConsole() {
+        Addon co = consoleOwner;
+        if(co == null)
+            return;
+        for(LuaWidget.Hidden h : co.hiddenNative) {  // 029.2: a widget of a dead tree has nothing to restore
+            if(dead(h.wdg))
+                co.hiddenNative.remove(h);
+        }
+        for(LuaWidget.Moved m : co.movedNative) {    // 036.1: ...nor anything left to put back where it was
+            if(dead(m.wdg))
+                co.movedNative.remove(m);
+        }
+        for(Gesture.Bind b : co.gestures) {          // 062: ...nor is it left armed for the user
+            if(dead(b.target) || dead(b.handle))
+                co.gestures.remove(b);
+        }
+        for(Map.Entry<String, Widget> e : co.remembered.entrySet()) {   // 062: ...nor remembered by name
+            if(dead(e.getValue()))
+                co.remembered.remove(e.getKey(), e.getValue());
+        }
+        for(Iterator<Widget> it = co.widgetSubs.keySet().iterator(); it.hasNext(); ) {
+            if(dead(it.next()))                      // 041.3/041.4: ...and so is every widget:on() subscription
+                it.remove();
+        }
+        for(LuaSelectorWatch w : co.selectorWatches) {                  // 030.2: ...and the selectors it watched
+            if((w.ui == null) || w.ui.destroyed) {
+                w.alive = false;
+                w.matched.clear();
+                co.selectorWatches.remove(w);
+            }
+        }
+    }
+
+    /** Is this widget's whole session gone? (Never {@code remove()}d-but-live: that tree may still be played.) */
+    private static boolean dead(Widget w) {
+        return (w == null) || (w.ui == null) || w.ui.destroyed;
     }
 
     /**
@@ -892,7 +965,7 @@ final class UiApi {
         rootw.c = Px.in(Coord.of(DEF_X, DEF_Y));   // the default place, movable before it is ever painted
         u.root.add(rootw);                  // add() locks on ui; :parent(w) re-homes it while it is still pending
         owner.widgets.add(c);
-        synchronized(unarmed) { unarmed.add(c); }
+        queueArming(u, c);                  // 073.2: armed by the tick of the tree it was just attached to
         return LuaWidget.of(owner, rootw);
     }
 
@@ -922,8 +995,10 @@ final class UiApi {
     static void rebuild(Addon owner, Owned old, Owned neu) {
         Widget oldw = old.rootw(), neww = neu.rootw();
         // 072.2: the monitor is the widget's own (072.1's rule — this block mutates oldw and neww), and the
-        // root the new one falls back to is host()'s: a control this layer built is in the tree it built it in.
-        UI u = host();
+        // root the new one falls back to is the OLD WIDGET'S OWN (073.2): a control this layer built is in the
+        // tree it built it in, and asking host() for it was asking which session is on screen — a different
+        // question, and a different answer the moment the player tabs to another one mid-statement.
+        UI u = oldw.ui;
         synchronized(LuaWidget.monitor(oldw)) {
             Widget parent = oldw.parent;
             Coord at = oldw.c;
@@ -936,7 +1011,7 @@ final class UiApi {
         owner.widgets.remove(old);
         owner.widgets.add(neu);
         dropPending(old);
-        synchronized(unarmed) { unarmed.add(neu); }
+        queueArming(u, neu);
         owner.widgetObjs.rekey(oldw, neww);   // the Lua handle follows the widget it names...
         owner.styleRules.rekey(oldw, neww);   // ...and so does the Rule object interned on it...
         Sheet.rekeyWidget(oldw, neww);        // ...and the level that rule installed
@@ -952,8 +1027,10 @@ final class UiApi {
      */
     private static final int DEF_W = 200, DEF_H = 140, DEF_X = 100, DEF_Y = 100;
 
-    /** Surfaces and controls built since the last tick and not yet drawing. Drained on the UI thread only. */
-    private static final List<Owned> unarmed = new ArrayList<Owned>();
+    // 073.2: the arming queue is ONE TREE'S ({@code SessionState.unarmed}) — what is waiting is a widget
+    // already attached to that session's root, and what arms it is that session's own tick. Every writer
+    // below names the tree: the builder was handed one at attach, and a surface already in the queue can be
+    // found through the very widget it is.
 
     /**
      * Arm every surface built since the last tick — the "arming tick" of §2.5, called first thing from
@@ -966,26 +1043,39 @@ final class UiApi {
      * guarantee about painting that skipping the draw already gives in full. What the draw skips is the
      * <b>whole</b> surface, chrome included, which is why {@link #newUi} builds an anonymous {@code Window}.
      */
-    static void armPending() {
-        if(unarmed.isEmpty())
+    static void armPending(SessionState st) {
+        List<Owned> queue = st.unarmed;
+        if(queue.isEmpty())
             return;
         List<Owned> due;
-        synchronized(unarmed) {
-            due = new ArrayList<Owned>(unarmed);
-            unarmed.clear();
+        synchronized(queue) {
+            due = new ArrayList<Owned>(queue);
+            queue.clear();
         }
         for(Owned c : due)
             c.armed();
     }
 
-    /** Drop a surface from the arming queue (destroyed, or torn down, before it ever painted). */
+    /** Queue one just-built surface for the arming tick of the tree it was attached to (073.2). */
+    private static void queueArming(UI u, Owned c) {
+        SessionState st = state(u);
+        if(st == null)
+            return;
+        synchronized(st.unarmed) { st.unarmed.add(c); }
+    }
+
+    /** Drop a surface from its own tree's arming queue (destroyed, or torn down, before it ever painted). */
     static void dropPending(Owned c) {
-        synchronized(unarmed) { unarmed.remove(c); }
+        SessionState st = state(c.rootw().ui);
+        if(st == null)
+            return;
+        synchronized(st.unarmed) { st.unarmed.remove(c); }
     }
 
     /** Reset the arming queue for a new session (nothing built for the old tree is armed in the new one). */
     static void resetPending() {
-        synchronized(unarmed) { unarmed.clear(); }
+        for(SessionState st : AddonManager.allStates())
+            synchronized(st.unarmed) { st.unarmed.clear(); }
     }
 
     // ------------------------------------------------------------- custom UI overlays (hafen.ui, 2b)
@@ -1024,8 +1114,16 @@ final class UiApi {
                 + " (one that had matched left it)");
         if(!fn.isfunction())
             throw new LuaError(where + " expects a handler function fn(widget)");
-        final LuaSelectorWatch w = new LuaSelectorWatch(owner, sel, ev, fn);
-        selectorWatches.add(w);
+        // 073.2: the tree this subscription is about is the one the addon asking for it is running in — the
+        // anchored session, which is the only session that has addons at all while AddonManager.init goes on
+        // tearing them down at every switch (criterion 5). Recorded on the watch, so that every later act on
+        // it — the handle's :remove(), the addon's teardown, the console prune — names THIS tree rather than
+        // re-asking host() at a moment when the anchor may have moved.
+        final UI wu = host();
+        final LuaSelectorWatch w = new LuaSelectorWatch(owner, wu, sel, ev, fn);
+        SessionState wst = state(wu);
+        if(wst != null)                        // no session behind it (the login screen's console): owned,
+            wst.selectorWatches.add(w);        //   removable, and it never fires — exactly as before
         owner.selectorWatches.add(w);
         scanForWatch(w);                       // catch what is ALREADY open (the :reload / subscribe-in-world case)
         LuaTable handle = new LuaTable();
@@ -1047,7 +1145,7 @@ final class UiApi {
      * {@code disappear} one records silently, which is what lets a later close still fire.
      */
     private static void scanForWatch(LuaSelectorWatch w) {
-        UI u = host();
+        UI u = w.ui;                           // 073.2: the tree it was registered against, and no other
         if((u == null) || (u.root == null))
             return;
         // Under the ui monitor for the WHOLE scan, not just the walk: the placement seam and the tick both hold it,
@@ -1070,9 +1168,9 @@ final class UiApi {
      * {@code uimsg} and can land a tick or two after placement, and a {@code .res} window would otherwise be
      * unmatchable by the very key that identifies it.
      */
-    private static void offerPlaced(Widget wdg, int id) {
+    private static void offerPlaced(SessionState st, Widget wdg, int id) {
         boolean recheck = false;
-        for(LuaSelectorWatch w : selectorWatches) {   // copy-on-write: a handler may subscribe/remove here
+        for(LuaSelectorWatch w : st.selectorWatches) {   // copy-on-write: a handler may subscribe/remove here
             if(!w.alive || w.matched.containsKey(wdg))
                 continue;
             if(w.sel.matches(wdg))
@@ -1081,7 +1179,7 @@ final class UiApi {
                 recheck = true;
         }
         if(recheck)
-            pending.add(new PendingMatch(wdg, id));
+            st.selectorPending.add(new PendingMatch(wdg, id));
     }
 
     /**
@@ -1104,10 +1202,10 @@ final class UiApi {
      * widget REMOVAL, not with frames, and a removed widget fires exactly once per subscription that matched it (no
      * miss-fire or double-fire even if multiple handlers unsubscribe).
      */
-    static void dispatchSelectorRemoved(Widget w) {
-        if(selectorWatches.isEmpty() && pending.isEmpty())
+    static void dispatchSelectorRemoved(SessionState st, Widget w) {
+        if(st.selectorWatches.isEmpty() && st.selectorPending.isEmpty())
             return;
-        for(LuaSelectorWatch watch : selectorWatches) {      // copy-on-write: a handler may unsubscribe here
+        for(LuaSelectorWatch watch : st.selectorWatches) {   // copy-on-write: a handler may unsubscribe here
             if(!watch.alive)
                 continue;
             Integer id = watch.matched.remove(w);            // was this widget matched by this subscription?
@@ -1115,9 +1213,9 @@ final class UiApi {
                 continue;
             callLua(watch.owner, Addon.C_WIDGET, watch.fn, LuaWidget.of(watch.owner, w));
         }
-        for(PendingMatch p : pending) {                      // drop it from pending too if it's there
+        for(PendingMatch p : st.selectorPending) {           // drop it from pending too if it's there
             if(p.wdg == w) {
-                pending.remove(p);
+                st.selectorPending.remove(p);
                 break;
             }
         }
@@ -1131,7 +1229,11 @@ final class UiApi {
     // whole marshal: appended here, drained on the tick (UI thread, under synchronized(ui) per AddonRoot's class
     // doc). The WINDOW is what is recorded, not a bare flag: with 049's combinator a [title=] sits on an ancestor
     // step, so what may start matching is a widget somewhere BELOW the window whose caption landed.
-    private static final Queue<Widget> capChanged = new ConcurrentLinkedQueue<Widget>();
+    // 073.2: and it is ONE SESSION'S — the recorded windows are windows of one tree, so the queue is
+    // {@code SessionState.selectorCapChanged}, reached with w.ui at the seam. That is not a nicety on this
+    // thread: chcap runs on whichever Loader thread applied the message, so host() would file a background
+    // session's renamed window under the drawn session and its tick would walk a subtree of another tree.
+
 
     /**
      * Record that {@code w}'s caption changed (the caption seam, {@link AddonManager#onCaptionChanged}, 049.3).
@@ -1142,9 +1244,12 @@ final class UiApi {
     static void markCaptionChanged(Widget w) {
         if(w == null)
             return;
-        for(LuaSelectorWatch s : selectorWatches) {
+        SessionState st = state(w.ui);        // 073.2: the tree the renamed window is in, and no other
+        if(st == null)
+            return;
+        for(LuaSelectorWatch s : st.selectorWatches) {
             if(s.alive && s.sel.late()) {     // pure (the parsed selector's own shape) — no widget read, any thread
-                capChanged.add(w);
+                st.selectorCapChanged.add(w);
                 return;
             }
         }
@@ -1160,7 +1265,8 @@ final class UiApi {
      *       that changed — and it may have been placed long before, which is more than the placement-scoped list
      *       below can promise. Walking the subtree of the window that actually changed is exact, and costs a walk
      *       of one window per caption rather than anything per frame.</li>
-     *   <li><b>The placement-scoped list</b> ({@link #pending}, 030.2), swept whole rather than by which caption
+     *   <li><b>The placement-scoped list</b> ({@code SessionState.selectorPending}, 030.2), swept whole rather
+     *       than by which caption
      *       moved: a {@code [res=]} refiner resolves asynchronously with no event of its own, so this is the only
      *       thing that ever re-checks one, and the list is short-lived and bounded by construction
      *       ({@link #RECHECK_TICKS}).</li>
@@ -1168,22 +1274,22 @@ final class UiApi {
      *
      * <p>Gated so an idle client — or one with no subscription at all — pays two {@code isEmpty()} calls.
      */
-    static void drainSelectorCaptionCheck() {
-        if(capChanged.isEmpty())
+    static void drainSelectorCaptionCheck(SessionState st) {
+        if(st.selectorCapChanged.isEmpty())
             return;
-        UI u = host();
-        if((u == null) || (u.root == null) || selectorWatches.isEmpty()) {
-            capChanged.clear();       // no tree, or nothing left watching: the recorded windows are owed nothing
+        UI u = st.ui;                 // 073.2: the tree whose tick this is, which is the tree those windows are in
+        if((u.root == null) || st.selectorWatches.isEmpty()) {
+            st.selectorCapChanged.clear();   // nothing left watching: the recorded windows are owed nothing
             return;
         }
-        for(int n = capChanged.size(); n > 0; n--) {
-            Widget w = capChanged.poll();
+        for(int n = st.selectorCapChanged.size(); n > 0; n--) {
+            Widget w = st.selectorCapChanged.poll();
             if(w == null)
                 break;
             if(w.hasparent(u.root))   // inclusive of the root itself; a window removed before the tick is offered
-                offerSubtree(u, w);   //   nothing, because a widget out of the tree matches nothing any more
+                offerSubtree(st, u, w);   //   nothing, because a widget out of the tree matches nothing any more
         }
-        recheckPending(u);
+        recheckPending(st, u);
     }
 
     /**
@@ -1191,15 +1297,15 @@ final class UiApi {
      * the caption seam's own re-check (049.3). Inclusive of {@code w} itself, because a one-step
      * {@code window[title=Cupboard]} is the same event seen at depth zero.
      */
-    private static void offerSubtree(UI u, Widget w) {
-        offer(w, u.widgetid(w));
+    private static void offerSubtree(SessionState st, UI u, Widget w) {
+        offer(st, w, u.widgetid(w));
         for(Widget c = w.child; c != null; c = c.next)
-            offerSubtree(u, c);
+            offerSubtree(st, u, c);
     }
 
-    /** One candidate against every live subscription whose refiner could only just have resolved. */
-    private static void offer(Widget wdg, int id) {
-        for(LuaSelectorWatch w : selectorWatches) {   // copy-on-write: a handler may subscribe/remove here
+    /** One candidate against every live subscription of its own tree whose refiner could only just have resolved. */
+    private static void offer(SessionState st, Widget wdg, int id) {
+        for(LuaSelectorWatch w : st.selectorWatches) {   // copy-on-write: a handler may subscribe/remove here
             if(!w.alive || w.matched.containsKey(wdg))
                 continue;
             if(w.sel.late() && w.sel.matches(wdg))
@@ -1213,17 +1319,17 @@ final class UiApi {
      * without matching, is dropped — so this list is short-lived by construction and the cost of the whole event
      * mechanism scales with widget CREATION, not with frames. An entry ageing out is still offered one last time.
      */
-    private static void recheckPending(UI u) {
-        if(pending.isEmpty())
+    private static void recheckPending(SessionState st, UI u) {
+        if(st.selectorPending.isEmpty())
             return;
-        for(PendingMatch p : pending) {                      // copy-on-write: entries drop out as we go
+        for(PendingMatch p : st.selectorPending) {           // copy-on-write: entries drop out as we go
             if(!matchLive(u, p.wdg, p.id)) {
-                pending.remove(p);                           // it died before its caption arrived
+                st.selectorPending.remove(p);                // it died before its caption arrived
                 continue;
             }
             if(--p.ticks <= 0)
-                pending.remove(p);
-            offer(p.wdg, p.id);
+                st.selectorPending.remove(p);
+            offer(st, p.wdg, p.id);
         }
     }
 
@@ -1236,11 +1342,14 @@ final class UiApi {
     private static void removeSelectorWatch(Addon owner, LuaSelectorWatch w) {
         w.alive = false;
         w.matched.clear();
-        selectorWatches.remove(w);
         owner.selectorWatches.remove(w);
-        if(selectorWatches.isEmpty()) {
-            pending.clear();          // 042.9: last subscription gone — nothing left to re-check, and nothing
-            capChanged.clear();       //   would ever drain these Widget refs again otherwise (no poll left to do it)
+        SessionState st = state(w.ui);   // 073.2: the tree it was registered against, which it recorded
+        if(st == null)
+            return;
+        st.selectorWatches.remove(w);
+        if(st.selectorWatches.isEmpty()) {
+            st.selectorPending.clear();     // 042.9: last subscription gone — nothing left to re-check, and
+            st.selectorCapChanged.clear();  //   nothing would ever drain these Widget refs again otherwise
         }
     }
 
@@ -1252,15 +1361,23 @@ final class UiApi {
     static void teardownSelectorWatches(Addon a) {
         if(a.selectorWatches.isEmpty())
             return;
+        // 073.2: each one is dropped from the tree IT recorded, not from the tree on screen. This runs from
+        // AddonManager.init as well as from a :reload, and by then the anchor has already moved to the session
+        // being switched to — so host() here would leave every subscription of the session that just ended
+        // standing in its own list, still matching, and still calling an addon that no longer exists.
         for(LuaSelectorWatch w : a.selectorWatches) {
             w.alive = false;
             w.matched.clear();
+            SessionState st = state(w.ui);
+            if(st != null)
+                st.selectorWatches.remove(w);
         }
-        selectorWatches.removeAll(a.selectorWatches);
         a.selectorWatches.clear();
-        if(selectorWatches.isEmpty()) {
-            pending.clear();          // 042.9: same as removeSelectorWatch — nothing left to own the re-check
-            capChanged.clear();
+        for(SessionState st : AddonManager.allStates()) {
+            if(st.selectorWatches.isEmpty()) {
+                st.selectorPending.clear();     // 042.9: same as removeSelectorWatch — nothing left to own
+                st.selectorCapChanged.clear();  //   the re-check in that tree
+            }
         }
     }
 
