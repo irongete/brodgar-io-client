@@ -52,6 +52,12 @@ for i = 1, #live do live[i]:stop() end   -- silence everything this addon starte
 Playing is client-local and sends nothing to the server, which is why it needs no permission. A
 `volume` that is not a number, or is outside `0..1`, raises an error rather than being clamped.
 
+**Your blip is heard whichever character is on screen.** The client silences the characters you are not
+looking at, so that several logged in at once do not play their pings and alerts over the one you are
+watching. Your addon is not one of those characters: it plays a sound because it wants you to hear it,
+so the sound carries whichever character holds the screen, and whichever one your addon happened to be
+watching when it played. Nothing plays before you have logged in at all.
+
 **Volume is an argument of the play, not state on the Sound.** Sounds are shared, so a stored volume
 would leak between unrelated uses of the same clip; every `:play` says how loud that blip is.
 

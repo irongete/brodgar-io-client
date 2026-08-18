@@ -18,9 +18,17 @@ if hafen.time():isNight() then hafen.log():write("it's dark out") end
 | `hafen.time():moon()` | number \| nil | moon phase, `0..1` |
 | `hafen.time():yearFraction()` | number \| nil | position in the year, `0..1` |
 
+**The clock belongs to the world, not to a character.** There is one world however many characters you
+have logged in, and each of them reads the same server time out of it — so these answer from any session
+the client holds rather than from the one on screen, and tabbing between characters never blanks them.
+They answer `nil` when the client holds no session at all, which is the login screen.
+
 `clock()` answers as soon as a session is up. The astronomy readers answer `nil` until the first
-astronomy update arrives from the server, which is a beat after entering the world. Nothing here throws
-and nothing is protected.
+astronomy update arrives from the server, which is a beat after entering the world.
+
+Nothing here is protected, and **every verb is a read: passing one an argument raises**. Arity is the
+verb across the API, so a call written like a setter must not quietly read instead — there is nothing
+here to set, and that refusal is the only thing on this page that throws.
 
 There is no `TimeChanged` event: the clock moves every frame, so read it when you need it, or poll it
 on a [timer](timer.md).

@@ -470,58 +470,77 @@ final class WorldApi {
     }
 
     /**
+     * The receiver and the arity every {@code hafen.time()} verb shares: a colon call, and <b>no argument</b>.
+     * All six are reads of a clock the server publishes and the client only interpolates, so there is nothing
+     * here to write — and a silently ignored argument is exactly the mistake the grammar's "arity is the verb"
+     * exists to catch, since {@code clock(1)} looks like a setter and would answer as though it were one.
+     */
+    private static void timeRead(Varargs a, String verb) {
+        Section.self(a.arg1(), "time", verb);
+        if(Args.passed(a, 2))
+            throw new LuaError("hafen.time():" + verb + "() takes no arguments — it is a READ of the game"
+                + " clock the server publishes, and there is nothing on hafen.time() to set");
+    }
+
+    /**
      * Build {@code hafen.time} for {@code owner}. From installHafen. A plain section object: {@code
      * hafen.time()} is the per-addon singleton and every reader is a colon call on it. {@code clock()} always
      * answers; the astronomy readers are nil until the first "astro" update lands.
+     *
+     * <p><b>It reads {@link AddonManager#anyglob()}, not {@link AddonManager#glob()}</b> — any live session
+     * rather than the drawn one. There is one world and one clock in it: every session interpolates the same
+     * server time, so which one is asked cannot change the answer, and asking the session that happens to hold
+     * the screen only adds a way to get {@code nil} — through a character switch, for a number that did not
+     * move. {@code nil} means the client holds no session at all, which is the login screen.
      */
     static void installTime(LuaTable hafen, final Addon owner) {
         LuaTable m = new LuaTable();
-        // clock() — the game clock, in game-world seconds (Glob.globtime). Nil before the session exists.
-        m.set("clock", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "time", "clock");
-                Glob g = glob();
+        // clock() — the game clock, in game-world seconds (Glob.globtime). Nil when no session is up.
+        m.set("clock", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                timeRead(a, "clock");
+                Glob g = anyglob();
                 return (g == null) ? LuaValue.NIL : LuaValue.valueOf(g.globtime());
             }
         });
         // dayFraction() — 0..1 through the game day.
-        m.set("dayFraction", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "time", "dayFraction");
-                Astronomy a = astro();
-                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.dt);
+        m.set("dayFraction", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                timeRead(a, "dayFraction");
+                Astronomy t = astro();
+                return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t.dt);
             }
         });
         // isNight() — is it night right now?
-        m.set("isNight", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "time", "isNight");
-                Astronomy a = astro();
-                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.night);
+        m.set("isNight", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                timeRead(a, "isNight");
+                Astronomy t = astro();
+                return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t.night);
             }
         });
         // season() — the season index the server publishes.
-        m.set("season", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "time", "season");
-                Astronomy a = astro();
-                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.is);
+        m.set("season", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                timeRead(a, "season");
+                Astronomy t = astro();
+                return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t.is);
             }
         });
         // moon() — the moon phase, 0..1.
-        m.set("moon", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "time", "moon");
-                Astronomy a = astro();
-                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.mp);
+        m.set("moon", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                timeRead(a, "moon");
+                Astronomy t = astro();
+                return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t.mp);
             }
         });
         // yearFraction() — 0..1 through the game year.
-        m.set("yearFraction", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "time", "yearFraction");
-                Astronomy a = astro();
-                return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.yt);
+        m.set("yearFraction", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                timeRead(a, "yearFraction");
+                Astronomy t = astro();
+                return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t.yt);
             }
         });
         Section.install(hafen, "time", m);

@@ -1,0 +1,9 @@
+{
+  "name": "075.1 — the global namespaces stop asking for a session",
+  "id": "075-globals-without-a-session.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 075.1: sound plays through the addon layer so it is audible whichever session is drawn, hafen.time() reads any live session and refuses a write arity, hafen.log() posts and chains, and a registered console command is reachable from every session.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

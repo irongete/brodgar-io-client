@@ -49,8 +49,11 @@ import java.util.Map;
  * {@code Resource.local().load(name)} hands back an {@link Indir} and {@code get()} throws {@code Loading}
  * until the resource is cached, so — exactly like {@code MapView.Plob} and {@link LuaGhost} — the resolve runs
  * on a loader thread ({@code glob.loader.defer} re-runs the task when the resource lands) and never throws
- * {@code Loading} into Lua. The resolved clip goes to {@link UI#sfx}, i.e. the {@code ActAudio.Root.aui}
- * channel the client's own blips use, wrapped in an {@link Audio.VolAdjust} when the volume is not 1.
+ * {@code Loading} into Lua. The resolved clip goes to {@link UI#sfx} on <b>the addon layer's</b>
+ * {@code UI} — the {@code ActAudio.Root.aui} channel, the same one the client's own blips use in each
+ * session's tree — wrapped in an {@link Audio.VolAdjust} when the volume is not 1. The layer rather than the
+ * drawn session because a background session is muted every frame and the addon is not a background
+ * character; see {@link #play} for the whole of that.
  * {@code Resource.local()} — <b>not</b> {@code remote()} — is the client jar's own pool, where the bundled
  * {@code sfx/*} live; music (a content resource) is the remote pool's business.
  *
@@ -70,8 +73,8 @@ import java.util.Map;
  * {@code ActAudio.RootChannel.remove(cs)} stops, {@code mixer().playing(cs)} tests. There is no end-of-clip
  * callback and none is needed — {@code Audio.Mixer.get} drops a drained clip <b>lazily</b>, so asking is also
  * how a Sound prunes its own list. {@code :list()} is that prune across the whole map: the
- * addon's still-playing Sounds, and only the addon's — the client's own blips share the {@code aui} channel but
- * are not ours to enumerate or stop.
+ * addon's still-playing Sounds, and only the addon's — the client's own blips run through the same kind of
+ * channel in each session's own tree, and are not ours to enumerate or stop.
  *
  * <p><b>Teardown</b> ({@link #teardownSounds}, from {@code AddonRegistry.teardown} + the {@code :reload} sweep
  * of the REPL): a disabled addon making noise is a bug, so everything it left in the air is stopped. And
@@ -245,10 +248,10 @@ public final class LuaSound {
      * asking IS the prune), and answer whether anything of this name is still sounding or still resolving.
      */
     private static boolean prune(Live l) {
-        UI u = AddonManager.host();
+        UI u = AddonManager.layer();
         ActAudio.Root au = (u == null) ? null : u.audio;
         synchronized(l) {
-            if(au == null) {                    // no session: the mixer that held them is gone with it
+            if(au == null) {                    // no layer yet: nothing has been handed to a mixer at all
                 l.clips.clear();
                 return false;
             }
@@ -269,7 +272,7 @@ public final class LuaSound {
      * started after. (Lock order is always {@code Live} → the channel/mixer, never the other way.)
      */
     private static void silence(Live l) {
-        UI u = AddonManager.host();
+        UI u = AddonManager.layer();
         synchronized(l) {
             l.gen++;            // a deferred play stamped with the old generation now drops its clip
             l.pending = 0;
@@ -336,7 +339,7 @@ public final class LuaSound {
         });
         // stop() — cut every clip of this name THIS addon has in the air (and cancel a play still resolving,
         // so :play():stop() never blips), return SELF so it chains. Never touches another addon's clips or the
-        // client's own blips, which share the same aui channel. Silent when nothing is playing.
+        // client's own blips, which run through the sessions' own channels. Silent when nothing is playing.
         m.set("stop", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaSound h = handle(self, "stop");
@@ -389,7 +392,21 @@ public final class LuaSound {
      * thread ({@code Loading} re-runs the task), wrap it in an {@link Audio.VolAdjust} when the volume is not
      * 1, then hand the clip to {@link UI#sfx}. Mirrors {@code GobIcon.resnotif}. Non-{@code Loading} resolve
      * failures (a bogus name) are reported to the client's error line and swallowed — never a Lua error.
-     * A no-op before the UI/session exists.
+     * A no-op before the layer exists or before any session does.
+     *
+     * <p><b>The clip goes to the addon layer's channel</b> (075.1), not to the drawn session's. One shared
+     * {@code Audio.Root} feeds every {@code UI} the client has, so a session that is not on screen has its
+     * own {@link ActAudio.Root} muted every frame — which is what keeps three background characters from
+     * playing their chat pings over the one you are watching. An addon is not one of those characters: it
+     * plays a sound because it wants the player to hear it, and routing it through the session it happened
+     * to be looking at made it silent exactly when the addon was watching something in the background.
+     * {@code UILoop.mkui} hands the layer the same shared {@code Audio.Root} every session gets, and
+     * {@code Sessions.applymute} walks the login {@code UI} and the members — the layer is neither, so it
+     * is never muted. Nothing is constructed here; only the {@code UI} the clip is handed to changes.
+     *
+     * <p>The {@link Glob} is still the drawn session's, because what it is wanted for is
+     * {@code loader.defer} — a thread to re-run the resolve on, which is no part of where the sound comes
+     * out. With no session at all there is no loader and nothing plays.
      *
      * <p>The resulting clip is <b>registered on the owner's {@link Live} state for this name</b> before it goes
      * to the mixer, which is what makes {@code :stop()}/{@code :playing()}/{@code :list()} possible at
@@ -398,7 +415,7 @@ public final class LuaSound {
      */
     private static void play(final Addon owner, final String name, final double vol) {
         final Glob g = AddonManager.glob();
-        final UI u = AddonManager.host();
+        final UI u = AddonManager.layer();
         if((g == null) || (u == null))
             return;
         final Live live = owner.sounds.sounding(name);
@@ -420,7 +437,10 @@ public final class LuaSound {
                         if(live.gen == gen)            // a stop already zeroed pending — do not go negative
                             live.pending--;
                     }
-                    u.error("addon: could not play " + name);
+                    // Not u.error(): u is the layer now, and the layer's RootWidget draws a notice without
+                    // keeping it — no GameUI under it, so no System channel to append to and no scrollback
+                    // for a failure worth going back to. log() posts to the drawn session and to stdout.
+                    AddonManager.log("could not play " + name);
                     return;
                 }
                 if(vol != 1.0)

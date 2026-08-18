@@ -24,6 +24,11 @@ it. Because the verb hands the section back, a run of lines chains:
 hafen.log():write("first"):write("second")
 ```
 
+**The in-game half goes to the character on screen.** A notice is drawn by the session you are looking
+at, so that is where a line lands, whichever character your addon was watching when it wrote one. The
+terminal half is written whatever the client is showing — the login screen included — which is what
+carries a line when no character is up at all.
+
 The in-game line is **clipped at 500 characters**, with a note giving the real length, because one very
 long line has to fit into a single texture. The terminal always gets the whole thing, so print large
 values there and read them off the terminal.

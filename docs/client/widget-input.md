@@ -24,6 +24,17 @@
 | **MouseMove** | `MouseMoveEvent.propagation` — **broadcasts to every visible child with NO rect test**, handing each an out-of-box coordinate. That is how a control un-arms/un-hovers when the pointer leaves it (`IButton.mousemove` recomputes `checkhit` and `redraw()`s) |
 | **MouseHover** | `MouseHoverEvent.propagation` — dispatches to **every** child (invisible included) carrying a per-child `hovering` flag; the first that handles it while `hovering` claims it. ⚠️ its `derive` ctor leaves `hovering` **false**, so anything dispatching a derived hover by hand must set it |
 | **Focused key** | see below |
+| **Notice** (not an input event, same machinery) | `UI.NoticeEvent.propagation` — `from.child` **forward**, no rect test and no visibility test, first handler wins. Reached from `UI.msg(Notice)`, which is `dispatch(root, new NoticeEvent(msg))`; `shandle` tries `msg.handle(w)` and then `w instanceof UI.Notice.Handler` |
+
+**A notice off the HUD is shown but never logged, which is not the same as lost.** `UI.root` is a
+`RootWidget`, which **is** a `UI.Notice.Handler`, so the notice walk always has a handler waiting at the
+top. `Notice.Handler.msg(NoticeEvent)` — the interface's own default — tries `ev.propagate(this)` first and
+falls back to `msg(Notice)` only when nothing below took it. `GameUI` is what takes it in-world:
+`GameUI.msg(UI.Notice)` renders `lastmsg` **and** appends a `ChatUI.Channel.Message` to `syslog`, the chat's
+*System* channel. `RootWidget.msg(UI.Notice)` renders `lastmsg` alone. So a tree with no `GameUI` under it —
+the login screen, or any `UI` built by `bgui` — still draws the timed root line and still plays the sfx
+through `ui.sfxrl`, and simply has **no scrollback**: the line goes with `msgtime` and is recoverable from
+nowhere.
 
 **`Window.handle` is the one widget that rewrites the pointer path.** With a `deco`, an ungrabbed
 `PointerEvent` passing `checkhit` is answered `true` **whatever happens below** — a window swallows every

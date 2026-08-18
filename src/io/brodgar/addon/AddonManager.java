@@ -3131,10 +3131,23 @@ public final class AddonManager {
         return s.substring(0, NOTICE_MAX) + "... (" + s.length() + " chars; full output on the terminal)";
     }
 
-    /** Engine-level output: stdout (prefixed) and in-game notice when available. */
+    /**
+     * Engine-level output: stdout (prefixed) and in-game notice when available.
+     *
+     * <p><b>The notice goes to {@link #screen()}, and deliberately not to {@link #layer()}</b> (075.1). A
+     * line is written to be read <i>again</i>, and what keeps one is the chat's <i>System</i> channel:
+     * {@code UI.msg} dispatches a {@code NoticeEvent} down the tree, and the handler that takes it is
+     * {@code GameUI.msg}, which appends to {@code syslog} besides rendering the timed line. The layer's own
+     * {@code RootWidget} is a {@code Notice.Handler} too, so a line posted there is not lost — it is drawn
+     * and then gone with {@code msgtime}, with no scrollback anywhere, because only a {@code GameUI} has a
+     * channel to append to. So the line goes where the player is looking, which is also the only tree that
+     * remembers it; and this never grows a session argument for the same reason {@code screen()} does not:
+     * there is one screen. With no session up there is nothing to post to and the stdout half above carries
+     * the line alone, which is what the login screen has.
+     */
     static void log(String msg) {
         System.out.println("[addon] " + msg);
-        UI u = host();
+        UI u = screen();
         if(u != null) {
             try {
                 u.msg(clampMsg(msg));
@@ -3164,11 +3177,14 @@ public final class AddonManager {
         return ((a != null) && (a.manifest != null)) ? a.manifest.id : "addon";
     }
 
-    /** Addon-level output ({@code hafen.log():write} + handler errors): tagged with the addon id. */
+    /**
+     * Addon-level output ({@code hafen.log():write} + handler errors): tagged with the addon id. The notice
+     * half goes to {@link #screen()} for {@link #log(String)}'s reason.
+     */
     static void log(Addon owner, String msg) {
         String id = ownerName(owner);
         System.out.println("[" + id + "] " + msg);
-        UI u = host();
+        UI u = screen();
         if(u != null) {
             try {
                 u.msg(clampMsg(id + ": " + msg));
@@ -3265,9 +3281,31 @@ public final class AddonManager {
         return (g == null) ? null : g.map;
     }
 
-    /** The current astronomy snapshot, or {@code null} before the first "astro" update. */
+    /**
+     * <b>Any live session's {@link Glob}</b> (075.1) — the read behind {@code hafen.time()}, and the one
+     * shape of world read that is not the drawn session's.
+     *
+     * <p>Distinct from {@link #glob()} in the question it answers, not in the object it usually hands back.
+     * {@code glob()} is <b>this</b> session's world: its gobs, its map, the ground one character is standing
+     * on, and two characters genuinely disagree about all of it. The clock does not — every session
+     * interpolates the same server time — so a namespace that reads it has no session to be handed, and
+     * picking the drawn one in particular buys nothing and costs an answer: it goes {@code null} through a
+     * character switch, for a number that did not change.
+     *
+     * <p>{@code null} only when the client holds no session at all, which is the login screen.
+     */
+    static Glob anyglob() {
+        return Sessions.anyglob();
+    }
+
+    /**
+     * The current astronomy snapshot, or {@code null} before the first "astro" update.
+     *
+     * <p>Off {@link #anyglob()}, not {@link #glob()}: day, night, season and the moon are published by the
+     * server to every session alike, and {@code hafen.time()} is this method's only reader.
+     */
     static Astronomy astro() {
-        Glob g = glob();
+        Glob g = anyglob();
         return (g == null) ? null : g.ast;
     }
 

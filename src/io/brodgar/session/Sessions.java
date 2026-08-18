@@ -278,6 +278,28 @@ public class Sessions {
 	return(((u == null) || (u.sess == null)) ? null : u.sess.glob);
     }
 
+    /* addon: (075.1) ANY live session's Glob -- what a namespace reads when every session answers the
+     * same number. The game clock is the server's: each session interpolates it against its own epoch,
+     * but they are all reading one world, so which one is asked is arbitrary. Asking the drawn one in
+     * particular is worse than arbitrary -- it answers null through a character switch, for a value
+     * that has not changed.
+     *
+     * The anchor first, because it is the likeliest to be live and costs one field read; then the
+     * membership in the order it was joined, so the answer is stable rather than whichever session
+     * happens to hold the screen. A Session's glob is final and never null, so holding the Session is
+     * the whole test. null only when the client holds no session at all. */
+    public static Glob anyglob() {
+	Glob g = anchorglob();
+	if(g != null)
+	    return(g);
+	for(Member m : members) {
+	    Session s = m.sess;
+	    if(s != null)
+		return(s.glob);
+	}
+	return(null);
+    }
+
     /* rts: (F6) one shared Audio.Root feeds every session, so without this they all play at once --
      * a member's chat pings, its minimap alerts and every sound the server sends it, over the view
      * you are actually watching. The server tells all of them about the same event when they stand
