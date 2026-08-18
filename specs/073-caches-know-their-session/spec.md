@@ -119,18 +119,21 @@ each survives unrevised:
 - `src/io/brodgar/addon/SurfaceInput.java` — 2 (the pointer walk over that list)
 - `src/io/brodgar/addon/LuaSelectorWatch.java` — 2 (the tree a subscription records)
 - `src/io/brodgar/addon/WidgetSubs.java` — 2 (the tree a widget record is about)
+- `src/io/brodgar/addon/AddonPagina.java` — 3 (an entry added or removed takes and gives back its slots)
 - `src/io/brodgar/addon/CharApi.java` — 3
 - `src/io/brodgar/addon/BeltHold.java` — 3
+- `src/io/brodgar/addon/LuaSlot.java` — 3 (`slot:pagina()`, the Lua caller of every `BeltHold` hold verb)
 - `src/io/brodgar/addon/VrApi.java` — 2 (it builds a `WidgetSurface`), 4
 - `src/io/brodgar/addon/MapApi.java` — 4
 - `src/io/brodgar/addon/HttpApi.java` — 5
 - `src/io/brodgar/addon/StoreApi.java` — 5
-- `src/io/brodgar/addon/AddonRegistry.java` — 1, 6
+- `src/io/brodgar/addon/AddonRegistry.java` — 1, 3 (an addon's holds are given back at its teardown), 6
 - `src/io/brodgar/addon/Addon.java` — 1, 2 (the `:lua` console's own widget records), 6
 - `src/io/brodgar/session/Sessions.java` — 1, 6
 - `src/io/brodgar/prof/Prof.java` — 3
 - `src/haven/UI.java` — 1, 6
-- `src/haven/GameUI.java` — 1 (the belt seam)
+- `src/haven/GameUI.java` — 1 (the belt seam), 3 (`Belt.mousedown`/`dropthing` and both `setbelt` arms hand
+  `BeltHold` the bar they are about)
 - `src/haven/MapView.java` — 1 (the enter-world seam)
 - `src/io/brodgar/voice/Voice.java` — 6
 - `DOCUMENTATION.md` — 6

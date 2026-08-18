@@ -1,0 +1,9 @@
+{
+  "name": "073.3 — the character readers are one HUD's",
+  "id": "073-caches-know-their-session.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 073.3: the nine HUD adapters and the action-bar holds read and behave exactly as before, now that each belongs to one session.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

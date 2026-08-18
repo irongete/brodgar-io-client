@@ -9,11 +9,13 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+
+import static io.brodgar.addon.AddonManager.SessionState;
+import static io.brodgar.addon.AddonManager.state;
 
 /**
  * <b>A bar slot held for an addon's own menu entry</b> ({@code slot:pagina(pag)}, spec
@@ -45,26 +47,44 @@ import java.util.TreeMap;
  * back exactly what the server has.
  *
  * <p><b>A hold outlives the session it was taken in</b> (059.5). Where a hold is what the client is drawing
- * right now, a <b>placement</b> is the player's standing intent for that slot — kept per character in
- * {@link #placed}, persisted through {@link StoreApi#writeClientFile}, and re-applied by {@link #entryAdded}
+ * right now, a <b>placement</b> is the player's standing intent for that slot — kept per character in the
+ * session's own map, persisted through {@link StoreApi#writeClientFile}, and re-applied by {@link #entryAdded}
  * the moment an entry with that identity is added again. At login that is the addon's own {@code EnterWorld}
  * {@code :add}, so nothing has to guess when the bar is ready. The two endings above split here: a hold
  * <b>released by hand</b> — {@code slot:pagina(nil)}, a right-click, the server taking the slot — is
  * <b>forgotten</b>, while one whose <b>entry merely went away</b> — {@code :remove}, a {@code :reload},
  * disable, a logout — is <b>remembered</b>, because the slot is still where that entry belongs.
  *
+ * <p><b>Whose bar</b> (073.3). A slot index names <b>one character's</b> action bar, so both maps live in
+ * that session's {@code SessionState} and every entry point says which session it is about. Three of them are
+ * handed the {@code GameUI} by the seam that reached them ({@link #release}, {@link #dropped},
+ * {@link #serverWrote} — all three are inside {@code GameUI}, so {@code GameUI.this} is the answer and
+ * {@code g.ui} the key); the tick's are handed the state it already holds; and each {@link Hold} carries the
+ * bar it was taken on, which is what lets an ending put a slot back on the bar it was borrowed from rather
+ * than on whichever one is drawn at that moment — the case that matters, because {@code init} tears the old
+ * session's addons down once {@link AddonManager#host()} ALREADY answers the session being switched to. The
+ * verbs an addon calls ({@code slot:pagina(pag)}, {@code hafen.menugrid():add(id)}) resolve
+ * {@link AddonManager#gui()}, the drawn HUD, which is the same bar the rest of {@code LuaSlot} reads.
+ *
  * <p><b>Threading.</b> The Lua verbs and the mouse hooks run on the UI thread; {@link #serverWrote} runs on
- * the message thread, under {@code synchronized(ui)}, from {@code GameUI.uimsg}. The map is therefore guarded
- * on its own monitor, and {@link #serverWrote} touches neither {@code belt} nor Lua — it drops a record and
- * nothing else. The disk write is the same shape: every mutation marks {@link #dirty} and {@link #flush} runs
- * on the tick, so no file I/O ever stands on the message thread. The hold state is <b>per session</b>
- * ({@link #resetSession}) and the placements are re-read per character ({@link #restore}): a slot index means
- * another character's bar after a relogin.
+ * the message thread, under {@code synchronized(ui)}, from {@code GameUI.uimsg}. The maps are therefore
+ * guarded on one monitor for the whole layer — the state moved per session, the lock did not, because what
+ * it guards is this layer's own invariant and there is no contention worth splitting it for — and
+ * {@link #serverWrote} touches neither {@code belt} nor Lua: it drops a record and nothing else. The disk
+ * write is the same shape: every mutation marks the session's dirty flag and {@link #flush} runs on the tick,
+ * so no file I/O ever stands on the message thread. The placements are re-read per character
+ * ({@link #restore}): a slot index means another character's bar after a relogin.
  */
 public final class BeltHold {
-    /** One held slot: the entry drawn there, what it displaced, and the slot object we actually wrote. */
-    private static final class Hold {
+    /**
+     * One held slot: the entry drawn there, what it displaced, the slot object we actually wrote — and
+     * <b>the bar it was taken on</b> (073.3), so an ending that has no {@code GameUI} in hand still puts the
+     * slot back where it was borrowed from instead of into whichever HUD happens to be drawn when it arrives.
+     */
+    static final class Hold {
         final AddonPagina pag;
+        /** The HUD whose {@code belt} this hold is written into. Goes with its session's state. */
+        final GameUI gui;
         /**
          * The server's own content, kept untouched for the release. {@code null} for a slot that was empty, and
          * re-read by {@link #writeLanded} when a server write that <i>predates</i> this hold lands late.
@@ -73,48 +93,47 @@ public final class BeltHold {
         /** What we put in {@code belt[n]} — the identity guard: only our own write is ever taken back out. */
         final GameUI.BeltSlot drawn;
 
-        Hold(AddonPagina pag, GameUI.BeltSlot displaced, GameUI.BeltSlot drawn) {
+        Hold(AddonPagina pag, GameUI gui, GameUI.BeltSlot displaced, GameUI.BeltSlot drawn) {
             this.pag = pag;
+            this.gui = gui;
             this.displaced = displaced;
             this.drawn = drawn;
         }
     }
 
-    /** Slot index &rarr; the hold on it. Guarded on its own monitor; cleared per session. */
-    private static final Map<Integer, Hold> holds = new HashMap<Integer, Hold>();
-
-    /**
-     * Slot index &rarr; the identity of the entry that <b>belongs</b> in it — the placements, which survive the
-     * entry, the addon and the session. Sorted, so the serialization of one state is one string and an
-     * unchanged map costs no disk write.
-     */
-    private static final Map<Integer, String> placed = new TreeMap<Integer, String>();
-
     /** The layer's own per-character file, beside the addons' saved variables. */
     private static final String FILE = "actionbar-holds.json";
-
-    /** Has {@link #placed} changed since the last write? Set on the message thread too; flushed on the tick. */
-    private static boolean dirty;
-    /** The last serialization written (or read), so an unchanged map writes nothing. */
-    private static String lastJson;
 
     private BeltHold() {
     }
 
     /**
-     * Forget every hold <b>and every placement</b> — the bar the indices name is the previous character's, and
-     * the next character's own placements are read back by {@link #restore} once the world is entered.
+     * Forget every session's holds <b>and placements</b> — from {@code AddonManager.init}, which still means
+     * <i>the session ended</i> and is still not told which one did (073.3, the shape
+     * {@code UiApi.resetSession} already has). The bar the indices name is the previous character's, and the
+     * next character's own placements are read back by {@link #restore} once the world is entered. With one
+     * session live, emptying every state is the very act of emptying the one map this used to be.
      */
     static synchronized void resetSession() {
-        holds.clear();
-        placed.clear();
-        lastJson = null;
-        dirty = false;
+        for(SessionState st : AddonManager.allStates()) {
+            st.beltHolds.clear();
+            st.beltPlaced.clear();
+            st.beltLastJson = null;
+            st.beltDirty = false;
+        }
     }
 
-    /** The entry a slot is being held for, or {@code null} for every slot the server owns. */
+    /**
+     * The entry a slot is being held for, or {@code null} for every slot the server owns — the read half of
+     * {@code slot:pagina()}, so the bar it asks about is the drawn one, like every other read on
+     * {@code LuaSlot}.
+     */
     static synchronized AddonPagina held(int n) {
-        Hold h = holds.get(Integer.valueOf(n));
+        GameUI g = AddonManager.gui();
+        SessionState st = (g == null) ? null : state(g.ui);
+        if(st == null)
+            return null;
+        Hold h = st.beltHolds.get(Integer.valueOf(n));
         return (h == null) ? null : h.pag;
     }
 
@@ -125,19 +144,28 @@ public final class BeltHold {
      * addons taking that slot in turn rather than being replaced by the previous addon's button.
      */
     static synchronized void hold(int n, AddonPagina pag) {
+        // 073.3: the bar an addon asks for is the DRAWN one — this is the write half of slot:pagina(pag) and
+        // of a drag from the grid, both of which are about the HUD in front of the player, and it is the very
+        // bar LuaSlot's own reads answer about. Its ui is then the session the record belongs to.
         GameUI g = AddonManager.gui();
-        if((g == null) || (g.belt == null) || (n < 0) || (n >= g.belt.length))
+        SessionState st = (g == null) ? null : state(g.ui);
+        if((g == null) || (g.belt == null) || (st == null) || (n < 0) || (n >= g.belt.length))
             throw new LuaError("slot:pagina(pagOrNil): there is no action bar yet — hold a slot from"
                 + " EnterWorld or later, not from Load");
+        hold(st, g, n, pag);
+    }
+
+    /** The whole of {@link #hold}, once the bar and the session it belongs to are settled. */
+    private static synchronized void hold(SessionState st, GameUI g, int n, AddonPagina pag) {
         Integer key = Integer.valueOf(n);
-        Hold cur = holds.get(key);
+        Hold cur = st.beltHolds.get(key);
         if((cur != null) && (cur.pag == pag) && (g.belt[n] == cur.drawn))
             return;                             // already exactly this — a hold is a state, not an event
         GameUI.BeltSlot displaced = (cur != null) ? cur.displaced : g.belt[n];
         GameUI.BeltSlot drawn = new GameUI.PagBeltSlot(n, pag);
         g.belt[n] = drawn;
-        holds.put(key, new Hold(pag, displaced, drawn));
-        place(n, pag.id);                       // 059.5: and this is where that entry belongs, from now on
+        st.beltHolds.put(key, new Hold(pag, g, displaced, drawn));
+        place(st, n, pag.id);                   // 059.5: and this is where that entry belongs, from now on
         AddonManager.onBeltSet(g, n);           // ActionbarChanged for the taking edge, on the next tick
     }
 
@@ -156,12 +184,12 @@ public final class BeltHold {
      * {@link Hold#displaced} content, so the release still hands the slot back holding the server's own
      * current action rather than the emptiness that stood there when the hold was taken.
      */
-    static synchronized void writeLanded(int n) {
-        Hold h = holds.get(Integer.valueOf(n));
+    static synchronized void writeLanded(SessionState st, int n) {
+        Hold h = st.beltHolds.get(Integer.valueOf(n));
         if(h == null)
             return;
-        GameUI g = AddonManager.gui();
-        if((g == null) || (g.belt == null) || (n < 0) || (n >= g.belt.length) || (g.belt[n] == h.drawn))
+        GameUI g = h.gui;                       // 073.3: the bar this hold was taken on, not the drawn one
+        if((g.belt == null) || (n < 0) || (n >= g.belt.length) || (g.belt[n] == h.drawn))
             return;
         h.displaced = g.belt[n];
         g.belt[n] = h.drawn;
@@ -176,23 +204,37 @@ public final class BeltHold {
      * meanwhile is the content now, and putting the displaced original back over it would resurrect an action
      * the server no longer has there.
      */
-    public static boolean release(int n) {
-        return release(n, true);
+    public static boolean release(GameUI g, int n) {
+        SessionState st = (g == null) ? null : state(g.ui);
+        return (st != null) && release(st, n, true);
+    }
+
+    /**
+     * {@code slot:pagina(nil)} — the addon's own way to end a hold, on the drawn bar like the rest of
+     * {@code LuaSlot}.
+     */
+    static synchronized boolean release(int n) {
+        return release(AddonManager.gui(), n);
     }
 
     /**
      * The whole of {@link #release}, plus <b>whether the placement goes with it</b> (059.5). Ending a hold by
      * hand says the entry no longer belongs in that slot; an entry leaving the menu says nothing of the kind,
      * so it keeps its slot and takes it again the moment it is added back.
+     *
+     * <p>073.3: the slot is put back into the bar the {@link Hold} was taken on. That is the same bar the
+     * caller named in every ordinary case, and it is a <i>different</i> one exactly when it matters — a
+     * teardown running from {@code init}, at a moment when the drawn HUD is already the session being switched
+     * to and writing this session's displaced content into it would be writing into another character's bar.
      */
-    private static synchronized boolean release(int n, boolean forget) {
-        Hold h = holds.remove(Integer.valueOf(n));
+    private static synchronized boolean release(SessionState st, int n, boolean forget) {
+        Hold h = st.beltHolds.remove(Integer.valueOf(n));
         if(h == null)
             return false;
         if(forget)
-            unplace(n);
-        GameUI g = AddonManager.gui();
-        if((g != null) && (g.belt != null) && (n >= 0) && (n < g.belt.length) && (g.belt[n] == h.drawn))
+            unplace(st, n);
+        GameUI g = h.gui;
+        if((g.belt != null) && (n >= 0) && (n < g.belt.length) && (g.belt[n] == h.drawn))
             g.belt[n] = h.displaced;
         AddonManager.onBeltSet(g, n);           // ActionbarChanged for the releasing edge too
         return true;
@@ -203,10 +245,16 @@ public final class BeltHold {
      * this is an addon's own entry and the layer took it — the drop then <b>sends nothing</b>, where the stock
      * body would {@code wdgmsg("setbelt", …)} a name the server has never heard of and drop it silently.
      */
-    public static boolean dropped(int n, MenuGrid.Pagina pag) {
+    public static boolean dropped(GameUI g, int n, MenuGrid.Pagina pag) {
         if(!(pag instanceof AddonPagina))
             return false;
-        hold(n, (AddonPagina)pag);
+        // 073.3: the bar the drop landed on, and no other. A bar with no session behind it can hold no
+        // AddonPagina — there would be no addon to have made one — so this refusal is the unreachable
+        // branch, and it hands the drop back to the stock body rather than raising from inside dropthing.
+        SessionState st = (g == null) ? null : state(g.ui);
+        if((st == null) || (g.belt == null) || (n < 0) || (n >= g.belt.length))
+            return false;
+        hold(st, g, n, (AddonPagina)pag);
         return true;
     }
 
@@ -224,10 +272,11 @@ public final class BeltHold {
      *
      * <p>No notify: the {@code ActionbarChanged} tap is already interested in both these messages.
      */
-    public static void serverWrote(int n) {
+    public static void serverWrote(GameUI g, int n) {
         synchronized(BeltHold.class) {
-            if(holds.remove(Integer.valueOf(n)) != null)
-                unplace(n);
+            SessionState st = (g == null) ? null : state(g.ui);   // 073.3: the bar the message is about
+            if((st != null) && (st.beltHolds.remove(Integer.valueOf(n)) != null))
+                unplace(st, n);
         }
     }
 
@@ -236,8 +285,10 @@ public final class BeltHold {
      * <b>keep its placement</b>: the entry went away, the slot did not, so adding it again puts it back there.
      */
     static void entryRemoved(AddonPagina pag) {
-        for(Integer n : slotsOf(pag, null))
-            release(n.intValue(), false);
+        for(SessionState st : AddonManager.allStates()) {
+            for(Integer n : slotsOf(st, pag, null))
+                release(st, n.intValue(), false);
+        }
     }
 
     /**
@@ -245,8 +296,15 @@ public final class BeltHold {
      * placements stand, so a {@code :reload} puts every button back where it was as the addon re-adds it.
      */
     static void teardownHolds(Addon a) {
-        for(Integer n : slotsOf(null, a))
-            release(n.intValue(), false);
+        // 073.3: every session's, because an addon holds slots in whichever tree it was running in and a
+        // teardown is not told which that was — the shape AddonManager.allStates() names. It matters here more
+        // than anywhere else in this layer: the teardown that runs from init() runs when the DRAWN bar is
+        // already the session being switched to, so a release resolved from gui() would hand another
+        // character's slot back the displaced content of this one's. Each Hold carries its own bar instead.
+        for(SessionState st : AddonManager.allStates()) {
+            for(Integer n : slotsOf(st, null, a))
+                release(st, n.intValue(), false);
+        }
     }
 
     // ---- the placements: a slot survives the entry, the addon and the session (059.5) -------------------
@@ -261,7 +319,13 @@ public final class BeltHold {
      * stands through it: it is not the entry that was wrong, and the next {@code :add} of that id applies it.
      */
     static void entryAdded(AddonPagina pag) {
-        for(Integer n : slotsPlaced(pag.id)) {
+        // 073.3: the drawn bar, like hold() itself — an :add is an addon's own call, made from EnterWorld or
+        // later in the session the player is looking at, and taking the slot is the same act as slot:pagina().
+        GameUI g = AddonManager.gui();
+        SessionState st = (g == null) ? null : state(g.ui);
+        if(st == null)
+            return;
+        for(Integer n : slotsPlaced(st, pag.id)) {
             try {
                 hold(n.intValue(), pag);
             } catch(RuntimeException e) {
@@ -283,34 +347,36 @@ public final class BeltHold {
         if((addonId == null) || addonId.isEmpty())
             return;
         String mine = AddonPagina.PREFIX + addonId + "/";
-        for(Iterator<Map.Entry<Integer, String>> it = placed.entrySet().iterator(); it.hasNext(); ) {
-            if(it.next().getValue().startsWith(mine)) {
-                it.remove();
-                dirty = true;
+        for(SessionState st : AddonManager.allStates()) {     // 073.3: in whichever session it placed them
+            for(Iterator<Map.Entry<Integer, String>> it = st.beltPlaced.entrySet().iterator(); it.hasNext(); ) {
+                if(it.next().getValue().startsWith(mine)) {
+                    it.remove();
+                    st.beltDirty = true;
+                }
             }
         }
     }
 
     /** The slots one identity is placed in — a copy, since {@link #hold} takes the monitor this walks under. */
-    private static synchronized List<Integer> slotsPlaced(String id) {
+    private static synchronized List<Integer> slotsPlaced(SessionState st, String id) {
         List<Integer> out = new ArrayList<Integer>();
-        for(Map.Entry<Integer, String> e : placed.entrySet()) {
+        for(Map.Entry<Integer, String> e : st.beltPlaced.entrySet()) {
             if(e.getValue().equals(id))
                 out.add(e.getKey());
         }
         return out;
     }
 
-    /** Record where an entry belongs. Called under the monitor, from {@link #hold}. */
-    private static void place(int n, String id) {
-        if(!id.equals(placed.put(Integer.valueOf(n), id)))
-            dirty = true;
+    /** Record where an entry belongs, on this character's bar. Called under the monitor, from {@link #hold}. */
+    private static void place(SessionState st, int n, String id) {
+        if(!id.equals(st.beltPlaced.put(Integer.valueOf(n), id)))
+            st.beltDirty = true;
     }
 
     /** Forget where an entry belonged. Called under the monitor, by the endings that end it for good. */
-    private static void unplace(int n) {
-        if(placed.remove(Integer.valueOf(n)) != null)
-            dirty = true;
+    private static void unplace(SessionState st, int n) {
+        if(st.beltPlaced.remove(Integer.valueOf(n)) != null)
+            st.beltDirty = true;
     }
 
     /**
@@ -320,8 +386,8 @@ public final class BeltHold {
      * slot index means this character's bar and no other. A file that is missing, unreadable or malformed
      * leaves the bar as the server sent it, which is the same thing an empty file says.
      */
-    static synchronized void restore() {
-        placed.clear();
+    static synchronized void restore(SessionState st) {
+        st.beltPlaced.clear();
         String text = StoreApi.readClientFile(FILE);
         if(text != null) {
             try {
@@ -337,7 +403,7 @@ public final class BeltHold {
                                 continue;
                             int n = ((Number)o).intValue();
                             if((n >= 0) && (n < LuaSlot.SLOTS))
-                                placed.put(Integer.valueOf(n), e.getKey());
+                                st.beltPlaced.put(Integer.valueOf(n), e.getKey());
                         }
                     }
                 }
@@ -345,8 +411,8 @@ public final class BeltHold {
                 AddonManager.log("action-bar holds: could not read " + FILE + ": " + e);
             }
         }
-        lastJson = json();          // prime the write-skip cache: what we just read needs no writing back
-        dirty = false;
+        st.beltLastJson = json(st);   // prime the write-skip cache: what we just read needs no writing back
+        st.beltDirty = false;
     }
 
     /**
@@ -354,18 +420,35 @@ public final class BeltHold {
      * serialization is compared with the last one written, so the common tick costs one string build and no
      * disk I/O at all — and the file is left alone entirely on a character whose bar nobody has touched.
      */
-    static void flush() {
+    static void flush(SessionState st) {
         String out;
         synchronized(BeltHold.class) {
-            if(!dirty)
+            if(!st.beltDirty)
                 return;
-            dirty = false;
-            out = json();
-            if(out.equals(lastJson))
+            st.beltDirty = false;
+            out = json(st);
+            if(out.equals(st.beltLastJson))
                 return;
-            lastJson = out;
+            st.beltLastJson = out;
         }
         StoreApi.writeClientFile(FILE, out);     // outside the monitor: the message thread must never wait on disk
+    }
+
+    /**
+     * <b>Every session's, from {@code AddonManager.init}</b> (073.3) — the last write before the addons are
+     * torn down, and it has to happen while the scope that names the character is still the one those slots
+     * were on ({@code StoreApi.resetSession} follows it). {@code init} is not told which session ended, so it
+     * writes each dirty one, exactly as it wrote the one map this used to be.
+     *
+     * <p><b>The scope is still the client's one</b>, because {@code StoreApi.charScope} is 073.5's to index
+     * (the census says so) and the feature after this one is what costs "saved per character" its single
+     * referent. With one session live that is the session's own scope and this is the same write it always
+     * was; with two, whose character a flush names is the very question those two tasks settle, and this line
+     * is not the place to answer it early.
+     */
+    static void flushAll() {
+        for(SessionState st : AddonManager.allStates())
+            flush(st);
     }
 
     /**
@@ -375,15 +458,15 @@ public final class BeltHold {
      * is the other way round and the two are built from each other. Sorted throughout, so one state has one
      * serialization and the write-skip comparison above is a string compare.
      */
-    private static String json() {
-        if(placed.isEmpty())
+    private static String json(SessionState st) {
+        if(st.beltPlaced.isEmpty())
             return "{}";
         Map<String, List<Integer>> byId = new TreeMap<String, List<Integer>>();
-        for(Map.Entry<Integer, String> e : placed.entrySet()) {
+        for(Map.Entry<Integer, String> e : st.beltPlaced.entrySet()) {
             List<Integer> l = byId.get(e.getValue());
             if(l == null)
                 byId.put(e.getValue(), l = new ArrayList<Integer>());
-            l.add(e.getKey());          // placed is sorted by slot, so each list comes out sorted too
+            l.add(e.getKey());          // beltPlaced is sorted by slot, so each list comes out sorted too
         }
         LuaTable root = new LuaTable();
         for(Map.Entry<String, List<Integer>> e : byId.entrySet()) {
@@ -400,9 +483,9 @@ public final class BeltHold {
      * The slots held for one entry, or by one addon. A copy taken under the monitor: {@link #release} takes
      * the monitor itself, and it writes the very map this walks.
      */
-    private static synchronized List<Integer> slotsOf(AddonPagina pag, Addon owner) {
+    private static synchronized List<Integer> slotsOf(SessionState st, AddonPagina pag, Addon owner) {
         List<Integer> out = new ArrayList<Integer>();
-        for(Map.Entry<Integer, Hold> e : holds.entrySet()) {
+        for(Map.Entry<Integer, Hold> e : st.beltHolds.entrySet()) {
             Hold h = e.getValue();
             if((pag != null) ? (h.pag == pag) : (h.pag.owner == owner))
                 out.add(e.getKey());

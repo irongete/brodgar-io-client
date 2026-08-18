@@ -95,6 +95,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -409,6 +410,29 @@ public final class AddonManager {
         /** Every widget standing in THIS session's 3D world (044.1) — the render pass walks one session's. */
         final CopyOnWriteArrayList<WidgetSurface> surfaces = new CopyOnWriteArrayList<WidgetSurface>();
 
+        // ---- the HUD readers (073.3) -------------------------------------------------------------
+        // Each of these names ONE CHARACTER'S HUD. An adapter reads a GameUI, and a session has one; a
+        // slot index names a bar, and each character has their own. Both are reached with the ui of the
+        // widget the seam was handed — w.ui at the uimsg and placement taps, the GameUI itself at the three
+        // seams inside it — and never through host(), for the reason the widget layer above gives.
+
+        /** The nine change-detection adapters reading THIS session's HUD ({@link CharApi}). Built with the
+         *  state and never rebuilt: a session's HUD does not become another HUD because the player tabbed,
+         *  and the widgets these cache are still standing in the tree they were found in. */
+        final List<CharApi.TreeAdapter> treeAdapters = CharApi.newAdapters();
+        /** Which of those an inbound {@code uimsg} marked. Concurrent: the tap that marks is off-thread,
+         *  and the tick that drains is this session's own. */
+        final Set<CharApi.TreeAdapter> treeDirty = ConcurrentHashMap.newKeySet();
+        /** Slot index &rarr; the hold on it, on THIS character's action bar ({@link BeltHold}). */
+        final Map<Integer, BeltHold.Hold> beltHolds = new HashMap<Integer, BeltHold.Hold>();
+        /** Slot index &rarr; the identity of the entry that BELONGS there — this character's placements.
+         *  Sorted, so one state has one serialization and an unchanged map costs no disk write. */
+        final Map<Integer, String> beltPlaced = new TreeMap<Integer, String>();
+        /** Has {@link #beltPlaced} changed since the last write? Marked on the message thread too. */
+        boolean beltDirty;
+        /** The last serialization written (or read) for this character, so an unchanged map writes nothing. */
+        String beltLastJson;
+
         SessionState(UI ui) {
             this.ui = ui;
         }
@@ -614,8 +638,9 @@ public final class AddonManager {
         VrApi.resetEntityIndex();     // 043.2/044.9: and both indexes of standing hafen.vr() entities — a gob id
                                       //   means a different gob next session, and the addons' own were just torn down
         resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
-        BeltHold.flush();             // 059.5: persist the placements while the OLD charScope is still set (as
+        BeltHold.flushAll();          // 059.5: persist the placements while the OLD charScope is still set (as
                                       //   the teardown above flushes saved vars) — they name the bar just left
+                                      //   (073.3: every session's, since init is not told which one ended)
         BeltHold.resetSession();      // 059.4: ...and every bar slot an addon was holding — a slot index names
                                       //   another character's bar now, and the addons above were just torn down
         markerChangeQueue.clear();    // 042.11: and any marker-change notify queued from the old session
@@ -628,7 +653,9 @@ public final class AddonManager {
         MapApi.resetOverlays();     // 037.3: forget the REPL owner's overlay holds — the MapView they named is gone
         MapImages.teardown(consoleOwner);   // 037.4: ...and free the map drawings it rendered from the OLD session's
                                             //   map file (the addons' went with the teardown above)
-        CharApi.resetSession();       // re-register the change-detection adapters
+        // 073.3: CharApi.resetSession() is GONE. It cleared the adapter list and constructed nine fresh
+        //   adapters on every init; per session they are built with the state (SessionState.treeAdapters) and
+        //   go with it, because a switch does not give a session a different HUD.
 
         SessionState st = state(ui_);
         if(st == null) {
@@ -775,7 +802,7 @@ public final class AddonManager {
             //     event, now on the UI thread. (Marked off-thread in onUimsg; drained here.) Refresh before
             //     the removal/resolve/belt/resize drains below so a brand-new buff surfaces as a single
             //     BuffAdded (with its content already applied), not BuffChanged-then-BuffAdded.
-            CharApi.refreshTreeAdapters();
+            CharApi.refreshTreeAdapters(st);
 
             // 1b'. Widget removals (M1, 042.1) captured off-thread by the Widget.remove() tap → dispatched on
             //      the UI thread, one frame's worth (D-106). After refresh, so a removal never races a content
@@ -895,7 +922,7 @@ public final class AddonManager {
                             log("EnterWorld: no action menu after " + MENU_WAIT + "s — firing without it");
                         st.enterWorldPending = false;
                         StoreApi.restorePerChar(); // now <genus>_<char> is known → load per-char saved vars BEFORE
-                        BeltHold.restore();        // 059.5: ...and this character's action-bar placements, so the
+                        BeltHold.restore(st);      // 059.5: ...and this character's action-bar placements, so the
                                                    //   first :add an addon makes puts its button straight back
                         fire("EnterWorld");    // the handler runs, so it can read hafen.store (spec 1e)
                     }
@@ -920,7 +947,7 @@ public final class AddonManager {
             //    an unclean exit; a relog also flushes via teardown. flush() skips unchanged files, so
             //    this is cheap when nothing changed. On the UI thread → no races reading the Lua tables.
             StoreApi.autosave(clock);
-            BeltHold.flush();       // 059.5: and the action-bar placements, if one changed since the last tick
+            BeltHold.flush(st);     // 059.5: and the action-bar placements, if one changed since the last tick
                                     //   (a no-op otherwise — the message thread only ever marks them dirty)
 
             // 6. Soft per-tick CPU budget (D-018 layer 2): auto-disable an addon that has been over budget
@@ -1840,7 +1867,7 @@ public final class AddonManager {
             Widget w = st.removedWidgets.poll();
             if(w == null)
                 break;
-            CharApi.dispatchRemoved(w);
+            CharApi.dispatchRemoved(st, w);
             UiApi.dispatchWidgetSubsRemoved(st, w);
             UiApi.dispatchReplacedRemoved(w);
             VrApi.dispatchStandingRemoved(w);             // addon: 044.6 — a widget standing in the 3D world whose
@@ -1911,10 +1938,10 @@ public final class AddonManager {
             if(slot == null)
                 break;
             try {
-                BeltHold.writeLanded(slot);   // 059.5: a deferred server write lands here, one tick after the
-                                              //   message — re-assert a hold taken in between, BEFORE the
+                BeltHold.writeLanded(st, slot);   // 059.5: a deferred server write lands here, one tick after
+                                              //   the message — re-assert a hold taken in between, BEFORE the
                                               //   notify, so the slot the handler reads is the slot on screen
-                CharApi.dispatchBeltSet(slot);
+                CharApi.dispatchBeltSet(st, slot);
             } catch(RuntimeException e) {
                 log("belt-set dispatch error: " + e);
             }

@@ -46,14 +46,12 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 
 import static io.brodgar.addon.AddonManager.*;
@@ -63,29 +61,78 @@ import static io.brodgar.addon.AddonManager.*;
  * {@code hafen.player}/{@code char}/{@code items}/{@code study}/{@code party}/{@code kin}/{@code buffs}/
  * {@code actionbar}/{@code quests}/{@code wounds}/{@code fight} — the widget-tree reads of character state,
  * plus the change-detection {@link TreeAdapter}s that fire the semantic events (BuffAdded, FepChanged,
- * ...). Owns the adapter registry. {@link AddonManager} drives it via {@link #dispatchUimsg} (the onUimsg
- * tap), {@link #refreshTreeAdapters} (the tick), {@link #dispatchPlaced}/{@link #dispatchRemoved} (M1/M3),
- * {@link #dispatchBeltSet} (D-178), and {@link #resetSession} (init — clears + re-registers the adapters).
- * Not instantiable.
+ * ...). {@link AddonManager} drives it via {@link #dispatchUimsg} (the onUimsg tap),
+ * {@link #refreshTreeAdapters} (the tick), {@link #dispatchPlaced}/{@link #dispatchRemoved} (M1/M3) and
+ * {@link #dispatchBeltSet} (D-178). Not instantiable.
+ *
+ * <p><b>The adapters are one session's</b> (073.3). Each of the nine caches the HUD widgets it has seen, as
+ * its diff key, and those widgets are <b>one login's</b>, so the set of them lives in {@code SessionState}
+ * ({@link #newAdapters}) and every seam reaches it with the {@code ui} of the widget it was handed:
+ * {@code w.ui} at the uimsg tap and the placement seam, and the state the tick already holds at the drains.
+ * Never {@link AddonManager#host()}, which answers the session on screen — the uimsg tap runs on a Loader
+ * thread of whichever session sent the message, and the placement seam on the thread of whichever session
+ * placed the widget.
+ *
+ * <p><b>What an adapter READS is still the drawn HUD</b>, and that is deliberate: an adapter body asks
+ * {@link AddonManager#gui()}, which answers the session on screen, exactly as it did before — 073 indexes the
+ * caches and changes no read, and {@code host()}/{@code screenView()} growing a session argument is named out
+ * of scope by the spec. With one session live the two are the same {@code GameUI} and nothing can tell. What
+ * this task buys is that when they stop being the same, each adapter already knows whose it is, and the seam
+ * that must then hand it its own HUD has one caller to fix rather than nine caches to untangle first.
+ *
+ * <p><b>Built with the state, not re-added on a switch.</b> The {@code resetSession} that used to empty the
+ * list and construct nine fresh adapters on every {@code init} is gone: a session's HUD is not a different
+ * HUD because the player tabbed to another character, and the caches name widgets of a tree that is still
+ * standing. They are constructed once, when their session's state is, and go when it does.
  */
 final class CharApi {
     private CharApi() {}
 
-    private static final java.util.List<TreeAdapter> treeAdapters = new java.util.concurrent.CopyOnWriteArrayList<TreeAdapter>();
-    private static final java.util.Set<TreeAdapter> treeDirty = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /**
+     * <b>The nine change-detection adapters, for one session</b> (073.3) — built when that session's
+     * {@code SessionState} is and held by it, which is what makes each of them a reader of <i>that</i>
+     * login's HUD rather than of "the" HUD.
+     *
+     * <p>Fixed once built, so there is nothing to copy on write and nothing to synchronize: the list is
+     * published through a {@code final} field of the state and never mutated again. The
+     * {@code CopyOnWriteArrayList} it used to be was carrying the rebuild {@code resetSession} did on every
+     * {@code init}, and that rebuild is gone.
+     */
+    static List<TreeAdapter> newAdapters() {
+        List<TreeAdapter> l = new ArrayList<TreeAdapter>(9);
+        l.add(new MeterAdapter());
+        l.add(new BuffsAdapter());
+        l.add(new FepAdapter());
+        l.add(new StudyAdapter());
+        l.add(new ActionbarAdapter());
+        l.add(new EquipAdapter());
+        l.add(new KinAdapter());
+        l.add(new QuestAdapter());
+        l.add(new WoundAdapter());
+        return Collections.unmodifiableList(l);
+    }
 
-    /** The inbound-uimsg tap body (behind AddonManager.onUimsg): flag the interested adapter(s) dirty. */
+    /**
+     * The inbound-uimsg tap body (behind AddonManager.onUimsg): flag the interested adapter(s) of the
+     * widget's <b>own</b> session dirty.
+     *
+     * <p>073.3: {@code w.ui} and never {@link AddonManager#host()} — this runs on a Loader thread of the
+     * session that sent the message, which is not the session on screen, so the drawn session's adapters
+     * would be asked whether they are interested in another character's update and its own would never
+     * hear about it. A session with no state (the login screen, a destroyed tree) has no adapters to mark.
+     */
     static void dispatchUimsg(Widget w, String msg) {
         if(w == null)
             return;
-        if(!treeAdapters.isEmpty()) {
-            for(TreeAdapter a : treeAdapters) {
-                try {
-                    if(a.interested(w, msg))
-                        treeDirty.add(a);
-                } catch(RuntimeException e) {
-                    /* an adapter's recognizer must never break server message application */
-                }
+        SessionState st = state(w.ui);
+        if(st == null)
+            return;
+        for(TreeAdapter a : st.treeAdapters) {
+            try {
+                if(a.interested(w, msg))
+                    st.treeDirty.add(a);
+            } catch(RuntimeException e) {
+                /* an adapter's recognizer must never break server message application */
             }
         }
         // 049.3: the "cap" branch that used to sit here is GONE. A caption change is announced at the caption
@@ -95,26 +142,12 @@ final class CharApi {
         // a message naming it was applied, and it catches an addon's own widget:title("…") write too.
     }
 
-    /** Session init: re-register the change-detection adapters, each with a fresh cache (from AddonManager.init). */
-    static void resetSession() {
-        treeDirty.clear();
-        treeAdapters.clear();
-        treeAdapters.add(new MeterAdapter());
-        treeAdapters.add(new BuffsAdapter());
-        treeAdapters.add(new FepAdapter());
-        treeAdapters.add(new StudyAdapter());
-        treeAdapters.add(new ActionbarAdapter());
-        treeAdapters.add(new EquipAdapter());
-        treeAdapters.add(new KinAdapter());
-        treeAdapters.add(new QuestAdapter());
-        treeAdapters.add(new WoundAdapter());
-    }
-
-    static void refreshTreeAdapters() {
-        if(treeDirty.isEmpty())
+    /** The tick's re-read of every adapter of <b>this</b> session that a uimsg marked (from the drain). */
+    static void refreshTreeAdapters(SessionState st) {
+        if(st.treeDirty.isEmpty())
             return;
-        for(TreeAdapter a : treeAdapters) {
-            if(treeDirty.remove(a)) {
+        for(TreeAdapter a : st.treeAdapters) {
+            if(st.treeDirty.remove(a)) {
                 try {
                     a.refresh();
                 } catch(RuntimeException e) {
@@ -130,11 +163,17 @@ final class CharApi {
      * "did a widget appear" detection off {@code poll()} and onto this seam (042.1's {@code MeterAdapter} is
      * the first). Reached on the same thread and under the same {@code synchronized(ui)} discipline as the
      * other placement consumer ({@code UiApi}'s selectors), so firing Lua here is safe.
+     *
+     * <p>073.3: the adapters offered are the ones of the tree the widget was placed <b>into</b>, which is what
+     * {@code wdg.ui} answers and what {@link AddonManager#host()} would not.
      */
     static void dispatchPlaced(Widget wdg) {
-        if((wdg == null) || treeAdapters.isEmpty())
+        if(wdg == null)
             return;
-        for(TreeAdapter a : treeAdapters) {
+        SessionState st = state(wdg.ui);
+        if(st == null)
+            return;
+        for(TreeAdapter a : st.treeAdapters) {
             try {
                 a.placed(wdg);
             } catch(RuntimeException e) {
@@ -148,11 +187,14 @@ final class CharApi {
      * {@code 042-event-driven-reads} M1): offer the just-removed widget to every adapter that has moved its
      * "did a widget disappear" detection off {@code poll()} and onto this seam. Reached from {@link
      * AddonManager#tick(haven.UI, double)}'s drain of the removal queue, on the UI thread, so firing Lua here is safe.
+     *
+     * <p>073.3: it is handed the state whose queue the widget came out of, so a removal is never offered to
+     * another session's adapters — {@code w.ui} says the same thing and this says it without a lookup.
      */
-    static void dispatchRemoved(Widget wdg) {
-        if((wdg == null) || treeAdapters.isEmpty())
+    static void dispatchRemoved(SessionState st, Widget wdg) {
+        if(wdg == null)
             return;
-        for(TreeAdapter a : treeAdapters) {
+        for(TreeAdapter a : st.treeAdapters) {
             try {
                 a.removed(wdg);
             } catch(RuntimeException e) {
@@ -167,9 +209,11 @@ final class CharApi {
      * now landed — the uimsg tap already re-diffed the whole bar against the OLD value for these two
      * paths, so only {@link ActionbarAdapter} needs to hear this. Reached from {@link
      * AddonManager#tick(haven.UI, double)}'s drain of the belt-set queue, on the UI thread.
+     *
+     * <p>073.3: a slot index names one character's bar, so it is that session's own adapter that re-checks it.
      */
-    static void dispatchBeltSet(int slot) {
-        for(TreeAdapter a : treeAdapters) {
+    static void dispatchBeltSet(SessionState st, int slot) {
+        for(TreeAdapter a : st.treeAdapters) {
             if(a instanceof ActionbarAdapter) {
                 try {
                     ((ActionbarAdapter)a).beltSet(slot);
@@ -197,7 +241,7 @@ final class CharApi {
      *       "gone" signal instead, never on this seam (D-180).</li>
      * </ul>
      */
-    private interface TreeAdapter {
+    interface TreeAdapter {
         boolean interested(Widget w, String msg);
         void refresh();
         default void placed(Widget w) {}
@@ -229,7 +273,7 @@ final class CharApi {
      */
     private static final class MeterAdapter implements TreeAdapter {
         // Live HUD meter -> its last segment snapshot (the change-detection key, NOT a payload). UI-thread-only
-        // (placed/removed/refresh); reset per session by re-instantiation in resetSession(). IdentityHashMap:
+        // (placed/removed/refresh); built with its session's state (073.3). IdentityHashMap:
         // IMeter widgets are keyed by object identity, like the buffs.
         private final Map<IMeter, LuaValue> cache = new IdentityHashMap<IMeter, LuaValue>();
 
@@ -337,7 +381,7 @@ final class CharApi {
      */
     private static final class BuffsAdapter implements TreeAdapter {
         // Active buff -> its last snapshot (the change-detection key, NOT a payload). UI-thread-only
-        // (placed/removed/refresh); reset per session by re-instantiation in resetSession(). IdentityHashMap:
+        // (placed/removed/refresh); built with its session's state (073.3). IdentityHashMap:
         // Buff widgets are keyed by object identity, like the meters.
         private final Map<Buff, LuaValue> cache = new IdentityHashMap<Buff, LuaValue>();
 
@@ -432,7 +476,7 @@ final class CharApi {
      */
     private static final class StudyAdapter implements TreeAdapter {
         // Study-slot GItem -> its last snapshot (the change-detection key, NOT a payload). UI-thread-only
-        // (placed/removed/resolveInfo); reset per session by re-instantiation in resetSession().
+        // (placed/removed/resolveInfo); built with its session's state (073.3).
         // IdentityHashMap: GItem widgets are keyed by object identity, like the buffs/meters/equip.
         private final Map<GItem, LuaValue> cache = new IdentityHashMap<GItem, LuaValue>();
 
@@ -509,8 +553,8 @@ final class CharApi {
      * methods as {@code hafen.actionbar():get(n)} and can key a table by it.
      */
     private static final class ActionbarAdapter implements TreeAdapter {
-        // slot index -> last snapshot, occupied slots only. UI-thread-only; reset per session by
-        // re-instantiation in init(). Keyed by Integer (value identity), not widget identity.
+        // slot index -> last snapshot, occupied slots only. UI-thread-only; built with its
+        // session's state (073.3). Keyed by Integer (value identity), not widget identity.
         private final Map<Integer, LuaValue> cache = new HashMap<Integer, LuaValue>();
 
         public boolean interested(Widget w, String msg) {
@@ -590,7 +634,7 @@ final class CharApi {
      */
     private static final class EquipAdapter implements TreeAdapter {
         // Worn GItem -> its last equip-key (the change-detection key, NOT a payload). UI-thread-only
-        // (placed/removed/refresh); reset per session by re-instantiation in resetSession(). IdentityHashMap:
+        // (placed/removed/refresh); built with its session's state (073.3). IdentityHashMap:
         // GItem widgets are keyed by object identity, like the meters/buffs.
         private final Map<GItem, String> cache = new IdentityHashMap<GItem, String>();
 
@@ -714,8 +758,8 @@ final class CharApi {
      * advancing, which is the whole of what this adapter exists to notice.
      */
     private static final class QuestAdapter implements TreeAdapter {
-        // quest id -> its last-seen status int. UI-thread-only (refresh); reset per session by
-        // re-instantiation in init().
+        // quest id -> its last-seen status int. UI-thread-only (refresh); built with its
+        // session's state (073.3).
         private final Map<Integer, Integer> cache = new HashMap<Integer, Integer>();
 
         public boolean interested(Widget w, String msg) {

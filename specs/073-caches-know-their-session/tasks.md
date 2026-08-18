@@ -62,7 +62,7 @@ calls each `resetSession`. What changes is where the state those calls clear act
       `[manual]`: with the suite's window on screen, drag it by its caption and resize it by its
       corner. Expect: both follow the mouse exactly as any client window does.
 
-- [ ] **073.3 — The character readers are one HUD's, not the client's.**
+- [x] **073.3 — The character readers are one HUD's, not the client's.**
       Converts `CharApi` and `BeltHold`. `CharApi.treeAdapters` is nine adapters — meters, buffs, fep,
       study, actionbar, equip, kin, quest, wound — each reading **a** `GameUI`; per session that is
       nine per session, **constructed when the state is, not re-added on a switch**, which is what
