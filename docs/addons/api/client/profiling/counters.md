@@ -8,8 +8,8 @@ always agree with it field by field.
 Nothing here is sampled over time — each call is the value right now. The exceptions are the running
 tallies, and each says so: `surfaces()`'s uploads and frames, `entities()`'s passes and `session()`'s
 ground and click counters are cumulative since the client started, and `textcache()`'s hit, miss
-and eviction totals since the addon loaded. `session()`'s `live` and `states` are not among them: they
-count what exists right now, like `surfaces()`'s `live`.
+and eviction totals since the addon loaded. `session()`'s `live`, `states` and `addonsLive` are not
+among them: they count what exists right now, like `surfaces()`'s `live`.
 
 **An absent key means "not measured", never zero.**
 
@@ -153,6 +153,8 @@ looking at.
 | `groundAnswered` | times another session supplied the ground height under the camera, **cumulative since client start** |
 | `groundMissed` | times none of them had that ground, so the camera kept the height it last had, **cumulative since client start** |
 | `placedRebuiltOffTick` | times a click was resolved before the client had said where the sessions stand, **cumulative since client start** |
+| `addonsLive` | how many addons are running right now |
+| `engineReloads` | times the client rebuilt the addon layer without being asked |
 
 `live` is an **instantaneous count, never a total**: it goes up when a session joins and down when one
 ends, and the character you are looking at is one of them — with one account in the world it reads `1`,
@@ -170,6 +172,15 @@ The ground pair climbs only while a free camera is looking at ground the drawn s
 panned over another character's surroundings, which is the one place the drawn session's own terrain cannot
 answer. Anywhere else neither moves, so like `surfaces()` they mean something as a **delta between two
 reads**: take one, pan the camera, take another.
+
+`addonsLive` and `engineReloads` are the addon layer's own pair, and they are in this group because what
+they say is about the layer's relationship to your characters. `addonsLive` is what the last load produced,
+counted right now — and its whole claim is that **it does not move when you switch character**: your addon
+is loaded once for the client and stays loaded, so tabbing between two accounts leaves this number where it
+was. `engineReloads` counts the rebuilds nobody asked for, and the only value it can hold is **zero**: a
+`:reload` you typed is a reload you asked for and does not count, and nothing else rebuilds the layer.
+Anything above zero is an addon being torn down and reloaded behind your back, which is every Lua value it
+held going missing with no event to tell it.
 
 `placedRebuiltOffTick` is not a rate to watch, and the only value it is meant to hold is **zero**. Where each
 session stands is worked out once a frame and read everywhere else, and a click on the ground is resolved
@@ -190,9 +201,11 @@ being ignored.
 local a = hafen.client():profiling():session()
 hafen.timer():after(5, function()
   local b = hafen.client():profiling():session()
-  hafen.log():write(string.format("%d sessions (%d holding state); %d answers, %d misses over 5 s; %d clicks answered early",
-                          b.live, b.states, b.groundAnswered - a.groundAnswered,
-                          b.groundMissed - a.groundMissed, b.placedRebuiltOffTick))
+  hafen.log():write(string.format("%d sessions (%d holding state), %d addons",
+                          b.live, b.states, b.addonsLive))
+  hafen.log():write(string.format("%d answers, %d misses over 5 s; %d early, %d unasked reloads",
+                          b.groundAnswered - a.groundAnswered, b.groundMissed - a.groundMissed,
+                          b.placedRebuiltOffTick, b.engineReloads))
 end)
 ```
 

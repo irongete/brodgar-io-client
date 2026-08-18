@@ -175,16 +175,6 @@ final class Gesture extends Widget {
         a.gestures.clear();
     }
 
-    /** Session init / relog: the tree of the session just ended, so nothing is armed and nothing is running. */
-    static void resetSession() {
-        for(AddonManager.SessionState s : AddonManager.allStates()) {
-            for(Gesture g : s.gesturesRunning)
-                g.release();                     // ...which takes it out of s.gesturesRunning itself
-            s.gesturesRunning.clear();           // (belt and braces: a release that threw leaves nothing behind)
-        }
-        synchronized(Gesture.class) { arms.clear(); }
-    }
-
     private static Bind find(Addon owner, Widget target, Mode mode) {
         for(Bind b : owner.gestures) {
             if((b.target == target) && (b.mode == mode))

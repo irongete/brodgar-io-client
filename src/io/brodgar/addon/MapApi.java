@@ -289,19 +289,6 @@ final class MapApi {
         }
     }
 
-    /** Session init: drop the per-session marker-ref maps + re-prime MarkersChanged (from AddonManager.init).
-     *  Every session's, since 073.4: {@code init} is not told which one ended. */
-    static void resetMarkers() {
-        for(SessionState st : AddonManager.allStates()) {
-            synchronized(st.markerById) {
-                st.markerIds.clear();
-                st.markerById.clear();
-            }
-            st.markersPrimed = false;
-            st.mapFile = null;                    // the file it named is being replaced with the session
-        }
-    }
-
     // ---- markers (hafen.map():marker()) ------------------------------------------------------------
     // Client-side map markers live in the on-disk map DB (MapFile), owned by the map window / corner
     // minimap (both hold the same MapFile). A marker's PERSISTENT identity is its segment id + segment
@@ -983,17 +970,6 @@ final class MapApi {
         a.overlayHolds.clear();
         for(Hold h : hs)
             apply(h);
-    }
-
-    /**
-     * Session init: drop the {@code :lua} REPL owner's holds <b>without</b> applying them. Its records
-     * outlive a relog (the addons' do not — they are torn down), and the {@code MapView} they name is gone,
-     * so the only thing left to do with them is forget them.
-     */
-    static void resetOverlays() {
-        Addon c = AddonManager.consoleOwner;
-        if(c != null)
-            c.overlayHolds.clear();
     }
 
     /**

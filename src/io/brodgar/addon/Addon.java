@@ -32,23 +32,25 @@ public final class Addon {
     public String error;   // null if the addon loaded cleanly
 
     /**
-     * <b>The session this addon's Lua runs for</b> (073.5) — the {@code UI}'s {@link AddonManager.SessionState},
-     * recorded when {@code AddonManager.init} loaded the addon and never guessed. It is the answer to the one
-     * question the two subsystems converted in 073.5 have no other way to ask: an HTTP completion arrives on a
-     * pool thread, which holds no tree and can trust no anchor, and a store flush runs from a teardown that is
-     * told nothing at all — and both reach for the addon, which knows.
+     * <b>The session this addon's Lua is acting for</b> — the {@code UI} on screen's
+     * {@link AddonManager.SessionState}, asked at the moment it is needed and <b>never stored</b> (074.2).
      *
-     * <p><b>The object, not the {@code UI}</b>, and that is what makes the last flush work. A relogin destroys
-     * the old {@code UI} on the session's own thread, so by the time {@code init} fires {@code Disable} and
-     * flushes what the handler wrote, {@code state(oldUI)} already answers {@code null}. Holding the state
-     * itself means an addon writes its per-character data back into the very folder it read it from, however
-     * late the teardown runs — while {@code states} still counts only live sessions, because what was dropped
-     * is the map entry and this reference dies with the addon a line later.
+     * <p>It was a field, set where {@code init} loaded the addon into one session. Since 074.2 there is no
+     * such moment: an addon is loaded once for the client and runs beside every session it holds, so a field
+     * naming one of them would be a second copy of "which session is drawn" — the shape {@code 071} spent
+     * three tasks deleting one layer down, and the copy that disagrees is always the one nothing re-reads.
      *
-     * <p>{@code null} for an addon loaded outside a session, and re-pointed on every {@code init} for the
-     * {@code :lua} REPL owner, which is process-wide and types into whichever session the client is running.
+     * <p>Two subsystems ask, and both ask on the UI thread and carry the answer with them: an HTTP completion
+     * lands on a pool thread that holds no tree, and a store write names a character's folder. The screen is
+     * the only referent either can have before {@code hafen.session()} exists, and 075 is where they take an
+     * address instead.
+     *
+     * <p>{@code null} with no session at all — the login screen, where an addon runs and a character's
+     * questions have no answer yet.
      */
-    AddonManager.SessionState state;
+    AddonManager.SessionState state() {
+        return AddonManager.state(AddonManager.host());
+    }
 
     /**
      * This addon's subscriptions to the <b>event bus</b> ({@code hafen.event():on(key, fn)}, 041.1) — one

@@ -79,7 +79,7 @@ public final class Sandbox {
      * The hard stop bounds a <em>single</em> call; this bounds an addon's <em>total</em> Lua time within
      * one engine tick (summed across its {@code Update}, timers, and event handlers). An addon whose
      * per-tick Lua time exceeds {@link #SOFT_BUDGET_NANOS} for {@link #SOFT_STRIKE_LIMIT} <b>consecutive</b>
-     * ticks is a sustained offender and is auto-disabled for the session — a runaway the per-call cap
+     * ticks is a sustained offender and is auto-disabled until the next load — a runaway the per-call cap
      * cannot catch (a handler that individually stays under the instruction cap yet burns most of every
      * frame). A single spike (a heavy {@code EnterWorld}, one janky frame) resets the strike counter, so
      * only genuinely sustained overrun trips it. Enforced in {@link AddonManager#enforceSoftBudget()} and

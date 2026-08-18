@@ -35,7 +35,7 @@ id, and your other handlers, the other addons and the client all keep going.
 hafen.event():on("Load", function() end)          -- every file has run; not in the world yet
 hafen.event():on("EnterWorld", function() end)     -- the HUD, the map and the player exist
 hafen.event():on("Update", function(dt) end)       -- every frame; dt is seconds since the last one
-hafen.event():on("Disable", function() end)        -- reload, disable, or the session ending
+hafen.event():on("Disable", function() end)        -- reload, disable, or the client closing
 ```
 
 `EnterWorld` is where most addons really start: it fires at login **and again on every `:reload` while

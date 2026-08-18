@@ -587,28 +587,6 @@ final class VrApi {
     }
 
     /**
-     * Per-session reset: <b>a gob id means a different gob in the next session</b>, so an index keyed by one must
-     * not survive a relogin — the addons' own entities were destroyed by the teardown that runs just before this
-     * (which unregistered them), and what this drops is whatever the REPL owner, which deliberately outlives a
-     * session, left standing in the old world. Both indexes, and the ground flag with them (044.9): the terrain
-     * of the session just ended has nothing to say about the one starting.
-     */
-    static void resetEntityIndex() {
-        for(SessionState st : AddonManager.allStates()) {   // 073.4: init is not told which session ended
-            synchronized(st.vrAnchored) {
-                st.vrAnchored.clear();
-            }
-            synchronized(st.vrFree) {
-                st.vrFree.clear();
-            }
-            synchronized(st.vrSessLock) {
-                st.vrSessSeen = false;                 // 045.2: and the memo — the next session's first location is news
-            }
-        }
-        groundDirty = false;
-    }
-
-    /**
      * <b>An anchored entity dies with its gob</b> (D-102, generalized from the overlay to the free anchor):
      * called from the tick that drains the client's own {@code OCache} removal, just before {@code GobRemoved}
      * reaches Lua, so a handler already reads {@code :exists() == false}. A free entity is untouched — it was

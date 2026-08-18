@@ -1,0 +1,10 @@
+{
+  "name": "074.2 — the engine stops reloading",
+  "id": "074-the-engine-survives.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 074.2: the addon layer is loaded once for the client, so a character switch reloads nothing — the Lua environment, its values and its saved load count all outlive the tab, and the two counters that say so read what they should.",
+  "api_version": 1,
+  "saved_variables": [{ "name": "history", "scope": "account" }],
+  "files": ["main.lua"]
+}

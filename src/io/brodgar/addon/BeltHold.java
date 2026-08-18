@@ -108,22 +108,6 @@ public final class BeltHold {
     }
 
     /**
-     * Forget every session's holds <b>and placements</b> — from {@code AddonManager.init}, which still means
-     * <i>the session ended</i> and is still not told which one did (073.3, the shape
-     * {@code UiApi.resetSession} already has). The bar the indices name is the previous character's, and the
-     * next character's own placements are read back by {@link #restore} once the world is entered. With one
-     * session live, emptying every state is the very act of emptying the one map this used to be.
-     */
-    static synchronized void resetSession() {
-        for(SessionState st : AddonManager.allStates()) {
-            st.beltHolds.clear();
-            st.beltPlaced.clear();
-            st.beltLastJson = null;
-            st.beltDirty = false;
-        }
-    }
-
-    /**
      * The entry a slot is being held for, or {@code null} for every slot the server owns — the read half of
      * {@code slot:pagina()}, so the bar it asks about is the drawn one, like every other read on
      * {@code LuaSlot}.
@@ -382,7 +366,7 @@ public final class BeltHold {
     /**
      * <b>Read this character's placements back</b> (from the tick, once {@code <genus>_<char>} is known and
      * <b>before</b> {@code EnterWorld} fires, so the first {@code :add} an addon makes already sees them).
-     * Whatever the file holds is the whole state: {@link #resetSession} emptied the map a moment ago, and a
+     * Whatever the file holds is the whole state: this session's map is empty until this runs, and a
      * slot index means this character's bar and no other. A file that is missing, unreadable or malformed
      * leaves the bar as the server sent it, which is the same thing an empty file says.
      */
@@ -432,21 +416,6 @@ public final class BeltHold {
             st.beltLastJson = out;
         }
         StoreApi.writeClientFile(st, FILE, out);   // outside the monitor: the message thread must never wait on disk
-    }
-
-    /**
-     * <b>Every session's, from {@code AddonManager.init}</b> (073.3) — the last write before the addons are
-     * torn down, and it has to happen while the scope that names the character is still the one those slots
-     * were on ({@code StoreApi.resetSession} follows it). {@code init} is not told which session ended, so it
-     * writes each dirty one, exactly as it wrote the one map this used to be.
-     *
-     * <p><b>Each writes under its own scope</b> since 073.5: the file a session's slots go into is named by
-     * the character <i>that</i> session is playing ({@code SessionState.charScope}), so a state that never
-     * reached the world writes nothing rather than writing its bar under somebody else's character.
-     */
-    static void flushAll() {
-        for(SessionState st : AddonManager.allStates())
-            flush(st);
     }
 
     /**

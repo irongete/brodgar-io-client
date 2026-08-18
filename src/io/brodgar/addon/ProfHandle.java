@@ -546,7 +546,16 @@ public final class ProfHandle {
      * otherwise) and {@code states < live} says a session is holding none yet, which is true for the beat
      * between a session registering and its {@code UI} being built. Instantaneous, like {@code live}.
      *
-     * <p>{@code placedRebuiltOffTick} is the fourth, and it is the one whose interesting value is the one it
+     * <p>{@code addonsLive} and {@code engineReloads} are the addon layer's own pair (074.2), and they are here
+     * rather than beside the per-addon figures because what they describe is the layer's relationship to the
+     * sessions. {@code addonsLive} is how many addons are running — instantaneous, like {@code live}, and its
+     * claim is that <b>it does not move when the screen does</b>. {@code engineReloads} is how many times the
+     * engine rebuilt itself without being asked, and its only correct value is <b>zero</b>: it is derived from
+     * the difference between the number of times the Lua layer has been built and the number of reloads the
+     * user asked for, so a switch that quietly tore the addons down and loaded them again — which is what this
+     * client did until 074 — shows up as a number rather than as a Lua value that silently went missing.
+     *
+     * <p>{@code placedRebuiltOffTick} is the fifth, and it is the one whose interesting value is the one it
      * holds: the layer caches where every session stands, that cache is built by walking a widget tree the
      * frame is mutating, and so the frame's own thread builds it and everything else reads what the frame
      * published. The pick pass is the everything else — a click resolves in a GPU readback callback, on a
@@ -569,6 +578,8 @@ public final class ProfHandle {
         t.set("groundAnswered", LuaValue.valueOf((double)Sessions.groundAnswered()));
         t.set("groundMissed", LuaValue.valueOf((double)Sessions.groundMissed()));
         t.set("placedRebuiltOffTick", LuaValue.valueOf((double)Sessions.placedRebuiltOffTick()));
+        t.set("addonsLive", LuaValue.valueOf(AddonManager.addonsLive()));
+        t.set("engineReloads", LuaValue.valueOf(AddonManager.engineReloads()));
         return t;
     }
 

@@ -146,7 +146,6 @@ public class Sessions {
     public static void tick() {
 	flushsay();
 	reclaim();          // rts: (F5)
-	tickrebind();       // rts: (F6)
 	applymute();        // rts: (F6)
 	SessionWnd.tick();    // rts: the session switcher, on the HUD of whichever session is drawn
 	tickmode();         // rts: (F3) the mode, derived from the membership, outside the branch below
@@ -277,38 +276,6 @@ public class Sessions {
     static Glob anchorglob() {
 	UI u = anchor();
 	return(((u == null) || (u.sess == null)) ? null : u.sess.glob);
-    }
-
-    /* rts: (F6) the addon engine follows the session on screen.
-     *
-     * It is a single-session static hub, so "follows" can only mean AddonManager.init -- the same call
-     * a relog makes, and the only rebind that exists: it tears the addons down, resets every
-     * per-session cache that names the old session's widgets, gobs and markers, and loads them again.
-     * Leaving it behind instead was tried and is worse in a visible way: an addon's own windows live
-     * on ITS session's root, so they vanish from the screen the moment you tab, while the addon goes
-     * on acting on a character you are not looking at.
-     *
-     * Deferred to the tick rather than done in anchor(), which runs inside the drawn UI's monitor:
-     * init() takes the AddonManager lock and then the target UI's, and this way no two of those three
-     * are ever held at once. It also coalesces a burst of tabbing into one rebind.
-     *
-     * The cost is a full addon reload per switch, and it is reported rather than hidden -- if that
-     * number is bad, the fix is per-session addon state, which is its own project and not this one. */
-    private static volatile boolean rebind = false;
-
-    private static void tickrebind() {
-	if(!rebind)
-	    return;
-	rebind = false;
-	long t0 = System.nanoTime();
-	UI u = anchor();
-	if((u == null) || (u.sess == null))
-	    return;
-	io.brodgar.addon.AddonManager.init(u);
-	MapView mv = mapview(u);
-	if(mv != null)
-	    io.brodgar.addon.AddonManager.attach(mv, u.sess.glob);
-	say("addons rebound in %d ms", (System.nanoTime() - t0) / 1000000L);
     }
 
     /* rts: (F6) one shared Audio.Root feeds every session, so without this they all play at once --
@@ -448,7 +415,6 @@ public class Sessions {
 	 * asked between here and the next tick -- Control.take's selection first of all -- would
 	 * otherwise be answered about the session that just lost the screen. */
 	invalidate();
-	rebind = true;
 	say("anchor: %s", (m == null) ? "the login screen" : m.user);
     }
 
@@ -973,6 +939,7 @@ public class Sessions {
 	private void start(UILoop lp, UI.Runner fun) {
 	    UI u = lp.bgui(fun);
 	    this.ui = u;
+	    io.brodgar.addon.AddonManager.sessionArrived(u);   // addon: (074.2) this session's own tick pump
 	    Thread t = new HackThread(() -> run(lp, fun, u), "session-" + user);
 	    t.setDaemon(true);
 	    this.th = t;
@@ -1005,6 +972,7 @@ public class Sessions {
 			this.sess = ((RemoteUI)fun).sess;
 		    this.played = false;
 		    this.ui = u = lp.bgui(fun);
+		    io.brodgar.addon.AddonManager.sessionArrived(u);   // addon: (074.2) and the new one's, on a handoff
 		    /* The session did not go anywhere -- the server handed it on, which is what choosing
 		     * another character is -- so the screen it held comes back to it, on its new UI. */
 		    if(drawn)

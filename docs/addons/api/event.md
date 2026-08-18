@@ -48,10 +48,10 @@ protocol the server can introduce, not a catalogue the client owns.
 
 | Event | Payload | Fires |
 |---|---|---|
-| `Load` | — | once, when the addon is loaded, before entering the world |
+| `Load` | — | once for the client, when the addon is loaded, before any character exists |
 | `EnterWorld` | — | each time you enter the world: login, and again on `:reload` while in-world |
 | `Update` | `dt` (number) | every frame; `dt` is seconds since the last frame |
-| `Disable` | — | when the addon is disabled or reloaded, or the session ends |
+| `Disable` | — | once for the client, when the addon is disabled or reloaded, or the client closes |
 
 `EnterWorld` fires once the HUD exists — the [action menu](menugrid.md) included, so the entries your
 addon adds go in from there — but much character-sheet data streams in for a few seconds afterwards, see

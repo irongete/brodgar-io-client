@@ -26,7 +26,7 @@ import org.luaj.vm2.lib.ZeroArgFunction;
  * <p><b>The two queues are one session's</b> (073.5, {@code SessionState.httpResults}/{@code .httpStarts}),
  * because a request was made by an addon running for one login and its callback has to reach that login's
  * tick: a completion filed anywhere else is a handler run under a session that never asked. The session is
- * taken off the <b>addon that owns the request</b> ({@link Addon#state}) and resolved on the UI thread at
+ * taken off the <b>addon that owns the request</b> ({@link Addon#state()}) and resolved on the UI thread at
  * submit, never on the pool thread — a worker holds no tree to read and the drawn session is not its.
  *
  * <p><b>The pool stays one</b>, and so does the host allowlist: the pool is the client's threads and holds no
@@ -226,7 +226,7 @@ final class HttpApi {
      * cancels it, which is what {@link #maybeStartHttp} also refuses to start.
      */
     private static void queueStart(Addon owner) {
-        AddonManager.SessionState st = (owner == null) ? null : owner.state;
+        AddonManager.SessionState st = (owner == null) ? null : owner.state();
         if(st != null)
             st.httpStarts.add(owner);
     }
@@ -238,7 +238,7 @@ final class HttpApi {
      * in {@code Addon.requests} as {@code started=false} until a running one completes (drain re-invokes this).
      */
     private static void maybeStartHttp(Addon owner) {
-        AddonManager.SessionState st = owner.state;
+        AddonManager.SessionState st = owner.state();
         if(st == null)
             return;                               // nothing would drain its completion: see queueStart
         int running = 0;
@@ -336,11 +336,6 @@ final class HttpApi {
      * session's, since {@code init} is not told which one ended and clearing them all is exactly what this
      * did when there was one queue for the client.
      */
-    static void reset() {
-        for(AddonManager.SessionState st : AddonManager.allStates())
-            st.httpResults.clear();
-    }
-
     /** Validate an {@code http}/{@code https} URL and return its (non-empty) host, or throw a guiding LuaError. */
     private static String httpHost(String url, String verb) {
         java.net.URL u;

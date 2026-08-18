@@ -40,6 +40,9 @@ public final class AddonRegistry {
     private static final String PREF_DISABLED = "addons/disabled";
     private static volatile boolean reloadNeeded;        // enabled set changed since the last (re)load
     private static volatile int reloadGen;               // bumped by each completed reload() (the AddOns panel watches it)
+    // 074.2: how many times the Lua layer has been BUILT — once at boot, once per reload. Read beside reloadGen
+    // by AddonManager.engineReloads(), whose whole claim is that the difference between the two is 1.
+    private static volatile int loadGen;
     /**
      * What the user has CONSENTED to, per addon: {@code "<id>=<key>,<key>,…"} rows of catalogue keys they
      * approved in the enable-time dialog. The record is what the default policy compares a manifest against
@@ -62,7 +65,14 @@ public final class AddonRegistry {
         }
     }
 
-    static void loadAll(AddonManager.SessionState st) {
+    /**
+     * Discover the enabled addons, run their files and fire {@code Load} for each — <b>once for the client</b>
+     * since 074.2, at boot and on a {@code :reload}. It is handed no session and asks for none: an addon is
+     * loaded before any character is, outlives every one of them, and reaches a session through the API rather
+     * than by having been loaded into it.
+     */
+    static void loadAll() {
+        loadGen++;
         reloadNeeded = false;         // whatever is on disk now IS the applied enabled set
         autoDisabledWarn.clear();     // a (re)load gives every addon a fresh start (drop session warnings)
         scanAddonDefaults();          // D-027: default-disable any addon asking for permissions the user has not consented to
@@ -88,7 +98,6 @@ public final class AddonRegistry {
                 Manifest m = Manifest.load(sub.toPath());
                 Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
                 Addon addon = new Addon(m, sub.toPath(), g);
-                addon.state = st;   // 073.5: the session this addon runs for, said once, where init knows it
                 installHafen(g, addon);
                 LuaTable ad = new LuaTable();
                 ad.set("id", LuaValue.valueOf(m.id));
@@ -222,15 +231,15 @@ public final class AddonRegistry {
     /**
      * Queue a full addon-layer reload; applied on the next UI-thread tick (see {@link #tick}).
      *
-     * <p>Queued against the session on screen (073.1), and that is not the drawn-session default the rest of
-     * the layer has stopped taking: both doors into here are the <b>user's own gesture</b> — {@code :reload}
-     * typed into a console, and the AddOns panel's button — and both belong to the client they are looking at.
-     * With no session at all there is nothing to reload and nothing draining a flag, so it says so.
+     * <p><b>Queued against the addon layer</b> (074.2), which is what a reload rebuilds. It used to be queued
+     * against the session on screen, because that is where the addons lived; now they are the client's, so a
+     * {@code :reload} typed on the login screen is as real as one typed in the world, and the pump that drains
+     * it is the one that is always running.
      */
     static void queueReload() {
-        AddonManager.SessionState st = AddonManager.state(host());
+        AddonManager.SessionState st = AddonManager.state(AddonManager.layer());
         if(st == null) {
-            log("no session: nothing to reload");
+            log("no addon layer: nothing to reload");
             return;
         }
         st.reloadPending = true;
@@ -243,15 +252,17 @@ public final class AddonRegistry {
      * re-scans {@code addons/} and the enabled set, re-runs the enabled addons from disk (firing
      * {@code Load}), and — if already in-world — restores per-character saved vars and re-fires
      * {@code EnterWorld} so addons re-initialize as if freshly logged in (the WoW {@code PLAYER_LOGIN}
-     * analog). Runs on the UI thread (queued via {@link #queueReload}); the tick pump, gob callback and
-     * uimsg tap are <b>session-scoped</b> and left in place — only the Lua layer is rebuilt. Per-addon
-     * teardown/load is error-isolated so one bad addon cannot abort the reload.
+     * analog). Runs on the UI thread (queued via {@link #queueReload}); every session's tick pump, gob callback
+     * and uimsg tap are left in place — only the Lua layer is rebuilt. Per-addon teardown/load is
+     * error-isolated so one bad addon cannot abort the reload.
+     *
+     * <p><b>It takes no session</b> since 074.2, because the thing it rebuilds has none: the addons are the
+     * client's. What it still needs a session for is the one thing that is a character's — the per-character
+     * saved variables and the {@code EnterWorld} that follows them — and for that it asks the <b>screen</b>,
+     * which is the character the user typed {@code :reload} while looking at. A reload on the login screen
+     * rebuilds the layer and fires no {@code EnterWorld}, which is exactly what a fresh boot there does.
      */
-    public static synchronized void reload(AddonManager.SessionState st) {
-        if(st == null) {
-            log("reload: no active session");
-            return;
-        }
+    public static synchronized void reload() {
         log("reloading addons...");
         List<Addon> cur = new ArrayList<Addon>(addons);
         for(int i = cur.size() - 1; i >= 0; i--)     // reverse load order
@@ -279,9 +290,10 @@ public final class AddonRegistry {
                                                              //   released — without this the pointer stays captured
                                                              //   (no camera pan, no clicks) until :release() is called
                                                              //   by hand, :reload's escape hatch not included
-        loadAll(st);                                 // re-scan disk + enabled set; re-run; fire Load
-        GameUI g = AddonManager.gui(st.ui);          // 073.5: the HUD of the session the :reload was queued
-        if(g != null) {                              //   against, not the one on screen
+        loadAll();                                   // re-scan disk + enabled set; re-run; fire Load
+        AddonManager.SessionState st = AddonManager.state(host());   // the character on screen, if there is one
+        GameUI g = (st == null) ? null : AddonManager.gui(st.ui);
+        if(g != null) {
             StoreApi.restorePerChar(st, g);          // reload per-char saved vars (the scope is still valid)
             fire("EnterWorld");
         }
@@ -523,7 +535,7 @@ public final class AddonRegistry {
         public final String id, name, version, author, description;
         public final int apiVersion;
         public final boolean enabled;          // persisted enabled state (the checkbox) — NOT the live-loaded state
-        public final boolean loaded;           // currently running this session
+        public final boolean loaded;           // currently running
         public final PermissionSet permissions; // the protected keys it declared (D-027: default-disabled, consent at enable)
         public final List<String> networkHosts; // declared network allowlist (N2a / D-037); empty = no network
         public final String error;             // load/runtime error, or null
@@ -535,7 +547,7 @@ public final class AddonRegistry {
          * renders the row unticked.
          */
         public final String manifestError;
-        public final String warning;           // session warning (e.g. auto-disabled by the CPU watchdog), or null
+        public final String warning;           // e.g. auto-disabled by the CPU watchdog, until the next load; or null
 
         AddonInfo(String id, String name, String version, String author, String description,
                   int apiVersion, boolean enabled, boolean loaded, PermissionSet permissions,
@@ -631,6 +643,11 @@ public final class AddonRegistry {
     }
 
     /** A counter bumped by each completed {@link #reload}, so a live AddOns panel can detect a rebuild. */
+    /** How many times the Lua layer has been built — boot plus every reload (074.2, {@code engineReloads}). */
+    public static int loadGen() {
+        return loadGen;
+    }
+
     public static int reloadGen() {
         return reloadGen;
     }

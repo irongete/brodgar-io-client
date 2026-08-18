@@ -118,6 +118,13 @@ import javax.imageio.ImageIO;
  */
 public final class AddonManager {
 
+    /**
+     * <b>The loaded addons — the client's, not a login's</b> (074.2, settling the row {@code 073}'s census
+     * deferred to this feature). It was per-session in everything but its declaration while {@code init}
+     * replaced the whole set on every anchor change; deleting that made the deferral answer itself, and the
+     * answer is the opposite of what deferring it assumed. An {@code Addon} is loaded once for the client,
+     * outlives every session, and reaches sessions rather than belonging to one.
+     */
     static final List<Addon> addons = new CopyOnWriteArrayList<Addon>();
     static Addon consoleOwner;      // the :lua REPL, as a resource owner (persists across sessions)
 
@@ -129,7 +136,11 @@ public final class AddonManager {
 
     /** How long EnterWorld waits for the server to place the action menu before firing without it. */
     private static final double MENU_WAIT = 5.0;
-    static double clock;                        // seconds accumulated from tick dt (UI thread)
+    // 074.2: the engine clock a timer is due on — process-wide with the addons whose timers it measures (the
+    // census row deferred to this feature, settled with `addons`). It accrues on the LAYER's tick, so it counts
+    // one second per second however many sessions are up, and it is never reset: a clock that restarted would
+    // make a timer set before a switch due at an instant that has already passed.
+    static double clock;
     // 038.3: `overlaySubs` is a FAST PATH, not a correctness gate: Gob.addol runs on the loader threads for
     // every decoration the server sends, so the seam must cost one volatile read when nobody listens. It is
     // set by a subscription and cleared per session/reload; a stale `true` (someone unsubscribed) only means
@@ -137,9 +148,11 @@ public final class AddonManager {
     // event here. It ARMS a seam in Gob, which belongs to no session, so it stays one flag for the client.
     static volatile boolean overlaySubs;
     // 042.1: the Resolve (M2) marshalling queue — a Loading's wnotify() runs on whichever thread finished
-    // the load (Loader, Defer pool), so a retry callback never touches Lua directly; it enqueues here and
-    // tick() drains it on the UI thread (P5), same shape as the per-session queues in SessionState. A retry
-    // is owned by an ADDON and cancelled by that addon's teardown, so it is indexed where `addons` is.
+    // the load (Loader, Defer pool), so a retry callback never touches Lua directly; it enqueues here and the
+    // layer's tick drains it on the UI thread (P5), same shape as the per-session queues in SessionState. A
+    // retry is owned by an ADDON and cancelled by that addon's teardown, so it is indexed where `addons` is —
+    // process-wide since 074.2, with the set it is indexed by, and the seam is handed a bare Runnable that
+    // names no session anyway.
     private static final Queue<Runnable> resolveQueue = new ConcurrentLinkedQueue<Runnable>();
 
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
@@ -158,9 +171,12 @@ public final class AddonManager {
     // the change takes effect on the next :reload / login, never live. Stored in the client's own
     // preferences (Utils.getprefsl → under the client folder), NOT per-character.
 
-    // -- soft CPU-budget auto-disable (spec 1f-3 / D-018 layer 2): id -> reason for an addon torn down
-    // mid-session by the per-tick CPU watchdog. This is a SESSION action (not the persisted disabled set),
-    // surfaced in the AddOns panel and cleared on the next (re)load so the addon gets a fresh start.
+    // -- soft CPU-budget auto-disable (spec 1f-3 / D-018 layer 2): id -> reason for an addon torn down by the
+    // per-tick CPU watchdog. Not the persisted disabled set: it is surfaced in the AddOns panel and cleared on
+    // the next (re)load, so the addon gets a fresh start from a :reload and only from one.
+    // 074.2: process-wide with the addons it names (the census row deferred to this feature). It lasts until a
+    // reload rather than until a switch, because a switch no longer ends anything — and one addon over budget
+    // is one warning, not one per character.
     static final Map<String, String> autoDisabledWarn = new ConcurrentHashMap<String, String>();
 
     // -- the permissions tier (spec 12-security-and-permissions / D-010 / D-025 / D-027; refined by D-028):
@@ -272,17 +288,15 @@ public final class AddonManager {
      * <p><b>Derived, never stored.</b> It answers {@link Sessions#anchor()} — the session the client draws —
      * rather than a field kept in sync by hand, which is the shape {@code 071} spent three tasks deleting one
      * layer down: two copies of "which session is drawn" disagree eventually, and the one that disagrees is
-     * the one nothing reads on the tick. {@code Sessions.tickrebind} calls {@link #init(UI)} with that very
-     * value on every anchor change, so this is the same object the field held, read at its source.
+     * the one nothing reads on the tick. Since 074.2 nothing could keep such a field anyway: the engine is not
+     * handed the session on screen at any moment at all, because no moment tears it down and rebuilds it.
      *
-     * <p><b>The one place the derivation is not the identity</b> is the client holding no session at all: the
-     * field kept the last game session's {@code UI} until the next {@link #init}, and {@link Sessions#anchor()}
-     * answers the login screen's, because that is what is drawn. The newer answer is the live tree and the
-     * older one a destroyed one, so nothing regresses — and the layer is not running there anyway: the tick
-     * pump is a widget on the session's own root, so it stops with the session that carried it.
+     * <p><b>It answers the login screen when the client holds no session</b>, because that is what is drawn —
+     * and since 074.2 the addon layer is running there, loaded and ticking, with every session-shaped read
+     * refusing for want of a session rather than for want of an engine.
      *
      * <p>{@code null} before {@link Sessions#init} has a loop, and the {@link UI#root} of what it answers may
-     * be null as well — every caller guards, exactly as it guarded the field.
+     * be null as well — every caller guards.
      */
     static UI host() {
         return Sessions.anchor();
@@ -393,9 +407,9 @@ public final class AddonManager {
         // Every one of these names WIDGETS OF ONE TREE, and each is filled from the widget it is about:
         // w.ui at the placement, removal and caption seams, the handle's own ui at a press, the tree a
         // builder attached to. None of them is reached through host(), which answers "the session on
-        // screen" — the taps that fill them run on a Loader thread as often as not, and the addon
-        // teardown that empties them runs from init() at a moment when host() ALREADY answers the
-        // session being switched TO. See the reason column of census.md's widget-layer table for each.
+        // screen" — the taps that fill them run on a Loader thread as often as not, and an addon teardown
+        // walks whatever that addon owns across every tree it drew into (074.2: one addon, many sessions).
+        // See the reason column of census.md's widget-layer table for each.
 
         /** {@code hafen.ui():on(sel, …)} subscriptions watching THIS tree ({@link UiApi}, 030.2). */
         final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
@@ -483,8 +497,10 @@ public final class AddonManager {
         // An in-flight request and a character folder both name ONE LOGIN'S things: the request was made
         // by an addon running for one session and its callback has to reach that session's tick, and
         // "<genus>_<char>" is the character that session is playing. Both are reached through the addon
-        // that owns them ({@link Addon#state}), which is the session {@code init} loaded it into and the
-        // only thing either seam is handed — a pool thread has no tree to read and no anchor to trust.
+        // that owns them ({@link Addon#state()}), which since 074.2 is the session on SCREEN — an addon is
+        // the client's now and runs beside every session it holds, so the one it is acting for is the one
+        // being looked at. A pool thread has no tree to read, which is why the answer is resolved on the UI
+        // thread and closed over rather than asked again when the completion lands.
 
         /** Finished requests of this session's addons, captured on a pool thread ({@link HttpApi}). */
         final Queue<HttpApi.HttpCompletion> httpResults = new ConcurrentLinkedQueue<HttpApi.HttpCompletion>();
@@ -500,32 +516,6 @@ public final class AddonManager {
 
         SessionState(UI ui) {
             this.ui = ui;
-        }
-
-        /**
-         * What {@link AddonManager#init} used to clear, for one session. {@code init} still means <i>the
-         * session ended</i> and still runs on every anchor change (criterion 5), so it goes on clearing this
-         * — the only thing that changed is that there is one of these per session instead of one for the
-         * client. It does <b>not</b> drop the state itself: that happens when the {@code UI} dies.
-         *
-         * <p><b>The widget layer above clears itself</b> (073.2), from the same {@code init}, through each
-         * subsystem's own {@code resetSession()} walking {@link AddonManager#allStates()} — a gesture has to
-         * be released before it is forgotten and a console record has to be pruned by whose tree it named,
-         * so those clears stay beside the reasons they carry rather than becoming ten more lines here.
-         */
-        void reset() {
-            enterWorldPending = false;
-            hudUpSince = -1;
-            reloadPending = false;
-            gobEvents.clear();
-            overlayEvents.clear();
-            removedWidgets.clear();
-            beltSetQueue.clear();
-            resizedWidgets.clear();
-            textRewrites.clear();
-            markerChanges.clear();
-            addonRoot = null;
-            ocCb = null;
         }
     }
 
@@ -599,16 +589,21 @@ public final class AddonManager {
      * What ends them is the {@code UI} being replaced, which is what a relogin does.
      */
     public static void uiDestroyed(UI u) {
-        if(u != null)
-            states.remove(u);
+        if(u == null)
+            return;
+        states.remove(u);
+        // 074.2: ...and every record an addon left naming a widget of that tree. It was `init` that pruned
+        // these, on a switch, for the one owner that outlived one; now that EVERY addon outlives a session,
+        // the prune belongs where the tree actually ends — which is here, and is what the census's route (b)
+        // says in the first place.
+        UiApi.pruneDeadTrees();
     }
 
     /**
-     * <b>Every session's state</b>, for the handful of sweeps that are about all of them at once (073.2):
-     * {@code init}'s per-subsystem {@code resetSession()}, an addon teardown dropping records it made in
-     * whichever tree it was running in, and the two profiler counters that roll one figure up for the whole
-     * client. Not a door to "the" session: nothing here picks one, which is the point — a caller that wants
-     * one names it, through {@link #state(UI)}.
+     * <b>Every session's state</b>, for the handful of sweeps that are about all of them at once (073.2): an
+     * addon teardown dropping records it made in whichever tree it was running in, and the two profiler
+     * counters that roll one figure up for the whole client. Not a door to "the" session: nothing here picks
+     * one, which is the point — a caller that wants one names it, through {@link #state(UI)}.
      */
     static Iterable<SessionState> allStates() {
         return states.values();
@@ -645,6 +640,31 @@ public final class AddonManager {
                 n++;
         }
         return n;
+    }
+
+    /**
+     * <b>How many addons are running right now</b> — the {@code addonsLive} figure of
+     * {@code hafen.client():profiling():session()}. A gauge, not a total: it is what a {@code :reload} last
+     * loaded, and <b>it does not move on a character switch</b>, which is the whole of what 074 changed.
+     */
+    public static int addonsLive() {
+        return addons.size();
+    }
+
+    /**
+     * <b>Engine reloads nobody asked for</b> — the {@code engineReloads} figure of
+     * {@code hafen.client():profiling():session()}, and the number this feature exists to hold at <b>zero</b>.
+     *
+     * <p><b>Derived, not counted</b>, which is what makes it a check rather than a claim. The layer is built
+     * exactly twice as often as it is torn down and rebuilt: once at boot, and once per reload the user asked
+     * for. So every load beyond {@code 1 + <reloads the user asked for>} is one the engine performed behind
+     * their back — which used to be one per character switch, at 11 ms and every Lua value an addon held, and
+     * is now nothing at all. A counter incremented at a site that no longer exists would read zero for the
+     * wrong reason; this reads zero because the arithmetic says so, and climbs the moment it stops being true.
+     */
+    public static int engineReloads() {
+        int n = AddonRegistry.loadGen() - 1 - AddonRegistry.reloadGen();
+        return (n > 0) ? n : 0;
     }
 
     // ------------------------------------------------------------- lifecycle
@@ -697,61 +717,46 @@ public final class AddonManager {
     }
 
     /**
-     * Per-session init (from {@code Sessions.tickrebind}, with the session that now holds the screen): tear
-     * down the previous session's addons, reset engine state, attach the tick pump + gob event source, then
-     * (re)load from disk. It <b>replaces</b> rather than constructs, and it still does: what 073.1 changed is
-     * where the state it clears actually lives, never what it means.
+     * <b>The per-client half of the old {@code init}</b> (074.2) — load the addons and fire {@code Load},
+     * once, for the whole client. It runs at boot (the first turn of {@link #layerTick}) and on a
+     * {@code :reload}, and <b>nowhere else</b>: an addon stopped belonging to a login the moment it outlived a
+     * character switch, so there is no third moment left that could want it.
+     *
+     * <p><b>On the UI thread, from the layer's own pump</b>, and not from the {@code UILoop} constructor a few
+     * lines above it. A file body is Lua (P5), and the constructor runs on the client's main thread; the layer
+     * is built there and loaded on the first frame it is ticked, which is the first instant this client has a
+     * thread Lua may run on.
+     *
+     * <p>What it no longer does is what {@code Sessions.tickrebind} used to make it do on every anchor change:
+     * tear every addon down and load them again. That was the whole cost of a switch — 11 ms, and every Lua
+     * value an addon held gone with no event saying so — and deleting the caller deleted it.
      */
-    public static synchronized void init(UI ui_) {
+    static synchronized void boot() {
         Prof.init();  // 019.1: restore the persisted profiling switch (once per JVM)
         Prof.addonCost(AddonManager::luaNanosThisFrame);   // 019.2: the addons roll-up source
         Prof.addonReset(AddonManager::resetProfiling);     // 019.4: p:reset()/arming clears the per-addon rows too
-        for(Addon a : addons)         // fire Disable + flush saved vars + drop owned resources
-            AddonRegistry.teardown(a);              // (flushes with the OLD charScope, still set from the last session)
-        addons.clear();
+        AddonRegistry.loadAll();                           // discover + run addons, fire Load for each
+    }
 
-        clock = 0;
-        // 073.1: what this cleared was ONE set of queues and flags for the whole client; per session that is
-        // every one of them, and clearing them all is exactly the same act. It goes on meaning "the session
-        // ended" — init still runs on every anchor change — so it is the state's contents that go, never the
-        // state itself, which dies with the UI it belongs to (see SessionState.reset and uiDestroyed).
-        for(SessionState s : states.values())
-            s.reset();
-        overlaySubs = false;          // 038.3: (loadAll below re-subscribes whoever listens, which re-arms the seams)
-        VrApi.resetEntityIndex();     // 043.2/044.9: and both indexes of standing hafen.vr() entities — a gob id
-                                      //   means a different gob next session, and the addons' own were just torn down
-        resolveQueue.clear();         // 042.1: and any Resolve retry queued from the old session
-        BeltHold.flushAll();          // 059.5: persist the placements while the OLD charScope is still set (as
-                                      //   the teardown above flushes saved vars) — they name the bar just left
-                                      //   (073.3: every session's, since init is not told which one ended)
-        BeltHold.resetSession();      // 059.4: ...and every bar slot an addon was holding — a slot index names
-                                      //   another character's bar now, and the addons above were just torn down
-        HttpApi.reset();              // N2a: drop stale HTTP completions (their requests were torn down above)
-
-        StoreApi.resetSession();      // per-char scope + auto-save clock reset for the new session
-
-        UiApi.resetSession();         // 2b/3a/3b/3c: reset overlay sweep + per-session widget registries
-        MapApi.resetMarkers();      // A1: drop per-session marker maps + re-prime MarkersChanged
-        MapApi.resetOverlays();     // 037.3: forget the REPL owner's overlay holds — the MapView they named is gone
-        MapImages.teardown(consoleOwner);   // 037.4: ...and free the map drawings it rendered from the OLD session's
-                                            //   map file (the addons' went with the teardown above)
-        // 073.3: CharApi.resetSession() is GONE. It cleared the adapter list and constructed nine fresh
-        //   adapters on every init; per session they are built with the state (SessionState.treeAdapters) and
-        //   go with it, because a switch does not give a session a different HUD.
-
-        SessionState st = state(ui_);
-        if(st == null) {
-            log("no session behind that ui; tick pump not attached");
-            return;
-        }
-        attachRoot(st, ui_);          // invisible per-frame tick widget (drives the engine)
-        registerOcache(st, ui_);      // GobAdded/GobRemoved source (marshalled to the UI thread)
-        // 073.5: the :lua REPL owner is process-wide by design (criterion 3), but the requests a REPL line
-        // makes are one session's like any addon's — so the object stays and the session it points at is
-        // re-pointed here, which is the one moment the client says which session it is now running.
-        if(consoleOwner != null)
-            consoleOwner.state = st;
-        AddonRegistry.loadAll(st);                  // discover + run addons, fire Load for each
+    /**
+     * <b>The per-session half of the old {@code init}</b> (074.2) — attach this session's tick pump and its
+     * gob event source, and mint the {@link SessionState} the rest of the layer reads it through (which is
+     * what builds its nine HUD adapters, 073.3). Called from {@code Sessions.Member} the moment that session's
+     * {@code UI} exists, on that session's own thread: <b>a session's arrival is what drives it</b>, never the
+     * screen moving to it, so a session that is never looked at is served exactly like one that is.
+     *
+     * <p>Deliberately <b>not</b> {@code synchronized}: it takes the new {@code UI}'s own monitor (a widget
+     * added to its root) and the class monitor is what {@code AddonRegistry.reload} holds while the UI thread
+     * is inside {@code synchronized(ui)}. Taking both here, in the other order, is the one deadlock this
+     * layer can build — and nothing here needs the class monitor, because everything it touches is this
+     * session's alone.
+     */
+    public static void sessionArrived(UI u) {
+        SessionState st = state(u);
+        if(st == null)
+            return;                   // no session behind it, or already destroyed: nothing to pump
+        attachRoot(st, u);            // invisible per-frame tick widget (drives this session's engine step)
+        registerOcache(st, u);        // GobAdded/GobRemoved source (marshalled to the UI thread)
     }
 
     /** Attach the invisible tick widget to {@code ui.root} (guarded — root must exist). */
@@ -779,8 +784,8 @@ public final class AddonManager {
         try {
             OCache oc = u.sess.glob.oc;
             OCache.ChangeCallback cb = new OCache.ChangeCallback() {
-                // ...and only while a pump is attached to drain it: a callback OCache has not yet collected
-                // goes on firing for a session whose engine was torn down at the last switch.
+                // ...and only while a pump is attached to drain it: a session's queue with nothing draining
+                // it would grow for the life of that session.
                 public void added(Gob g)   { if(st.addonRoot != null) st.gobEvents.add(new GobEvent(true, g)); }
                 public void removed(Gob g) { if(st.addonRoot != null) st.gobEvents.add(new GobEvent(false, g)); }
             };
@@ -794,40 +799,23 @@ public final class AddonManager {
     // ------------------------------------------------------------- the tick pump
 
     /**
-     * <b>One step of the addon layer's own tree</b> (074.1), driven by {@link LayerRoot#tick(double)} each
-     * frame. The layer is where an addon's own windows live, and it is a tree without a session: what it owes
-     * per frame is what a tree owes — the surfaces built into it since the last one, the popup a click buried,
-     * and the removals and resizes its own widgets recorded off the tick.
+     * <b>One step of the addon layer</b> (074.1, and since 074.2 the engine's own step), driven by
+     * {@link LayerRoot#tick(double)} each frame. The layer is where an addon's own windows live and where the
+     * addons themselves now live, so this is both: what a <i>tree</i> owes per frame — the surfaces built into
+     * it since the last one, the popup a click buried, the removals and resizes its own widgets recorded off
+     * the tick — and what the <i>client</i> owes its addons, which is everything that must happen exactly once
+     * however many sessions are up: the clock, {@code Update}, the timers, the CPU budget and a queued
+     * {@code :reload}.
      *
-     * <p>It is deliberately <b>not</b> {@link #tick(UI, double)}. That one is a <i>session's</i> step — the
-     * gob queue, the HUD adapters, {@code Update}, the timers, the CPU budget — and every addon has exactly
-     * one of those however many trees it draws into. Running it here would step every addon twice a frame.
-     */
-    static void layerTick(UI u) {
-        try {
-            SessionState st = state(u);
-            if(st == null)
-                return;
-            UiApi.armPending(st);         // 039.6: what was built into the layer this frame goes on screen now
-            CDropdown.drainRaises(st);    // 040.10: ...and a popup its own window's click-to-raise buried
-            drainRemovedWidgets(st);      // 042.1: a widget of ours that left the tree, and what watched it
-            drainResizedWidgets(st);      // 042.10: ...and one that changed shape, for whatever is anchored
-        } catch(RuntimeException e) {
-            log("layer tick error: " + e);
-        }
-    }
-
-    /**
-     * One engine step, driven by {@link AddonRoot#tick(double)} on the UI thread each frame. Order
-     * per {@code 04-engine.md}: drain the marshalled event queue, then {@code Update}, then timers.
-     * Everything is error-isolated so an addon bug never breaks the frame or another addon.
+     * <p><b>That second half moved here from {@link #tick(UI, double)}</b> and the move is the feature: a
+     * session's step runs once per session, and an addon is the client's now. Left where it was, two sessions
+     * would fire two {@code Update}s a frame, run every timer twice and charge each addon's Lua budget twice.
      *
-     * <p><b>It is told which session it is stepping</b> (073.1): the pump is a widget on one session's root,
-     * so the tree it was reached through is the answer, and what it drains is that session's own queues.
-     * A tree with no session behind it drives nothing — there is nothing queued for it and no addon of its
-     * own to tell.
+     * <p>It is also the <b>only</b> pump that is always running — the layer is built with the client and never
+     * replaced — which is why the boot below is hung on it: a file body is Lua, Lua runs on this thread (P5),
+     * and this is the first turn of it the client has.
      */
-    static void tick(UI u, double dt) {
+    static void layerTick(UI u, double dt) {
         try {
             SessionState st = state(u);
             if(st == null)
@@ -835,29 +823,40 @@ public final class AddonManager {
             sweepStates();   // the backstop under uiDestroyed, on the one thread that is always running
             clock += dt;
 
-            // 0. A queued :reload / Reload UI — rebuild the addon layer on the UI thread (spec 1f-2,
-            //    D-005). Done first + return so the reloaded addons begin their own tick cleanly next
-            //    frame (this frame's Update/timers belonged to the addons we just tore down).
+            // 074.2: the client's addons, loaded once, on the first frame the layer is ticked.
+            if(!booted) {
+                booted = true;
+                boot();
+                return;      // the loaded addons begin their own tick cleanly next frame
+            }
+
+            // 0. A queued :reload / Reload UI — rebuild the addon layer on the UI thread (spec 1f-2, D-005).
+            //    Queued against the LAYER since 074.2, because that is what a reload rebuilds: the addons are
+            //    the client's, so a reload typed on the login screen is as real as one typed in the world.
+            //    Done first + return so the reloaded addons begin their own tick cleanly next frame (this
+            //    frame's Update/timers belonged to the addons we just tore down).
             if(st.reloadPending) {
                 st.reloadPending = false;
-                st.overlayEvents.clear();   // 038.3: the addons that queued these are being torn down
-                overlaySubs = false;        //   (the reloaded ones re-subscribe inside reload())
-                AddonRegistry.reload(st);
+                for(SessionState ss : allStates())
+                    ss.overlayEvents.clear();   // 038.3: the addons that queued these are being torn down
+                overlaySubs = false;            //   (the reloaded ones re-subscribe inside reload())
+                AddonRegistry.reload();
                 return;
             }
 
-            // 0b. The arming tick (039.6): every surface a builder made since the last tick goes into the tree
-            //     now. Done FIRST, so a window built in an input handler — which the engine dispatches before
+            // 0b. The arming tick (039.6): every surface a builder made into THIS tree since the last tick goes
+            //     in now. Done FIRST, so a window built in an input handler — which the engine dispatches before
             //     ui.tick() — is on screen in the very frame it was asked for, fully configured, rather than a
             //     frame later. Not before the reload above: a widget whose addon is being torn down is never
             //     placed at all.
             UiApi.armPending(st);
-            CDropdown.drainRaises(st);    // 040.10: re-raise a popup the enclosing window's own click-to-raise
-                                           //   buried this same frame (see CDropdown's class doc)
+            CDropdown.drainRaises(st);    // 040.10: ...and a popup its own window's click-to-raise buried
+            drainRemovedWidgets(st);      // 042.1: a widget of ours that left the tree, and what watched it
+            drainResizedWidgets(st);      // 042.10: ...and one that changed shape, for whatever is anchored
 
             // Soft CPU-budget accounting (D-018 layer 2): zero every addon's per-tick Lua time before any
             // handler runs this tick; callLua accumulates into it, enforceSoftBudget() evaluates it at the
-            // end. (Skipped on a reload tick, which returns above — its Load/EnterWorld are one-offs.)
+            // end. (Skipped on a reload tick, which returns above — its Load is a one-off.)
             // 019.4: this instant is also where the PREVIOUS frame closes — tickLuaNanos accrues through the
             // tick and the draw callbacks that follow it, so right here it holds exactly one whole frame.
             // profRoll() moves it into the addon's "last completed frame" figures before it is cleared, which
@@ -866,6 +865,7 @@ public final class AddonManager {
             // `probed` describes the frame being CLOSED (this tick opens the next one), so the category and
             // scope split — which a control frame does not measure — holds its last measured value instead
             // of rolling a row of zeroes in one frame out of every Overhead.PERIOD.
+            // 074.2: on the LAYER's tick, so an addon's frame closes once however many sessions are up.
             boolean armed = Prof.armed(), probed = prevProbed;
             prevProbed = Prof.on;
             for(int i = 0, n = addons.size(); i < n; i++) {
@@ -880,6 +880,60 @@ public final class AddonManager {
                     co.profRoll(probed);
                 co.tickLuaNanos = 0L;
             }
+
+            // Resolve (M2, 042.1) retries queued by a Loading resolving off-thread → run on the UI thread.
+            // One frame's worth (a retry that re-registers must not spin this tick forever). Process-wide
+            // with the addons that own them (074.2): the seam is handed a bare Runnable and knows no session.
+            drainResolveQueue();
+
+            // Per-frame update, and the due timers behind it. Once per frame for the client — an addon has one
+            // Update however many characters it is watching.
+            fire("Update", LuaValue.valueOf(dt));
+            runTimers();
+
+            // Custom UI overlays (2b): queue the HUD-overlay afterdraw for THIS frame if any addon has one.
+            // UI.drawafter is one-shot, tick precedes draw, so it paints above the HUD this frame. The SCREEN's
+            // after-draw: a HUD overlay paints over what is drawn.
+            UI hu = host();
+            if((hu != null) && UiApi.anyHudOverlays())
+                hu.drawafter(UiApi.hudAfterDraw);
+
+            // Soft per-tick CPU budget (D-018 layer 2): auto-disable an addon that has been over budget for too
+            // many consecutive ticks — a sustained runaway the hard per-call cap doesn't catch.
+            enforceSoftBudget();
+        } catch(RuntimeException e) {
+            log("layer tick error: " + e);
+        }
+    }
+
+    /** Whether {@link #boot} has run. One client, one boot — see {@link #layerTick}. */
+    private static boolean booted = false;
+
+    /**
+     * <b>One session's step</b>, driven by {@link AddonRoot#tick(double)} on the UI thread each frame — every
+     * session's, every frame, and not only the one on screen. Everything is error-isolated so an addon bug
+     * never breaks the frame or another addon.
+     *
+     * <p><b>It is told which session it is stepping</b> (073.1): the pump is a widget on one session's root,
+     * so the tree it was reached through is the answer, and what it drains is that session's own queues — its
+     * gobs, its HUD adapters, its widgets, its world, its store.
+     *
+     * <p><b>What is NOT here is what an addon has one of</b> (074.2): {@code Update}, the timers, the Lua
+     * budget and the engine clock run on the layer's own pump ({@link #layerTick}), once for the client, so
+     * two sessions are two sets of drains and still one addon being stepped.
+     */
+    static void tick(UI u, double dt) {
+        try {
+            SessionState st = state(u);
+            if(st == null)
+                return;
+            // 0. The arming tick (039.6): every surface a builder made into THIS session's tree since the last
+            //    tick goes in now. Done FIRST, so a window built in an input handler — which the engine
+            //    dispatches before ui.tick() — is on screen in the very frame it was asked for, fully
+            //    configured, rather than a frame later.
+            UiApi.armPending(st);
+            CDropdown.drainRaises(st);    // 040.10: re-raise a popup the enclosing window's own click-to-raise
+                                           //   buried this same frame (see CDropdown's class doc)
 
             // 1. Gob spawn/despawn captured on network/loader threads → dispatch on the UI thread.
             GobEvent ge;
@@ -927,12 +981,7 @@ public final class AddonManager {
             //       UiApi.flushItemWatchers / WidgetSubs.markDirty.
             UiApi.flushItemWatchers(st);
 
-            // 1b''. Resolve (M2, 042.1) retries queued by a Loading resolving off-thread → run on the UI thread.
-            //       Same one-frame-per-tick bound as the queues above (a retry that re-registers must not spin
-            //       this tick forever).
-            drainResolveQueue();
-
-            // 1b'''. Deferred belt-slot writes (042.6, D-178) captured off-thread by the two GameUI
+            // 1b''. Deferred belt-slot writes (042.6, D-178) captured off-thread by the two GameUI
             //        setbelt/setbelt2 loader tasks → dispatched on the UI thread, one frame's worth
             //        (D-106). The uimsg tap already re-diffed the whole bar against the OLD value for
             //        these two paths (the write lands after the message is dispatched); this re-checks
@@ -1023,7 +1072,8 @@ public final class AddonManager {
             //    EnterWorld fires anyway, with a log line saying the menu never came, so a session that has no
             //    action menu at all still gets everything else.
             if(st.enterWorldPending) {
-                GameUI hud = gui();
+                GameUI hud = gui(st.ui);   // 074.2: THIS session's HUD — every session ticks now, not only the
+                                           //   one on screen, so "the" HUD would be the wrong character's
                 if((hud != null) && (hud.parent != null)) {
                     if(st.hudUpSince < 0)
                         st.hudUpSince = clock;
@@ -1042,32 +1092,14 @@ public final class AddonManager {
                 }
             }
 
-            // 3. Per-frame update.
-            fire("Update", LuaValue.valueOf(dt));
-
-            // 4. Due timers.
-            runTimers();
-
-            // 4b. Custom UI overlays (2b). Queue the HUD-overlay afterdraw for THIS frame if any addon has one
-            //     (see the field note): UI.drawafter is one-shot, tick precedes draw, so it paints above the
-            //     HUD this frame. The gob-overlay sweep that used to stand here is GONE (038.1) — the state
-            //     lives on the gob, so there is nothing to match and nothing to attach per tick.
-            UI hu = host();   // the SCREEN's after-draw: a HUD overlay paints over what is drawn
-            if((hu != null) && UiApi.anyHudOverlays())
-                hu.drawafter(UiApi.hudAfterDraw);
-
-            // 5. Throttled auto-save of saved variables (mirrors GameUI's window-position saves). Covers
-            //    an unclean exit; a relog also flushes via teardown. flush() skips unchanged files, so
-            //    this is cheap when nothing changed. On the UI thread → no races reading the Lua tables.
+            // 3. Throttled auto-save of this session's saved variables (mirrors GameUI's window-position
+            //    saves). Covers an unclean exit. flush() skips unchanged files, so this is cheap when nothing
+            //    changed. On the UI thread → no races reading the Lua tables.
             StoreApi.autosave(st, clock);
             BeltHold.flush(st);     // 059.5: and the action-bar placements, if one changed since the last tick
                                     //   (a no-op otherwise — the message thread only ever marks them dirty)
-
-            // 6. Soft per-tick CPU budget (D-018 layer 2): auto-disable an addon that has been over budget
-            //    for too many consecutive ticks — a sustained runaway the hard per-call cap doesn't catch.
-            enforceSoftBudget();
         } catch(RuntimeException e) {
-            log("tick error: " + e);
+            log("session tick error: " + e);
         }
     }
 
@@ -1123,7 +1155,7 @@ public final class AddonManager {
      * Enforce the soft per-tick CPU budget (D-018 layer 2 / spec 12). Each addon accrued its total Lua
      * time this tick in {@code tickLuaNanos} (via {@link #callLua}); an addon over
      * {@link Sandbox#SOFT_BUDGET_NANOS} adds a strike, one under budget clears the count. On reaching
-     * {@link Sandbox#SOFT_STRIKE_LIMIT} consecutive over-budget ticks it is auto-disabled for the session
+     * {@link Sandbox#SOFT_STRIKE_LIMIT} consecutive over-budget ticks it is auto-disabled until the next load
      * (torn down + a warning surfaced in the AddOns panel). Runs at end of tick, so mutating {@code addons}
      * via {@link #autoDisable} is safe. The {@code :lua} REPL owner is exempt (it is not in {@code addons}
      * — the sandbox constrains shared addon code, not the operator's console).
@@ -1143,15 +1175,15 @@ public final class AddonManager {
     }
 
     /**
-     * Auto-disable an addon for the current session (D-018): record a panel warning, run its teardown
-     * ({@code Disable} → flush saved vars → drop owned resources) and drop it from the live set so it
-     * stops ticking. This does NOT touch the persisted enabled set — a {@code :reload}/login gives the
-     * addon a fresh start (the user can persist-disable it via the panel checkbox). Called from
-     * {@link #enforceSoftBudget} at end of tick, so mutating {@code addons} here is safe.
+     * Auto-disable an addon (D-018): record a panel warning, run its teardown ({@code Disable} → flush saved
+     * vars → drop owned resources) and drop it from the live set so it stops ticking. This does NOT touch the
+     * persisted enabled set — a {@code :reload} gives the addon a fresh start (the user can persist-disable it
+     * via the panel checkbox). Called from {@link #enforceSoftBudget} at end of tick, so mutating
+     * {@code addons} here is safe.
      */
     private static void autoDisable(Addon a, String reason) {
         String id = (a.manifest != null) ? a.manifest.id : "addon";
-        log(a, "AUTO-DISABLED this session by the CPU watchdog (" + reason + ") - see Options -> AddOns");
+        log(a, "AUTO-DISABLED by the CPU watchdog (" + reason + ") - see Options -> AddOns");
         autoDisabledWarn.put(id, reason);
         AddonRegistry.teardown(a);
         addons.remove(a);
@@ -3073,7 +3105,6 @@ public final class AddonManager {
         if(consoleOwner == null) {
             Globals g = Sandbox.consoleGlobals();   // trusted operator console (full stdlib) + watchdog
             Addon owner = new Addon(Manifest.internal("(console)"), null, g);
-            owner.state = state(host());   // 073.5: the console is the SCREEN's, which is what host() means
             installHafen(g, owner);
             consoleOwner = owner;
         }

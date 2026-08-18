@@ -40,7 +40,7 @@ construction; here the behaviour changes, and each suite proves a *difference* r
       `[manual]`: click a spot where the addon window overlaps the game world. Expect: the window
       takes the click and the character does **not** walk there.
 
-- [ ] **074.2 — The engine stops reloading, and an addon outlives a switch.**
+- [x] **074.2 — The engine stops reloading, and an addon outlives a switch.**
       Deletes `Sessions.tickrebind` and its `rebind` flag. `AddonManager.init` splits along the line
       `073` already drew: the **per-session** half — attach the tick widget, register the `OCache`
       callback, prime the adapters — is driven by that session's own arrival, and the **per-client**

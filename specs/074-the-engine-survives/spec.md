@@ -117,7 +117,7 @@ entities dropped at reload; `api/actionbar.md` on a hold not surviving to the ne
 - `src/haven/Client.java` — 1 (the one real `dispatch`; the other two are no-ops)
 - `src/io/brodgar/addon/UiApi.java` — 1
 - `src/io/brodgar/addon/LuaWidget.java` — 1 (liveness, and the cross-tree `widget:parent(w)`)
-- `src/io/brodgar/addon/LayerRoot.java` — 2, 3 (the layer's tick pump)
+- `src/io/brodgar/addon/LayerRoot.java` — 3 (the engine's pump: boot, `Update`, the timers, the budget)
 - `src/io/brodgar/addon/AddonManager.java` — 1, 2, 3, 4
 - `src/io/brodgar/addon/AddonRegistry.java` — 2, 3
 - `src/io/brodgar/addon/Addon.java` — 2, 4

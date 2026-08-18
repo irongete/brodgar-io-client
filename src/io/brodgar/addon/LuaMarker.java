@@ -43,7 +43,7 @@ import java.util.Map;
  * {@link MapFile.Marker} is loaded once and then mutated in place (a merge rewrites its fields; it is never
  * re-minted), so object identity is stable for the session and {@link MapApi}'s ref map — the one 037.1
  * already handed to Lua as a number — is exactly the right key. It is dropped on relog with the rest of the
- * session state ({@code MapApi.resetMarkers}).
+ * session state, which dies with the session's {@code UI}.
  */
 public final class LuaMarker {
     /** The per-session marker ref — the whole state of a handle, and its identity ({@link MapApi#markerId}). */

@@ -1,7 +1,7 @@
 # AddOns
 
-A **Lua addon system** for the client. An addon is a folder of Lua files that the client loads at login
-and runs in a sandbox, with everything it may touch arriving through one `hafen.*` API: read the game
+A **Lua addon system** for the client. An addon is a folder of Lua files that the client loads when it
+starts and runs in a sandbox, with everything it may touch arriving through one `hafen.*` API: read the game
 state, react to events, draw your own UI, add hotkeys and console commands, restyle the client — and,
 with the user's permission, drive the character.
 

@@ -5,8 +5,12 @@ import haven.Widget;
 
 /**
  * The invisible, zero-size "addon-root" widget. It is attached to {@code ui.root} once per session
- * ({@link AddonManager#init}) and its per-frame {@link #tick(double)} drives that session's addon engine
- * (event dispatch, {@code Update}, timers).
+ * ({@link AddonManager#sessionArrived}) and its per-frame {@link #tick(double)} drives that session's own
+ * step of the addon engine: its gobs, its HUD adapters, its widgets, its world and its store.
+ *
+ * <p><b>Not the whole engine</b> (074.2). {@code Update}, the timers, the Lua budget and the engine clock are
+ * the <i>client's</i> and run on {@link LayerRoot}, once a frame, because an addon has one of each however
+ * many sessions it is watching.
  *
  * <p>This is the <b>zero-core-edit</b> tick pump described in {@code specs/addons/04-engine.md}:
  * {@link haven.UI#tick()} broadcasts a {@code TickEvent} to every widget on the UI thread, under
@@ -24,7 +28,7 @@ public final class AddonRoot extends Widget {
 
     public void tick(double dt) {
         super.tick(dt);               // harmless: advances this widget's (empty) animation list
-        AddonManager.tick(ui, dt);    // engine step, on the UI thread; errors are isolated inside. 073.1: the
+        AddonManager.tick(ui, dt);    // session step, on the UI thread; errors are isolated inside. 073.1: the
                                       //   pump says which session it is stepping — this widget is on that
                                       //   session's own root, so the tree it hangs in IS the answer
     }

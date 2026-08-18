@@ -9,7 +9,7 @@
 | Resource setup (global init point, no session) | `Client.setupres`, called at `main2` |
 | Runner state machine (`task.run(newui(task))`) | `Client.run` |
 | Login → session establishment → returns `RemoteUI` | `Bootstrap.run`, `Session.connect` |
-| **Per-session init (`ui.sess` bound)** | `RemoteUI.init(UI)`, called from `UI`'s own constructor. It binds the session to its `UI` and nothing else: what the fork hangs off a session follows the **anchor** rather than the login order, and so attaches from the session layer instead ([multi-session.md](multi-session.md)) |
+| **Per-session init (`ui.sess` bound)** | `RemoteUI.init(UI)`, called from `UI`'s own constructor. It binds the session to its `UI` and nothing else: what the fork hangs off a session is attached from the session layer instead, the moment that `UI` exists ([multi-session.md](multi-session.md)) |
 | In-game HUD construction | `GameUI` ctor (`GameUI(String chrid, long plid, String genus)`) |
 
 ## The runner state machine

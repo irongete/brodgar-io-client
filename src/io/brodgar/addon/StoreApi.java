@@ -28,7 +28,7 @@ import static io.brodgar.addon.AddonManager.*;
  * The saved-variables subsystem ({@code hafen.store()}, 1e / D-002 / D-023). One Lua table per manifest-declared
  * saved variable, persisted to JSON under {@code savedata/} (account-scope + per-character
  * {@code <genus>_<char>} scope). {@link AddonManager} drives it via
- * {@link #resetSession} (init), {@link #restorePerChar} (EnterWorld/reload), {@link #loadScope}
+ * {@link #restorePerChar} (EnterWorld/reload), {@link #loadScope}
  * (account vars at install), {@link #flush} (teardown), and {@link #autosave} (the throttled tick save).
  * Not instantiable.
  *
@@ -40,7 +40,7 @@ import static io.brodgar.addon.AddonManager.*;
  * <p><b>An addon's scope is its own session's</b> ({@link #scopeOf}), never the screen's, and that is what
  * makes the last write land: a relogin destroys the old {@code UI} before {@code init} fires {@code Disable},
  * so a lookup by session would answer {@code null} exactly when the handler's final write has to be persisted.
- * {@link Addon#state} holds the state object rather than the key, so an addon writes back into the very folder
+ * {@link Addon#state()} holds the state object rather than the key, so an addon writes back into the very folder
  * it read from however late its teardown runs.
  */
 final class StoreApi {
@@ -55,7 +55,7 @@ final class StoreApi {
      * character is this</i> and it is the addon's own.
      */
     private static String scopeOf(Addon a) {
-        AddonManager.SessionState st = (a == null) ? null : a.state;
+        AddonManager.SessionState st = (a == null) ? null : a.state();
         return (st == null) ? null : st.charScope;
     }
 
@@ -145,21 +145,6 @@ final class StoreApi {
                 return rest.call(self, key);
             }
         };
-    }
-
-    /**
-     * Session init: forget the per-char scope + reset the auto-save clock (from AddonManager.init). Every
-     * session's, since {@code init} is not told which one ended — the same act it always was, over a map that
-     * holds one entry while one session is live.
-     */
-    static void resetSession() {
-        for(AddonManager.SessionState st : AddonManager.allStates()) {
-            st.charScope = null;
-            st.storeLastAutoSave = 0;
-        }
-        for(Addon a : addons)
-            forgetPlacements(a);                 // 062: a remembered place is per CHARACTER, and this session
-        forgetPlacements(consoleOwner);          //   has none yet — the next restorePerChar refills from disk
     }
 
     private static void forgetPlacements(Addon a) {

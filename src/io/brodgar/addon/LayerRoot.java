@@ -10,9 +10,9 @@ import haven.Widget;
  *
  * <p>The layer is a {@code UI} of its own with no {@code Session} behind it, drawn above whichever session
  * holds the screen and above the login screen when none does. So this pump is <b>not</b> {@link AddonRoot}:
- * that one is a session's, drives that session's engine step and is asked which login it is stepping. This
- * one belongs to no login, and what it drives is what the layer's own tree needs each frame — the arming
- * tick of the surfaces built into it.
+ * that one is a session's and drives that session's own drains. This one belongs to no login, and since 074.2
+ * it drives the engine itself — the addons are loaded on its first turn, and {@code Update}, the timers, the
+ * Lua budget, the engine clock and a queued {@code :reload} run on it once a frame, for the client.
  *
  * <p>Same zero-core-edit shape as {@link AddonRoot} and for the same reason: {@link haven.UI#tick()}
  * broadcasts a {@code TickEvent} to every widget under {@code synchronized(ui)}, invisible ones included,
@@ -27,6 +27,6 @@ public final class LayerRoot extends Widget {
 
     public void tick(double dt) {
         super.tick(dt);
-        AddonManager.layerTick(ui);   // the tree's own step, on the UI thread; errors are isolated inside
+        AddonManager.layerTick(ui, dt);   // the engine step, on the UI thread; errors are isolated inside
     }
 }

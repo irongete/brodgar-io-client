@@ -1582,7 +1582,7 @@ public final class LuaWidget {
      * nothing, which is every client until an addon calls {@code w:hide()} on a native widget.
      *
      * <p>Maintained by {@link #recountHidden()} at the four places a restore list changes (hide, show,
-     * {@link UiApi#teardownHidden}, {@link UiApi#resetSession}). A stale <i>true</i> costs only the walk, which
+     * {@link UiApi#teardownHidden}, {@link UiApi#pruneDeadTrees}). A stale <i>true</i> costs only the walk, which
      * then finds no record and falls through to stock behaviour; a stale <i>false</i> would be a silent
      * mis-answer, so the flag is only ever cleared by a recount that actually looked.
      */
@@ -1754,7 +1754,7 @@ public final class LuaWidget {
      * addon has laid out — which is every client until one calls {@code w:position(x,y)} on a native widget.
      *
      * <p>Maintained exactly like {@link #anyHidden}: recomputed at the places a layout list changes (the two
-     * verbs, their {@code nil} undo, {@link UiApi#teardownMoved}, {@link UiApi#resetSession}). A stale
+     * verbs, their {@code nil} undo, {@link UiApi#teardownMoved}, {@link UiApi#pruneDeadTrees}). A stale
      * <i>true</i> costs only the walk, which then finds no record and hands back the widget's own value; a
      * stale <i>false</i> would silently persist our position as the user's, so it is only ever cleared by a
      * recount that actually looked.

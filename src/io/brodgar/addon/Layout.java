@@ -138,17 +138,6 @@ final class Layout {
         return Sheet.anyLayout || LuaWidget.anyMoved;
     }
 
-    /** Session init / relog: the tree of the session just ended, so nothing is waiting for a caption any more. */
-    static void resetSession() {
-        for(AddonManager.SessionState s : AddonManager.allStates())
-            s.layoutPending.clear();
-        capDirty = false;
-        synchronized(Layout.class) {
-            derived.clear();
-            dragListeners.clear();   // the old tree is gone with the session; nothing left to deafen
-        }
-    }
-
     // ---- where a widget is placed: ONE property, two spellings (036.3) ------------------------------
 
     /**

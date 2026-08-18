@@ -17,10 +17,12 @@ Three verdicts, and the third earns its place rather than dodging the second:
 | **process-wide** | it does not name one login's things, and it stays exactly where it is |
 | **deferred** | it *does* name one login's things, and converting it alone would leave a half-conversion worse than either end — the task that takes it is named, and so is what has to move with it |
 
-**Where the clearing lives.** `AddonManager.init` still means *the session ended* and still runs on every
-anchor change (criterion 5), so a per-session collection either (a) is cleared by `init` exactly as before,
-now through `SessionState.reset`, or (b) is dropped whole when the session's `UI` is destroyed
-(`AddonManager.uiDestroyed`). The state object itself takes route (b); its contents take route (a).
+**Where the clearing lives.** Route (a) — cleared by `AddonManager.init`, which meant *the session ended* and
+ran on every anchor change — and route (b), dropped whole when the session's `UI` is destroyed
+(`AddonManager.uiDestroyed`). **074.2 collapsed (a) into (b)**: a switch ends nothing, `init` is gone, and
+every per-session collection now lives exactly as long as the `UI` it is keyed on. The one clearing that had
+to find a new home is the prune of records naming widgets of a tree that died, which hangs on `uiDestroyed`
+and walks every addon rather than only the `:lua` REPL — because every addon outlives a session now.
 
 **One shape recurs and is worth naming up front: a `WeakHashMap` keyed on a `Widget` needs no session
 index.** The key *is* the session-shaped thing, it is held weakly, and it dies with the tree it was in. Such
@@ -37,7 +39,7 @@ already answers. Every entry below that reads *self-releasing* is one of these.
 | `SessionState.ocCb` | per session | the strong ref to that session's own `OCache` callback |
 | `SessionState.enterWorldPending` | per session | "the world came up" is one session's world |
 | `SessionState.hudUpSince` | per session | when *that* session's `GameUI` entered the tree |
-| `SessionState.reloadPending` | per session | a `:reload` is queued against the session it was typed into |
+| `SessionState.reloadPending` | per tree | a flag on the tree whose pump drains it. Since 074.2 the tree is the **addon layer**, because that is what a `:reload` rebuilds |
 | `SessionState.dispatchingAction` | per session | it guards one dispatch, under one `UI`'s monitor |
 | `SessionState.gobEvents` | per session | gob ids, and the callback is that session's own network thread |
 | `SessionState.overlayEvents` | per session | gob ids again; the `Gob`'s `Glob` is what names the session |
@@ -49,10 +51,10 @@ already answers. Every entry below that reads *self-releasing* is one of these.
 
 | Field | Verdict | Why |
 |---|---|---|
-| `addons` | **deferred — the lifecycle feature** | it names the addons running for one login, but *which addons run and when they are torn down* is the engine's lifecycle, which criterion 5 leaves to the next feature. `init` still replaces the whole set on every switch, so exactly one session ever has addons alive |
-| `autoDisabledWarn` | **deferred — with `addons`** | a warning about an addon torn down mid-session; splitting it from the set it names would file the warning under a session and the addon under the client |
-| `clock` | **deferred — with `addons`** | the engine clock a *timer* is due on, and timers hang on `Addon`. A clock split from the timers it measures makes a timer due at an instant no session counts |
-| `resolveQueue` | **deferred — with `addons`** | a `Resolve` retry is owned by an `Addon` and cancelled by that addon's teardown; the seam is handed a bare `Runnable` and knows no session |
+| `addons` | **process-wide (074.2)** | an `Addon` stopped belonging to a login. The set looked per-session only because `init` replaced it on every switch; deleting that made the deferral answer itself, and the answer is the opposite of what deferring it assumed — one instance per addon, loaded for the client, reaching sessions rather than living in one |
+| `autoDisabledWarn` | **process-wide — with `addons` (074.2)** | one addon over budget is one warning. It lasts until a reload rather than until a switch, because a switch ends nothing |
+| `clock` | **process-wide — with `addons` (074.2)** | the engine clock a *timer* is due on, and timers hang on `Addon`. It accrues on the layer's own tick, so it counts one second per second however many sessions are up, and it is never reset: a clock that restarted would make a timer set before a switch due at an instant already past |
+| `resolveQueue` | **process-wide — with `addons` (074.2)** | a `Resolve` retry is owned by an `Addon` and cancelled by that addon's teardown; the seam is handed a bare `Runnable` and knows no session |
 | `markerChangeQueue` | **deferred — 073.4** | the seam is handed a `MapFile` and nothing else: the on-disk map database, reached from disk, under its own lock. `MapApi`'s per-session marker maps are the only thing that can name a session for it |
 | `consoleOwner` | process-wide | criterion 3 names it: the `:lua` REPL persists across sessions by design |
 | `overlaySubs` | process-wide | it **arms a seam in `Gob`**, which belongs to no session. It gates cost, never content: a stale `true` costs one drain that finds no subscriber |

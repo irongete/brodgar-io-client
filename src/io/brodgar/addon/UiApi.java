@@ -821,49 +821,31 @@ final class UiApi {
     }
 
     /**
-     * Session init: drop every per-session widget record (from AddonManager.init).
+     * <b>A widget tree died, so every record naming one of its widgets does</b> (074.2) — from
+     * {@code AddonManager.uiDestroyed}, the one place a {@code UI} in this client is taken down.
      *
-     * <p><b>Every session's, because {@code init} is not told which one ended</b> (073.2). It is handed the
-     * session that now holds the screen and still means <i>the session ended</i> (criterion 5), so the four
-     * lists below are emptied for each state exactly as they were emptied once for the client — with one
-     * session live that is the very same act.
-     */
-    static void resetSession() {
-        for(SessionState s : AddonManager.allStates()) {
-            s.widgetSubsWatching.clear();  // 041.4: last session's widgets are gone; nothing left to watch
-            s.selectorWatches.clear();    // 030.2: the tree of the session just ended; nothing matches any more
-            s.selectorPending.clear();
-            s.selectorCapChanged.clear(); // 042.9/049.3: and no re-check is owed to a tree that no longer exists
-        }
-        pruneConsole();                          // 073.2: the REPL's own records, of the trees that are gone
-        resetPending();                          // 039.6: ...and nothing built for the old tree is waiting to be placed
-        LuaWidget.recountHidden();               // 031.1: nothing is hidden in a session that has not started
-        LuaWidget.recountMoved();                // 036.1: ...and nothing is laid out in one either
-        Layout.resetSession();                   // 036.2: ...and no widget of the old tree is awaiting its caption
-        Gesture.resetSession();                  // 062: ...nor is one of them armed for the user to drag or resize
-    }
-
-    /**
-     * <b>The one place a process-wide object holds one session's records</b> (073.2, and the census flags it as
-     * such): {@code consoleOwner} is the {@code :lua} REPL's addon record and persists across sessions <i>by
-     * design</i> — that is what makes a hide typed into the console outlive the reload that follows it — while
-     * six of its collections name <b>widgets of a tree</b>: what it hid, what it moved, what it armed, what it
-     * remembered by name, what it subscribed on, and what it was watching for.
+     * <p>It was {@code pruneConsole}, and it walked the {@code :lua} REPL owner alone: the REPL was the only
+     * Lua owner that outlived a session, so it was the only one that could hold a record of a tree that had
+     * ended. <b>Every addon outlives a session now</b>, which is the feature — so every addon is walked, and
+     * for the very reason 073.2 gave for walking the REPL: a widget of a dead tree has nothing to restore,
+     * nothing to put back where it was, and nobody left to hear it.
      *
-     * <p><b>So the object stays where it is and the clearing moves.</b> It used to be a wholesale
-     * {@code clear()} of all six on every {@code init}, which is "the session ended" written for a client that
-     * had one; here each record is dropped only when the tree it names is <b>actually gone</b> — its widget's
-     * {@code UI} destroyed, which is what a relogin does and what {@code AddonManager.state} refuses to mint for.
-     * With one session live the two are the same act, because the only {@code init} that follows a session
-     * ending follows that session's {@code UI} being destroyed. With two, the wholesale clear was the bug: an
-     * anchor switch would forget a hidden window of the session the player is coming BACK to, leaving it hidden
-     * with nothing left holding the toggle that reopens it.
+     * <p>Hung on the tree's death rather than on a switch, which is what makes it right rather than merely
+     * later: an anchor change forgetting a hidden window of the session the player is coming BACK to would
+     * leave it hidden with nothing holding the toggle that reopens it.
      *
      * <p>A subscription names no single widget, so it is dropped by the tree it was registered against
-     * ({@link LuaSelectorWatch#ui}) instead. On the UI thread, from {@code init}, like the clear it replaces.
+     * ({@link LuaSelectorWatch#ui}) instead. On whatever thread destroyed the {@code UI}; every collection
+     * here is copy-on-write or concurrent, and none of it runs Lua.
      */
-    private static void pruneConsole() {
-        Addon co = consoleOwner;
+    static void pruneDeadTrees() {
+        for(Addon a : AddonManager.profOwners())
+            prune(a);
+        LuaWidget.recountHidden();               // 031.1: whatever was given back is no longer being held
+        LuaWidget.recountMoved();                // 036.1: ...and no longer being laid out
+    }
+
+    private static void prune(Addon co) {
         if(co == null)
             return;
         for(LuaWidget.Hidden h : co.hiddenNative) {  // 029.2: a widget of a dead tree has nothing to restore
@@ -1089,12 +1071,6 @@ final class UiApi {
             synchronized(st.unarmed) { st.unarmed.remove(c); }
     }
 
-    /** Reset the arming queue for a new session (nothing built for the old tree is armed in the new one). */
-    static void resetPending() {
-        for(SessionState st : AddonManager.allStates())
-            synchronized(st.unarmed) { st.unarmed.clear(); }
-    }
-
     // ------------------------------------------------------------- custom UI overlays (hafen.ui, 2b)
 
     /**
@@ -1131,11 +1107,10 @@ final class UiApi {
                 + " (one that had matched left it)");
         if(!fn.isfunction())
             throw new LuaError(where + " expects a handler function fn(widget)");
-        // 073.2: the tree this subscription is about is the one the addon asking for it is running in — the
-        // anchored session, which is the only session that has addons at all while AddonManager.init goes on
-        // tearing them down at every switch (criterion 5). Recorded on the watch, so that every later act on
-        // it — the handle's :remove(), the addon's teardown, the console prune — names THIS tree rather than
-        // re-asking host() at a moment when the anchor may have moved.
+        // 073.2: the tree this subscription is about is the one the addon asked in — the session on SCREEN,
+        // which since 074.2 is one of several the addon outlives. Recorded on the watch, so that every later
+        // act on it — the handle's :remove(), the addon's teardown, the prune that follows that tree's death —
+        // names THIS tree rather than re-asking host() at a moment when the screen has moved.
         final UI wu = host();
         final LuaSelectorWatch w = new LuaSelectorWatch(owner, wu, sel, ev, fn);
         SessionState wst = state(wu);
@@ -1378,10 +1353,10 @@ final class UiApi {
     static void teardownSelectorWatches(Addon a) {
         if(a.selectorWatches.isEmpty())
             return;
-        // 073.2: each one is dropped from the tree IT recorded, not from the tree on screen. This runs from
-        // AddonManager.init as well as from a :reload, and by then the anchor has already moved to the session
-        // being switched to — so host() here would leave every subscription of the session that just ended
-        // standing in its own list, still matching, and still calling an addon that no longer exists.
+        // 073.2: each one is dropped from the tree IT recorded, not from the tree on screen. An addon may have
+        // subscribed in several sessions and the screen is on one of them, so host() here would leave every
+        // subscription made in any other standing in its list, still matching, and still calling an addon that
+        // no longer exists.
         for(LuaSelectorWatch w : a.selectorWatches) {
             w.alive = false;
             w.matched.clear();

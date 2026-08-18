@@ -55,20 +55,41 @@ shows an error row in the panel and runs nothing; the others are unaffected.
 
 ## When your code runs
 
-The client loads the enabled addons at login and at every `:reload`. For each one it runs the files named
-in `files`, in order, top to bottom, once — then fires `Load`. Nothing else is automatic: from there your
-addon does what its [event handlers and timers](guides/events-and-timers.md) do.
+The client loads the enabled addons **once, when it starts** — before you log in, on the login screen —
+and again at every `:reload`. For each one it runs the files named in `files`, in order, top to bottom,
+once, then fires `Load`. Nothing else is automatic: from there your addon does what its
+[event handlers and timers](guides/events-and-timers.md) do.
 
 | Moment | What is ready |
 |---|---|
-| your file bodies | the whole `hafen` API is callable; account saved variables are filled; you are not in the world |
-| `Load` | the same, once every file has run |
+| your file bodies | the whole `hafen` API is callable; account saved variables are filled; there is no character |
+| `Load` | the same, once every file has run. **Once for the client** |
 | `EnterWorld` | the HUD, the map view, the player, and your per-character saved variables |
-| `Disable` | your last chance to write, before the engine flushes and tears down |
+| `Disable` | your last chance to write, before the engine flushes and tears down. **Once for the client** |
+
+So your addon starts on the login screen, and everything a character owns — the HUD, the world, the map,
+per-character saved variables — is absent until a session reaches the world. The read verbs say so rather
+than guessing: each one's reference page states what it gives back when there is no character yet.
 
 An error while a file runs stops **that** addon's file and marks it errored in the panel; an error inside a
 handler, a timer or a draw callback is logged with your addon's id and isolated, so it takes down neither
 your other handlers nor another addon nor the client.
+
+## Your addon outlives the character
+
+**The addon system is its own layer, above the sessions, and it never lives inside one.** The client can
+hold several accounts logged in at once and draws one of them; your addon is loaded once for the client,
+draws above whichever character is on screen, and reaches the drawn one through the API.
+
+Switching character therefore **changes nothing about your addon**. Its Lua environment is the same
+environment, every value it holds is still held, its windows keep their place, their focus and any drag
+still in progress, and its timers keep counting. `Load` fired once and `Disable` has not fired.
+
+> **Your state survives a character switch, and keeping it valid is therefore yours.** A widget handle
+> you took under one character means nothing under another: it names a widget of that character's own
+> tree, which dies with them. Nothing tears your addon down between the two, so nothing clears what you
+> cached — read the widget you want when you want it, which is what
+> [`hafen.ui():find`](api/ui/README.md) costs and no more.
 
 ## The sandbox
 
@@ -102,12 +123,11 @@ impossible, and neither one is reachable by ordinary code.
   legitimate callback is thousands of instructions, not millions.
 - **Per tick: about ten milliseconds, sustained.** An addon whose total Lua time within one tick — every
   handler, timer and draw of that tick added up — goes over the budget for thirty **consecutive** ticks is
-  auto-disabled for the rest of the session, with the reason on its row in the AddOns panel and in the
-  console. One heavy `EnterWorld` or a single janky frame resets the count, so only sustained overrun
-  trips it.
+  auto-disabled, with the reason on its row in the AddOns panel and in the console. One heavy load or a
+  single janky frame resets the count, so only sustained overrun trips it.
 
-> An auto-disable lasts the session and clears on the next load: fix what was burning the frame, then
-> `:reload`. The addon's own enable state is untouched.
+> An auto-disable lasts until the next load: fix what was burning the frame, then `:reload`. The addon's
+> own enable state is untouched.
 
 [`hafen.client():profiling()`](api/client/profiling/README.md) reports what each addon spends per frame,
 which is how you find out *before* the engine does.
@@ -119,11 +139,11 @@ name, version and author, and a live status. The description is the row's toolti
 
 | Row shows | Meaning |
 |---|---|
-| `loaded v<version>` | running this session |
+| `loaded v<version>` | running |
 | `disabled` | switched off, and not loaded |
 | `not loaded` | enabled, but not running — usually an enable that no reload has applied yet |
 | `error: …` | its manifest or its Lua failed; the message says how |
-| `auto-disabled (…)` | the CPU budget stopped it this session |
+| `auto-disabled (…)` | the CPU budget stopped it |
 | `[protected: N]` | it asked for N permission entries — it can act on your behalf; the tooltip names them |
 | `[net]` | it declared network hosts; the tooltip names every host it may reach |
 
@@ -166,11 +186,11 @@ reserved and cannot be taken over.
 
 ## What a reload keeps, and what it drops
 
-`:reload` rebuilds **the addon layer only**. Your session stays connected, the world stays loaded, the
-client's own windows stay as they are, and no addon can tell the difference from a fresh login: each one is
-torn down, the folder and the enabled set are re-read, the enabled addons run again from disk, `Load`
-fires, and — if you are in the world — per-character saved variables are restored and `EnterWorld` fires
-again.
+`:reload` rebuilds **the addon layer only**, and it is the one thing that does. Every session you have
+logged in stays connected, the world stays loaded, the client's own windows stay as they are, and each
+addon is torn down, the folder and the enabled set are re-read, the enabled addons run again from disk,
+`Load` fires, and — if a character is on screen — per-character saved variables are restored and
+`EnterWorld` fires again.
 
 Torn down and re-created, so your addon starts clean: event subscriptions, timers, hotkeys, console
 commands, input hooks, your windows and overlays, world ghosts, sprites and objects, loaded assets, your
