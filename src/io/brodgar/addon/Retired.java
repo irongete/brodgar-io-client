@@ -105,7 +105,7 @@ final class Retired {
             + " :exists() :info()");
 
         // ---- hafen.gob is DELETED into the live world (D-066): a gob lives IN the world ------------------
-        put("hafen.gob", "hafen.gob(id) is now hafen.world():gob():get(id) — still never nil, and"
+        put("hafen.gob", "hafen.gob(id) is now session:world():gob():get(id) — still never nil, and"
             + " gob:exists() is still the liveness test");
 
         // ---- the eight verb-only sections: every dotted verb is now a colon call on the section ---------
@@ -131,33 +131,57 @@ final class Retired {
             + " — opts.headers and opts.timeout are setters on the request it hands back:"
             + " req:header(name, value), req:timeout(ms)");
 
+        // ---- 076.3: hafen.world and hafen.player are GONE onto the session. Sixteen namespaces name one --
+        // ---- character's state and every one of them was spelled as though the client had one login; these
+        // ---- two are the first onto the address. Each is a SECTION name, so one row on the hafen table's own
+        // ---- __index (hafenIndex()) answers every spelling at once -- the bare read, the call, and any
+        // ---- dotted or colon verb after it -- because reading `hafen.world` throws before the call happens.
+        // ---- The per-verb rows below them are the inventory: unreachable in practice, and the guarantee that
+        // ---- no verb moved without a row naming where it went.
+        String addr = " — hafen.session():current() is the character on screen and"
+            + " hafen.session():get(user) is any other, so the read says WHICH character it is about";
+        put("hafen.world", "hafen.world() is now session:world()" + addr + ". A world is one character's view"
+            + " of it: two characters standing apart see different objects, out of their own eyes.");
+        put("hafen.player", "hafen.player() is now session:player()" + addr + ".");
+        sectionObj("world", "gob", "grid", "position", "tile", "height", "tileToWorld", "tileToGrid",
+                   "screenToWorld", "snapPlace", "snapAngle", "place", "select");
+        sectionObj("player", "gob", "move", "hand", "worldToScreen");
+
+        // ---- ...and the character a login is playing is the SESSION's read, not the Player's: one fact with
+        // ---- two spellings whose only difference was which door you came through is the dual style §2 cuts.
+        put("session:player():name", "session:player():name() is now s:character(), on the Session itself: a"
+            + " Session names the ACCOUNT and answers what that login is playing, so"
+            + " hafen.session():current():character() is the character on screen. Your own character's gob is"
+            + " still s:player():gob().");
+        put("hafen.player():name", "hafen.player():name() is now hafen.session():current():character()");
+
         // ---- hafen.world: the gob verbs fold into one read-only collection, and every spatial verb -------
         // ---- takes a Position instead of a pair of numbers (§2.7).
-        put("hafen.world.gobs", "hafen.world.gobs(filter) is now hafen.world():gob():list(filter)");
-        put("hafen.world.count", "hafen.world.count(filter) is now hafen.world():gob():count(filter)");
-        put("hafen.world.nearest", "hafen.world.nearest(filter) is now hafen.world():gob():nearest(filter)");
-        put("hafen.world.within", "hafen.world.within(r, filter) is now hafen.world():gob():within(r, filter)");
-        put("hafen.world.tile", "hafen.world.tile(x, y) is now hafen.world():tile(p), where p is a Position"
-            + " (gob:position(), or hafen.world():position(x, y))");
-        put("hafen.world.height", "hafen.world.height(x, y) is now hafen.world():height(p), where p is a"
-            + " Position (gob:position(), or hafen.world():position(x, y))");
-        put("hafen.world.grid", "hafen.world.grid(x, y) is now hafen.world():grid():at(p), where p is a"
-            + " Position (gob:position(), or hafen.world():position(x, y))");
+        put("hafen.world.gobs", "hafen.world.gobs(filter) is now session:world():gob():list(filter)");
+        put("hafen.world.count", "hafen.world.count(filter) is now session:world():gob():count(filter)");
+        put("hafen.world.nearest", "hafen.world.nearest(filter) is now session:world():gob():nearest(filter)");
+        put("hafen.world.within", "hafen.world.within(r, filter) is now session:world():gob():within(r, filter)");
+        put("hafen.world.tile", "hafen.world.tile(x, y) is now session:world():tile(p), where p is a Position"
+            + " (gob:position(), or session:world():position(x, y))");
+        put("hafen.world.height", "hafen.world.height(x, y) is now session:world():height(p), where p is a"
+            + " Position (gob:position(), or session:world():position(x, y))");
+        put("hafen.world.grid", "hafen.world.grid(x, y) is now session:world():grid():at(p), where p is a"
+            + " Position (gob:position(), or session:world():position(x, y))");
         put("hafen.world.gridPos", "hafen.world.gridPos(x, y) is gone: a Position IS the anchor."
-            + " hafen.world():position(x, y) builds one and p:info() is the {gridId, x, y} form —"
+            + " session:world():position(x, y) builds one and p:info() is the {gridId, x, y} form —"
             + " and hafen.store keeps a Position itself, so there is nothing to convert");
-        put("hafen.world.fromGridPos", "hafen.world.fromGridPos(saved) is now hafen.world():position(saved)"
+        put("hafen.world.fromGridPos", "hafen.world.fromGridPos(saved) is now session:world():position(saved)"
             + " — and a Position read back out of hafen.store is already one, so there is nothing to convert");
         put("hafen.world.worldToTile", "hafen.world.worldToTile(x, y) is now p:tileCoord(), on the Position"
             + " itself");
         put("hafen.world.tileToWorld", "hafen.world.tileToWorld(tx, ty) is now"
-            + " hafen.world():tileToWorld(tx, ty)");
-        put("hafen.world.tileToGrid", "hafen.world.tileToGrid(tx, ty) is now hafen.world():tileToGrid(tx, ty)");
+            + " session:world():tileToWorld(tx, ty)");
+        put("hafen.world.tileToGrid", "hafen.world.tileToGrid(tx, ty) is now session:world():tileToGrid(tx, ty)");
         put("hafen.world.screenToWorld", "hafen.world.screenToWorld(sx, sy, fn) is now"
-            + " hafen.world():screenToWorld(sx, sy, fn), and fn receives a Position");
+            + " session:world():screenToWorld(sx, sy, fn), and fn receives a Position");
         put("hafen.world.snapPlace", "hafen.world.snapPlace(x, y, fine) is now"
-            + " hafen.world():snapPlace(p, fine), and it hands back a Position");
-        put("hafen.world.snapAngle", "hafen.world.snapAngle(a, fine) is now hafen.world():snapAngle(a, fine)");
+            + " session:world():snapPlace(p, fine), and it hands back a Position");
+        put("hafen.world.snapAngle", "hafen.world.snapAngle(a, fine) is now session:world():snapAngle(a, fine)");
         put("hafen.world.placeGrid", "hafen.world.placeGrid() is gone — it read the same setting as"
             + " hafen.client():options():interface():posGran(), which also writes it");
         put("hafen.world.placeAngle", "hafen.world.placeAngle() is gone — it read the same setting as"
@@ -169,10 +193,10 @@ final class Retired {
         // ---- table's own __index (hafenIndex()) and is what reading `hafen.act` at all -- bare, or on the way to
         // ---- any sub-spelling -- throws, instead of the "attempt to call a nil value" a plain deletion leaves.
         // ---- It NAMES ALL TEN replacements, because it is the row every one of them is now reached through.
-        put("hafen.act", "hafen.act() is gone: every verb moved to what it changes — hafen.player():move(p) walks"
-            + " and hafen.player():hand():use(target, mods) applies what you are holding (nil cursor = nil hand),"
+        put("hafen.act", "hafen.act() is gone: every verb moved to what it changes — session:player():move(p) walks"
+            + " and session:player():hand():use(target, mods) applies what you are holding (nil cursor = nil hand),"
             + " gob:click(button, mods) clicks an object, item:use(mods) / :take() / :drop(n) / :transfer(n) act"
-            + " on an item, hafen.world():place(p, angle, button, mods) / :select(p1, p2, mods) act on the world,"
+            + " on an item, session:world():place(p, angle, button, mods) / :select(p1, p2, mods) act on the world,"
             + " hafen.menugrid():get(name):use() fires a menu action and widget:send(msg, ...) is the escape"
             + " hatch. hafen.act():flower(label) is hafen.flowermenu():select(label|n), which raises instead of"
             + " answering false and takes a ring position too; hafen.act():enabled() is gone — a running addon"
@@ -184,25 +208,25 @@ final class Retired {
         // ---- `hafen.act` throws before any verb name is looked at -- but Retired is pure data generated from
         // ---- the before/after inventory, and a spelling that moved with no row is a porting error nobody is
         // ---- told about. The rows are the inventory; which __index happens to fire first is not.
-        act("moveTo", "hafen.act():moveTo(p) is now hafen.player():move(p) — the verb lives on the character"
+        act("moveTo", "hafen.act():moveTo(p) is now session:player():move(p) — the verb lives on the character"
             + " it moves");
         act("clickGob", "hafen.act():clickGob(gob, button, mods) is now gob:click(button, mods) — the verb"
             + " lives on the object it clicks");
-        act("useItemOn", "hafen.act():useItemOn(p, mods) is now hafen.player():hand():use(p, mods) — the"
-            + " gesture belongs to what is ON THE CURSOR, and hafen.player():hand() is nil when nothing is,"
+        act("useItemOn", "hafen.act():useItemOn(p, mods) is now session:player():hand():use(p, mods) — the"
+            + " gesture belongs to what is ON THE CURSOR, and session:player():hand() is nil when nothing is,"
             + " so it can no longer be sent blind. The target is an Item, a Position or a Gob:"
-            + " hafen.player():hand():use(gob) applies the held item to that object, which this verb could"
+            + " session:player():hand():use(gob) applies the held item to that object, which this verb could"
             + " not do");
         act("item", "hafen.act():item(item, verb, n) is gone: the verbs are on the item — item:use(mods)"
             + " (was \"iact\"), item:take(), item:drop(n), item:transfer(n), and"
-            + " hafen.player():hand():use(item) (was \"itemact\"). A verb string was never a vocabulary,"
+            + " session:player():hand():use(item) (was \"itemact\"). A verb string was never a vocabulary,"
             + " and only \"iact\" ever carried modifiers — for take/drop/transfer the modifier keys select"
             + " the COUNT, which n states directly");
         act("place", "hafen.act():place(p, angle, button, mods) is now"
-            + " hafen.world():place(p, angle, button, mods), beside the hafen.world():snapPlace(p) that"
-            + " prepares its Position and the hafen.world():snapAngle(a) that prepares its angle — which is"
+            + " session:world():place(p, angle, button, mods), beside the session:world():snapPlace(p) that"
+            + " prepares its Position and the session:world():snapAngle(a) that prepares its angle — which is"
             + " still in RADIANS");
-        act("select", "hafen.act():select(p1, p2, mods) is now hafen.world():select(p1, p2, mods) — p1 and p2"
+        act("select", "hafen.act():select(p1, p2, mods) is now session:world():select(p1, p2, mods) — p1 and p2"
             + " are still Positions, and the selection is still the tile rectangle they span");
         act("menu", "hafen.act():menu(path...) is gone: a menu action is invoked through the entry itself —"
             + " hafen.menugrid():get(\"Dig\"):use(), or get(\"paginae/act/dig\"):use() by resource name. There"
@@ -289,7 +313,7 @@ final class Retired {
             + " hafen.map.segment(id) is hafen.map():segment():get(id)");
         put("hafen.map.segments", "hafen.map.segments() is now hafen.map():segment():list()");
         put("hafen.map.grid", "hafen.map.grid(gridId) is now hafen.map():grid():get(gridId), and what it"
-            + " hands back is the same Grid object hafen.world():grid() does");
+            + " hands back is the same Grid object session:world():grid() does");
         put("hafen.map.markers", "hafen.map.markers is now the collection hafen.map():marker():"
             + " :list(filter) :find(filter) :nearest(filter) :add(name, p) :remove(m). The add takes a"
             + " POSITION, and the colour and the on-map flag are setters on the marker it hands back:"
@@ -330,9 +354,9 @@ final class Retired {
         // 048.2: the cursor LEFT hafen.ui() for the character it belongs to, so this row stopped being a
         // re-spelling and became a move — under both field reads (D-216), the dotted pre-039 one and the
         // colon call every shipped addon actually wrote.
-        moved("ui", "hand", "hafen.ui():hand() is now hafen.player():hand():item() — the cursor became an"
+        moved("ui", "hand", "hafen.ui():hand() is now session:player():hand():item() — the cursor became an"
             + " object of its own (a Hand) because it carries a verb no Item can: hand:use(target, mods)"
-            + " applies what you are holding to an Item, a Position or a Gob. hafen.player():hand() is nil"
+            + " applies what you are holding to an Item, a Position or a Gob. session:player():hand() is nil"
             + " while the cursor is empty, which is the guard the old read could not give you");
         put("hafen.ui.on", "hafen.ui.on(selector, event, fn) is now hafen.ui():on(selector, event, fn)");
 
@@ -366,7 +390,7 @@ final class Retired {
 
         // ---- the Widget entity: two renames, one hard cut, and the read that needed a noun ---------------
         put("widget:pos", "widget:pos() is now widget:position(), and it still answers in PIXELS within the"
-            + " parent — a widget lives on the screen, so this is not a Position and hafen.player():move refuses it");
+            + " parent — a widget lives on the screen, so this is not a Position and session:player():move refuses it");
         put("widget:rootpos", "widget:rootpos() is now widget:rootPos()");
         put("widget:show", "widget:show() is now widget:visible(true) — a boolean property is a property, so the"
             + " value is the argument rather than the verb's name");
@@ -429,7 +453,7 @@ final class Retired {
                 + " rather than an {x, y, a, scale} table: the facing and the size are " + kind + ":rotate()"
                 + " and " + kind + ":scale()");
             put(kind + ":move", kind + ":move(x, y [, a]) is now " + kind + ":position(p [, a]), where p is a"
-                + " Position (gob:position(), or hafen.world():position(x, y)) — one name reads it and writes it");
+                + " Position (gob:position(), or session:world():position(x, y)) — one name reads it and writes it");
             put(kind + ":show", kind + ":show() is now " + kind + ":visible(true) — a boolean property is a"
                 + " property, so the value is the argument rather than the verb's name");
             put(kind + ":hide", kind + ":hide() is now " + kind + ":visible(false) — a boolean property is a"
@@ -577,6 +601,20 @@ final class Retired {
     private static void moved(String section, String verb, String message) {
         put("hafen." + section + "." + verb, message);
         put("hafen." + section + "():" + verb, message);
+    }
+
+    /**
+     * Register the verb inventory of a section that has moved <b>onto the session</b> (076.3): every
+     * {@code hafen.<section>():<verb>} a shipped addon could have written, each naming the same replacement.
+     * Only the colon spelling, because the dotted one is a pre-039 row this table already carries and
+     * overwriting it would lose that half of the inventory — and the section's own row fires in front of both.
+     */
+    private static void sectionObj(String section, String... verbs) {
+        for(String verb : verbs) {
+            put("hafen." + section + "():" + verb, "hafen." + section + "():" + verb + "(…) is now s:"
+                + section + "():" + verb + "(…), where s is a Session: hafen.session():current() for the"
+                + " character on screen, hafen.session():get(user) for any other");
+        }
     }
 
     /** Register the plain {@code hafen.<section>.<verb>(…)} → {@code hafen.<section>():<verb>(…)} rows. */

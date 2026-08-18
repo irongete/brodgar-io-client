@@ -36,7 +36,7 @@ import static io.brodgar.addon.AddonManager.*;
 /**
  * {@code hafen.map()} — the <b>RECORDED</b> map: the client's on-disk map database ({@link MapFile}), the map
  * the player has <i>explored</i>, as opposed to the live terrain streamed around them ({@link haven.MCache},
- * which is {@code hafen.world()}). Spec {@code 037-map-database}, re-shaped by {@code 039-uniform-api} §2.3.
+ * which is {@code s:world()}). Spec {@code 037-map-database}, re-shaped by {@code 039-uniform-api} §2.3.
  *
  * <p><b>The section is five collections</b>, one per kind of thing the database holds, and the verb on each
  * says how many:
@@ -47,7 +47,7 @@ import static io.brodgar.addon.AddonManager.*;
  *       second spelling of the accessor, which is what the old zero-argument {@code segment()} had made it.</li>
  *   <li>{@code :grid()} — the recorded 100&times;100-tile squares ({@link LuaMapGrid}), addressed by the id
  *       the <b>server</b> published. That id is the only thing the live and recorded halves share, so this
- *       door and {@code hafen.world():grid()} hand back the <b>same interned object</b>: one Grid entity, two
+ *       door and {@code s:world():grid()} hand back the <b>same interned object</b>: one Grid entity, two
  *       doors, each answering {@code nil} for what its own half does not have.</li>
  *   <li>{@code :marker()} — the pins ({@link LuaMarker}), the old {@code hafen.markers}, with the two unprotected
  *       writes and the {@code MarkersChanged} notify (event-driven since 042.11) that reports them.</li>
@@ -151,7 +151,7 @@ final class MapApi {
 
     /**
      * {@code hafen.map():grid()} — the recorded grids, addressed by the id the <b>server</b> published. That
-     * id is the only thing the live and recorded halves share, so this and {@code hafen.world():grid()} hand
+     * id is the only thing the live and recorded halves share, so this and {@code s:world():grid()} hand
      * back the <b>same interned object</b> and each answers {@code nil} for what its own half does not have:
      * a grid you are standing on that has not been written down yet is {@code :live()} true and
      * {@code :exists()} false, and one explored last year is the mirror.
@@ -326,6 +326,17 @@ final class MapApi {
         return mapfileOf(gui());
     }
 
+    /**
+     * <b>The database one NAMED session reads</b> (076.3) — {@link #mapfile()} for the session you say rather
+     * than for the one on screen. Usually the very same instance, because 075.2 made every session naming one
+     * {@code (store, filename)} pair share it; distinct when two characters on one account list write to
+     * different names. The caller that needs this is the durable half of a {@link LuaPosition}, where the
+     * segment coord it is about to look up came out of <b>that</b> character's frame.
+     */
+    static MapFile mapfile(String user) {
+        return mapfileOf(AddonManager.gameui(user));
+    }
+
     /** The map database one HUD holds — the map window's, or the corner minimap's, which are the same instance,
      *  and since 075.2 the same one every session naming that {@code (store, filename)} pair holds. */
     private static MapFile mapfileOf(GameUI g) {
@@ -371,6 +382,17 @@ final class MapApi {
     }
 
     /**
+     * <b>One NAMED session's location</b> (076.3), or {@code null} while it has none. Every session logged in
+     * somewhere else, so each has its own bridge between its world coords and the segment coords the database
+     * keeps — and reading the screen's would convert one character's coordinate with another's offset, which
+     * is a place that is wrong by however far apart the two of them stand.
+     */
+    static MiniMap.Location sessloc(String user) {
+        MiniMap mm = minimap(user);
+        return (mm == null) ? null : mm.sessloc;
+    }
+
+    /**
      * <b>The one minimap the session location is read from</b> — the corner one. Named because the 045.2 tap
      * has to listen to exactly this instance and no other: the map window carries a second {@link MiniMap},
      * ticking the same locator against the same file, and a change announced by that one would be about a
@@ -378,6 +400,12 @@ final class MapApi {
      */
     static MiniMap minimap() {
         GameUI g = gui();
+        return (g == null) ? null : g.mmap;
+    }
+
+    /** {@link #minimap()} for one named session — the corner minimap in <b>that</b> HUD. */
+    static MiniMap minimap(String user) {
+        GameUI g = AddonManager.gameui(user);
         return (g == null) ? null : g.mmap;
     }
 
@@ -663,7 +691,16 @@ final class MapApi {
      * lookup ({@link LuaPosition}), which needs to do arithmetic on it rather than hand it out.
      */
     static Coord2d gridUL(MapFile.GridInfo gi) {
-        MiniMap.Location sl = sessloc();
+        return gridUL(gi, null);
+    }
+
+    /**
+     * {@link #gridUL(MapFile.GridInfo)} in <b>session {@code user}</b>, {@code null} for the one on screen. A
+     * grid's world corner is a session's answer and nobody else's: two characters in the same segment give the
+     * same grid two corners, and a character in another segment gives it none.
+     */
+    static Coord2d gridUL(MapFile.GridInfo gi, String user) {
+        MiniMap.Location sl = (user == null) ? sessloc() : sessloc(user);
         if((gi == null) || (sl == null) || (gi.seg != sl.seg.id))
             return null;
         return segGridUL(sl, gi.sc);

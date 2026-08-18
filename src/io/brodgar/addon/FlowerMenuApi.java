@@ -127,7 +127,8 @@ final class FlowerMenuApi {
                     throw new LuaError("hafen.flowermenu():gob() takes no arguments: there is one open menu"
                         + " and it was opened on one object — to read that object, call it bare");
                 long id = gobOf(open());
-                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, id);
+                // An open radial menu is on screen by definition (077 gives it its own address).
+                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, AddonManager.drawnUser(), id);
             }
         });
         // select(label | n) — pick a petal of the OPEN menu, exactly as a click on it does: by its caption

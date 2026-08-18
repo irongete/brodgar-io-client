@@ -405,7 +405,9 @@ public final class LuaMarker {
             return LuaValue.NIL;
         MiniMap.Location sl = MapApi.sessloc();
         if((sl != null) && (m.seg == sl.seg.id))
-            return LuaPosition.ofWorld(owner, worldX(m, sl), worldY(m, sl));
+            // The database is the client's, and a marker's world coordinate is whichever session is
+            // looking: `sl` came from the drawn session's locator, so the derivation matches it.
+            return LuaPosition.ofWorld(owner, AddonManager.drawnUser(), worldX(m, sl), worldY(m, sl));
         Coord sc = m.tc.div(MCache.cmaps);                     // floor-division: the segment GRID coord
         Long id = MapApi.recordedGridId(file, m.seg, sc);
         if(id == null)

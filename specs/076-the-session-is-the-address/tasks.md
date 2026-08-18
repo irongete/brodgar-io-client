@@ -38,7 +38,7 @@ set goes to **0** in `076.4`; the never-move set stays at **211** throughout.
       naming that account, and nothing else.
       `[manual]`: `:session drop` one. Expect: a `SessionDestroyed` line naming it, dead.
 
-- [ ] **076.3 — The world and the character belong to a session.**
+- [x] **076.3 — The world and the character belong to a session.**
       `session:world()` and `session:player()` — the same two surfaces, answering for **that**
       session: `WorldApi.installWorld` and `CharApi.installPlayer` stop reading `screen()` and read
       the session they hang on, minted once per *(addon, session)* on the interned `LuaSession` so

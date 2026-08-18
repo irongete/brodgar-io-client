@@ -24,7 +24,12 @@ so `hafen.time() == hafen.time()` and calling a section inside a draw callback a
 
 A section takes no arguments. Where a section holds exactly one thing, the section object **is** that
 thing rather than a wrapper around it: `hafen.timer()` is the collection of your timers, and
-`hafen.player()` is your character.
+`hafen.session()` is the collection of the logins the client holds.
+
+**Not every subsystem hangs off `hafen`.** What names one character's state hangs off the
+[Session](session.md) that names that character instead, and reads the same way one call further in:
+`s:world()`, `s:player()`. Such a section is reached rather than mounted, and everything about it — one
+object per session, colon verbs, a closed vocabulary — is the rule above unchanged.
 
 ### Verbs: arity is the verb
 
@@ -117,6 +122,11 @@ session ending: `s:user()` answers for a session that is over, and `s:exists()` 
 `hafen.session():current()` is the session on screen, `nil` on the login screen, and a different object
 after the player tabs — so take it inside your handler rather than keeping one.
 
+**A Session is also the address.** What is one character's is reached through it — [`s:world()`](world.md)
+and [`s:player()`](player.md) — so a read says which character it is about instead of meaning whichever is
+drawn. What belongs to the **screen** rather than to a character stays where it was: there is one pointer
+and one scene however many logins are live.
+
 Your own addon is the client's, not a login's: it is loaded once, runs beside every session the client
 holds, and nothing of yours is torn down or rebuilt when the screen moves.
 
@@ -131,7 +141,7 @@ holds, and nothing of yours is torn down or rebuilt when the screen moves.
 
 ## The filter argument
 
-Every enumerating verb — `hafen.world():gob():list`, `hafen.kin():list`, `hafen.map():icon():list`,
+Every enumerating verb — `s:world():gob():list`, `hafen.kin():list`, `hafen.map():icon():list`,
 `hafen.fight():maneuver():list`, … — takes one optional **filter**, always in the same form:
 
 | `filter` | Keeps |
@@ -146,7 +156,7 @@ work. A member whose name has simply **not arrived yet** does not match, and doe
 entry your predicate receives is always the **object**, never a snapshot: read it with its own verbs.
 
 ```lua
-local gobs = hafen.world():gob()
+local gobs = hafen.session():current():world():gob()
 gobs:list("rabbit")                                        -- name contains "rabbit"
 gobs:list(function(g) return (g:health() or 1) < 1 end)    -- injured gobs (a Gob object)
 hafen.kin():list(function(k) return k:online() end)        -- online kin (a Kin object)

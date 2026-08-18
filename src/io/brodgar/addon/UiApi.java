@@ -363,7 +363,7 @@ final class UiApi {
         // hafen.ui():at(m:x(), m:y()) == m:over() true rather than nearly true on a scaled client.
         // mouse() is the POINTER ENTITY (041.5, LuaMouse) — :x()/:y() the cursor in root coords (public UI.mc),
         // :over() the deepest Widget under it, :shift()/:ctrl()/:alt() the live modifiers, :grab() a modal drag
-        // capture — a per-addon singleton like hafen.player(), not a {x=,y=} table any more. at(x,y) = the
+        // capture — a per-addon singleton like s:player(), not a {x=,y=} table any more. at(x,y) = the
         // DEEPEST Widget object under an ARBITRARY root-coord point, or nil (not absorbed into the mouse: it
         // takes any point). at() MIRRORS the engine's own pointer dispatch (PointerEvent.propagation): it
         // walks children topmost-first, skips !visible(), descends by xlate (so SCROLL offsets are honoured) +
@@ -384,8 +384,8 @@ final class UiApi {
         // is up.
         //   048.2: :hand() has LEFT. The cursor is not a container and never was a widget lookup — it is the
         // one place that carries a verb of its own (apply what you are holding), so it became an object on the
-        // character it belongs to: hafen.player():hand(), nil while the cursor is empty, and the Item is
-        // hafen.player():hand():item(). Retired names its replacement.
+        // character it belongs to: s:player():hand(), nil while the cursor is empty, and the Item is
+        // s:player():hand():item(). Retired names its replacement.
         m.set("inventory", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "ui", "inventory");
@@ -2166,7 +2166,9 @@ final class UiApi {
             LuaTable gt = gwrap.bind(g, o.owner);
             try {
                 if(o.draw != null)
-                    callLua(o.owner, Addon.C_DRAW, o.draw, gt, LuaGob.of(o.owner, gob.id), sx, sy);
+                    // A gob overlay is drawn into the scene on screen, so its gob is that session's.
+                    callLua(o.owner, Addon.C_DRAW, o.draw, gt,
+                            LuaGob.of(o.owner, AddonManager.drawnUser(), gob.id), sx, sy);
                 else
                     gwrap.label(g, o.text, sc.add(Px.in(o.screenOffset())), 0.5, 1.0, o.color);
             } catch(RuntimeException e) {

@@ -28,15 +28,15 @@ import java.util.Map;
  * grant without acting on the world: reaching the argument refusal IS the grant.
  */
 public enum Permission {
-    PLAYER_MOVE      ("player.move",        "hafen.player():move",            "walk your character to a place"),
-    PLAYER_HAND_USE  ("player.hand.use",    "hafen.player():hand():use",      "use whatever it is holding on things"),
+    PLAYER_MOVE      ("player.move",        "session:player():move",          "walk your character to a place"),
+    PLAYER_HAND_USE  ("player.hand.use",    "session:player():hand():use",    "use whatever it is holding on things"),
     GOB_CLICK        ("gob.click",          "gob:click",                      "click objects in the world"),
     ITEM_USE         ("item.use",           "item:use",                       "use items"),
     ITEM_TAKE        ("item.take",          "item:take",                      "pick items up onto the cursor"),
     ITEM_DROP        ("item.drop",          "item:drop",                      "drop items"),
     ITEM_TRANSFER    ("item.transfer",      "item:transfer",                  "move items between containers"),
-    WORLD_PLACE      ("world.place",        "hafen.world():place",            "place buildings and objects"),
-    WORLD_SELECT     ("world.select",       "hafen.world():select",           "select an area of the ground"),
+    WORLD_PLACE      ("world.place",        "session:world():place",          "place buildings and objects"),
+    WORLD_SELECT     ("world.select",       "session:world():select",         "select an area of the ground"),
     MENUGRID_USE     ("menugrid.use",       "pag:use",                        "invoke entries of the action menu"),
     FLOWERMENU_SELECT("flowermenu.select",  "hafen.flowermenu():select",      "choose from the radial menu"),
     FLOWERMENU_CANCEL("flowermenu.cancel",  "hafen.flowermenu():cancel",      "dismiss the radial menu"),

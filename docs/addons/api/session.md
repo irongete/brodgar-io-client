@@ -21,6 +21,40 @@ Every session the client holds is whole: connected, ticked, answering the server
 a world of its own. One of them is drawn and the rest are not, and which one that is changes when the
 player tabs between them.
 
+## What hangs on a session
+
+A Session is the **address**, so the reads that are about one character hang off it rather than off `hafen`:
+
+| Verb | What it gives you |
+|---|---|
+| [`s:world()`](world.md) | that character's world — the objects it can see, the ground it stands on, the grids it has streamed |
+| [`s:player()`](player.md) | that character itself — its own [Gob](gob.md), its cursor, and the walk |
+
+```lua
+for _, s in ipairs(hafen.session():list()) do
+  local me = s:player():gob()
+  if me then
+    hafen.log():write(s:user() .. " stands on grid " .. me:position():info().gridId)
+  end
+end
+```
+
+Each is minted once for that session and handed back by identity, so `s:world() == s:world()` and a draw
+callback that reads them costs nothing. A world and a character are reached only this way, and only ever one
+character's: *the* world and *the* character are not things a client holding two logins has.
+
+**A read answers for the session you named, whichever one is drawn.** What does not is what belongs to the
+**screen** — there is one screen however many characters are logged in — and each of those says so where it
+is described: [`screenToWorld`](world.md#screen-to-world-and-placement-snapping) and
+[`worldToScreen`](player.md#read) read and answer a pixel, and
+[`place`](world.md#write-protected)/`select`, [`gob:click`](gob.md#write-protected) and
+[`hand:use`](player.md#the-hand) are gestures with the pointer.
+
+> **Walking is the whole of what a character you are not looking at will take.** That is the client's own
+> line rather than this API's: an order to another login carries a destination and never a target. So
+> [`s:player():move(p)`](player.md#write-protected) reaches any session, and every other write reaches the
+> one on screen and raises for the rest.
+
 ## The account is the name
 
 A session is named by the **account** it logged in as — the string `:session add` took and `:session
@@ -35,7 +69,8 @@ read: `:character()` answers what this login is playing *now*.
 
 Session objects are **interned per addon**, so `hafen.session():get("bob") == hafen.session():get("bob")`,
 the object in `:list()` is the same one `:get` and `:current()` hand back, and `seen[s] = true` works as
-a table key.
+a table key. So are the things that hang off one: hold the `Session` and `s:world()`, `s:player()` and every
+[Gob](gob.md#identity) you read through it keep their identity for as long as you do.
 
 > **`:current()` changes under you.** It answers whichever session holds the screen at the moment you
 > ask, so take it inside your handler rather than keeping one from load time. What you may keep is a
@@ -44,7 +79,8 @@ a table key.
 ## Read
 
 The first five are called on the collection, the rest on a `Session`. Nothing here is protected, and a
-`Session`'s own verbs never throw.
+`Session`'s own verbs never throw — `s:world()` and `s:player()` answer for a session that has ended too,
+and everything under them then reads `nil`-shaped.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -56,6 +92,8 @@ The first five are called on the collection, the rest on a `Session`. Nothing he
 | `s:user()` | string | the account name — answers for a session that has ended |
 | `s:character()` | string \| nil | the character this session is playing; `nil` until its HUD is up |
 | `s:exists()` | boolean | whether the client still holds this session |
+| `s:world()` | [world](world.md) | that character's world; the same object every call |
+| `s:player()` | [Player](player.md) | that character itself; the same object every call |
 | `s:info()` | [`Session`](types.md#session) | a plain-table **snapshot**, the escape hatch for logging |
 
 **`:get` addresses, it does not search.** The account name is the whole of a Session, so there is
@@ -89,7 +127,8 @@ object is one addon's handle. Both address the same login.
 ## See also
 
 - [events](event/bus.md#sessions) — the four moments a session announces
-- [`hafen.player`](player.md) — the character, and the anchor for your own Gob
+- [`session:world`](world.md) — one character's objects, terrain and coordinates
+- [`session:player`](player.md) — one character, its Gob, its cursor and the walk
 - [`hafen.store`](store.md) — saved variables, per character and per account
 - [conventions](conventions.md#the-grammar) — collections, interned objects and the filter argument
 - [data types](types.md#session) — the snapshot shape `:info()` returns

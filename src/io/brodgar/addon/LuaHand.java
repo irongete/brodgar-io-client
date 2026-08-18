@@ -16,11 +16,11 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 /**
- * The <b>Hand</b> — {@code hafen.player():hand()}, the cursor you are carrying something on (048.2), and
+ * The <b>Hand</b> — {@code s:player():hand()}, the cursor you are carrying something on (048.2), and
  * {@code nil} whenever you are not ({@code GameUI.vhand == null}):
  *
  * <pre>
- *   local h = hafen.player():hand()
+ *   local h = s:player():hand()
  *   if h then
  *     h:item()                     -- the Item on the cursor (every ordinary Item read answers on it)
  *     h:use(target [, mods])       -- PROTECTED: apply what you are holding to an Item, a Position or a Gob
@@ -50,11 +50,11 @@ import org.luaj.vm2.lib.VarArgFunction;
  *
  * <p><b>{@code :use()} with no target RAISES</b>, naming the three, and never falls back to <i>activate the
  * held item</i>. That reading is a plausible author guess with no message behind it — every held-item action
- * in the protocol targets something — and {@code hafen.player():hand():item():use()} is the one way to say it.
+ * in the protocol targets something — and {@code s:player():hand():item():use()} is the one way to say it.
  *
- * <p><b>A per-addon singleton</b> (cached on {@link Addon#handObj}), the same shape {@link LuaMouse} and the
+ * <p><b>A per-character singleton</b> (cached on the Player it hangs off), the same shape {@link LuaMouse} and the
  * Player object have: there is exactly one cursor, the object wraps no engine value at all, and every verb
- * re-reads {@code GameUI.vhand} on the call — so {@code hafen.player():hand() == hafen.player():hand()} and
+ * re-reads {@code GameUI.vhand} on the call — so {@code s:player():hand() == s:player():hand()} and
  * there is nothing to go stale or tear down. Userdata with a per-addon metatable, immutable from Lua.
  */
 final class LuaHand {
@@ -62,29 +62,44 @@ final class LuaHand {
     }
 
     /** The one spelling every refusal names, so a caller reads the string it has to fix. */
-    private static final String USE = "hafen.player():hand():use";
+    private static final String USE = "session:player():hand():use";
 
-    /** The opaque instance behind a Hand userdata (facade-safe: no Java object of the engine's crosses). */
+    /**
+     * The opaque instance behind a Hand userdata (facade-safe: no Java object of the engine's crosses). It
+     * carries the account whose cursor it is, which is what every verb re-resolves through.
+     */
     private static final class HandMark {
+        final String user;
+
+        HandMark(String user) {
+            this.user = user;
+        }
+
         public String toString() { return "Hand"; }
     }
 
     /**
-     * {@code hafen.player():hand()} — this addon's one Hand object while something is on the cursor, and
-     * {@code nil} while nothing is. Minted lazily and cached, so the object is {@code ==} itself across
-     * takes; what changes between them is only what {@link #held()} answers.
+     * {@code s:player():hand()} — this addon's Hand object <b>for that session</b> while something is on its
+     * cursor, and {@code nil} while nothing is. Minted lazily and cached per {@code (addon, session)} on the
+     * interned Session handle, so the object is {@code ==} itself across takes; what changes between them is
+     * only what {@link #held} answers.
+     *
+     * <p><b>The cursor is per session</b> (076.3): {@code GameUI.vhand} hangs on one HUD, so a character you
+     * are not looking at can perfectly well be carrying something, and tabbing to it is picking that up. So
+     * this reads the HUD of the session it was asked of — while {@link #use} <b>sends</b>, and a send goes to
+     * the character on screen and to no other.
      */
-    static LuaValue of(final Addon owner) {
-        if(held() == null)
+    static LuaValue of(final Addon owner, CharApi.PlayerMark pl) {
+        if((pl == null) || (held(pl.user) == null))
             return LuaValue.NIL;
-        if(owner.handObj == null)
-            owner.handObj = LuaValue.userdataOf(new HandMark(), buildMeta(owner));
-        return owner.handObj;
+        if(pl.handObj == null)
+            pl.handObj = LuaValue.userdataOf(new HandMark(pl.user), buildMeta(owner));
+        return pl.handObj;
     }
 
-    /** The item widget on the cursor, or {@code null} when the cursor is empty (or the HUD is not up). */
-    private static GItem held() {
-        GameUI g = AddonManager.gui();
+    /** The item widget on that session's cursor, or {@code null} when it is empty (or its HUD is not up). */
+    private static GItem held(String user) {
+        GameUI g = AddonManager.gameui(user);
         return ((g == null) || (g.vhand == null)) ? null : g.vhand.item;
     }
 
@@ -110,8 +125,7 @@ final class LuaHand {
         // stale object, it is a cursor that is now carrying nothing.
         m.set("item", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                handle(self, "item");
-                GItem it = held();
+                GItem it = held(handle(self, "item").user);
                 return (it == null) ? LuaValue.NIL : LuaItem.of(owner, it);
             }
         });
@@ -123,16 +137,16 @@ final class LuaHand {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.PLAYER_HAND_USE);
-                handle(self, "use");
+                final String user = handle(self, "use").user;
                 if(!Args.passed(a, 2) || a.arg(2).isnil())
                     throw new LuaError(USE + "(target, mods): target is required — you apply what you are"
                         + " holding TO something: an Item, a Position or a Gob. There is no message for"
                         + " \"use the held item on nothing\", and this is not how you activate what you"
-                        + " hold — that is hafen.player():hand():item():use().");
+                        + " hold — that is session:player():hand():item():use().");
                 LuaValue target = a.arg(2);
                 int mods = a.arg(3).optint(0);
-                if(held() == null)
-                    throw new LuaError(USE + ": nothing is on the cursor — hafen.player():hand() is nil while"
+                if(held(user) == null)
+                    throw new LuaError(USE + ": nothing is on the cursor — session:player():hand() is nil while"
                         + " it is empty, so read it again rather than holding a Hand across a drop."
                         + " Nothing was sent.");
                 // (a) another ITEM: the GItem's own "itemact", exactly what WItem.iteminteract sends.
@@ -151,8 +165,8 @@ final class LuaHand {
                 // resolves to an object; act():useItemOn could only ever aim at bare ground).
                 LuaGob tg = LuaGob.resolve(target);
                 if(tg != null) {
-                    MapView mv = view();
-                    Gob gb = AddonManager.getgob(tg.id);
+                    MapView mv = view(user);
+                    Gob gb = AddonManager.getgob(tg.user, tg.id);
                     if(gb == null)
                         throw new LuaError(USE + ": that gob is gone — it left view or despawned"
                             + " (gob:exists() is false). Nothing was sent.");
@@ -165,14 +179,14 @@ final class LuaHand {
                 }
                 // (c) a POSITION: the MapView "itemact" on bare ground.
                 if(LuaPosition.resolve(target) != null) {
-                    Coord2d rc = LuaPosition.worldArg(a, 2, USE, "target");
-                    MapView mv = view();
+                    Coord2d rc = LuaPosition.worldArg(a, 2, USE, "target", user);
+                    MapView mv = view(user);
                     mv.wdgmsg("itemact", groundArgs(pc(mv), rc.floor(OCache.posres), mods));
                     return self;
                 }
                 throw new LuaError(USE + "(target, mods): target must be an Item (a member of a container's"
-                    + " :items()), a Position (gob:position(), hafen.world():position(x, y)) or a Gob"
-                    + " (hafen.world():gob():nearest(...)), got " + target.typename());
+                    + " :items()), a Position (gob:position(), s:world():position(x, y)) or a Gob"
+                    + " (s:world():gob():nearest(...)), got " + target.typename());
             }
         });
         return m;
@@ -186,15 +200,15 @@ final class LuaHand {
                 return (HandMark)o;
         }
         throw new LuaError("hand:" + method + "() — use a COLON call on a Hand object"
-            + " (hafen.player():hand(), which is nil while nothing is on the cursor)");
+            + " (s:player():hand(), which is nil while nothing is on the cursor)");
     }
 
-    /** The live map view, or a refusal naming the verb — every world-aimed arm needs one. */
-    private static MapView view() {
-        MapView m = AddonManager.screenView();
-        if(m == null)
-            throw new LuaError(USE + ": no map view (not in the world yet)");
-        return m;
+    /**
+     * The map view a world-aimed arm sends through, or a refusal naming why that session has none — including
+     * that it is not the character on screen, which is the one a held-item gesture can be made with.
+     */
+    private static MapView view(String user) {
+        return AddonManager.sendView(user, USE);
     }
 
     /** The screen coord an {@code "itemact"} carries: the current mouse, a dummy for a programmatic action. */

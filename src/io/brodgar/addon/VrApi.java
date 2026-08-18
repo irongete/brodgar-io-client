@@ -39,7 +39,7 @@ import static io.brodgar.addon.AddonManager.*;
 /**
  * {@code hafen.vr()} — <b>the one section for client-only things standing in the 3D world</b> (043): the
  * {@code .res} props {@code hafen.ghost()} used to be, and the custom PNG + glTF props {@code hafen.render()}
- * used to be, under one name. What separates these from the gobs in {@code hafen.world()} is not where they
+ * used to be, under one name. What separates these from the gobs in {@code s:world()} is not where they
  * are — both are in the world — but <b>whose</b> they are: nothing here ever reaches the server. Owns the
  * world-entity lifecycle (create/transform/follow/click/teardown) over {@link LuaWorldEntity}. The click seam
  * {@code onGhostClick} (called from {@code haven.MapView}) stays a facade in {@link AddonManager} and delegates
@@ -485,11 +485,11 @@ final class VrApi {
         }
         if(LuaPosition.resolve(v) == null)
             throw new LuaError(verb + ": the anchor is a Position OR a Gob — a Position (gob:position(),"
-                + " hafen.world():position(x, y)) stands it at that point, a Gob"
-                + " (hafen.world():gob():get(id), hafen.player():gob()) makes it follow that object. Got "
+                + " session:world():position(x, y)) stands it at that point, a Gob"
+                + " (session:world():gob():get(id), session:player():gob()) makes it follow that object. Got "
                 + v.typename());
         LuaPosition.Anchor place = LuaPosition.anchorArg(a, 3, verb, "p");
-        return new Anchor(LuaPosition.worldOf(place), 0L, place);   // 045.2: null ⇒ not here yet, and that is legal
+        return new Anchor(LuaPosition.worldOf(place, null), 0L, place);   // 045.2: null ⇒ not here yet, and that is legal
     }
 
     /**
@@ -830,7 +830,7 @@ final class VrApi {
                 // and since 045.2 it may not be here yet: the same door :add uses, so moving something to
                 // the far side of the world is the same act as placing it there, and it waits the same way.
                 LuaPosition.Anchor place = LuaPosition.anchorArg(a, 2, kind + ":position", "p");
-                Coord2d rc = LuaPosition.worldOf(place);
+                Coord2d rc = LuaPosition.worldOf(place, null);
                 Double ang = Args.passed(a, 3)
                     ? Double.valueOf(number(a, 3, kind + ":position", "a")) : null;
                 moveEntity(e, place, rc, ang);
@@ -2058,7 +2058,9 @@ final class VrApi {
                 setGrounded(e, t != null);
                 return;
             }
-            Coord2d rc = LuaPosition.worldOf(e.anchorGrid, e.agx, e.agy);
+            // A free entity holds the server's grid id, so its world coordinate is derived per
+            // session — and the one it is drawn in is the one on screen (null asks that).
+            Coord2d rc = LuaPosition.worldOf(e.anchorGrid, e.agx, e.agy, null);
             if((rc != null) && !rc.equals(e.rc)) {
                 e.rc = rc;
                 if(e.gob != null)
@@ -2353,7 +2355,7 @@ final class VrApi {
     /**
      * {@code <entity>:position()} — where the thing actually is, as a {@link LuaPosition}: its own point when it
      * stands still, and the followed gob's live interpolated point plus this entity's offset when it is anchored.
-     * One position verb, one type (039.2/039.3), so the answer goes straight to {@code hafen.player():move} or into
+     * One position verb, one type (039.2/039.3), so the answer goes straight to {@code s:player():move} or into
      * {@code hafen.store} without conversion; the facing and size that used to ride in the same table are
      * {@code :rotate()} and {@code :scale()}.
      *
@@ -2376,7 +2378,7 @@ final class VrApi {
         }
         if(stands)
             return LuaPosition.ofAnchor(owner, grid, gx, gy);
-        return (rc == null) ? LuaValue.NIL : LuaPosition.of(owner, rc);
+        return (rc == null) ? LuaValue.NIL : LuaPosition.of(owner, AddonManager.drawnUser(), rc);
     }
 
     /**

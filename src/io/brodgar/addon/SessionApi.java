@@ -23,7 +23,7 @@ import java.util.List;
  * the session on screen, which is what {@code Sessions.anchormember()} answers and {@code nil} on the login
  * screen. The members are {@link LuaSession} refs, interned per addon.
  *
- * <p><b>{@code :get} always hands back an object</b>, the deliberate asymmetry {@code hafen.world():gob():get(id)}
+ * <p><b>{@code :get} always hands back an object</b>, the deliberate asymmetry {@code s:world():gob():get(id)}
  * and {@code hafen.kin():get(id)} already have: the account name is the whole of the ref, so a name read out
  * of a saved file can be held before that account logs in and after it goes, and {@code :exists()} is the
  * liveness test. There is no miss to report.

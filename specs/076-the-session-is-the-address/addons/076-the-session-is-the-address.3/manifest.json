@@ -1,0 +1,9 @@
+{
+  "name": "076.3 — the world and the character belong to a session",
+  "id": "076-the-session-is-the-address.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 076.3: s:world() and s:player() are per-session singletons whose reads are about that character, a Gob is interned on the (session, id) pair and hands back a session-free Position, and hafen.world / hafen.player refuse naming hafen.session().",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

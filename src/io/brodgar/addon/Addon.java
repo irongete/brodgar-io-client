@@ -587,7 +587,7 @@ public final class Addon {
      */
     /**
      * This addon's <b>Item interning cache</b> (spec {@code 039-uniform-api} §4.8): {@code widget:items()},
-     * {@code hafen.player():hand():item()} and {@code EquipChanged}, keyed by the <b>item widget's identity</b>.
+     * {@code s:player():hand():item()} and {@code EquipChanged}, keyed by the <b>item widget's identity</b>.
      * That key is the decision the type exists for: the server addresses an item by a widget id it recycles, so
      * a cache keyed on the number would hand a stashed handle back pointing at whatever now holds it — and a
      * protected write through that handle would move the wrong item. Keyed on the object, a departed item is departed
@@ -733,28 +733,12 @@ public final class Addon {
     final LuaGOut.Cache texts = new LuaGOut.Cache();
 
     /**
-     * The single {@code hafen.player()} object for this addon ({@code Player} by composition, D-046) — built
-     * lazily by {@code CharApi.installPlayer} and cached so {@code hafen.player() == hafen.player()}. Per-addon
-     * for the same reason as {@link #gobs}.
-     */
-    LuaValue playerObj;
-
-    /**
      * The single {@code hafen.ui():mouse()} object for this addon ({@link LuaMouse}, 041.5) — the pointer
      * entity, built lazily and cached so {@code hafen.ui():mouse() == hafen.ui():mouse()}, the same singleton
-     * shape as {@link #playerObj}. Holds no engine resource itself (its verbs read live UI state on every
+     * shape every singleton here has. Holds no engine resource itself (its verbs read live UI state on every
      * call), so there is nothing to tear down.
      */
     LuaValue mouseObj;
-
-    /**
-     * The single {@code hafen.player():hand()} object for this addon ({@link LuaHand}, 048.2) — the cursor,
-     * built lazily and cached so {@code hafen.player():hand() == hafen.player():hand()}, the same singleton
-     * shape as {@link #mouseObj}. It wraps no engine value (its verbs read {@code GameUI.vhand} on every
-     * call), so a cached Hand cannot go stale and there is nothing to tear down: {@code hafen.player():hand()}
-     * simply answers {@code nil} while the cursor is empty and hands this object back while it is not.
-     */
-    LuaValue handObj;
 
     /**
      * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per

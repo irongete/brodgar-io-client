@@ -28,12 +28,12 @@ import java.util.Map;
  *
  * <p><b>One entity, two doors, because both halves already keyed on the same number.</b> A grid id comes
  * from the server ({@code MCache.Grid.fill}, layer {@code "m"}), so it is the same for every player and no
- * merge ever moves it — and {@code hafen.world():grid()} publishes it beside {@code hafen.map():grid()},
+ * merge ever moves it — and {@code s:world():grid()} publishes it beside {@code hafen.map():grid()},
  * which interns on it. A grid was therefore never two things: it is one thing with a live half and a
  * recorded half, and the two questions are {@link #methods :live()} (streamed right now?) and
  * {@code :exists()} (written down?). Ground under the player that has not been saved yet is live and does
  * not exist; ground explored last year is the mirror; and where both answer, {@code grid:tile(c)} and
- * {@code hafen.world():tile(p)} agree by NAME — which stops being a cross-check you have to remember to
+ * {@code s:world():tile(p)} agree by NAME — which stops being a cross-check you have to remember to
  * make and becomes a property of the object.
  *
  * <p><b>Two kinds of read, and they answer at different times.</b> Where the grid <i>sits</i> —
@@ -373,7 +373,7 @@ public final class LuaMapGrid {
         LuaMapGrid h = resolve(self);
         if(h == null)
             throw new LuaError("grid:" + method + "() — use a COLON call on a Grid object"
-                + " (hafen.map():grid():get(id), hafen.world():grid():at(p), seg:grid():get(sc))");
+                + " (hafen.map():grid():get(id), session:world():grid():at(p), seg:grid():get(sc))");
         return h;
     }
 }

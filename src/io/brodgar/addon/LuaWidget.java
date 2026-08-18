@@ -397,7 +397,7 @@ public final class LuaWidget {
         // only when no level does. Layout.apply is what decides; this verb only says what this addon wants.
         // position() — DESIGN PIXELS within the parent, and deliberately NOT a Position (spec 039 §2.7): the verb asks
         // "where is this thing, in the space it lives in", and a widget lives on the screen. Now that a place in
-        // the world is a TYPE, handing this to hafen.player():move throws instead of walking you somewhere wrong.
+        // the world is a TYPE, handing this to s:player():move throws instead of walking you somewhere wrong.
         m.set("position", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // :position() → narg 1 · (nil) → narg 2 · (x,y) → narg 3
                 LuaValue self = a.arg1();

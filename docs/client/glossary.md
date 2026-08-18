@@ -37,7 +37,11 @@
   with the character name to scope saved data (`savedata/<genus>_<char>/`).
 - **chrid** — the character identifier/name string on `GameUI`.
 - **plgob / plid** — the player's own gob id. `MapView.plgob` is the live
-  gob id; `MapView.player()` returns the player's `Gob`. `GameUI.plid` mirrors it.
+  gob id; `MapView.player()` returns the player's `Gob`. `GameUI.plid` carries the
+  same number, and **arrives first and needs no tree walk**: both come from their own
+  widget's creation args, the `GameUI` widget lands before its `MapView` is parented,
+  and `plid` is `final` on a widget a session can be asked for directly. It is what
+  `Sessions.Member.check` reads to find a member's own gob in another session's `OCache`.
 
 ## UI and widgets
 

@@ -26,7 +26,7 @@ import java.util.Map;
  * <p><b>{@code member:gob()} is what this entity exists for.</b> The roster has always published a gob id and
  * nothing that resolved it, so reaching a party member's live object meant handing that number back to another
  * section. It is now one verb, and it is never {@code nil}: an id the object cache does not hold answers a Gob
- * whose {@code :exists()} is false, which is the same asymmetry {@code hafen.world():gob():get(id)} has.
+ * whose {@code :exists()} is false, which is the same asymmetry {@code s:world():gob():get(id)} has.
  *
  * <p><b>The intern key is the gob id</b> (§2.4), because that is the only thing the server publishes about a
  * member. The engine keeps {@code Party.Member} objects across a roster push — {@code Partyview}'s
@@ -149,10 +149,11 @@ public final class LuaPartyMember {
             }
         });
         // gob() — the member's live object. NEVER nil: an id the object cache does not hold answers a Gob
-        // whose :exists() is false, exactly as hafen.world():gob():get(id) does.
+        // whose :exists() is false, exactly as s:world():gob():get(id) does.
         m.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaGob.of(owner, handle(self, "gob").gobid);
+                // The party is the drawn character's (077 gives it its own address).
+                return LuaGob.of(owner, AddonManager.drawnUser(), handle(self, "gob").gobid);
             }
         });
         // position() — where the member is: the live gob position while they are in view, the last-known one
@@ -160,7 +161,7 @@ public final class LuaPartyMember {
         m.set("position", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Party.Member pm = member(handle(self, "position").gobid);
-                return (pm == null) ? LuaValue.NIL : LuaPosition.of(owner, coord(pm));
+                return (pm == null) ? LuaValue.NIL : LuaPosition.of(owner, AddonManager.drawnUser(), coord(pm));
             }
         });
         // color() — the party colour the client paints this member with, or nil before one arrives.

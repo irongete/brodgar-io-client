@@ -36,14 +36,34 @@ import java.util.Map;
  * {@code :get(u) == :get(u)} and {@code seen[s] = true} reliable. Never static: no Lua value crosses a
  * sandbox boundary, and the cache dies whole with the {@link Addon} on {@code :reload}.
  *
+ * <p><b>What hangs on it.</b> {@code s:world()} and {@code s:player()} (076.3) are the first two namespaces
+ * addressed through a Session rather than off {@code hafen}, and both are minted once per
+ * {@code (addon, session)} and kept on the handle — see {@link #worldObj}. Every verb under them reads the
+ * session named rather than the one on screen; the ones that are inherently the screen's say so where they are
+ * defined ({@code screenToWorld}, {@code worldToScreen}) and the ones that <b>send</b> go through
+ * {@link AddonManager#sendView}, because a walk is the whole of what a character nobody is looking at takes.
+ *
  * <p><b>Threading.</b> Every read runs on the UI thread. {@code Sessions.members()} copies the membership
  * list, and a member's {@code ui} is null in the gaps ({@code Sessions.Member.run} clears it while the UI is
  * taken down and during a character handoff), so every verb answers {@code nil}-shaped there rather than
  * throwing. The {@link Cache} map is guarded on its own monitor (UI + REPL threads touch it).
  */
 public final class LuaSession {
-    /** The account name — the whole state of a handle, and the one thing that survives the session. */
+    /** The account name — the whole address, and the one thing that survives the session. */
     public final String user;
+
+    /**
+     * <b>The namespaces that hang on this session</b> (076.3), minted lazily and held here rather than on the
+     * {@link Addon}: they belong to a {@code (addon, session)} pair, and this handle <i>is</i> that pair. So
+     * {@code s:world() == s:world()} and {@code s:player() == s:player()} come out of interning the handle and
+     * need no cache of their own — and when the addon drops its last reference to {@code s}, the whole bundle
+     * goes with it, because the handle is weakly held (see {@link Cache}).
+     *
+     * <p>They are <b>not</b> discarded when the session ends. A handle held past the end still answers
+     * {@code :user()}, and its {@code :world()} answers {@code nil}-shaped rather than throwing — every verb
+     * re-resolves the member, so there is no stale state for an ended session to leave behind.
+     */
+    private LuaValue worldObj, playerObj;
 
     private LuaSession(String user) {
         this.user = user;
@@ -168,6 +188,28 @@ public final class LuaSession {
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(Sessions.byuser(handle(self, "exists").user) != null);
+            }
+        });
+        // world() — THIS character's world: the objects it can see, the terrain it is standing on, the grids it
+        // has streamed. Two characters in different places see different objects, not because there are two
+        // worlds but because each looks out of its own eyes, and this is where an addon says whose eyes.
+        m.set("world", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "world");
+                if(h.worldObj == null)
+                    h.worldObj = WorldApi.world(owner, h.user);
+                return h.worldObj;
+            }
+        });
+        // player() — THIS login's character, as the Player object: its own Gob, its cursor, and the walk. It is
+        // never nil, because the address exists whether or not the session behind it does; what answers nil is
+        // s:player():gob(), before that session is in the world and after it has gone.
+        m.set("player", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "player");
+                if(h.playerObj == null)
+                    h.playerObj = CharApi.player(owner, h.user);
+                return h.playerObj;
             }
         });
         // info() — the one SNAPSHOT escape hatch, and always a table: a Session that does not exist is

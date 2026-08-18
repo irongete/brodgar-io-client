@@ -64,7 +64,7 @@ public final class LuaCollection {
          * that answers {@code nil} must not make the call that contains it throw.
          *
          * <p><b>This is per MEMBER; namelessness is per KIND and is {@link #named()}.</b> Conflating the two
-         * is the defect 039.2 shipped and 039.15 found: {@code hafen.world():gob():count("terobjs/tree")}
+         * is the defect 039.2 shipped and 039.15 found: {@code s:world():gob():count("terobjs/tree")}
          * threw as soon as one loaded gob had an unresolved resource, while {@code :nearest("terobjs/tree")}
          * one verb away skipped it — the two filter paths meaning different things, which the contract
          * below exists to forbid.

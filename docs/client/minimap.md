@@ -19,9 +19,10 @@
   session world coordinate derived from a durable place goes through `sessloc`, so when it
   moves, all of them have. Two things make the seam correct rather than a poll. **It is guarded on
   `(seg.id, tc)`** — `resolve` mints a fresh `Location` object every frame, so identity says nothing and
-  only those two values changing is news. And **it is filtered to `GameUI.mmap`**, the one instance
-  `MapApi.sessloc()` reads: the map window's `MiniMap` ticks the same locator against the same file, and
-  accepting either would let whichever ticked first consume the change for the other.
+  only those two values changing is news. And **it is filtered to `GameUI.mmap`**, the corner minimap,
+  which is the one instance a session's location is read from: the map window carries a second `MiniMap`
+  ticking the same locator against the same file, and accepting either would let whichever ticked first
+  consume the change for the other.
 - **`sessloc` goes STALE, never null.** `tick`'s `catch(Loading){}` keeps the previous value, and
   `SessionLocator.locate` throws `Loading("No mapped grids found.")` while the new area's grids are not yet
   in `gridinfo` — so for a window after the server drops the map (a cave, a house) `sessloc` still names

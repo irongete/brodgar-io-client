@@ -517,7 +517,8 @@ public final class LuaEvent {
     /** {@code ev:gob()} (OVERLAY) — the interned Gob handle, minted on the first ask (like {@code :sender()}). */
     private LuaValue gob() {
         if(gobObj == null)
-            gobObj = LuaGob.of(owner, gobId);
+            // The bus carries no session yet (filed on the roadmap), so the gob is the screen's.
+            gobObj = LuaGob.of(owner, AddonManager.drawnUser(), gobId);
         return gobObj;
     }
 
@@ -609,7 +610,7 @@ public final class LuaEvent {
             public Varargs invoke(Varargs a) {
                 LuaEvent e = self(a.arg1(), shape, "position");
                 Coord c = e.coordArg(a, "position", "pixel");
-                return LuaPosition.of(e.owner, Coord2d.of(c).mul(OCache.posres));
+                return LuaPosition.of(e.owner, AddonManager.drawnUser(), Coord2d.of(c).mul(OCache.posres));
             }
         });
         m.set("pixel", new VarArgFunction() {

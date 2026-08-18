@@ -31,7 +31,7 @@ import java.util.Set;
 
 /**
  * An <b>Item object</b> — one thing inside a container ({@code widget:items()}) or on the cursor
- * ({@code hafen.player():hand():item()}), with what the client knows about it: its resource, its display name,
+ * ({@code s:player():hand():item()}), with what the client knows about it: its resource, its display name,
  * how many it is, the arc over its icon, quality, and where it is sitting.
  *
  * <p><b>The intern key is the item widget's own identity, and that is the whole point of this type.</b>
@@ -288,7 +288,7 @@ public final class LuaItem {
         });
         // -- the four PROTECTED verbs (048.3) ----------------------------------------------------------
         // What you can do TO an item, on the item — the old hafen.act():item(item, verb, n)'s five verb
-        // strings become four named verbs plus hafen.player():hand():use(item) (048.2). Each sends exactly
+        // strings become four named verbs plus s:player():hand():use(item) (048.2). Each sends exactly
         // the GItem.wdgmsg the matching click sends (WItem.mousedown), so the client stays server-
         // authoritative, and each hands the Item back so a run of verbs chains.
         //   The gate runs FIRST — before the argument check and before the live item is looked up (D-213),
@@ -400,7 +400,7 @@ public final class LuaItem {
         LuaItem h = resolve(self);
         if(h == null)
             throw new LuaError("item:" + method + "() — use a COLON call on an Item object"
-                + " (widget:items()[i], or hafen.player():hand():item())");
+                + " (widget:items()[i], or session:player():hand():item())");
         return h;
     }
 

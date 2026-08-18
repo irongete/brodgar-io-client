@@ -328,7 +328,7 @@ public final class LuaOverlay {
         // gob() — the Gob it is attached to (D-066: the relation, not a stored id).
         m.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaGob.of(owner, handle(self, "gob").gob);
+                return LuaGob.of(owner, AddonManager.drawnUser(), handle(self, "gob").gob);
             }
         });
         // native() — is this one of the GAME's overlays (read-only) rather than one of ours? A hafen.vr() entity

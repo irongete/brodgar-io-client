@@ -87,13 +87,23 @@ and after.
 - `src/io/brodgar/addon/LuaSession.java` — 2, 3, 5 (the Session ref: the account name, interned per addon)
 - `src/io/brodgar/addon/SessionApi.java` — 3, 5 (the collection, and where a Session's verbs are mounted)
 - `src/io/brodgar/addon/Retired.java` — 3
-- `src/io/brodgar/addon/WorldApi.java` — 3, 4
-- `src/io/brodgar/addon/CharApi.java` — 3, 4 (`installPlayer` alone)
-- `src/io/brodgar/addon/LuaGob.java`, `LuaPosition.java` — 3, 4
+- `src/io/brodgar/addon/WorldApi.java` — 3 (`world(owner, user)`, built per session by `LuaSession`)
+- `src/io/brodgar/addon/CharApi.java` — 3, 5 (`player(owner, user)` and its `PlayerMark` alone)
+- `src/io/brodgar/addon/LuaGob.java` — 3
+- `src/io/brodgar/addon/LuaPosition.java` — 3, 5 (`worldArg(…, user)` is the door a session verb uses)
+- `src/io/brodgar/addon/LuaHand.java` — 3 (the cursor is per session; `use` sends)
+- `src/io/brodgar/addon/LuaOverlay.java` — 3 (keyed on the gob id alone, which is why it stays the screen's)
+- `src/io/brodgar/addon/MapApi.java` — 3 (`sessloc`/`mapfile`/`gridUL` grew their session forms)
+- `src/io/brodgar/addon/Permission.java` — 5 (`player.move`, and the verb spelling a refusal names)
 - `src/io/brodgar/addon/Addon.java` — 1, 3 (the per-addon intern caches)
-- `docs/client/multi-session.md` — 1, 4
+- `src/haven/GameUI.java`, `MapView.java` — 3 (`plid`/`chrid` vs `plgob`: which player-id read is session-correct)
+- `docs/client/multi-session.md` — 1, 5 (`Sessions.send`, and `wdgmsg` vs `rawWdgmsg`)
+- `docs/client/glossary.md` — 3, 5 (`plgob`/`plid`, and which of the two arrives first)
 - `docs/addons/api/session.md` — 1 (writes), 2–5
-- `docs/addons/api/world.md`, `api/player.md` — 3
+- `docs/addons/api/world.md` — 3
+- `docs/addons/api/player.md` — 3, 5
+- `docs/addons/api/gob.md` — 3 (identity within a session, and `:id()` across)
+- `docs/addons/api/README.md` — 3, 4 (the index line of every page the sweep retitles)
 - `docs/addons/api/event/bus.md` — 2
 - `docs/addons/api/conventions.md` — 1, 3
 - `DOCUMENTATION.md` — 1, 3, 5

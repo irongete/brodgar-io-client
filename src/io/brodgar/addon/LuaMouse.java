@@ -23,7 +23,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  *   m:grab()                      -- take the pointer, see {@link LuaGrab}
  * </pre>
  *
- * <p><b>The section's one thing IS the object</b> — the same shape {@code hafen.player()} has (D-046): a
+ * <p><b>The section's one thing IS the object</b> — the same shape {@code s:player()} has (D-046): a
  * per-addon singleton, minted lazily and cached on {@link Addon#mouseObj} so
  * {@code hafen.ui():mouse() == hafen.ui():mouse()}. Unlike {@code Player} it wraps no engine object at all —
  * every verb reads live UI state ({@code UI.mc}, {@code UI.modflags()}) fresh on each call — so there is

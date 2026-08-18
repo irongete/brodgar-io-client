@@ -21,10 +21,10 @@ import org.luaj.vm2.lib.VarArgFunction;
  *
  * <p><b>{@code hafen.act()} is gone</b> (048). It was the one section grouped by PERMISSION rather than by what
  * it acts on, and 048 dissolved it verb by verb onto the things each verb changes: walking the character is
- * {@code hafen.player():move(p)} and clicking an object {@code gob:click(button, mods)} (048.1); the held-item
- * gesture is {@code hafen.player():hand():use(target, mods)}, on a cursor that is <i>nil</i> when it is empty
+ * {@code s:player():move(p)} and clicking an object {@code gob:click(button, mods)} (048.1); the held-item
+ * gesture is {@code s:player():hand():use(target, mods)}, on a cursor that is <i>nil</i> when it is empty
  * (048.2); what you can do TO an item is on the item — {@code item:use/:take/:drop/:transfer} (048.3); placing
- * and area-selecting are {@code hafen.world():place/:select}, beside the {@code snapPlace}/{@code snapAngle}
+ * and area-selecting are {@code s:world():place/:select}, beside the {@code snapPlace}/{@code snapAngle}
  * that prepare their arguments (048.4); a menu action is {@code hafen.menugrid():get(name):use()}, which gained
  * the same permission (048.5); the escape hatch is {@code widget:send(msg, ...)}, where the receiver IS the
  * target (048.6); and a petal is {@code hafen.flowermenu():select(label|n)} (048.7, which also deleted

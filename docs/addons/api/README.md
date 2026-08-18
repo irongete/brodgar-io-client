@@ -9,7 +9,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [conventions](conventions.md) | the grammar, snapshots vs handles, filters, coordinates, colours, `nil`, threading, and the permission model |
 | [references](references.md) | every kind of thing a verb takes: a Gob, a kin, a slot, an asset, an item, a widget, a selector |
 | [data types](types.md) | every snapshot shape a read hands back, field by field |
-| [`hafen.session`](session.md) | the logins this client holds, the one on screen, and the account each is named by |
+| [`hafen.session`](session.md) | the logins this client holds, the one on screen, the account each is named by, and the world and character that hang off one |
 | [`hafen.event`](event/README.md) | the hub: subscribing, the closed keys and the open ones |
 | [the catalogue](event/bus.md) | every event the client fires, and what each one hands your handler |
 | [the message streams](event/streams.md) | a message on its way to the server, and an update on its way in |
@@ -18,8 +18,8 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [`hafen.world`](world.md) | the live world: every object loaded, the terrain, and a position that survives the coordinates moving under it |
-| [Gob](gob.md) | one object in the world — `hafen.world():gob():get(id)` gives a Gob you read with methods, and `gob:scale(k)` says how big it is drawn |
+| [`session:world`](world.md) | one character's live world: every object it has loaded, the terrain, and a position that survives the coordinates moving under it |
+| [Gob](gob.md) | one object in the world — `s:world():gob():get(id)` gives a Gob you read with methods, and `gob:scale(k)` says how big it is drawn |
 | [Overlay](overlay.md) | what is drawn at a gob: the game's own, the labels and painters you attach, and what you stood there |
 | [`hafen.map`](map/README.md) | the hub: the map you have explored, kept on disk, and the order to read these pages in |
 | [segments and grids](map/grids.md) | the shape of the database, the one Grid entity both halves hand back, and storing a place |
@@ -32,7 +32,7 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [`hafen.player`](player.md) | the character you are logged in as, and the anchor for your own Gob |
+| [`session:player`](player.md) | one of the characters you are logged in as, and the anchor for its own Gob |
 | [`hafen.time`](time.md) | the game clock, the day, the night and the season |
 | [`hafen.char`](char.md) | attributes, learning points, weight, food, skills, credos, lore |
 | [`hafen.study`](study.md) | the study window: the curiosities in it, and their LP and attention |
@@ -54,8 +54,8 @@ you came for from the tables below. Every page in the tree is listed here.
 
 ## Acting
 
-The verbs that act are on the pages of what they change — [`hafen.player`](player.md), [Gob](gob.md),
-[`hafen.world`](world.md), [items](ui/items.md) and [the Widget object](ui/widget.md) — under a
+The verbs that act are on the pages of what they change — [`session:player`](player.md), [Gob](gob.md),
+[`session:world`](world.md), [items](ui/items.md) and [the Widget object](ui/widget.md) — under a
 `Write (protected)` heading, each stating the permission key it needs. The whole catalogue of keys is in
 [permissions](../guides/permissions.md). Two catalogues have a page of their own:
 

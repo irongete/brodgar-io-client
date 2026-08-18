@@ -19,6 +19,14 @@ local markers = {}               -- live click markers: {sprite = , age = }
 local autoMoving = false         -- true while we issue a queued move ourselves
 local stopped = 0                -- consecutive polls stopped short of `current`
 
+-- The character on screen, as a Player object, or nil on the login screen. Read inside every handler
+-- rather than kept: hafen.session():current() is whoever holds the screen at the moment you ask, and
+-- a left click on the ground is always the drawn character's.
+local function me()
+  local s = hafen.session():current()
+  return s and s:player()
+end
+
 hafen.event():on("Load", function()
   icon = hafen.asset():get(ICON_PATH)
   flagIcon = hafen.asset():get(FLAG_PATH)
@@ -78,12 +86,13 @@ end)
 -- therefore drawn over the HUD from the projected world points, which is what worldToScreen is for.
 -- It draws on top of the scene: a line does not disappear behind a hill the way a sprite does.
 
--- The two spaces line up on their own: hafen.player():worldToScreen answers ROOT DESIGN pixels, which
+-- The two spaces line up on their own: player:worldToScreen answers ROOT DESIGN pixels, which
 -- is the space a HUD overlay's g draws in, so a projected point goes straight into g:line.
 hafen.ui():overlay():onDraw(function(g, w, h)
   if current == nil then return end
-  local me = hafen.player():gob()
-  local from = me and me:position()
+  local pl = me()
+  local mine = pl and pl:gob()
+  local from = mine and mine:position()
   if not from then return end
 
   -- The whole path in order, each point projected exactly once.
@@ -92,7 +101,7 @@ hafen.ui():overlay():onDraw(function(g, w, h)
 
   local scr = {}
   for i, p in ipairs(pts) do
-    scr[i] = hafen.player():worldToScreen(p)
+    scr[i] = pl:worldToScreen(p)
   end
 
   for i = 1, #pts - 1 do          -- over pts, not scr: an unprojectable point leaves a hole
@@ -109,8 +118,10 @@ end)
 -- ---------------------------------------------------------------- walking it
 
 local function moveTo(w)
+  local pl = me()
+  if not pl then return end
   autoMoving = true                -- a move sent from the timer would re-enter the handler below
-  hafen.player():move(w.pos)
+  pl:move(w.pos)
   autoMoving = false
   stopped = 0
 end
@@ -158,8 +169,9 @@ end)
 hafen.timer():every(POLL_INTERVAL, function()
   if current == nil then return end
 
-  local me = hafen.player():gob()
-  if not me then return end
+  local pl = me()
+  local mine = pl and pl:gob()
+  if not mine then return end
 
   local d = current.pos:distance()
   if d and d < ARRIVE_DIST then
@@ -170,7 +182,7 @@ hafen.timer():every(POLL_INTERVAL, function()
   end
 
   -- Blocked, or the server refused the walk: drop the path rather than leave it hanging forever.
-  if me:moving() then
+  if mine:moving() then
     stopped = 0
   else
     stopped = stopped + 1

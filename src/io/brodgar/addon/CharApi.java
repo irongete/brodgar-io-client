@@ -922,35 +922,38 @@ final class CharApi {
     }
 
     /**
-     * Build {@code hafen.player()} for {@code owner}. From installHafen. The section contains exactly one thing,
-     * so the <b>section object IS that thing</b> (§2.1): {@code hafen.player()} hands back the addon's single
-     * <b>Player object</b>, and {@code hafen.player():gob()} is the composition anchor for every per-gob read of
-     * the player (position/health/moving/facing/…), plus {@code :move(p)}, which walks the character and is the
-     * Player's first write (048.1), and {@code :hand()}, the cursor (048.2, {@link LuaHand}) — two verbs with no
-     * per-gob equivalent, since the server accepts a walk command only for your own character and no other gob
-     * has a cursor. Player forwards <b>nothing</b> — a {@code player:pos()}
-     * living beside {@code player:gob():position()} is exactly the dual style D-013 forbids — and
-     * {@code exists}/{@code id} are dropped: {@code player:gob()} (nil before entering the world) and
-     * {@code gob:id()} already answer both. It is a per-addon singleton (cached on {@link Addon#playerObj}), so
-     * {@code hafen.player() == hafen.player()}; it is userdata with a per-addon metatable, immutable from Lua,
-     * like a {@link LuaGob}.
+     * Build the Player object for {@code (owner, user)} — <b>one character</b>, reached as {@code s:player()}
+     * (076.3). Called once per pair by {@link LuaSession}, which hangs the result on the interned Session
+     * handle, so {@code s:player() == s:player()} and a per-frame read allocates nothing.
+     *
+     * <p>The section contains exactly one thing, so the <b>section object IS that thing</b> (§2.1):
+     * {@code s:player():gob()} is the composition anchor for every per-gob read of that character
+     * (position/health/moving/facing/…), plus {@code :move(p)}, which walks it and is the Player's first write
+     * (048.1), {@code :hand()}, its cursor (048.2, {@link LuaHand}), and {@code :worldToScreen(p)}. Player
+     * forwards <b>nothing</b> — a {@code player:pos()} living beside {@code player:gob():position()} is exactly
+     * the dual style D-013 forbids — and {@code exists}/{@code id} are dropped: {@code player:gob()} (nil
+     * before that session is in the world) and {@code gob:id()} already answer both.
+     *
+     * <p><b>{@code :name()} is gone the same way</b>, and for the same rule: under an address the character a
+     * login is playing is {@code s:character()}, read off that session's own HUD, so a {@code :name()} here
+     * would be a second spelling of one fact whose only difference was which door you came through. It is
+     * userdata with a per-addon metatable, immutable from Lua, like a {@link LuaGob}.
+     *
+     * <p><b>Every verb reads the session it hangs on.</b> The one exception is {@code :worldToScreen}, which
+     * answers a point on the screen — there is one screen however many sessions are live — so it answers
+     * {@code nil} for a session that is not the drawn one, and {@code :move} sends, so until a background
+     * session can be ordered it goes through the same door {@code gob:click} does.
      */
-    static void installPlayer(LuaTable hafen, final Addon owner) {
+    static LuaValue player(final Addon owner, final String user) {
         LuaTable methods = new LuaTable();
-        // gob() — the player's Gob object, or nil before entering the world. hafen.gob(id) interning makes this
-        // the SAME object as hafen.gob(<player id>).
+        // gob() — THAT character's Gob object, or nil before that session is in the world. Interning on the
+        // (session, id) pair makes this the SAME object as s:world():gob():get(<that character's id>).
+        //   076.3: off the session's own HUD (GameUI.plid) rather than off a map view, so it needs no widget
+        // walk and answers a beat earlier — the HUD arrives before its map view is parented.
         methods.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                MapView m = screenView();
-                if((m == null) || (m.plgob < 0))
-                    return LuaValue.NIL;
-                return LuaGob.of(owner, m.plgob);
-            }
-        });
-        methods.set("name", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                GameUI g = gui();
-                return ((g == null) || (g.chrid == null)) ? LuaValue.NIL : LuaValue.valueOf(g.chrid);
+                long id = plgob(user);
+                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, user, id);
             }
         });
         /* vitals() is GONE (027-meters-oop's hard cut): the HUD bars are hafen.meter():list(), which is every meter
@@ -965,10 +968,13 @@ final class CharApi {
         // undone here rather than by every caller: the view's own corner is added, and the pair goes through
         // Px.out. Unrounded, because a projected point has no pixel to round to. The same conversion
         // UiApi.paintGobOverlays already does for a gob overlay's projected point (058.2).
+        //   076.3: there is ONE screen however many sessions are live, so this answers nil for a session that
+        // is not the drawn one. A projection through a dormant view would name a pixel in a scene nobody is
+        // looking at, which is a number the caller cannot use and cannot tell apart from one it can.
         methods.set("worldToScreen", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.player():worldToScreen", "p");
-                MapView m = screenView();
+                Coord2d rc = LuaPosition.worldArg(a, 2, P + ":worldToScreen", "p", user);
+                MapView m = drawn(user) ? screenView() : null;
                 if(m == null)
                     return LuaValue.NIL;
                 try {
@@ -993,14 +999,15 @@ final class CharApi {
         // that, rather than being told its Position is wrong (D-213).
         methods.set("move", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
                 requirePermission(owner, Permission.PLAYER_MOVE);
-                Coord2d rc = LuaPosition.worldArg(a, 2, "hafen.player():move", "p");
-                MapView m = screenView();
-                if(m == null)
-                    throw new LuaError("hafen.player():move: no map view (not in the world yet)");
+                // 076.3: the Position is resolved in THAT character's frame, so the refusal it already had
+                // changes subject — a place is unreachable for the character you addressed.
+                Coord2d rc = LuaPosition.worldArg(a, 2, P + ":move", "p", user);
+                MapView m = sendView(user, P + ":move");
                 Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;   // dummy screen coord, like MiniMap.mvclick
                 m.wdgmsg("click", pc, rc.floor(OCache.posres), 1, 0);
-                return owner.playerObj;                          // the Player, so a move chains
+                return self;                                     // the Player, so a move chains
             }
         });
         // hand() — the cursor, as a Hand object, or nil when nothing is on it (048.2). Like :move it is not a
@@ -1010,36 +1017,59 @@ final class CharApi {
         // protected hand:use(target, mods); see LuaHand.
         methods.set("hand", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaHand.of(owner);
+                return LuaHand.of(owner, mark(self));
             }
         });
         final LuaTable pmt = new LuaTable();
         // A section object's vocabulary is CLOSED: an unknown verb throws naming what does exist, exactly as
         // Section.meta and LuaCollection do for every other section. Pointing __index straight at the methods
-        // table would make hafen.player():nosuchverb() read plain nil and fail one character later as "attempt
+        // table would make s:player():nosuchverb() read plain nil and fail one character later as "attempt
         // to call a nil value" — the failure the whole grammar exists to delete, and the one Player would have
         // been alone in keeping, since the section object here IS the one thing the section contains (§2.1).
-        pmt.set(LuaValue.INDEX, Retired.closedIndex("hafen.player()", methods,
-            "the section object is the character itself: :gob() :name() :move(p) :hand() :worldToScreen(p)"));
+        pmt.set(LuaValue.INDEX, Retired.closedIndex(P, methods,
+            "the section object is the character itself: :gob() :move(p) :hand() :worldToScreen(p). The"
+            + " character it is PLAYING is s:character(), on the Session"));
         pmt.set("__name", LuaValue.valueOf("Player"));
         pmt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf("Player");
             }
         });
-        owner.playerObj = LuaValue.userdataOf(new PlayerMark(), pmt);
-        Section.mount(hafen, "player", owner.playerObj, null);
+        return LuaValue.userdataOf(new PlayerMark(user), pmt);
     }
 
-    /** The opaque instance behind a Player userdata (facade-safe: no Java object of the engine's crosses). */
-    private static final class PlayerMark {
+    /** How the Player is reached, and so how every one of its messages spells itself. */
+    static final String P = "session:player()";
+
+    /**
+     * The opaque instance behind a Player userdata (facade-safe: no Java object of the engine's crosses). It
+     * carries the account it is the character of, and caches that character's {@link LuaHand} — which hangs
+     * <b>here</b> rather than on the Session, so a Player an addon kept keeps its cursor's identity even if it
+     * let the Session handle go: {@code pl:hand() == pl:hand()} for as long as the Player itself is alive.
+     */
+    static final class PlayerMark {
+        final String user;
+        LuaValue handObj;
+
+        PlayerMark(String user) {
+            this.user = user;
+        }
+
         public String toString() { return "Player"; }
+    }
+
+    /** The {@code PlayerMark} behind a Player userdata, or {@code null} for anything that is not one. */
+    static PlayerMark mark(LuaValue v) {
+        if((v == null) || !v.isuserdata())
+            return null;
+        Object o = v.touserdata();
+        return (o instanceof PlayerMark) ? (PlayerMark)o : null;
     }
 
     // hafen.items is a HARD CUT (029.3, D-013). In Hafen there is no inventory model outside the widget tree —
     // GameUI.maininv is an Inventory exactly like a chest's — so a section of its own only preserved the
     // player-inventory privilege the Widget entity removes. Items are now a RELATION on their container:
-    // hafen.ui():inventory():items() / hafen.ui():equipment():items() / hafen.player():hand():item(), and :items() answers on ANY
+    // hafen.ui():inventory():items() / hafen.ui():equipment():items() / s:player():hand():item(), and :items() answers on ANY
     // container widget (a chest, a cupboard, another player's equipory) with nothing hidden. `find` had no
     // replacement built for it: it was a name/res substring filter over one array, which is a Lua one-liner over
     // :items(). What a container hands back is the Item entity ({@link LuaItem}), keyed on the item widget.

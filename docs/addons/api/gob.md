@@ -1,35 +1,37 @@
 # Gob: game objects
 
-A **Gob** is one thing in the world — a tree, a boulder, an animal, another player's body. A gob lives in
-the world, so that is where you address one: [`hafen.world():gob()`](world.md#objects) is the collection,
-`:get(id)` names one by id, and the rest of that collection finds the ones you do not have an id for.
+A **Gob** is one thing in the world — a tree, a boulder, an animal, another player's body. A gob lives in a
+world, so that is where you address one: [`s:world():gob()`](world.md#objects) is the collection of what one
+of your characters can see, `:get(id)` names one by id, and the rest of that collection finds the ones you do
+not have an id for.
 
 ```lua
-local tree = hafen.world():gob():nearest("terobjs/tree")
+local s = hafen.session():current()
+local tree = s and s:world():gob():nearest("terobjs/tree")
 if tree then
   hafen.log():write(string.format("%s is %.1f away", tree:name(), tree:distance()))
 end
 ```
 
-A Gob wraps **only the id**. Every method re-resolves the object against the client's live object
-cache, so a handle you keep in a variable is always fresh: it tracks a gob as it moves, and its methods
-return `nil` once the gob is gone. Nothing is cached and nothing goes stale — see
+A Gob wraps **an id and the session you read it through**. Every method re-resolves the object against that
+character's live object cache, so a handle you keep in a variable is always fresh: it tracks a gob as it
+moves, and its methods return `nil` once the gob is gone. Nothing is cached and nothing goes stale — see
 [snapshots vs handles](conventions.md#snapshots-vs-handles).
 
-`:get(id)` always returns a Gob, even for an id that is not loaded or never existed. That is what lets you
-anchor to a gob before it streams in; `:exists()` is the liveness test. A non-number argument raises an
-error.
+`:get(id)` always returns a Gob, even for an id that character has not loaded or that never existed. That is
+what lets you anchor to a gob before it streams in; `:exists()` is the liveness test. A non-number argument
+raises an error.
 
 ## Getting a Gob
 
 | Expression | Returns |
 |---|---|
-| `hafen.world():gob():get(id)` | the Gob for that id — never `nil` |
-| `hafen.player():gob()` | your own Gob, or `nil` before you are in the world — see [`hafen.player`](player.md) |
-| `hafen.world():gob():list(filter)` | an array of Gobs |
-| `hafen.world():gob():nearest(filter)` | the nearest Gob, or `nil` |
-| `hafen.world():gob():within(radius, filter)` | an array of Gobs |
-| a `GobAdded` or `GobRemoved` handler | the Gob that spawned or despawned — see [events](event/bus.md#world) |
+| `s:world():gob():get(id)` | the Gob for that id, as that character sees it — never `nil` |
+| `s:player():gob()` | that character's own Gob, or `nil` before its session is in the world — see [`session:player`](player.md) |
+| `s:world():gob():list(filter)` | an array of Gobs |
+| `s:world():gob():nearest(filter)` | the nearest Gob to that character, or `nil` |
+| `s:world():gob():within(radius, filter)` | an array of Gobs |
+| a `GobAdded` or `GobRemoved` handler | the Gob that spawned or despawned, read through the session that saw it — see [events](event/bus.md#world) |
 | `member:gob()` on a [party](party.md) member, `target:gob()` on the [combat](fight.md) target | that creature's Gob |
 
 ## Read
@@ -51,7 +53,7 @@ None of them throws.
 | `gob:icon()` | string \| nil | minimap icon category name |
 | `gob:isPlayer()` | bool \| nil | whether it is a player body |
 | `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if this gob is one of your kin |
-| `gob:distance(other)` | number \| nil | world distance to `other`, another Gob; defaults to the player |
+| `gob:distance(other)` | number \| nil | world distance to `other`, a Gob read through the same session; defaults to that character |
 | `gob:info()` | [`GobInfo`](types.md#gobinfo) \| nil | everything above as one plain snapshot table |
 
 > `gob:name()` is the **type** resource — `"gfx/borka/body"` for any player body — not a character's
@@ -61,6 +63,10 @@ None of them throws.
 `:info()` is the snapshot escape hatch: use it for logging, serialising, or passing gob data around as
 data, since [`hafen.json`](json.md) can encode a plain table and a Gob object cannot. For reading,
 prefer the methods — they are always fresh, while a snapshot is frozen at the moment you took it.
+
+`gob:distance(other)` measures inside **one** character's frame. Two sessions' coordinates are each relative
+to where that session logged in, so there is no distance between a gob read through one and a gob read
+through another, and handing it one raises saying so. Read both through the same session.
 
 ## Write (protected)
 
@@ -77,8 +83,12 @@ together. It aims at the **whole object** rather than at a part of it, so a comp
 specific sub-mesh is not addressable.
 
 Unlike every read here, a gob that is **gone raises** — as does one that has no position yet, and a call
-made before you are in the world. A click is a message about one specific object, and there is nothing
-honest to send about an object that has left; nothing goes out in either case.
+made before that session is in the world. A click is a message about one specific object, and there is
+nothing honest to send about an object that has left; nothing goes out in either case.
+
+It is the **drawn** character's click. A gob read through a session that is not on screen raises naming
+`hafen.session():current()`: walking is the whole of what a character you are not looking at will take, and
+interacting with an object is its own business. See [`move`](player.md#write-protected).
 
 ## Size (unprotected)
 
@@ -92,12 +102,15 @@ see coming, the cupboard you are lining up. It is the same read/write pair every
 | `gob:scale(k)` | the Gob | draw it `k` times its size |
 
 ```lua
-local boar = hafen.world():gob():nearest("kritter/boar")
+local boar = hafen.session():current():world():gob():nearest("kritter/boar")
 if boar then
   boar:scale(2)          -- twice the size, and it hands the Gob back, so this chains
   boar:scale(1)          -- back to the size the game draws it at
 end
 ```
+
+Both halves answer for whichever session you read the gob through, the drawn one or not: a size set on a
+character's world is applied to the object it names there, and is already in place when you tab to it.
 
 It is **client-local and purely visual**, on the same footing as an [overlay](overlay.md): only you see
 it, the size is applied in place so the object's feet stay where they were, and it still turns, moves
@@ -120,12 +133,15 @@ Everything drawn at a gob — the game's own, the labels and painters you attach
 [stood in the world](vr/README.md) anchored to it — is the collection
 [`gob:overlay()`](overlay.md), and it is unprotected.
 
+An overlay is **drawn**, and the client draws one scene: a session it is not drawing has no scene for one to
+appear in, so a gob read through any other session raises naming `hafen.session():current()`.
+
 ## Kin
 
 `gob:kin()` answers the [`Kin`](kin.md) this gob belongs to, and `kin:gob()` goes back the other way.
 
 ```lua
-local g = hafen.world():gob():nearest(function(g) return g:isPlayer() end)
+local g = hafen.session():current():world():gob():nearest(function(g) return g:isPlayer() end)
 local k = g and g:kin()
 hafen.log():write(k and ("that is " .. k:name()) or "nobody you know")
 ```
@@ -139,12 +155,13 @@ attribute read and never guesses from a name. A kin's **hearth fire** carries th
 
 ## Identity
 
-Two Gobs for the same id are **the same object**, so equality and table keys work directly:
+**Within one session, two Gobs for the same id are the same object**, so equality and table keys work
+directly:
 
 ```lua
-local gobs = hafen.world():gob()
-gobs:get(4711) == gobs:get(4711)              --> true
-hafen.player():gob() == gobs:get(myId)        --> true
+local gobs = hafen.session():current():world():gob()
+gobs:get(4711) == gobs:get(4711)                          --> true
+hafen.session():current():player():gob() == gobs:get(myId) --> true
 
 local seen = {}
 for _, g in ipairs(gobs:list()) do
@@ -152,21 +169,40 @@ for _, g in ipairs(gobs:list()) do
 end
 ```
 
-Identity is per addon: your Gob objects are yours, never shared with another addon.
+**Across two sessions the same id is two Gobs, and `gob:id()` is what crosses them.** A gob id comes from the
+**server** and names one object in every character that has loaded it — but each character holds its own copy,
+placed against its own map, so `s:world():gob():get(id)` and `other:world():gob():get(id)` are two handles
+that answer about the same thing from two points of view. Compare `:id()` when you need to know it is the same
+object; compare the handles when you need to know it is the same *reading*.
+
+```lua
+local a, b = hafen.session():get("main"), hafen.session():get("alt")
+local ga, gb = a:world():gob():get(4711), b:world():gob():get(4711)
+ga == gb                                      --> false: two sessions, two readings
+ga:id() == gb:id()                            --> true: one object
+ga:exists() ~= gb:exists()                    --> quite possibly: only one of them may see it
+```
+
+One object per `(session, id)` pair is the only arrangement whose two equalities cannot disagree: Lua table
+keys compare objects directly and ignore `__eq`, so a single handle with a cleverer `==` would have counted
+one gob twice as a key while claiming to be one.
+
+Identity is also per addon: your Gob objects are yours, never shared with another addon.
 
 A Gob object is immutable: `gob.foo = 1` raises an error, and `gob.position` is the method itself, so call
-it with a colon: `gob:position()`. `tostring(gob)` gives `Gob(<id>)`.
+it with a colon: `gob:position()`. `tostring(gob)` gives `Gob(<id>)` — the id alone, because that is the half
+that means the same thing everywhere.
 
 ## Passing a Gob to the rest of the API
 
 Anything that acts on a gob takes the **Gob object**, not an id: `me:overlay():add("tag"):text("here")`,
-`hafen.player():hand():use(tree)`, `hafen.vr():sprite():add(icon, me):offset(0, 0, 18)`.
+`s:player():hand():use(tree)`, `hafen.vr():sprite():add(icon, me):offset(0, 0, 18)`.
 
 ## See also
 
-- [`hafen.world`](world.md) — finding the gobs you want to read
+- [`session:world`](world.md) — finding the gobs you want to read
 - [Overlay](overlay.md) — everything drawn at a gob, and the labels and painters you add
 - [`hafen.kin`](kin.md) — the roster side of `gob:kin()`
-- [`hafen.player`](player.md#write-protected) — walking to a gob, and the cursor you aim at one
+- [`session:player`](player.md#write-protected) — walking to a gob, and the cursor you aim at one
 - [`GobInfo`](types.md#gobinfo) — the shape `:info()` returns
 - [events](event/bus.md#world) — reacting to gobs appearing and leaving instead of polling

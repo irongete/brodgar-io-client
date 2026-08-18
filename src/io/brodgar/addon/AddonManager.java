@@ -979,7 +979,10 @@ public final class AddonManager {
                 // standing on it that survived because ANOTHER character has it in view is re-asked whether
                 // the one on screen does. A flag, and only for the ids something is actually standing on.
                 VrApi.anchorSeen(ge.gob.id);
-                fireGob(ge.added ? "GobAdded" : "GobRemoved", ge.gob.id);
+                // 076.3: the payload Gob is read through the session that SAW the object — this queue is that
+                // session's own, so the handle names the right character's copy without anything having to be
+                // guessed. The event itself still carries no Session; that is filed on the roadmap.
+                fireGob(ge.added ? "GobAdded" : "GobRemoved", Sessions.nameof(u), ge.gob.id);
             }
 
             // 1'. The two gob-overlay events (038.3), captured on the loader threads (the game's own) and inside
@@ -1811,14 +1814,14 @@ public final class AddonManager {
      * for the addons that don't listen. On {@code GobRemoved} the gob is already gone, so only {@code :id()}
      * answers — an addon that needs the name must have indexed it on {@code GobAdded}.
      */
-    static void fireGob(String event, long id) {
+    static void fireGob(String event, String user, long id) {
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, LuaGob.of(a, id));
+                fireTo(a, event, LuaGob.of(a, user, id));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, LuaGob.of(c, id));
+            fireTo(c, event, LuaGob.of(c, user, id));
     }
 
     /**
@@ -2641,11 +2644,17 @@ public final class AddonManager {
         // after it goes), and :current() is the session on screen — nil on the login screen, and a read
         // only, since taking the screen is the player's own gesture. A Session answers :user(), :character()
         // (that session's own GameUI.chrid, not the name `:session add` asked for), :exists() and :info().
+        //   076.3: and it is the ADDRESS the first two namespaces hang off — s:world() and s:player(), each
+        // minted once per (addon, session) on the interned Session handle. Both are gone from `hafen`: reading
+        // hafen.world or hafen.player throws out of Retired naming the session, which is the hard cut.
         SessionApi.installSession(hafen, owner);
 
-        // hafen.gob is GONE into hafen.world():gob() (039.2, D-066): a gob lives IN the world, so the by-id
-        // door is the world's Gob collection, :get(id) — still never nil, still interned per addon, and the
-        // Gob OBJECT itself (gob:position()/:name()/:health()/…) is unchanged. See WorldApi.
+        // hafen.gob is GONE into s:world():gob() (039.2, D-066): a gob lives IN the world, so the by-id door
+        // is the world's Gob collection, :get(id) — still never nil, and the Gob OBJECT itself
+        // (gob:position()/:name()/:health()/…) is unchanged. It is interned per (addon, SESSION) now: the id is
+        // the server's and names one object, the session says whose copy of it, and a read taken on the session
+        // an addon named is about that character. See WorldApi and CharApi, which SessionApi mounts nothing
+        // for — LuaSession's :world()/:player() are the only doors, and there is no field on `hafen` to find.
 
         // hafen.menugrid() — the ACTION MENU (the 4x4 "scm" grid) as Pagina OBJECTS: the catalogue of
         // everything this character can do, in the grid's own order and category tree. The section object IS
@@ -2670,24 +2679,13 @@ public final class AddonManager {
         // FlowerMenuOpened and FlowerMenuClosed, are where an automation addon actually reacts.
         FlowerMenuApi.installFlowerMenu(hafen, owner);
 
-        // hafen.world():* — the LIVE world (037.1, re-shaped in 039.2). hafen.world():gob() is the read-only
-        // Gob collection and the ONE by-id door (:get/:list/:count/:find/:nearest/:within); nearest/within
-        // measure from the player and skip the player's own gob; a function filter is called with a Gob, a
-        // string filter matches its resource name. Prefer GobAdded/GobRemoved over per-frame scanning. The
-        // section also holds the terrain + coordinate half — tile/height/grid, the two lattice conversions,
-        // screenToWorld and the placement snappers — because every one reads MCache, the terrain streamed
-        // around the player (nil off-stream, gone at logout), never the map database. Every spatial verb takes
-        // a POSITION (LuaPosition): computable and durable at once, so gridPos/fromGridPos are gone and there
-        // is nothing left to convert. Grid ids are 64-bit and so are exposed as decimal STRINGS.
-        WorldApi.installWorld(hafen, owner);
-
         // hafen.map():* — the RECORDED map (037): the client's on-disk map database (MapFile), the map the
         // player has EXPLORED, as opposed to the live terrain above. Five collections, re-shaped in 039.4:
         //   :segment() — the contiguous explored areas, with :current() for the one you are standing in.
         //   :grid() — the recorded 100x100-tile squares, addressed by the id the SERVER published. That id
-        //     is the only thing the live and recorded halves share, so this and hafen.world():grid() hand
+        //     is the only thing the live and recorded halves share, so this and s:world():grid() hand
         //     back the SAME Grid object: :live() asks whether it is streamed in, :exists() whether it is
-        //     written down, and where both answer, grid:tile(c) and hafen.world():tile(p) agree by name.
+        //     written down, and where both answer, grid:tile(c) and s:world():tile(p) agree by name.
         //   :marker() — the pins (the old hafen.markers). Two kinds: PLAYER markers (user pins: a name +
         //     colour) and SYSTEM markers (server/quest pins: a name + icon). :add(name, p) takes a Position
         //     and hands back a bare pin whose colour and on-map flag are setters; :remove(m) takes it out.
@@ -2703,19 +2701,6 @@ public final class AddonManager {
         //     (t:hold()/t:release()), never a switch: the count is shared with the user's checkbox and the
         //     server's claim flash, so an addon can stop asking and can never turn one off.
         MapApi.installMap(hafen, owner);
-
-        // hafen.player() — the section contains exactly one thing, so the section object IS the Player: purely
-        // the composition anchor for hafen.player():gob() (D-046), since position/health/moving/… of the player
-        // come from that Gob and Player deliberately forwards NOTHING (player:pos() alongside
-        // player:gob():position() is exactly the dual style D-013 forbids). :gob() is nil before entering the
-        // world. :name() is the LOCAL character name (GameUI.chrid); other players' display names are not
-        // reliably available. :worldToScreen(p) takes a POSITION and answers MAP-VIEW-relative pixels as a plain
-        // {x, y} — deliberately not a Position, because a pixel is not a place in the world.
-        //   :move(p) (048.1) is the Player's first WRITE and the one thing here that is not a read: it walks the
-        // character to a Position, protected by the "player.move" permission. It does not bend D-046 — Player carries
-        // what has no per-gob equivalent, and the server accepts a walk command only for your own character, so
-        // there is no gob:move() this could have been forwarded from.
-        CharApi.installPlayer(hafen, owner);
 
         // hafen.time():* — game clock + astronomy. clock() is always available; the astronomy readers are
         // nil until the first "astro" update lands (Glob.ast is nil before then).
@@ -2740,7 +2725,7 @@ public final class AddonManager {
         // out of scope here. The audio section is hafen.sound and nothing else.
 
         // hafen.items is GONE (029.3, hard cut D-013). Items are a RELATION on their container now:
-        // hafen.ui():inventory():items() / hafen.ui():equipment():items() / hafen.player():hand():item(), and widget:items()
+        // hafen.ui():inventory():items() / hafen.ui():equipment():items() / s:player():hand():item(), and widget:items()
         // answers on ANY container — a chest, a cupboard — with its window visible and interactive. What it hands
         // back is an interned LuaItem keyed on the item WIDGET (039.14): a server widget id is recycled, so an
         // entity keyed on the number would silently start naming a different item and a protected write through it
@@ -2889,7 +2874,7 @@ public final class AddonManager {
         // placement/removal seams — 042.1) and MeterChanged (the server's "set"/"col" uimsg, fired only on
         // a real value-OR-colour change) — all
         // three carry the Meter OBJECT (fireMeter), so MeterAdded is the honest "the bars are up" signal.
-        // (hafen.player():vitals() and VitalsChanged are GONE.)
+        // (the flat vitals() triple and VitalsChanged are GONE.)
         CharApi.installMeters(hafen, owner);
 
         // hafen.actionbar — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
@@ -2914,9 +2899,9 @@ public final class AddonManager {
         // server-authoritative: an addon can only send what a player click could send. What changed is WHERE the
         // verbs live. A verb belongs with what it CHANGES, not with what it COSTS — a permission is not a
         // namespace — so 048 dissolved the one section that was grouped by its gate, verb by verb:
-        //   hafen.player():move(p) walks and gob:click(button, mods) clicks (048.1); hafen.player():hand() is the
+        //   s:player():move(p) walks and gob:click(button, mods) clicks (048.1); s:player():hand() is the
         // cursor and :use(target, mods) applies what you hold to an Item, a Position or a Gob (048.2); an item
-        // answers item:use/:take/:drop/:transfer (048.3); hafen.world():place / :select stand beside the
+        // answers item:use/:take/:drop/:transfer (048.3); s:world():place / :select stand beside the
         // snapPlace/snapAngle that prepare their arguments (048.4); a menu entry is
         // hafen.menugrid():get(name):use(), which gained this same permission (048.5); the escape hatch is
         // widget:send(msg, ...), where the receiver IS the target (048.6); and a petal is
@@ -3580,6 +3565,144 @@ public final class AddonManager {
         }
     }
 
+    // ------------------------------------------------------------- one NAMED session's world (076.3)
+    //
+    // The ambient readers above answer for the session on SCREEN. These answer for the session you say, and
+    // they are what every verb under `session:world()` / `session:player()` reads: a read taken on the
+    // session an addon named has to be about that character, whichever one the player is looking at.
+    //
+    // The account name is the whole of the address (LuaSession wraps nothing else), so each of these starts
+    // from `Sessions.byuser` and re-resolves the rest on the call. A member is off that list before anything
+    // is told its session ended, so a name that answers null here has no session — which is exactly what a
+    // handle held across the end must report, and why none of these caches a member.
+
+    /** The member logged in as {@code user}, or {@code null} when the client holds no such session. */
+    static Sessions.Member member(String user) {
+        return Sessions.byuser(user);
+    }
+
+    /** That session's {@link Glob} — its world — or {@code null} while it has none (connecting, gone). */
+    static Glob glob(String user) {
+        Sessions.Member m = Sessions.byuser(user);
+        if(m == null)
+            return null;
+        haven.Session s = m.sess;
+        return (s == null) ? null : s.glob;
+    }
+
+    /** That session's live map cache, or {@code null}. */
+    static MCache mcache(String user) {
+        Glob g = glob(user);
+        return (g == null) ? null : g.map;
+    }
+
+    /** That session's live object cache, or {@code null}. */
+    private static OCache oc(String user) {
+        Glob g = glob(user);
+        return (g == null) ? null : g.oc;
+    }
+
+    /**
+     * The live {@link Gob} for an id <b>in that session</b>, or {@code null} — the one resolution point every
+     * {@link LuaGob} method funnels through since a Gob handle carries its session beside its id.
+     *
+     * <p>A gob id is the <b>server's</b> and names the same object in every session that has loaded it, but
+     * the {@link Gob} is not shared: each {@link OCache} holds its own, placed against its own session's map.
+     * So the id decides <i>which object</i> and the session decides <i>whose copy of it</i>, and a read taken
+     * on the session an addon named is about that character's view.
+     */
+    static Gob getgob(String user, long id) {
+        OCache oc = oc(user);
+        return (oc == null) ? null : oc.getgob(id);
+    }
+
+    /** A copy of that session's gob list (taken under its OCache lock; snapshots built by the caller). */
+    static List<Gob> allGobs(String user) {
+        List<Gob> out = new ArrayList<Gob>();
+        OCache oc = oc(user);
+        if(oc == null)
+            return out;
+        synchronized(oc) {
+            for(Gob g : oc)
+                out.add(g);
+        }
+        return out;
+    }
+
+    /**
+     * That session's HUD, or {@code null} while it has none (connecting, on the character list, gone). Off the
+     * member's own cache, which keeps its {@link GameUI} and re-checks it, so this is a field read on the
+     * paths that ask it every frame.
+     */
+    static GameUI gameui(String user) {
+        Sessions.Member m = Sessions.byuser(user);
+        return (m == null) ? null : m.gameui();
+    }
+
+    /**
+     * That character's own gob id, or {@code -1} before its HUD is up.
+     *
+     * <p><b>{@link GameUI#plid} and not {@code MapView.plgob}</b>: both carry the id the server published for
+     * the character, and the HUD's is reachable without walking a widget tree for the view — and is there a
+     * beat earlier, since the {@code GameUI} widget arrives before the map view is parented to it.
+     */
+    static long plgob(String user) {
+        GameUI g = gameui(user);
+        return (g == null) ? -1 : g.plid;
+    }
+
+    /** That character's own {@link Gob}, or {@code null} before its HUD is up or while it is streaming in. */
+    static Gob playerGob(String user) {
+        long id = plgob(user);
+        return (id < 0) ? null : getgob(user, id);
+    }
+
+    /** That character's live world position, or {@code null} before its gob is up. */
+    static Coord2d playerPos(String user) {
+        Gob g = playerGob(user);
+        if(g == null)
+            return null;
+        synchronized(g) {
+            return g.rc;
+        }
+    }
+
+    /** Is that session the one on screen? {@code false} for a session the client no longer holds. */
+    static boolean drawn(String user) {
+        Sessions.Member m = Sessions.byuser(user);
+        return (m != null) && (m == Sessions.anchormember());
+    }
+
+    /** The account on screen, or {@code null} on the login screen — what an ambient derivation resolves in. */
+    static String drawnUser() {
+        Sessions.Member m = Sessions.anchormember();
+        return (m == null) ? null : m.user;
+    }
+
+    /**
+     * <b>The map view a SEND aims at</b>, or a refusal naming why this session has none.
+     *
+     * <p><b>A walk is the whole of what a character you are not looking at takes</b>, and that line is the
+     * client's own rather than this API's: {@code Sessions.send} builds the four arguments of a ground click
+     * and no fifth, so an order carries a destination and never a target. Everything else a click can mean —
+     * clicking an object, placing what is on the cursor, an area select, applying a held item — is the drawn
+     * character's own business, and it also travels through the hook chain that belongs to the anchor. So a
+     * send addressed to a background session is refused here, at the door, naming the session on screen.
+     */
+    static MapView sendView(String user, String verb) {
+        Sessions.Member m = Sessions.byuser(user);
+        if(m == null)
+            throw new LuaError(verb + ": that session is gone (s:exists() is false). Nothing was sent.");
+        if(m != Sessions.anchormember())
+            throw new LuaError(verb + ": that character is not on screen. Walking is the whole of what a"
+                + " character you are not looking at takes — hafen.session():current() is the one you can"
+                + " click, place and select with. Nothing was sent.");
+        MapView mv = screenView();
+        if(mv == null)
+            throw new LuaError(verb + ": no map view (not in the world yet)");
+        return mv;
+    }
+
     /** A copy of the live gob list (taken under the OCache lock; snapshots built by the caller). */
     static List<Gob> allGobs() {
         List<Gob> out = new ArrayList<Gob>();
@@ -3619,13 +3742,18 @@ public final class AddonManager {
      * a <b>string</b> → substring match on the gob's resource name, evaluated Java-side (no snapshot is built);
      * a <b>function</b> → called with the owner's interned {@link LuaGob} object, truthy keeps it (an error drops
      * it). The caller must already be OUTSIDE the OCache lock — a function filter re-enters Lua.
+     *
+     * <p>{@code user} is the session the collection being filtered is enumerating (076.3), so the Gob a
+     * predicate is handed reads the same character's world the {@code :list()} around it does — a filter that
+     * measured against the screen while its collection measured against another login would quietly disagree
+     * with the array it was building.
      */
-    static boolean gobMatches(LuaValue filter, Addon owner, Gob g) {
+    static boolean gobMatches(LuaValue filter, Addon owner, String user, Gob g) {
         if((filter == null) || filter.isnil())
             return true;
         if(filter.isfunction()) {
             try {
-                return filter.call(LuaGob.of(owner, g.id)).toboolean();
+                return filter.call(LuaGob.of(owner, user, g.id)).toboolean();
             } catch(RuntimeException e) {   // LuaError is a RuntimeException
                 return false;
             }

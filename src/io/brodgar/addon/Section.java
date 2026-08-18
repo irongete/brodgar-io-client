@@ -39,16 +39,29 @@ import org.luaj.vm2.lib.VarArgFunction;
  * it is mounted with {@link #mount} rather than {@link #install}.
  */
 public final class Section {
-    /** The section's name, as it is spelled in Lua ({@code "time"}). The whole state of the object. */
+    /** The section's name, as it is spelled in Lua ({@code "time"}). Half the state of the object. */
     public final String name;
+    /**
+     * <b>How the section is reached at a call site</b> — {@code "hafen.time()"} for one that hangs off
+     * {@code hafen}, and {@code "session:world()"} for one reached through another object (076.3). The name
+     * still identifies the section; this is what its messages spell, so a refusal quotes the call the author
+     * actually has to fix rather than a door that is not there any more.
+     */
+    public final String how;
 
-    private Section(String name) {
+    private Section(String name, String how) {
         this.name = name;
+        this.how = how;
     }
 
-    /** {@code tostring(hafen.time())} → {@code hafen.time()}. */
+    /** {@code tostring(hafen.time())} → {@code hafen.time()}; {@code tostring(s:world())} → {@code session:world()}. */
     public String toString() {
-        return "hafen." + name + "()";
+        return how;
+    }
+
+    /** The default spelling of a section that hangs off the {@code hafen} table. */
+    private static String hafen(String nm) {
+        return "hafen." + nm + "()";
     }
 
     /**
@@ -74,7 +87,17 @@ public final class Section {
      * rule between them — and the day the last field moves, the caller drops back to {@link #install}.
      */
     static LuaValue object(String nm, LuaTable methods) {
-        return LuaValue.userdataOf(new Section(nm), meta(nm, methods));
+        return object(nm, methods, hafen(nm));
+    }
+
+    /**
+     * As {@link #object(String, LuaTable)}, for a section object <b>reached through another object</b> rather
+     * than off {@code hafen}: {@code how} is the spelling every message of this section quotes
+     * ({@code "session:world()"}), while the section is still identified — and its retired verbs still keyed
+     * — by {@code nm}. Such a section is never mounted: the thing it hangs on is what hands it back.
+     */
+    static LuaValue object(String nm, LuaTable methods, String how) {
+        return LuaValue.userdataOf(new Section(nm, how), meta(nm, methods, how));
     }
 
     /**
@@ -133,6 +156,15 @@ public final class Section {
      * ({@code hafen.time().clock()}) passes the wrong self and is the mistake this message exists for.
      */
     static Section self(LuaValue v, String nm, String method) {
+        return self(v, nm, method, hafen(nm));
+    }
+
+    /**
+     * As {@link #self(LuaValue, String, String)}, naming {@code how} instead of the {@code hafen.} form — for
+     * a section reached through another object, where quoting a door that is not there would send the author
+     * to the wrong line.
+     */
+    static Section self(LuaValue v, String nm, String method, String how) {
         Section s = null;
         if((v != null) && v.isuserdata()) {
             Object o = v.touserdata();
@@ -140,8 +172,8 @@ public final class Section {
                 s = (Section)o;
         }
         if((s == null) || !s.name.equals(nm))
-            throw new LuaError("hafen." + nm + "():" + method + "() — use a COLON call on the section"
-                + " object (hafen." + nm + "():" + method + "(…))");
+            throw new LuaError(how + ":" + method + "() — use a COLON call on the section"
+                + " object (" + how + ":" + method + "(…))");
         return s;
     }
 
@@ -155,7 +187,7 @@ public final class Section {
      * the same verb is a separate row on the callable table's own {@code __index}, so both call sites are
      * answered.
      */
-    private static LuaValue meta(final String nm, final LuaTable methods) {
+    private static LuaValue meta(final String nm, final LuaTable methods, final String how) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue key) {
@@ -167,13 +199,13 @@ public final class Section {
                     if(msg != null)
                         throw new LuaError(msg);
                 }
-                throw new LuaError("hafen." + nm + "() has no verb '" + key.tojstring() + "'");
+                throw new LuaError(how + " has no verb '" + key.tojstring() + "'");
             }
         });
         mt.set("__name", LuaValue.valueOf("Section"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf("hafen." + nm + "()");
+                return LuaValue.valueOf(how);
             }
         });
         return mt;

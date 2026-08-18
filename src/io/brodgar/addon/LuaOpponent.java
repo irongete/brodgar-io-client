@@ -137,10 +137,11 @@ public final class LuaOpponent {
             }
         });
         // gob() — the creature itself. NEVER nil: an id the object cache does not hold answers a Gob whose
-        // :exists() is false, exactly as hafen.world():gob():get(id) does.
+        // :exists() is false, exactly as s:world():gob():get(id) does.
         m.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaGob.of(owner, handle(self, "gob").gobid);
+                // Who the drawn character is fighting (077 gives combat its own address).
+                return LuaGob.of(owner, AddonManager.drawnUser(), handle(self, "gob").gobid);
             }
         });
         // exists() — are you still in a fight with them?

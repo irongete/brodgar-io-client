@@ -249,11 +249,11 @@ public final class LuaKin {
                     if((bid == null) || (bid.intValue() != id))
                         continue;
                     if(AddonManager.gobIsPlayer(g))
-                        return LuaGob.of(owner, g.id);
+                        return LuaGob.of(owner, AddonManager.drawnUser(), g.id);
                     if(other == null)
                         other = g;
                 }
-                return (other == null) ? LuaValue.NIL : LuaGob.of(owner, other.id);
+                return (other == null) ? LuaValue.NIL : LuaGob.of(owner, AddonManager.drawnUser(), other.id);
             }
         });
         // -- protected writes (D-027/D-028): drive the client's own Buddy methods (D-009), return self ------
@@ -462,7 +462,7 @@ public final class LuaKin {
 
     /**
      * One kin BY KEY: a <b>number</b> is a buddy id and always yields a Kin — an unknown one simply reports
-     * {@code :exists() == false}, the same deliberate asymmetry {@code hafen.world():gob():get(id)} has, so an
+     * {@code :exists() == false}, the same deliberate asymmetry {@code s:world():gob():get(id)} has, so an
      * id read out of a saved file can be held before the roster streams in. A <b>string</b> is an exact
      * (case-insensitive) name and answers {@code nil} when nobody on the roster carries it.
      */

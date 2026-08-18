@@ -20,7 +20,7 @@ import java.util.Map;
 
 /**
  * A <b>Meter object</b> — one bar in the HUD's meter slot (spec {@code 027-meters-oop}), the OOP successor of
- * the flat {@code hafen.player():vitals()} snapshot. Built on exactly the mechanism {@link LuaGob} (017),
+ * the flat {@code vitals()} snapshot the player used to carry. Built on exactly the mechanism {@link LuaGob} (017),
  * {@link LuaKin} (020), {@link LuaSlot} (021), {@link LuaPagina} (023), {@link LuaSound} (024) and
  * {@link LuaBuff} (025) established; <b>the section object IS the meter slot</b> (uniform grammar §2.1):
  * {@code hafen.meter()} is the collection of every HUD meter and {@code hafen.meter():find(needle)} is one of
