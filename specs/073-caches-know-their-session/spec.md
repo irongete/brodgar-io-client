@@ -80,9 +80,12 @@ here, each proving it changed nothing, and the switch thrown next.**
 
 **Written**: nothing. No page under `docs/addons/**` states anything this feature makes false —
 criterion 4 is that no reachable behaviour changes, and the impact set is how that is checked rather
-than assumed. No `docs/client/` page maps `io.brodgar`, by `DOCUMENTATION.md` §12.3. The one map toll it
-does owe is `4`'s: routing a marker notify to a session rests on where a `MapFile` instance comes from and
-how many there are, which is `GameUI`'s doing and which `client/mapfile.md` did not say.
+than assumed. No `docs/client/` page maps `io.brodgar`, by `DOCUMENTATION.md` §12.3. Two map tolls are
+owed. `4`'s: routing a marker notify to a session rests on where a `MapFile` instance comes from and how
+many there are, which is `GameUI`'s doing and which `client/mapfile.md` did not say. And `5`'s: whether a
+dying session's state can still be looked up rests on **when** its `UI` is destroyed, which is
+`UILoop.bgdestroy` run from the session's own thread — `client/multi-session.md` mapped `bgui` and never
+its counterpart.
 
 **Derived set:**
 
@@ -111,7 +114,7 @@ each survives unrevised:
 - `src/io/brodgar/addon/LuaOverlay.java` — 1, 4 (`gob:overlay()`, the only reader of the anchored index)
 - `src/io/brodgar/addon/ProfHandle.java` — 1
 - `src/io/brodgar/addon/UiApi.java` — 2
-- `src/io/brodgar/addon/LuaWidget.java` — 2
+- `src/io/brodgar/addon/LuaWidget.java` — 2, 5 (`widget:remember`, the only caller of the placement scope)
 - `src/io/brodgar/addon/Layout.java` — 2
 - `src/io/brodgar/addon/Gesture.java` — 2
 - `src/io/brodgar/addon/Sheet.java` — 2 (its own caption queue, beside `UiApi`'s)
@@ -122,7 +125,7 @@ each survives unrevised:
 - `src/io/brodgar/addon/WidgetSubs.java` — 2 (the tree a widget record is about)
 - `src/io/brodgar/addon/AddonPagina.java` — 3 (an entry added or removed takes and gives back its slots)
 - `src/io/brodgar/addon/CharApi.java` — 3
-- `src/io/brodgar/addon/BeltHold.java` — 3
+- `src/io/brodgar/addon/BeltHold.java` — 3, 5 (its flush writes through the layer's own per-character files)
 - `src/io/brodgar/addon/LuaSlot.java` — 3 (`slot:pagina()`, the Lua caller of every `BeltHold` hold verb)
 - `src/io/brodgar/addon/VrApi.java` — 2 (it builds a `WidgetSurface`), 4
 - `src/io/brodgar/addon/LuaWorldEntity.java` — 4 (an entity records whose world it stands in)
@@ -130,8 +133,10 @@ each survives unrevised:
 - `src/io/brodgar/addon/LuaMarker.java` — 4 (every Lua caller of the marker refs)
 - `src/io/brodgar/addon/HttpApi.java` — 5
 - `src/io/brodgar/addon/StoreApi.java` — 5
-- `src/io/brodgar/addon/AddonRegistry.java` — 1, 3 (an addon's holds are given back at its teardown), 6
-- `src/io/brodgar/addon/Addon.java` — 1, 2 (the `:lua` console's own widget records), 6
+- `src/io/brodgar/addon/AddonRegistry.java` — 1, 3 (an addon's holds are given back at its teardown), 5 (a
+  load says which session an addon runs for; a teardown flushes its store), 6
+- `src/io/brodgar/addon/Addon.java` — 1, 2 (the `:lua` console's own widget records), 5 (it is what an
+  in-flight request and a store flush ask which session they are for), 6
 - `src/io/brodgar/session/Sessions.java` — 1, 6
 - `src/io/brodgar/prof/Prof.java` — 3
 - `src/haven/UI.java` — 1, 6
@@ -139,6 +144,9 @@ each survives unrevised:
   `BeltHold` the bar they are about), 4 (`addchild("mapview")` builds the `MapFile` and hands the one
   instance to both readers)
 - `src/haven/MapView.java` — 1 (the enter-world seam)
+- `src/haven/UILoop.java` — 5, 6 (`bgui` builds a session's `UI` and `bgdestroy` takes it down, from the
+  session's own thread — which is what decides that a teardown must HOLD a dying session's state rather than
+  look it up)
 - `src/haven/MapFile.java` — 4 (the marker-change seam, and what it is handed)
 - `src/io/brodgar/voice/Voice.java` — 6
 - `DOCUMENTATION.md` — 6

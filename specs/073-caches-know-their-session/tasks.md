@@ -92,7 +92,7 @@ calls each `resetSession`. What changes is where the state those calls clear act
       `[manual]`: the suite leaves nothing standing in the world — confirm no stray marker or ghost
       remains after the run.
 
-- [ ] **073.5 — The rest, and the last copy of the view.**
+- [x] **073.5 — The rest, and the last copy of the view.**
       Converts `HttpApi` and `StoreApi`. `HttpApi`'s in-flight requests are per session — an addon
       running for one started them, which is why `HttpApi.reset()` already drops them on a switch —
       while its manifest host allowlist is per **addon** and moves nowhere. `StoreApi` is indexed like

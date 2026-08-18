@@ -388,7 +388,7 @@ public final class BeltHold {
      */
     static synchronized void restore(SessionState st) {
         st.beltPlaced.clear();
-        String text = StoreApi.readClientFile(FILE);
+        String text = StoreApi.readClientFile(st, FILE);
         if(text != null) {
             try {
                 Object root = Json.parse(text);
@@ -431,7 +431,7 @@ public final class BeltHold {
                 return;
             st.beltLastJson = out;
         }
-        StoreApi.writeClientFile(FILE, out);     // outside the monitor: the message thread must never wait on disk
+        StoreApi.writeClientFile(st, FILE, out);   // outside the monitor: the message thread must never wait on disk
     }
 
     /**
@@ -440,11 +440,9 @@ public final class BeltHold {
      * were on ({@code StoreApi.resetSession} follows it). {@code init} is not told which session ended, so it
      * writes each dirty one, exactly as it wrote the one map this used to be.
      *
-     * <p><b>The scope is still the client's one</b>, because {@code StoreApi.charScope} is 073.5's to index
-     * (the census says so) and the feature after this one is what costs "saved per character" its single
-     * referent. With one session live that is the session's own scope and this is the same write it always
-     * was; with two, whose character a flush names is the very question those two tasks settle, and this line
-     * is not the place to answer it early.
+     * <p><b>Each writes under its own scope</b> since 073.5: the file a session's slots go into is named by
+     * the character <i>that</i> session is playing ({@code SessionState.charScope}), so a state that never
+     * reached the world writes nothing rather than writing its bar under somebody else's character.
      */
     static void flushAll() {
         for(SessionState st : AddonManager.allStates())

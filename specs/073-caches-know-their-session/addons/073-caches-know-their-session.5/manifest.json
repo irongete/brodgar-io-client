@@ -1,0 +1,13 @@
+{
+  "name": "073.5 — the rest, and the last copy of the view",
+  "id": "073-caches-know-their-session.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 073.5: the in-flight requests and the character folder are one session's, and every surface over them answers exactly as before.",
+  "api_version": 1,
+  "saved_variables": ["probe", { "name": "acct", "scope": "account" }],
+  "network": {
+    "hosts": ["example.com"]
+  },
+  "files": ["main.lua"]
+}

@@ -464,6 +464,25 @@ public final class AddonManager {
         /** The marker-count changes captured since this session's last tick (042.11, per session since 073.4). */
         final Queue<Integer> markerChanges = new ConcurrentLinkedQueue<Integer>();
 
+        // ---- the rest (073.5) --------------------------------------------------------------------
+        // An in-flight request and a character folder both name ONE LOGIN'S things: the request was made
+        // by an addon running for one session and its callback has to reach that session's tick, and
+        // "<genus>_<char>" is the character that session is playing. Both are reached through the addon
+        // that owns them ({@link Addon#state}), which is the session {@code init} loaded it into and the
+        // only thing either seam is handed — a pool thread has no tree to read and no anchor to trust.
+
+        /** Finished requests of this session's addons, captured on a pool thread ({@link HttpApi}). */
+        final Queue<HttpApi.HttpCompletion> httpResults = new ConcurrentLinkedQueue<HttpApi.HttpCompletion>();
+        /** Addons of this session with a request created since its last tick ({@link HttpApi}). UI thread only. */
+        final Queue<Addon> httpStarts = new ConcurrentLinkedQueue<Addon>();
+
+        /** {@code "<genus>_<char>"} once this session is in world, else {@code null} ({@link StoreApi}) —
+         *  the folder every per-character file of that session is read from and written back to. Volatile:
+         *  it is written on the tick that entered the world and read by whatever thread flushes. */
+        volatile String charScope;
+        /** Engine-clock time of this session's last throttled flush ({@link StoreApi}). */
+        double storeLastAutoSave;
+
         SessionState(UI ui) {
             this.ui = ui;
         }
@@ -695,7 +714,12 @@ public final class AddonManager {
         }
         attachRoot(st, ui_);          // invisible per-frame tick widget (drives the engine)
         registerOcache(st, ui_);      // GobAdded/GobRemoved source (marshalled to the UI thread)
-        AddonRegistry.loadAll();                    // discover + run addons, fire Load for each
+        // 073.5: the :lua REPL owner is process-wide by design (criterion 3), but the requests a REPL line
+        // makes are one session's like any addon's — so the object stays and the session it points at is
+        // re-pointed here, which is the one moment the client says which session it is now running.
+        if(consoleOwner != null)
+            consoleOwner.state = st;
+        AddonRegistry.loadAll(st);                  // discover + run addons, fire Load for each
     }
 
     /** Attach the invisible tick widget to {@code ui.root} (guarded — root must exist). */
@@ -762,7 +786,7 @@ public final class AddonManager {
                 st.reloadPending = false;
                 st.overlayEvents.clear();   // 038.3: the addons that queued these are being torn down
                 overlaySubs = false;        //   (the reloaded ones re-subscribe inside reload())
-                AddonRegistry.reload();
+                AddonRegistry.reload(st);
                 return;
             }
 
@@ -827,7 +851,7 @@ public final class AddonManager {
             //     callback on the UI thread (armed + isolated, like every other event). A cancelled/torn-down
             //     request (dead) is discarded — its callback never fires (D-037 §3.3). Draining a request frees
             //     an in-flight slot, so re-run the per-addon scheduler to launch any queued request.
-            HttpApi.drainHttp();
+            HttpApi.drainHttp(st);
 
             // 1b. Widget-tree adapters flagged dirty by an inbound uimsg → re-read + fire the semantic
             //     event, now on the UI thread. (Marked off-thread in onUimsg; drained here.) Refresh before
@@ -952,7 +976,9 @@ public final class AddonManager {
                         if(late && (hud.menu == null))
                             log("EnterWorld: no action menu after " + MENU_WAIT + "s — firing without it");
                         st.enterWorldPending = false;
-                        StoreApi.restorePerChar(); // now <genus>_<char> is known → load per-char saved vars BEFORE
+                        StoreApi.restorePerChar(st, hud);   // now <genus>_<char> is known → load per-char saved
+                                                   //   vars BEFORE EnterWorld fires (073.5: for THIS session,
+                                                   //   from the very HUD this gate just read)
                         BeltHold.restore(st);      // 059.5: ...and this character's action-bar placements, so the
                                                    //   first :add an addon makes puts its button straight back
                         fire("EnterWorld");    // the handler runs, so it can read hafen.store (spec 1e)
@@ -977,7 +1003,7 @@ public final class AddonManager {
             // 5. Throttled auto-save of saved variables (mirrors GameUI's window-position saves). Covers
             //    an unclean exit; a relog also flushes via teardown. flush() skips unchanged files, so
             //    this is cheap when nothing changed. On the UI thread → no races reading the Lua tables.
-            StoreApi.autosave(clock);
+            StoreApi.autosave(st, clock);
             BeltHold.flush(st);     // 059.5: and the action-bar placements, if one changed since the last tick
                                     //   (a no-op otherwise — the message thread only ever marks them dirty)
 
@@ -2991,6 +3017,7 @@ public final class AddonManager {
         if(consoleOwner == null) {
             Globals g = Sandbox.consoleGlobals();   // trusted operator console (full stdlib) + watchdog
             Addon owner = new Addon(Manifest.internal("(console)"), null, g);
+            owner.state = state(host());   // 073.5: the console is the SCREEN's, which is what host() means
             installHafen(g, owner);
             consoleOwner = owner;
         }
@@ -3092,6 +3119,18 @@ public final class AddonManager {
                 return g;
         }
         UI u = host();
+        return (u == null) ? null : findGui(u.root);
+    }
+
+    /**
+     * <b>One named session's HUD</b> (073.5) — {@link #gui()} for the session you say rather than for the
+     * one on screen. The two answer the same {@code GameUI} whenever the session named is the drawn one, and
+     * the callers here are the ones that must not settle for that: which character a session is playing
+     * decides which folder its saved data is read from, and asking the screen would file one login's data
+     * under another's. Cold paths only (world entry, a {@code :reload}), so the plain walk is the whole
+     * implementation — {@link #gui()}'s map-view fast path is about the drawn scene and has no session form.
+     */
+    static GameUI gui(UI u) {
         return (u == null) ? null : findGui(u.root);
     }
 

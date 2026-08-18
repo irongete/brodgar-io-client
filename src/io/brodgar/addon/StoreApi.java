@@ -2,7 +2,6 @@ package io.brodgar.addon;
 
 import haven.Coord;
 import haven.GameUI;
-import haven.UI;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -28,18 +27,37 @@ import static io.brodgar.addon.AddonManager.*;
 /**
  * The saved-variables subsystem ({@code hafen.store()}, 1e / D-002 / D-023). One Lua table per manifest-declared
  * saved variable, persisted to JSON under {@code savedata/} (account-scope + per-character
- * {@code <genus>_<char>} scope). Owns the
- * session save state ({@code charScope}/{@code lastAutoSave}); {@link AddonManager} drives it via
+ * {@code <genus>_<char>} scope). {@link AddonManager} drives it via
  * {@link #resetSession} (init), {@link #restorePerChar} (EnterWorld/reload), {@link #loadScope}
  * (account vars at install), {@link #flush} (teardown), and {@link #autosave} (the throttled tick save).
  * Not instantiable.
+ *
+ * <p><b>The character folder is one session's</b> (073.5, {@code SessionState.charScope}, with the auto-save
+ * clock beside it): {@code <genus>_<char>} names the character <i>that</i> login is playing, and a client with
+ * two of them has two answers. What its per-character scope will <i>mean</i> once the engine outlives a switch
+ * is deliberately left open here — it is indexed like the rest, and nothing about it decided.
+ *
+ * <p><b>An addon's scope is its own session's</b> ({@link #scopeOf}), never the screen's, and that is what
+ * makes the last write land: a relogin destroys the old {@code UI} before {@code init} fires {@code Disable},
+ * so a lookup by session would answer {@code null} exactly when the handler's final write has to be persisted.
+ * {@link Addon#state} holds the state object rather than the key, so an addon writes back into the very folder
+ * it read from however late its teardown runs.
  */
 final class StoreApi {
     private StoreApi() {}
 
-    private static volatile String charScope;   // "<genus>_<char>" once in-world, else null
-    private static double lastAutoSave;          // engine-clock time of the last throttled flush
     private static final double SAVE_INTERVAL = 30.0;   // throttled auto-save period (seconds; UI thread)
+
+    /**
+     * The character folder this addon's per-character data belongs in — {@code <genus>_<char>} of the session
+     * it runs for — or {@code null} before that session is in world (or for an addon with no session at all).
+     * The one door: every per-character path here is built through it, so there is one answer to <i>whose
+     * character is this</i> and it is the addon's own.
+     */
+    private static String scopeOf(Addon a) {
+        AddonManager.SessionState st = (a == null) ? null : a.state;
+        return (st == null) ? null : st.charScope;
+    }
 
     /**
      * Build {@code hafen.store()} for {@code owner} + load its account-scope vars (before Load). From
@@ -129,10 +147,16 @@ final class StoreApi {
         };
     }
 
-    /** Session init: forget the per-char scope + reset the auto-save clock (from AddonManager.init). */
+    /**
+     * Session init: forget the per-char scope + reset the auto-save clock (from AddonManager.init). Every
+     * session's, since {@code init} is not told which one ended — the same act it always was, over a map that
+     * holds one entry while one session is live.
+     */
     static void resetSession() {
-        charScope = null;
-        lastAutoSave = 0;
+        for(AddonManager.SessionState st : AddonManager.allStates()) {
+            st.charScope = null;
+            st.storeLastAutoSave = 0;
+        }
         for(Addon a : addons)
             forgetPlacements(a);                 // 062: a remembered place is per CHARACTER, and this session
         forgetPlacements(consoleOwner);          //   has none yet — the next restorePerChar refills from disk
@@ -145,10 +169,14 @@ final class StoreApi {
         a.lastPlacementJson = null;
     }
 
-    /** Throttled auto-save of every addon`s saved vars (from the tick). flush() skips unchanged files. */
-    static void autosave(double clock) {
-        if(clock - lastAutoSave >= SAVE_INTERVAL) {
-            lastAutoSave = clock;
+    /**
+     * Throttled auto-save of every addon`s saved vars (from this session's tick). flush() skips unchanged
+     * files. The throttle is the ticking session's own, and each addon writes under the scope of the session
+     * <i>it</i> runs for — which is the same one while one session holds the addon layer.
+     */
+    static void autosave(AddonManager.SessionState st, double clock) {
+        if(clock - st.storeLastAutoSave >= SAVE_INTERVAL) {
+            st.storeLastAutoSave = clock;
             for(Addon a : addons)
                 flush(a);
         }
@@ -167,13 +195,16 @@ final class StoreApi {
      * Capture the per-character scope folder ({@code <genus>_<char>}) now that the HUD is up, and load
      * every addon's per-character saved variables into its {@code hafen.store} <b>before</b>
      * {@code EnterWorld} fires (so handlers see restored data). Called once per world entry.
+     *
+     * <p>073.5: it is handed <b>the session it is about and that session's own HUD</b> — the caller has both
+     * (the tick that saw the world come up, the reload that found the HUD in its own tree), and reading the
+     * screen instead would file one login's saved data under whichever character is being looked at.
      */
-    static void restorePerChar() {
-        GameUI g = gui();
-        if(g == null)
+    static void restorePerChar(AddonManager.SessionState st, GameUI g) {
+        if((st == null) || (g == null))
             return;
-        charScope = scopeKey(g.genus, g.chrid);
-        if(charScope == null)
+        st.charScope = scopeKey(g.genus, g.chrid);
+        if(st.charScope == null)
             return;
         for(Addon a : addons) {
             loadScope(a, false);
@@ -203,7 +234,7 @@ final class StoreApi {
 
     /** The on-disk JSON file for one addon + scope (may not exist yet). */
     private static File storeFile(Addon a, boolean account) {
-        File dir = account ? new File(saveDir(), "account") : new File(saveDir(), charScope);
+        File dir = account ? new File(saveDir(), "account") : new File(saveDir(), scopeOf(a));
         return new File(dir, a.manifest.id + ".json");
     }
 
@@ -216,22 +247,25 @@ final class StoreApi {
      *
      * <p>{@code null} until a character is known ({@link #restorePerChar}), because "per character" has no
      * meaning before that — the caller keeps its own state and writes it once the scope exists.
+     *
+     * <p>073.5: it takes <b>the session whose character the file is about</b>, which every caller holds —
+     * these are the layer's own files, not an addon's, so there is no manifest to resolve them through.
      */
-    static String readClientFile(String name) {
-        if(charScope == null)
+    static String readClientFile(AddonManager.SessionState st, String name) {
+        if((st == null) || (st.charScope == null))
             return null;
-        return readFile(new File(clientDir(), name));
+        return readFile(new File(clientDir(st), name));
     }
 
     /** Write one of the layer's own per-character files. {@code false} when no character is known yet. */
-    static boolean writeClientFile(String name, String text) {
-        if(charScope == null)
+    static boolean writeClientFile(AddonManager.SessionState st, String name, String text) {
+        if((st == null) || (st.charScope == null))
             return false;
-        return writeFile(new File(clientDir(), name), text);
+        return writeFile(new File(clientDir(st), name), text);
     }
 
-    private static File clientDir() {
-        return new File(new File(saveDir(), charScope), "client");
+    private static File clientDir(AddonManager.SessionState st) {
+        return new File(new File(saveDir(), st.charScope), "client");
     }
 
     /**
@@ -243,7 +277,7 @@ final class StoreApi {
     private static void loadScope(Addon a, boolean account) {
         if((a.store == null) || !hasScope(a, account))
             return;
-        if(!account && (charScope == null))
+        if(!account && (scopeOf(a) == null))
             return;                                     // per-char load needs a known character
         String text = readFile(storeFile(a, account));
         if(text != null) {
@@ -297,7 +331,7 @@ final class StoreApi {
             return;
         try {
             writeScope(a, true);                        // account (always resolvable)
-            if(charScope != null)
+            if(scopeOf(a) != null)
                 writeScope(a, false);                   // per-char (only once in-world)
         } catch(RuntimeException e) {
             log(a, "store: flush failed: " + e);
@@ -322,13 +356,13 @@ final class StoreApi {
      * per-character saved variable and for the same reason, so before {@code EnterWorld} there is nothing to
      * put back — and {@code widget:remember(name)} says so rather than applying an empty record.
      */
-    static boolean placementScope() {
-        return charScope != null;
+    static boolean placementScope(Addon a) {
+        return scopeOf(a) != null;
     }
 
     /** What is saved under {@code name} for this character, or {@code null} (no character, or nothing saved). */
     static Placement placement(Addon a, String name) {
-        return (charScope == null) ? null : a.placements.get(name);
+        return (scopeOf(a) == null) ? null : a.placements.get(name);
     }
 
     /**
@@ -338,7 +372,7 @@ final class StoreApi {
      * never sized it.
      */
     static void land(Addon a, String name, Coord pos, Coord size) {
-        if((charScope == null) || ((pos == null) && (size == null)))
+        if((scopeOf(a) == null) || ((pos == null) && (size == null)))
             return;
         Placement p = a.placements.get(name);
         if(p == null)
@@ -357,13 +391,13 @@ final class StoreApi {
 
     /** The per-character placement file, beside the addon's own {@code <id>.json}. */
     private static File placementFile(Addon a) {
-        return new File(new File(saveDir(), charScope), a.manifest.id + ".layout.json");
+        return new File(new File(saveDir(), scopeOf(a)), a.manifest.id + ".layout.json");
     }
 
     /** Load this character's placements for one addon, replacing whatever the last character left. */
     private static void loadPlacements(Addon a) {
         forgetPlacements(a);
-        if(charScope == null)
+        if(scopeOf(a) == null)
             return;
         String text = readFile(placementFile(a));
         if(text != null) {
@@ -402,7 +436,7 @@ final class StoreApi {
 
     /** Write one addon's placements, if they changed and there is a character to write them for. */
     private static void writePlacements(Addon a) {
-        if((charScope == null) || (a.placements.isEmpty() && (a.lastPlacementJson == null)))
+        if((scopeOf(a) == null) || (a.placements.isEmpty() && (a.lastPlacementJson == null)))
             return;                                     // this addon remembers nothing and never did
         String out = placementsJson(a);
         if(out.equals(a.lastPlacementJson))

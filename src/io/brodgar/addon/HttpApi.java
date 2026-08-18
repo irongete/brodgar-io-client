@@ -3,8 +3,6 @@ package io.brodgar.addon;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -19,11 +17,21 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
  * The {@code hafen.http} subsystem (N2a/N2b). Owns the shared async substrate: a single engine-lifetime bounded
- * pool runs the blocking {@link LuaHttp} I/O off the UI thread; each worker enqueues its result onto
- * {@link #results}, drained on the tick ({@link #drainHttp}). The per-addon in-flight limit is enforced by a
- * non-blocking UI-thread scheduler ({@link #maybeStartHttp}) that leaves excess requests queued in
- * {@code Addon.requests} as not-yet-started ({@code started=false}) and launches them as running ones complete —
- * so a pool thread never blocks waiting on a per-addon permit.
+ * pool runs the blocking {@link LuaHttp} I/O off the UI thread; each worker enqueues its result onto its
+ * session's completion queue, drained on that session's tick ({@link #drainHttp}). The per-addon in-flight
+ * limit is enforced by a non-blocking UI-thread scheduler ({@link #maybeStartHttp}) that leaves excess requests
+ * queued in {@code Addon.requests} as not-yet-started ({@code started=false}) and launches them as running ones
+ * complete — so a pool thread never blocks waiting on a per-addon permit.
+ *
+ * <p><b>The two queues are one session's</b> (073.5, {@code SessionState.httpResults}/{@code .httpStarts}),
+ * because a request was made by an addon running for one login and its callback has to reach that login's
+ * tick: a completion filed anywhere else is a handler run under a session that never asked. The session is
+ * taken off the <b>addon that owns the request</b> ({@link Addon#state}) and resolved on the UI thread at
+ * submit, never on the pool thread — a worker holds no tree to read and the drawn session is not its.
+ *
+ * <p><b>The pool stays one</b>, and so does the host allowlist: the pool is the client's threads and holds no
+ * session's anything, and an allowlist belongs to an addon's manifest, which is the same file whichever
+ * session it runs in.
  *
  * <p>The blocking socket I/O + security checks live one layer down in {@link LuaHttp}; the host-allowlist
  * gate ({@link #requireNetwork}) is here; the callback dispatch goes through {@link AddonManager#callLua}. The
@@ -34,15 +42,12 @@ final class HttpApi {
     private HttpApi() {}
 
     // A single engine-lifetime bounded pool runs the blocking HttpURLConnection I/O off the UI thread; each
-    // worker enqueues its result onto results, drained on the tick (the exact gob-delta pattern).
+    // worker enqueues its result onto its session's queue, drained on that session's tick (the exact
+    // gob-delta pattern, per session since 073.5).
     private static volatile ExecutorService pool;   // lazily created on first request; engine-lifetime
-    private static final Queue<HttpCompletion> results = new ConcurrentLinkedQueue<HttpCompletion>();
-    // Addons with a request created since the last tick. UI thread only; drained by startPending(), which is
-    // what actually sends a request — see newHttpRequest for why the call that creates one does not.
-    private static final Queue<Addon> starts = new ConcurrentLinkedQueue<Addon>();
 
     /** A finished HTTP request (its result) captured on a pool thread, awaiting UI-thread delivery (N2a). */
-    private static final class HttpCompletion {
+    static final class HttpCompletion {
         final LuaHttpRequest req;
         final LuaHttp.Result result;
 
@@ -214,10 +219,16 @@ final class HttpApi {
                 + " the same call that created it (the request goes out on the next tick)");
     }
 
-    /** This addon has an unstarted request; the tick's {@link #startPending()} will run its scheduler. */
+    /**
+     * This addon has an unstarted request; the next tick of <b>its own</b> session runs its scheduler
+     * ({@link #startPending}). An addon with no session — none is loaded outside one — has nothing that will
+     * ever drain the queue, so it is not queued at all and its request simply waits for the teardown that
+     * cancels it, which is what {@link #maybeStartHttp} also refuses to start.
+     */
     private static void queueStart(Addon owner) {
-        if(owner != null)
-            starts.add(owner);
+        AddonManager.SessionState st = (owner == null) ? null : owner.state;
+        if(st != null)
+            st.httpStarts.add(owner);
     }
 
     /**
@@ -227,6 +238,9 @@ final class HttpApi {
      * in {@code Addon.requests} as {@code started=false} until a running one completes (drain re-invokes this).
      */
     private static void maybeStartHttp(Addon owner) {
+        AddonManager.SessionState st = owner.state;
+        if(st == null)
+            return;                               // nothing would drain its completion: see queueStart
         int running = 0;
         for(LuaHttpRequest r : owner.requests)
             if(r.started && !r.dead) running++;
@@ -237,12 +251,17 @@ final class HttpApi {
                 continue;
             r.started = true;
             running++;
-            submitHttpJob(r);
+            submitHttpJob(st, r);
         }
     }
 
-    /** Submit one request to the pool. The worker does only Java I/O; it enqueues the result for the tick drain. */
-    private static void submitHttpJob(final LuaHttpRequest req) {
+    /**
+     * Submit one request to the pool. The worker does only Java I/O; it enqueues the result for the tick drain
+     * of the session it is handed — resolved <b>here</b>, on the UI thread, and closed over, because the pool
+     * thread that finishes the request has no tree to read and the session on screen by then need not be the
+     * one whose addon asked.
+     */
+    private static void submitHttpJob(final AddonManager.SessionState st, final LuaHttpRequest req) {
         pool().execute(new Runnable() {
             public void run() {
                 if(req.dead)
@@ -250,28 +269,28 @@ final class HttpApi {
                 LuaHttp.Result res = LuaHttp.perform(req);
                 if(req.dead)
                     return;                       // cancelled while in flight → discard, no callback
-                results.add(new HttpCompletion(req, res));
+                st.httpResults.add(new HttpCompletion(req, res));
             }
         });
     }
 
     /**
-     * Send the requests created since the last tick (UI thread). This is the other half of the setters: a
-     * request spends the rest of the frame that created it being configured, and goes out here.
+     * Send this session's requests created since its last tick (UI thread). This is the other half of the
+     * setters: a request spends the rest of the frame that created it being configured, and goes out here.
      */
-    static void startPending() {
-        if(starts.isEmpty())
+    static void startPending(AddonManager.SessionState st) {
+        if(st.httpStarts.isEmpty())
             return;
         Addon a;
-        while((a = starts.poll()) != null)
+        while((a = st.httpStarts.poll()) != null)
             maybeStartHttp(a);
     }
 
-    /** Drain completed HTTP requests on the UI thread: deliver each live one's res table + advance the scheduler. */
-    static void drainHttp() {
-        startPending();
+    /** Drain this session's completed requests on the UI thread: deliver each live one's res table + advance the scheduler. */
+    static void drainHttp(AddonManager.SessionState st) {
+        startPending(st);
         HttpCompletion hc;
-        while((hc = results.poll()) != null) {
+        while((hc = st.httpResults.poll()) != null) {
             LuaHttpRequest req = hc.req;
             Addon owner = req.owner;
             if(req.dead) {                        // cancelled/torn down after the worker enqueued → discard
@@ -312,9 +331,14 @@ final class HttpApi {
         a.requests.clear();
     }
 
-    /** Session init: drop stale HTTP completions (their requests were torn down by the teardown loop). */
+    /**
+     * Session init: drop stale HTTP completions (their requests were torn down by the teardown loop). Every
+     * session's, since {@code init} is not told which one ended and clearing them all is exactly what this
+     * did when there was one queue for the client.
+     */
     static void reset() {
-        results.clear();
+        for(AddonManager.SessionState st : AddonManager.allStates())
+            st.httpResults.clear();
     }
 
     /** Validate an {@code http}/{@code https} URL and return its (non-empty) host, or throw a guiding LuaError. */

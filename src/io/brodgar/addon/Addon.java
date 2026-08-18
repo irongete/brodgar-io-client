@@ -32,6 +32,25 @@ public final class Addon {
     public String error;   // null if the addon loaded cleanly
 
     /**
+     * <b>The session this addon's Lua runs for</b> (073.5) — the {@code UI}'s {@link AddonManager.SessionState},
+     * recorded when {@code AddonManager.init} loaded the addon and never guessed. It is the answer to the one
+     * question the two subsystems converted in 073.5 have no other way to ask: an HTTP completion arrives on a
+     * pool thread, which holds no tree and can trust no anchor, and a store flush runs from a teardown that is
+     * told nothing at all — and both reach for the addon, which knows.
+     *
+     * <p><b>The object, not the {@code UI}</b>, and that is what makes the last flush work. A relogin destroys
+     * the old {@code UI} on the session's own thread, so by the time {@code init} fires {@code Disable} and
+     * flushes what the handler wrote, {@code state(oldUI)} already answers {@code null}. Holding the state
+     * itself means an addon writes its per-character data back into the very folder it read it from, however
+     * late the teardown runs — while {@code states} still counts only live sessions, because what was dropped
+     * is the map entry and this reference dies with the addon a line later.
+     *
+     * <p>{@code null} for an addon loaded outside a session, and re-pointed on every {@code init} for the
+     * {@code :lua} REPL owner, which is process-wide and types into whichever session the client is running.
+     */
+    AddonManager.SessionState state;
+
+    /**
      * This addon's subscriptions to the <b>event bus</b> ({@code hafen.event():on(key, fn)}, 041.1) — one
      * {@link Subs} for the whole bus, because a bus event is addon-wide and has no object to hang off. Every
      * key it carries charges {@link #C_EVENT}, which is what a bus handler has always cost.

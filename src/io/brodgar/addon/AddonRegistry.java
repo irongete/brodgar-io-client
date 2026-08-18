@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Console;
+import haven.GameUI;
 import haven.TexI;
 import haven.UI;
 import haven.Utils;
@@ -61,7 +62,7 @@ public final class AddonRegistry {
         }
     }
 
-    static void loadAll() {
+    static void loadAll(AddonManager.SessionState st) {
         reloadNeeded = false;         // whatever is on disk now IS the applied enabled set
         autoDisabledWarn.clear();     // a (re)load gives every addon a fresh start (drop session warnings)
         scanAddonDefaults();          // D-027: default-disable any addon asking for permissions the user has not consented to
@@ -87,6 +88,7 @@ public final class AddonRegistry {
                 Manifest m = Manifest.load(sub.toPath());
                 Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
                 Addon addon = new Addon(m, sub.toPath(), g);
+                addon.state = st;   // 073.5: the session this addon runs for, said once, where init knows it
                 installHafen(g, addon);
                 LuaTable ad = new LuaTable();
                 ad.set("id", LuaValue.valueOf(m.id));
@@ -245,8 +247,8 @@ public final class AddonRegistry {
      * uimsg tap are <b>session-scoped</b> and left in place — only the Lua layer is rebuilt. Per-addon
      * teardown/load is error-isolated so one bad addon cannot abort the reload.
      */
-    public static synchronized void reload() {
-        if(host() == null) {
+    public static synchronized void reload(AddonManager.SessionState st) {
+        if(st == null) {
             log("reload: no active session");
             return;
         }
@@ -277,9 +279,10 @@ public final class AddonRegistry {
                                                              //   released — without this the pointer stays captured
                                                              //   (no camera pan, no clicks) until :release() is called
                                                              //   by hand, :reload's escape hatch not included
-        loadAll();                                   // re-scan disk + enabled set; re-run; fire Load
-        if(gui() != null) {                          // already in-world → re-init as a fresh login
-            StoreApi.restorePerChar();                        // reload per-char saved vars (charScope still valid)
+        loadAll(st);                                 // re-scan disk + enabled set; re-run; fire Load
+        GameUI g = AddonManager.gui(st.ui);          // 073.5: the HUD of the session the :reload was queued
+        if(g != null) {                              //   against, not the one on screen
+            StoreApi.restorePerChar(st, g);          // reload per-char saved vars (the scope is still valid)
             fire("EnterWorld");
         }
         reloadGen++;                                 // notify any live AddOns panel to rebuild its rows

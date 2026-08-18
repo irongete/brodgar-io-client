@@ -1934,7 +1934,7 @@ public final class LuaWidget {
      * dragged does not pin a box they never chose.
      */
     private static void rememberApply(Addon owner, Widget w, String name) {
-        if(!StoreApi.placementScope()) {
+        if(!StoreApi.placementScope(owner)) {
             // Criterion 9: it has nothing to apply, and saying so beats applying an empty record — the addon
             // called it too early, and the answer is a moment rather than a different verb.
             AddonManager.log(owner, "widget:remember(\"" + name + "\"): a saved place is per CHARACTER and no"

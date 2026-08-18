@@ -11,6 +11,8 @@ import haven.MapView;
 import haven.OCache;
 import haven.Resource;
 
+import io.brodgar.session.Sessions;
+
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,8 +39,10 @@ import java.util.logging.Logger;
  * session, and re-applies them on every reconnect — so nothing is lost when the
  * connection drops, and callers never handle a session object or a null.
  *
- * <p>Uses only public {@code haven.*} APIs, needs no changes to any existing class
- * beyond the call sites, and never blocks the game thread.
+ * <p>Needs no changes to any existing class beyond the call sites, and never blocks
+ * the game thread. It reads two things outside itself: public {@code haven.*} APIs, and
+ * — since 073.5 — {@code Sessions} for the scene the client draws, which is what
+ * {@link #setEnabled} starts a session for when it has none of its own to name.
  */
 public final class Voice {
 
@@ -65,8 +69,15 @@ public final class Voice {
     public static final KeyBinding kb_ptt = KeyBinding.get("brodgar/ptt", KeyMatch.forcode(KeyEvent.VK_V, 0));
 
     // --- runtime state ---
-    private static volatile MapView view;          // the active in-game map view, or null
-    private static volatile Bridge session;        // the live voice session, or null
+    /**
+     * The live voice session, or null. <b>The one runtime reference here, and it is not a copy of "the
+     * view"</b> (073.5): the {@code MapView} it carries is the scene this connection was opened for, which is
+     * a property of the connection itself. The {@code private static volatile MapView view} that used to
+     * stand beside it was something else — a hand-written copy of the drawn scene, written from the
+     * {@code MapView} constructor and read minutes later, able to name a world the player has left. Where
+     * one is needed now it is derived, and derived answers cannot go stale.
+     */
+    private static volatile Bridge session;
 
     private Voice() {
     }
@@ -74,18 +85,18 @@ public final class Voice {
     // ----------------------------------------------------------- MapView call sites
 
     /**
-     * Enter the game: remember the map view and, when voice is enabled, start a
-     * session. Idempotent and non-blocking. Call site #1 (MapView constructor).
+     * Enter the game: when voice is enabled, start a session for this scene.
+     * Idempotent and non-blocking. Call site #1 (MapView constructor).
      */
     public static synchronized void attach(MapView mv) {
         if (mv == null) {
             return;
         }
-        if (view != mv) {
-            stop();
-            view = mv;
+        Bridge s = session;
+        if (s != null && s.mv != mv) {
+            stop();   // a new world came up while a connection was open on the old one
         }
-        start();
+        start(mv);
     }
 
     /**
@@ -93,8 +104,8 @@ public final class Voice {
      * (MapView.dispose).
      */
     public static synchronized void detach(MapView mv) {
-        if (view == mv) {
-            view = null;
+        Bridge s = session;
+        if (s != null && s.mv == mv) {
             stop();
         }
     }
@@ -355,10 +366,21 @@ public final class Voice {
         return Math.max(0f, Math.min(4f, v));
     }
 
-    private static void start() { // caller holds the class monitor
-        if (enabled && view != null && session == null) {
-            session = new Bridge(view);
+    /** Open a session for one scene, if voice is on and none is open. Caller holds the class monitor. */
+    private static void start(MapView mv) {
+        if (enabled && mv != null && session == null) {
+            session = new Bridge(mv);
         }
+    }
+
+    /**
+     * Open a session for <b>the scene on screen</b> — what {@link #setEnabled} means by "start it now",
+     * having no scene of its own to name. Derived from the session the client draws, exactly as the addon
+     * layer's own {@code screenView()} derives it and for the same reason: an answer that re-checks itself
+     * replaces a copy that can go stale. Null before the world is up, which {@link #start(MapView)} guards.
+     */
+    private static void start() { // caller holds the class monitor
+        start(Sessions.mapview(Sessions.anchor()));
     }
 
     private static void stop() { // caller holds the class monitor
