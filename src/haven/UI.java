@@ -879,48 +879,70 @@ public class UI {
 
     private Grab[] c(Collection<Grab> g) {return(g.toArray(new Grab[0]));}
 
-    public void keydown(KeyEvent ev) {
-	setmods(ev);
-	if(!dispatch(root, new KeyDownEvent(ev)))
-	    dispatch(root, new GlobKeyEvent(ev));
-    }
-	
-    public void keyup(KeyEvent ev) {
-	setmods(ev);
-	dispatch(root, new KeyUpEvent(ev));
+    /* addon: (074.1) EVERY INPUT ENTRY ANSWERS WHETHER THE TREE TOOK THE EVENT. The frame attends two trees
+     * now -- the session on screen and the addon layer above it -- and "the layer first, the session only if
+     * the layer did not consume it" is a question none of these could answer while they returned void. The
+     * dispatch each one does is unchanged; what is new is that its answer leaves the method. */
+    public boolean keydown(KeyEvent ev) {
+	return(keydown(ev, true));
     }
 
-    public void mousedown(MouseEvent ev, Coord c, int button) {
+    /* addon: (074.1) the FOCUSED half of a key press, without the global fallback -- what the addon layer is
+     * offered, and all it is offered. RootWidget answers a GlobKeyEvent for every printable key with a "gk"
+     * message and consumes it, so a layer handed the whole of keydown() would swallow the keyboard from the
+     * session under it. A global key belongs to the game; a focused one belongs to whatever holds focus. */
+    public boolean keydown(KeyEvent ev, boolean glob) {
+	setmods(ev);
+	if(dispatch(root, new KeyDownEvent(ev)))
+	    return(true);
+	return(glob && dispatch(root, new GlobKeyEvent(ev)));
+    }
+
+    public boolean keyup(KeyEvent ev) {
+	setmods(ev);
+	return(dispatch(root, new KeyUpEvent(ev)));
+    }
+
+    public boolean mousedown(MouseEvent ev, Coord c, int button) {
 	setmods(ev);
 	lcc = mc = c;
-	dispatch(root, new Widget.MouseDownEvent(c, button));
+	return(dispatch(root, new Widget.MouseDownEvent(c, button)));
     }
 	
-    public void mouseup(MouseEvent ev, Coord c, int button) {
+    public boolean mouseup(MouseEvent ev, Coord c, int button) {
 	setmods(ev);
 	mc = c;
-	dispatch(root, new Widget.MouseUpEvent(c, button));
+	return(dispatch(root, new Widget.MouseUpEvent(c, button)));
     }
 	
-    public void mousemove(MouseEvent ev, Coord c) {
+    public boolean mousemove(MouseEvent ev, Coord c) {
 	setmods(ev);
 	mc = c;
-	dispatch(root, new Widget.MouseMoveEvent(c));
+	return(dispatch(root, new Widget.MouseMoveEvent(c)));
     }
 
-    public void mousehover(Coord c) {
+    public boolean mousehover(Coord c) {
+	return(mousehover(c, true));
+    }
+
+    /* addon: (074.1) the hover, told whether anything ABOVE this tree has already taken the pointer. The two
+     * trees are asked in drawing order, top first, and the one under an addon window is asked with hovering
+     * FALSE -- the same "walk it anyway, hovering nothing" the standing-panel case below already uses, and
+     * what stops a button under an addon window from lighting up through it. The answer says whether THIS
+     * tree took the pointer, which is what picks the tree the tooltip and the cursor are then read from. */
+    public boolean mousehover(Coord c, boolean hovering) {
 	/* addon: spatial UI (spec 044, task 044.5) -- see tooltip() below for why the walk from root cannot
 	 * reach a standing panel. The flat tree is still walked, with hovering FALSE, so whatever was hovering
 	 * there stops the moment the pointer crosses onto a panel in the world; the panel is hovered instead,
 	 * in its own pixels. Nothing standing: one empty-list check and the ordinary dispatch. */
-	boolean std = io.brodgar.addon.AddonManager.surfaceQuery(new Widget.MouseHoverEvent(c), c);
-	dispatch(root, new Widget.MouseHoverEvent(c).hovering(!std));
+	boolean std = surface(new Widget.MouseHoverEvent(c).hovering(hovering), c) && hovering;
+	return(dispatch(root, new Widget.MouseHoverEvent(c).hovering(hovering && !std)) || std);
     }
 	
-    public void mousewheel(MouseEvent ev, Coord c, int ia, double sa) {
+    public boolean mousewheel(MouseEvent ev, Coord c, int ia, double sa) {
 	setmods(ev);
 	mc = c;
-	dispatch(root, new Widget.MouseWheelEvent(c, ia, sa));
+	return(dispatch(root, new Widget.MouseWheelEvent(c, ia, sa)));
     }
 
     public static enum Cursor {
@@ -933,9 +955,16 @@ public class UI {
     public Object getcurs(Coord c) {
 	CursorQuery q = new CursorQuery(c);
 	/* addon: spatial UI (spec 044, task 044.5) -- see tooltip() below. */
-	if(!io.brodgar.addon.AddonManager.surfaceQuery(q, c))
+	if(!surface(q, c))
 	    dispatch(root, q);
 	return(q.ret);
+    }
+
+    /* addon: (074.1) a widget standing in the 3D world belongs to a SCENE, and a tree with no session behind
+     * it has none -- the query answers for the drawn MapView however many trees ask it, so the addon layer
+     * asking too would dispatch the same pointer into every standing panel a second time each frame. */
+    private boolean surface(Widget.PointerEvent ev, Coord c) {
+	return((sess != null) && io.brodgar.addon.AddonManager.surfaceQuery(ev, c));
     }
 
     private Widget prevtt = null;
@@ -948,7 +977,7 @@ public class UI {
 	 * coordinates, by the same corner map a click already goes through (044.4); the query object is shared,
 	 * so `ret` and `from` come back exactly as the ordinary dispatch would set them. Nothing standing:
 	 * one empty-list check, then the line that was always here. */
-	if(!io.brodgar.addon.AddonManager.surfaceQuery(q, c))
+	if(!surface(q, c))
 	    dispatch(root, q);
 	prevtt = q.from;
 	return(q.ret);

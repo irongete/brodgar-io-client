@@ -323,7 +323,8 @@ public final class LuaWidget {
         // The read is unchanged: nil at the root and once stale. The write re-homes a surface this addon built,
         // and it is what replaced the old `parent = "gameui"` string — a widget is named by a Widget, not by a
         // word, which is the second vocabulary 032.2 deleted from this section for exactly the same reason.
-        // hafen.ui():root() is the default and hafen.ui():find("@GameUI") is the HUD.
+        // 074.1: THE ADDON LAYER is the default — a surface of yours is built into the tree above the
+        // sessions — and hafen.ui():find("@GameUI") is the HUD, which is one session's.
         //
         // Legal only while the surface is still being BUILT (before its arming tick). Re-homing one the user is
         // already looking at is a capability this API never had, and the honest place to refuse it is here: the
@@ -346,18 +347,25 @@ public final class LuaWidget {
                 LuaWidget h = resolve(v);
                 Widget p = (h == null) ? null : live(h);
                 if(p == null)
-                    throw new LuaError("widget:parent(w) expects a Widget that is in the tree — hafen.ui():root()"
-                        + " is the default, and hafen.ui():find(\"@GameUI\") is the HUD");
+                    throw new LuaError("widget:parent(w) expects a Widget that is in the tree — a surface of"
+                        + " yours is in the addon layer unless you name one, and hafen.ui():find(\"@GameUI\")"
+                        + " is the HUD");
                 if(p == w.parent)
                     return self;
                 // 072.1: the DESTINATION's monitor, and this is the one site that has to choose — a re-home
                 // writes two parents' child lists, and the lock direction forbids taking both (see
                 // docs/client/multi-session.md). `p` is the tree the widget is in when the block ends, so it is
-                // the one that names the mutation. The two are one UI in every case this verb can reach: `w`
-                // was put on a root by UiApi.attach and `p` was resolved out of that same root.
+                // the one that names the mutation.
+                //   074.1: AND THE TWO ARE NOT ONE UI. `w` was built into the addon layer and `p` may be one of
+                // the client's own windows, which is a session's tree — so the subtree is carried across with
+                // Widget.reattach, or `ui` would go on naming the layer while the widget lives in a session and
+                // dies with it. Legal only while the surface is pending, which is checked above: nothing moving
+                // here holds a grab, the focus, or a server widget id.
                 synchronized(monitor(p)) {
                     Coord at = w.c;
                     rehome(w);                            // detach from ui.root — a move, and NOT a death (061.7)
+                    if(w.ui != p.ui)
+                        w.reattach(p.ui);
                     // Widget.add does NOT route through addchild, and a Scrollport-shaped parent only overrides
                     // addchild -- a plain add() here would drop the child beside the bar instead of inside the
                     // scrolling area (040.8's whole trap), so this one control redirects into its own container.
@@ -2021,10 +2029,10 @@ public final class LuaWidget {
         }
     }
 
-    /** Is this widget still hanging under the live root? (A raw {@link Widget}, so not the {@link #live} test.) */
+    /** Is this widget still hanging under its own tree's root? (A raw {@link Widget}, so not {@link #live}.) */
     private static boolean inTree(Widget w) {
-        UI u = AddonManager.host();
-        return (u != null) && (u.root != null) && (w.parent != null) && w.hasparent(u.root);
+        UI u = (w == null) ? null : w.ui;      // 074.1: this widget's tree, which may be the addon layer
+        return (u != null) && !u.destroyed && (u.root != null) && (w.parent != null) && w.hasparent(u.root);
     }
 
     /**
@@ -2240,6 +2248,12 @@ public final class LuaWidget {
      * once stale we <b>null the handle's reference</b> so it cannot pin a dead subtree, and every read then answers
      * {@code nil}/empty. Returns {@code null} when there is no UI yet (transient — the ref is kept, not killed) or
      * the handle is stale/{@code null}.
+     *
+     * <p><b>The root is this widget's own tree's</b> (074.1). An addon's own windows live in the addon layer and
+     * the client's live in a session, so "is it still in the tree" has to name <i>which</i> tree, and the widget
+     * carries the answer. Asked against the session on screen instead, every handle to a window this addon built
+     * would read stale the instant it was built. A tree that has been taken down is the case the root test no
+     * longer catches by itself, and {@code UI.destroyed} is the flag that says so.
      */
     static Widget live(LuaWidget n) {
         if(n == null)
@@ -2247,10 +2261,10 @@ public final class LuaWidget {
         Widget w = n.wdg;
         if(w == null)
             return null;
-        UI u = AddonManager.host();
+        UI u = w.ui;
         if((u == null) || (u.root == null))
             return null;                       // no UI yet: unresolvable now, but not proven dead — keep the ref
-        if(!w.hasparent(u.root)) {             // detached from the tree → destroyed
+        if(u.destroyed || !w.hasparent(u.root)) {   // its tree is gone, or it left it → destroyed
             n.wdg = null;                      // drop the ref so a dead subtree can be GC'd (no pin)
             return null;
         }
@@ -2645,7 +2659,7 @@ public final class LuaWidget {
      * root exactly as it does from a window on the flat UI, and the key comes back down the same chain.
      */
     static boolean focusPath(Widget w) {
-        UI u = AddonManager.host();
+        UI u = (w == null) ? null : w.ui;      // 074.1: the chain that would reach IT, in the tree it is in
         if((w == null) || (u == null) || (u.root == null))
             return false;
         synchronized(u) {

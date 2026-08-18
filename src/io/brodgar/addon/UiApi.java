@@ -942,9 +942,18 @@ final class UiApi {
         return attach(u, owner, content);
     }
 
-    /** The UI, or a clear error naming the builder that has nothing to attach to yet. */
+    /**
+     * <b>The tree a builder puts its surface in</b> — the {@link AddonManager#layer() addon layer} (074.1),
+     * never the session on screen. Your own windows are a layer above the sessions: one tree for the client's
+     * life, drawn over whichever session holds the screen and over the login screen when none does. That is
+     * the whole of why a window keeps its place, its focus and any grab it holds across a character switch —
+     * nothing is re-homed, because nothing it lives in ends.
+     *
+     * <p>{@link AddonManager#host()} is untouched and means the other thing: the tree an addon <b>searches</b>,
+     * which is the client's own windows and does belong to a session.
+     */
     static UI requireUi(String what) {
-        UI u = host();
+        UI u = AddonManager.layer();
         if((u == null) || (u.root == null))
             throw new LuaError("hafen.ui():" + what + "(): no UI is up yet");
         return u;
@@ -1064,12 +1073,20 @@ final class UiApi {
         synchronized(st.unarmed) { st.unarmed.add(c); }
     }
 
-    /** Drop a surface from its own tree's arming queue (destroyed, or torn down, before it ever painted). */
+    /**
+     * Drop a surface from its own tree's arming queue (destroyed, or torn down, before it ever painted).
+     * Two trees are asked, not one (074.1): a surface is built into the addon layer and {@code
+     * widget:parent(w)} may re-home it into one of the client's windows before it ever armed, so the queue it
+     * is waiting in is the one it was BUILT in, which is no longer the one it is in.
+     */
     static void dropPending(Owned c) {
-        SessionState st = state(c.rootw().ui);
-        if(st == null)
-            return;
-        synchronized(st.unarmed) { st.unarmed.remove(c); }
+        unqueueArming(state(c.rootw().ui), c);
+        unqueueArming(state(AddonManager.layer()), c);
+    }
+
+    private static void unqueueArming(SessionState st, Owned c) {
+        if(st != null)
+            synchronized(st.unarmed) { st.unarmed.remove(c); }
     }
 
     /** Reset the arming queue for a new session (nothing built for the old tree is armed in the new one). */

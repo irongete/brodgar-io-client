@@ -254,6 +254,14 @@ public class Sessions {
 	return((lp == null) ? null : lp.drawn());
     }
 
+    /* addon: (074.1) the ADDON LAYER's tree -- the one UI that is no session's, built once by the loop and
+     * drawn above whichever session holds the screen. Read from the loop rather than held here for
+     * anchor()'s reason: the loop owns every UI, and a second copy of which one this is can disagree. */
+    public static UI layer() {
+	UILoop lp = loop;
+	return((lp == null) ? null : lp.layer);
+    }
+
 
     /**
      * The login slot: {@code UILoop.ui}, the UI {@code Client.Main}'s own chain owns and replaces. It

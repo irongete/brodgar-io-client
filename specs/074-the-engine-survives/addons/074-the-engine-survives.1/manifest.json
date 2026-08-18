@@ -1,0 +1,9 @@
+{
+  "name": "074.1 — the addon layer is a layer, not a tenant",
+  "id": "074-the-engine-survives.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 074.1: your own windows are built into the addon layer — a tree of its own above the sessions, drawn over the session on screen and over the login screen — while hafen.ui():find still searches the client's own tree, and no parent walk crosses between the two.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

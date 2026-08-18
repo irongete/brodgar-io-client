@@ -52,6 +52,12 @@ public abstract class UILoop implements Console.Directory {
      * (dispatch, gtick, draw, tooltip, cursor) follows drawn(); every session that is not drawn is
      * ticked by Sessions.tick(). */
     private volatile UI drawui = null;
+    /* addon: (074.1) THE ADDON LAYER -- the second tree the frame attends, drawn above whichever session holds
+     * the screen and above the login screen when none does. It is a UI of its own with a NULL sess, which is
+     * what makes it not a session: nothing in it ticks a Glob and no server widget can be handed to it. Built
+     * once, here, and never replaced or destroyed, so an addon's own window keeps its place, its focus and any
+     * grab it holds across a character switch -- nothing moves, so there is nothing to repair. */
+    public final UI layer;
     private final Cursor.Caps curscaps;
     private final Object uilock = new Object();
     private UI lockedui;
@@ -63,6 +69,12 @@ public abstract class UILoop implements Console.Directory {
 	setenv(wnd.env());
 	this.curscaps = wnd.toolkit().cursorcaps();
 	newui(null);
+	/* addon: (074.1) built exactly as bgui builds one -- no slot, no replace, no destroy, no uilock -- but
+	 * NOT through bgui itself: this runs inside the constructor, where an override of it reaches a subclass
+	 * whose own fields are still unassigned. The tick pump is a widget on its root, the same zero-core-edit
+	 * shape a session's is, so what the layer does each frame is said in the addon layer and not here. */
+	this.layer = mkui(null);
+	this.layer.root.add(new io.brodgar.addon.LayerRoot(), Coord.z);
 	io.brodgar.session.Sessions.init(this);   // rts: the sessions layer needs the loop to build a UI (F0)
 	this.th = new HackThread(this::run, "Haven UI thread");
     }
@@ -75,6 +87,8 @@ public abstract class UILoop implements Console.Directory {
 	this.env = env;
 	if(ui != null)
 	    ui.env = env;
+	if(layer != null)   // addon: (074.1) the second tree draws through the same environment
+	    layer.env = env;
 	haven.error.ErrorHandler errh = haven.error.ErrorHandler.find();
 	if(errh != null) {
 	    Environment.Caps caps = env.caps();
@@ -160,6 +174,13 @@ public abstract class UILoop implements Console.Directory {
      * the profiling fields are deliberately left off it: uprof/rprof/gprof describe the frame, and only
      * the anchor has one. */
     public UI bgui(UI.Runner fun) {
+	return(mkui(fun));
+    }
+
+    /* addon: (074.1) bgui's body, callable from the constructor. bgui itself is overridden -- ClientLoop adds
+     * the client's own console directory to what it builds -- and an override reached from a superclass
+     * constructor reads its own fields null. */
+    private final UI mkui(UI.Runner fun) {
 	/* Built outside uilock, exactly as newui() does: UI's constructor runs Runner.init, and no other
 	 * lock may be taken underneath this one. */
 	if(audio == null)
@@ -376,7 +397,7 @@ public abstract class UILoop implements Console.Directory {
 	return(base);
     }
 
-    private void display(UI ui, Render buf) {
+    private void display(UI ui, UI layer, boolean layerhot, Render buf) {
 	Pipe base = basestate();
 	base.prep(FragColor.blend(new BlendMode()));
 	Area wnd = Area.sized(ui.root.sz);
@@ -390,22 +411,33 @@ public abstract class UILoop implements Console.Directory {
 	// sample it in this same frame's Render. One stream, in order: same frame, never one frame stale. Off
 	// (nothing standing), it is one empty-list check.
 	io.brodgar.addon.AddonManager.drawSurfaces(ui, buf);
-	synchronized(ui) {
-	    // addon: the "ui2d" named pass (spec 019, task 019.6). It brackets the WHOLE widget draw, of which
-	    // the 3D scene is a part (the MapView is a widget) -- so shadow/scene nest inside it and are
-	    // subtracted out at snapshot time, leaving ui2d meaning what its name says. try/finally because a
-	    // pass left open would leave a GL timestamp query that never completes, stalling every later frame.
-	    io.brodgar.prof.Passes.begin(buf, io.brodgar.prof.Passes.UI2D);
-	    try {
+	// addon: the "ui2d" named pass (spec 019, task 019.6). It brackets the WHOLE widget draw, of which
+	// the 3D scene is a part (the MapView is a widget) -- so shadow/scene nest inside it and are
+	// subtracted out at snapshot time, leaving ui2d meaning what its name says. try/finally because a
+	// pass left open would leave a GL timestamp query that never completes, stalling every later frame.
+	// 074.1: both trees are inside it -- the addon layer is 2D UI by every measure the pass names.
+	io.brodgar.prof.Passes.begin(buf, io.brodgar.prof.Passes.UI2D);
+	try {
+	    synchronized(ui) {
 		ui.draw(g);
-	    } finally {
-		io.brodgar.prof.Passes.end(buf, io.brodgar.prof.Passes.UI2D);
 	    }
+	    /* addon: (074.1) THE LAYER IS DRAWN LAST, over the session and over the login screen when there is
+	     * no session -- "above everything" with no exception, since a window that vanished at a logout was
+	     * living in a session after all. Its own monitor, taken after the session's is given up. */
+	    synchronized(layer) {
+		layer.draw(g);
+	    }
+	} finally {
+	    io.brodgar.prof.Passes.end(buf, io.brodgar.prof.Passes.UI2D);
 	}
 	if(dbtext.get())
 	    drawstats(ui, g, buf);
-	drawtooltip(ui, g);
-	drawcursor(ui, g);
+	/* addon: (074.1) the tip and the cursor are the tree's that answered the hover: over an addon window
+	 * they are the layer's, and everywhere else the session's. Two answers to "what is under the pointer"
+	 * is what one pointer cannot have. */
+	UI hot = layerhot ? layer : ui;
+	drawtooltip(hot, g);
+	drawcursor(hot, g);
     }
 
     public static class Fence implements Runnable, Abortable {
@@ -484,7 +516,9 @@ public abstract class UILoop implements Console.Directory {
 	}
     }
 
-    protected abstract void dispatch(UI ui);
+    /* addon: (074.1) input goes to two trees, and the order is the drawing order upside down: the LAYER is
+     * offered the event first and the session under it sees only what the layer did not consume. */
+    protected abstract void dispatch(UI layer, UI ui);
 
     protected AudioSystem.SinkLine audiosink() {
 	return(DummyAudio.DummySink.instance);
@@ -565,12 +599,35 @@ public abstract class UILoop implements Console.Directory {
 	    this.prev = prev;
 	}
 
+	/* addon: (074.1) whether the pointer is in the addon layer -- settled by the hover below, in the tick,
+	 * and read by the draw, which is the same frame. The tooltip and the cursor belong to whichever tree
+	 * answered the hover, so this is that answer carried the few lines to where they are drawn. */
+	public boolean layerhot = false;
+
 	protected void tick() {
+	    /* addon: (074.1) TWO TREES, ONE FRAME. The layer is attended alongside the session on screen: it is
+	     * ticked, resized and hovered like any tree, and it is offered the input first. What it is NOT given
+	     * is the ctick/gtick pair below -- it has no Glob, because it has no session.
+	     *
+	     * One monitor at a time, and never both: the frame takes the layer's, gives it up, then takes the
+	     * session's. Nesting them would invent a second lock direction for the addon layer's own Lua to
+	     * deadlock against, since a handler running under the layer's monitor reaches into a session's tree
+	     * to read it (docs/client/multi-session.md's one lock direction). */
+	    UI layer = loop.layer;
+	    Coord sz = loop.wnd.size();
+	    CPUProfile.phase(prof, "dwait");
+	    if(rprofc != null) rprofc.new Part("tick", out);
+	    if(gprof  != null) gprof.part(out, "tick");
+	    loop.dispatch(layer, ui);
+	    CPUProfile.phase(prof, "ltick");
+	    synchronized(layer) {
+		layer.tick();
+		layer.gtick(out);
+		layerhot = layer.mousehover(layer.mc);
+		if(!layer.root.sz.equals(sz))
+		    layer.root.resize(sz);
+	    }
 	    synchronized(ui) {
-		CPUProfile.phase(prof, "dwait");
-		if(rprofc != null) rprofc.new Part("tick", out);
-		if(gprof  != null) gprof.part(out, "tick");
-		loop.dispatch(ui);
 		CPUProfile.phase(prof, "stick");
 		if(ui.sess != null) {
 		    ui.sess.glob.ctick();
@@ -579,8 +636,7 @@ public abstract class UILoop implements Console.Directory {
 		CPUProfile.phase(prof, "utick");
 		ui.tick();
 		ui.gtick(out);
-		ui.mousehover(ui.mc);
-		Coord sz = loop.wnd.size();
+		ui.mousehover(ui.mc, !layerhot);   // addon: (074.1) nothing hovers through an addon window
 		if(!ui.root.sz.equals(sz))
 		    ui.root.resize(sz);
 	    }
@@ -606,7 +662,7 @@ public abstract class UILoop implements Console.Directory {
 	    // are the thing absent from the control and therefore the thing it measures.
 	    GPUProfile.Part gdraw = (gprof != null) ? gprof.part(out, "draw") : null;
 	    io.brodgar.prof.Passes.frame(io.brodgar.prof.Prof.on ? gdraw : null);
-	    loop.display(ui, out);
+	    loop.display(ui, loop.layer, layerhot, out);
 	}
 
 	protected void swapbuffers() {

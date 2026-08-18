@@ -259,6 +259,17 @@ public class Widget {
 	    ch.attach(ui);
     }
 
+    /* addon: (074.1) MOVE THIS SUBTREE INTO ANOTHER TREE. add0 attaches a child that has no UI yet and leaves
+     * one that already has its own, which was right while there was one tree to be in: every widget the client
+     * builds is born in the tree it dies in. An addon's own widget is born in the addon layer and may be
+     * re-parented into one of the client's windows while it is still being built, and `ui` is what says which
+     * monitor guards it and which tree's death takes it down -- so that one re-home has to carry the whole
+     * subtree across. Legal only before the widget is on screen, which is where its caller refuses: nothing is
+     * being moved that holds a grab, the focus or a server widget id. */
+    public void reattach(UI ui) {
+	attach(ui);
+    }
+
     protected void attached() {
 	attached = true;
 	for(Widget ch = child; ch != null; ch = ch.next)
@@ -619,6 +630,25 @@ public class Widget {
 	}
 	if(ui != null)
 	    ui.dispatch(this, new LostFocusEvent());
+    }
+
+    /* addon: (074.1) GIVE UP THE FOCUS THIS TREE HOLDS, without handing it to anybody. setfocus(null) cannot
+     * say it -- it dereferences its argument -- and the client never needed to: one tree meant clicking
+     * anything moved the focus somewhere, so it was always given away rather than dropped.
+     *
+     * With the addon layer there are two trees and a press lands in exactly one of them, so a window in the
+     * layer would keep the focus for the client's whole life after one click: every Escape would close it and
+     * every Tab would cycle inside it, and the session under it would never see either key again. This is what
+     * a press taken by the session says to the layer above it. */
+    public void clearfocus() {
+	if(focusctl && (focused != null)) {
+	    Widget last = focused;
+	    focused = null;
+	    if(last.hasfocus) {
+		last.hasfocus = false;
+		last.lostfocus();
+	    }
+	}
     }
 
     public void setfocus(Widget w) {

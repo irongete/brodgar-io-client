@@ -22,7 +22,8 @@ that into the client's life, and they are not the same loop.
 | **The outer one, and the client's own lifetime** | `Client.run(UI.Runner)` — `while(task != null) task = task.run(newui(task))`, with `finally {newui(null);}`. Falling out of it is how the client **exits**, so the task it is given must never return |
 | The one that never returns | `Client.Main.run` — an endless `while(true)`: build a `Bootstrap`, title the window from `Runner.title()`, run it, and go round again. It is the task `main2` hands to `Client.run` in the ordinary case |
 | Building the runner's UI | `UILoop.newui(fun)` — puts the new `UI` in the `UILoop.ui` **slot**, waits on `uilock` while a frame still holds the previous one, then **destroys** that previous one |
-| Building a UI that owns no slot | `UILoop.bgui(fun)` — the same construction minus the slot, the wait and the destroy. Both build **outside `uilock`**, because `UI`'s constructor runs `Runner.init` and no other lock may be taken under that one |
+| Building a UI that owns no slot | `UILoop.bgui(fun)` — the same construction minus the slot, the wait and the destroy. Both build **outside `uilock`**, because `UI`'s constructor runs `Runner.init` and no other lock may be taken under that one. `bgui` is overridden (`ClientLoop` adds a console directory), so the constructor itself builds through the private `UILoop.mkui` it delegates to — an override reached from a superclass constructor reads its own fields null |
+| **The third UI (fork)** | `UILoop.layer` — the **addon layer**, built by that constructor and never replaced, destroyed or drawn as the slot: a `UI` with a null `sess`, so nothing in it ticks a `Glob` and no server widget can be handed to it. The frame attends it beside `drawn()` and draws it **on top**, session or login screen ([multi-session.md](multi-session.md)) |
 | Which UI the frame actually draws | `UILoop.drawn()` / `drawn(UI)` — the slot is what is drawn only while nothing else claims it |
 | **Where every UI dies, whoever killed it** | `UI.destroy()` — drains the command queue, then under the UI's **own** monitor destroys `root` and clears `audio`. Both doors reach it: `UILoop.newui` for the slot it replaces, and `UILoop.bgdestroy` for one built with `bgui` ([multi-session.md](multi-session.md)), which first takes the screen off it and waits out any frame still holding it on `uilock`. **Fork adds `UI.destroyed`**, raised before the tree is disposed, so anything keyed on a UI can tell a live one from one being taken apart — and `root.destroy()` runs `Widget.remove`/`rdispose` down the whole tree, which is why the flag goes up first |
 | **The seam (fork)** | `Client.Main.run` hands a `RemoteUI` to `Sessions.adopt` instead of running it, so the slot holds the **login screen** and every game session is built with `bgui` on a thread of its own ([multi-session.md](multi-session.md)) |
@@ -41,10 +42,12 @@ input fills — so an undrawn login screen simply waits, and works the moment it
 | What | Where |
 |---|---|
 | Render+tick thread ("Haven UI thread") | `UILoop` (thread created) |
-| **Per-frame tick (holds `synchronized(ui)`)** | `UILoop.Frame.tick` |
+| **Per-frame tick, two trees** | `UILoop.Frame.tick` — the layer under `synchronized(layer)`, then the drawn session under `synchronized(ui)`, **never both at once**. `ctick`/`gtick` run for the session alone: the layer has no `Glob` |
 | Game-state tick | `glob.ctick()` at `UILoop.java` → `Glob.ctick` |
 | **Widget-tree tick broadcast** ← per-frame update seam | `ui.tick()` at `UILoop.java` → `UI.tick` → `TickEvent` → `Widget.tick` |
-| Draw + one-shot after-draws | `UI.draw` (afterdraws cleared at) |
+| **Input, and who gets it first (fork)** | `UILoop.dispatch(UI layer, UI ui)` → `Client.EventQueue.dispatch` — the **layer first**, the session only for what it did not consume. A move goes to both (it is a broadcast, and `MouseMoveEvent.propagation` returns true regardless); a button's **release** goes to whichever tree took its press, or a drag begun on the world and let go over an addon window never ends; the layer is offered `UI.keydown(ev, false)`, the focused half alone, because `RootWidget.globtype` consumes every printable key with a `"gk"` message |
+| Draw + one-shot after-draws | `UI.draw` (afterdraws cleared at) — `Frame.display` draws the session's tree, then the layer's over it, both inside the one `ui2d` pass |
+| Which tree answers the tooltip and the cursor | whichever took the hover: `UI.mousehover(c, hovering)` returns that, `Frame.layerhot` carries it the few lines to `UILoop.display` |
 | Register a one-shot overlay | `UI.drawafter` |
 
 ## Profiling and stats (the client's own)
@@ -55,7 +58,7 @@ input fills — so an undrawn login screen simply waits, and works the moment it
 | Per-frame CPU trees (UI + render thread) | `UILoop.uprof`/`rprof` — `CPUProfile`, 300-frame ring |
 | GPU frame time (GL timestamp queries) | `UILoop.gprof` — `GPUProfile.part(Render, nm)` inserts a named query |
 | **Where a frame decides to profile at all** | `UILoop.Frame` ctor — reads `profile.get()` **once**, per frame |
-| The phase names | `CPUProfile.phase(prof, …)`, in the order a frame enters them: `dwait` (`Frame.syncwait`, and again at the head of `Frame.tick`), `stick`, `utick`, `sessions` (`Frame.tick`), `draw` (`Frame.display`), `aux` (`Frame.run`, around `swapbuffers`), `wait` (`Frame.fin`). `sessions` is the one every non-drawn session is ticked under, so it is the phase a second character shows up in ([multi-session.md](multi-session.md)) |
+| The phase names | `CPUProfile.phase(prof, …)`, in the order a frame enters them: `dwait` (`Frame.syncwait`, and again at the head of `Frame.tick`), `ltick`, `stick`, `utick`, `sessions` (`Frame.tick`), `draw` (`Frame.display`), `aux` (`Frame.run`, around `swapbuffers`), `wait` (`Frame.fin`). `ltick` is the addon layer's own tree; `sessions` is the one every non-drawn session is ticked under, so it is the phase a second character shows up in ([multi-session.md](multi-session.md)) |
 | Ring / part arithmetic (`f()`/`t()`/`d()`/`sub()`, `last()`, `copy()`) | `Profile` |
 | Scoped CPU sections | `CPUProfile.set(Part)` / `phase` / `end`; the `Current` ThreadLocal is `null` when off, so `begin` returns immediately |
 | The HUD text (`:stats on`) | `UILoop.statlines`, drawn at — the one place that computes `framealloc` (an EWMA from `prevfree`), so that number **only advances while the HUD is drawn**; also the only reader of `Loader.stats()`/`Defer.gstats()`/`Resource.qdepth()`/`numloaded()`/`GLEnvironment.memstats()`/`MapView.stats()` |
@@ -96,15 +99,19 @@ frame-time comparison, while still delaying the next frame. Time it directly or 
 
 ## Building a `UI` headlessly
 
-The whole widget tree becomes unit-testable once a real `UI` exists off-screen — `hasparent(ui.root)` liveness,
-interning, staleness and GC/no-pin proofs all need `ui.root` to hang widgets off. Two things block it:
+The whole widget tree becomes unit-testable once a real `UI` exists off-screen — `hasparent(ui.root)`
+liveness, interning, staleness and GC/no-pin proofs all need `ui.root` to hang widgets off, and the dispatch
+answers (what a `Window` consumes, what a hover or a cursor query returns) are readable there and nowhere
+else cheaply. Three things block it:
 
 | Blocker | Where | Fix |
 |---|---|---|
 | `Text.<clinit>` does a blocking `loadwait("ui/fraktur")` | `Text` ← `ConsoleHost.<clinit>` ← `RootWidget` ← `UI.<init>` | put **`bin/builtin-res.jar`** on the classpath — the local pool is a `JarSource("res")` (`Resource.local`), so no network is needed |
-| `new ActAudio.Root(sys)` NPEs on a null `Audio.Root` | `ActAudio.Root` reads `sys.mixer` | `Unsafe.allocateInstance(Audio.Root.class)` (the real ctor opens a sink line) + reflect a `new Audio.Mixer(true)` into its final `mixer` field |
+| `Resource`'s annotation scan | `Resource.<clinit>` → `dolda.jglob.Loader` | add **`build/classes-lib`** (or `lib/jglob.jar`) — without it every class touching `Resource` dies with `NoClassDefFoundError` |
 | toolkit/scale probe at `UI.<clinit>` | `UI.initscale` | add the jogl/lwjgl jars from `build/*.jar`; the `Unavailable` traces it prints are **caught** — not a failure |
 
-Then `UI u = new UI(null, ar, Coord.of(800, 600), null)`; `u.root` is a live `RootWidget`, `u.root.add(w)` and
-`w.destroy()` behave exactly as in-game, and `haven.Widget` overrides neither `equals` nor `hashCode`, so a
-widget is safe as an identity map key.
+The audio root needs no trickery: `new Audio.Root(haven.iosys.audio.DummyAudio.DummySink.instance)` opens a
+`DummyPlayer` and nothing else, which is what `TestClient` builds too. Then
+`UI u = new UI(null, ar, Coord.of(800, 600), null)` — a `UI` with a **null `sess`**, exactly what the addon
+layer is; `u.root` is a live `RootWidget`, `u.root.add(w)` and `w.destroy()` behave as in-game, and
+`haven.Widget` overrides neither `equals` nor `hashCode`, so a widget is safe as an identity map key.

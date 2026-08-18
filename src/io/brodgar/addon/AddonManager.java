@@ -246,8 +246,23 @@ public final class AddonManager {
     // ------------------------------------------------------------- which UI
 
     /**
-     * <b>The {@code UI} whose widget tree this addon layer works in</b> (072.2) — where an addon's own windows
-     * live, where a selector searches, whose console a slash command is registered against, and whose audio,
+     * <b>The addon layer's own tree</b> (074.1) — the {@code UI} an addon's own windows are built into, which
+     * is not a session's and never becomes one. It has a null {@code Session}, it is drawn above whichever
+     * session holds the screen and above the login screen when none does, and it is built once for the life of
+     * the client — so a window in it keeps its place, its focus and any grab it holds across a character
+     * switch, because nothing about it moves.
+     *
+     * <p><b>Derived, never stored</b>, for {@link #host()}'s reason one line down: {@code UILoop} owns every
+     * {@code UI} the client has, and a second copy of which one is the layer is a copy that can disagree.
+     * {@code null} before {@link Sessions#init} has a loop, exactly as {@code host()} is.
+     */
+    static UI layer() {
+        return Sessions.layer();
+    }
+
+    /**
+     * <b>The {@code UI} whose widget tree this addon layer works in</b> (072.2) — where a selector searches,
+     * whose console a slash command is registered against, and whose audio,
      * settings and connection the read verbs report. It is <b>not</b> "the screen": the pointer and the drawn
      * {@link MapView} are one however many sessions are live, and they get their own names ({@code screen()},
      * {@code screenView()}) precisely so that this one — the only genuinely session-shaped question in the
@@ -540,7 +555,12 @@ public final class AddonManager {
      * caller's own guard is the same one it already had for a null {@code host()}.
      */
     static SessionState state(UI u) {
-        if((u == null) || (u.sess == null) || u.destroyed)
+        /* 074.1: the ADDON LAYER has a state too, and for the reason the widget-layer half of this object
+         * already gives: those rows name the widgets of ONE TREE, and the layer is a tree — an arming queue, a
+         * removal queue, a running gesture and a pending layout belong to it exactly as they belong to a
+         * session's. What it never fills is the session-shaped half: it has no Glob to report gobs, no HUD to
+         * read and no connection to answer, so those collections stay empty for the client's whole life. */
+        if((u == null) || u.destroyed || ((u.sess == null) && (u != layer())))
             return null;
         SessionState st = states.get(u);
         if(st != null)
@@ -561,7 +581,11 @@ public final class AddonManager {
      */
     private static SessionState queueState(UI u) {
         SessionState st = state(u);
-        return ((st != null) && (st.addonRoot != null)) ? st : null;
+        if(st == null)
+            return null;
+        // 074.1: the layer's pump is a LayerRoot and it is attached the moment that tree is built, so the
+        // layer is always draining. A session's is attached by init, which is what addonRoot answers.
+        return ((st.addonRoot != null) || (u == layer())) ? st : null;
     }
 
     /**
@@ -612,7 +636,15 @@ public final class AddonManager {
      */
     public static int stateCount() {
         sweepStates();
-        return states.size();
+        // 074.1: SESSIONS, which is what the figure is named for and compared against. The addon layer holds
+        // one of these too and is no session — it is one tree for the client's life, so counting it would put
+        // this number one above `live` for ever and say nothing about anything.
+        int n = 0;
+        for(Map.Entry<UI, SessionState> e : states.entrySet()) {
+            if(e.getKey().sess != null)
+                n++;
+        }
+        return n;
     }
 
     // ------------------------------------------------------------- lifecycle
@@ -760,6 +792,30 @@ public final class AddonManager {
     }
 
     // ------------------------------------------------------------- the tick pump
+
+    /**
+     * <b>One step of the addon layer's own tree</b> (074.1), driven by {@link LayerRoot#tick(double)} each
+     * frame. The layer is where an addon's own windows live, and it is a tree without a session: what it owes
+     * per frame is what a tree owes — the surfaces built into it since the last one, the popup a click buried,
+     * and the removals and resizes its own widgets recorded off the tick.
+     *
+     * <p>It is deliberately <b>not</b> {@link #tick(UI, double)}. That one is a <i>session's</i> step — the
+     * gob queue, the HUD adapters, {@code Update}, the timers, the CPU budget — and every addon has exactly
+     * one of those however many trees it draws into. Running it here would step every addon twice a frame.
+     */
+    static void layerTick(UI u) {
+        try {
+            SessionState st = state(u);
+            if(st == null)
+                return;
+            UiApi.armPending(st);         // 039.6: what was built into the layer this frame goes on screen now
+            CDropdown.drainRaises(st);    // 040.10: ...and a popup its own window's click-to-raise buried
+            drainRemovedWidgets(st);      // 042.1: a widget of ours that left the tree, and what watched it
+            drainResizedWidgets(st);      // 042.10: ...and one that changed shape, for whatever is anchored
+        } catch(RuntimeException e) {
+            log("layer tick error: " + e);
+        }
+    }
 
     /**
      * One engine step, driven by {@link AddonRoot#tick(double)} on the UI thread each frame. Order

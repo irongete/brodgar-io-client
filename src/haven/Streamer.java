@@ -111,7 +111,7 @@ public class Streamer implements Console.Directory {
 	protected void drawcursor(UI ui, GOut g) {
 	}
 
-	protected void dispatch(UI ui) {
+	protected void dispatch(UI layer, UI ui) {
 	}
 
 	protected boolean bgmode() {

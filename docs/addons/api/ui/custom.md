@@ -19,8 +19,19 @@ win:on("Draw", function(ev)
   g:text(string.format("%.0f", hafen.time():clock() or 0), 6, 12)
 end)
 
-win:position(320, 200)                        -- the same object hafen.ui():at() would give you
+win:position(320, 200)                        -- the handle the builder gave you IS the widget
 ```
+
+## Your windows live in the layer
+
+**A surface you build goes in the addon layer** — a widget tree of its own, above every character the client
+holds, drawn over whichever one is on screen and over the login screen when none is. It is in no character's
+tree: nothing about it is a window of the client's, and a logout leaves it exactly where it was.
+
+The [search verbs](widget.md#getting-a-widget) answer about **the client's** tree — `hafen.ui():find`,
+`:all`, `:at`, `:root` and an [`"appear"` subscription](replace.md#watching-for-a-widget) are all about the
+client's own windows, never about yours. Hold the handle the builder gave you: it is the widget, `==` is its
+identity, and `w:find(selector)` searches **inside** it.
 
 ## Windows and widgets
 
@@ -35,7 +46,7 @@ size it did not choose — and every property is a setter on the [Widget](widget
 | Setter | Read | Meaning |
 |---|---|---|
 | `:title(s)` | `:title()` | window caption — a bare widget has no chrome to write it on and refuses; it answers on [one of the client's windows](edit.md#what-a-window-says) too |
-| `:parent(w)` | `:parent()` | which widget it hangs under; the default is `hafen.ui():root()`, and [one of the client's own windows](edit.md#your-own-controls-inside-one-of-the-clients-windows) may be named |
+| `:parent(w)` | `:parent()` | which widget it hangs under; the default is the layer, and [one of the client's own windows](edit.md#your-own-controls-inside-one-of-the-clients-windows) may be named — which puts it in that character's tree, where it ends with them |
 | `:position(x, y)` | `:position()` | place within the parent, in [design pixels](pixels.md) |
 | `:size(w, h)` | `:size()` | content size; a window's chrome is fitted around it |
 | `:font(h)` | `:font()` | default font for this widget's `g:text`/`g:atext` draws, not for the title bar |
@@ -116,8 +127,8 @@ means the outer box, caption included.
 
 ### A surface never paints half-configured
 
-A bare `:window()` is in the tree the instant it is built — `hafen.ui():at(x, y)`, a selector and an
-`"appear"` subscription all find it at once — but it **draws nothing until the tick after the statement
+A bare `:window()` is in the layer's tree the instant it is built — its `:parent()`, its `:children()` and
+`w:find(selector)` inside it all answer at once — but it **draws nothing until the tick after the statement
 that built it**. So a caption, a size and a place you set across several lines are all in place before the
 first pixel, whatever falls between them, and there is no "commit" verb to forget.
 

@@ -100,7 +100,13 @@ public class Client implements Console.Directory {
 	    return(0);
 	}
 
-	public void dispatch(UI ui) {
+	/* addon: (074.1) which tree took the press of each mouse button, so that its RELEASE goes to the same
+	 * one. Layer-first is the rule for a press, and it would be wrong for the release that ends a drag: a
+	 * camera pan begun on the world and let go over an addon window must still reach the tree that is
+	 * panning, or the drag never ends. 0 = nobody pressed it, 1 = the layer, 2 = the session. */
+	private final int[] btnowner = new int[4];
+
+	public void dispatch(UI layer, UI ui) {
 	    List<Toolkit.Event> evs;
 	    Toolkit.MouseMoveEvent mousemv;
 	    synchronized(this) {
@@ -109,30 +115,68 @@ public class Client implements Console.Directory {
 		evs = new ArrayList<>(pending);
 		pending.clear();
 	    }
+	    /* addon: (074.1) A MOVE IS NOT A CLAIM, so both trees get every one of them. It is how a widget
+	     * un-hovers when the pointer leaves it and how each tree learns where the pointer is, and the
+	     * client's own dispatch already broadcasts it to every child rather than stopping at the first. */
 	    if(mousemv != null) {
-		ui.mousemove(AWTCompat.mkawt(mousemv), mousemv.wndc());
+		java.awt.event.MouseEvent awt = AWTCompat.mkawt(mousemv);
+		synchronized(layer) {layer.mousemove(awt, mousemv.wndc());}
+		synchronized(ui) {ui.mousemove(awt, mousemv.wndc());}
 	    }
 	    for(Toolkit.Event ev : evs) {
 		if(ev instanceof Toolkit.MouseDownEvent) {
 		    Toolkit.MouseDownEvent e = (Toolkit.MouseDownEvent)ev;
 		    int btn = buttonid(e.button());
-		    if(btn > 0)
-			ui.mousedown(AWTCompat.mkawt(e), e.wndc(), btn);
+		    if(btn > 0) {
+			java.awt.event.MouseEvent awt = AWTCompat.mkawt(e);
+			boolean took;
+			synchronized(layer) {took = layer.mousedown(awt, e.wndc(), btn);}
+			if(!took) {
+			    /* addon: (074.1) the press went to the session, so the layer above it gives up
+			     * the focus -- otherwise one click on an addon window keeps Escape and Tab in
+			     * the layer for the rest of the client's life. */
+			    synchronized(layer) {layer.root.clearfocus();}
+			    synchronized(ui) {ui.mousedown(awt, e.wndc(), btn);}
+			}
+			btnowner[btn] = took ? 1 : 2;
+		    }
 		} else if(ev instanceof Toolkit.MouseUpEvent) {
 		    Toolkit.MouseUpEvent e = (Toolkit.MouseUpEvent)ev;
 		    int btn = buttonid(e.button());
-		    if(btn > 0)
-			ui.mouseup(AWTCompat.mkawt(e), e.wndc(), btn);
+		    if(btn > 0) {
+			java.awt.event.MouseEvent awt = AWTCompat.mkawt(e);
+			int owner = btnowner[btn];
+			btnowner[btn] = 0;
+			boolean took = false;
+			if(owner != 2)
+			    synchronized(layer) {took = layer.mouseup(awt, e.wndc(), btn);}
+			if(!took && (owner != 1))
+			    synchronized(ui) {ui.mouseup(awt, e.wndc(), btn);}
+		    }
 		} else if(ev instanceof Toolkit.MouseWheelEvent) {
 		    Toolkit.MouseWheelEvent e = (Toolkit.MouseWheelEvent)ev;
-		    if(e.axis() == Toolkit.MouseWheelEvent.Axis.VERT)
-			ui.mousewheel(AWTCompat.mkawt(e), e.wndc(), e.amount(), e.subamount());
+		    if(e.axis() == Toolkit.MouseWheelEvent.Axis.VERT) {
+			java.awt.event.MouseEvent awt = AWTCompat.mkawt(e);
+			boolean took;
+			synchronized(layer) {took = layer.mousewheel(awt, e.wndc(), e.amount(), e.subamount());}
+			if(!took)
+			    synchronized(ui) {ui.mousewheel(awt, e.wndc(), e.amount(), e.subamount());}
+		    }
 		} else if(ev instanceof Toolkit.KeyDownEvent) {
-		    ui.keydown(AWTCompat.mkawt((Toolkit.KeyEvent)ev));
-		    Debug.keyevent(AWTCompat.mkawt((Toolkit.KeyEvent)ev));
+		    java.awt.event.KeyEvent awt = AWTCompat.mkawt((Toolkit.KeyEvent)ev);
+		    boolean took;
+		    // addon: (074.1) the layer is offered the FOCUSED key alone -- see UI.keydown(ev, glob)
+		    synchronized(layer) {took = layer.keydown(awt, false);}
+		    if(!took)
+			synchronized(ui) {ui.keydown(awt);}
+		    Debug.keyevent(awt);
 		} else if(ev instanceof Toolkit.KeyUpEvent) {
-		    ui.keyup(AWTCompat.mkawt((Toolkit.KeyEvent)ev));
-		    Debug.keyevent(AWTCompat.mkawt((Toolkit.KeyEvent)ev));
+		    java.awt.event.KeyEvent awt = AWTCompat.mkawt((Toolkit.KeyEvent)ev);
+		    boolean took;
+		    synchronized(layer) {took = layer.keyup(awt);}
+		    if(!took)
+			synchronized(ui) {ui.keyup(awt);}
+		    Debug.keyevent(awt);
 		}
 	    }
 	}
@@ -174,8 +218,8 @@ public class Client implements Console.Directory {
 	    return(audiosink);
 	}
 
-	protected void dispatch(UI ui) {
-	    cl.queue.dispatch(ui);
+	protected void dispatch(UI layer, UI ui) {
+	    cl.queue.dispatch(layer, ui);
 	}
 
 	protected boolean bgmode() {

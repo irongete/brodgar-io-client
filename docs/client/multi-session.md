@@ -1,10 +1,9 @@
 # Several sessions in one client
 
-One process, several accounts logged in at once, one of them on screen. The seams are in `haven` and the
-policy standing on them is `io.brodgar.session`. The session being drawn is the **anchor**; every other
-is live, ticked and answering the server, and simply not rendered, and which one is the anchor changes
-at any time. `UILoop.ui` holds the **login screen** and never a game session, so a client holding none
-draws that.
+One process, several accounts logged in at once, one of them on screen. The seams are in `haven`, the policy
+on them is `io.brodgar.session`. The session drawn is the **anchor**; every other is live, ticked, answering
+the server and not rendered, and which one is the anchor changes at any time. `UILoop.ui` holds the **login
+screen** and never a game session, so a client with none draws that, `UILoop.layer` over it either way.
 
 ## Driving it
 
@@ -65,18 +64,19 @@ grab open across a modifier press — so a hold-while-dragging gesture stays har
 
 | What | Where |
 |---|---|
-| **The two UIs, and why they are two** | `UILoop.ui` is the runner's — the **login screen**, which `Client.Main` replaces and **destroys** as its chain advances; `UILoop.drawn` is the one actually drawn, dispatched to and `gtick`ed. One field could not be both — destroying the runner's UI must never be able to destroy a session it does not own, and the slot holding no game session is what makes that unreachable. `drawn()` answers the session on screen, or `ui` when none does |
+| **The three UIs, and why they are three** | `UILoop.ui` is the runner's — the **login screen**, which `Client.Main` replaces and **destroys** as its chain advances; `UILoop.drawn` is the one actually drawn, dispatched to and `gtick`ed. One field could not be both — destroying the runner's UI must never be able to destroy a session it does not own, and the slot holding no game session is what makes that unreachable. `drawn()` answers the session on screen, or `ui` when none does. `UILoop.layer` is the **addon layer** (fork): built once in the constructor with a null `sess`, never replaced or destroyed, ticked and hovered beside the drawn one, drawn on top of it and offered the input first ([boot-and-loop.md](boot-and-loop.md)) — it holds no `Glob`, so `Sessions.tick` and every count of "how many sessions" pass it by |
 | Building a session's UI | `UILoop.bgui` — `newui` minus the replace and the destroy, and like it built **outside `uilock`**, because `UI`'s constructor runs `Runner.init` and no other lock may be taken underneath that one. The profiling fields are left off: `uprof`/`rprof`/`gprof` describe the frame, and only the anchor has one |
 | Where a session comes from | `Client.Main.run` hands its `RemoteUI` to `Sessions.adopt` instead of running it, and `Sessions.add` connects a saved token; both build with `bgui` on a thread of their own ([boot-and-loop.md](boot-and-loop.md)). A session registers **before** its `UI` exists, because `RemoteUI.init` asks `Sessions.ismember` from inside that constructor |
 | Taking one down | `UILoop.bgdestroy` — `bgui`'s counterpart, run from the **session's own** thread (`Sessions.Member.discard`): it takes the screen off that `UI` if the caller has not, waits under `uilock` for any frame still holding it, then `UI.destroy`. So a `UI` can already be destroyed before the loop thread's next tick notices the anchor moved — a relogin destroys the old one and builds the new one inside `Member.run`, which is why anything that must still read a session as it ends has to **hold** what it needs rather than look it up by that `UI` |
-| The anchor's frame | `UILoop.Frame.tick`, all inside `synchronized(ui)`: dispatch, `glob.ctick`, `glob.gtick`, `ui.tick`, `mousehover`, resize |
+| The anchor's frame | `UILoop.Frame.tick`: dispatch, then `synchronized(layer)` for the layer's `tick`/`gtick`/hover/resize, then `synchronized(ui)` for `glob.ctick`, `glob.gtick`, `ui.tick`, `mousehover`, resize — one monitor at a time, and the session's hover is told the layer took the pointer |
 | Everything not drawn | `Sessions.tick`, called **after** that block closes, each session under its own monitor, and the one holding the screen skipped because the frame above has already ticked it in full. One call and one loop: every game session the client holds is a member of that list |
 | Handing the screen over | `Sessions.anchor` flips `UILoop.drawn` and the dormancy of the two views. `Sessions.relinquish` does it from a dying session's own thread and `Sessions.reclaim` a frame later if that did not happen, and both hand the screen to another live session — or to the login screen when there is none left |
 
-**One lock direction, and it is load-bearing.** The tick never holds two UI monitors at once. The console
-does nest them — it runs inside the drawn UI's monitor and reaches into another session's — so that
-direction, anchor then member, is the only one anything may take. `Sessions.say` queues its text and
-drains it on the tick, because delivering means taking the **anchor's** monitor from whatever spoke.
+**One lock direction, and it is load-bearing.** The tick never holds two UI monitors at once, the addon
+layer's included — its tick is a block of its own, and its input dispatch takes each tree's in turn. The
+console does nest them — it runs inside the drawn UI's monitor and reaches into another session's — so
+that direction, anchor then member, is the only one anything may take. `Sessions.say` queues its text and
+drains it on the tick: delivering means taking the **anchor's** monitor from whatever spoke.
 
 ## What dormancy buys, and what it costs
 
@@ -86,7 +86,7 @@ A session that is not drawn is still whole: a `Session`, a `UI`, a widget tree a
 |---|---|
 | **Its terrain is never meshed** | `MapRaster.Grid.tick` returns while its node holds no slot, so a view outside a render tree builds nothing. That one fact is what makes holding several sessions affordable, and it cuts both ways: promoting one re-meshes everything in view, which is the hitch on an anchor switch. `MapView.dormant` is the attach and the detach |
 | It still asks the server for ground | `MapView.tick`'s dormant branch. `MCache.sendreqs` and `reqarea` live in `draw`, so a view that is never drawn would never request a grid — and both the offset below and any order needing a destination rest on the session having loaded the ground it stands on. Throttled: `reqarea` calls `getcut` once per cut of its rectangle, and `sendreqs` already rate-limits each grid to one request a second |
-| It does not take the addon engine | Nothing on the login path binds it: `Sessions.tickrebind` is the only binder, and it binds whichever session holds the screen. That hub is single-session — one tick pump, one set of loaded addons, one set of per-session caches — so a session binding itself there as it connects would point every addon at a session nobody is looking at. It holds no field naming that session either: the layer asks `Sessions.anchor()` for the tree it works in and for the screen, and `Sessions.mapview` for the scene, so what follows the anchor follows it by derivation |
+| It does not take the addon engine | Nothing on the login path binds it: `Sessions.tickrebind` is the only binder, and it binds whichever session holds the screen. That hub is single-session — one tick pump, one set of loaded addons, one set of per-session caches — so a session binding itself there as it connects would point every addon at a session nobody is looking at. It holds no field naming that session either: the layer asks `Sessions.anchor()` for the tree it **searches** and for the screen, `Sessions.mapview` for the scene and `Sessions.layer()` for the tree its own windows are built into, so what follows the anchor follows it by derivation |
 | **Its effects are consumed, not deferred** | An overlay is ticked only once it stands in a render tree, and a dormant view has none — so `Gob.ctick` ticks one whose `slots` are still empty when `Glob.dormant` says nobody is looking, and `Sprite.unheard` ends the sprites whose only other ending is being played through (`AudioSprite.ClipSprite`). Otherwise the sprite never ages, never leaves `ols` and keeps the audio stream it opened at construction: every effect a background session was ever told about piles up, and the whole backlog enters the tree in a single frame when that session takes the screen. `Glob.dormant` is settled once per session per frame because `Gob.ctick` asks it per gob |
 | It is silent | `Sessions.applymute` → `ActAudio.RootChannel.mute` scales the channel's `VolAdjust` and leaves `volume` and its pref alone: going quiet because nobody is looking must not read as the user turning the sound down, nor survive into the next launch. Every live session, every frame, and not through `placed()` — the answer changes when a session **joins**, not only when the anchor moves, and a session still on the character list is already making noise while being absent from `placed()`. What this silences is the whole UI channel, which is most of the game's audio: the server's own sounds (`RootWidget`), the minimap's alerts (`GobIcon`), the chat ping (`ChatUI`). The server tells every session about the same event and each `UI` rate-limits only its own (`UI.lastmsgsfx`), so sessions standing together and left unsilenced play one event as many times over |
 | It does not fight over window geometry | `GameUI.onscreen` gates all three writes. Several `GameUI`s persist to the same keys, and the damage is not that they want different layouts — it is that an untouched session writes back the positions it loaded |

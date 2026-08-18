@@ -12,7 +12,7 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 
 | Expression | Returns |
 |---|---|
-| `hafen.ui():window()` / `hafen.ui():widget()` | a surface you [painted](custom.md) — owned |
+| `hafen.ui():window()` / `hafen.ui():widget()` | a surface you [painted](custom.md) — owned, and in [the layer](custom.md#your-windows-live-in-the-layer) rather than in the client's tree |
 | one of the [control builders](controls/README.md#builders) (`:button()`, `:label()`, `:image()`, …) | a [control](controls/README.md) you built — owned, and drawn by the client |
 | `hafen.ui():find(selector)` | the **one** widget matching a [selector](selectors.md), or `nil` — [two or more raises](selectors.md#one-or-all-of-them) |
 | `hafen.ui():all(selector)` | **every** match, in tree order — an empty array, never `nil` |
@@ -221,9 +221,10 @@ the only moment that would be correct is the moment you name it, which is a step
 the thing standing in is a *replacement*, so the two do not share a spelling: `w:replacement()` reads,
 `w:replace(view)` installs and `w:replace(nil)` undoes.
 
-Provenance comes from the tree, not from how you obtained the object: find your own window with
-`hafen.ui():at(x, y)` and you get the very same value `hafen.ui():window()` returned, writes and all. Addon B
-looking at addon A's window holds a *borrowed* widget, which is the correct answer.
+Provenance comes from the tree, not from how you obtained the object: a surface your addon built reads as
+owned through every handle to it, and one of the client's own reads as borrowed however deep inside your own
+window you built it. Addon B looking at addon A's window holds a *borrowed* widget, which is the correct
+answer.
 
 **A widget's place is on the screen, not in the world.** `:position()` and `:rootPos()` answer in
 [design pixels](pixels.md) and hand back a plain `{x=, y=}` table, never a
