@@ -1,0 +1,10 @@
+{
+  "name": "076.5 — walking a character you are not looking at",
+  "id": "076-the-session-is-the-address.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 076.5: session:player():move(p) reaches a session that is not drawn — the player.move consent gate, the Position resolved against that character's own map, and the send that goes through wdgmsg for the drawn session and rawWdgmsg for a background one, which an armed action hook is what proves.",
+  "api_version": 1,
+  "permissions": ["player.move"],
+  "files": ["main.lua"]
+}

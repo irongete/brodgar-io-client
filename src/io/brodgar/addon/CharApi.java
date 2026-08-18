@@ -21,7 +21,6 @@ import haven.ItemInfo;
 import haven.Loading;
 import haven.MapView;
 import haven.MenuGrid;
-import haven.OCache;
 import haven.Party;
 import haven.QuestWnd;
 import haven.Resource;
@@ -990,23 +989,26 @@ final class CharApi {
         });
         // move(p) — walk the character to a Position, and the Player's FIRST write (048.1). It is the MapView
         // "click" a left-click on that patch of ground sends; the screen coord the message carries is a DUMMY
-        // (the current mouse), exactly as MiniMap.mvclick does when you click the minimap to walk, which is what
-        // makes an off-screen destination legal. It is not a forwarded Gob method and so does not bend D-046:
-        // the server accepts a walk command only for your OWN character, so there is no gob:move() beside it,
-        // and gob:moving() is a property of a gob rather than an imperative on the player.
+        // (the recipient's own view centre; MiniMap.mvclick passes the mouse for the same reason when you click
+        // the minimap to walk), which is what makes an off-screen destination legal. It is not a forwarded Gob
+        // method and so does not bend D-046: the server accepts a walk command only for your OWN character, so
+        // there is no gob:move() beside it, and gob:moving() is a property of a gob rather than an imperative
+        // on the player.
         //   The verb is PROTECTED (the per-addon "player.move" permission), and the gate runs FIRST — before the
-        // argument is looked at and before the map view is: an addon that never declared the permission is told
+        // argument is looked at and before the session is: an addon that never declared the permission is told
         // that, rather than being told its Position is wrong (D-213).
+        //   076.5: it REACHES a session that is not drawn, and it is the only write here that does — a walk is
+        // the whole of what a character nobody is looking at takes. So it goes through AddonManager.order and
+        // not sendView, which is what refuses every other send for a background session.
         methods.set("move", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 requirePermission(owner, Permission.PLAYER_MOVE);
                 // 076.3: the Position is resolved in THAT character's frame, so the refusal it already had
-                // changes subject — a place is unreachable for the character you addressed.
+                // changes subject — a place is unreachable for the character you addressed. That frame is also
+                // the one the order is sent in, so nothing translates it again on the way out.
                 Coord2d rc = LuaPosition.worldArg(a, 2, P + ":move", "p", user);
-                MapView m = sendView(user, P + ":move");
-                Coord pc = (m.ui != null) ? m.ui.mc : Coord.z;   // dummy screen coord, like MiniMap.mvclick
-                m.wdgmsg("click", pc, rc.floor(OCache.posres), 1, 0);
+                order(user, rc, P + ":move");
                 return self;                                     // the Player, so a move chains
             }
         });

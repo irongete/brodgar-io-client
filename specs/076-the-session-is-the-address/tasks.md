@@ -69,7 +69,7 @@ set goes to **0** in `076.4`; the never-move set stays at **211** throughout.
       quietly put one back.
       `[manual]`: none — every claim here is a grep or a call.
 
-- [ ] **076.5 — Walking a character you are not looking at.**
+- [x] **076.5 — Walking a character you are not looking at.**
       `session:player():move(p)` reaches a session that is not drawn: the `player.move` permission
       unchanged, the Position resolved against **that** session's map, the click sent through **that**
       session's `MapView`. A background session sends through `UI.rawWdgmsg` and the drawn one through

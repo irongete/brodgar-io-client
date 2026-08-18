@@ -811,6 +811,29 @@ public class Sessions {
     }
 
     /**
+     * Walk one member to a place named in <em>its own</em> coordinates &mdash; the door an addon's
+     * <code>session:player():move(p)</code> sends through, where {@link #orderunit} is the RTS mode's.
+     *
+     * <p>The two differ in one thing only: whose frame the destination arrives in. A place picked off the
+     * anchor's scene is in the anchor's, so {@code orderunit} translates it; a place an addon resolved
+     * through the addressed session's <em>own</em> map is already that session's, and translating it again
+     * would walk the character a second offset away. Everything after that is the same send.
+     *
+     * <p>{@code false}, and nothing sent, when that session has no view to send to &mdash; connecting, on
+     * the character list, or gone. The caller named the session, so it is the one that can say which.
+     */
+    public static boolean ordermember(Member m, Coord2d mc, int mods) {
+	if(m == null)
+	    return(false);
+	UI u = m.ui;
+	GameUI gui = m.gameui();
+	if((u == null) || (gui == null) || (gui.map == null))
+	    return(false);
+	send(u, gui.map, mc, mods, m != anchormember());
+	return(true);
+    }
+
+    /**
      * The message a left-click on empty ground would have produced, built in the recipient's own
      * frame. <b>Ground and nothing else</b>: no gob travels with an order, and none is looked up
      * here. A click that landed on something is an interaction, which belongs to the character the

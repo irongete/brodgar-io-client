@@ -25,9 +25,10 @@ read allocates nothing.
 character at a time, and the Session is what names the account. There is no `:name()` here: that would be a
 second spelling of one fact whose only difference was which door you came through.
 
-Every read below answers for the session named. The two that are the **screen's** say so where they are
-described: `worldToScreen` answers a point on the screen, and there is one screen however many characters
-are logged in.
+Every read below answers for the session named, and so does the walk — `move` reaches a character nobody
+is looking at. What does not is what belongs to the **screen**, and each of those says so where it is
+described: `worldToScreen` answers a point on it, and there is one screen however many characters are
+logged in, while [`hand:use`](#the-hand) is a gesture with the pointer.
 
 ## Read
 
@@ -74,18 +75,38 @@ ground sends, so an **off-screen destination is fine**. Returns the Player, so a
 `player.move` [permission key](../guides/permissions.md) declared in your manifest; without it the call
 raises an error naming that key, before anything is sent.
 
+**It reaches the session you named, drawn or not.** This is the one write on the whole API that does:
+
+```lua
+-- send everyone else to where the character on screen is standing
+local cur = hafen.session():current()
+local here = cur:player():gob():position()
+for _, s in ipairs(hafen.session():list()) do
+  if s ~= cur then s:player():move(here) end
+end
+```
+
 `p` is required. Anything that is not a Position raises, a plain `{x, y}` table and a
 [widget's pixel position](ui/widget.md) included: a place in the world and a point on the screen are
 different kinds of thing, and the verb refuses the wrong one rather than walking a character somewhere else.
-A Position **that** character cannot locate raises too, naming it — the same place may be perfectly
-reachable for another of your characters. Before that session is in the world there is no map view, and it
-raises saying so.
+A Position **that** character cannot locate raises too, naming it — the destination is worked out against
+the map of the character you addressed, so the same place may be perfectly reachable for another of them.
+Before that session is in the world there is no map view, and it raises saying so. Nothing is sent in any of
+those cases.
 
 > **Walking is the whole of what a character you are not looking at will take.** Everything else a click can
 > mean — [clicking an object](gob.md#write-protected), [placing](world.md#write-protected) what is on the
 > pointer, an area select, [applying a held item](#the-hand) — belongs to the character on screen and raises
 > naming `hafen.session():current()` for any other. That line is the client's own: an order carries a
 > destination and never a target.
+
+**Your own [action handlers](event/streams.md) see the order to the character on screen, and not the
+others.** An order to [`hafen.session():current()`](session.md) leaves by the same door a real click does, so
+a `hafen.event():action():on("click", fn)` handler intercepts it, rewrites it or cancels it exactly as it
+would a click of your own. An order to any other session bypasses that chain: it belongs to the character
+being drawn and knows nothing about the one being walked, so a handler reading the destination would be
+reading a place named in another session's frame. Order the drawn character if you want your own hooks to
+run.
 
 There is no `gob:move()` beside it. The server accepts a walk command for that character's **own** body
 only, so there is nothing a general Gob could do with the verb; [`gob:moving()`](gob.md#read) is the other

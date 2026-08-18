@@ -3680,6 +3680,31 @@ public final class AddonManager {
     }
 
     /**
+     * <b>Send a walk to that session</b>, drawn or not (076.5) — {@code session:player():move(p)}'s door, and
+     * the whole reason it is not {@link #sendView}: an order is the one thing a character nobody is looking at
+     * takes, so it is the one send that does not refuse a background session.
+     *
+     * <p><b>The send differs by one word, and the difference is observable.</b> {@code Sessions.ordermember}
+     * puts the drawn session's click through {@link UI#wdgmsg}, so an addon's own action hooks see an order to
+     * the character on screen exactly as they see a real click; a background session's goes through
+     * {@link UI#rawWdgmsg}, because that chain belongs to the anchor and knows nothing about the character
+     * being walked — a handler intercepting it would be rewriting a destination read in one session's frame
+     * with a Position resolved in another's. {@code Sessions.send} already draws that line for the client's
+     * own orders, and this is the same line rather than a second one.
+     *
+     * <p>{@code rc} is in <b>that session's own</b> frame: {@link LuaPosition#worldArg} resolved the Position
+     * through that session's {@code MCache}, so there is nothing to translate here.
+     */
+    static void order(String user, Coord2d rc, String verb) {
+        Sessions.Member m = Sessions.byuser(user);
+        if(m == null)
+            throw new LuaError(verb + ": that session is gone (s:exists() is false). Nothing was sent.");
+        if(!Sessions.ordermember(m, rc, 0))
+            throw new LuaError(verb + ": no map view (that character is not in the world yet)."
+                + " Nothing was sent.");
+    }
+
+    /**
      * <b>The map view a SEND aims at</b>, or a refusal naming why this session has none.
      *
      * <p><b>A walk is the whole of what a character you are not looking at takes</b>, and that line is the
@@ -3687,7 +3712,8 @@ public final class AddonManager {
      * and no fifth, so an order carries a destination and never a target. Everything else a click can mean —
      * clicking an object, placing what is on the cursor, an area select, applying a held item — is the drawn
      * character's own business, and it also travels through the hook chain that belongs to the anchor. So a
-     * send addressed to a background session is refused here, at the door, naming the session on screen.
+     * send addressed to a background session is refused here, at the door, naming the session on screen; the
+     * walk does not come through here at all, and {@link #order} is where it goes instead.
      */
     static MapView sendView(String user, String verb) {
         Sessions.Member m = Sessions.byuser(user);
