@@ -101,11 +101,10 @@ each session. A grid carries both coordinates it has, and only one of them is sh
 | The two coordinates | `MCache.Grid.gc` is this session's and means nothing in another; `MCache.Grid.id` is the server's and is the same number in every client that has ever loaded that grid |
 | Reading them out | `MCache.gridids` snapshots `id` to `gc` under the grids lock, skipping grids whose `id` has not arrived — `Grid.fill` writes it when the `"m"` layer lands, so a grid exists briefly with none |
 
-Intersecting two sessions' id sets and differencing the `gc`s gives the offset between their frames. It
-is a whole number of grids and constant for a pair of sessions, and **every shared grid must agree**:
-two frames are rigid translations of one another or they are not frames, so a disagreement is worth
-reporting rather than averaging away. No shared grid at all means the two are not near each other,
-which is a state and not a fault.
+Intersecting two sessions' id sets and differencing the `gc`s gives the offset between their frames. It is a
+whole number of grids and constant for a pair of sessions, and **every shared grid must agree**: two frames
+are rigid translations of one another or they are not frames, so a disagreement is worth reporting rather
+than averaging away. No shared grid at all means the two are not near each other, a state and not a fault.
 
 ## Ordering a session that is not drawn
 
@@ -127,6 +126,7 @@ one session's ground and objects are drawn into the anchor's scene under a singl
 |---|---|
 | The sources | `MapRaster` and `Gobs` take their `MCache` and `Glob` as constructor arguments; `MapView.SessionTerrain`, `SessionGobs` and `SessionClickMap` are those same classes pointed at another session |
 | One object, one copy | `MapRaster.skipcut` and `Gobs.skipgob`. The anchor claims its ground first and each patch claims what is left; a gob belongs to the **first** view, in a stable order, whose session can see it. Positional rather than claimed, because `skipgob` runs on Loader threads as well as on the tick and so can agree with nobody about who ran first |
+| **One object, several `Gob`s** | `skipgob` asks `glob.oc.getgob(ob.id)` of every other session, so **`Gob.id` is the server's** and names the same object in each of them. The object is not shared: every `OCache` holds its own `Gob`, and `Gob.glob` is **`final`** — a gob is placed against the map of the session that built it (`Gob.placer` &rarr; `glob.map.mapplace`, `Gob.getmapstate` &rarr; `glob.map.tiler`), so drawing a thing in another session's scene means **building another `Gob`**, never adding one to two views. ⚠️ `Gob.rc` is that session's frame too, so a gob handed across without the offset above is placed where nothing is |
 | The one window that leaves | `SessionGobs.tick` reconciles the two sets on a 0.25s timer, which suits geometry — the boundary walks — but not an object the anchor has **just** learned about: another session's copy is already in the tree, so both are drawn and both tick until the timer runs, and an effect firing in that window is played twice. `Gobs.dedupe` evicts the copies at the moment the anchor's own enters the tree — at the end of `addgob` and not when the add was merely promised, or the object blinks out for as long as its model takes to build |
 | Clickability | the pick pass tests `MapView.clmaptree` alone, so merged ground absent from it is scenery. `MapView.checkmapclick` then derives its coordinate from `cut.ul`, in the frame of whichever session's map produced that cut — the translation above it never enters that arithmetic. `MapMesh.map` says whose, and the answer is corrected once, at the source |
 | Cost | `ShadowMap.maskshadow` keeps a patch out of `ShadowMap.ShadowList`, which is a second full render of every triangle it holds; the shadow map is a 750-unit box around the anchor's character, so a patch far enough away to need merging contributes nothing to it. Each patch is also frustum-tested per cut and per gob, because [nothing in the render path culls](world-3d.md) |

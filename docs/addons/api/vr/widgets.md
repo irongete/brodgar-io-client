@@ -179,6 +179,18 @@ surface is freed and the handle reports `:exists()` false, exactly as `:remove` 
 the one ending that puts **nothing** back on the flat UI — there is nothing left to put — so a container the
 server closes leaves the screen exactly as it would have if the window had never stood.
 
+## It stands with the character you stood it from
+
+The other three kinds of the section are pictures, and a picture
+[stands in the world](README.md#several-characters-one-world): tab to another character on that ground and
+it is drawn there too. **A panel does not.** What it draws is a widget in the tree of the character it was
+stood from, painted by that tree's own pass and clicked through it — so it is on screen while that character
+is, and while another one is you see nothing of it and it takes no clicks.
+
+Nothing is lost meanwhile. The widget is still in that tree, still ticking, still filling with items, and
+`x:exists()` is true from every character; `x:drawn()` is what answers whether it is in the scene you are
+looking at. Tab back and the panel is there, in the state it kept.
+
 ## What is refused
 
 - **A widget that is already standing**, naming the addon that holds it. One widget stands in one place.

@@ -1,7 +1,7 @@
 # The 3D world: scene, sprites, textures and glTF
 
-> The `MapView` scene, client-only gobs, the render tree and the texture/material path. Line
-> numbers are indicative;
+> The `MapView` scene, client-only gobs, the render tree and the texture/material path. A gob's own
+> session is [multi-session.md](multi-session.md).
 
 ## Client-only world entities
 

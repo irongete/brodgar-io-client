@@ -109,6 +109,7 @@ is prose about behaviour, never a call.
 - `src/io/brodgar/addon/MapApi.java` — 5
 - `src/io/brodgar/addon/LuaMarker.java` — 5
 - `src/io/brodgar/addon/VrApi.java` — 6
+- `src/io/brodgar/addon/LuaWorldEntity.java`, `LuaGhost.java`, `LuaObject.java` — 6 (a kind's own visual)
 - `src/io/brodgar/addon/HookApi.java` — 7
 - `src/haven/MapFile.java` — 5
 - `src/haven/GameUI.java` — 5
@@ -122,4 +123,5 @@ is prose about behaviour, never a call.
 - `docs/addons/api/slash.md` — 7
 - `docs/addons/api/map/**` — 5
 - `docs/addons/api/vr/**` — 6
+- `docs/client/multi-session.md`, `docs/client/world-3d.md` — 6 (the map toll)
 - `DOCUMENTATION.md` — 5, 6

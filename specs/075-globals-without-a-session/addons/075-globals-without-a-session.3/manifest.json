@@ -1,0 +1,9 @@
+{
+  "name": "075.3 — a thing you stand in the world belongs to the world",
+  "id": "075-globals-without-a-session.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 075.3: an entity holds its own place and is drawn for whichever character can see it, and the object it stands on names it from any of them.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

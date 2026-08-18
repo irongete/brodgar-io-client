@@ -45,6 +45,17 @@ public final class LuaGhost extends LuaWorldEntity {
 
     void unregister() { owner.ghosts.remove(this); }
 
+    /**
+     * A ghost's one visual: the {@code .res} model it was given. Reads the DESIRED resource under the monitor,
+     * so a {@code :res(name)} that landed a moment ago is the one rebuilt (075.3). Throws {@code Loading} when
+     * the resource is not in the pool right now, which its caller retries on.
+     */
+    haven.Drawable visual(haven.Gob gob) {
+        Indir<Resource> r; MessageBuf sd;
+        synchronized(this) { r = this.res; sd = this.sdt; }
+        return new haven.ResDrawable(gob, r, (sd == null) ? MessageBuf.nil : sd);
+    }
+
     String visualName() { return resName; }
 
     String clickEvent() { return "GhostClicked"; }   // V2: the owner-scoped click event (unchanged)

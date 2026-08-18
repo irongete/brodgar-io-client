@@ -102,10 +102,17 @@ already answers. Every entry below that reads *self-releasing* is one of these.
 
 ## `VrApi`, `MapApi` — the world (073.4)
 
+**The two `VrApi` registries below read *per session* until `075.3`, and that verdict was wrong.** It rested
+on two claims about the source — that a gob id "means a different object in the next session" and that a free
+entity stands "in one session's coordinate frame" — and neither survives reading it: a gob id is the server's,
+and since `045.1` a free entity holds a grid id and an offset within it, which is the server's too. What is
+one login's is not the entity but the arithmetic that turns its place into a coordinate. The rows are
+corrected in place, because a census that argues a verdict the tree no longer holds is worse than none.
+
 | Field | Verdict | Why |
 |---|---|---|
-| `VrApi.anchored` | per session | keyed on **gob id**, which means a different object in the next session |
-| `VrApi.free` | per session | entities standing at a place in one session's coordinate frame |
+| `VrApi.anchored` | process-wide | keyed on **gob id**, which is the server's: one object observed by two sessions (`docs/client/multi-session.md`) |
+| `VrApi.free` | process-wide | entities holding a **grid id and an offset in it**, which is the server's naming of a place |
 | `VrApi.groundDirty` | process-wide | it flags the **drawn** scene's cut map, and there is one scene |
 | `VrApi.passes` | process-wide | a cumulative counter of the ground pass, which the profiler reports for the client |
 | `VrApi.sessSeg` / `sessTc` / `sessSeen` | per session | the session coordinate space's own origin — the name says it |

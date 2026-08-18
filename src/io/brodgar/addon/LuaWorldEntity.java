@@ -39,11 +39,13 @@ import org.luaj.vm2.LuaValue;
  * time — so a verb that lands <i>before</i> the visual streams in still takes effect.
  *
  * <p><b>{@link #grounded} is not one of them</b> (044.9) — it is what the WORLD says rather than what the addon
- * asked for, and it is the third boolean {@code VrApi.shows} ANDs: a free entity is in the scene only while the
- * ground under it is drawn. Nothing the addon writes ever touches it, which is why {@code :visible()} keeps
- * reading back exactly what it was told while the thing itself waits out a walk to the far side of the map.
- * Since 045.1 it is false whenever there is no coordinate at all ({@link #rc} null) — the same sentence said
- * about a place this session cannot locate rather than one it can see is bare.
+ * asked for, and it is the third boolean {@code VrApi.shows} ANDs: an entity is in the scene only while the
+ * character on screen can see the place it stands in. Nothing the addon writes ever touches it, which is why
+ * {@code :visible()} keeps reading back exactly what it was told while the thing itself waits out a walk to the
+ * far side of the map. Since 045.1 it is false whenever there is no coordinate at all ({@link #rc} null) — the
+ * same sentence said about a place this session cannot locate rather than one it can see is bare — and since
+ * 075.3 it answers for an anchored entity too, whose place is an object the drawn character either has in view
+ * or has not.
  *
  * <p><b>Ownership (P2).</b> The entity is bridge-owned: it lives only in its addon's owned-resource registry
  * ({@link Addon#ghosts} / {@link Addon#sprites}). There is no global tick/poll list, because it is a passive
@@ -89,7 +91,8 @@ public abstract class LuaWorldEntity {
     Color   tint;                  // V3: desired colour-overlay tint, or null; mirrored onto the GhostGob; guarded by this
     float   scale = 1f;            // V6: desired uniform scale (1 = original size); mirrored onto the GhostGob; guarded by this
     boolean hidden;                // V3: :hide() removed the scene slot (gob kept); :show() re-adds it; guarded by this
-    boolean grounded = true;       // 044.9: is the ground under it drawn? FREE entities only; false whenever rc == null (045.1); guarded by this
+    boolean grounded = true;       // 044.9/075.3: can the DRAWN character see where it stands? the ground under a free
+                                   //   one (false whenever rc == null, 045.1), the object under an anchored one; guarded by this
     LuaValue onClick;              // V2: per-entity click callback fn(handle, button, x, y), or null; set at create
 
     long    followTgt;             // ANCHOR: the gob id this entity follows, or 0 = free (not anchored); set at create only
@@ -119,13 +122,22 @@ public abstract class LuaWorldEntity {
         new java.util.concurrent.atomic.AtomicLong();
 
     /**
-     * <b>The session whose world it stands in</b> (073.4) — the {@code ui} of the {@link MapView} it was created
-     * into, taken once at registration and kept. An entity IS a client-only gob added to one scene, so that is
-     * not a guess about which session it belongs to but the thing itself; and holding it is what lets the
-     * removal reach the very index the create wrote to, whichever session is being drawn by then. Set at create
-     * only, like {@link #followTgt}.
+     * <b>The tree whose scene it is standing in right now</b> — the {@code ui} of the {@link MapView} its gob
+     * was added to. An entity IS a client-only gob in one scene, so this is not a guess about which session it
+     * belongs to but the thing itself. <b>It is not where the entity belongs</b> (075.3): the entity belongs to
+     * the world, and this follows the screen — rewritten every time {@code VrApi.rehome} rebuilds the visual for
+     * the character now looking, and {@code null} while it stands in no scene at all.
      */
     UI ui;
+
+    /**
+     * 075.3: <b>a create is still streaming in</b> on a loader thread (a ghost's resource), so this entity has
+     * no visual yet and the one that is coming names the scene it was started for. The pass that re-homes an
+     * entity into the scene being drawn leaves it alone while this is set, and the create raises the pass's own
+     * flag when it lands — otherwise the two would both publish a gob and one of them would be lost. Guarded by
+     * {@code this}; only a ghost ever sets it.
+     */
+    boolean streaming;
 
     Gob gob;                       // the client-only Gob, or null until the (possibly deferred) create publishes it
     RenderTree.Slot slot;          // its scene slot, or null until added / while hidden; removed on destroy/teardown
@@ -164,6 +176,19 @@ public abstract class LuaWorldEntity {
      */
     haven.Drawable visual(Gob gob, String mode) {
         throw new IllegalStateException("a " + kind() + " has one visual and no facing");
+    }
+
+    /**
+     * <b>Build this entity's visual on a fresh gob</b> (075.3) — the same picture, in another character's
+     * scene. An entity holds a place in the world rather than a session, so the screen moving to a character
+     * who can see that place rebuilds it there ({@code VrApi.rehome}); a {@code Gob} carries the {@code Glob}
+     * it asks for the tile under itself, so a rebuild is what "the same thing, drawn from over there" is.
+     * Defaults to the facing form, which is the one the two flat kinds already answer; the two model kinds
+     * override it with the one visual they have. May throw {@link haven.Loading} — a resource that is not in
+     * the pool right now is a retry, not a loss.
+     */
+    haven.Drawable visual(Gob gob) {
+        return visual(gob, facing);
     }
 
     /**

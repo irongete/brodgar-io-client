@@ -65,7 +65,8 @@ all**.
 **A Position anchor has to be a place that can be kept.** What one standing at a point holds is the
 [durable](../world.md#the-position-type) form of that place — the grid the ground belongs to, and where
 inside that grid the point sits — rather than a plain world coordinate, which is
-[this session's answer and nothing more](#the-ground-under-one-that-stands-still). Ground nobody has ever
+[the answer of whichever character is looking](#the-ground-under-one-that-stands-still), and nothing more.
+Ground nobody has ever
 walked has no durable form at all, so `:add(what, p)` and `e:position(p)` refuse such a place rather than
 stand something on a number that will stop meaning anywhere. `p:durable()` is the same question asked ahead
 of time.
@@ -83,7 +84,7 @@ kept in case the gob comes back: a gob that returns is bare, and re-anchoring is
 > **`:add` raises when you are not in the world.** A thing in the 3D scene needs that scene, so placing one
 > before you have entered the world is an error rather than a `nil` you would discover one setter later.
 > Place from `SessionEnteredWorld` onward. A place that *can* be held is never too far away to use, though:
-> ground that is not drawn right now, and ground this session cannot locate at all, both
+> ground that is not drawn right now, and ground the character on screen cannot locate at all, both
 > [wait](#the-ground-under-one-that-stands-still) rather than raising.
 
 An [image](sprites.md) or a [model](models.md) is passed as a [`hafen.asset`](../asset.md) **handle**, never
@@ -148,11 +149,11 @@ for its tile. Drawn ground and locatable ground are two questions, and `:drawn()
 server drop the map and hand it back re-based, so one and the same world coordinate names different ground
 before and after. What one standing at a point holds is the durable place, never those numbers, so it is
 where you left it when you walk back out — and the two halves of `e:position()` are what say so: `:info()`
-reads back the same grid and the same offset across the whole trip, while `:x()` and `:y()` are only this
-session's answer to that place and are free to come back different. That asymmetry is the contract, not an
-accident of how the place is stored.
+reads back the same grid and the same offset across the whole trip, while `:x()` and `:y()` are only the
+drawn character's answer to that place and are free to come back different. That asymmetry is the contract,
+not an accident of how the place is stored.
 
-**A place this session cannot locate is a legal place to stand something.** Hand `:add` a
+**A place the character on screen cannot locate is a legal place to stand something.** Hand `:add` a
 [Position](../world.md#the-position-type) rebuilt from somewhere you have not been since you logged in — one
 out of [`hafen.store`](../store.md), one recorded in another part of the world — and nothing raises. The
 entity exists, `:position():info()` answers the grid it was given, `:x()` answers `nil`, and `:drawn()` is
@@ -179,9 +180,40 @@ local e = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", home)
 e:exists()             --> true    it is yours and it is placed
 e:visible()            --> true    you never hid it
 e:position():info()    --> the grid and the offset it was given: the place it holds
-e:position():x()       --> nil     this session has not located that grid
+e:position():x()       --> nil     the character on screen has not located that grid
 e:drawn()              --> false   so there is no ground out there to stand it on, yet
 ```
+
+## Several characters, one world
+
+The client can hold several characters logged in and draws one of them at a time. **A thing you stand in
+the world belongs to the world, not to the character who stood it.** The place it holds is the server's own
+and means the same patch of ground to everybody, so tabbing to a character standing on that ground finds it
+there, whole, in the same place.
+
+The boundary is one line: **you read and order across every character, and what is drawn is the one on
+screen.**
+
+| Ask | What answers |
+|---|---|
+| `:list()`, `:count()`, `:find()` | everything you have standing, whichever character was looking when you stood it |
+| `e:exists()`, `e:visible()`, `e:position():info()` | the same from every character: they are facts about the thing |
+| `e:position():x()` and `:y()` | the drawn character's coordinate for that place, or `nil` when it cannot locate it |
+| `e:drawn()` | is it in the scene the character on screen is looking at |
+
+Tab to a character standing somewhere else entirely and nothing of yours is drawn and nothing goes wrong:
+that character cannot locate that ground, which is exactly the
+[wait](#the-ground-under-one-that-stands-still) a place you have not walked to puts one in. Tab back and it
+is drawn again.
+
+One that **follows a game object** is asked the same question about that object. A game object is the
+server's too, so two characters looking at one see the same thing standing on it, and a character who cannot
+see the object draws nothing. It ends when no character has it in view any more, which is what *it dies with
+its gob* comes to with two of them logged in.
+
+> **A standing [widget](widgets.md) is the one kind that does not travel.** What it draws is a widget in the
+> tree of the character it was stood from, drawn and clicked through that tree, so it is on screen while
+> that character is and not while another one is.
 
 ## The whole section at once
 

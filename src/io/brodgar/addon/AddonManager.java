@@ -457,17 +457,20 @@ public final class AddonManager {
         String beltLastJson;
 
         // ---- the world (073.4) -------------------------------------------------------------------
-        // A gob id and a session coordinate each name ONE LOGIN'S world: the same number is a different
-        // object in the next session. Each is reached with the ui of the thing the seam was handed — the
-        // MapView an entity was stood in, the MiniMap that re-based, the map file a notify names — and never
-        // through screen(), which answers the scene being DRAWN while the seams here run on a loader thread
-        // and on the disk layer's own. A marker ref is NOT one of them (075.2): there is one database per
-        // (store, filename) for the client, so the Marker objects behind the refs are the client's too.
+        // A session coordinate names ONE LOGIN'S world: the origin the server re-bases whenever it drops the
+        // map is that login's own. It is reached with the ui of the thing the seam was handed — the MiniMap
+        // that re-based, the map file a notify names — and never through screen(), which answers the scene
+        // being DRAWN while the seams here run on a loader thread and on the disk layer's own. A marker ref
+        // is NOT one of them (075.2): there is one database per (store, filename) for the client, so the
+        // Marker objects behind the refs are the client's too.
+        //
+        // 075.3: AND NEITHER ARE THE TWO ENTITY REGISTRIES. They were here on the reasoning that a gob id
+        // "means a different object in the next session" and that a free entity stands "in one session's
+        // coordinate frame" — both wrong. A gob id is the server's, one object observed by two sessions
+        // (docs/client/multi-session.md), and a free entity holds a grid id and an offset within it, which is
+        // the server's naming of a place. So they are one set for the client, in VrApi: you stand a thing in
+        // the world, and it draws for whichever character is looking at that patch of world.
 
-        /** Gob id &rarr; the entities of this session anchored to it ({@link VrApi}, 043.2). Guarded by itself. */
-        final Map<Long, List<LuaWorldEntity>> vrAnchored = new HashMap<Long, List<LuaWorldEntity>>();
-        /** Every entity standing at a PLACE in this session's world ({@link VrApi}, 044.9). Guarded by itself. */
-        final List<LuaWorldEntity> vrFree = new ArrayList<LuaWorldEntity>();
         /** The last session location this session's re-ground let through — the equality memo that keeps that
          *  drain an event rather than a per-frame poll (045.2). The three below are guarded by it. */
         final Object vrSessLock = new Object();
@@ -893,6 +896,15 @@ public final class AddonManager {
             // with the addons that own them (074.2): the seam is handed a bare Runnable and knows no session.
             drainResolveQueue();
 
+            // The ground under a thing standing in the world (044.9), and since 075.3 the scene it stands in
+            // as well: the terrain's cut map changed — the player crossed a cut boundary, or a grid streamed
+            // in or out — or the screen moved to another session, which changes where every entity is drawn
+            // and whether the character now looking can see its place at all. On the LAYER's tick because
+            // there is ONE set of entities for the client and one scene being drawn: run per session it would
+            // walk the same entities once per login and re-derive their coordinates against a map that is not
+            // the one they are drawn in. Free when nothing moved: two reference reads.
+            VrApi.drainGround();
+
             // 074.4: whose character the per-character saved variables belong to, which is the session on
             // SCREEN — so this runs before the two fires below and an addon told the screen moved reads the
             // character it moved to. One string compare on a frame that changed nothing.
@@ -961,8 +973,12 @@ public final class AddonManager {
                 // record on the gob to be found through — VrApi's by-target index is what makes that O(1) too.
                 if(!ge.added) {
                     LuaGobOverlay.gobGone(ge.gob);
-                    VrApi.anchorGone(st, ge.gob.id);
+                    VrApi.anchorGone(ge.gob.id);   // 075.3: the client's one index, and only if no session still sees it
                 }
+                // 075.3: ...and either way, which characters can see that object just changed — so a thing
+                // standing on it that survived because ANOTHER character has it in view is re-asked whether
+                // the one on screen does. A flag, and only for the ids something is actually standing on.
+                VrApi.anchorSeen(ge.gob.id);
                 fireGob(ge.added ? "GobAdded" : "GobRemoved", ge.gob.id);
             }
 
@@ -1059,14 +1075,6 @@ public final class AddonManager {
             //     The bump is caught at its source and marshalled onto the tick to avoid deadlock with the
             //     map DB's RW lock. Global event.
             drainMarkerChanges(st);
-
-            // 1e. The ground under a free hafen.vr() entity (044.9): the terrain's own cut map changed — the
-            //     player crossed a cut boundary, or a grid streamed in or out — so re-ask which of the
-            //     entities standing at a POINT still have ground under them. Flagged at the two mutation
-            //     points inside MapView's render tick and drained here (D-106), because a client-only gob is
-            //     in no OCache and so nothing else would ever take it out of the scene. Free when nothing
-            //     moved: one boolean read.
-            VrApi.drainGround(st);
 
             // 2. "Entered the world" — fire SessionEnteredWorld once the HUD (GameUI) is not just built but
             //    ATTACHED to ui.root. The map view sets enterWorldPending from its ctor (loader thread),

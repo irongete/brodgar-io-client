@@ -67,7 +67,7 @@ means a namespace was touched that this feature does not move.
       `[manual]`: `:session drop` one of them and re-run. Expect: markers still read — the database
       outlived the window that showed it.
 
-- [ ] **075.3 — A thing you stand in the world belongs to the world.**
+- [x] **075.3 — A thing you stand in the world belongs to the world.**
       `073` put `VrApi.anchored` and `VrApi.free` under `SessionState`, reasoning that they are keyed
       on gob ids that "mean a different object in the next session" and hold entities "in one
       session's coordinate frame". **Both halves are wrong**: `docs/client/multi-session.md` records

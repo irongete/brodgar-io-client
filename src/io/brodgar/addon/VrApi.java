@@ -512,15 +512,14 @@ final class VrApi {
 
     // ---- ANCHORED, AND FREE: the index that lets an anchored entity die with its gob (043.2) ------------------
 
-    // 073.4: BOTH INDEXES ARE ONE SESSION'S (SessionState.vrAnchored / .vrFree) — the first is keyed by GOB ID,
-    // which names a different object in the next session, and the second holds entities standing in one session's
-    // coordinate frame. The session is the one whose SCENE the entity stands in: an entity is a client-only gob
-    // added to one MapView, so that view's ui is the answer, and it is recorded on the entity at registration
-    // (LuaWorldEntity.ui) so a removal cannot reach a different index than its create did. The two seams that
-    // arrive with no entity in hand are handed the GOB instead — anchorGone from the drain that already filed
-    // the event under its gob's session, anchoredMembers from a live Gob — and a gob names its session through
-    // Sessions.uifor(glob). Those two answers agree by construction: a gob anchor is resolved out of the very
-    // OCache the scene it is added to belongs to.
+    // 075.3: BOTH INDEXES ARE THE CLIENT'S, one set however many characters are logged in. 073.4 had put them
+    // under SessionState on the reasoning that a gob id "means a different object in the next session" and that
+    // a free entity stands "in one session's coordinate frame"; both halves are wrong. A gob id is the SERVER'S
+    // — docs/client/multi-session.md records one object observed by two sessions — and a free entity holds a
+    // grid id and an offset within it (045.1), which is the server's own naming of a place and means the same
+    // patch of ground to every character standing on it. What is per session is not the entity but the ARITHMETIC
+    // that turns its place into a coordinate, and that is re-run against whichever session is drawn
+    // (LuaPosition.worldOf), answering nothing when that character cannot see that ground.
     //
     // The anchored map was written for one reader, anchorGone: D-102 says the end of a derived thing rides the
     // event its source already raises, and the client already raises GobRemoved — but the record that made that
@@ -533,23 +532,26 @@ final class VrApi {
     // nothing else. Each is guarded by itself (creates run on the UI thread, a teardown may sweep from a
     // session-bind thread).
 
+    /** Gob id &rarr; the entities anchored to that object, whichever character stood them there (043.2, 075.3). */
+    private static final java.util.Map<Long, List<LuaWorldEntity>> anchored =
+        new java.util.HashMap<Long, List<LuaWorldEntity>>();
+    /** Every entity standing at a PLACE of its own — a grid id and an offset in it (044.9, 045.1, 075.3). */
+    private static final List<LuaWorldEntity> free = new ArrayList<LuaWorldEntity>();
+
     /**
-     * Index a freshly created entity <b>in the state of the session whose scene it stands in</b> (073.4): by
-     * target id when it follows a gob, in that session's flat free list when it stands where it was put. A free one also has the ground under it read once, right here, so a create over
+     * Index a freshly created entity (075.3): by target id when it follows a gob, in the flat free list when it
+     * stands where it was put. A free one also has the ground under it read once, right here, so a create over
      * ground that is not drawn simply does not enter the scene (044.9) — and the cut arriving is what puts it
      * there, rather than a bounded {@link Resolve} retry chain on the {@code Loading} the add would have thrown.
      */
     private static void entityRegister(UI u, LuaWorldEntity e, LuaPosition.Anchor place) {
-        e.ui = u;                                      // 073.4: whose world it stands in, said once and kept
-        SessionState st = state(u);
-        if(st == null)
-            return;                                    // no session behind that scene: nothing to index it in
+        e.ui = u;                                      // the tree whose scene it stands in RIGHT NOW (075.3)
         if(e.followTgt != 0) {
             Long k = Long.valueOf(e.followTgt);
-            synchronized(st.vrAnchored) {
-                List<LuaWorldEntity> l = st.vrAnchored.get(k);
+            synchronized(anchored) {
+                List<LuaWorldEntity> l = anchored.get(k);
                 if(l == null)
-                    st.vrAnchored.put(k, l = new ArrayList<LuaWorldEntity>());
+                    anchored.put(k, l = new ArrayList<LuaWorldEntity>());
                 l.add(e);
             }
             return;
@@ -563,26 +565,23 @@ final class VrApi {
             e.agy = place.y;
             e.grounded = groundDrawn(e.rc);
         }
-        synchronized(st.vrFree) { st.vrFree.add(e); }
+        synchronized(free) { free.add(e); }
     }
 
     /** Drop an entity from the index — every ending goes through {@link #destroyEntity}, so this is its one caller. */
     private static void entityUnregister(LuaWorldEntity e) {
-        SessionState st = state(e.ui);                 // 073.4: the very index the create put it in
-        if(st == null)
-            return;
         if(e.followTgt == 0) {
-            synchronized(st.vrFree) { st.vrFree.remove(e); }
+            synchronized(free) { free.remove(e); }
             return;
         }
         Long k = Long.valueOf(e.followTgt);
-        synchronized(st.vrAnchored) {
-            List<LuaWorldEntity> l = st.vrAnchored.get(k);
+        synchronized(anchored) {
+            List<LuaWorldEntity> l = anchored.get(k);
             if(l == null)
                 return;
             l.remove(e);
             if(l.isEmpty())
-                st.vrAnchored.remove(k);
+                anchored.remove(k);
         }
     }
 
@@ -591,13 +590,24 @@ final class VrApi {
      * called from the tick that drains the client's own {@code OCache} removal, just before {@code GobRemoved}
      * reaches Lua, so a handler already reads {@code :exists() == false}. A free entity is untouched — it was
      * never derived from anything, so nothing ends it but its own collection.
+     *
+     * <p><b>...and the gob is gone when NO session has it any more</b> (075.3). A removal is one character's
+     * {@code OCache} dropping an object, which is what walking out of view does — and with two characters
+     * logged in, the one who walked away must not end a thing standing on an object the other is looking
+     * straight at. So the id is checked against every live session before anything is destroyed. The lookup
+     * that comes first is the O(1) one: an id nothing is anchored to costs a map miss and returns.
      */
-    static void anchorGone(SessionState st, long id) {
-        if(st == null)
-            return;
+    static void anchorGone(long id) {
+        Long k = Long.valueOf(id);
+        synchronized(anchored) {
+            if(!anchored.containsKey(k))
+                return;                                // nothing of ours was standing there — the common case
+        }
+        if(seenAnywhere(id))
+            return;                                    // another character still has that object in view
         List<LuaWorldEntity> l;
-        synchronized(st.vrAnchored) {
-            l = st.vrAnchored.remove(Long.valueOf(id));
+        synchronized(anchored) {
+            l = anchored.remove(k);
         }
         if(l == null)
             return;
@@ -621,11 +631,12 @@ final class VrApi {
      */
     static List<LuaWorldEntity> anchoredMembers(Addon owner, Gob g) {
         List<LuaWorldEntity> out = new ArrayList<LuaWorldEntity>();
-        SessionState st = (g == null) ? null : state(io.brodgar.session.Sessions.uifor(g.glob));
-        if(st == null)
+        if(g == null)
             return out;
-        synchronized(st.vrAnchored) {
-            List<LuaWorldEntity> l = st.vrAnchored.get(Long.valueOf(g.id));
+        // 075.3: the id is the SERVER'S, so the same object read through either character's OCache finds the
+        // same entities standing on it — which is what "one object observed by two sessions" has to mean.
+        synchronized(anchored) {
+            List<LuaWorldEntity> l = anchored.get(Long.valueOf(g.id));
             if(l == null)
                 return out;
             for(LuaWorldEntity e : l) {
@@ -722,6 +733,7 @@ final class VrApi {
                                                        //   or 044.9: with the ground under it when it is free
         LuaValue handle = ghostHandle(gh);
         gh.handle = handle;
+        gh.streaming = true;                           // 075.3: a create is on its way — the scene pass leaves it alone
         g.loader.defer(new Runnable() {
             public void run() {
                 // Read the DESIRED res/sdt fresh each run so a :setRes that landed before we published is honoured
@@ -740,7 +752,7 @@ final class VrApi {
                     UI u = host();
                     if(u != null)
                         u.error(clampMsg("addon: ghost resource '" + rnm + "' could not be loaded"));
-                    synchronized(gh) { gh.failed = true; }
+                    synchronized(gh) { gh.failed = true; gh.streaming = false; }
                     return;
                 }
                 // Build the gob + drawable OUTSIDE the ghost lock (no scene mutation yet), then publish atomically.
@@ -759,6 +771,7 @@ final class VrApi {
                 gob.a = a0;
                 gob.setattr(new ResDrawable(gob, res, (sdt == null) ? MessageBuf.nil : sdt));  // res cached now → no Loading here
                 synchronized(gh) {
+                    gh.streaming = false;                    // 075.3: whatever happens below, the create is done streaming
                     if(gh.dead) { gob.dispose(); return; }   // destroyed mid-build → discard (never added to scene)
                     gob.clickable = gh.clickable;            // V2: reflect opt-in clickability BEFORE the gob enters the scene
                     gob.alpha = gh.alpha;                    // V3: reflect the desired look before the first scene add
@@ -772,6 +785,10 @@ final class VrApi {
                     if(shows(gh))                            // hidden before it published — its own, or its whole section's — stays out
                         addToScene(gh, mv);                  // the // addon: MapView seam; Resolve retries when the tile is not here yet
                 }
+                // 075.3: it published into the scene that was drawn when the create STARTED, and a resource
+                // takes as long as it takes — so ask the pass to check which scene that is now. One walk of
+                // the free list, on the create and never again: the flag is what keeps this an event.
+                groundDirty = true;
             }
         }, null);
         return gh;
@@ -1143,8 +1160,11 @@ final class VrApi {
      */
     private static void retryAdd(LuaWorldEntity e) throws Loading {
         synchronized(e) {
-            if(e.dead || !shows(e) || (e.gob == null) || (e.mv == null) || (e.rc == null))
-                return;                                // gone, hidden again (its own or its section's), or detached while we waited
+            if(e.dead || !shows(e) || (e.gob == null) || (e.mv == null) || (e.rc == null) || (e.slot != null))
+                return;                                // gone, hidden again (its own or its section's), detached
+                                                       //   while we waited, or already in: 075.3 rehomes an
+                                                       //   entity into another scene, so a notify may arrive
+                                                       //   for an add a rebuild has already made
             e.slot = e.mv.addClientGob(e.gob);
             e.gob.move(e.rc, e.a);                      // apply any :position/:rotate that landed while pending
         }
@@ -1830,7 +1850,28 @@ final class VrApi {
     private static volatile boolean groundDirty;
 
     /**
-     * How many times {@link #drainGround} has actually walked the free list — cumulative for the client's life,
+     * 075.3: raised when <b>which characters can see an object something is standing on</b> changed — the gob
+     * entered or left an {@code OCache}. The anchored half of {@link #drainGround}, kept apart from
+     * {@link #groundDirty} because the ground moving says nothing about an object and walking both lists on
+     * every cut boundary would be a fold over things that could not have changed.
+     */
+    private static volatile boolean anchorsDirty;
+
+    /**
+     * An object came into, or went out of, some character's view. Called for every gob the client adds or
+     * removes, so it is an O(1) miss on the map for all but the handful of ids something is standing on — and
+     * for those it is a flag, drained on the tick like everything else in this layer (D-106).
+     */
+    static void anchorSeen(long id) {
+        synchronized(anchored) {
+            if(!anchored.containsKey(Long.valueOf(id)))
+                return;
+        }
+        anchorsDirty = true;
+    }
+
+    /**
+     * How many times {@link #drainGround} has actually walked the entities — cumulative for the client's life,
      * and the number that makes "this is an event, not a poll" a thing a suite can ASSERT rather than a claim
      * (045.2). It moves a handful of times while walking and not at all while standing still; a tap that had
      * lost its guard would move it every frame. UI thread only (the addon tick), so a plain long.
@@ -1839,23 +1880,17 @@ final class VrApi {
 
     /**
      * {@code p:entities()}: free entities standing right now, how many of them are waiting, and {@link #passes}.
-     * <b>One figure for the whole client</b> (073.4), summed over every session's own list: the profiler reports
-     * what the client is carrying, and a per-session breakdown is a question no counter here asks yet.
+     * <b>One figure for the whole client</b>, which since 075.3 is what the list itself is: the profiler reports
+     * what the client is carrying, and there is nothing per session left to break it down by.
      */
     static int freeCount() {
-        int n = 0;
-        for(SessionState st : AddonManager.allStates()) {
-            synchronized(st.vrFree) { n += st.vrFree.size(); }
-        }
-        return n;
+        synchronized(free) { return free.size(); }
     }
 
-    /** Of those, how many hold a place their session cannot locate — the ones waiting for their ground (045.2). */
+    /** Of those, how many hold a place the drawn session cannot locate — the ones waiting for their ground (045.2). */
     static int waitingCount() {
-        List<LuaWorldEntity> l = new ArrayList<LuaWorldEntity>();
-        for(SessionState st : AddonManager.allStates()) {
-            synchronized(st.vrFree) { l.addAll(st.vrFree); }
-        }
+        List<LuaWorldEntity> l;
+        synchronized(free) { l = new ArrayList<LuaWorldEntity>(free); }
         int n = 0;
         for(LuaWorldEntity e : l) {
             synchronized(e) {
@@ -1923,29 +1958,52 @@ final class VrApi {
     }
 
     /**
-     * Re-ask the ground question for every free entity of this session, on its own tick, and only when something
-     * moved. An entity whose answer changed is attached or detached exactly as a {@code :visible(b)} would be —
-     * the same two helpers, so there is one way in and out of the scene and not a fourth.
-     *
-     * <p><b>The list is one session's and the flag is the client's</b> (073.4), and that is not a discrepancy:
-     * what the flag reports is the DRAWN scene's cut map, and there is one scene ({@link #groundDrawn} asks
-     * {@code screenView()}, which this task leaves exactly as it is). So the pass that consumes it is the pass
-     * over the entities standing in that scene — today the only session with a tick pump at all.
+     * <b>The scene the entities are standing in</b> (075.3) — what {@link #drainGround} last re-homed them to,
+     * so that the screen moving to another character is noticed by the one pass that can act on it. Compared by
+     * identity and never dereferenced; a destroyed view is simply not the one being drawn any more.
      */
-    static void drainGround(SessionState st) {
-        if(!groundDirty || (st == null))
+    private static MapView scene;
+
+    /**
+     * Re-ask, for every entity standing in the world, the two questions the world answers about it: <b>which
+     * scene is it drawn in</b>, and <b>can the character looking at that scene see its place at all</b>. Run on
+     * the layer's tick (the client's, since 075.3 there is one set of entities and one scene), and only when
+     * something moved. An entity whose answer changed is attached or detached exactly as a {@code :visible(b)}
+     * would be — the same two helpers, so there is one way in and out of the scene and not a fourth.
+     *
+     * <p><b>Three sources, and each says which list it is about.</b> The cut map changing is the frequent one
+     * — a handful of times a minute while walking — and it only ever changes the ground, so it walks the free
+     * entities alone. An object entering or leaving a character's view ({@link #anchorSeen}) is about the
+     * anchored ones alone. The screen moving to another character is about all of them, and is the rare one:
+     * every entity's gob has to be rebuilt in the scene now being drawn ({@link #rehome}), and an anchored one
+     * has to find its object in the new character's {@code OCache}.
+     */
+    static void drainGround() {
+        MapView mv = screenView();
+        boolean moved = (mv != scene);                 // 075.3: the screen is on another character's world
+        if(moved)
+            scene = mv;
+        boolean ground = groundDirty || moved, anchors = anchorsDirty || moved;
+        if(!ground && !anchors)
             return;
         groundDirty = false;
-        List<LuaWorldEntity> l;
-        synchronized(st.vrFree) {
-            if(st.vrFree.isEmpty())
-                return;
-            l = new ArrayList<LuaWorldEntity>(st.vrFree);
+        anchorsDirty = false;
+        List<LuaWorldEntity> l = new ArrayList<LuaWorldEntity>();
+        if(ground) {
+            synchronized(free) { l.addAll(free); }
         }
+        if(anchors) {
+            synchronized(anchored) {
+                for(List<LuaWorldEntity> v : anchored.values())
+                    l.addAll(v);
+            }
+        }
+        if(l.isEmpty())
+            return;
         passes++;                                      // 045.2: what p:entities() reports, and the poll test
         for(LuaWorldEntity e : l) {
             try {
-                reground(e);
+                reground(e, mv);
             } catch(RuntimeException ex) {
                 /* best-effort: one bad entity never stops the rest from being re-asked */
             }
@@ -1953,21 +2011,53 @@ final class VrApi {
     }
 
     /**
-     * Re-read the ground under one free entity and put it in or out of the scene if the answer changed. Takes the
-     * entity monitor itself; a no-op when the answer is the same, which is what it is on all but the handful of
-     * ticks a cut actually appears or disappears on.
+     * Re-read where one entity stands and put it in or out of the drawn scene. Takes the entity monitor itself;
+     * a no-op when nothing about the answer changed, which is what it is on all but the handful of ticks a cut
+     * actually appears or disappears on.
      *
-     * <p><b>And it re-derives the coordinate first</b> (045.1). The entity holds a durable place; the session
-     * coordinate is a cache of where that place is <i>right now</i>, and the server re-bases the whole
-     * coordinate space whenever it drops the map — which is the same moment every cut leaves the scene, so the
-     * event that says the ground moved is the event that says the numbers did. Deriving it here and nowhere
-     * else keeps the two in one step: the coordinate is refreshed, then the ground is asked about the refreshed
-     * one. A place this session cannot locate leaves {@code rc} null, and null is not drawn.
+     * <p><b>The scene first</b> (075.3). An entity is a client-only gob in one {@code MapView}, and a gob's
+     * placement reads the {@code Glob} it was built against — so an entity being drawn for another character is
+     * an entity rebuilt in that character's scene, not the same gob shown twice. Everything below is then asked
+     * of the session that is actually looking.
+     *
+     * <p><b>Then the coordinate</b> (045.1). The entity holds a durable place; the session coordinate is a
+     * cache of where that place is <i>right now</i>, and the server re-bases the whole coordinate space whenever
+     * it drops the map — which is the same moment every cut leaves the scene, so the event that says the ground
+     * moved is the event that says the numbers did. Deriving it here and nowhere else keeps the two in one step:
+     * the coordinate is refreshed, then the ground is asked about the refreshed one. A place the drawn session
+     * cannot locate leaves {@code rc} null, and null is not drawn — which is the whole of the answer for a
+     * character standing somewhere else entirely.
+     *
+     * <p><b>An anchored one is asked the same question about its object</b>: the id is the server's, so the
+     * drawn character's {@code OCache} either has that object in view or does not, and a thing standing on an
+     * object nobody present can see is not drawn. It is not ended — that is {@link #anchorGone}, and only when
+     * no session at all can see it.
      */
-    private static void reground(LuaWorldEntity e) {
+    private static void reground(LuaWorldEntity e, MapView mv) {
+        if(e.mv != mv)
+            rehome(e, mv);                             // takes the monitor itself, and the scene locks outside it
+        if(e.mv != mv) {
+            // It stands in a scene that is not the one being drawn, which for a standing widget is where it
+            // stays (see rehome). Out of that scene while another character holds the screen, so that
+            // :drawn() means one thing for every kind: is it in the scene you are looking at. An entity whose
+            // create is still streaming in is in no scene yet and is left to that create.
+            synchronized(e) {
+                if(!e.dead && (e.mv != null))
+                    setGrounded(e, false);
+            }
+            return;
+        }
+        Glob g = globOf(mv);
         synchronized(e) {
-            if(e.dead || (e.followTgt != 0))
+            if(e.dead)
                 return;
+            if(e.followTgt != 0) {
+                Gob t = (g == null) ? null : g.oc.getgob(e.followTgt);
+                if(t != null)
+                    e.rc = t.rc;                       // this character's numbers for the object it follows
+                setGrounded(e, t != null);
+                return;
+            }
             Coord2d rc = LuaPosition.worldOf(e.anchorGrid, e.agx, e.agy);
             if((rc != null) && !rc.equals(e.rc)) {
                 e.rc = rc;
@@ -1976,15 +2066,130 @@ final class VrApi {
             } else if(rc == null) {
                 e.rc = null;
             }
-            boolean g = groundDrawn(e.rc);
-            if(g == e.grounded)
-                return;
-            e.grounded = g;
-            if(shows(e))
-                attachScene(e);
-            else
-                detachScene(e);
+            setGrounded(e, groundDrawn(e.rc));
         }
+    }
+
+    /**
+     * Record what the world just answered about this entity's place and make its scene membership match. Not a
+     * setter an addon can reach: {@link LuaWorldEntity#grounded} is what the WORLD says, beside the two things
+     * the addon says, and {@link #shows} ANDs all three. Idempotent — both helpers check the slot — so it is
+     * also what puts a freshly {@link #rehome}d entity back on screen. Caller holds the entity monitor.
+     */
+    private static void setGrounded(LuaWorldEntity e, boolean g) {
+        e.grounded = g;
+        if(shows(e))
+            attachScene(e);
+        else
+            detachScene(e);
+    }
+
+    /**
+     * <b>Stand this entity in the scene being drawn now</b> (075.3) — out of the {@code MapView} it was in, and
+     * back in as a fresh gob built against the {@code Glob} of the session that owns the new one. The visual is
+     * rebuilt rather than moved because a {@code Gob} holds its {@code Glob} for the life of the object and
+     * asks it for the tile under itself every frame ({@code Gob.placer}, {@code getmapstate}): the same gob
+     * added to another character's scene would be placed against the map of the character who is not looking.
+     * Every kind builds its own drawable the one way it already knows how ({@link LuaWorldEntity#visual(Gob)}) —
+     * a {@code .res} model, a quad over a texture, a milled mesh — so a kind says what it looks like in one
+     * place and a rebuild cannot drift from a create.
+     *
+     * <p><b>A standing widget does not travel</b>, and is the one kind that does not: its picture is a widget in
+     * one session's tree, drawn by that tree's own offscreen pass and hit-tested through it, so a panel handed
+     * to another character's scene would be a frozen texture nothing could click. It stays where it was stood
+     * and is drawn while that character is on screen — see {@code docs/addons/api/vr/widgets.md}.
+     *
+     * <p>{@code mv} may be {@code null} — the login screen, or a session whose world has not come up. Then the
+     * entity simply has no visual until one is: it goes on holding its place, and the next pass builds it.
+     */
+    private static void rehome(LuaWorldEntity e, MapView mv) {
+        if(e instanceof LuaWidgetEntity)
+            return;
+        Gob old; RenderTree.Slot slot; MapView omv;
+        synchronized(e) {
+            if(e.dead || e.streaming)
+                return;                                // a create is still bringing one in; it raises the flag when it lands
+            old = e.gob;   e.gob = null;
+            slot = e.slot; e.slot = null;
+            omv = e.mv;    e.mv = null; e.ui = null;
+        }
+        // Out of the old scene and freed OUTSIDE the entity monitor, the order destroyEntity uses and for its
+        // reason: no lock-ordering between an entity and the render tree's own lock.
+        if(omv != null)
+            omv.removeClientGob(old, slot);
+        else if(slot != null) {
+            try { slot.remove(); } catch(RuntimeException ex) { /* scene already gone */ }
+        }
+        if(old != null) {
+            try { old.dispose(); } catch(RuntimeException ex) { /* best-effort: free the visual */ }
+        }
+        Glob g = globOf(mv);
+        if((mv == null) || (g == null))
+            return;                                    // nothing is drawing a world right now
+        Coord2d rc; double a;
+        synchronized(e) {
+            if(e.dead)
+                return;
+            rc = e.rc; a = e.a;
+        }
+        GhostGob gob = new GhostGob(g, birthPoint(rc));
+        gob.a = a;
+        Drawable d;
+        try {
+            d = e.visual(gob);                         // the kind's own miller: a .res model, a quad, a milled mesh
+        } catch(Loading l) {
+            // The resource is not in the pool right now (a ghost after a cache flush). Retry on the very thing
+            // that is missing, exactly as a scene add does, and stand nothing in the meantime.
+            gob.dispose();
+            Resolve.on(l, e.owner, () -> rehome(e, screenView()), SCENE_ADD_MAX_RETRIES);
+            return;
+        } catch(RuntimeException ex) {
+            gob.dispose();
+            return;                                    // an unbuildable visual is not a reason to lose the entity
+        }
+        synchronized(e) {
+            if(e.dead) { gob.dispose(); return; }
+            gob.alpha = e.alpha; gob.tint = e.tint; gob.scale = e.scale;   // the look, before the first scene add
+            gob.clickable = e.clickable;
+            gob.setattr(d);
+            if(e.rc != null)
+                gob.move(e.rc, e.a);
+            e.gob = gob;
+            e.mv = mv;
+            e.ui = mv.ui;
+            applyEntityFollow(e, gob);                 // ANCHOR: it tracks its object in THIS session's OCache
+            // Not added to the scene here: the caller asks the world about the place first, and putting it in
+            // is what that answer does (setGrounded). An entity whose ground has gone would otherwise be added
+            // and taken straight back out in the same pass.
+        }
+    }
+
+    /** The {@code Glob} behind a scene, or {@code null} — a view of a tree with no session left in it. */
+    private static Glob globOf(MapView mv) {
+        if((mv == null) || (mv.ui == null) || (mv.ui.sess == null))
+            return null;
+        return mv.ui.sess.glob;
+    }
+
+    /**
+     * <b>Does any live session still have that object in view?</b> (075.3) — asked before an anchored entity is
+     * ended, because a gob leaving one character's {@code OCache} is that character walking away and not the
+     * object ceasing to exist. Walks the handful of states the client holds; only ever reached for an id
+     * something is actually anchored to.
+     */
+    private static boolean seenAnywhere(long id) {
+        for(SessionState st : AddonManager.allStates()) {
+            UI u = st.ui;
+            if((u == null) || u.destroyed || (u.sess == null))
+                continue;
+            try {
+                if(u.sess.glob.oc.getgob(id) != null)
+                    return true;
+            } catch(RuntimeException ex) {
+                /* a session being taken down answers nothing, which is not a yes */
+            }
+        }
+        return false;
     }
 
     /**

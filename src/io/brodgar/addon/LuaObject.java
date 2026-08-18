@@ -39,6 +39,11 @@ public final class LuaObject extends LuaWorldEntity {
 
     void unregister() { owner.objects.remove(this); }
 
+    /** An object's one visual: its glTF geometry, milled onto this gob (R3b shares the textures behind it). */
+    haven.Drawable visual(haven.Gob gob) {
+        return new haven.SprDrawable(gob, MeshSprite.mill(mesh));
+    }
+
     String visualName() { return meshName; }
 
     String clickEvent() { return "ObjectClicked"; }   // the object analog of a ghost's GhostClicked / a sprite's SpriteClicked
