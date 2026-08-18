@@ -263,9 +263,9 @@ public final class AddonRegistry {
      * login screen rebuilds the layer and announces nothing, which is exactly what a fresh boot there does.
      *
      * <p><b>The screen's session and no other</b>, and that is a boundary rather than an oversight (074.3):
-     * {@link StoreApi#restorePerChar} loads one character's saved variables into each addon's one
-     * {@code hafen.store}, so announcing a second session here would be loading a second character's over
-     * the first. The other sessions stay in the world and say nothing about it; what an addon knows about
+     * an addon has one {@code hafen.store} and its per-character half holds the character on screen (074.4),
+     * so announcing a second session here would be announcing one whose saved variables are not the ones in
+     * the tables. The other sessions stay in the world and say nothing about it; what an addon knows about
      * them after a reload is what it asks for.
      */
     public static synchronized void reload() {
@@ -274,6 +274,9 @@ public final class AddonRegistry {
         for(int i = cur.size() - 1; i >= 0; i--)     // reverse load order
             teardown(cur.get(i));
         addons.clear();
+        StoreApi.detach();                           // 074.4: the tables just flushed and dropped held this
+                                                     //   character; the ones about to be built hold nobody, so
+                                                     //   the load below has a change of scope to answer
         LuaGOut.clearResourceCache();                // U1/D-039: drop the g:resource name cache on reload
         LuaSound.teardownSounds(AddonManager.consoleOwner);  // 024.2: the REPL survives a reload, its clips do not
         LuaGOut.teardownTexts(AddonManager.consoleOwner);    // 026.1: ...nor does its cached text (same reason)
@@ -300,7 +303,7 @@ public final class AddonRegistry {
         AddonManager.SessionState st = AddonManager.state(host());   // the character on screen, if there is one
         GameUI g = (st == null) ? null : AddonManager.gui(st.ui);
         if(g != null) {
-            StoreApi.restorePerChar(st, g);          // reload per-char saved vars (the scope is still valid)
+            StoreApi.enterWorld(st, g);              // reload per-char saved vars (the scope is still valid)
             String who = io.brodgar.session.Sessions.nameof(st.ui);   // 074.3: the session, not the addon
             if(who != null)
                 fire("SessionEnteredWorld", LuaValue.valueOf(who));

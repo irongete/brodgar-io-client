@@ -597,6 +597,13 @@ public final class AddonManager {
         // the prune belongs where the tree actually ends — which is here, and is what the census's route (b)
         // says in the first place.
         UiApi.pruneDeadTrees();
+        // 074.4: what this does NOT do is write that session's per-character saved variables, though this is
+        // where they stop being reachable. It runs on the dying session's OWN thread, and the store's tables
+        // are Lua, which runs on the UI thread and nowhere else (P5). So the write is left to the layer's next
+        // tick, which finds the screen holding a different character from the one the tables hold and puts
+        // them back where they came from — StoreApi holds that folder rather than looking it up, which is what
+        // makes a dead session's data still land. A session ending in the BACKGROUND needs nothing here at
+        // all: the tables were never its, so there is nothing of its to write.
     }
 
     /**
@@ -889,6 +896,11 @@ public final class AddonManager {
             // with the addons that own them (074.2): the seam is handed a bare Runnable and knows no session.
             drainResolveQueue();
 
+            // 074.4: whose character the per-character saved variables belong to, which is the session on
+            // SCREEN — so this runs before the two fires below and an addon told the screen moved reads the
+            // character it moved to. One string compare on a frame that changed nothing.
+            StoreApi.rescope();
+
             // 074.3: sessions that came, were picked or went since the last frame. Before Update, so a handler
             // that keeps its own map of who is up has it right for the frame it is about to be told about.
             drainSessionEvents();
@@ -1090,9 +1102,10 @@ public final class AddonManager {
                             log("SessionEnteredWorld: no action menu after " + MENU_WAIT
                                 + "s — firing without it");
                         st.enterWorldPending = false;
-                        StoreApi.restorePerChar(st, hud);   // now <genus>_<char> is known → load per-char saved
-                                                   //   vars BEFORE the event fires (073.5: for THIS session,
-                                                   //   from the very HUD this gate just read)
+                        StoreApi.enterWorld(st, hud);   // 073.5/074.4: THIS session learns its own
+                                                   //   <genus>_<char>, from the very HUD this gate just read —
+                                                   //   and if it is the session on screen, its per-character
+                                                   //   saved variables are loaded BEFORE the event fires
                         BeltHold.restore(st);      // 059.5: ...and this character's action-bar placements, so the
                                                    //   first :add an addon makes puts its button straight back
                         // 074.3: fired DIRECTLY and not through the session queue — this already runs on the UI

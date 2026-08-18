@@ -85,7 +85,7 @@ construction; here the behaviour changes, and each suite proves a *difference* r
       `SessionEnteredWorld` fires **not at all**.
       `[manual]`: `:session drop` it. Expect: `SessionDestroyed` fires naming it.
 
-- [ ] **074.4 — Saved variables say which character they are for.**
+- [x] **074.4 — Saved variables say which character they are for.**
       `hafen.store()`'s per-character scope resolves against the **session on screen** at the moment of
       the call, which is the only referent it can have before `hafen.session()` exists — `075` gives it
       an address. What must change regardless: the **flush**. Today `StoreApi.flush(a)` runs at

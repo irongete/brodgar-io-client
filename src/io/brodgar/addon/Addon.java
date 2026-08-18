@@ -40,10 +40,10 @@ public final class Addon {
      * naming one of them would be a second copy of "which session is drawn" — the shape {@code 071} spent
      * three tasks deleting one layer down, and the copy that disagrees is always the one nothing re-reads.
      *
-     * <p>Two subsystems ask, and both ask on the UI thread and carry the answer with them: an HTTP completion
-     * lands on a pool thread that holds no tree, and a store write names a character's folder. The screen is
-     * the only referent either can have before {@code hafen.session()} exists, and 075 is where they take an
-     * address instead.
+     * <p>One subsystem asks, on the UI thread, and carries the answer with it: an HTTP completion lands on a
+     * pool thread that holds no tree, so which session the addon was acting for has to be resolved before the
+     * request is made. The screen is the only referent it can have before {@code hafen.session()} exists, and
+     * 075 is where it takes an address instead.
      *
      * <p>{@code null} with no session at all — the login screen, where an addon runs and a character's
      * questions have no answer yet.
@@ -256,9 +256,9 @@ public final class Addon {
     /**
      * What is saved under each of those names for the character in world right now (062) — a place, a box, or
      * both, in design pixels. Loaded from {@code savedata/<genus>_<char>/<id>.layout.json} by
-     * {@link StoreApi#restorePerChar} before {@code SessionEnteredWorld} fires, and written back by every
-     * flush, so a
-     * remembered placement needs no {@code saved_variables} declaration and no handler of the addon's own.
+     * {@link StoreApi#rescope} when that character comes on screen, and written back by every flush and
+     * when they leave it, so a remembered placement needs no {@code saved_variables} declaration and no
+     * handler of the addon's own.
      */
     public final Map<String, StoreApi.Placement> placements = new ConcurrentHashMap<String, StoreApi.Placement>();
     /** The last placement JSON written for this addon, so an unchanged file is not rewritten. */

@@ -41,6 +41,12 @@ end)
 Reading a per-character table in `Load` is not an error; it is simply empty, which is the bug that looks
 like "my settings do not load".
 
+A per-character table holds **the character on screen**. Your addon is loaded once for the client, which
+can have several characters logged in at once, so tabbing to another one hands the same tables that
+character's saved data — same table objects, so a reference you cached stays live, different contents. If
+you keep your own copy of something you read out of one, read it again when the screen moves; the
+[session events](../api/event/bus.md#sessions) are how you hear that it did.
+
 ## Store data, not objects
 
 The tables are written as JSON, so tables, strings, numbers and booleans survive and nothing else does. A
@@ -65,9 +71,15 @@ so store a [Position](../api/world.md#the-position-type) instead.
 
 ## When it is written
 
-Changes are flushed on a timer, and again when your addon is disabled or reloaded and when the session
-ends — so an ordinary quit loses nothing. `hafen.store():flush()` forces a write now, which is worth doing
-after a change the user would be annoyed to lose and unnecessary the rest of the time.
+Changes are flushed on a timer, so an ordinary quit loses nothing. Your account tables are written again
+when your addon is disabled or reloaded; a character's own tables are written when that character **leaves
+the screen**, whether you tabbed away from them or logged them out, because that is the last moment their
+data is the data in the tables.
+
+`hafen.store():flush()` forces a write now, which is worth doing after a change the user would be annoyed
+to lose and unnecessary the rest of the time. It refuses a value a saved variable cannot hold, naming
+where in your table it sits, which is the fastest way to find out that you stored the widget instead of
+its place.
 
 A file the engine cannot parse leaves your tables empty and logs the failure rather than raising it: your
 addon starts with default settings instead of not starting.
@@ -89,7 +101,8 @@ end)
 
 There is no declaration, no table and no handler, because every addon that saved a layout by hand wrote
 the same ten lines of packing a position into a table and unpacking it on load. It is per character, like
-the tables above, which is why it belongs in `SessionEnteredWorld` for the same reason they do.
+the tables above, which is why it belongs in `SessionEnteredWorld` for the same reason they do — and why
+it follows the screen the same way.
 
 ## The other two kinds of file
 

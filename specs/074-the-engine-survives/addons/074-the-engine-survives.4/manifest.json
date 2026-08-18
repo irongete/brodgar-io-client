@@ -1,0 +1,10 @@
+{
+  "name": "074.4 — saved variables say which character they are for",
+  "id": "074-the-engine-survives.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 074.4: the two saved-variable scopes round-trip and stay out of each other's keys, flush refuses what a saved variable cannot hold, and a per-character table holds the character on screen — written back when that character's session ends, not when the client does.",
+  "api_version": 1,
+  "saved_variables": ["perchar", { "name": "acct", "scope": "account" }],
+  "files": ["main.lua"]
+}

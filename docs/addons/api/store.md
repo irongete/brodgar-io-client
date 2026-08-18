@@ -44,8 +44,16 @@ create it. A name your manifest does not declare is an error naming the ones it 
 saved variables is fixed when your addon loads and a misspelt one has no later meaning to wait for.
 
 **When each scope is ready.** Account tables are filled before your files run, so they are readable in
-the file body and in `Load`. Per-character tables are filled just before `SessionEnteredWorld` fires,
-because the character's folder is not known until then: read them there, not in `Load`.
+the file body and in `Load`. Per-character tables are filled when their character comes to the screen —
+for the first character that is just before `SessionEnteredWorld` fires, because the character's folder is
+not known until then. Read them from there, not in `Load`.
+
+**A per-character table holds the character on screen.** The client can hold several characters logged in
+at once and draws one of them; your addon has one `hafen.store`, so what its per-character tables hold is
+whoever you are looking at. Tab to another character and the same tables — the same table objects, so a
+reference you cached is still the live one — hold that character's saved data instead, and holding nothing
+is what no character on screen looks like. A character in the world you are not looking at has a file on
+disk and nothing of it in memory.
 
 **What survives.** The tables are stored as JSON, so tables, strings, numbers and booleans round-trip
 and nothing else does — with one exception, and it is the one worth having: a
@@ -57,10 +65,24 @@ a `1..n` array, and a `nil` value is simply an absent key. Store plain data and 
 
 ## When it is written
 
-Changes are saved on a timer, roughly every 30 seconds, and again when your addon is disabled or
-reloaded and when the session ends. A file whose content has not changed is not rewritten, and writes
-are atomic, so an interrupted write cannot leave a half-file behind. `flush()` forces the write
-immediately — worth calling after a change the user would be upset to lose, and unnecessary otherwise.
+| Scope | Written |
+|---|---|
+| account | on the timer, and when your addon is disabled or reloaded |
+| per character | on the timer, and when that character **leaves the screen** — tabbed away from, or logged out |
+
+The timer runs roughly every 30 seconds, so an ordinary quit loses nothing. A file whose content has not
+changed is not rewritten, and writes are atomic, so an interrupted write cannot leave a half-file behind.
+
+Your addon outlives every character switch, so a character's data cannot wait for it to be unloaded: their
+moment is when they stop being the one on screen, and that is when their file is written and their tables
+are handed over to whoever comes next. Dropping a session writes it too — log that character back in and
+what you left is there.
+
+`flush()` writes both scopes immediately, and it is worth calling after a change the user would be upset
+to lose and unnecessary the rest of the time. It is also the one write that **refuses**: it names the path
+of the first value a saved variable cannot hold instead of writing it. The timer and the teardown do not
+refuse — a write you did not ask for must not cost you the rest of your file, so they write the
+placeholder above and carry on.
 
 A file the engine cannot read or parse leaves your tables as they are, and the failure is logged rather
 than raised: your addon starts with empty settings instead of not starting.
@@ -73,9 +95,10 @@ saved by the *user* moving something, not by your addon deciding to write it dow
 a variable to allow it would be asking permission for a gesture they made themselves.
 
 It lands in a file of its own beside the one above, `savedata/<genus>_<char>/<addon>.layout.json`, and is
-therefore **per character**, with the same timing: it is loaded before `SessionEnteredWorld` and there is
-nothing to put back before then. Every write here writes it too, `flush()` included, so an addon that only
-remembers places still saves on the timer and at teardown though it declares nothing at all.
+therefore **per character**, with the same timing: it arrives with the character it belongs to and there is
+nothing to put back before one is on screen. Every write here writes it too, `flush()` included, so an
+addon that only remembers places still saves on the timer and when its character goes though it declares
+nothing at all.
 
 ## See also
 

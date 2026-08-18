@@ -64,7 +64,7 @@ once, then fires `Load`. Nothing else is automatic: from there your addon does w
 |---|---|
 | your file bodies | the whole `hafen` API is callable; account saved variables are filled; there is no character |
 | `Load` | the same, once every file has run. **Once for the client** |
-| `SessionEnteredWorld` | the HUD, the map view, the player, and that character's saved variables. **Once per session** |
+| `SessionEnteredWorld` | the HUD, the map view, the player, and — when that session is on screen — that character's saved variables. **Once per session** |
 | `Disable` | your last chance to write, before the engine flushes and tears down. **Once for the client** |
 
 So your addon starts on the login screen, and everything a character owns — the HUD, the world, the map,
