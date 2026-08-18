@@ -100,5 +100,5 @@ every maneuver you know.
 
 - [Gob](gob.md) — what `target:gob()` hands back, and every read on it
 - [types](types.md#maneuver-deckcard-fightsummary) — the snapshot shapes `:info()` returns
-- [`hafen.actionbar`](actionbar.md) — the other hotkey surface, which is writable
+- [`session:actionbar`](actionbar.md) — the other hotkey surface, which is writable
 - [`session:char`](char.md) — the skills that unlock maneuvers

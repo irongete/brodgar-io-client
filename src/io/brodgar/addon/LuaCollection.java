@@ -285,7 +285,7 @@ public final class LuaCollection {
                 if(!m.isnil())
                     return m;
                 // A verb this collection USED TO have throws its own message first, exactly as Section.meta
-                // does and keyed the same way ("hafen.speed():max"): a collection mounted AS a section object
+                // does and keyed the same way ("session:speed():max"): a collection mounted AS a section object
                 // (§2.1) would otherwise swallow the replacement message under the generic "has no verb",
                 // which says the call is wrong without saying what is right. Additive — no collection had
                 // such a row before 060, so nothing else changes behaviour.

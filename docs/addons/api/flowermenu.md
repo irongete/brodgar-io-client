@@ -66,7 +66,7 @@ menu is up, and take it again next time.
 
 A petal's **position** in that array is real identity here, not an artefact of one call's ordering: it is
 the number the client sends when you pick that petal, and it is the `1`–`9` key the menu itself accepts
-from the keyboard. This is the opposite of [`hafen.menugrid`](menugrid.md), where a position means nothing
+from the keyboard. This is the opposite of [`session:menugrid`](menugrid.md), where a position means nothing
 and is refused — there the catalogue grows as you play, and here the ring is frozen the instant it opens.
 
 `:list()` takes **no filter**. There is no field to match on, and a string argument would read as *pick
@@ -146,5 +146,5 @@ console command or a hotkey cannot be the thing that reacts to a menu. A handler
 ## See also
 
 - [Gob](gob.md) — what `:gob()` hands you, and `gob:click(3)`, the right-click that puts the ring up
-- [`hafen.menugrid`](menugrid.md) — the *other* menu: the catalogue of everything your character can do
+- [`session:menugrid`](menugrid.md) — the *other* menu: the catalogue of what a character can do
 - [`hafen.event`](event/bus.md#the-radial-menu) — the bus these two events sit on, and every other key

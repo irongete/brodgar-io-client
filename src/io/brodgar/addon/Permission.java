@@ -32,7 +32,8 @@ import java.util.Map;
  * performed</i>, and the player could have tabbed to that character and performed it. A grant per session
  * would mean an addon the user allowed to add kin cannot add kin on an alt, a distinction the user never
  * drew — every one of those characters is theirs. So the {@code line} each entry carries is written to be
- * read across every login the client holds.
+ * read across every login the client holds — 077.3 says it of the four that act on a character's bar, its
+ * speed, its open recipe and its action menu, exactly as 077.2 said it of the kin roster.
  */
 public enum Permission {
     PLAYER_MOVE      ("player.move",        "session:player():move",          "walk your character to a place"),
@@ -44,18 +45,23 @@ public enum Permission {
     ITEM_TRANSFER    ("item.transfer",      "item:transfer",                  "move items between containers"),
     WORLD_PLACE      ("world.place",        "session:world():place",          "place buildings and objects"),
     WORLD_SELECT     ("world.select",       "session:world():select",         "select an area of the ground"),
-    MENUGRID_USE     ("menugrid.use",       "pag:use",                        "invoke entries of the action menu"),
+    MENUGRID_USE     ("menugrid.use",       "pag:use",                        "invoke entries of the action menu,"
+                                                                              + " on any of your characters"),
     FLOWERMENU_SELECT("flowermenu.select",  "hafen.flowermenu():select",      "choose from the radial menu"),
     FLOWERMENU_CANCEL("flowermenu.cancel",  "hafen.flowermenu():cancel",      "dismiss the radial menu"),
-    CRAFT_MAKE       ("craft.make",         "hafen.craft():current():make",   "press the Craft button"),
-    ACTIONBAR_USE    ("actionbar.use",      "slot:use",                       "press your action-bar buttons"),
-    ACTIONBAR_RES    ("actionbar.res",      "slot:res",                       "change what your action-bar buttons hold"),
+    CRAFT_MAKE       ("craft.make",         "session:craft():current():make", "press the Craft button, on any of"
+                                                                              + " your characters"),
+    ACTIONBAR_USE    ("actionbar.use",      "slot:use",                       "press the action-bar buttons of any"
+                                                                              + " of your characters"),
+    ACTIONBAR_RES    ("actionbar.res",      "slot:res",                       "change what any of your characters'"
+                                                                              + " action-bar buttons hold"),
     KIN_ADD          ("kin.add",            "session:kin():add",              "add someone to any of your characters' kin lists"),
     KIN_RENAME       ("kin.rename",         "kin:rename",                     "rename someone on any of your characters' kin lists"),
     KIN_GROUP        ("kin.group",          "kin:group",                      "change someone's kin group, on any of your characters"),
     KIN_END          ("kin.endKin",         "kin:endKin",                     "end kinship with someone, on any of your characters"),
     KIN_FORGET       ("kin.forget",         "kin:forget",                     "forget someone from any of your characters' kin lists"),
-    SPEED_SET        ("speed.set",          "hafen.speed():set",              "change your movement speed"),
+    SPEED_SET        ("speed.set",          "session:speed():set",            "change the movement speed of any of"
+                                                                              + " your characters"),
     WIDGET_SEND      ("widget.send",        "widget:send",                    "send any message the client itself could send"),
     WIDGET_VALUE     ("widget.value",       "widget:value",                   "flip the client's own controls — a box it ticks,"
                                                                               + " a field it types into — which the server sees");

@@ -1,28 +1,44 @@
-# hafen.actionbar: the action bar
+# session:actionbar: the action bar
 
-Read and activate the action bar, the F-key and number-key hotbar, and put one of your own
-[menu entries](menugrid.md#write-unprotected) on it. `hafen.actionbar()` **is** the bar.
+Read and activate one character's action bar — the F-key and number-key hotbar — and put one of your own
+[menu entries](menugrid.md#write-unprotected) on it. You reach it through the [session](session.md) whose
+character you mean, and `s:actionbar()` **is** that character's bar.
 
 ```lua
-for _, slot in ipairs(hafen.actionbar():list()) do       -- every slot, occupied or not
+local s = hafen.session():current()                      -- the character on screen
+for _, slot in ipairs(s:actionbar():list()) do           -- every slot, occupied or not
   if not slot:empty() then
     hafen.log():write(slot:index() .. ": " .. (slot:name() or slot:res()))
   end
 end
-hafen.actionbar():get(0):use()                           -- protected: activate the first slot
+s:actionbar():get(0):use()                               -- protected: activate the first slot
 ```
+
+## Whose bar it is
+
+Every character has its own hotbar, and the server fills each one on its own: slot 11 on two characters is
+two different buttons. So the read says which character it is about, and it answers for one you are not
+looking at exactly as it answers for the drawn one:
+
+```lua
+hafen.session():current():actionbar():get(0):name()   -- the first slot of the character on screen
+hafen.session():get("alt"):actionbar():count()        -- that character's bar, while you watch someone else
+```
+
+`s:actionbar()` is the same object every call, minted once for that session. A session the client no longer
+holds reads as 144 empty slots rather than raising.
 
 | Call | Returns |
 |---|---|
-| `hafen.actionbar():get(n)` | the `Slot` at the raw 0-based game index `n`, `0..143` |
-| `hafen.actionbar():list(filter)` | every slot — a 1-based array of `Slot` objects, in game-index order |
-| `hafen.actionbar():count(filter)` | how many match |
-| `hafen.actionbar():find(filter)` | the first that matches, or `nil` |
+| `s:actionbar():get(n)` | the `Slot` at the raw 0-based game index `n`, `0..143` |
+| `s:actionbar():list(filter)` | every slot — a 1-based array of `Slot` objects, in game-index order |
+| `s:actionbar():count(filter)` | how many match |
+| `s:actionbar():find(filter)` | the first that matches, or `nil` |
 
 **The index is 0-based, and an array position is not an index.** `:get(n)` takes the raw game index —
 the same number `use` takes and the same one the server uses — and that is the one way to address a
 slot. `:list()` is the iteration view, and a Lua array starts at 1, so
-`hafen.actionbar():list()[1] == hafen.actionbar():get(0)`. Never do the arithmetic yourself: a Slot
+`s:actionbar():list()[1] == s:actionbar():get(0)`. Never do the arithmetic yourself: a Slot
 knows its own index, and `slot:index()` is the way back.
 
 The array is always 144 entries and never sparse. An empty slot is a `Slot` object like any other; it
@@ -32,12 +48,14 @@ An index outside `0..143` **raises an error** — the bar is a fixed array, so a
 bug rather than a slot that does not exist yet. There is no `:add` and no `:remove`: the bar is a fixed
 set of slots, and what changes is a slot's *content*.
 
-Slot objects are **interned per addon**, so `hafen.actionbar():get(0) == hafen.actionbar():get(0)` and
-`seen[slot] = true` work as a table key. A `Slot` wraps only the index and re-reads the bar on every
-call, so a stashed one tracks the slot being set, cleared or dragged, and goes `:empty()` the moment it
-is cleared — see [snapshots vs handles](conventions.md#snapshots-vs-handles).
+Slot objects are **interned per addon** on the character *and* the index, so
+`s:actionbar():get(0) == s:actionbar():get(0)` and `seen[slot] = true` work as a table key — while the same
+number reached through two sessions gives you two objects, because it names two buttons. A `Slot` carries the
+character and the index and re-reads the bar on every call, so a stashed one tracks the slot being set,
+cleared or dragged, and goes `:empty()` the moment it is cleared — see
+[snapshots vs handles](conventions.md#snapshots-vs-handles).
 
-Before you are in the world, and briefly after a reload, there is no hotbar: every slot reads as empty.
+Before a character is in the world, and briefly after a reload, it has no hotbar: every slot reads as empty.
 At login the occupied slots stream in a beat later, as a burst of `ActionbarChanged`.
 
 ## Read
@@ -68,10 +86,12 @@ cooldown ticking, which would be every frame; read `:cooldown()` live off the ob
 | `slot:use(mods)` | `actionbar.use` | activate the slot, exactly as a left-click on that button does |
 | `slot:res(name)` | `actionbar.res` | assign an action to the slot **by resource name**, exactly as dragging it off the menu grid does |
 
-Both return the `Slot`, so they chain. Each needs its own permission key declared in your manifest — or the
-group `actionbar.*`, which covers both — and called from an addon that did not declare it, each raises an
-error naming that key; see [the permission model](conventions.md#the-permission-model). `mods` is the
-optional modifier bitfield — Shift = 1, Ctrl = 2, Alt = 4.
+Both return the `Slot`, so they chain, and both act on the character whose bar the slot is on, watched or
+not. Each needs its own permission key declared in your manifest — or the group `actionbar.*`, which covers
+both — and called from an addon that did not declare it, each raises an error naming that key; see
+[the permission model](conventions.md#the-permission-model). One key covers every character: see
+[a key names the action, not the target](../guides/permissions.md#a-key-names-the-action-not-the-target).
+`mods` is the optional modifier bitfield — Shift = 1, Ctrl = 2, Alt = 4.
 
 `use` raises an error on an empty slot, so check `:empty()` first. A ground-targeted ability enters
 targeting mode when used, just as clicking the button would; supply the target with
@@ -91,9 +111,10 @@ since those are session-local and opaque to addons.
 > when you need the new action.
 
 ```lua
-hafen.actionbar():get(0):res("gfx/hud/act/mine")         -- protected: put "Mine" on the first slot
+local s = hafen.session():current()
+s:actionbar():get(0):res("gfx/hud/act/mine")             -- protected: put "Mine" on the first slot
 hafen.timer():after(0.5, function()
-  hafen.actionbar():get(0):use()
+  s:actionbar():get(0):use()
 end)
 ```
 
@@ -105,10 +126,14 @@ owns the bar and has never heard of your entry's name, so the client **holds** t
 over what the server has there and hands it back untouched when the hold ends.
 
 ```lua
-local dig = hafen.menugrid():add("dig"):name("Auto-dig"):icon(hafen.asset():get("dig.png"))
+local s   = hafen.session():current()
+local dig = s:menugrid():add("dig"):name("Auto-dig"):icon(hafen.asset():get("dig.png"))
 dig:on("use", function() hafen.log():write("dug") end)
-hafen.actionbar():get(11):pagina(dig)                    -- the entry now draws in that slot, and fires from it
+s:actionbar():get(11):pagina(dig)          -- the entry now draws in that slot, and fires from it
 ```
+
+The entry and the slot are **one character's pair**: a slot is held for an entry in that same character's
+menu, and holding one for an entry you added on another login is refused naming whose menu it is in.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -129,7 +154,7 @@ through the same code, so the grid and the bar can never answer differently.
 holds that slot for it, exactly as the call above does and sending nothing.
 
 The read half is the hold alone. A slot holding one of the game's own actions answers `nil` — that action is
-already named by `slot:res()`, and [`hafen.menugrid():get(name)`](menugrid.md) is the `Pagina` for it.
+already named by `slot:res()`, and [`s:menugrid():get(name)`](menugrid.md) is the `Pagina` for it.
 
 ### When a hold ends
 
@@ -137,7 +162,7 @@ already named by `slot:res()`, and [`hafen.menugrid():get(name)`](menugrid.md) i
 |---|---|---|
 | `slot:pagina(nil)` | the server's own content | forgotten |
 | a **right-click** on the slot | the server's own content — the right-click is not sent, so nothing is cleared | forgotten |
-| `hafen.menugrid():remove(pag)` | the server's own content | remembered |
+| `s:menugrid():remove(pag)` | the server's own content | remembered |
 | your addon reloads, or you log out | the server's own content | remembered |
 | your addon is **disabled** | the server's own content | forgotten |
 | the **server** writes that slot | what the server just wrote — that is the slot's content now | forgotten |
@@ -158,14 +183,14 @@ that row — your own write ends your own hold, a beat later, when the server ec
 and puts it back the moment that entry exists again — so a button the player dragged onto the bar last night
 is on the bar tonight, and neither you nor they have to place it a second time.
 
-The call that re-applies it is [`hafen.menugrid():add(id)`](menugrid.md#hafenmenugridaddid), the one your
+The call that re-applies it is [`s:menugrid():add(id)`](menugrid.md#smenugridaddid), the one your
 addon already makes:
 
 ```lua
-hafen.event():on("SessionEnteredWorld", function()
-  local dig = hafen.menugrid():add("dig"):name("Auto-dig"):icon(hafen.asset():get("dig.png"))
+hafen.event():on("SessionEnteredWorld", function(s)
+  local dig = s:menugrid():add("dig"):name("Auto-dig"):icon(hafen.asset():get("dig.png"))
   dig:on("use", function() hafen.log():write("dug") end)
-end)                                         -- if it was on the bar, it is on the bar again
+end)                                         -- if it was on that bar, it is on that bar again
 ```
 
 Nothing about that is timed, and you wait for nothing: the entry lands in its slot inside the `add`, so the
@@ -175,8 +200,8 @@ remembered exactly as a drag is.
 
 **The two ways a hold ends are remembered differently**, as the table above says. Ending it by hand —
 `slot:pagina(nil)`, a right-click, the server taking the slot — says the entry no longer belongs there, and
-the record goes with it. The entry merely *going away* — `:remove`, a reload, a logout — says nothing about
-the slot, so the slot waits. A `:reload` therefore puts every one of your buttons straight back, while a
+the record goes with it. The entry merely *going away* — `:remove`, a reload, a logout — says nothing
+about the slot, so the slot waits. A `:reload` therefore puts every one of your buttons straight back, while a
 player who right-clicked one off the bar keeps it off.
 
 **Disabling an addon takes its buttons off the bar for good.** The slots go back to the server's own content
@@ -200,7 +225,8 @@ One string could never mean both.
 
 ## See also
 
-- [`hafen.menugrid`](menugrid.md) — where the resource names the write takes come from, and where your own entries are added
+- [session](session.md) — the address every read here goes through
+- [`session:menugrid`](menugrid.md) — where the names the write takes come from, and where your entries live
 - [permissions](../guides/permissions.md) — the permission the two protected writes share
 - [`ActionbarSlot`](types.md#actionbarslot) — the snapshot shape `:info()` returns
 - [events](event/bus.md#character-and-status) — `ActionbarChanged`

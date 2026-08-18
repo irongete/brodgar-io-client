@@ -157,8 +157,8 @@ subscribe to the container itself with
 `EquipChanged` stays global because your worn gear is one fixed surface.
 
 `ActionbarChanged` hands you the **changed slot** as a live [`Slot` object](../actionbar.md) — the same
-interned object `hafen.actionbar():get(n)` returns, so `payload` and
-`hafen.actionbar():get(payload:index())` are one object and you can key a table by it. `slot:index()` is
+interned object `s:actionbar():get(n)` returns, so `payload` and
+`s:actionbar():get(payload:index())` are one object and you can key a table by it. `slot:index()` is
 the raw 0-based game index. It fires on a set, a clear, a drag, or when a slot's data resolves, and
 **not** on `:cooldown()` ticking, which would fire every frame — read the cooldown live off the object
 instead. At login the occupied slots stream in as a burst, one fire each.

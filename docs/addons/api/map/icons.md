@@ -65,4 +65,4 @@ rarely, so there is no `*Changed` event — read it on demand.
 - [`IconCategory`](../types.md#iconcategory) — what `cat:info()` hands back
 - [Gob](../gob.md) — `gob:icon()`, the category name on a live object
 - [the map database](README.md) — interning, which is why a stashed category never goes stale
-- [`hafen.menugrid`](../menugrid.md) — the other registry addressed by resource name
+- [`session:menugrid`](../menugrid.md) — the other registry addressed by resource name

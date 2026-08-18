@@ -29,6 +29,18 @@ A Session is the **address**, so the reads that are about one character hang off
 |---|---|
 | [`s:world()`](world.md) | that character's world — the objects it can see, the ground it stands on, the grids it has streamed |
 | [`s:player()`](player.md) | that character itself — its own [Gob](gob.md), its cursor, and the walk |
+| [`s:char()`](char.md) | its sheet: attributes, learning points, weight, food, skills, credos, lore |
+| [`s:meter()`](meter.md) | its HUD meter bars — health, stamina, energy, and whatever else the server puts there |
+| [`s:buff()`](buff.md) | the buffs on its buff bar |
+| [`s:study()`](study.md) | its study window: the curiosities in it, and their LP and attention |
+| [`s:quest()`](quest.md) | its quest log, current and completed |
+| [`s:wound()`](wound.md) | its wounds, as the Health and Wounds tab shows them |
+| [`s:kin()`](kin.md) | its kin roster, and the writes that add, rename and re-group |
+| [`s:party()`](party.md) | the party it is in, in party sequence order |
+| [`s:actionbar()`](actionbar.md) | its hotbar: read a slot, use it, assign one, hold one for an entry of your own |
+| [`s:speed()`](speed.md) | its crawl, walk, run and sprint selector |
+| [`s:craft()`](craft.md) | the recipe window it has open, and its Craft button |
+| [`s:menugrid()`](menugrid.md) | its action menu: every action it knows, invoking one, and entries of your own |
 
 ```lua
 for _, s in ipairs(hafen.session():list()) do
@@ -40,12 +52,14 @@ end
 ```
 
 Each is minted once for that session and handed back by identity, so `s:world() == s:world()` and a draw
-callback that reads them costs nothing. A world and a character are reached only this way, and only ever one
-character's: *the* world and *the* character are not things a client holding two logins has.
+callback that reads them costs nothing. Every one of them is reached only this way, and only ever about one
+character: *the* world, *the* kin roster and *the* action bar are not things a client holding two logins
+has. The windows among them — a recipe, an action menu — belong to the character that put them up, so they
+are readable and usable on a session you tabbed away from.
 
 **A read answers for the session you named, whichever one is drawn.** What does not is what belongs to the
-**screen** — there is one screen however many characters are logged in — and each of those says so where it
-is described: [`screenToWorld`](world.md#screen-to-world-and-placement-snapping) and
+**screen** — there is one screen however many characters are logged in — and each of those says so where
+it is described: [`screenToWorld`](world.md#screen-to-world-and-placement-snapping) and
 [`worldToScreen`](player.md#read) read and answer a pixel, and
 [`place`](world.md#write-protected)/`select`, [`gob:click`](gob.md#write-protected) and
 [`hand:use`](player.md#the-hand) are gestures with the pointer.
@@ -92,8 +106,7 @@ and everything under them then reads `nil`-shaped.
 | `s:user()` | string | the account name — answers for a session that has ended |
 | `s:character()` | string \| nil | the character this session is playing; `nil` until its HUD is up |
 | `s:exists()` | boolean | whether the client still holds this session |
-| `s:world()` | [world](world.md) | that character's world; the same object every call |
-| `s:player()` | [Player](player.md) | that character itself; the same object every call |
+| a namespace verb | the section | the namespaces that hang on a session — see [what hangs on a session](#what-hangs-on-a-session); each is the same object every call |
 | `s:info()` | [`Session`](types.md#session) | a plain-table **snapshot**, the escape hatch for logging |
 
 **`:get` addresses, it does not search.** The account name is the whole of a Session, so there is

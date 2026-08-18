@@ -279,7 +279,7 @@ public final class LuaPartyMember {
      * {@code s:party()} — <b>that character's</b> party, in the party sequence order the client itself uses.
      * Addressable by gob id; {@code :leader()} is the distinguished member (§2.2's R8) rather than a second
      * accessor. There is no {@code :add}/{@code :remove}: joining and leaving a party is a menu action, so it
-     * goes through {@code hafen.menugrid():get(name):use()}. A <b>string</b> filter is refused naming why —
+     * goes through {@code s:menugrid():get(name):use()}. A <b>string</b> filter is refused naming why —
      * party members have no name. A character not in a party has an empty roster, never an error.
      */
     static LuaValue collection(final Addon owner, final String user) {

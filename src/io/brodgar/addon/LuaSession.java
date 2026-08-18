@@ -40,7 +40,10 @@ import java.util.Map;
  * addressed through a Session rather than off {@code hafen}, 077.1 adds the six read-only sections of the
  * character sheet — {@code s:char()}, {@code s:meter()}, {@code s:buff()}, {@code s:study()},
  * {@code s:quest()} and {@code s:wound()} — and 077.2 the two rosters, {@code s:kin()} and
- * {@code s:party()}. Each is minted once per {@code (addon, session)} and kept on the
+ * {@code s:party()}, and 077.3 the four that ACT — {@code s:actionbar()}, {@code s:speed()},
+ * {@code s:craft()} and {@code s:menugrid()}, the last two of which report a WINDOW the game put up rather
+ * than a fact about a body, and answer on a session nobody is looking at because that session keeps its
+ * {@code GameUI}. Each is minted once per {@code (addon, session)} and kept on the
  * handle — see {@link #worldObj}. Every verb under them reads the session named rather than the one on
  * screen; the ones that are inherently the screen's say so where they are defined ({@code screenToWorld},
  * {@code worldToScreen}) and the ones that <b>send</b> go through {@link AddonManager#sendView}, because a
@@ -56,7 +59,7 @@ public final class LuaSession {
     public final String user;
 
     /**
-     * <b>The namespaces that hang on this session</b> (076.3, 077.1), minted lazily and held here rather than
+     * <b>The namespaces that hang on this session</b> (076.3, 077), minted lazily and held here rather than
      * on the {@link Addon}: they belong to a {@code (addon, session)} pair, and this handle <i>is</i> that
      * pair. So {@code s:world() == s:world()} and {@code s:meter() == s:meter()} come out of interning the
      * handle and need no cache of their own — and when the addon drops its last reference to {@code s}, the
@@ -71,6 +74,8 @@ public final class LuaSession {
     private LuaValue charObj, meterObj, buffObj, studyObj, questObj, woundObj;
     /** The two rosters (077.2) — the first namespaces here to carry protected verbs. */
     private LuaValue kinObj, partyObj;
+    /** The four that ACT (077.3): the bar, the speed selector, the open recipe and the action menu. */
+    private LuaValue actionbarObj, speedObj, craftObj, menugridObj;
 
     private LuaSession(String user) {
         this.user = user;
@@ -297,6 +302,49 @@ public final class LuaSession {
                 if(h.partyObj == null)
                     h.partyObj = CharApi.party(owner, h.user);
                 return h.partyObj;
+            }
+        });
+        // actionbar() — THIS character's hotbar. A slot index names one bar: slot 11 on two characters is two
+        // different buttons, and pressing the wrong one is an ability fired on the wrong body. The two
+        // protected verbs keep the one key each has and send through this session's own widgets.
+        m.set("actionbar", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "actionbar");
+                if(h.actionbarObj == null)
+                    h.actionbarObj = CharApi.actionbar(owner, h.user);
+                return h.actionbarObj;
+            }
+        });
+        // speed() — THIS character's movement speed. The section object IS the collection of the speeds it can
+        // pick right now, which is that login's own: sprint unlocked here says nothing about the alt.
+        m.set("speed", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "speed");
+                if(h.speedObj == null)
+                    h.speedObj = CharApi.speed(owner, h.user);
+                return h.speedObj;
+            }
+        });
+        // craft() — the recipe THIS character has open. A window the game put up rather than a fact about a
+        // body: a session nobody is looking at keeps its GameUI, so its recipe window is open and answers,
+        // and :make() presses that window's own button. nil where that character has nothing open.
+        m.set("craft", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "craft");
+                if(h.craftObj == null)
+                    h.craftObj = CharApi.craft(owner, h.user);
+                return h.craftObj;
+            }
+        });
+        // menugrid() — the action menu THIS character carries. The section object IS the catalogue, and it is
+        // one login's: two characters know different actions, through two grids. An entry an addon adds goes
+        // into the grid it was addressed at, so the same id may stand in each character's menu.
+        m.set("menugrid", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "menugrid");
+                if(h.menugridObj == null)
+                    h.menugridObj = CharApi.menugrid(owner, h.user);
+                return h.menugridObj;
             }
         });
         // info() — the one SNAPSHOT escape hatch, and always a table: a Session that does not exist is

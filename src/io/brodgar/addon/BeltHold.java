@@ -22,6 +22,12 @@ import static io.brodgar.addon.AddonManager.state;
  * {@code 059-menugrid-entries}) — the layer that lets an {@link AddonPagina} draw and fire on the action bar
  * without ever going onto it.
  *
+ * <p><b>Every entry point says which character's bar it is about</b> (077.3). The maps were already that
+ * character's (073.3); what moves is the address the Lua verbs reach them by — a Slot carries the account,
+ * an {@link AddonPagina} carries the account, and neither resolves the drawn session any more. So an addon
+ * holds a slot on a character nobody is looking at, and a {@code :reload} puts each login's buttons back on
+ * its own bar.
+ *
  * <p><b>The server owns the bar.</b> {@code GameUI.belt} is the server's array: it stores the hotbar, it
  * echoes every assignment back through {@code setbelt}/{@code setbelt2}, and it has never heard of an
  * {@code addon/<addon id>/<id>} identity. So a custom entry does not go <i>into</i> a slot — the client
@@ -64,8 +70,8 @@ import static io.brodgar.addon.AddonManager.state;
  * bar it was taken on, which is what lets an ending put a slot back on the bar it was borrowed from rather
  * than on whichever one is drawn at that moment — the case that matters, because {@code init} tears the old
  * session's addons down once {@link AddonManager#host()} ALREADY answers the session being switched to. The
- * verbs an addon calls ({@code slot:pagina(pag)}, {@code hafen.menugrid():add(id)}) resolve
- * {@link AddonManager#gui()}, the drawn HUD, which is the same bar the rest of {@code LuaSlot} reads.
+ * verbs an addon calls ({@code slot:pagina(pag)}, {@code s:menugrid():add(id)}) name their own session, and
+ * that is the same bar the rest of {@code LuaSlot} reads.
  *
  * <p><b>Threading.</b> The Lua verbs and the mouse hooks run on the UI thread; {@link #serverWrote} runs on
  * the message thread, under {@code synchronized(ui)}, from {@code GameUI.uimsg}. The maps are therefore
@@ -110,11 +116,10 @@ public final class BeltHold {
 
     /**
      * The entry a slot is being held for, or {@code null} for every slot the server owns — the read half of
-     * {@code slot:pagina()}, so the bar it asks about is the drawn one, like every other read on
-     * {@code LuaSlot}.
+     * {@code slot:pagina()}, on the bar the Slot names, like every other read on {@code LuaSlot}.
      */
-    static synchronized AddonPagina held(int n) {
-        GameUI g = AddonManager.gui();
+    static synchronized AddonPagina held(String user, int n) {
+        GameUI g = AddonManager.gameui(user);      // 077.3: the bar the Slot names, not the drawn one
         SessionState st = (g == null) ? null : state(g.ui);
         if(st == null)
             return null;
@@ -128,15 +133,15 @@ public final class BeltHold {
      * carries the original {@link Hold#displaced} across, so the server's content survives any number of
      * addons taking that slot in turn rather than being replaced by the previous addon's button.
      */
-    static synchronized void hold(int n, AddonPagina pag) {
-        // 073.3: the bar an addon asks for is the DRAWN one — this is the write half of slot:pagina(pag) and
-        // of a drag from the grid, both of which are about the HUD in front of the player, and it is the very
-        // bar LuaSlot's own reads answer about. Its ui is then the session the record belongs to.
-        GameUI g = AddonManager.gui();
+    static synchronized void hold(String user, int n, AddonPagina pag) {
+        // 077.3: the bar the Slot NAMES, which is also the grid the entry stands in — the two are that one
+        // character's pair, and the drawn session has nothing to do with either. Its ui is then the session
+        // the record belongs to.
+        GameUI g = AddonManager.gameui(user);
         SessionState st = (g == null) ? null : state(g.ui);
         if((g == null) || (g.belt == null) || (st == null) || (n < 0) || (n >= g.belt.length))
-            throw new LuaError("slot:pagina(pagOrNil): there is no action bar yet — hold a slot from"
-                + " SessionEnteredWorld or later, not from Load");
+            throw new LuaError("slot:pagina(pagOrNil): that character has no action bar yet — hold a slot"
+                + " from SessionEnteredWorld or later, not from Load");
         hold(st, g, n, pag);
     }
 
@@ -195,11 +200,11 @@ public final class BeltHold {
     }
 
     /**
-     * {@code slot:pagina(nil)} — the addon's own way to end a hold, on the drawn bar like the rest of
-     * {@code LuaSlot}.
+     * {@code slot:pagina(nil)} — the addon's own way to end a hold, on the bar the Slot names like the rest
+     * of {@code LuaSlot}.
      */
-    static synchronized boolean release(int n) {
-        return release(AddonManager.gui(), n);
+    static synchronized boolean release(String user, int n) {
+        return release(AddonManager.gameui(user), n);
     }
 
     /**
@@ -295,7 +300,7 @@ public final class BeltHold {
     // ---- the placements: a slot survives the entry, the addon and the session (059.5) -------------------
 
     /**
-     * <b>An entry with this identity is in the menu again</b> ({@code hafen.menugrid():add(id)}) — take back
+     * <b>An entry with this identity is in the menu again</b> ({@code s:menugrid():add(id)}) — take back
      * every slot it is placed in. This is the whole of the restore, and it is driven by the {@code :add} rather
      * than by the login: at login the addon's own {@code SessionEnteredWorld} handler is what calls it, so
      * the bar is up
@@ -305,16 +310,16 @@ public final class BeltHold {
      * stands through it: it is not the entry that was wrong, and the next {@code :add} of that id applies it.
      */
     static void entryAdded(AddonPagina pag) {
-        // 073.3: the drawn bar, like hold() itself — an :add is an addon's own call, made from
-        // SessionEnteredWorld or
-        // later in the session the player is looking at, and taking the slot is the same act as slot:pagina().
-        GameUI g = AddonManager.gui();
+        // 077.3: the bar of the character the entry was ADDED to, which the entry itself names — an :add is
+        // addressed at a session, and a button belongs on the bar of the menu it stands in. Reaching for the
+        // drawn session would have put an alt's button on whichever character the player was watching.
+        GameUI g = AddonManager.gameui(pag.user);
         SessionState st = (g == null) ? null : state(g.ui);
         if(st == null)
             return;
         for(Integer n : slotsPlaced(st, pag.id)) {
             try {
-                hold(n.intValue(), pag);
+                hold(pag.user, n.intValue(), pag);
             } catch(RuntimeException e) {
                 AddonManager.log("action-bar holds: could not restore slot " + n + ": " + e.getMessage());
             }

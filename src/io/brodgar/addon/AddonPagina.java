@@ -21,10 +21,17 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * <b>An entry an addon added to the action menu</b> ({@code hafen.menugrid():add(id)}, spec
+ * <b>An entry an addon added to the action menu</b> ({@code s:menugrid():add(id)}, spec
  * {@code 059-menugrid-entries}) — a {@link MenuGrid.Pagina} subclass, so <b>the grid never learns it is
  * different</b>: it sits in the very {@code paginae} set the server's own entries sit in, it is laid out by
  * {@code MenuGrid.cons}, drawn by {@code MenuGrid.draw} and read by every {@link LuaPagina} verb.
+ *
+ * <p><b>An entry stands in ONE character's menu</b> (077.3). {@code :add} is addressed at a session and the
+ * entry goes into that login's grid, so the {@link #user} it carries is half its address: the same id may
+ * stand in each character's menu, and a write verb reaches the one whose session it was addressed through.
+ * The list on the {@link Addon} stays flat — an addon's entries are the addon's wherever they stand, and a
+ * teardown takes every one of them out — so what 077.3 adds is the account on the lookups, not a second
+ * registry.
  *
  * <p><b>Two virtual methods are the whole seam.</b> The engine reaches everything about an entry through
  * {@code Pagina.button()} and the {@link MenuGrid.PagButton} it returns, so a subclass pair covers it and
@@ -71,6 +78,8 @@ public final class AddonPagina extends MenuGrid.Pagina {
 
     /** The addon that added this entry, and the only one that may write it. */
     final Addon owner;
+    /** The account whose menu this entry stands in — the other half of what {@code :add} was addressed at. */
+    final String user;
     /** The identity — {@code addon/<addon id>/<the id :add was given>}. What {@code pag:res()} answers. */
     final String id;
     /** The display name the grid paints, and its sort key. Never {@code null}. */
@@ -94,9 +103,10 @@ public final class AddonPagina extends MenuGrid.Pagina {
 
     private AddonPagButton button;
 
-    private AddonPagina(Addon owner, MenuGrid scm, String id, String name) {
+    private AddonPagina(Addon owner, String user, MenuGrid scm, String id, String name) {
         super(scm, id, standin());
         this.owner = owner;
+        this.user = user;
         this.id = id;
         this.name = name;
         this.subs = new Subs(owner, Addon.C_WIDGET);
@@ -164,7 +174,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
     void fire() {
         if(!subs.has("use"))
             return;
-        subs.fire("use", LuaPagina.of(owner, id));
+        subs.fire("use", LuaPagina.of(owner, user, id));
     }
 
     /**
@@ -350,24 +360,29 @@ public final class AddonPagina extends MenuGrid.Pagina {
     // ---- minting, removing, teardown -------------------------------------------------------------------
 
     /**
-     * {@code hafen.menugrid():add(id)} — mint an entry this addon owns, put it in the grid and hand back its
-     * (interned) Pagina object. The id is <b>addon-relative</b>, exactly as an asset path is, and the identity
-     * it gets is {@code addon/<addon id>/<id>}: two addons cannot collide, and the {@code /} it carries makes
-     * {@code :get()} resolve it by shape like any other resource name.
+     * {@code s:menugrid():add(id)} — mint an entry this addon owns, put it in <b>that character's</b> grid and
+     * hand back its (interned) Pagina object. The id is <b>addon-relative</b>, exactly as an asset path is,
+     * and the identity it gets is {@code addon/<addon id>/<id>}: two addons cannot collide, and the {@code /}
+     * it carries makes {@code :get()} resolve it by shape like any other resource name.
+     *
+     * <p><b>Unique within an addon and within a character</b> (077.3). One id may stand in each character's
+     * menu — an addon that puts its button on both its logins is doing the ordinary thing — so the clash the
+     * refusal below names is the same id twice in the <i>same</i> grid.
      */
-    static LuaValue add(Addon owner, LuaValue key) {
+    static LuaValue add(Addon owner, String user, LuaValue key) {
         String rel = relative(owner, key, "add");
-        MenuGrid scm = LuaPagina.grid();
+        MenuGrid scm = LuaPagina.grid(user);
         if(scm == null)
-            throw new LuaError("hafen.menugrid():add(id): the action menu is not up yet — add your entries"
+            throw new LuaError(CharApi.MG + ":add(id): the action menu is not up yet — add your entries"
                 + " from SessionEnteredWorld or later, not from Load");
         String id = PREFIX + owner.manifest.id + "/" + rel;
         for(AddonPagina p : owner.menuEntries) {
-            if(p.id.equals(id))
-                throw new LuaError("hafen.menugrid():add(id): this addon already has an entry with the id \""
-                    + rel + "\" — an id is unique within an addon; :remove() that one first, or pick another");
+            if(p.id.equals(id) && p.user.equals(user))
+                throw new LuaError(CharApi.MG + ":add(id): this addon already has an entry with the id \""
+                    + rel + "\" in that character's menu — an id is unique within an addon and character;"
+                    + " :remove() that one first, or pick another");
         }
-        AddonPagina p = new AddonPagina(owner, scm, id, rel);
+        AddonPagina p = new AddonPagina(owner, user, scm, id, rel);
         synchronized(scm.paginae) {
             scm.paginae.add(p);
         }
@@ -375,19 +390,20 @@ public final class AddonPagina extends MenuGrid.Pagina {
         p.relayout();
         BeltHold.entryAdded(p);     // 059.5: and back onto every bar slot this entry is placed in — at login
                                     //   this call IS the restore, run from the addon's own SessionEnteredWorld
-        return LuaPagina.of(owner, id);
+        return LuaPagina.of(owner, user, id);
     }
 
     /**
-     * {@code hafen.menugrid():remove(idOrPagina)} — take one of <b>this addon's</b> entries back out of the
-     * menu. The client's own entries and another addon's are refused naming which; removing one that is
-     * already gone is inert (D-084), since a removal is a moment rather than a mistake.
+     * {@code s:menugrid():remove(idOrPagina)} — take one of <b>this addon's</b> entries back out of
+     * <b>that character's</b> menu. The client's own entries and another addon's are refused naming which;
+     * removing one that is already gone is inert (D-084), since a removal is a moment rather than a mistake,
+     * and so is removing one that stands only in another character's menu.
      */
-    static void remove(Addon owner, LuaValue x) {
+    static void remove(Addon owner, String user, LuaValue x) {
         String id = identity(owner, x);
         AddonPagina p = null;
         for(AddonPagina q : owner.menuEntries) {
-            if(q.id.equals(id))
+            if(q.id.equals(id) && q.user.equals(user))
                 p = q;
         }
         if(p == null)
@@ -397,22 +413,32 @@ public final class AddonPagina extends MenuGrid.Pagina {
         p.relayout();
     }
 
-    /** Take every entry this addon added back out of the menu (teardown, P2). */
+    /**
+     * Take every entry this addon added back out of <b>every</b> menu it added one to (teardown, P2).
+     *
+     * <p>077.3: one relayout <b>per grid</b>, not one for the sweep. An addon's entries stand in the menu of
+     * each character it added them on, and a grid that is not relayouted goes on drawing a button whose
+     * pagina has left {@code paginae} — so the grids are collected by identity and each is told once.
+     */
     static void teardownEntries(Addon a) {
         if((a == null) || a.menuEntries.isEmpty())
             return;
-        MenuGrid scm = null;
+        List<MenuGrid> grids = new ArrayList<MenuGrid>();
         for(AddonPagina p : new ArrayList<AddonPagina>(a.menuEntries)) {
             detach(p);
-            scm = p.scm;
+            boolean seen = false;
+            for(MenuGrid g : grids)
+                seen |= (g == p.scm);
+            if(!seen)
+                grids.add(p.scm);
         }
         a.menuEntries.clear();
-        if(scm != null)
-            scm.change(scm.cur);        // one relayout for the whole sweep
+        for(MenuGrid g : grids)
+            g.change(g.cur);            // one relayout per grid, for the whole sweep
     }
 
     /**
-     * Drop one entry out of the grid it was added to (its own, never {@code AddonManager.gui()}'s), and
+     * Drop one entry out of the grid it was added to (its own, never the drawn session's), and
      * <b>re-root whatever hung under it</b>: a category that leaves takes no child with it, so the children go
      * back to the root screen rather than under a parent no screen reaches — which would draw the removed
      * category itself back onto the root screen, since {@code cons} walks the closure through {@code parent()}
@@ -445,21 +471,21 @@ public final class AddonPagina extends MenuGrid.Pagina {
      * {@code slot:pagina(pagOrNil)} on the action bar as for the setters here, and an error names the line
      * that wrote it.
      */
-    static AddonPagina owned(Addon owner, String res, String call) {
+    static AddonPagina owned(Addon owner, String user, String res, String call) {
         for(AddonPagina p : owner.menuEntries) {
-            if(p.id.equals(res))
+            if(p.id.equals(res) && p.user.equals(user))
                 return p;
         }
         String mine = PREFIX + owner.manifest.id + "/";
         if(res.startsWith(mine))
-            throw new LuaError(call + ": \"" + res + "\" is no longer in the menu — this addon"
-                + " added it and removed it again (check :exists())");
+            throw new LuaError(call + ": \"" + res + "\" is not in that character's menu — this addon"
+                + " added it and removed it again, or added it on another character (check :exists())");
         if(res.startsWith(PREFIX)) {
             throw new LuaError(call + ": \"" + res + "\" belongs to " + other(res) + ", not to"
-                + " this addon — an addon writes only the entries it added with hafen.menugrid():add(id)");
+                + " this addon — an addon writes only the entries it added with " + CharApi.MG + ":add(id)");
         }
         throw new LuaError(call + ": \"" + res + "\" is the client's own entry, not one this addon"
-            + " added — the game's catalogue is read-only, and hafen.menugrid():add(id) mints an entry of"
+            + " added — the game's catalogue is read-only, and " + CharApi.MG + ":add(id) mints an entry of"
             + " your own that every one of these verbs writes");
     }
 
@@ -479,7 +505,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
         if(h != null)
             return h.res;
         if(x.isnumber() || !x.isstring())
-            throw new LuaError("hafen.menugrid():remove(idOrPagina): expected the Pagina object :add() handed"
+            throw new LuaError(CharApi.MG + ":remove(idOrPagina): expected the Pagina object :add() handed"
                 + " you, or its id as a string, got " + x.typename());
         String s = x.tojstring();
         if(s.startsWith(PREFIX))
@@ -493,7 +519,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
      * that nothing is resolved on disk: an id names an entry, not a file.
      */
     private static String relative(Addon owner, LuaValue key, String verb) {
-        String call = "hafen.menugrid():" + verb + "(id" + (verb.equals("remove") ? "OrPagina" : "") + ")";
+        String call = CharApi.MG + ":" + verb + "(id" + (verb.equals("remove") ? "OrPagina" : "") + ")";
         if(key.isnumber() || !key.isstring())
             throw new LuaError(call + ": expected a string id, addon-relative like an asset path (\"dig\","
                 + " \"tools/dig\"), got " + key.typename());

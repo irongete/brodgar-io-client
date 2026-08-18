@@ -5,17 +5,18 @@ import haven.Makewindow;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 
 /**
- * Crafting read/make ({@code hafen.craft}) — the one section this file still installs. It carries a protected
- * write ({@code craft():current():make(all)}) behind {@code requirePermission}, under its own declared
+ * Crafting read/make ({@code s:craft()}) — the one section this file still builds. It carries a protected
+ * write ({@code s:craft():current():make(all)}) behind {@code requirePermission}, under its own declared
  * per-addon key. No lifecycle/tick/teardown state — these are invoked only from Lua callbacks. Not
  * instantiable.
  *
- * <p><b>Movement speed left with 060.</b> {@code hafen.speed()} is now the <i>collection</i> of the speeds you
+ * <p><b>Movement speed left with 060.</b> {@code s:speed()} is the <i>collection</i> of the speeds a character
  * can pick ({@link LuaSpeed}), so the locator, the tooltip read and the protected send went with the section
  * they serve — a verb lives with what it changes, and so does the code behind it.
  *
@@ -25,7 +26,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * gesture is {@code s:player():hand():use(target, mods)}, on a cursor that is <i>nil</i> when it is empty
  * (048.2); what you can do TO an item is on the item — {@code item:use/:take/:drop/:transfer} (048.3); placing
  * and area-selecting are {@code s:world():place/:select}, beside the {@code snapPlace}/{@code snapAngle}
- * that prepare their arguments (048.4); a menu action is {@code hafen.menugrid():get(name):use()}, which gained
+ * that prepare their arguments (048.4); a menu action is {@code s:menugrid():get(name):use()}, which gained
  * the same permission (048.5); the escape hatch is {@code widget:send(msg, ...)}, where the receiver IS the
  * target (048.6); and a petal is {@code hafen.flowermenu():select(label|n)} (048.7, which also deleted
  * {@code enabled()} — a running addon is granted exactly what it declared, so the question answered
@@ -36,33 +37,38 @@ final class ActApi {
     private ActApi() {}
 
     /**
-     * Build {@code hafen.craft()} for {@code owner}. From installHafen. A section of <b>one verb</b>:
-     * {@code :current()} is the recipe the player has open, as a {@link LuaCraft} entity that carries the
-     * recipe's slots <i>and</i> its protected {@code :make(all)} — the button belongs to the recipe, not to a
-     * namespace hovering above it.
+     * Build the craft section object for {@code (owner, user)} — reached as {@code s:craft()} (077.3). A
+     * section of <b>one verb</b>: {@code :current()} is the recipe <b>that character</b> has open, as a
+     * {@link LuaCraft} entity that carries the recipe's slots <i>and</i> its protected {@code :make(all)} —
+     * the button belongs to the recipe, not to a namespace hovering above it.
      *
      * <p><b>{@code :current()} is {@code nil} when no recipe is open</b>, which is §2.2's own rule for a
      * distinguished member and not a coin toss. The alternative — an inert Craft whose {@code :exists()} is
-     * false — reads tidier and is worse where it counts: {@code if hafen.craft():current() then} is the guard
+     * false — reads tidier and is worse where it counts: {@code if s:craft():current() then} is the guard
      * every crafting addon already writes, and an always-truthy entity turns each of them into a guard that
      * passes and then reads nothing, which is the silent failure this grammar exists to delete. The section
      * itself is not the collection (§2.1's <i>a section of one thing IS that thing</i>) for the same reason:
-     * the section object is minted once at install and must always answer, and an open recipe usually is not
-     * there.
+     * the section object is minted once per {@code (addon, session)} and must always answer, and an open
+     * recipe usually is not there.
+     *
+     * <p><b>A recipe window is open on a session nobody is looking at</b>, and that is the point rather than
+     * an edge case: a background session keeps its {@link haven.GameUI}, so the window it put up stands in
+     * its own tree and answers. Where that character has none open, this answers the same {@code nil} a drawn
+     * character with none answers.
      */
-    static void installCraft(LuaTable hafen, final Addon owner) {
+    static LuaValue craft(final Addon owner, final String user) {
         LuaTable craft = new LuaTable();
         // current() — the open recipe, or nil. The protected make() lives on what this hands back.
         craft.set("current", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "craft", "current");
+                Section.self(a.arg1(), "craft", "current", CharApi.CR);
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen.craft():current() takes no arguments — it reads the recipe you"
-                        + " have open, and which recipe that is is the player's choice");
-                return LuaCraft.of(owner, makewindow());
+                    throw new LuaError(CharApi.CR + ":current() takes no arguments — it reads the recipe that"
+                        + " character has open, and which recipe that is is the player's choice");
+                return LuaCraft.of(owner, makewindow(user));
             }
         });
-        Section.install(hafen, "craft", craft);
+        return Section.object("craft", craft, CharApi.CR);
     }
 
     // ---- what the protected tier left behind (048) --------------------------------------------------
@@ -81,10 +87,10 @@ final class ActApi {
     // beside it. actFlower had been delegating to FlowerMenuApi since 047.1, so what stood here was the old door
     // D-103 requires closing — and its one pure helper (the case-insensitive petal lookup) moved to its single
     // remaining caller, FlowerMenuApi.petalIndex.
-    // The surviving half of this file — hafen.craft() — never belonged to that section: it is named for what
+    // The surviving half of this file — s:craft() — never belonged to that section: it is named for what
     // it acts on, which is the shape 048 gave the other nine verbs.
 
-    // ---- crafting (A8: hafen.craft) --------------------------------------------------------------
+    // ---- crafting (A8: s:craft()) --------------------------------------------------------------
     // The crafting/recipe window is a Makewindow (@RName("make")) the server places under the HUD when
     // the player opens a recipe. It is wrapped in GameUI.makewnd (a private Window), so — like the speed
     // selector LuaSpeed finds— we locate the content widget with the 1d-1 Locator (a children(Class) subtree walk from
@@ -94,11 +100,12 @@ final class ActApi {
     //
     // The READS and the protected make() moved onto LuaCraft with 039.13 (the entity owns them, keyed by the
     // WINDOW: the server builds a fresh one per recipe, so opening another recipe ends this Craft rather
-    // than changing it). What stays here is locating that window.
+    // than changing it). What stays here is locating that window, in the session it was asked about — 077.3,
+    // and the key stays the window alone, since a widget already names the tree it stands in.
 
-    /** The (unique) crafting window content under the HUD, or {@code null} if no recipe is open. */
-    static Makewindow makewindow() {
-        GameUI g = AddonManager.gui();
+    /** That character's crafting window content, or {@code null} if it has no recipe open. */
+    static Makewindow makewindow(String user) {
+        GameUI g = AddonManager.gameui(user);              // THAT session's HUD, not the drawn one's
         if(g == null)
             return null;
         for(Makewindow m : g.children(Makewindow.class))   // recursive subtree walk; take the first

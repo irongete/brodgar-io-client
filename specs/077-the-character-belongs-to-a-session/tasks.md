@@ -59,7 +59,7 @@ must still be **212**. A cut this size fails by moving too much.
       `[manual]`: with two sessions up, read the kin list of the one **not** on screen. Expect: its
       own roster, which is not necessarily the same as the drawn character's.
 
-- [ ] **077.3 — The verbs that act, addressed.**
+- [x] **077.3 — The verbs that act, addressed.**
       Moves `actionbar`, `speed`, `craft` and `menugrid` — the densest group, and every key in it:
       `actionbar.use`, `actionbar.res`, `speed.set`, `craft.make`, `menugrid.use`. `BeltHold`'s slot
       holds and `AddonPagina`'s own entries are already per session from `073`, so what moves is the

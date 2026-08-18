@@ -58,7 +58,8 @@ import static io.brodgar.addon.AddonManager.*;
 /**
  * The character-read subsystem: the sections a Session hands back — {@code s:player()}, {@code s:char()},
  * {@code s:study()}, {@code s:party()}, {@code s:kin()}, {@code s:buff()}, {@code s:meter()},
- * {@code s:quest()}, {@code s:wound()} — plus {@code hafen.actionbar}, {@code hafen.fight} and the item
+ * {@code s:quest()}, {@code s:wound()}, {@code s:actionbar()}, {@code s:speed()}, {@code s:craft()} and
+ * {@code s:menugrid()} — plus {@code hafen.fight} and the item
  * reads: the widget-tree reads of character state,
  * plus the change-detection {@link TreeAdapter}s that fire the semantic events (BuffAdded, FepChanged,
  * ...). {@link AddonManager} drives it via {@link #dispatchUimsg} (the onUimsg tap),
@@ -94,6 +95,9 @@ final class CharApi {
     // 077.2: the two ROSTERS follow them, and with them the first protected verbs to be addressed at a
     // character nobody is looking at -- each keeping the one key it has, because a key names the action and
     // not the target (Permission, guides/permissions.md).
+    // 077.3: and the four that ACT -- the action bar, the speed selector, the open recipe and the action
+    // menu. Two of them report a WINDOW THE GAME PUT UP rather than a fact about a character, and a session
+    // that is not drawn still has its GameUI: its recipe window is open, and its action menu answers.
 
     /** {@code s:char()} — the sheet. */
     static final String C = "session:char()";
@@ -111,6 +115,14 @@ final class CharApi {
     static final String KN = "session:kin()";
     /** {@code s:party()} — the party roster. */
     static final String PT = "session:party()";
+    /** {@code s:actionbar()} — the hotbar. */
+    static final String AB = "session:actionbar()";
+    /** {@code s:speed()} — the movement-speed selector. */
+    static final String SP = "session:speed()";
+    /** {@code s:craft()} — the open recipe window. */
+    static final String CR = "session:craft()";
+    /** {@code s:menugrid()} — the action menu. */
+    static final String MG = "session:menugrid()";
 
     /**
      * <b>The nine change-detection adapters, for one session</b> (073.3) — built when that session's
@@ -552,7 +564,7 @@ final class CharApi {
      * number-key hotbar; the engine's own name for the action bar is the "belt"). Setting/clearing/
      * dragging a slot is a {@code setbelt}/{@code setbelt2} {@code uimsg} to {@code GameUI}.
      * Change-detection ignores {@code cooldown} (a live meter that would otherwise fire every frame while
-     * an ability cools down); {@code hafen.actionbar():get(n)} still reads it live.
+     * an ability cools down); {@code s:actionbar():get(n)} still reads it live.
      *
      * <p><b>Event-driven since 042.6 — the 144-slot per-frame walk is gone.</b> Three of the five
      * {@code setbelt}/{@code setbelt2} paths write {@code belt[slot]} synchronously, so the existing uimsg
@@ -566,7 +578,7 @@ final class CharApi {
      *
      * <p>The snapshots are the diff's <i>input only</i>: what reaches Lua is a per-addon <b>Slot object</b> for
      * the changed slot ({@link AddonManager#fireSlot}, 021.2), so a handler reads the payload with the same
-     * methods as {@code hafen.actionbar():get(n)} and can key a table by it.
+     * methods as {@code s:actionbar():get(n)} and can key a table by it.
      */
     private static final class ActionbarAdapter implements TreeAdapter {
         // slot index -> last snapshot, occupied slots only. UI-thread-only; built with its
@@ -582,8 +594,9 @@ final class CharApi {
             if((g == null) || (g.belt == null))
                 return;           // HUD not up yet — keep the cache, fire nothing
             GameUI.BeltSlot[] belt = g.belt;
+            String user = drawnUser();
             for(int n = 0; n < belt.length; n++)
-                checkSlot(belt, n);
+                checkSlot(user, belt, n);
         }
 
         /**
@@ -596,7 +609,7 @@ final class CharApi {
             GameUI g = gui();
             if((g == null) || (g.belt == null) || (n < 0) || (n >= g.belt.length))
                 return;
-            checkSlot(g.belt, n);
+            checkSlot(drawnUser(), g.belt, n);
         }
 
         /**
@@ -605,19 +618,19 @@ final class CharApi {
          * the deferred-write {@link #beltSet} (which knows exactly one), so the two paths can never
          * disagree about what "changed" means.
          */
-        private void checkSlot(GameUI.BeltSlot[] belt, int n) {
+        private void checkSlot(String user, GameUI.BeltSlot[] belt, int n) {
             GameUI.BeltSlot s = belt[n];
             LuaValue prev = cache.get(n);
             if(s == null) {
                 if(prev != null) {                        // occupied -> empty (cleared)
                     cache.remove(n);
-                    fireSlot(n);
+                    fireSlot(user, n);
                 }
             } else {
                 LuaValue snap = actionbarSnapshot(s);
                 if((prev == null) || !actionbarEqual(snap, prev)) {   // empty->occupied or content changed
                     cache.put(n, snap);
-                    fireSlot(n);
+                    fireSlot(user, n);
                 }
             }
         }
@@ -1342,15 +1355,67 @@ final class CharApi {
     }
 
     /**
-     * Build a char namespace for owner. From installHafen. <b>The section object IS the bar</b> (uniform
-     * grammar §2.1): {@code hafen.actionbar()} is the {@link LuaCollection} of all 144 slots and
-     * {@code hafen.actionbar():get(n)} is one {@link LuaSlot} by its raw game index; the reads and the two
-     * protected verbs live on the Slot object itself.
+     * Build the action-bar section object for {@code (owner, user)} — <b>one character's hotbar</b>, reached
+     * as {@code s:actionbar()} (077.3). <b>The section object IS the bar</b> (uniform grammar §2.1): it is
+     * the {@link LuaCollection} of all 144 slots, {@code s:actionbar():get(n)} is one {@link LuaSlot} by its
+     * raw game index, and the reads and the three writes live on the Slot object itself.
+     *
+     * <p><b>A slot index names one character's bar.</b> {@link GameUI#belt} is one login's array, so slot 11
+     * on two characters is two different buttons — which is why a Slot handle carries the account beside the
+     * index and interns on the pair. The holds and the placements {@link BeltHold} keeps were already that
+     * character's (073.3); what 077.3 moves is the address an addon reaches them by.
+     *
+     * <p><b>The two protected verbs keep the one key each has.</b> A key names the action, not the target,
+     * and the sends leave from that character's own widgets — {@code GameUI.wdgmsg} for an assignment and
+     * that HUD's own {@code beltwdg} for a press — so a write lands on the bar it was addressed at whether
+     * or not anyone is looking at it.
      */
-    static void installActionbar(LuaTable hafen, final Addon owner) {
-        Section.mount(hafen, "actionbar", LuaSlot.collection(owner),
-                      "hafen.actionbar(n) is now hafen.actionbar():get(n), and hafen.actionbar() is"
-                      + " hafen.actionbar():list()");
+    static LuaValue actionbar(Addon owner, String user) {
+        return LuaSlot.collection(owner, user);
+    }
+
+    /**
+     * Build the speed section object for {@code (owner, user)} — <b>one character's movement speed</b>,
+     * reached as {@code s:speed()} (077.3). <b>The section object IS the collection</b> of the speeds that
+     * character can pick right now (uniform grammar §2.1), {@code :current()} is the one it is on and
+     * {@code :set(x)} the protected verb that picks one.
+     *
+     * <p><b>Every character has its own selector.</b> {@link Speedget} is a widget under one login's HUD and
+     * both fields read off it — {@code cur} and {@code max} — are that character's, so a Speed handle carries
+     * the account beside the wire index: speed 3 unlocked on one character says nothing about the other. The
+     * send is the client's own {@code Speedget.set}, which goes through that widget's own tree.
+     */
+    static LuaValue speed(Addon owner, String user) {
+        return LuaSpeed.collection(owner, user);
+    }
+
+    /**
+     * Build the craft section object for {@code (owner, user)} — <b>the recipe THAT character has open</b>,
+     * reached as {@code s:craft()} (077.3). The section is one verb, {@code :current()}, and the recipe it
+     * hands back carries its own reads and its own protected {@code :make(all)}; see {@link ActApi#craft}.
+     *
+     * <p><b>A window the game put up is open on a session nobody is looking at.</b> A background session keeps
+     * its {@link GameUI}, so its recipe window stands in its tree and answers, which is the whole reason a
+     * crafting addon across characters is worth writing. Where that character has no recipe open it answers
+     * the same {@code nil} a drawn session with none answers — no new absence is invented.
+     */
+    static LuaValue craft(Addon owner, String user) {
+        return ActApi.craft(owner, user);
+    }
+
+    /**
+     * Build the menu section object for {@code (owner, user)} — <b>the catalogue THAT character carries</b>,
+     * reached as {@code s:menugrid()} (077.3). <b>The section object IS the catalogue</b> (uniform grammar
+     * §2.1): it is the {@link LuaPagina} collection over that login's {@link MenuGrid}, and one entry is
+     * {@code s:menugrid():get(key)}.
+     *
+     * <p><b>The catalogue is one character's.</b> Two characters know different actions, and the menu is a
+     * widget under one login's HUD — so a resource name that names an entry on one names nothing on the
+     * other, and a Pagina handle carries the account beside the name. An entry an addon adds is added to the
+     * grid it was addressed at, and the same id may stand in each character's menu.
+     */
+    static LuaValue menugrid(Addon owner, String user) {
+        return LuaPagina.collection(owner, user);
     }
 
     // ------------------------------------------------------------- items / char / party reads
@@ -1488,7 +1553,7 @@ final class CharApi {
 
     // ------------------------------------------------ action bar / hotbar + equipment (1d-4)
     // NB the engine calls the action bar the "belt" (GameUI.belt / BeltSlot / setbelt) — H&H's own term;
-    // the addon-facing API deliberately exposes it as `hafen.actionbar` (clearer, WoW-like). These helpers
+    // the addon-facing API deliberately exposes it as `s:actionbar()` (clearer, WoW-like). These helpers
     // are named actionbar* but read the engine's belt[] array; the two names denote the same thing.
 
     /**

@@ -23,25 +23,25 @@ consent dialog tells the user, word for word.
 | `item.transfer` | [`item:transfer`](../api/ui/items.md#write-protected) | move items between containers |
 | `world.place` | [`session:world():place`](../api/world.md#write-protected) | place buildings and objects |
 | `world.select` | [`session:world():select`](../api/world.md#write-protected) | select an area of the ground |
-| `menugrid.use` | [`pag:use`](../api/menugrid.md#use-protected) | invoke entries of the action menu |
+| `menugrid.use` | [`pag:use`](../api/menugrid.md#use-protected) | invoke entries of the action menu, on any of your characters |
 | `flowermenu.select` | [`hafen.flowermenu():select`](../api/flowermenu.md#write-protected) | choose from the radial menu |
 | `flowermenu.cancel` | [`hafen.flowermenu():cancel`](../api/flowermenu.md#write-protected) | dismiss the radial menu |
-| `craft.make` | [`hafen.craft():current():make`](../api/craft.md#write-protected) | press the Craft button |
-| `actionbar.use` | [`slot:use`](../api/actionbar.md#write-protected) | press your action-bar buttons |
-| `actionbar.res` | [`slot:res`](../api/actionbar.md#write-protected) | change what your action-bar buttons hold |
-| `kin.add` | [`s:kin():add`](../api/kin.md#write-protected) | add someone to any of your characters' kin lists |
+| `craft.make` | [`session:craft():current():make`](../api/craft.md#write-protected) | press the Craft button, on any of your characters |
+| `actionbar.use` | [`slot:use`](../api/actionbar.md#write-protected) | press the action-bar buttons of any of your characters |
+| `actionbar.res` | [`slot:res`](../api/actionbar.md#write-protected) | change what any of your characters' action-bar buttons hold |
+| `kin.add` | [`session:kin():add`](../api/kin.md#write-protected) | add someone to any of your characters' kin lists |
 | `kin.rename` | [`kin:rename`](../api/kin.md#write-protected) | rename someone on any of your characters' kin lists |
 | `kin.group` | [`kin:group`](../api/kin.md#write-protected) | change someone's kin group, on any of your characters |
 | `kin.endKin` | [`kin:endKin`](../api/kin.md#write-protected) | end kinship with someone, on any of your characters |
 | `kin.forget` | [`kin:forget`](../api/kin.md#write-protected) | forget someone from any of your characters' kin lists |
-| `speed.set` | [`hafen.speed():set`](../api/speed.md#write-protected) | change your movement speed |
-| `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected) | the escape hatch: any message the client itself could send |
+| `speed.set` | [`session:speed():set`](../api/speed.md#write-protected) | change the movement speed of any of your characters |
+| `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected) | send any message the client itself could send |
 | `widget.value` | [`widget:value`](../api/ui/edit.md#driving-one-protected) | flip the client's own controls — a box it ticks, a field it types into — which the server sees |
 
 That is the whole set. Nothing else in the API is protected, and **no key grants the tier as a whole**: an
 addon that declared `gob.click` can click objects and none of the other things on that list.
 
-## A key names the action, not the character
+## A key names the action, not the target
 
 The client holds several logins at once, and a protected verb is addressed at one of them: `s:kin():add`
 adds a kin to the character `s` names, drawn or not. **The key you declared covers every one of them.**
@@ -122,7 +122,7 @@ several of them look like writes:
 | Unprotected write | What it changes |
 |---|---|
 | [`hafen.map():marker():add`](../api/map/markers.md#write-unprotected) | your own map database |
-| [`hafen.menugrid():add`](../api/menugrid.md#write-unprotected) | an entry of your own in the action menu |
+| [`s:menugrid():add`](../api/menugrid.md#write-unprotected) | an entry of your own in a character's action menu |
 | [`slot:pagina(pag)`](../api/actionbar.md#hold-a-slot-unprotected) | which of your entries the client draws over a bar slot |
 | [`cat:show(on)`](../api/map/icons.md#the-iconcat-object) | which icons your minimap draws |
 | [`w:position`, `w:size`, `w:visible`, `w:draggable`, `w:resizable`, `w:remember`](../api/ui/native.md) | where the client's own windows sit and how big they are, whether the user can drag or size one, and whether that lasts |

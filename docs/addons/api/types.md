@@ -205,12 +205,12 @@ live [`Kin` objects](kin.md), not this table.
 ## Speed
 
 From [`sp:info()`](speed.md#the-speed-object), the snapshot escape hatch for one movement speed.
-`hafen.speed()` hands out live [`Speed` objects](speed.md#the-speed-object), not this table.
+`s:speed()` hands out live [`Speed` objects](speed.md#the-speed-object), not this table.
 
 `{ index = number, name = string, available = bool, current = bool }` — `index` is the wire number `0..3`
 and the speed's identity, `available` says whether it can be picked right now, and `current` whether it is
 the one your character is on. The live reads are `sp:index()`, `:name()` and `:available()`; whether you are
-on it is `hafen.speed():current() == sp`, since the objects are interned.
+on it is `s:speed():current() == sp`, since the objects are interned.
 
 ## Quest and Condition
 
@@ -238,7 +238,7 @@ What `w:info()` hands back on [`session:wound`](wound.md)'s objects. Wounds form
 
 ## Craft and CraftSpec
 
-What `c:info()` hands back on [`hafen.craft`](craft.md)'s Craft; the reads themselves are verbs on it,
+What `c:info()` hands back on [`session:craft`](craft.md)'s Craft; the reads themselves are verbs on it,
 where `qmod` is `c:qualityInputs()`.
 
 **Craft** —
@@ -277,7 +277,7 @@ ability slot with a meter, and is **not** seconds. On a slot
 
 ## Pagina
 
-From [`pag:info()`](menugrid.md#read) and [`hafen.menugrid():list()`](menugrid.md#read), the snapshot
+From [`pag:info()`](menugrid.md#read) and [`s:menugrid():list()`](menugrid.md#read), the snapshot
 escape hatch for an action-menu entry.
 
 `{ res = string, exists = bool, addon = string?, name = string?, tooltip = string?, hotkey = string?,

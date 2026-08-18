@@ -114,6 +114,17 @@ and this is the number that catches it.
 - `src/io/brodgar/addon/AddonPagina.java` — 3
 - `src/io/brodgar/addon/Permission.java` — 2, 3, 4
 - `src/io/brodgar/addon/Retired.java` — 1, 2, 3, 4
+- `src/io/brodgar/addon/Section.java` — 3, 4 (`Section.object(nm, methods, how)` is how a section reached
+  through another object is minted, and `Section.self(v, nm, verb, how)` how its verbs name themselves)
+- `src/io/brodgar/addon/LuaCollection.java` — 3, 4 (a collection mounted AS a section object looks a retired
+  verb up by `coll.name`, so renaming the section moves that key: `hafen.speed():max` became
+  `session:speed():max`, and a row left behind answers "has no verb" instead)
+- `src/io/brodgar/addon/LuaWidget.java` — 3, 4 (`live(n)`'s `hasparent(u.root)` walk is the shape an entity
+  keyed on a WIDGET answers `:exists()` with — `LuaCraft` took it in 3)
+- `src/io/brodgar/addon/Addon.java` — 3, 4 (each entity's intern cache is a field here, and its javadoc
+  quotes the spelling that reaches it)
+- `src/haven/GameUI.java` — 3 (the `place == "craft"` arm, for the map toll: the wrapper is destroyed by the
+  CONTENT's `cdestroy`, so it is the content a liveness test must ask)
 
 **The section file is not where the work is — the ENTITY file is.** Each section's
 `LuaX.collection(owner)` grows the account, and so does the entity's own intern cache wherever its key

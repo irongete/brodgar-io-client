@@ -366,7 +366,7 @@ public final class Addon {
      */
     public final List<LuaMouseGrab> mouseGrabs = new CopyOnWriteArrayList<LuaMouseGrab>();
     /**
-     * Live <b>action-menu entries</b> this addon added ({@code hafen.menugrid():add(id)}, 059): each is an
+     * Live <b>action-menu entries</b> this addon added ({@code s:menugrid():add(id)}, 059): each is an
      * {@link AddonPagina} standing in the client's own {@code MenuGrid.paginae} set beside the entries the
      * server granted — a client-only entry that reaches no server, so it is unprotected like a HUD overlay.
      * Bridge-owned like every list here: teardown ({@link AddonPagina#teardownEntries}) takes each back out of
@@ -478,7 +478,7 @@ public final class Addon {
     final LuaKin.Cache kins = new LuaKin.Cache(this);
 
     /**
-     * This addon's <b>action-bar Slot interning cache</b> ({@code hafen.actionbar():get(n)}, spec
+     * This addon's <b>action-bar Slot interning cache</b> ({@code s:actionbar():get(n)}, spec
      * {@code 021-actionbar-oop}): the weak-valued {@code slot index → Slot object} map, its
      * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. Same contract as {@link #gobs} and
      * {@link #kins} — per-addon so no Lua value crosses a sandbox boundary (D-017) and the whole cache dies
@@ -489,18 +489,18 @@ public final class Addon {
     final LuaSlot.Cache slots = new LuaSlot.Cache(this);
 
     /**
-     * This addon's <b>movement-Speed interning cache</b> ({@code hafen.speed():get(key)}, spec
+     * This addon's <b>movement-Speed interning cache</b> ({@code s:speed():get(key)}, spec
      * {@code 060-speed-collection}): the weak-valued {@code speed index → Speed object} map, its
      * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. The same contract — and the same
      * shape — as {@link #slots}, the other cache keyed by a small int: per-addon so no Lua value crosses a
      * sandbox boundary (D-017) and the whole cache dies with this {@link Addon} on {@code :reload}/disable;
      * nothing to tear down (weak entries, and a handle holds only the index). It is what makes
-     * {@code hafen.speed():current() == hafen.speed():get(2)} the "am I on this one" test.
+     * {@code s:speed():current() == s:speed():get(2)} the "am I on this one" test.
      */
     final LuaSpeed.Cache speeds = new LuaSpeed.Cache(this);
 
     /**
-     * This addon's <b>action-menu Pagina interning cache</b> ({@code hafen.menugrid():get(key)}, spec
+     * This addon's <b>action-menu Pagina interning cache</b> ({@code s:menugrid():get(key)}, spec
      * {@code 023-menugrid-oop}): the weak-valued {@code resource name → Pagina object} map, its
      * {@link java.lang.ref.ReferenceQueue} and the per-addon metatable. Same contract as {@link #gobs}, {@link #kins} and {@link #slots} — per-addon so no Lua
      * value crosses a sandbox boundary (D-017) and the whole cache dies with this {@link Addon} on
@@ -581,7 +581,7 @@ public final class Addon {
      * windows look their record up by it and mutate it in place, so a quest completing and a wound worsening
      * are the same quest and the same wound — {@code quest:conditions()} by the quest id plus the
      * objective's text, which is the pair the engine itself matches on when it carries an objective across a
-     * resend, and {@code hafen.craft():current()} by the recipe <b>window</b>, since a different recipe is a
+     * resend, and {@code s:craft():current()} by the recipe <b>window</b>, since a different recipe is a
      * different window rather than a change to this one. D-094 throughout. Same contract as {@link #gobs} —
      * per-addon, weak-valued, dead with this {@link Addon} on {@code :reload}/disable.
      */

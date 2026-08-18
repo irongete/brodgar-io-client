@@ -1,0 +1,9 @@
+{
+  "name": "077.3 — the verbs that act, addressed",
+  "id": "077-the-character-belongs-to-a-session.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 077.3: actionbar, speed, craft and menugrid are reached through a Session and read that character's own bar, selector, recipe window and catalogue; a slot held for one of this addon's own entries reads as that entry and hands the server's content back; and every protected verb in the family keeps the one key it has, refusing by key where none was declared.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

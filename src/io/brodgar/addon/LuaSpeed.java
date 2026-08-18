@@ -21,8 +21,8 @@ import java.util.Map;
 /**
  * A <b>Speed object</b> — one of the four movement speeds the HUD's selector offers (spec
  * {@code 060-speed-collection}), and the collection they form. <b>The section object IS that collection</b>
- * (uniform grammar §2.1): {@code hafen.speed()} is the speeds you can pick right now,
- * {@code hafen.speed():current()} the one you are on, and {@code hafen.speed():set(x)} the verb that picks one.
+ * (uniform grammar §2.1): {@code s:speed()} is the speeds that character can pick right now,
+ * {@code s:speed():current()} the one it is on, and {@code s:speed():set(x)} the verb that picks one.
  *
  * <p><b>The collection enumerates what you can pick; {@code :get} addresses a speed by its key.</b> That one
  * sentence is the whole of the wrinkle here, and it is deliberate: {@code :list()} is <i>exactly</i> the
@@ -31,18 +31,24 @@ import java.util.Map;
  * "is sprint unlocked yet?" has an address to ask about. The old {@code :max()} was a bound every caller
  * turned back into this range by hand.
  *
- * <p><b>Wraps only the index</b> ({@link LuaSlot} is the exact model — the other cache keyed by a small int
- * rather than by an object). Every read re-resolves through the live {@link Speedget}, so a stashed Speed
- * tracks the server locking and unlocking it, and {@code :info()} is the one snapshot escape hatch.
- * {@code :available()}/{@code :exists()} answer {@code false} rather than throwing while the selector is
- * absent, and {@code :name()} answers from {@link Speedget#tips}, which is static and therefore known before
- * any selector is.
+ * <p><b>Wraps the account and the index</b> ({@link LuaSlot} is the exact model — the other cache keyed by a
+ * small int rather than by an object). Every read re-resolves through <b>that character's</b> live
+ * {@link Speedget}, so a stashed Speed tracks the server locking and unlocking it, and {@code :info()} is the
+ * one snapshot escape hatch. {@code :available()}/{@code :exists()} answer {@code false} rather than throwing
+ * while the selector is absent, and {@code :name()} answers from {@link Speedget#tips}, which is static and
+ * therefore known before any selector is.
+ *
+ * <p><b>A speed is unlocked on one character at a time</b> (077.3), which is why the account is half the
+ * handle. The selector is a widget under one login's HUD and both fields read off it — {@code cur} and
+ * {@code max} — are that character's, so sprint unlocked here says nothing about the alt, and
+ * {@code :current()} names two different members on two sessions. Two levels of intern map, on
+ * {@code (account, index)}: the {@link LuaGob} shape.
  *
  * <p><b>Userdata + per-addon interning</b> (D-017 / D-045), identical to the rest of the series: the handle
  * crosses as {@code LuaValue.userdataOf(luaSpeed, mt)} so Lua cannot scribble on it, and the {@link Cache}
  * lives on the owning {@link Addon} ({@link Addon#speeds}), never statically — so
- * {@code hafen.speed():get(2) == hafen.speed():get(2)}, {@code hafen.speed():current() == sp} is the "am I on
- * this one" test, and the cache dies whole with the {@link Addon} on {@code :reload}.
+ * {@code s:speed():get(2) == s:speed():get(2)}, {@code s:speed():current() == sp} is the "am I on this one"
+ * test, and the cache dies whole with the {@link Addon} on {@code :reload}.
  *
  * <p><b>{@code Speedget.max} can be negative</b> — both {@code Speedget.mousewheel} and
  * {@code Speedget.globtype} guard on {@code max >= 0}. That is a live selector with an <i>empty</i>
@@ -54,15 +60,22 @@ import java.util.Map;
  * clicking or hotkeying that speed sends, so the server stays authoritative on whether a speed is allowed.
  * The read-back is a <b>round trip</b>: {@code Speedget.cur} only moves when the server sends its
  * {@code uimsg("cur")}, so {@code :current()} still names the old speed on the next line.
+ *
+ * <p><b>It keeps the ONE key it has, addressed or not</b> (077.3): a key names the action, not the target,
+ * and the player could have tabbed to that character and clicked that icon. The send needs no anchor either —
+ * {@code Speedget.set} goes through the widget's own tree, so it reaches the session it was addressed at.
  */
 public final class LuaSpeed {
     /** How many speeds there are — the selector is a fixed crawl/walk/run/sprint four. */
     public static final int SPEEDS = 4;
 
-    /** The wire index of this speed ({@code 0} crawl … {@code 3} sprint) — the whole state of a handle. */
+    /** The account whose selector this speed is on — half the address, and what makes the index one fact. */
+    public final String user;
+    /** The wire index of this speed ({@code 0} crawl … {@code 3} sprint), on that character's selector. */
     public final int index;
 
-    private LuaSpeed(int index) {
+    private LuaSpeed(String user, int index) {
+        this.user = user;
         this.index = index;
     }
 
@@ -72,9 +85,9 @@ public final class LuaSpeed {
         return "Speed(" + index + ((n == null) ? "" : " " + n) + ")";
     }
 
-    /** An interned Speed object for {@code index} in {@code owner}'s env — the one way a Speed reaches Lua. */
-    static LuaValue of(Addon owner, int index) {
-        return owner.speeds.of(index);
+    /** An interned Speed object for {@code index} <b>on {@code user}'s selector</b>, in {@code owner}'s env. */
+    static LuaValue of(Addon owner, String user, int index) {
+        return owner.speeds.of(user, index);
     }
 
     /** The {@code LuaSpeed} behind a Lua value, or {@code null} for anything that is not a Speed object. */
@@ -88,14 +101,16 @@ public final class LuaSpeed {
     // ---- the per-addon intern cache + metatable ---------------------------------------------------
 
     /**
-     * One addon's Speed interning cache and metatable (its {@link Addon#speeds}). Weak values + a
+     * One addon's Speed interning cache and metatable (its {@link Addon#speeds}), keyed by the <b>account
+     * plus</b> the wire index: a selector is one character's, so speed 3 on two characters is two different
+     * facts and must have two handles. Two levels of map, the {@link LuaGob} shape. Weak values + a
      * {@link ReferenceQueue} drained on every access; the metatable is built once, lazily. The key space is
-     * four wide, so the weakness buys nothing here — the shape is kept identical to {@link LuaSlot.Cache}
-     * on purpose: one interning idiom, one place to get it right.
+     * four wide per account, so the weakness buys nothing here — the shape is kept identical to
+     * {@link LuaSlot.Cache} on purpose: one interning idiom, one place to get it right.
      */
     static final class Cache {
         private final Addon owner;
-        private final Map<Integer, Ref> live = new HashMap<Integer, Ref>();
+        private final Map<String, Map<Integer, Ref>> live = new HashMap<String, Map<Integer, Ref>>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
@@ -103,19 +118,22 @@ public final class LuaSpeed {
             this.owner = owner;
         }
 
-        /** The interned handle for {@code index} — a cache hit, or a freshly minted (and inserted) one. */
-        synchronized LuaValue of(int index) {
+        /** The interned handle for {@code (user, index)} — a cache hit, or a freshly minted (inserted) one. */
+        synchronized LuaValue of(String user, int index) {
             drain();
+            Map<Integer, Ref> byidx = live.get(user);
+            if(byidx == null)
+                live.put(user, byidx = new HashMap<Integer, Ref>());
             Integer key = Integer.valueOf(index);
-            Ref r = live.get(key);
+            Ref r = byidx.get(key);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(key);
+                byidx.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaSpeed(index), meta());
-            live.put(key, new Ref(v, key, dead));
+            LuaValue v = LuaValue.userdataOf(new LuaSpeed(user, index), meta());
+            byidx.put(key, new Ref(v, user, key, dead));
             return v;
         }
 
@@ -124,8 +142,13 @@ public final class LuaSpeed {
             Reference<? extends LuaValue> r;
             while((r = dead.poll()) != null) {
                 Ref sr = (Ref)r;
-                if(live.get(sr.key) == sr)      // not already replaced by a fresh handle for the same index
-                    live.remove(sr.key);
+                Map<Integer, Ref> byidx = live.get(sr.user);
+                if(byidx == null)
+                    continue;
+                if(byidx.get(sr.key) == sr)     // not already replaced by a fresh handle for the same index
+                    byidx.remove(sr.key);
+                if(byidx.isEmpty())
+                    live.remove(sr.user);
             }
         }
 
@@ -138,10 +161,12 @@ public final class LuaSpeed {
 
     /** A weak handle reference that remembers its map key, so the {@link ReferenceQueue} drain can unmap it. */
     private static final class Ref extends WeakReference<LuaValue> {
+        final String user;
         final Integer key;
 
-        Ref(LuaValue v, Integer key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, String user, Integer key, ReferenceQueue<LuaValue> q) {
             super(v, q);
+            this.user = user;
             this.key = key;
         }
     }
@@ -185,24 +210,25 @@ public final class LuaSpeed {
             }
         });
         // available() — can this speed be picked right now? (n <= Speedget.max, the server's own lock.) This
-        // is exactly the predicate hafen.speed():list() filters on, so a member of that list is always true.
+        // is exactly the predicate s:speed():list() filters on, so a member of that list is always true.
         m.set("available", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(available(handle(self, "available").index));
+                LuaSpeed h = handle(self, "available");
+                return LuaValue.valueOf(available(h.user, h.index));
             }
         });
         // exists() — is the speed selector up at all? False before the HUD streams it in and after a logout;
         // the four speeds themselves are static client facts, so this asks about the selector, not the speed.
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                handle(self, "exists");
-                return LuaValue.valueOf(speedget() != null);
+                return LuaValue.valueOf(speedget(handle(self, "exists").user) != null);
             }
         });
         // info() — the one SNAPSHOT escape hatch (the documented Speed table shape), for logging/serialising.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return snapshot(handle(self, "info").index);
+                LuaSpeed h = handle(self, "info");
+                return snapshot(h.user, h.index);
             }
         });
         return m;
@@ -212,8 +238,8 @@ public final class LuaSpeed {
     private static LuaSpeed handle(LuaValue self, String method) {
         LuaSpeed h = resolve(self);
         if(h == null)
-            throw new LuaError("speed:" + method + "() — use a COLON call on a Speed object"
-                + " (hafen.speed():get(key), hafen.speed():list()[i], hafen.speed():current())");
+            throw new LuaError("speed:" + method + "() — use a COLON call on a Speed object ("
+                + CharApi.SP + ":get(key), " + CharApi.SP + ":list()[i], " + CharApi.SP + ":current())");
         return h;
     }
 
@@ -224,9 +250,9 @@ public final class LuaSpeed {
     // highest currently selectable one) are public ints, so this is a zero-haven-edit read. All calls run on
     // the UI thread (addon tick / REPL / slash command).
 
-    /** The (unique) movement-speed widget under the HUD, or {@code null} before it has streamed in. */
-    static Speedget speedget() {
-        GameUI g = AddonManager.gui();
+    /** That character's movement-speed widget, or {@code null} before its HUD has streamed one in. */
+    static Speedget speedget(String user) {
+        GameUI g = AddonManager.gameui(user);          // THAT session's HUD, not the drawn one's
         if(g == null)
             return null;
         for(Speedget s : g.children(Speedget.class))   // recursive subtree walk; take the first
@@ -261,29 +287,29 @@ public final class LuaSpeed {
         return t;
     }
 
-    /** Can speed {@code n} be picked right now? False with no selector, and false for a locked speed. */
-    static boolean available(int n) {
-        Speedget s = speedget();
+    /** Can that character pick speed {@code n} now? False with no selector, and false for a locked speed. */
+    static boolean available(String user, int n) {
+        Speedget s = speedget(user);
         return (s != null) && (n >= 0) && (n < SPEEDS) && (n <= s.max);
     }
 
-    /** The speed the character is on, or {@code -1} with no selector (or a {@code cur} out of range). */
-    private static int current() {
-        Speedget s = speedget();
+    /** The speed that character is on, or {@code -1} with no selector (or a {@code cur} out of range). */
+    private static int current(String user) {
+        Speedget s = speedget(user);
         if((s == null) || (s.cur < 0) || (s.cur >= SPEEDS))
             return -1;
         return s.cur;
     }
 
     /** A Speed snapshot — the documented {@code Speed} table shape: {@code index name available current}. */
-    private static LuaValue snapshot(int n) {
+    private static LuaValue snapshot(String user, int n) {
         LuaTable t = new LuaTable();
         t.set("index", LuaValue.valueOf(n));
         String name = speedName(n);
         if(name != null)
             t.set("name", LuaValue.valueOf(name));
-        t.set("available", LuaValue.valueOf(available(n)));
-        t.set("current", LuaValue.valueOf(current() == n));
+        t.set("available", LuaValue.valueOf(available(user, n)));
+        t.set("current", LuaValue.valueOf(current(user) == n));
         return t;
     }
 
@@ -319,10 +345,10 @@ public final class LuaSpeed {
     }
 
     /** The selectable speeds as {@code "Crawl (0), Walk (1)"} — what a refused {@code :set} lists back. */
-    private static String selectable() {
+    private static String selectable(String user) {
         StringBuilder sb = new StringBuilder();
         for(int i = 0; i < SPEEDS; i++) {
-            if(!available(i))
+            if(!available(user, i))
                 continue;
             if(sb.length() > 0)
                 sb.append(", ");
@@ -334,11 +360,11 @@ public final class LuaSpeed {
     // ---- the collection ----------------------------------------------------------------------------
 
     /**
-     * {@code hafen.speed()} — the speeds you can pick, as the {@link LuaCollection} the section object IS:
-     * {@code :list(filter)} is a fresh 1-based array of (interned) Speed objects in crawl→sprint order,
-     * {@code :count}/{@code :find} the usual pair, {@code :get(key)} one speed by index or display name, and
-     * the section's own two verbs — {@code :current()} and the protected {@code :set(x)} — ride in the
-     * {@code extra} table.
+     * {@code s:speed()} — the speeds <b>that character</b> can pick, as the {@link LuaCollection} the section
+     * object IS: {@code :list(filter)} is a fresh 1-based array of (interned) Speed objects in crawl→sprint
+     * order, {@code :count}/{@code :find} the usual pair, {@code :get(key)} one speed by index or display
+     * name, and the section's own two verbs — {@code :current()} and the protected {@code :set(x)} — ride in
+     * the {@code extra} table.
      *
      * <p><b>{@code :list()} is empty in two different situations</b>, and both are states rather than errors:
      * before the selector streams in (there is nothing to pick from yet) and when {@code Speedget.max} is
@@ -346,21 +372,21 @@ public final class LuaSpeed {
      * because a locked speed is a speed; it answers {@code nil} in the first, because with no selector there
      * is nothing to address.
      */
-    static LuaValue collection(final Addon owner) {
+    static LuaValue collection(final Addon owner, final String user) {
         LuaTable extra = new LuaTable();
-        // current() — the speed you are ON, as the very member :list() holds, so `hafen.speed():current() == sp`
+        // current() — the speed you are ON, as the very member :list() holds, so `s:speed():current() == sp`
         // is the identity test and there is no second "am I on this one" verb. nil with no selector.
         // The write arity is GONE (060): :current() addresses a member, and a member address is not a property.
         extra.set("current", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "current");
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen.speed():current(n) is retired — picking a speed is"
-                        + " hafen.speed():set(speed|index|name), under the \"speed.set\" permission."
+                    throw new LuaError(CharApi.SP + ":current(n) is retired — picking a speed is "
+                        + CharApi.SP + ":set(speed|index|name), under the \"speed.set\" permission."
                         + " :current() ADDRESSES the member you are on, and a member address is not a"
-                        + " property to write: hafen.speed():set(hafen.speed():get(\"Run\"))");
-                int cur = current();
-                return (cur < 0) ? LuaValue.NIL : of(owner, cur);
+                        + " property to write: " + CharApi.SP + ":set(" + CharApi.SP + ":get(\"Run\"))");
+                int cur = current(user);
+                return (cur < 0) ? LuaValue.NIL : of(owner, user, cur);
             }
         });
         // set(x) — the one protected verb (D-027/D-028, "speed.set"), gated as the FIRST statement (D-213).
@@ -372,28 +398,31 @@ public final class LuaSpeed {
                 LuaValue me = a.arg1();
                 AddonManager.requirePermission(owner, Permission.SPEED_SET);
                 LuaCollection.receiver(me, "set");
-                int n = demand(Args.required(a, 2, "hafen.speed():set", "speed"));
-                Speedget s = speedget();
+                int n = demand(Args.required(a, 2, CharApi.SP + ":set", "speed"));
+                // That character's own selector sends it: Speedget.set walks the widget's own tree to that
+                // session, so a speed picked on a character nobody is looking at reaches the right server.
+                Speedget s = speedget(user);
                 if(s == null)
-                    throw new LuaError("hafen.speed():set(speed): no speed selector (not in the world yet)");
-                if(!available(n))
-                    throw new LuaError("hafen.speed():set(speed): " + speedName(n) + " (" + n + ") is not"
-                        + " selectable right now — you can pick " + selectable() + ", which is what"
-                        + " hafen.speed():list() hands back");
+                    throw new LuaError(CharApi.SP + ":set(speed): no speed selector (that character is not"
+                        + " in the world yet)");
+                if(!available(user, n))
+                    throw new LuaError(CharApi.SP + ":set(speed): " + speedName(n) + " (" + n + ") is not"
+                        + " selectable right now — you can pick " + selectable(user) + ", which is what "
+                        + CharApi.SP + ":list() hands back");
                 s.set(n);
                 return me;
             }
         });
-        return LuaCollection.create("hafen.speed()", new LuaCollection.Source() {
+        return LuaCollection.create(CharApi.SP, new LuaCollection.Source() {
             /** Exactly the selectable ones, crawl→sprint: empty with no selector, empty with max &lt; 0. */
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>(SPEEDS);
-                Speedget s = speedget();
+                Speedget s = speedget(user);
                 if(s == null)
                     return out;
                 int max = Math.min(s.max, SPEEDS - 1);
                 for(int i = 0; i <= max; i++)
-                    out.add(of(owner, i));
+                    out.add(of(owner, user, i));
                 return out;
             }
 
@@ -425,13 +454,13 @@ public final class LuaSpeed {
                 } else if(key.isstring()) {
                     n = byName(key.tojstring());
                 } else {
-                    throw new LuaError("hafen.speed():get(key): the key is an index 0..3 (0=crawl 1=walk"
+                    throw new LuaError(CharApi.SP + ":get(key): the key is an index 0..3 (0=crawl 1=walk"
                         + " 2=run 3=sprint) or a whole display name (\"Run\", case-insensitive), got "
                         + key.typename());
                 }
-                if((n == null) || (speedget() == null))
+                if((n == null) || (speedget(user) == null))
                     return LuaValue.NIL;            // no selector: there is nothing to address yet
-                return of(owner, n.intValue());
+                return of(owner, user, n.intValue());
             }
         }, extra);
     }
@@ -449,18 +478,18 @@ public final class LuaSpeed {
         if(x.isnumber()) {                          // BEFORE isstring(): in LuaJ a number IS a string
             int n = x.toint();
             if((n < 0) || (n >= SPEEDS))
-                throw new LuaError("hafen.speed():set(speed): the index must be 0..3 (0=crawl 1=walk 2=run"
+                throw new LuaError(CharApi.SP + ":set(speed): the index must be 0..3 (0=crawl 1=walk 2=run"
                     + " 3=sprint), got " + n);
             return n;
         }
         if(x.isstring()) {
             Integer n = byName(x.tojstring());
             if(n == null)
-                throw new LuaError("hafen.speed():set(speed): no speed is called \"" + x.tojstring()
+                throw new LuaError(CharApi.SP + ":set(speed): no speed is called \"" + x.tojstring()
                     + "\" — the names are " + names() + ", and an index 0..3 works too");
             return n.intValue();
         }
-        throw new LuaError("hafen.speed():set(speed): expected a Speed object (hafen.speed():get(key)), an"
-            + " index 0..3 or a display name, got " + x.typename());
+        throw new LuaError(CharApi.SP + ":set(speed): expected a Speed object (" + CharApi.SP + ":get(key)),"
+            + " an index 0..3 or a display name, got " + x.typename());
     }
 }

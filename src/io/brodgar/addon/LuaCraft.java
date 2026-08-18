@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A <b>Craft object</b> — the recipe the player has open ({@code hafen.craft():current()}): what it needs,
+ * A <b>Craft object</b> — the recipe a character has open ({@code s:craft():current()}): what it needs,
  * what it makes, and the button that makes it.
  *
  * <p><b>The intern key is the recipe window</b> (§2.4's <i>exposes only a widget</i> row), and that is what
@@ -30,6 +30,13 @@ import java.util.Map;
  * stashed Craft reads {@code :exists() == false} from that moment, and {@code :make()} on it refuses rather
  * than crafting whatever is open now.
  *
+ * <p><b>The window is the whole address, so no account is added to it</b> (077.3). Every other entity of this
+ * family took the account beside its key because an id or an index counts inside one character alone — a
+ * widget does not: it stands in exactly one session's tree and names it. So {@code :exists()} <b>walks up
+ * from the window</b> to that tree's root rather than comparing against whatever recipe is open on screen,
+ * which is what makes a recipe on a character you tabbed away from still open, still readable and still
+ * craftable.
+ *
  * <p><b>A recipe's slots are DATA, not entities</b> (§2.8). Every update to the inputs rebuilds the whole
  * row of them, so a handle to "the second input" would die on the next hammer-blow and mean nothing across a
  * change of recipe anyway; there is no key to address one by, and nothing to ask about one but its four
@@ -37,7 +44,10 @@ import java.util.Map;
  * arrays of plain tables, which is what the grammar reserves for a value.
  *
  * <p><b>{@code :make(all)} is the protected verb</b> and it is the recipe's own: it presses the window's Craft
- * button, or Craft All, exactly as a click would — so it consumes the ingredients like a manual craft.
+ * button, or Craft All, exactly as a click would — so it consumes the ingredients like a manual craft. It
+ * keeps the one key it has whichever character it is addressed at (077.3) — a key names the action, and the
+ * player could have tabbed there and pressed the button — and the send is the <b>window's own</b>
+ * {@code wdgmsg}, so it lands in the session that window stands in.
  *
  * <p><b>Threading.</b> The input, output and quality lists are swapped wholesale off the UI thread and the
  * tool list is appended to in place, so all four are copied under the UI monitor and their resource names
@@ -164,11 +174,11 @@ public final class LuaCraft {
                 LuaValue me = a.arg1();
                 LuaCraft h = handle(me, "make");
                 AddonManager.requirePermission(owner, Permission.CRAFT_MAKE);
-                LuaValue all = Args.written(a, 2, "hafen.craft():current():make", "all");
+                LuaValue all = Args.written(a, 2, CharApi.CR + ":current():make", "all");
                 Makewindow mw = live(h);
                 if(mw == null)
-                    throw new LuaError("hafen.craft():current():make(all): this recipe window is gone —"
-                        + " read hafen.craft():current() again for the recipe that is open now");
+                    throw new LuaError(CharApi.CR + ":current():make(all): this recipe window is gone —"
+                        + " read " + CharApi.CR + ":current() again for the recipe that is open now");
                 mw.wdgmsg("make", ((all != null) && all.toboolean()) ? 1 : 0);
                 return me;
             }
@@ -221,16 +231,25 @@ public final class LuaCraft {
     private static LuaCraft handle(LuaValue self, String method) {
         LuaCraft h = resolve(self);
         if(h == null)
-            throw new LuaError("craft:" + method + "() — use a COLON call on a Craft object"
-                + " (hafen.craft():current())");
+            throw new LuaError("craft:" + method + "() — use a COLON call on a Craft object ("
+                + CharApi.CR + ":current())");
         return h;
     }
 
     // ---- the reads ----------------------------------------------------------------------------------
 
-    /** The recipe window this handle reads, or {@code null} once it is no longer the one that is open. */
+    /**
+     * The recipe window this handle reads, or {@code null} once it is no longer open — <b>asked of the window
+     * itself</b> (077.3): a widget that is still parented to its own tree's root is still up, whichever
+     * session that tree belongs to and whoever is looking at it. Comparing against the recipe open on screen
+     * would have called every background character's window closed.
+     */
     private static Makewindow live(LuaCraft h) {
-        return (h.wnd == ActApi.makewindow()) ? h.wnd : null;
+        Makewindow mw = h.wnd;
+        UI u = mw.ui;
+        if((u == null) || (u.root == null))
+            return null;
+        return (!u.destroyed && mw.hasparent(u.root)) ? mw : null;
     }
 
     /** One side's slots as {@code {res, name, num, opt}} values, copied under the UI monitor. */

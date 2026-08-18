@@ -30,16 +30,16 @@ tracks renames, regroups and online flips, and `s:kin():get(7) == s:kin():get(7)
 
 ## Slot: an action-bar slot
 
-Same pattern: `hafen.actionbar():list()` is all 144 slots, a 1-based array of `Slot`, and `:get(n)` is
+Same pattern: `s:actionbar():list()` is all 144 slots, a 1-based array of `Slot`, and `:get(n)` is
 the one at the **raw 0-based game index**, with `slot:index()` giving that index back from an array
 position. A stashed `Slot` goes `:empty()` the moment the slot is cleared. The one thing a slot does *not*
 name is a place your addon owns: the server owns the bar, so an entry of your own goes on it as a
 [hold](actionbar.md#hold-a-slot-unprotected) over the server's content, which comes back the moment the hold
-ends. See [`hafen.actionbar`](actionbar.md).
+ends. See [`session:actionbar`](actionbar.md).
 
 ## Named, and nameless: Menugrid, Sound, Buff, Meter
 
-[`hafen.menugrid():get(key)`](menugrid.md) names one action — a `/` makes the key a resource name,
+[`s:menugrid():get(key)`](menugrid.md) names one action — a `/` makes the key a resource name,
 anything else a display name — and [`hafen.sound():get(name)`](sound.md) one clip; the strings are
 **server-published**, so read them off a live client with `:res()` rather than trusting a list. The one
 exception is the one you write yourself: an entry your addon

@@ -38,7 +38,7 @@ empty roster, and so does a session the client no longer holds — neither raise
 Outside a party `:list()` is an empty array, `:count()` is `0`, and `:leader()` and `:get(id)` are `nil`;
 so is `:get(id)` for an id that is not in that party. Nothing here throws and nothing is protected. There
 is no write side: joining and leaving a party is a menu action, reachable through
-[`hafen.menugrid`](menugrid.md#use-protected).
+[`session:menugrid`](menugrid.md#use-protected).
 
 The [filter](conventions.md#the-filter-argument) has to be a function here. A string is refused, because
 a party member has nothing to match it against — see below.

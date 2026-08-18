@@ -1091,7 +1091,7 @@ public final class AddonManager {
             //    later — read them on a timer, not synchronously here.)
             //    059.5: ...and the ACTION MENU with it. GameUI.menu is not built by GameUI — it is a child the
             //    server places ("menu"), so it arrives some ticks AFTER the HUD is in the tree. Firing between
-            //    the two hands every addon a SessionEnteredWorld in which hafen.menugrid():add(id) refuses
+            //    the two hands every addon a SessionEnteredWorld in which s:menugrid():add(id) refuses
             //    with "the action menu is not up yet", which is the one call an addon's own entries — and the
             //    action-bar slots held for them — come back through at login. Waiting for it is what makes
             //    "add your entries from SessionEnteredWorld or later" true rather than a race an addon has to
@@ -2358,14 +2358,14 @@ public final class AddonManager {
      * cooldown excluded); the index arrives already diffed. The Slot re-reads live, so a handler that stashes it
      * keeps tracking that slot — including going {@code :empty()} when it is cleared again.
      */
-    static void fireSlot(int index) {
+    static void fireSlot(String user, int index) {
         for(Addon a : addons) {
             if(hasSub(a, "ActionbarChanged"))
-                fireTo(a, "ActionbarChanged", LuaSlot.of(a, index));
+                fireTo(a, "ActionbarChanged", LuaSlot.of(a, user, index));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "ActionbarChanged"))
-            fireTo(c, "ActionbarChanged", LuaSlot.of(c, index));
+            fireTo(c, "ActionbarChanged", LuaSlot.of(c, user, index));
     }
 
     /**
@@ -2656,17 +2656,17 @@ public final class AddonManager {
         // an addon named is about that character. See WorldApi and CharApi, which SessionApi mounts nothing
         // for — LuaSession's :world()/:player() are the only doors, and there is no field on `hafen` to find.
 
-        // hafen.menugrid() — the ACTION MENU (the 4x4 "scm" grid) as Pagina OBJECTS: the catalogue of
-        // everything this character can do, in the grid's own order and category tree. The section object IS
-        // the collection (039.9): :list(filter)/:count/:find for the catalogue, :get(key) for one entry, and
-        // :roots() for the root screen. The key is always a STRING and splits by SHAPE — a "/" makes it a
-        // resource name (the identity), anything else a display name (a search convenience, not unique) — and
-        // a miss is plain nil. There is no addressing by position: the catalogue grows on every discovery.
-        // Resource-backed reads are Loading-guarded, so a scan right at SessionEnteredWorld may be short and
-        // fills in sub-second.
-        Section.mount(hafen, "menugrid", LuaPagina.collection(owner),
-                      "hafen.menugrid(key) is now hafen.menugrid():get(key), and hafen.menugrid() is"
-                      + " hafen.menugrid():list()");
+        // s:menugrid() — the ACTION MENU (the 4x4 "scm" grid) as Pagina OBJECTS, off the Session and no longer
+        // off `hafen` (077.3): the catalogue of everything THAT character can do, in its grid's own order and
+        // category tree. Two characters know different actions, through two grids, so a Pagina carries the
+        // account beside the resource name and an entry an addon adds goes into the grid it was addressed at.
+        // The section object IS the collection (039.9): :list(filter)/:count/:find for the catalogue,
+        // :get(key) for one entry, and :roots() for the root screen. The key is always a STRING and splits by
+        // SHAPE — a "/" makes it a resource name (the identity), anything else a display name (a search
+        // convenience, not unique) — and a miss is plain nil. There is no addressing by position: the
+        // catalogue grows on every discovery. Resource-backed reads are Loading-guarded, so a scan right at
+        // SessionEnteredWorld may be short and fills in sub-second. The PROTECTED pag:use() ("menugrid.use")
+        // keeps its one key addressed at any character, and sends through that grid's own button.
 
         // hafen.flowermenu() — the OPEN RADIAL MENU (the ring of petals a right-click puts up), which is a
         // different thing from the action menu above: that one is a catalogue the character carries, this one
@@ -2764,33 +2764,38 @@ public final class AddonManager {
         // as clicking the two petals in turn does. kin:rename(name)=wdgmsg("nick"), kin:group(g)=wdgmsg("grp")
         // with g validated 0..254 (the range the SERVER accepts; the client only draws 8 colours).
 
-        // hafen.speed() — movement speed (A7, re-shaped in 060), read from the speed selector widget (Speedget:
-        // the four-way crawl/walk/run/sprint toggle at the bottom of the HUD). The section contains exactly one
+        // s:speed() — movement speed (A7, re-shaped in 060), off the Session (077.3) and read from THAT
+        // character's speed selector (Speedget: the four-way crawl/walk/run/sprint toggle at the bottom of its
+        // HUD). Both fields behind it — cur and max — are one login's, so a Speed carries the account beside
+        // the wire index: sprint unlocked here says nothing about the alt. The section contains exactly one
         // thing, so the section object IS the collection of SPEEDS: :list(filter)/:count/:find enumerate the
         // ones selectable right now (crawl→sprint order, empty before the selector streams in AND when the
         // server has locked every speed), :get(key) addresses any of the four — selectable or not — by index
-        // 0..3 or by whole case-insensitive display name, and :current() is the one you are on. Each member is
-        // a Speed object, interned per addon: sp:index() :name() :available() :exists() :info(), and
-        // hafen.speed():current() == sp is the "am I on this one" test rather than a second verb.
-        //   :set(speed|index|name) is the PROTECTED verb ("speed.set"): it drives the client's own Speedget.set
-        // (wrap-not-reimplement, D-009 → wdgmsg("set", n)), exactly what clicking/hotkeying that speed does,
-        // and it returns the collection so writes chain. It refuses a speed that is not selectable, naming the
-        // ones that are — but the SERVER still has the last word, and Speedget.cur only moves when its
-        // uimsg("cur") lands, so the read-back is a round trip. No SpeedChanged event: speed is read on demand
-        // (the classic use is a speed-toggle keybind), like the other gap surfaces.
-        Section.mount(hafen, "speed", LuaSpeed.collection(owner), null);
+        // 0..3 or by whole case-insensitive display name, and :current() is the one that character is on. Each
+        // member is a Speed object, interned per (addon, session): sp:index() :name() :available() :exists()
+        // :info(), and s:speed():current() == sp is the "am I on this one" test rather than a second verb.
+        //   :set(speed|index|name) is the PROTECTED verb ("speed.set"), keeping its one key addressed at any
+        // character: it drives the client's own Speedget.set (wrap-not-reimplement, D-009 → wdgmsg("set", n)),
+        // exactly what clicking/hotkeying that speed does, and it returns the collection so writes chain. It
+        // refuses a speed that is not selectable, naming the ones that are — but the SERVER still has the last
+        // word, and Speedget.cur only moves when its uimsg("cur") lands, so the read-back is a round trip. No
+        // SpeedChanged event: speed is read on demand (the classic use is a speed-toggle keybind), like the
+        // other gap surfaces.
 
-        // hafen.craft() — the recipe window (A8: the Makewindow the server places under the HUD when the
-        // player opens a recipe). A section of one verb: :current() is the open recipe as a Craft object, or
-        // NIL when none is open. The Craft carries :name() (the recipe), :inputs()/:outputs() (the slots, as
+        // s:craft() — the recipe window (A8: the Makewindow the server places under the HUD when the
+        // player opens a recipe), off the Session (077.3). A section of one verb: :current() is the recipe THAT
+        // character has open as a Craft object, or NIL when none is. A background session keeps its GameUI, so
+        // its recipe window is open and answers — which is what makes a crafting addon across characters worth
+        // writing — and the Craft is keyed on the WINDOW alone, since a widget already names the tree it
+        // stands in: :exists() walks up from it rather than comparing against the recipe on screen. The Craft carries :name() (the recipe), :inputs()/:outputs() (the slots, as
         // {res, name, num, opt} values — res is the DISPLAYED resource, i.e. the constraint category when the
         // recipe accepts one, else the concrete item; num = the required/produced count, -1 = unspecified ~ 1;
         // opt = an optional ingredient / chance byproduct), :qualityInputs() and :tools() ({res, name} values),
-        // :exists() and :info(). The PROTECTED :make(all) is on it too (039.13 — the button belongs to the recipe):
-        // it presses Craft (wdgmsg("make", 0)) or Craft All (all=true → 1), so it CONSUMES the ingredients
-        // exactly as a click does. No CraftChanged event (read on demand, like A7 speed — a recipe changes
-        // only when the player opens one).
-        ActApi.installCraft(hafen, owner);
+        // :exists() and :info(). The PROTECTED :make(all) is on it too (039.13 — the button belongs to the recipe),
+        // keeping its one key addressed at any character: it presses Craft (wdgmsg("make", 0)) or Craft All
+        // (all=true → 1) through the WINDOW's own wdgmsg, so it CONSUMES the ingredients exactly as a click
+        // does, in the session that window stands in. No CraftChanged event (read on demand, like A7 speed — a
+        // recipe changes only when the player opens one).
 
         // hafen.fight.* — combat schools / the maneuver deck builder (A10), read from the character
         // sheet's "Martial Arts & Combat Schools" tab (FightWnd, @RName("fmg"), reached via CharWnd.fight —
@@ -2809,20 +2814,21 @@ public final class AddonManager {
         // FightWnd.saves[] would need a haven-package accessor; usesave/nsave identify the active slot).
         CharApi.installFight(hafen, owner);
 
-        // hafen.actionbar — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
-        // BeltSlot[144]), via the widget-tree mechanism (1d-4); the section object IS the collection (039.9):
-        // hafen.actionbar():get(n) is the Slot at the RAW 0-based game index 0..143 (out of range throws),
-        // hafen.actionbar():list() the 1-based array of all 144 (the iteration view — same interned objects,
-        // and slot:index() is the game index). Reads on the object, live per call: :res()/:name()/:cooldown()
-        // (0..1, a pagina action's meter — ability slots only, NOT seconds)/:empty()/:info() (the old flat
-        // snapshot). Subscribe to ActionbarChanged{slot} (fired when a slot's content changes — a
-        // set/clear/drag or its data resolving, event-driven off the belt uimsg/notify, never per frame;
-        // the payload is that Slot). slot:use([mods]) is the PROTECTED write verb (4g,
-        // "actionbar.use") — exactly a LEFT-click on that action-bar button (GameUI belt act →
+        // s:actionbar() — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
+        // BeltSlot[144]), off the Session (077.3) and via the widget-tree mechanism (1d-4). A slot index names
+        // ONE character's bar — slot 11 on two characters is two different buttons — so a Slot carries the
+        // account beside the index. The section object IS the collection (039.9): s:actionbar():get(n) is the
+        // Slot at the RAW 0-based game index 0..143 (out of range throws), s:actionbar():list() the 1-based
+        // array of all 144 (the iteration view — same interned objects, and slot:index() is the game index).
+        // Reads on the object, live per call: :res()/:name()/:cooldown() (0..1, a pagina action's meter —
+        // ability slots only, NOT seconds)/:empty()/:info() (the old flat snapshot). Subscribe to
+        // ActionbarChanged{slot} (fired when a slot's content changes — a set/clear/drag or its data
+        // resolving, event-driven off the belt uimsg/notify, never per frame; the payload is that Slot).
+        // slot:use([mods]) is the PROTECTED write verb (4g, "actionbar.use"), keeping its one key addressed at
+        // any character — exactly a LEFT-click on that action-bar button (that HUD's own beltwdg act →
         // wdgmsg("belt", n, …)); mods is an optional modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4,
         // matching the keybind syntax). A ground-targeted ability then enters targeting mode (as clicking
         // the button does) — supply the target with the MapView verbs.
-        CharApi.installActionbar(hafen, owner);
 
         // 048.7: there is NO hafen.act() to install any more. The PROTECTED tier (spec 12 / D-010 /
         // D-025 / D-027; D-028) is unchanged as a model — a verb runs only when THIS addon declared that verb's
@@ -2835,7 +2841,7 @@ public final class AddonManager {
         // cursor and :use(target, mods) applies what you hold to an Item, a Position or a Gob (048.2); an item
         // answers item:use/:take/:drop/:transfer (048.3); s:world():place / :select stand beside the
         // snapPlace/snapAngle that prepare their arguments (048.4); a menu entry is
-        // hafen.menugrid():get(name):use(), which gained this same permission (048.5); the escape hatch is
+        // s:menugrid():get(name):use(), which gained this same permission (048.5); the escape hatch is
         // widget:send(msg, ...), where the receiver IS the target (048.6); and a petal is
         // hafen.flowermenu():select(label|n) (048.7, which also deleted act():enabled() — see actionsGranted
         // above). Same messages, same gate, on the things they act on; hafen.act and every one of its ten verb

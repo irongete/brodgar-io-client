@@ -251,7 +251,7 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
      * <p><b>A custom entry names itself</b> (059.3), like everywhere else: its backing {@link Resource} is a
      * stand-in shared by every one of them, so reading {@code pag.res} here would report the paging arrow to
      * every widget in the client. Its {@code addon/<addon id>/<id>} identity is stable across a relog and is
-     * exactly what {@code pag:res()} and {@code hafen.menugrid():get(key)} speak.
+     * exactly what {@code pag:res()} and {@code s:menugrid():get(key)} speak.
      */
     private static LuaValue dropDescriptor(Object thing) {
         if(thing instanceof MenuGrid.Pagina) {

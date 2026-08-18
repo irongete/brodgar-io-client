@@ -45,12 +45,12 @@ you came for from the tables below. Every page in the tree is listed here.
 | Page | What it holds |
 |---|---|
 | [`session:kin`](kin.md) | the kin roster, and the writes that add, rename and re-group |
-| [`hafen.speed`](speed.md) | the crawl, walk, run and sprint selector |
-| [`hafen.craft`](craft.md) | the open recipe window, and its Craft button |
+| [`session:speed`](speed.md) | the crawl, walk, run and sprint selector |
+| [`session:craft`](craft.md) | the open recipe window, and its Craft button |
 | [`session:quest`](quest.md) | the quest log, current and completed, and a quest's objectives |
 | [`session:wound`](wound.md) | the wounds on the Health and Wounds tab, as a tree |
 | [`hafen.fight`](fight.md) | the maneuver-deck builder, and who you are fighting |
-| [`hafen.actionbar`](actionbar.md) | the hotbar: read a slot, use it, assign one, hold one for an entry of your own |
+| [`session:actionbar`](actionbar.md) | the hotbar: read a slot, use it, assign one, hold one for an entry of your own |
 
 ## Acting
 
@@ -61,7 +61,7 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 
 | Page | What it holds |
 |---|---|
-| [`hafen.menugrid`](menugrid.md) | the action menu: every action the character knows, invoking one, and entries of your own that run your Lua |
+| [`session:menugrid`](menugrid.md) | the action menu: every action the character knows, invoking one, and entries of your own that run your Lua |
 | [`hafen.flowermenu`](flowermenu.md) | the radial menu a right-click puts up: its petals, the object it belongs to, picking one, and when one opens and closes |
 
 ## The UI

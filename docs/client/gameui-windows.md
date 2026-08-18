@@ -10,6 +10,15 @@
 | **`Hidewnd`** — a `Window` whose close **hides** instead of destroying | `GameUI.Hidewnd` — `reqclose() { hide(); }` |
 | Inventory / equipment: server grid → a **wrapper created hidden** | `GameUI.addchild` `place == "inv"` — `new Hidewnd(…, "Inventory")`, `add(maininv)`, `pack()`, **`hide()`**; `"equ"` at is the same shape |
 | Action search |  `place == "menu"` — `srchwnd`, `reqclose(srchwnd::hide).hide()` |
+| Crafting: an anonymous wrapper the CONTENT ends | `place == "craft"` — `new Window(…, ((Makewindow)child).rcpnm)`, `add(mkwdg)`, `pack()`. Its `cdestroy(w)` runs `ui.destroy(this)` and `makewnd = null` when `w == mkwdg` |
+
+**The crafting pair dies content-first, and only the content dies at once.** The server destroys the
+`Makewindow`, which is a plain `Widget`: `reqdestroy()` is `destroy()`, so it unlinks immediately and
+`hasparent(root)` goes false on the same call. Its `cdestroy` then destroys the anonymous wrapper, and *that*
+is a `Window`, whose `reqdestroy` starts a fade instead — so for a while the wrapper is still reachable with
+nothing in it. Anything asking "is this recipe still open" must ask the **content** widget, never the wrapper
+and never `makewnd`, which is one field for whichever recipe is newest. See the two-branch liveness rule in
+[widgets.md](widgets.md).
 
 **The wrappers are hidden from birth** — `maininv` exists from login, the `Hidewnd` around it does not, so *"put
 the inventory back"* is **never** a blind `show()`. **TRAP — that wrapper

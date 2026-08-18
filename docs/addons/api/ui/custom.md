@@ -152,7 +152,7 @@ persistable. Firing the dropped action is not part of it.
 
 An entry an addon [added to the menu](../menugrid.md#write-unprotected) carries its own
 `addon/<the addon's id>/<the id>` identity instead, which is stable across a relog and is what
-[`hafen.menugrid():get(res)`](../menugrid.md) resolves. It is not a client resource, so `g:resource` has
+[`s:menugrid():get(res)`](../menugrid.md) resolves. It is not a client resource, so `g:resource` has
 nothing to draw for it: read the entry and ask it what it looks like.
 
 ## Overlays

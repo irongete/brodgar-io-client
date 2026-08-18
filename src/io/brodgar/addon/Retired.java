@@ -177,6 +177,22 @@ final class Retired {
         sectionObj("kin", "list", "count", "find", "get", "add");
         sectionObj("party", "list", "count", "find", "get", "leader");
 
+        // ---- 077.3: the four that ACT, and every key among them. Two of them report a WINDOW THE GAME PUT --
+        // ---- UP rather than a fact about a body -- a background session keeps its GameUI, so its recipe
+        // ---- window is open and its action menu answers. Every key is unchanged and now addressable.
+        put("hafen.actionbar", "hafen.actionbar() is now session:actionbar()" + addr + ". A slot index names"
+            + " one character's bar: slot 11 on two characters is two different buttons.");
+        put("hafen.speed", "hafen.speed() is now session:speed()" + addr + ". A speed selector is one"
+            + " character's, and so is which speed it has unlocked.");
+        put("hafen.craft", "hafen.craft() is now session:craft()" + addr + ". A recipe window is open on the"
+            + " character that opened it, drawn or not.");
+        put("hafen.menugrid", "hafen.menugrid() is now session:menugrid()" + addr + ". A catalogue is one"
+            + " character's: two characters know different actions, through two grids.");
+        sectionObj("actionbar", "list", "count", "find", "get");
+        sectionObj("speed", "list", "count", "find", "get", "current", "set");
+        sectionObj("craft", "current");
+        sectionObj("menugrid", "list", "count", "find", "get", "roots", "add", "remove");
+
         // ---- ...and the character a login is playing is the SESSION's read, not the Player's: one fact with
         // ---- two spellings whose only difference was which door you came through is the dual style §2 cuts.
         put("session:player():name", "session:player():name() is now s:character(), on the Session itself: a"
@@ -227,7 +243,7 @@ final class Retired {
             + " and session:player():hand():use(target, mods) applies what you are holding (nil cursor = nil hand),"
             + " gob:click(button, mods) clicks an object, item:use(mods) / :take() / :drop(n) / :transfer(n) act"
             + " on an item, session:world():place(p, angle, button, mods) / :select(p1, p2, mods) act on the world,"
-            + " hafen.menugrid():get(name):use() fires a menu action and widget:send(msg, ...) is the escape"
+            + " session:menugrid():get(name):use() fires a menu action and widget:send(msg, ...) is the escape"
             + " hatch. hafen.act():flower(label) is hafen.flowermenu():select(label|n), which raises instead of"
             + " answering false and takes a ring position too; hafen.act():enabled() is gone — a running addon"
             + " is granted what it declared, and that is a fact its own manifest.json already states."
@@ -259,7 +275,7 @@ final class Retired {
         act("select", "hafen.act():select(p1, p2, mods) is now session:world():select(p1, p2, mods) — p1 and p2"
             + " are still Positions, and the selection is still the tile rectangle they span");
         act("menu", "hafen.act():menu(path...) is gone: a menu action is invoked through the entry itself —"
-            + " hafen.menugrid():get(\"Dig\"):use(), or get(\"paginae/act/dig\"):use() by resource name. There"
+            + " session:menugrid():get(\"Dig\"):use(), or get(\"paginae/act/dig\"):use() by resource name. There"
             + " is no path-based door: the menu grid addresses the entries it HOLDS, and pag:use() is now"
             + " protected in its own right, by the \"menugrid.use\" permission");
         act("raw", "hafen.act():raw(target, msg, ...) is now widget:send(msg, ...) — the RECEIVER is the"
@@ -510,18 +526,19 @@ final class Retired {
         // The two bounds-and-numbers verbs are gone rather than re-spelled: :max() was a bound every caller
         // turned back into a range by hand, and :name(n) read a property of a member the API can now hand you.
         // Both spellings of each carry the row (D-216) — the pre-039 dotted field and the colon call.
-        put("hafen.speed.get", "hafen.speed.get() is now hafen.speed():current(), which hands back a Speed"
+        put("hafen.speed.get", "hafen.speed.get() is now session:speed():current(), which hands back a Speed"
             + " OBJECT rather than a number — sp:index() is that number, sp:name() its display name");
-        put("hafen.speed.set", "hafen.speed.set(n) is now hafen.speed():set(n), and the write needs the"
+        put("hafen.speed.set", "hafen.speed.set(n) is now session:speed():set(n), and the write needs the"
             + " 'speed.set' permission (it was 'speed.current'). It takes a Speed, an index 0..3 or a display"
-            + " name: hafen.speed():set(hafen.speed():get(\"Run\"))");
-        moved("speed", "max", "hafen.speed():max() is gone: hafen.speed():list() IS the speeds you can pick"
-            + " right now, so there is no bound left to turn back into a range — everything it hands you is"
-            + " something :set accepts. hafen.speed():count() is how many, and sp:available() answers it for"
-            + " one speed (hafen.speed():get(3):available() is \"is sprint unlocked?\")");
-        moved("speed", "name", "hafen.speed():name(n) is now hafen.speed():get(n):name() — a speed is an"
-            + " object, and its display name is a verb on it. hafen.speed():get(\"Run\") addresses one by"
-            + " that name too, and the one you are on is hafen.speed():current():name()");
+            + " name: s:speed():set(s:speed():get(\"Run\"))");
+        movedObj("speed", CharApi.SP, "max", "s:speed():max() is gone: s:speed():list() IS the speeds that"
+            + " character can pick right now, so there is no bound left to turn back into a range —"
+            + " everything it hands you is something :set accepts. s:speed():count() is how many, and"
+            + " sp:available() answers it for one speed (s:speed():get(3):available() is \"is sprint"
+            + " unlocked?\")");
+        movedObj("speed", CharApi.SP, "name", "s:speed():name(n) is now s:speed():get(n):name() — a speed is"
+            + " an object, and its display name is a verb on it. s:speed():get(\"Run\") addresses one by"
+            + " that name too, and the one that character is on is s:speed():current():name()");
 
         // ---- hafen.store: the ONE section whose access pattern changed, not just its spelling -------------
         // A declared saved variable was a FIELD (hafen.store.cfg), so the per-owner half of this refusal is
@@ -572,11 +589,11 @@ final class Retired {
         section("fight", "deck", "summary");
 
         // ---- crafting: the recipe is an entity, and the Craft button belongs to the recipe ---------------
-        put("hafen.craft.current", "hafen.craft.current() is now hafen.craft():current(), and it hands back"
-            + " a Craft object rather than a table: c:name() is the recipe, c:inputs()/:outputs() the slots,"
-            + " c:qualityInputs()/:tools() the rest, and c:info() is the old snapshot");
-        put("hafen.craft.make", "hafen.craft.make(all) is now hafen.craft():current():make(all) — the button"
-            + " belongs to the recipe. hafen.craft():current() is nil while no recipe is open, so test it"
+        put("hafen.craft.current", "hafen.craft.current() is now session:craft():current(), and it hands"
+            + " back a Craft object rather than a table: c:name() is the recipe, c:inputs()/:outputs() the"
+            + " slots, c:qualityInputs()/:tools() the rest, and c:info() is the old snapshot");
+        put("hafen.craft.make", "hafen.craft.make(all) is now session:craft():current():make(all) — the"
+            + " button belongs to the recipe. s:craft():current() is nil while no recipe is open, so test it"
             + " first; it still needs the 'craft.make' permission");
 
         // ---- the Item entity: the snapshot's two PLACE fields become the two verbs that say which you meant ----
@@ -631,6 +648,17 @@ final class Retired {
     private static void moved(String section, String verb, String message) {
         put("hafen." + section + "." + verb, message);
         put("hafen." + section + "():" + verb, message);
+    }
+
+    /**
+     * As {@link #moved}, for a section that has since moved onto the Session (077): the row is registered
+     * under the <b>live</b> spelling too ({@code session:speed():max}), because a collection mounted as its
+     * own section object looks a retired verb up by the name the section is reached under — and that name is
+     * no longer the {@code hafen.} one. The two older keys stay as the inventory.
+     */
+    private static void movedObj(String section, String how, String verb, String message) {
+        moved(section, verb, message);
+        put(how + ":" + verb, message);
     }
 
     /**
