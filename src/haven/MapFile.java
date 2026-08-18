@@ -87,7 +87,27 @@ public class MapFile {
 	warn(null, fmt, args);
     }
 
+    /* addon: ONE database per (store, filename), shared by every session that names it. The name is
+     * GameUI.mapfilename(): the genus, plus a per-character pref that by default does not exist, so two
+     * characters on one server name the same directory — which is what two alts are. The lock above is
+     * per instance, so two instances over one directory would be two locks and no exclusion, with both
+     * writing the segments and the index. The store is half the key because MapFile.mapbase can name
+     * another directory, and a key correct only while a config variable holds its default is not a key.
+     * Nothing disposes a MapFile — what a session destroys is its MapWnd — so there is no lifecycle
+     * here to break, and a session ending leaves the database standing for the others. */
+    private static final Map<Pair<ResCache, String>, MapFile> loaded = new HashMap<Pair<ResCache, String>, MapFile>();
+
     public static MapFile load(ResCache store, String filename) throws IOException {
+	Pair<ResCache, String> key = Pair.of(store, filename);
+	synchronized(loaded) {
+	    MapFile file = loaded.get(key);
+	    if(file == null)
+		loaded.put(key, file = read(store, filename));
+	    return(file);
+	}
+    }
+
+    private static MapFile read(ResCache store, String filename) throws IOException {
 	MapFile file = new MapFile(store, filename);
 	InputStream fp;
 	try {

@@ -104,9 +104,10 @@ is prose about behaviour, never a call.
 
 - `specs/075-globals-without-a-session/namespaces.md` — 1 (writes), 2–7 (read)
 - `src/io/brodgar/addon/LuaSound.java` — 2
-- `src/io/brodgar/addon/AddonManager.java` — 2, 3, 4, 6
+- `src/io/brodgar/addon/AddonManager.java` — 2, 3, 4, 5, 6
 - `src/io/brodgar/addon/WorldApi.java` — 4
 - `src/io/brodgar/addon/MapApi.java` — 5
+- `src/io/brodgar/addon/LuaMarker.java` — 5
 - `src/io/brodgar/addon/VrApi.java` — 6
 - `src/io/brodgar/addon/HookApi.java` — 7
 - `src/haven/MapFile.java` — 5

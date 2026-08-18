@@ -43,7 +43,7 @@ means a namespace was touched that this feature does not move.
       **heard**. Before this task it is silent, which is the defect.
       `[manual]`: type the suite's own `:` command in the second session's chat. Expect: it runs.
 
-- [ ] **075.2 — One map database, one lock.**
+- [x] **075.2 — One map database, one lock.**
       `MapFile.load` has exactly one caller in the tree — `GameUI.java:956` — and does
       `new MapFile(store, filename)` every time, with no cache. `GameUI.mapfilename()` is the `genus`
       plus `/` and the pref `mapfile/<chrid>` **only when that pref exists**, which by default it does

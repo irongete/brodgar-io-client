@@ -1,0 +1,9 @@
+{
+  "name": "075.2 — one map database, one lock",
+  "id": "075-globals-without-a-session.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 075.2: the recorded map is one database for the client, read and written through one lock by every character that names it.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

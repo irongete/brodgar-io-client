@@ -457,11 +457,12 @@ public final class AddonManager {
         String beltLastJson;
 
         // ---- the world (073.4) -------------------------------------------------------------------
-        // A gob id, a marker ref and a session coordinate each name ONE LOGIN'S world: the same number is a
-        // different object in the next session, and the same marker on disk is interned afresh. Each is
-        // reached with the ui of the thing the seam was handed — the MapView an entity was stood in, the
-        // MiniMap that re-based, the map file a notify names — and never through screen(), which answers the
-        // scene being DRAWN while the seams here run on a loader thread and on the disk layer's own.
+        // A gob id and a session coordinate each name ONE LOGIN'S world: the same number is a different
+        // object in the next session. Each is reached with the ui of the thing the seam was handed — the
+        // MapView an entity was stood in, the MiniMap that re-based, the map file a notify names — and never
+        // through screen(), which answers the scene being DRAWN while the seams here run on a loader thread
+        // and on the disk layer's own. A marker ref is NOT one of them (075.2): there is one database per
+        // (store, filename) for the client, so the Marker objects behind the refs are the client's too.
 
         /** Gob id &rarr; the entities of this session anchored to it ({@link VrApi}, 043.2). Guarded by itself. */
         final Map<Long, List<LuaWorldEntity>> vrAnchored = new HashMap<Long, List<LuaWorldEntity>>();
@@ -474,20 +475,16 @@ public final class AddonManager {
         Coord vrSessTc;
         boolean vrSessSeen;
 
-        /** Facade-safe marker refs into THIS session's map database ({@link MapApi}): a {@code Marker} is an
-         *  object read from a file one session holds, so the ref that names it is that session's. Both maps
-         *  are guarded by {@link #markerById} (the UI and REPL threads reach them). */
-        final IdentityHashMap<MapFile.Marker, Long> markerIds = new IdentityHashMap<MapFile.Marker, Long>();
-        final Map<Long, MapFile.Marker> markerById = new HashMap<Long, MapFile.Marker>();
         /** Has this session been told its marker count once, and at which seq ({@link MapApi}). */
         boolean markersPrimed;
         int lastMarkerSeq;
         /**
          * <b>The on-disk map database this session's HUD holds</b> (073.4) — and the one thing that can name
          * a session for a marker-change notify, which is handed a {@link MapFile} and nothing else. Claimed
-         * by the session's own tick from the {@code GameUI} the file was read out of, so a session claims no
-         * file but its own; volatile, because the seam that matches against it runs on whichever thread bumped
-         * the seq (the processor's, the UI's, a loader's).
+         * by the session's own tick from the {@code GameUI} the file was read out of; volatile, because the
+         * seam that matches against it runs on whichever thread bumped the seq (the processor's, the UI's, a
+         * loader's). Two characters on one server claim the <b>same</b> file (075.2): the database is one, so
+         * the bump is one event and the first claimant found carries it.
          */
         volatile MapFile mapFile;
         /** The marker-count changes captured since this session's last tick (042.11, per session since 073.4). */
@@ -2181,9 +2178,10 @@ public final class AddonManager {
      * marshalled queues (D-106, to avoid deadlock with the map DB's RW lock).
      *
      * <p><b>It is handed the file that bumped</b> (073.4), which is the only thing here that names a session:
-     * a {@code MapFile} is one HUD's map database, and the session holding that HUD claims it on its own tick
-     * ({@link SessionState#mapFile}). A notify no session claims is <b>dropped</b> — the alternative is what
-     * this replaces, one queue for the client whose drain reported every bump against whichever map was drawn.
+     * a {@code MapFile} is a map database some HUD holds, and the session holding that HUD claims it on its own
+     * tick ({@link SessionState#mapFile}). A notify no session claims is <b>dropped</b>. Where two sessions
+     * share the database (075.2 — two characters on one server), the <b>first</b> claimant queues it and the
+     * rest do not: one change to one database is one {@code MarkersChanged}, not one per login.
      *
      * <p><b>Must not touch Lua.</b>
      */
@@ -2191,7 +2189,7 @@ public final class AddonManager {
         if(file == null)
             return;
         for(SessionState st : states.values()) {
-            if(st.mapFile == file) {          // identity: one HUD, one MapFile instance
+            if(st.mapFile == file) {          // 075.2: one database, so one queue — the first claimant carries it
                 st.markerChanges.add(count);
                 return;
             }

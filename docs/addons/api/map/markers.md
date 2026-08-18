@@ -66,6 +66,10 @@ Writing either property on a system marker is refused: those are the server's ow
 > removing and recolouring markers is not protected: it edits the user's own on-disk map database, which
 > is client-local and reversible by hand. Remove only what your addon added.
 
+A pin goes into [the client's one map](README.md#one-map-for-the-client), not into the character that
+dropped it: your other characters in that world see it on their own maps, and it stays there when the
+session that added it ends.
+
 The [`MarkersChanged`](../event/bus.md#roster-quests-markers) event, payload the marker count, fires on any
 add, remove or edit, including ones the player makes.
 

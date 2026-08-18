@@ -16,6 +16,21 @@ hafen.map():marker():remove(pin)
 > [`hafen.world`](../world.md), which owns `tile`, `height`, the Position type and the rest of the
 > coordinate space. `hafen.map` is the database behind the map window and the corner minimap.
 
+## One map for the client
+
+There is **one recorded map per world you play in**, and every character you log in there reads and writes
+it. Two of your own characters exploring in different places fill in one database: a pin the first drops is
+on the second's map, ground either of them walks over is explored for both, and one write lock covers the
+whole of it. Which character is on screen decides nothing about what this namespace answers — what it
+decides is where a [Position](../world.md#the-position-type) can be resolved, and that is a question about
+the live world.
+
+The map window and the corner minimap are one character's windows **over** that database, so closing a map,
+or ending that character's session altogether, takes nothing out of it.
+
+A character you have given a map file of its own with the client's `:chrmap` command is the exception: it
+explores a database nobody else writes.
+
 ## Five collections
 
 The section is called, and everything after it is a collection of one kind of thing:

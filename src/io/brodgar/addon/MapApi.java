@@ -24,6 +24,8 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -291,7 +293,7 @@ final class MapApi {
 
     // ---- markers (hafen.map():marker()) ------------------------------------------------------------
     // Client-side map markers live in the on-disk map DB (MapFile), owned by the map window / corner
-    // minimap (both hold the same MapFile). A marker's PERSISTENT identity is its segment id + segment
+    // minimap (both hold the same MapFile — and so does every other session naming that database). A marker's PERSISTENT identity is its segment id + segment
     // tile coord (survives a relog — coverage-gaps C4); the world x,y/dist a snapshot also carries are
     // SESSION-LOCAL conveniences, present only when the marker is in the player's current segment. Reads
     // copy the marker list under the MapFile read lock (it is mutated on loader threads — server markobj
@@ -302,23 +304,30 @@ final class MapApi {
 
     private static final java.awt.Color DEFAULT_MARKER_COLOR = new java.awt.Color(255, 215, 0);  // gold pin
 
-    // 073.4: THE MARKER REFS ARE ONE SESSION'S (SessionState.markerIds / .markerById / .markersPrimed /
-    // .lastMarkerSeq). A ref names a MapFile.Marker by OBJECT IDENTITY, and those objects are read out of one
-    // login's map database — the next session reads the same file again into different objects, so a ref that
-    // outlived the session would resolve onto nothing or, worse, onto a merge's replacement. The session is the
-    // one whose GameUI holds the file (see mapState), which is also what lets a marker-change notify name a
-    // session at all: the seam is handed a MapFile and nothing else.
+    // 075.2: THE MARKER REFS ARE THE CLIENT'S. A ref names a MapFile.Marker by OBJECT IDENTITY, and there is
+    // one database per (store, filename) for the whole client, so every session that names that pair reads the
+    // SAME Marker objects — a ref minted while one character is drawn names the same pin when another is. A
+    // Marker is loaded once and mutated in place (a merge rewrites its fields; it is never re-minted), so that
+    // identity is stable for the client's life. What stays one session's is the marker-change bookkeeping
+    // (SessionState.markersPrimed / .lastMarkerSeq / .mapFile): "has this one been told its count once" is a
+    // question about one login, and the file claim is what lets a notify — handed a MapFile and nothing else —
+    // find a session to drain on at all.
 
-    /** The id sequence the refs are minted from. Process-wide: two sessions minting from one counter collide
-     *  with nobody, and a ref that is unique for the client's life is one that can never be misread. */
+    /** The id sequence the refs are minted from, and the two maps it feeds. A ref that is unique for the
+     *  client's life is one that can never be misread; the maps are guarded by {@link #markerById}, which the
+     *  UI and REPL threads both reach. */
     private static long markerIdSeq = 0;
+    private static final IdentityHashMap<MapFile.Marker, Long> markerIds =
+        new IdentityHashMap<MapFile.Marker, Long>();
+    private static final Map<Long, MapFile.Marker> markerById = new HashMap<Long, MapFile.Marker>();
 
     /** The client's on-disk map DB (markers/segments), or null before the HUD/map is up. */
     static MapFile mapfile() {
         return mapfileOf(gui());
     }
 
-    /** The map database one HUD holds — the map window's, or the corner minimap's, which are the same instance. */
+    /** The map database one HUD holds — the map window's, or the corner minimap's, which are the same instance,
+     *  and since 075.2 the same one every session naming that {@code (store, filename)} pair holds. */
     private static MapFile mapfileOf(GameUI g) {
         if(g == null)
             return null;
@@ -329,31 +338,25 @@ final class MapApi {
     }
 
     /**
-     * <b>The state a map read is about, claiming the file it reads from</b> (073.4). Both halves come out of the
-     * SAME {@code GameUI} — the session is that HUD's, and the file is the one that HUD holds — so a session can
-     * only ever claim its own map, however many are live. {@code null} before the HUD is up, which is what every
-     * caller here already had to handle.
+     * <b>A session claims the file its own HUD holds</b>, from the tick (073.4) —
+     * {@link AddonManager#onMarkersChanged} matches a bump against {@code SessionState.mapFile} and has nothing
+     * else to go on, so the claim cannot wait for an addon to call a map verb: an addon that only
+     * <i>subscribes</i> to {@code MarkersChanged} would then never hear one.
+     *
+     * <p><b>Two characters on one server claim the same file</b> (075.2), because there is one database per
+     * {@code (store, filename)} and that pair is the same for both. That is what the notify wants: one change
+     * to one database is <b>one</b> event, and the first claimant found is the session whose tick carries it.
      */
-    private static SessionState mapState() {
+    static void claimMapFile() {
         GameUI g = gui();
         if(g == null)
-            return null;
+            return;
         SessionState st = state(g.ui);
         if(st != null) {
             MapFile f = mapfileOf(g);
             if(f != null)
                 st.mapFile = f;
         }
-        return st;
-    }
-
-    /**
-     * Refresh the claim, from the tick (073.4) — {@link AddonManager#onMarkersChanged} matches a bump against
-     * {@code SessionState.mapFile} and has nothing else to go on, so the claim cannot wait for an addon to call
-     * a map verb: an addon that only subscribes to {@code MarkersChanged} would then never hear one.
-     */
-    static void claimMapFile() {
-        mapState();
     }
 
     /**
@@ -378,18 +381,14 @@ final class MapApi {
         return (g == null) ? null : g.mmap;
     }
 
-    /** Assign (or look up) a stable per-session ref id for a marker. Touched from UI + REPL threads → guarded.
-     *  {@code 0} when there is no session to intern it in, which is a ref that resolves to nothing. */
+    /** Assign (or look up) the stable ref id for a marker. Touched from UI + REPL threads → guarded. */
     static long markerId(MapFile.Marker m) {
-        SessionState st = mapState();
-        if(st == null)
-            return 0;
-        synchronized(st.markerById) {
-            Long id = st.markerIds.get(m);
+        synchronized(markerById) {
+            Long id = markerIds.get(m);
             if(id == null) {
                 id = Long.valueOf(nextMarkerId());
-                st.markerIds.put(m, id);
-                st.markerById.put(id, m);
+                markerIds.put(m, id);
+                markerById.put(id, m);
             }
             return id.longValue();
         }
@@ -401,11 +400,8 @@ final class MapApi {
     }
 
     static MapFile.Marker markerByRef(long id) {
-        SessionState st = mapState();
-        if(st == null)
-            return null;
-        synchronized(st.markerById) {
-            return st.markerById.get(Long.valueOf(id));
+        synchronized(markerById) {
+            return markerById.get(Long.valueOf(id));
         }
     }
 

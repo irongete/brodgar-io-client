@@ -39,11 +39,12 @@ import java.util.Map;
  * {@code :remove(m)}. A pin is created <b>bare</b> and configured with {@code m:color(...)} /
  * {@code m:onMap(b)}; those two are also reads, arity being the verb, and both persist immediately.
  *
- * <p><b>Interned on the per-session marker ref</b>, which is the identity the engine actually has: a
+ * <p><b>Interned on the marker ref</b>, which is the identity the engine actually has: a
  * {@link MapFile.Marker} is loaded once and then mutated in place (a merge rewrites its fields; it is never
- * re-minted), so object identity is stable for the session and {@link MapApi}'s ref map — the one 037.1
- * already handed to Lua as a number — is exactly the right key. It is dropped on relog with the rest of the
- * session state, which dies with the session's {@code UI}.
+ * re-minted), so object identity is stable and {@link MapApi}'s ref map — the one 037.1 already handed to
+ * Lua as a number — is exactly the right key. The ref is the <b>client's</b>: there is one database per
+ * {@code (store, filename)}, so two characters on one server read the same {@code Marker} objects and a
+ * handle minted while one of them is drawn names the same pin when the other is.
  */
 public final class LuaMarker {
     /** The per-session marker ref — the whole state of a handle, and its identity ({@link MapApi#markerId}). */

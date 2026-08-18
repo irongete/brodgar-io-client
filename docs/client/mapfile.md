@@ -9,13 +9,18 @@
 - `haven/MapFile.java` — `MapFile(ResCache store, String filename)`: the store is a **constructor
   argument**, so a throwaway in-memory `ResCache` gives you the whole subsystem headlessly.
   `load(store, filename)` (``) reads only the *index*: `knownsegs` (``) and every `Marker` (``).
-- **Who makes one, and how many there are.** `GameUI.addchild` builds it on the `"mapview"` placement:
+- **Who makes one.** `GameUI.addchild` builds it on the `"mapview"` placement:
   `MapFile.load(mapstore, mapfilename())`, where `mapfilename()` is `genus` plus the `mapfile/<chrid>` pref
-  (so the file **on disk** is one character's) and `mapstore` is `ResCache.global` unless `MapFile.mapbase`
-  names a directory. That one instance is then handed to **both** readers — `CornerMap` (`GameUI.mmap`) and
-  `MapWnd` (`GameUI.mapfile`) — and a fresh one is loaded on every re-placement, the old windows destroyed
-  first. So a `MapFile` **object** names one `GameUI`: two HUDs of the same character are two instances over
-  one store, and object identity is a usable answer to *whose map is this*.
+  **only when that pref exists** — by default it does not, and the `chrmap` console command is what sets it
+  — and `mapstore` is `ResCache.global` unless `MapFile.mapbase` names a directory. So two characters on one
+  server name the same directory unless one of them has been given a name of its own.
+- **How many there are: one per `(store, filename)`.** `load` memoizes on that pair (`// addon:`) — the
+  pair, because `mapbase` is the other half of the identity — so every `GameUI` naming it, and every
+  re-placement, gets the **same instance**, and the one lock below is therefore one lock over that
+  directory. The instance is handed to both readers, `CornerMap` (`GameUI.mmap`) and `MapWnd`
+  (`GameUI.mapfile`). **Nothing disposes a `MapFile`**: what a session destroys is its `MapWnd`, so the
+  database stands as long as the client does, and object identity answers *which database is this* rather
+  than *whose*.
 - **One `ReentrantReadWriteLock`** (``) guards everything; `checklock()` (``) makes several methods
   *assert* the caller holds it. The **processor thread** (``–``) takes the WRITE lock for segment
   saves and the index save, **across disk I/O** — so a UI-thread reader must `tryLock`, never `lock`

@@ -8,7 +8,7 @@ ground the client wrote down, and to ask what it says about a place.
 |---|---|---|
 | `hafen.map():segment():current()` | [`Segment`](#the-segment-object) \| nil | the segment the player is standing in; `nil` until the map has streamed in |
 | `hafen.map():segment():get(id)` | [`Segment`](#the-segment-object) \| nil | one segment by its id; `nil` if the database has no such segment |
-| `hafen.map():segment():list()` | `Segment[]` | every segment this character has explored, in id order |
+| `hafen.map():segment():list()` | `Segment[]` | every segment [the database](README.md#one-map-for-the-client) holds, in id order |
 | `hafen.map():grid():get(gridId)` | [`Grid`](#the-grid-object) \| nil | one grid by the **server's** grid id; `nil` if the database never recorded it |
 
 `hafen.map():grid()` does not enumerate, and says so rather than answering an empty list: the database
