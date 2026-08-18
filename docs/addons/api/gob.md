@@ -29,7 +29,7 @@ error.
 | `hafen.world():gob():list(filter)` | an array of Gobs |
 | `hafen.world():gob():nearest(filter)` | the nearest Gob, or `nil` |
 | `hafen.world():gob():within(radius, filter)` | an array of Gobs |
-| a `GobAdded` or `GobRemoved` handler | the Gob that spawned or despawned — see [events](event.md#world) |
+| a `GobAdded` or `GobRemoved` handler | the Gob that spawned or despawned — see [events](event/bus.md#world) |
 | `member:gob()` on a [party](party.md) member, `target:gob()` on the [combat](fight.md) target | that creature's Gob |
 
 ## Read
@@ -111,7 +111,7 @@ turns it inside out, so both raise naming the rule; `gob:scale(1)` is the origin
 behind. Once the gob is gone the read answers `nil` and a write does nothing, bar the click above.
 
 > **The size ends with the loaded object.** Walk far enough away for it to unload and it comes back the
-> size the game draws it at. Re-apply it from [`GobAdded`](event.md#world) if you want it kept — and a
+> size the game draws it at. Re-apply it from [`GobAdded`](event/bus.md#world) if you want it kept — and a
 > `:reload` or a disable puts back everything you resized, so nothing is left distorted behind you.
 
 ## Overlays
@@ -169,4 +169,4 @@ Anything that acts on a gob takes the **Gob object**, not an id: `me:overlay():a
 - [`hafen.kin`](kin.md) — the roster side of `gob:kin()`
 - [`hafen.player`](player.md#write-protected) — walking to a gob, and the cursor you aim at one
 - [`GobInfo`](types.md#gobinfo) — the shape `:info()` returns
-- [events](event.md#world) — reacting to gobs appearing and leaving instead of polling
+- [events](event/bus.md#world) — reacting to gobs appearing and leaving instead of polling

@@ -1,0 +1,9 @@
+{
+  "name": "074.3 — sessions come, are picked, and go",
+  "id": "074-the-engine-survives.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 074.3: the four session keys fire for the account they are about, tabbing selects without entering, and the retired EnterWorld throws naming SessionEnteredWorld.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

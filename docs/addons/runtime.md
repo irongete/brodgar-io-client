@@ -64,7 +64,7 @@ once, then fires `Load`. Nothing else is automatic: from there your addon does w
 |---|---|
 | your file bodies | the whole `hafen` API is callable; account saved variables are filled; there is no character |
 | `Load` | the same, once every file has run. **Once for the client** |
-| `EnterWorld` | the HUD, the map view, the player, and your per-character saved variables |
+| `SessionEnteredWorld` | the HUD, the map view, the player, and that character's saved variables. **Once per session** |
 | `Disable` | your last chance to write, before the engine flushes and tears down. **Once for the client** |
 
 So your addon starts on the login screen, and everything a character owns — the HUD, the world, the map,
@@ -84,6 +84,12 @@ draws above whichever character is on screen, and reaches the drawn one through 
 Switching character therefore **changes nothing about your addon**. Its Lua environment is the same
 environment, every value it holds is still held, its windows keep their place, their focus and any drag
 still in progress, and its timers keep counting. `Load` fired once and `Disable` has not fired.
+
+What does change is underneath you, and the [session events](api/event/bus.md#sessions) are how you hear
+it: `SessionAdded` when one connects, `SessionEnteredWorld` when its character can be read,
+`SessionSelected` when the screen moves to it, `SessionDestroyed` when it ends. Each hands you that
+session's account name. Tabbing between two characters already in the world fires `SessionSelected` and
+nothing else — tabbing is not entering.
 
 > **Your state survives a character switch, and keeping it valid is therefore yours.** A widget handle
 > you took under one character means nothing under another: it names a widget of that character's own
@@ -190,7 +196,8 @@ reserved and cannot be taken over.
 logged in stays connected, the world stays loaded, the client's own windows stay as they are, and each
 addon is torn down, the folder and the enabled set are re-read, the enabled addons run again from disk,
 `Load` fires, and — if a character is on screen — per-character saved variables are restored and
-`EnterWorld` fires again.
+`SessionEnteredWorld` fires again for that one session. The others stay in the world and are not
+re-announced, because only one character's saved variables can be the ones just put back.
 
 Torn down and re-created, so your addon starts clean: event subscriptions, timers, hotkeys, console
 commands, input hooks, your windows and overlays, world ghosts, sprites and objects, loaded assets, your

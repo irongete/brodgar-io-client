@@ -9,7 +9,7 @@ with the user's permission, drive the character.
 
 ```lua
 -- addons/myaddon/main.lua
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   hafen.log():write("hello from " .. (hafen.player():name() or "?"))
 end)
 
@@ -45,9 +45,9 @@ One page per namespace, and a directory where a namespace is large. The
 | **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
 | **Your own content** | [`asset`](api/asset.md) · [`vr`](api/vr/README.md) · [entries in the action menu](api/menugrid.md#write-unprotected) |
 | **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) *(protected by your manifest)* |
-| **Infrastructure** | [`event`](api/event.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash`](api/slash.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
+| **Infrastructure** | [`event`](api/event/README.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash`](api/slash.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
 
 The pages every other page assumes are [conventions](api/conventions.md), how the API is spelled and what
 a read gives back, [references](api/references.md), every kind of thing a verb takes,
-[data types](api/types.md), every snapshot shape, and [events](api/event.md), the catalogue of what the
+[data types](api/types.md), every snapshot shape, and [events](api/event/bus.md), the catalogue of what the
 client tells you about.

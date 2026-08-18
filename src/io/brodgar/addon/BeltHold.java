@@ -49,7 +49,8 @@ import static io.brodgar.addon.AddonManager.state;
  * <p><b>A hold outlives the session it was taken in</b> (059.5). Where a hold is what the client is drawing
  * right now, a <b>placement</b> is the player's standing intent for that slot — kept per character in the
  * session's own map, persisted through {@link StoreApi#writeClientFile}, and re-applied by {@link #entryAdded}
- * the moment an entry with that identity is added again. At login that is the addon's own {@code EnterWorld}
+ * the moment an entry with that identity is added again. At login that is the addon's own
+ * {@code SessionEnteredWorld}
  * {@code :add}, so nothing has to guess when the bar is ready. The two endings above split here: a hold
  * <b>released by hand</b> — {@code slot:pagina(nil)}, a right-click, the server taking the slot — is
  * <b>forgotten</b>, while one whose <b>entry merely went away</b> — {@code :remove}, a {@code :reload},
@@ -135,7 +136,7 @@ public final class BeltHold {
         SessionState st = (g == null) ? null : state(g.ui);
         if((g == null) || (g.belt == null) || (st == null) || (n < 0) || (n >= g.belt.length))
             throw new LuaError("slot:pagina(pagOrNil): there is no action bar yet — hold a slot from"
-                + " EnterWorld or later, not from Load");
+                + " SessionEnteredWorld or later, not from Load");
         hold(st, g, n, pag);
     }
 
@@ -164,7 +165,7 @@ public final class BeltHold {
      * itself already ended any hold it found ({@link #serverWrote}, at message time), so anything left here was
      * taken after the server spoke and stands. That is the login case exactly — the belt burst is dispatched
      * around the time the HUD is built, its resource-backed slots land over the following moments, and the
-     * addon's {@code EnterWorld} re-apply falls between the two. What just landed becomes the hold's
+     * addon's {@code SessionEnteredWorld} re-apply falls between the two. What just landed becomes the hold's
      * {@link Hold#displaced} content, so the release still hands the slot back holding the server's own
      * current action rather than the emptiness that stood there when the hold was taken.
      */
@@ -296,14 +297,16 @@ public final class BeltHold {
     /**
      * <b>An entry with this identity is in the menu again</b> ({@code hafen.menugrid():add(id)}) — take back
      * every slot it is placed in. This is the whole of the restore, and it is driven by the {@code :add} rather
-     * than by the login: at login the addon's own {@code EnterWorld} handler is what calls it, so the bar is up
+     * than by the login: at login the addon's own {@code SessionEnteredWorld} handler is what calls it, so
+     * the bar is up
      * by construction and there is no moment to wait for.
      *
      * <p>Taking the slot can still fail — an entry added by a timer before the HUD is fully up. The placement
      * stands through it: it is not the entry that was wrong, and the next {@code :add} of that id applies it.
      */
     static void entryAdded(AddonPagina pag) {
-        // 073.3: the drawn bar, like hold() itself — an :add is an addon's own call, made from EnterWorld or
+        // 073.3: the drawn bar, like hold() itself — an :add is an addon's own call, made from
+        // SessionEnteredWorld or
         // later in the session the player is looking at, and taking the slot is the same act as slot:pagina().
         GameUI g = AddonManager.gui();
         SessionState st = (g == null) ? null : state(g.ui);
@@ -365,7 +368,8 @@ public final class BeltHold {
 
     /**
      * <b>Read this character's placements back</b> (from the tick, once {@code <genus>_<char>} is known and
-     * <b>before</b> {@code EnterWorld} fires, so the first {@code :add} an addon makes already sees them).
+     * <b>before</b> {@code SessionEnteredWorld} fires, so the first {@code :add} an addon makes already sees
+     * them).
      * Whatever the file holds is the whole state: this session's map is empty until this runs, and a
      * slot index means this character's bar and no other. A file that is missing, unreadable or malformed
      * leaves the bar as the server sent it, which is the same thing an empty file says.

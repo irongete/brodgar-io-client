@@ -71,7 +71,7 @@ and nothing happened" is one `:reload` away from being fixed.
 Four causes cover almost all of it:
 
 - **Read too early.** Your file body runs before the world exists, and much of the character sheet streams
-  in for seconds *after* `EnterWorld`. If a read answers `nil`, ask again from an
+  in for seconds *after* `SessionEnteredWorld`. If a read answers `nil`, ask again from an
   [event or a timer](events-and-timers.md).
 - **The hotkey is unbound.** An addon hotkey starts with no key at all, by design. Look in
   Options ▸ Keybindings for your addon's section.

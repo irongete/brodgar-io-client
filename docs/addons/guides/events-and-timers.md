@@ -1,7 +1,7 @@
 # Events and timers
 
 An addon is a set of callbacks. Your files run once and then nothing happens until something asks for
-you: the client fires an [event](../api/event.md), a [timer](../api/timer.md) comes due, a hotkey is
+you: the client fires an [event](../api/event/bus.md), a [timer](../api/timer.md) comes due, a hotkey is
 pressed, a window draws. This guide is about picking the right one of those.
 
 ## One door, wherever you subscribe
@@ -29,20 +29,26 @@ nothing to unsubscribe by hand. **Two handlers on one key both fire**, in regist
 one leaves the other running. A handler that errors is isolated: the error is logged with your addon's
 id, and your other handlers, the other addons and the client all keep going.
 
-## The four moments every addon has
+## The moments every addon has
 
 ```lua
-hafen.event():on("Load", function() end)          -- every file has run; not in the world yet
-hafen.event():on("EnterWorld", function() end)     -- the HUD, the map and the player exist
-hafen.event():on("Update", function(dt) end)       -- every frame; dt is seconds since the last one
-hafen.event():on("Disable", function() end)        -- reload, disable, or the client closing
+hafen.event():on("Load", function() end)               -- every file has run; not in the world yet
+hafen.event():on("Update", function(dt) end)           -- every frame; dt is seconds since the last one
+hafen.event():on("Disable", function() end)            -- reload, disable, or the client closing
+hafen.event():on("SessionEnteredWorld", function(user) -- a character's HUD, map and player exist
+end)
 ```
 
-`EnterWorld` is where most addons really start: it fires at login **and again on every `:reload` while
-you are in-world**, so an addon that builds its window there is correct after an edit as well as after a
-login. `Disable` is your last chance to write anything you care about; the engine flushes your
+The first three are your addon's own and fire **once each for the client**, however many characters are
+logged in. `Disable` is your last chance to write anything you care about; the engine flushes your
 [saved variables](saved-data.md) straight afterwards. Subscribe to these in your file body or in `Load`,
 never inside another handler.
+
+`SessionEnteredWorld` is where most addons really start, and it belongs to a **session** rather than to
+you: it fires once for each character that reaches the world, handing you that account's name, and again
+on a `:reload` for the character on screen — so an addon that builds its window there is correct after an
+edit as well as after a login. The other three
+[session events](../api/event/bus.md#sessions) tell you when one connects, takes the screen and ends.
 
 ## The bus, a timer, or every frame
 
@@ -50,7 +56,7 @@ Ask for the cheapest thing that answers the question.
 
 | You want | Use |
 |---|---|
-| to know when something changed | the [event](../api/event.md) for it |
+| to know when something changed | the [event](../api/event/bus.md) for it |
 | to know a value that has no event | a [timer](../api/timer.md), at the slowest interval you can live with |
 | to do something *per frame* | `Update`, and nothing that scans |
 
@@ -74,12 +80,12 @@ immediately when it has not changed, and only then do the work — that is how
 
 ## Character data arrives a beat late
 
-`EnterWorld` fires when the HUD exists, not when it is full. Meters, skills, food, quests, wounds and the
-kin roster stream in over the next few seconds, so a read at the top of `EnterWorld` legitimately answers
-`nil`. Two ways round it, both ordinary:
+`SessionEnteredWorld` fires when the HUD exists, not when it is full. Meters, skills, food, quests, wounds
+and the kin roster stream in over the next few seconds, so a read at the top of the handler legitimately
+answers `nil`. Two ways round it, both ordinary:
 
 ```lua
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   hafen.timer():after(2, function()                       -- ask again in a moment...
     local hp = hafen.meter():find("hp")
     hafen.log():write("hp: " .. tostring(hp and hp:value()))
@@ -97,7 +103,7 @@ The second is better whenever an event exists, and one exists for most of what s
 
 The list events — `StudyChanged`, `EquipChanged`, `KinChanged`, `WoundChanged` — hand you the **new
 list**, not what changed in it. Read the initial state once from the section's own verb, then keep your
-own copy and diff it if you need to name the difference. The [catalogue](../api/event.md) says which
+own copy and diff it if you need to name the difference. The [catalogue](../api/event/bus.md) says which
 events carry what.
 
 ## Widgets are not on the bus

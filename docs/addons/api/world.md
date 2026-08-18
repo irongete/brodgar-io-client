@@ -56,7 +56,7 @@ Because Gobs are interned per addon you can use them as table keys directly — 
 across repeated sweeps without touching ids. See [identity](gob.md#identity).
 
 > For reacting to objects rather than polling, prefer the `GobAdded` and `GobRemoved`
-> [events](event.md#world) over scanning every frame.
+> [events](event/bus.md#world) over scanning every frame.
 
 ## The Position type
 
@@ -275,7 +275,7 @@ Both raise before you are in the world, and for a Position this session cannot l
 - [Gob](gob.md) — what the object readers hand back, and the world coordinates they share
 - [`hafen.map`](map/README.md) — the recorded map: its segments and grids, your markers, the icon categories
 - [the `filter` argument](conventions.md#the-filter-argument) — the three forms the object readers accept
-- [events](event.md#world) — `GobAdded` and `GobRemoved`
+- [events](event/bus.md#world) — `GobAdded` and `GobRemoved`
 - [`hafen.vr`](vr/README.md) — what placement snapping is usually for
 - [`hafen.store`](store.md) — where a Position is saved
 - [coordinates](conventions.md#coordinates) — the spaces, side by side

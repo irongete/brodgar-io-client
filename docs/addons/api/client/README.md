@@ -161,7 +161,7 @@ A write moves an **open** panel's checkbox immediately, since the panel re-reads
 `video()` and `audio()` read **`nil`** until the client's UI exists, because their backing systems are built
 with it, and a write in that window is ignored. `interface()`, `camera()` and `client()` always answer. In
 practice this only matters if you touch options at load time on the login screen — guard the value, or do it
-from `EnterWorld`:
+from `SessionEnteredWorld`:
 
 ```lua
 local shadows = opts:video():shadows()
@@ -173,4 +173,4 @@ if shadows ~= nil then hafen.log():write("shadows: " .. tostring(shadows)) end
 - [keybindings](keybindings.md) — declaring your addon's hotkeys, and remapping any binding
 - [profiling](profiling/README.md) — the frame profiler this panel arms
 - [`hafen.sound`](../sound.md) — playing sounds, as opposed to setting levels
-- [events](../event.md) — `EnterWorld`, the guard for the options that are not up yet
+- [events](../event/bus.md#sessions) — `SessionEnteredWorld`, the guard for the options that are not up yet

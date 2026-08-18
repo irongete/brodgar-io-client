@@ -128,7 +128,8 @@ entities dropped at reload; `api/actionbar.md` on a hold not surviving to the ne
 - `src/io/brodgar/session/Sessions.java` — 1, 2, 3
 - `specs/073-caches-know-their-session/census.md` — 2 (reads and updates)
 - `docs/addons/runtime.md` — 2, 4
-- `docs/addons/api/event.md` — 3
+- `docs/addons/api/event/` — 3 (the hub `README.md`, the catalogue `bus.md`, the two streams in
+  `streams.md`; the single page split here)
 - `docs/addons/api/store.md` — 4
 - `docs/addons/guides/saved-data.md` — 4
 - `docs/addons/api/ui/custom.md` — 1

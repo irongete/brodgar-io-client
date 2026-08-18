@@ -29,10 +29,10 @@ are until you are in the world.
 | Scope | Readable from |
 |---|---|
 | account | your file bodies and `Load` |
-| per character | `EnterWorld` onwards |
+| per character | `SessionEnteredWorld` onwards |
 
 ```lua
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   local pos = hafen.store():get("settings").window
   if pos then window:position(pos.x, pos.y) end
 end)
@@ -52,7 +52,7 @@ of positions, a chosen action is [a resource name](../api/ui/custom.md#drop-make
 you can draw again. Rebuild the live objects from that on load.
 
 ```lua
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   for _, prop in ipairs(hafen.store():get("settings").props or {}) do
     local p = hafen.world():position(prop.at)      -- :x() is nil until that grid is reachable
     if p then hafen.vr():ghost():add(prop.res, p) end
@@ -80,7 +80,7 @@ place and box under a name of yours, puts them back the moment you call it, and 
 every time the user moves the thing:
 
 ```lua
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   local chat = hafen.ui():find("@ChatUI")
   chat:draggable(hafen.ui():image():source(hafen.asset():get("grip.png")):parent(chat))
   chat:remember("chat")
@@ -89,7 +89,7 @@ end)
 
 There is no declaration, no table and no handler, because every addon that saved a layout by hand wrote
 the same ten lines of packing a position into a table and unpacking it on load. It is per character, like
-the tables above, which is why it belongs in `EnterWorld` for the same reason they do.
+the tables above, which is why it belongs in `SessionEnteredWorld` for the same reason they do.
 
 ## The other two kinds of file
 

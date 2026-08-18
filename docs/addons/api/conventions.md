@@ -172,7 +172,8 @@ passes straight back. Alpha defaults to `255`, and a component outside `0..255` 
 A read returns `nil`, or an empty table for a list verb, when the data is not available yet: before the
 world loads, before a HUD widget streams in, or while a resource is still resolving. Reads never throw a
 loading error — the bridge swallows it. Much character-sheet data (meters, food, skills, quests, wounds)
-streams in a beat *after* `EnterWorld`, so read it on a timer or subscribe to its [event](event.md).
+streams in a beat *after* `SessionEnteredWorld`, so read it on a timer or subscribe to its
+[event](event/bus.md).
 
 ## Threading
 
@@ -206,6 +207,6 @@ is already sending. [`hafen.http`](http.md) declares separately, a `network` hos
 
 - [references](references.md) — every kind of thing a verb takes, and how you name one
 - [data types](types.md) — every snapshot shape the readers return
-- [events](event.md) — the bus, and what each event hands your handler
+- [events](event/bus.md) — the bus, and what each event hands your handler
 - [permissions](../guides/permissions.md) — the protected tier in full
 - [the Position type](world.md#the-position-type) — the one place type every spatial verb takes

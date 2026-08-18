@@ -128,8 +128,9 @@ is the exception, and it keeps `menugrid.use` whichever entry it names — press
 behalf is an act, and any addon can address any entry by name.
 
 Re-issuing reaches the server without a key, which is why the line above is *starting* an action rather
-than sending one. [`ev:resend()` and `ev:send(t)`](../api/event.md#intercepting-an-outbound-action) re-issue
-a message the client was already about to send, in place of it, and
+than sending one.
+[`ev:resend()` and `ev:send(t)`](../api/event/streams.md#intercepting-an-outbound-action) re-issue a message
+the client was already about to send, in place of it, and
 [`ev:resend()` on one of the client's own controls](../api/ui/edit.md#running-the-action-yourself) re-runs
 the action the user's own gesture just triggered. Either way you choose what happens to a gesture, not
 whether there was one — that is exactly what `widget.value` above does not have, which is why it is keyed
@@ -152,8 +153,8 @@ Three habits, in the order they bite:
 - **Your manifest is the answer to "may I act?"** An addon that declared a key and is running was granted
   it, so there is nothing to test at run time and nothing to branch on. If you are writing a file that may
   ship either way, read your own `manifest.json` rather than provoking the error.
-- **Act from `EnterWorld` onwards.** Every verb here needs a live map view or a live object and throws
-  before there is one, so an action fired from a file body is an error rather than an early start.
+- **Act from `SessionEnteredWorld` onwards.** Every verb here needs a live map view or a live object and
+  throws before there is one, so an action fired from a file body is an error rather than an early start.
 - **Make the user ask.** Bind actions to a [hotkey or a command](hotkeys-and-commands.md) rather than to a
   timer. An addon that acts on its own the moment it loads is the one thing a permission dialog cannot
   really warn about, and the bundled write example is deliberately built the other way round.

@@ -349,7 +349,8 @@ public final class LuaMeter {
      * {@code hafen.meter()} — the HUD's bars, as the {@link LuaCollection} the section object IS:
      * {@code :list(filter)} is a fresh 1-based array of (interned) Meter objects in HUD order,
      * {@code :find(needle)} the first that matches, {@code :count(filter)} how many. Legitimately empty for a
-     * beat after {@code EnterWorld} — the meters stream in; {@code MeterAdded} (027.2) is the honest signal.
+     * beat after {@code SessionEnteredWorld} — the meters stream in; {@code MeterAdded} (027.2) is the
+     * honest signal.
      *
      * <p><b>There is no {@code :get}</b>: a meter has no key. A string filter matches the
      * <i>server-published</i> background resource name as a substring, so {@code "hp"} is not a key this code

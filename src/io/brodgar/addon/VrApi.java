@@ -654,7 +654,7 @@ final class VrApi {
     private static LuaValue born(LuaWorldEntity e, String where) {
         if(e == null)
             throw new LuaError(where + ": there is no map view yet — a thing standing in the 3D world needs the"
-                + " scene, so place it once you are in the world (EnterWorld)");
+                + " scene, so place it once you are in the world (SessionEnteredWorld)");
         return e.handle;
     }
 

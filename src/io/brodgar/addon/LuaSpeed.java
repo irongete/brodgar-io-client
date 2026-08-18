@@ -165,7 +165,7 @@ public final class LuaSpeed {
     /**
      * The method set. {@code :index()} answers from the handle alone; the other four re-read the live
      * selector, and none of them throws while it is absent — a speed that cannot be picked yet is not an
-     * error, it is the state the HUD is in for a beat after {@code EnterWorld}.
+     * error, it is the state the HUD is in for a beat after {@code SessionEnteredWorld}.
      */
     private static LuaTable methods() {
         LuaTable m = new LuaTable();

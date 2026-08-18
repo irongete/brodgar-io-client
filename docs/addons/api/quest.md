@@ -19,7 +19,7 @@ end
 | `hafen.quest():get(id)` | `Quest` \| nil | one quest, by its server id |
 | `hafen.quest():selected()` | `Quest` \| nil | the quest open in the log |
 
-Before the log has built — a beat after `EnterWorld` — `:list()` is an empty array, `:count()` is `0`
+Before the log has built — a beat after `SessionEnteredWorld` — `:list()` is an empty array, `:count()` is `0`
 and `:selected()` is `nil`. `:selected()` is also `nil` whenever the player has nothing open. Nothing
 here throws and nothing is protected.
 
@@ -76,8 +76,8 @@ end
 
 ## Events
 
-Subscribe to [`QuestAdded`](event.md#roster-quests-markers), a new active quest, and
-[`QuestDone`](event.md#roster-quests-markers), an active quest completed or failed. Each carries the
+Subscribe to [`QuestAdded`](event/bus.md#roster-quests-markers), a new active quest, and
+[`QuestDone`](event/bus.md#roster-quests-markers), an active quest completed or failed. Each carries the
 Quest itself, so a handler reads it with the verbs above and can hold it afterwards.
 
 ## See also
@@ -85,4 +85,4 @@ Quest itself, so a handler reads it with the verbs above and can hold it afterwa
 - [`Quest` and `Condition`](types.md#quest-and-condition) — the snapshot shapes
 - [`hafen.map():marker()`](map/markers.md) — the map pins a quest puts down
 - [`hafen.char`](char.md) — credos, whose own quest carries an id you can look up here
-- [events](event.md#roster-quests-markers) — `QuestAdded` and `QuestDone`
+- [events](event/bus.md#roster-quests-markers) — `QuestAdded` and `QuestDone`

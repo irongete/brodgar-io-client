@@ -81,7 +81,7 @@ public final class Sandbox {
      * per-tick Lua time exceeds {@link #SOFT_BUDGET_NANOS} for {@link #SOFT_STRIKE_LIMIT} <b>consecutive</b>
      * ticks is a sustained offender and is auto-disabled until the next load — a runaway the per-call cap
      * cannot catch (a handler that individually stays under the instruction cap yet burns most of every
-     * frame). A single spike (a heavy {@code EnterWorld}, one janky frame) resets the strike counter, so
+     * frame). A single spike (a heavy {@code SessionEnteredWorld}, one janky frame) resets the strike counter, so
      * only genuinely sustained overrun trips it. Enforced in {@link AddonManager#enforceSoftBudget()} and
      * surfaced in the AddOns panel. Override with {@code -Dhaven.addon.tickbudgetms} (milliseconds;
      * {@code <= 0} disables the soft budget) and {@code -Dhaven.addon.tickstrikes}.

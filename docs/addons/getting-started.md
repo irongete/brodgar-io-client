@@ -61,18 +61,19 @@ made of it.
 ## Step 4: react to entering the world
 
 Your file body runs once, before you are in the world, so there is nothing to read yet. The rest of an
-addon hangs off [events](api/event.md). Replace the line from step 2 with:
+addon hangs off [events](api/event/README.md). Replace the line from step 2 with:
 
 ```lua
 hafen.log():write("myaddon loaded")
 
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
 end)
 ```
 
-`EnterWorld` fires when the HUD is up, at login and again on every `:reload` while you are in-world — so
-it is where an addon starts its real work. [`hafen.player`](api/player.md) is your own character.
+`SessionEnteredWorld` fires when a character's HUD is up — at login, and again on a `:reload` while you
+are in-world — so it is where an addon starts its real work. It is handed the account name that entered;
+this addon has no use for it yet. [`hafen.player`](api/player.md) is the character on screen.
 
 ## Step 5: draw a window
 
@@ -83,7 +84,7 @@ you enter the world, and keep the handle:
 local window                                    -- the window, once we are in the world
 local trees = 0                                 -- what it displays
 
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
   window = hafen.ui():window():title("My Addon"):size(150, 24):position(60, 60)
   window:on("Draw", function(ev)
@@ -137,14 +138,14 @@ The window should come back the way you left it. Declare a saved variable in `ma
 "saved_variables": ["settings"]
 ```
 
-`hafen.store():get("settings")` is then an ordinary table that the engine fills before `EnterWorld`
+`hafen.store():get("settings")` is then an ordinary table that the engine fills before `SessionEnteredWorld`
 and writes back to disk for you. Record the state in the hotkey, and apply it when the window is built:
 
 ```lua
   if hafen.store():get("settings").open == false then window:visible(false) end
 ```
 
-goes at the end of the `EnterWorld` handler, and the hotkey's body becomes:
+goes at the end of the `SessionEnteredWorld` handler, and the hotkey's body becomes:
 
 ```lua
   if window:visible() then window:visible(false) else window:visible(true) end
@@ -178,7 +179,7 @@ local trees = 0                                 -- what it displays
 
 hafen.log():write("myaddon loaded")
 
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   hafen.log():write("in the world as " .. (hafen.player():name() or "?"))
   window = hafen.ui():window():title("My Addon"):size(150, 24):position(60, 60)
   window:on("Draw", function(ev)

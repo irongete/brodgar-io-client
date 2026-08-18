@@ -308,5 +308,5 @@ positionally wherever a colour goes in; see [colours](conventions.md#colours).
 ## See also
 
 - [conventions](conventions.md#snapshots-vs-handles) — why some readers hand back an object instead
-- [events](event.md) — which of these shapes arrives as an event payload
+- [events](event/bus.md) — which of these shapes arrives as an event payload
 - [Gob](gob.md) — the live-object counterpart of `GobInfo`, and the usual way to read a gob

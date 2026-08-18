@@ -620,7 +620,8 @@ public final class LuaWidget {
         // WHAT IS SAVED IS WHERE YOUR LEVELS STAND, whenever the layer writes to disk — after a gesture, on the
         // save timer, and at teardown. So the user dragging it is remembered with no handler of yours, and so is
         // a place you wrote yourself. It is PER CHARACTER, like a per-character saved variable and for the same
-        // reason, so before EnterWorld there is nothing to put back and the call says so rather than applying an
+        // reason, so before SessionEnteredWorld there is nothing to put back and the call says so rather
+        // than applying an
         // empty record. No manifest declaration: the slot is the layer's own file beside the addon's store.
         //
         // ONE NAME, ONE WIDGET, which is what makes the name answerable: a second widget under a name this addon
@@ -1946,7 +1947,7 @@ public final class LuaWidget {
             // Criterion 9: it has nothing to apply, and saying so beats applying an empty record — the addon
             // called it too early, and the answer is a moment rather than a different verb.
             AddonManager.log(owner, "widget:remember(\"" + name + "\"): a saved place is per CHARACTER and no"
-                + " character is in world yet, so there is nothing to put back. Call it from EnterWorld"
+                + " character is in world yet, so there is nothing to put back. Call it from SessionEnteredWorld"
                 + " onwards; what happens to the widget from here is saved under that name all the same.");
             return;
         }

@@ -360,7 +360,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
         MenuGrid scm = LuaPagina.grid();
         if(scm == null)
             throw new LuaError("hafen.menugrid():add(id): the action menu is not up yet — add your entries"
-                + " from EnterWorld or later, not from Load");
+                + " from SessionEnteredWorld or later, not from Load");
         String id = PREFIX + owner.manifest.id + "/" + rel;
         for(AddonPagina p : owner.menuEntries) {
             if(p.id.equals(id))
@@ -374,7 +374,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
         owner.menuEntries.add(p);
         p.relayout();
         BeltHold.entryAdded(p);     // 059.5: and back onto every bar slot this entry is placed in — at login
-                                    //   this call IS the restore, run from the addon's own EnterWorld
+                                    //   this call IS the restore, run from the addon's own SessionEnteredWorld
         return LuaPagina.of(owner, id);
     }
 

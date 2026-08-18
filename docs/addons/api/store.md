@@ -44,7 +44,7 @@ create it. A name your manifest does not declare is an error naming the ones it 
 saved variables is fixed when your addon loads and a misspelt one has no later meaning to wait for.
 
 **When each scope is ready.** Account tables are filled before your files run, so they are readable in
-the file body and in `Load`. Per-character tables are filled just before `EnterWorld` fires,
+the file body and in `Load`. Per-character tables are filled just before `SessionEnteredWorld` fires,
 because the character's folder is not known until then: read them there, not in `Load`.
 
 **What survives.** The tables are stored as JSON, so tables, strings, numbers and booleans round-trip
@@ -73,12 +73,12 @@ saved by the *user* moving something, not by your addon deciding to write it dow
 a variable to allow it would be asking permission for a gesture they made themselves.
 
 It lands in a file of its own beside the one above, `savedata/<genus>_<char>/<addon>.layout.json`, and is
-therefore **per character**, with the same timing: it is loaded before `EnterWorld` and there is nothing to
-put back before then. Every write here writes it too, `flush()` included, so an addon that only remembers
-places still saves on the timer and at teardown though it declares nothing at all.
+therefore **per character**, with the same timing: it is loaded before `SessionEnteredWorld` and there is
+nothing to put back before then. Every write here writes it too, `flush()` included, so an addon that only
+remembers places still saves on the timer and at teardown though it declares nothing at all.
 
 ## See also
 
 - [`hafen.json`](json.md) — the same serializer, when you want the string yourself
-- [events](event.md#lifecycle) — `EnterWorld`, where per-character data becomes readable
+- [events](event/bus.md#sessions) — `SessionEnteredWorld`, where per-character data becomes readable
 - [`hafen.http`](http.md) — fetching what you cache here

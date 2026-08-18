@@ -66,12 +66,12 @@ Writing either property on a system marker is refused: those are the server's ow
 > removing and recolouring markers is not protected: it edits the user's own on-disk map database, which
 > is client-local and reversible by hand. Remove only what your addon added.
 
-The [`MarkersChanged`](../event.md#roster-quests-markers) event, payload the marker count, fires on any
+The [`MarkersChanged`](../event/bus.md#roster-quests-markers) event, payload the marker count, fires on any
 add, remove or edit, including ones the player makes.
 
 ## See also
 
 - [segments and grids](grids.md) — `seg:markers()`, and why a Position is what you store
 - [`Marker`](../types.md#marker) — the snapshot `marker:info()` hands back
-- [events](../event.md#roster-quests-markers) — `MarkersChanged`
+- [events](../event/bus.md#roster-quests-markers) — `MarkersChanged`
 - [`hafen.world`](../world.md#the-position-type) — the Position type, and rebuilding one from a stored form

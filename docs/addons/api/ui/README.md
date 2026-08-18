@@ -74,4 +74,4 @@ and layout.
 - [the Widget object](widget.md#send-a-message-protected) — sending a message from a bound widget
 - [widgets in the world](../vr/widgets.md) — any of this, drawn in the 3D scene instead of on the screen
 - [references](../references.md#widget-a-piece-of-the-ui) — where a Widget sits among the other references
-- [events](../event.md) — the bus, for everything that is not a widget subscription
+- [events](../event/bus.md) — the bus, for everything that is not a widget subscription

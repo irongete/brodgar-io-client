@@ -134,7 +134,7 @@ public final class AddonManager {
     // does NOT name one login's things, and each of those has its verdict and its reason written down in
     // specs/073-caches-know-their-session/census.md, which is where the split is decided once.
 
-    /** How long EnterWorld waits for the server to place the action menu before firing without it. */
+    /** How long SessionEnteredWorld waits for the server to place the action menu before firing regardless. */
     private static final double MENU_WAIT = 5.0;
     // 074.2: the engine clock a timer is due on — process-wide with the addons whose timers it measures (the
     // census row deferred to this feature, settled with `addons`). It accrues on the LAYER's tick, so it counts
@@ -161,8 +161,8 @@ public final class AddonManager {
     // tick re-reads + fires on the UI thread (principle P5). Both collections are session-scoped.
 
     // -- saved variables (spec 1e / D-002 / D-023): hafen.store persisted as JSON under savedata/ ------
-    // Per-character vars key on <genus>_<char>, known only once the HUD is up (EnterWorld) — captured
-    // here and reused on flush so a relog (which rebinds ui before the new GameUI exists) still writes to
+    // Per-character vars key on <genus>_<char>, known only once the HUD is up (SessionEnteredWorld) —
+    // captured here and reused on flush so a relog (which rebinds ui before the new GameUI exists) writes to
     // the OLD character's folder. Account-scope vars need no char and load at addon-load time.
 
     // -- enabled set + reload (spec 1f-2 / D-005 / D-006): which addons run, persisted client-side --------
@@ -670,11 +670,13 @@ public final class AddonManager {
     // ------------------------------------------------------------- lifecycle
 
     /**
-     * Call site — end of the MapView constructor, for a view that is not dormant. <b>It flags "entered
+     * Call site — end of the MapView constructor, <b>dormant or not</b> (074.3): a session that reaches the
+     * world while another holds the screen is dormant at that instant, and a constructor runs once, so
+     * gating this on the drawn view is gating it on nothing ever. <b>It flags "entered
      * world", and that is all it does</b> (072.3): capturing the view here is what made the engine's idea of
      * the drawn scene a hand-written copy, and {@link #screenView()} derives it from the session on screen
      * instead. The flag stays because the moment a scene is built is not something the tree can be asked
-     * about afterwards — {@link #tick(UI, double)} turns it into {@code EnterWorld} once the HUD is up.
+     * about afterwards — {@link #tick(UI, double)} turns it into {@code SessionEnteredWorld} once the HUD is up.
      *
      * <p><b>It is handed the scene's own {@link Glob}</b> (073.1), because that is what names the session
      * this world came up for. {@code mv.ui} cannot: the seam is the <i>end of the constructor</i>, and a
@@ -687,7 +689,7 @@ public final class AddonManager {
             return;
         SessionState st = state(io.brodgar.session.Sessions.uifor(glob));
         if(st != null)
-            st.enterWorldPending = true;   // EnterWorld is fired on the next tick (UI thread)
+            st.enterWorldPending = true;   // SessionEnteredWorld is fired on the next tick (UI thread)
     }
 
     /**
@@ -839,6 +841,7 @@ public final class AddonManager {
                 st.reloadPending = false;
                 for(SessionState ss : allStates())
                     ss.overlayEvents.clear();   // 038.3: the addons that queued these are being torn down
+                sessionEvents.clear();          // 074.3: ...and so are the ones these were queued for
                 overlaySubs = false;            //   (the reloaded ones re-subscribe inside reload())
                 AddonRegistry.reload();
                 return;
@@ -885,6 +888,10 @@ public final class AddonManager {
             // One frame's worth (a retry that re-registers must not spin this tick forever). Process-wide
             // with the addons that own them (074.2): the seam is handed a bare Runnable and knows no session.
             drainResolveQueue();
+
+            // 074.3: sessions that came, were picked or went since the last frame. Before Update, so a handler
+            // that keeps its own map of who is up has it right for the frame it is about to be told about.
+            drainSessionEvents();
 
             // Per-frame update, and the due timers behind it. Once per frame for the client — an addon has one
             // Update however many characters it is watching.
@@ -1052,7 +1059,7 @@ public final class AddonManager {
             //     moved: one boolean read.
             VrApi.drainGround(st);
 
-            // 2. "Entered the world" — fire EnterWorld once the HUD (GameUI) is not just built but
+            // 2. "Entered the world" — fire SessionEnteredWorld once the HUD (GameUI) is not just built but
             //    ATTACHED to ui.root. The map view sets enterWorldPending from its ctor (loader thread),
             //    and gui() finds GameUI via the map view a beat BEFORE GameUI is added to the RootWidget
             //    (confirmed via the widget-place trace: the old "gui()!=null" signal fired one line before
@@ -1064,13 +1071,13 @@ public final class AddonManager {
             //    later — read them on a timer, not synchronously here.)
             //    059.5: ...and the ACTION MENU with it. GameUI.menu is not built by GameUI — it is a child the
             //    server places ("menu"), so it arrives some ticks AFTER the HUD is in the tree. Firing between
-            //    the two hands every addon an EnterWorld in which hafen.menugrid():add(id) refuses with "the
-            //    action menu is not up yet", which is the one call an addon's own entries — and the action-bar
-            //    slots held for them — come back through at login. Waiting for it is what makes "add your
-            //    entries from EnterWorld or later" true rather than a race an addon has to code around.
-            //    BOUNDED, because nothing here can prove the server always sends one: after MENU_WAIT seconds
-            //    EnterWorld fires anyway, with a log line saying the menu never came, so a session that has no
-            //    action menu at all still gets everything else.
+            //    the two hands every addon a SessionEnteredWorld in which hafen.menugrid():add(id) refuses
+            //    with "the action menu is not up yet", which is the one call an addon's own entries — and the
+            //    action-bar slots held for them — come back through at login. Waiting for it is what makes
+            //    "add your entries from SessionEnteredWorld or later" true rather than a race an addon has to
+            //    code around. BOUNDED, because nothing here can prove the server always sends one: after
+            //    MENU_WAIT seconds it fires anyway, with a log line saying the menu never came, so a session
+            //    that has no action menu at all still gets everything else.
             if(st.enterWorldPending) {
                 GameUI hud = gui(st.ui);   // 074.2: THIS session's HUD — every session ticks now, not only the
                                            //   one on screen, so "the" HUD would be the wrong character's
@@ -1080,14 +1087,23 @@ public final class AddonManager {
                     boolean late = (clock - st.hudUpSince) >= MENU_WAIT;
                     if((hud.menu != null) || late) {
                         if(late && (hud.menu == null))
-                            log("EnterWorld: no action menu after " + MENU_WAIT + "s — firing without it");
+                            log("SessionEnteredWorld: no action menu after " + MENU_WAIT
+                                + "s — firing without it");
                         st.enterWorldPending = false;
                         StoreApi.restorePerChar(st, hud);   // now <genus>_<char> is known → load per-char saved
-                                                   //   vars BEFORE EnterWorld fires (073.5: for THIS session,
+                                                   //   vars BEFORE the event fires (073.5: for THIS session,
                                                    //   from the very HUD this gate just read)
                         BeltHold.restore(st);      // 059.5: ...and this character's action-bar placements, so the
                                                    //   first :add an addon makes puts its button straight back
-                        fire("EnterWorld");    // the handler runs, so it can read hafen.store (spec 1e)
+                        // 074.3: fired DIRECTLY and not through the session queue — this already runs on the UI
+                        //   thread, and the ordering that matters is the one above it: the per-character saved
+                        //   variables and the held slots are in place before any handler reads them (spec 1e).
+                        //   The payload is THIS session's own account name, never the screen's.
+                        String who = io.brodgar.session.Sessions.nameof(st.ui);
+                        if(who != null)
+                            fire("SessionEnteredWorld", LuaValue.valueOf(who));
+                        else       // the member went between the world coming up and this tick. The flag
+                            log("SessionEnteredWorld: the session ended before it could be named");
                     }
                 }
             }
@@ -1509,18 +1525,26 @@ public final class AddonManager {
     // ------------------------------------------------------------- event dispatch
 
     /**
-     * The bus's <b>closed key set</b> — the 28 events {@code hafen.event():on(key, fn)} accepts, in the order
-     * the catalogue lists them (lifecycle, world, character, roster, own entities). Closed because the client
-     * knows the whole set at load, so an unknown key is a typo with no future meaning to wait for (D-129):
-     * before 041 {@code hafen.event():on("GobAdded ", fn)} was accepted and simply never fired, which is the
-     * most common silent addon bug there is.
+     * The bus's <b>closed key set</b> — every event {@code hafen.event():on(key, fn)} accepts, in the order
+     * the catalogue lists them (lifecycle, sessions, world, character, roster, own entities). Closed because
+     * the client knows the whole set at load, so an unknown key is a typo with no future meaning to wait for
+     * (D-129): before 041 {@code hafen.event():on("GobAdded ", fn)} was accepted and simply never fired,
+     * which is the most common silent addon bug there is.
      *
      * <p>PascalCase throughout, and it is the bus's <i>own</i> spelling that the rest of the API adopted in
-     * 041 — so 22 of the 26 it found were already the exact string the corpus called. Only the four lifecycle
-     * keys moved, dropping the {@code On} prefix that {@code :on} already says (see {@link Retired#eventKey}).
+     * 041 — so most of what that feature found was already the exact string the corpus called. The four
+     * lifecycle keys moved there, dropping the {@code On} prefix that {@code :on} already says, and 074.3
+     * moved one of those again: an addon no longer enters the world, a <b>session</b> does, so the moment is
+     * {@code SessionEnteredWorld} and the spelling it replaced throws (see {@link Retired#eventKey}).
+     *
+     * <p><b>The session family is four keys and one payload</b> (074.3): the account <b>name</b>, which after
+     * 071 is what every session has whichever door it came through. They are the vocabulary the addon layer
+     * needs now that it outlives a character switch — nothing else says the screen changed, or that the
+     * character an addon cached a handle from is gone.
      */
     static final String[] BUS_KEYS = {
-        "Load", "EnterWorld", "Update", "Disable",
+        "Load", "Update", "Disable",
+        "SessionAdded", "SessionEnteredWorld", "SessionSelected", "SessionDestroyed",
         "GobAdded", "GobRemoved", "GobOverlayAdded", "GobOverlayRemoved",
         "MeterAdded", "MeterRemoved", "MeterChanged",
         "BuffAdded", "BuffRemoved", "BuffChanged",
@@ -1530,7 +1554,7 @@ public final class AddonManager {
         "GhostClicked", "SpriteClicked", "ObjectClicked",
     };
 
-    /** Is {@code key} one of the {@link #BUS_KEYS}? (Linear over 28 constants, once per subscription.) */
+    /** Is {@code key} one of the {@link #BUS_KEYS}? (Linear over the constants, once per subscription.) */
     private static boolean busKey(String key) {
         for(String k : BUS_KEYS) {
             if(k.equals(key))
@@ -1670,6 +1694,48 @@ public final class AddonManager {
         }
         Addon c = consoleOwner;
         return (c != null) && (action ? c.actionSubs : c.messageSubs).has(msg);
+    }
+
+    // --------------------------------------------------- the session family (074.3)
+
+    /**
+     * <b>Sessions coming, being picked, and going</b> — captured wherever they happen and fired on the
+     * layer's own tick. Each entry is {@code {key, account name}}: the payload is a <i>name</i> because after
+     * 071 that is what every session has whichever door it came through, and because {@code hafen.session()}
+     * does not exist yet — inventing a provisional object to replace one feature later would be two hard cuts
+     * where one will do.
+     *
+     * <p><b>Queued, never fired at the seam.</b> A session is added from a slash command's thread, picked
+     * from whatever thread reached {@code Sessions.anchor}, and destroyed from its own runner thread; Lua
+     * runs on the UI thread and nowhere else (P5), so all three only enqueue and {@link #drainSessionEvents}
+     * turns them into a fire — the same marshalling every off-thread seam in this layer uses (D-106). The
+     * <b>layer's</b> tick and not a session's: these events are the client's, and the session one of them is
+     * about may be the one that just ended.
+     */
+    private static final Queue<String[]> sessionEvents = new ConcurrentLinkedQueue<String[]>();
+
+    /** Call site — {@code Sessions.add} and {@code Sessions.adopt}: a session connected. */
+    public static void sessionAdded(String user) { queueSession("SessionAdded", user); }
+
+    /** Call site — {@code Sessions.anchor(Member)}: the screen changed to this session. */
+    public static void sessionSelected(String user) { queueSession("SessionSelected", user); }
+
+    /** Call site — {@code Sessions.Member.run}'s {@code finally}: this session ended, however it ended. */
+    public static void sessionDestroyed(String user) { queueSession("SessionDestroyed", user); }
+
+    /** Enqueue one session event. A nameless session is not one of these — nothing could act on it. */
+    private static void queueSession(String key, String user) {
+        if((user != null) && !user.isEmpty())
+            sessionEvents.add(new String[] {key, user});
+    }
+
+    /**
+     * Drain one frame's worth of {@link #sessionEvents} on the UI thread, in the order the seams recorded
+     * them — so an addon hears a session arrive before it is picked, and be picked before it ends.
+     */
+    private static void drainSessionEvents() {
+        for(String[] e = sessionEvents.poll(); e != null; e = sessionEvents.poll())
+            fire(e[0], LuaValue.valueOf(e[1]));
     }
 
     /** Fire an event to every owner (all addons + the REPL). */
@@ -2520,8 +2586,8 @@ public final class AddonManager {
         // :roots() for the root screen. The key is always a STRING and splits by SHAPE — a "/" makes it a
         // resource name (the identity), anything else a display name (a search convenience, not unique) — and
         // a miss is plain nil. There is no addressing by position: the catalogue grows on every discovery.
-        // Resource-backed reads are Loading-guarded, so a scan right at EnterWorld may be short and fills in
-        // sub-second.
+        // Resource-backed reads are Loading-guarded, so a scan right at SessionEnteredWorld may be short and
+        // fills in sub-second.
         Section.mount(hafen, "menugrid", LuaPagina.collection(owner),
                       "hafen.menugrid(key) is now hafen.menugrid():get(key), and hafen.menugrid() is"
                       + " hafen.menugrid():list()");
@@ -2934,7 +3000,7 @@ public final class AddonManager {
                     throw new LuaError(retired);
                 if(!busKey(key))
                     throw new LuaError("hafen.event():on(key, fn): unknown event '" + key + "' — see"
-                        + " docs/addons/api/event.md for the catalogue");
+                        + " docs/addons/api/event/bus.md for the catalogue");
                 if(key.startsWith("GobOverlay"))   // 038.3: arm the two Gob seams (see `overlaySubs`)
                     overlaySubs = true;
                 return owner.subs.on(key, fn);
@@ -3003,8 +3069,8 @@ public final class AddonManager {
         // variable, persisted to JSON under savedata/. :get(name) hands back that table — the LIVE persisted
         // one, never a copy, so hafen.store():get("cfg").foo = 1 still saves; an undeclared name throws listing
         // the declared ones, because the set is closed by the manifest at load. :flush() forces a write now.
-        // Per-character vars are restored at EnterWorld (the <genus>_<char> folder is only known then);
-        // account-scope vars are loaded here, before the addon's files run, so they are ready in the file body /
+        // Per-character vars are restored at SessionEnteredWorld (the <genus>_<char> folder is only known
+        // then); account-scope vars are loaded here, before the addon's files run, ready in the file body /
         // Load. The table object for each name is STABLE for the addon's whole life (restore fills it in
         // place), so a cached reference stays valid. This is the one section whose ACCESS PATTERN changed
         // rather than its spelling, so the old field form throws from a per-owner __index built off the
@@ -3194,7 +3260,7 @@ public final class AddonManager {
 
     /**
      * The in-game HUD ({@link GameUI}). Fast path: walk up from the map view. Fallback: scan down from
-     * {@code ui.root} — right at {@code EnterWorld} the map view exists (it fired the event) but may
+     * {@code ui.root} — right at {@code SessionEnteredWorld} the map view exists (it fired the event) but may
      * not be parented to {@code GameUI} yet, whereas {@code GameUI} is already a child of the root
      * (its widget message arrives before the map view's). {@code null} before the HUD is up.
      */

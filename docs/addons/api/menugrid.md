@@ -51,7 +51,7 @@ substring, so `:list("Dig")` is every entry whose name contains it and `:find("D
 An entry whose resource has not resolved yet has no display name and matches nothing.
 
 > **The catalogue fills in.** Names come from the pagina's resource and resources resolve
-> asynchronously, so a scan run right at `EnterWorld` is often short: entries that have not resolved
+> asynchronously, so a scan run right at `SessionEnteredWorld` is often short: entries that have not resolved
 > are simply absent, and they appear a fraction of a second later. Nothing ever comes back half-read —
 > every resource-backed reader answers `nil` rather than a partial value. Scan on a timer if you need
 > the complete set, and expect it to keep growing as you play.
@@ -134,7 +134,8 @@ The new `Pagina`, ready for its setters. `id` is **addon-relative**, spelled lik
 answers and what `:get()` resolves, by the same shape rule as any other resource name, so two addons cannot
 collide and neither can collide with the game's own.
 
-The menu has to exist: add your entries from [`EnterWorld`](event.md) or later, not from `Load`.
+The menu has to exist: add your entries from
+[`SessionEnteredWorld`](event/bus.md#sessions) or later, not from `Load`.
 
 | What you did | What you get |
 |---|---|
@@ -209,7 +210,7 @@ page an explicit `nil` raises.
 
 `pag:on("use", fn)` runs `fn(pag)` every time one of your entries is pressed: a left-click on its button in
 the grid, and [`pag:use()`](#use-protected) from your own code. You get a subscription back, the same one
-[`hafen.event()`](event.md) hands you.
+[`hafen.event()`](event/README.md) hands you.
 
 ```lua
 local dig = hafen.menugrid():add("dig"):name("Auto-dig")

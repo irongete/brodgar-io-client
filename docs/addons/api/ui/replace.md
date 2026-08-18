@@ -57,7 +57,7 @@ widget already handed to you is never handed over twice. `[res=]` has no such mo
 resolves on its own schedule, so a `[res=]` candidate is re-checked for a short while after placement.
 
 These are widget subscriptions rather than bus events: there is no `WidgetCreated` on
-[`hafen.event()`](../event.md), because you say *which* widget you care about.
+[`hafen.event()`](../event/README.md), because you say *which* widget you care about.
 
 ## Replacing a native window (unprotected)
 

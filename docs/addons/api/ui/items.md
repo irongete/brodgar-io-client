@@ -249,12 +249,12 @@ stops the watching. There is no separate watch/unwatch pair because there is not
 An item entering or leaving is a widget create or destroy rather than a server message, so both are seen
 at the moment the client puts that widget into the tree or takes it out. Three consequences are worth
 knowing: the items **already** inside a container fire `ItemAdded` while you subscribe, before `:on`
-returns, so the state arrives as events the way [`BuffAdded`](../event.md#character-and-status) does; a
+returns, so the state arrives as events the way [`BuffAdded`](../event/bus.md#character-and-status) does; a
 container that is hidden still fires them, which is why you can [hide a grid](native.md) and keep reading
 it; and subscribing to any of the three on a widget that has already left the tree fires `Destroy` there
 and then, and drops every subscription on it. The item handed to `ItemRemoved` is the same object the add
 reported, so it is worth keeping — it answers after it has left. Worn equipment additionally has the
-global [`EquipChanged`](../event.md#character-and-status) event, which carries the whole new list.
+global [`EquipChanged`](../event/bus.md#character-and-status) event, which carries the whole new list.
 
 ### The events go deeper than `:items()`
 
@@ -286,4 +286,4 @@ one — a chest standing in the world is opened, and read as the container widge
 - [`hafen.player`](../player.md#the-hand) — the cursor: what it carries, and applying it to something
 - [widget](widget.md) — the object `:items()` is a method on
 - [replace](replace.md#watching-for-a-widget) — waiting for a container to open in the first place
-- [events](../event.md#character-and-status) — `EquipChanged` and the other global lists
+- [events](../event/bus.md#character-and-status) — `EquipChanged` and the other global lists

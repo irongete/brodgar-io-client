@@ -9,7 +9,9 @@ you came for from the tables below. Every page in the tree is listed here.
 | [conventions](conventions.md) | the grammar, snapshots vs handles, filters, coordinates, colours, `nil`, threading, and the permission model |
 | [references](references.md) | every kind of thing a verb takes: a Gob, a kin, a slot, an asset, an item, a widget, a selector |
 | [data types](types.md) | every snapshot shape a read hands back, field by field |
-| [`hafen.event`](event.md) | the bus, and the catalogue of everything the client tells you about |
+| [`hafen.event`](event/README.md) | the hub: subscribing, the closed keys and the open ones |
+| [the catalogue](event/bus.md) | every event the client fires, and what each one hands your handler |
+| [the message streams](event/streams.md) | a message on its way to the server, and an update on its way in |
 
 ## Reading the world
 

@@ -50,7 +50,7 @@ directly — which is how you remember what you have already seen without juggli
 ## Do not scan every frame
 
 A sweep of every loaded object is cheap once and expensive sixty times a second. Prefer the
-[events](../api/event.md#world) `GobAdded` and `GobRemoved`, which hand you the Gob as it arrives, and
+[events](../api/event/bus.md#world) `GobAdded` and `GobRemoved`, which hand you the Gob as it arrives, and
 keep your own index:
 
 ```lua

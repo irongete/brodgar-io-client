@@ -240,7 +240,7 @@ widget's coordinates instead of walking you somewhere that merely has the same t
 Send an arbitrary widget message, for what the typed verbs do not cover — the message a client-side button
 would have sent, from the widget the server knows. `msg` must be a **string**: a number is refused rather
 than coerced, because a message name leaving the client is not a thing to guess at. Trailing arguments
-marshal the way an [`action`](../event.md#intercepting-an-outbound-action) `ev:args()` is read: a
+marshal the way an [`action`](../event/streams.md#intercepting-an-outbound-action) `ev:args()` is read: a
 `{x=, y=}` table becomes a coordinate, and numbers, strings and booleans pass through. Returns the Widget.
 It needs the `widget.send` [permission key](../../guides/permissions.md) declared in your manifest; without
 it the call raises an error naming that key. It is the widest key in the catalogue — anything the typed

@@ -28,7 +28,7 @@ import static io.brodgar.addon.AddonManager.*;
  * The saved-variables subsystem ({@code hafen.store()}, 1e / D-002 / D-023). One Lua table per manifest-declared
  * saved variable, persisted to JSON under {@code savedata/} (account-scope + per-character
  * {@code <genus>_<char>} scope). {@link AddonManager} drives it via
- * {@link #restorePerChar} (EnterWorld/reload), {@link #loadScope}
+ * {@link #restorePerChar} (SessionEnteredWorld/reload), {@link #loadScope}
  * (account vars at install), {@link #flush} (teardown), and {@link #autosave} (the throttled tick save).
  * Not instantiable.
  *
@@ -179,7 +179,7 @@ final class StoreApi {
     /**
      * Capture the per-character scope folder ({@code <genus>_<char>}) now that the HUD is up, and load
      * every addon's per-character saved variables into its {@code hafen.store} <b>before</b>
-     * {@code EnterWorld} fires (so handlers see restored data). Called once per world entry.
+     * {@code SessionEnteredWorld} fires (so handlers see restored data). Called once per world entry.
      *
      * <p>073.5: it is handed <b>the session it is about and that session's own HUD</b> — the caller has both
      * (the tick that saw the world come up, the reload that found the HUD in its own tree), and reading the
@@ -338,7 +338,8 @@ final class StoreApi {
 
     /**
      * Is there a character to remember a placement <b>for</b>? A placement is per character, like a
-     * per-character saved variable and for the same reason, so before {@code EnterWorld} there is nothing to
+     * per-character saved variable and for the same reason, so before {@code SessionEnteredWorld} there is
+     * nothing to
      * put back — and {@code widget:remember(name)} says so rather than applying an empty record.
      */
     static boolean placementScope(Addon a) {

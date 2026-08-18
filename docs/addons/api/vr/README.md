@@ -78,12 +78,12 @@ hafen.vr():widget():add(win, cupboard):facing("camera")    -- a panel standing o
 
 **An anchored one dies with its gob.** A felled tree takes the thing following it with it, and nothing is
 kept in case the gob comes back: a gob that returns is bare, and re-anchoring is your own call from
-[`GobAdded`](../event.md#world). One standing at a point is untouched by any of that.
+[`GobAdded`](../event/bus.md#world). One standing at a point is untouched by any of that.
 
 > **`:add` raises when you are not in the world.** A thing in the 3D scene needs that scene, so placing one
 > before you have entered the world is an error rather than a `nil` you would discover one setter later.
-> Place from `EnterWorld` onward. A place that *can* be held is never too far away to use, though: ground
-> that is not drawn right now, and ground this session cannot locate at all, both
+> Place from `SessionEnteredWorld` onward. A place that *can* be held is never too far away to use, though:
+> ground that is not drawn right now, and ground this session cannot locate at all, both
 > [wait](#the-ground-under-one-that-stands-still) rather than raising.
 
 An [image](sprites.md) or a [model](models.md) is passed as a [`hafen.asset`](../asset.md) **handle**, never
@@ -237,4 +237,4 @@ which also depends on where the camera is pointing.
 - [`gob:overlay()`](../overlay.md) — what is drawn *at* a gob, including these read-only
 - [the Widget object](../ui/widget.md) — what a standing widget goes on answering, unchanged
 - [drawing](../ui/drawing.md) — the same images, drawn on screen instead
-- [events](../event.md#world-ghosts-and-sprites) — `GhostClicked`, `SpriteClicked` and `ObjectClicked`
+- [events](../event/bus.md#world-ghosts-and-sprites) — `GhostClicked`, `SpriteClicked` and `ObjectClicked`

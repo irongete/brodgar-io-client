@@ -63,7 +63,7 @@ construction; here the behaviour changes, and each suite proves a *difference* r
       then re-run the suite. Expect: the Lua counter kept climbing across the tab and the stored load
       count is **still 1** — the addon was never reloaded. Before this task it would read 3.
 
-- [ ] **074.3 — Sessions come, are picked, and go, and the addon hears all three.**
+- [x] **074.3 — Sessions come, are picked, and go, and the addon hears all three.**
       Adds four keys to the closed bus catalogue — `SessionAdded`, `SessionEnteredWorld`,
       `SessionSelected`, `SessionDestroyed` — each carrying the account **name**, which after `071` is
       what every session has and what `:session list` prints. The seams exist: `Sessions.add` and the

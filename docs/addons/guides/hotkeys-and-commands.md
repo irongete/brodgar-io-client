@@ -66,7 +66,7 @@ subcommands for the rest, so nothing needs a key that is only used once. That is
 
 **Dormant is polite.** An addon that draws nothing and does nothing until its key or command is used costs
 a login nothing, and the user finds out what it does when they ask. Wire the work behind the trigger rather
-than behind `EnterWorld`.
+than behind `SessionEnteredWorld`.
 
 **Next:** [permissions](permissions.md) — the one tier that needs more than a
 declaration.

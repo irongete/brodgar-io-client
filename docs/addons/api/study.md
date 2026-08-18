@@ -9,7 +9,7 @@ for _, slot in ipairs(hafen.study():slot():list()) do
 end
 ```
 
-Like the rest of the sheet, the study window builds after login, so a read right at `EnterWorld`
+Like the rest of the sheet, the study window builds after login, so a read right at `SessionEnteredWorld`
 answers an empty array.
 
 ## Read
@@ -53,7 +53,7 @@ A slot is interned on the item in the window, so `:list()[1] == :list()[1]` and 
 and **a curiosity taken out of study keeps answering**: `:exists()` is `false` while `:res()` and the
 numbers still read what it had.
 
-Subscribe to [`StudyChanged`](event.md#character-and-status), whose payload is the array of slots.
+Subscribe to [`StudyChanged`](event/bus.md#character-and-status), whose payload is the array of slots.
 
 ```lua
 hafen.event():on("StudyChanged", function(slots)
@@ -65,4 +65,4 @@ end)
 
 - [`hafen.char`](char.md) — attributes, learning points and skills
 - [`StudySlot`](types.md#studyslot) — the snapshot shape `slot:info()` returns
-- [events](event.md#character-and-status) — `StudyChanged`
+- [events](event/bus.md#character-and-status) — `StudyChanged`

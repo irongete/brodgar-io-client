@@ -1,9 +1,9 @@
 # hafen.timer: scheduling
 
-Run a function later, once or repeatedly. Reach for a timer when the [event bus](event.md) has
+Run a function later, once or repeatedly. Reach for a timer when the [event bus](event/bus.md) has
 nothing to tell you — polling a value that has no change event, or waiting out the beat after
-`EnterWorld` during which character data is still streaming in. Timers are **unprotected**, run on the UI
-thread, and are cancelled for you on reload or disable.
+`SessionEnteredWorld` during which character data is still streaming in. Timers are **unprotected**, run on
+the UI thread, and are cancelled for you on reload or disable.
 
 ```lua
 hafen.timer():after(3, function() hafen.log():write("3 seconds later") end)
@@ -61,6 +61,6 @@ for _, t in ipairs(hafen.timer():list()) do t:cancel() end
 
 ## See also
 
-- [events](event.md) — the bus, for everything the client can tell you without polling
+- [events](event/bus.md) — the bus, for everything the client can tell you without polling
 - [conventions](conventions.md#threading) — why a timer body must not block
 - [`hafen.time`](time.md) — the *game* clock, which is not what this schedules against

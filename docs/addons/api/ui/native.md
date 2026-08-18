@@ -212,7 +212,7 @@ comes back the way its owner left it is the four lines below, with no handler of
 declared in your manifest.
 
 ```lua
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   local chat = hafen.ui():find("@ChatUI")
   chat:draggable(hafen.ui():image():source(hafen.asset():get("grip.png")):parent(chat))
   chat:remember("chat")     -- back where it was, and saved there again after every drag

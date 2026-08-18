@@ -50,18 +50,36 @@ final class Retired {
     private static final Map<String, String> KEYS = new HashMap<String, String>();
 
     static {
-        // ---- the bus: the 4 lifecycle keys drop the On prefix (:on already says it). The other 22 are ------
-        // ---- unchanged, so they carry no row here -- PascalCase was already the bus's own spelling.
+        // ---- the bus: the lifecycle keys drop the On prefix (:on already says it). Every other key is ------
+        // ---- unchanged, so it carries no row here -- PascalCase was already the bus's own spelling.
         eventKey("hafen.event()", "OnLoad", "Load");
-        eventKey("hafen.event()", "OnEnterWorld", "EnterWorld");
         eventKey("hafen.event()", "OnUpdate", "Update");
         eventKey("hafen.event()", "OnDisable", "Disable");
+
+        // ---- 074.3: an addon does not enter the world -- a SESSION does, and it says which. The addon --
+        // ---- layer outlives a character switch now, so "you entered the world" had no subject left: one
+        // ---- addon, many logins, and the moment belongs to one of them. Two spellings reach it -- the
+        // ---- key itself, and the On-prefixed one 041 retired into it -- and both name the replacement.
+        String why = "an addon no longer enters the world, a SESSION does: hafen.event()"
+            + ":on(\"SessionEnteredWorld\", fn) fires once per session, with that session's account name,"
+            + " and your addon is loaded once for the client";
+        eventKeyWhy("hafen.event()", "EnterWorld", why);
+        eventKeyWhy("hafen.event()", "OnEnterWorld", why);
     }
 
     /** Register one retired event key: {@code emitter:on(old, fn)} is now {@code emitter:on(now, fn)}. */
     private static void eventKey(String emitter, String old, String now) {
         KEYS.put(emitter + "|" + old, emitter + ":on(key, fn): '" + old + "' is now '" + now
             + "' — :on already says \"on\"");
+    }
+
+    /**
+     * The same, for a key whose replacement is not a rename but a <b>different question</b>: the reason has
+     * to carry what changed, because the caller's own handler body is what needs rewriting and not just the
+     * string it is registered under.
+     */
+    private static void eventKeyWhy(String emitter, String old, String why) {
+        KEYS.put(emitter + "|" + old, emitter + ":on(key, fn): '" + old + "' is retired — " + why);
     }
 
     /**

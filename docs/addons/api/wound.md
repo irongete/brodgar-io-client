@@ -23,7 +23,7 @@ and in tree order, with `w:level()` as the indent depth, so the loop above print
 | `hafen.wound():find(needle)` | `Wound` \| nil | the first whose name or resource contains it |
 | `hafen.wound():get(id)` | `Wound` \| nil | one wound, by its id |
 
-Before the tab has built — a beat after `EnterWorld` — `:list()` is an empty array and `:find()` is
+Before the tab has built — a beat after `SessionEnteredWorld` — `:list()` is an empty array and `:find()` is
 `nil`. Nothing here throws and nothing is protected.
 
 `:find` is the presence test: it answers `nil` on a miss, so `if hafen.wound():find("Infection") then`
@@ -55,7 +55,7 @@ look up. It is `nil` at a root, which is where `:level()` is `0`.
 
 ## Events
 
-Subscribe to [`WoundChanged`](event.md#character-and-status) to react to a wound being added, healed or
+Subscribe to [`WoundChanged`](event/bus.md#character-and-status) to react to a wound being added, healed or
 worsening. Its payload is the new list of Wound objects — the same ones `:list()` hands out, so you can
 compare them with `==` against what you kept last time.
 
@@ -64,4 +64,4 @@ compare them with `==` against what you kept last time.
 - [`Wound`](types.md#wound) — the snapshot shape `w:info()` returns
 - [`hafen.char`](char.md) — the rest of the character sheet
 - [`hafen.meter`](meter.md) — the HUD bars a wound pulls down
-- [events](event.md#character-and-status) — `WoundChanged`
+- [events](event/bus.md#character-and-status) — `WoundChanged`

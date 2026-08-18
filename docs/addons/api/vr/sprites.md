@@ -78,7 +78,7 @@ A sprite with world geometry — `"fixed"` or `"camera"` — can be made clickab
 exactly like a [ghost](ghosts.md#clickability). It gains a pick surface, and a click on it is detected
 **client-side** and **consumed** before any server click, so you never walk or interact and nothing
 reaches the server. Both the per-sprite `:onClick(fn)` and the owner-scoped
-[`SpriteClicked`](../event.md#world-ghosts-and-sprites) event fire; `SpriteClicked` reaches only *your*
+[`SpriteClicked`](../event/bus.md#world-ghosts-and-sprites) event fire; `SpriteClicked` reaches only *your*
 addon, since a sprite is private to the addon that made it.
 
 ```lua
@@ -122,4 +122,4 @@ drives the other unchanged.
 - [widgets](widgets.md) — the same three facing modes, on a whole window standing in the world
 - [`hafen.asset`](../asset.md) — loading the PNG a sprite takes
 - [drawing](../ui/drawing.md) — the same image drawn on screen instead of in the world
-- [events](../event.md#world-ghosts-and-sprites) — `SpriteClicked`
+- [events](../event/bus.md#world-ghosts-and-sprites) — `SpriteClicked`

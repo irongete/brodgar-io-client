@@ -132,7 +132,7 @@ public class CharWnd extends Window {
     // and icon-settings lists -- renders through this provider-resolved twin instead: Fonts.foundry("label", attrf)
     // resolves an addon override, or the stock foundry when none is set, cascading through "default". Rebuilt
     // lazily whenever Fonts.gen() moves; each consuming site drops its cached Text on the same check. Rows keep
-    // their stock HEIGHT (a size override can therefore clip -- see docs/addons/api/fonts.md).
+    // their stock HEIGHT (a size override can therefore clip -- see docs/addons/api/font.md).
     private static Text.Foundry battrf;
     private static int attrfgen = -1;
     /** addon: the current foundry for the shared character-sheet body text ({@code "label"} scope, else {@link #attrf}). */

@@ -12,7 +12,7 @@ content you paint yourself. Build it when the world is up, and keep the handle:
 ```lua
 local window
 
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   window = hafen.ui():window():title("Scout"):size(180, 48):position(80, 120)
 
   window:on("Draw", function(ev)

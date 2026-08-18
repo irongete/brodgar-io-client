@@ -250,17 +250,23 @@ public final class AddonRegistry {
      * Reload the addon layer only (D-005) — no relog, the session stays connected. Tears down every
      * loaded addon (Disable → flush saved vars → drop owned resources, in reverse load order),
      * re-scans {@code addons/} and the enabled set, re-runs the enabled addons from disk (firing
-     * {@code Load}), and — if already in-world — restores per-character saved vars and re-fires
-     * {@code EnterWorld} so addons re-initialize as if freshly logged in (the WoW {@code PLAYER_LOGIN}
-     * analog). Runs on the UI thread (queued via {@link #queueReload}); every session's tick pump, gob callback
-     * and uimsg tap are left in place — only the Lua layer is rebuilt. Per-addon teardown/load is
-     * error-isolated so one bad addon cannot abort the reload.
+     * {@code Load}), and — if already in-world — restores per-character saved vars and re-announces that
+     * session with {@code SessionEnteredWorld}, so addons re-initialize as if freshly logged in (the WoW
+     * {@code PLAYER_LOGIN} analog). Runs on the UI thread (queued via {@link #queueReload}); every session's
+     * tick pump, gob callback and uimsg tap are left in place — only the Lua layer is rebuilt. Per-addon
+     * teardown/load is error-isolated so one bad addon cannot abort the reload.
      *
      * <p><b>It takes no session</b> since 074.2, because the thing it rebuilds has none: the addons are the
      * client's. What it still needs a session for is the one thing that is a character's — the per-character
-     * saved variables and the {@code EnterWorld} that follows them — and for that it asks the <b>screen</b>,
-     * which is the character the user typed {@code :reload} while looking at. A reload on the login screen
-     * rebuilds the layer and fires no {@code EnterWorld}, which is exactly what a fresh boot there does.
+     * saved variables and the {@code SessionEnteredWorld} that follows them — and for that it asks the
+     * <b>screen</b>, which is the character the user typed {@code :reload} while looking at. A reload on the
+     * login screen rebuilds the layer and announces nothing, which is exactly what a fresh boot there does.
+     *
+     * <p><b>The screen's session and no other</b>, and that is a boundary rather than an oversight (074.3):
+     * {@link StoreApi#restorePerChar} loads one character's saved variables into each addon's one
+     * {@code hafen.store}, so announcing a second session here would be loading a second character's over
+     * the first. The other sessions stay in the world and say nothing about it; what an addon knows about
+     * them after a reload is what it asks for.
      */
     public static synchronized void reload() {
         log("reloading addons...");
@@ -295,7 +301,9 @@ public final class AddonRegistry {
         GameUI g = (st == null) ? null : AddonManager.gui(st.ui);
         if(g != null) {
             StoreApi.restorePerChar(st, g);          // reload per-char saved vars (the scope is still valid)
-            fire("EnterWorld");
+            String who = io.brodgar.session.Sessions.nameof(st.ui);   // 074.3: the session, not the addon
+            if(who != null)
+                fire("SessionEnteredWorld", LuaValue.valueOf(who));
         }
         reloadGen++;                                 // notify any live AddOns panel to rebuild its rows
         log("reload complete (" + addons.size() + " addon[s] active)");

@@ -256,7 +256,8 @@ public final class Addon {
     /**
      * What is saved under each of those names for the character in world right now (062) — a place, a box, or
      * both, in design pixels. Loaded from {@code savedata/<genus>_<char>/<id>.layout.json} by
-     * {@link StoreApi#restorePerChar} before {@code EnterWorld} fires, and written back by every flush, so a
+     * {@link StoreApi#restorePerChar} before {@code SessionEnteredWorld} fires, and written back by every
+     * flush, so a
      * remembered placement needs no {@code saved_variables} declaration and no handler of the addon's own.
      */
     public final Map<String, StoreApi.Placement> placements = new ConcurrentHashMap<String, StoreApi.Placement>();

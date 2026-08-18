@@ -77,18 +77,18 @@ bar with more shows them all in `:segments()`.
 
 There is no write side. Meters are server-pushed presentation and there is nothing to set. You can
 freeze the bars client-side by swallowing their updates through an
-[`IMeter` message filter](event.md#filtering-an-inbound-update) — purely cosmetic, since the server still
-knows your real values.
+[`IMeter` message filter](event/streams.md#filtering-an-inbound-update) — purely cosmetic, since the server
+still knows your real values.
 
 ## Events
 
 | Event | Payload | Fires |
 |---|---|---|
-| [`MeterAdded`](event.md#character-and-status) | `Meter` | a bar appears in the HUD slot |
-| [`MeterRemoved`](event.md#character-and-status) | `Meter` | a bar goes away; the object still reads, and `:exists()` is false |
-| [`MeterChanged`](event.md#character-and-status) | `Meter` | a bar's value **or** colour changes |
+| [`MeterAdded`](event/bus.md#character-and-status) | `Meter` | a bar appears in the HUD slot |
+| [`MeterRemoved`](event/bus.md#character-and-status) | `Meter` | a bar goes away; the object still reads, and `:exists()` is false |
+| [`MeterChanged`](event/bus.md#character-and-status) | `Meter` | a bar's value **or** colour changes |
 
-The meters stream in a beat after `EnterWorld`, so `:list()` is legitimately empty for a moment
+The meters stream in a beat after `SessionEnteredWorld`, so `:list()` is legitimately empty for a moment
 and the bars arrive as a burst of `MeterAdded`. Mounting a horse adds two more mid-session and
 dismounting removes them, which is what the lifecycle pair is for.
 
@@ -119,4 +119,4 @@ exactly the predicate `:list()` filters on.
 - [`Meter`](types.md#meter) — the snapshot shape `:info()` returns
 - [`hafen.char`](char.md) — `:food()`, the one absolute reading about your character
 - [`hafen.buff`](buff.md) — the other keyless status collection
-- [events](event.md#character-and-status) — the three meter events
+- [events](event/bus.md#character-and-status) — the three meter events

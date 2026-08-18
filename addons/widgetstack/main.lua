@@ -62,7 +62,7 @@
 
 hafen.log():write("widgetstack loaded")
 
-local win                 -- the floating stack window (created at EnterWorld)
+local win                 -- the floating stack window (created at SessionEnteredWorld)
 local overlay             -- the HUD overlay handle drawing the highlight box
 local last                -- the Widget object we last built the stack for (the guard's memory)
 local rows = {}           -- the current stack, LEAF-FIRST: { {node,type,id,text,w,h}, ... }
@@ -645,7 +645,7 @@ local function drawOutline(g, w, h)
   end
 end
 
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   if not win then
     win = hafen.ui():window()
       :title("Widget Stack")

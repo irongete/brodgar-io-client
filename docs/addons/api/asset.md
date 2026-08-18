@@ -58,8 +58,8 @@ Absolute paths and `..` escapes are **rejected**, because an addon reads only it
 files are resolved relative to the model file and re-checked against your folder, so a `.gltf` cannot reach
 out either.
 
-Decoding is **synchronous**: call `:get` from setup code — `Load`, `EnterWorld`, a command — **never**
-from inside a draw callback.
+Decoding is **synchronous**: call `:get` from setup code — `Load`, `SessionEnteredWorld`, a command —
+**never** from inside a draw callback.
 
 ## Interning
 

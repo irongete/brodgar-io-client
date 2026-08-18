@@ -352,6 +352,20 @@ public class Sessions {
      * F5: whose screen it is
      * ------------------------------------------------------------------ */
 
+    /* addon: (074.3) the ACCOUNT NAME of the session drawn in `u`, or null when `u` is no member's --
+     * the login slot, the addon layer, or a UI already taken down. It is what every session-lifecycle
+     * event on the addon bus carries, because after 071 a name is what every session has, whichever
+     * door it came through, and it is what `:session list` prints. */
+    public static String nameof(UI u) {
+	if(u == null)
+	    return(null);
+	for(Member m : members) {
+	    if(m.ui == u)
+		return(m.user);
+	}
+	return(null);
+    }
+
     /** The member currently holding the anchor, or null when the login screen has it. */
     public static Member anchormember() {
 	UI an = anchor();
@@ -415,6 +429,12 @@ public class Sessions {
 	 * asked between here and the next tick -- Control.take's selection first of all -- would
 	 * otherwise be answered about the session that just lost the screen. */
 	invalidate();
+	/* addon: (074.3) the screen changed, and the layer above it may care which character it is over.
+	 * After the invalidate, so a handler asking anything session-shaped is answered about the session
+	 * that just took the screen. Going to the LOGIN SCREEN fires nothing -- no session was picked --
+	 * and the last SessionDestroyed is what says the screen emptied. */
+	if(m != null)
+	    io.brodgar.addon.AddonManager.sessionSelected(m.user);
 	say("anchor: %s", (m == null) ? "the login screen" : m.user);
     }
 
@@ -830,6 +850,7 @@ public class Sessions {
 	    sess.close();
 	    throw(e);
 	}
+	io.brodgar.addon.AddonManager.sessionAdded(user);   // addon: (074.3) a session connected
 	return(m);
     }
 
@@ -871,6 +892,9 @@ public class Sessions {
 	    sess.close();
 	    throw(e);
 	}
+	/* addon: (074.3) ...and one that came through the client's own login screen is a session like any
+	 * other. Before the anchor below, so an addon hears the session arrive and then be picked. */
+	io.brodgar.addon.AddonManager.sessionAdded(m.user);
 	if(anchormember() == null)
 	    anchor(m);
 	return(m);
@@ -986,6 +1010,9 @@ public class Sessions {
 		dead = true;
 		members.remove(this);
 		this.ui = null;
+		/* addon: (074.3) the session is over, whatever ended it -- a :session drop, the server, or a
+		 * throw out of the runner chain. This finally is the one place all three arrive. */
+		io.brodgar.addon.AddonManager.sessionDestroyed(user);
 		if(announce)
 		    say("%s: session ended", user);
 		if(u != null) {

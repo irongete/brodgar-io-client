@@ -10,7 +10,7 @@ hafen.log():write("strength " .. str:base() .. " (" .. str:composite() .. " buff
 if hafen.char():skill():find("Alchemy") then hafen.log():write("I know Alchemy") end
 ```
 
-The sheet lives in HUD widgets that build after login, so it streams in a beat after `EnterWorld`: an
+The sheet lives in HUD widgets that build after login, so it streams in a beat after `SessionEnteredWorld`: an
 immediate read answers `nil` or an empty array. Read on a short timer, or on the matching event.
 
 ## Read
@@ -145,7 +145,7 @@ up.
 | `food:exists()` | boolean | whether this is still the live sheet |
 | `food:info()` | [`Food`](types.md#food) \| nil | a plain-table **snapshot** |
 
-Subscribe to [`FepChanged`](event.md#character-and-status), whose payload is the `Food` object itself.
+Subscribe to [`FepChanged`](event/bus.md#character-and-status), whose payload is the `Food` object itself.
 
 ```lua
 hafen.event():on("FepChanged", function(food)
@@ -159,4 +159,4 @@ end)
 - [`hafen.meter`](meter.md) — the HUD bars, which are fractions rather than numbers
 - [`hafen.wound`](wound.md) — the other half of the Health and Wounds tab
 - [types](types.md#attr) — `Attr`, `Food`, `Skill`, `Credo` and `Experience`
-- [events](event.md#character-and-status) — `FepChanged`
+- [events](event/bus.md#character-and-status) — `FepChanged`

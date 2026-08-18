@@ -27,8 +27,9 @@ A new object has scale `1`, full opacity, no tint and is not clickable.
 A model is a [`hafen.asset`](../asset.md) mesh handle — `hafen.asset():get("props/chair.glb")` — holding a
 glTF 2.0 static model: your own `.glb`, the single-file binary form and the one to prefer, or a `.gltf` with
 its buffers beside it. The parser is pure Java with no native dependencies and decodes **synchronously**, so
-load it from setup code (`Load`, `EnterWorld`, a command) and never from inside a draw callback. The handle
-answers [`mdl:bounds()`](../asset.md#mesh) with a world-unit box and [`mdl:info()`](../asset.md#mesh) with
+load it from setup code (`Load`, `SessionEnteredWorld`, a command) and never from inside a draw callback.
+The handle answers [`mdl:bounds()`](../asset.md#mesh) with a world-unit box and
+[`mdl:info()`](../asset.md#mesh) with
 what the parser produced.
 
 > **Sizing.** glTF authored units vary wildly — a model may be one unit tall or a hundred. Read
@@ -80,8 +81,8 @@ An object can be made clickable with `o:clickable(true)`, exactly like a
 [clickable sprite](sprites.md#clickability). Its mesh gains a pick surface, and a click on it is detected
 **client-side** and **consumed** before any server click, so you never walk or interact and nothing reaches
 the server. Both the per-object `:onClick(fn)` and the owner-scoped
-[`ObjectClicked`](../event.md#world-ghosts-and-sprites) event fire, and `ObjectClicked` reaches only *your*
-addon.
+[`ObjectClicked`](../event/bus.md#world-ghosts-and-sprites) event fire, and `ObjectClicked` reaches only
+*your* addon.
 
 An object answers the same `:position`, `:rotate` and `:scale` a ghost or a sprite does, so one code path
 handles all three: click-select, drag on the ground, and persistence through
@@ -92,4 +93,4 @@ handles all three: click-select, drag on the ground, and persistence through
 - [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [sprites](sprites.md) — an image in the world, and the anchoring both share
 - [`hafen.asset`](../asset.md#mesh) — loading a `.glb`, and what `:bounds()` and `:info()` answer
-- [events](../event.md#world-ghosts-and-sprites) — `ObjectClicked`
+- [events](../event/bus.md#world-ghosts-and-sprites) — `ObjectClicked`

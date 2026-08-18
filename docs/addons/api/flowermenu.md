@@ -147,4 +147,4 @@ console command or a hotkey cannot be the thing that reacts to a menu. A handler
 
 - [Gob](gob.md) — what `:gob()` hands you, and `gob:click(3)`, the right-click that puts the ring up
 - [`hafen.menugrid`](menugrid.md) — the *other* menu: the catalogue of everything your character can do
-- [`hafen.event`](event.md#the-radial-menu) — the bus these two events sit on, and every other key
+- [`hafen.event`](event/bus.md#the-radial-menu) — the bus these two events sit on, and every other key

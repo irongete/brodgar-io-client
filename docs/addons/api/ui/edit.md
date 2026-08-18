@@ -259,9 +259,9 @@ end)
   silent no-op: the point of re-issuing is that something happens, so silence there would be a lie.
 
 There is no `ev:send(t)` beside it — that verb exists on an
-[outbound action](../event.md#intercepting-an-outbound-action), where there is a message with arguments to
-rewrite. What is held back here is a **method**, so there is nothing to say with it, and the spelling
-refuses naming `resend`.
+[outbound action](../event/streams.md#intercepting-an-outbound-action), where there is a message with
+arguments to rewrite. What is held back here is a **method**, so there is nothing to say with it, and the
+spelling refuses naming `resend`.
 
 A resent gesture does what the user's own would have done, the message the client sends the server included.
 It stays unprotected because it cannot invent one: it re-issues the gesture the user just made, and it only

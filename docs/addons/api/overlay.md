@@ -95,7 +95,7 @@ by their **resource name**. An `:add` onto such a key **raises**, so does a `:re
 each setter — always naming the key, never a silent no-op.
 
 An attach raises in one more place, about *when*: a gob the client cannot draw yet takes no overlay at all,
-so attach from [`GobAdded`](event.md#world) or a timer instead. A setter that raises leaves the overlay
+so attach from [`GobAdded`](event/bus.md#world) or a timer instead. A setter that raises leaves the overlay
 exactly as it was, drawing exactly what it drew before, and a kind that never landed leaves a bare overlay,
 which draws nothing.
 
@@ -135,16 +135,16 @@ a `*` in front of the key on the game's own.
 
 **An overlay dies with its gob.** The record lives on the game object, so a felled tree takes yours with
 it and nothing is kept in case it comes back — a gob that returns is bare, and re-attaching is your own
-call from [`GobAdded`](event.md#world). A `:reload` or a disable likewise removes every overlay you
+call from [`GobAdded`](event/bus.md#world). A `:reload` or a disable likewise removes every overlay you
 attached and leaves the game's untouched. A thing you stood in the world and anchored here
 [dies with the gob too](vr/README.md#the-anchor-is-an-argument), rather than being left floating where the
 target used to stand.
 
 Both halves of this read are also **events**:
-[`GobOverlayAdded`/`GobOverlayRemoved`](event.md#overlays-coming-and-going) fire for what you attach and
+[`GobOverlayAdded`/`GobOverlayRemoved`](event/bus.md#overlays-coming-and-going) fire for what you attach and
 for what the game attaches, so you can watch a gob become decorated instead of polling it.
 
-There is no filter form. "Every player gets a label" is a [`GobAdded`](event.md#world) handler plus a
+There is no filter form. "Every player gets a label" is a [`GobAdded`](event/bus.md#world) handler plus a
 loop over [`hafen.world():gob():list()`](world.md#objects) — you name the gob, so nothing is searched
 per frame.
 
@@ -156,5 +156,5 @@ per frame.
 - [Gob](gob.md) — the object an overlay hangs on, and everything else it answers
 - [`hafen.vr`](vr/README.md) — standing a sprite, a model or a ghost at a gob instead
 - [drawing](ui/drawing.md) — the `g` wrapper a `draw` callback paints with
-- [events](event.md#overlays-coming-and-going) — watching one arrive instead of polling for it
+- [events](event/bus.md#overlays-coming-and-going) — watching one arrive instead of polling for it
 - [custom UI](ui/custom.md#overlays) — the screen-space overlay that is not anchored to anything

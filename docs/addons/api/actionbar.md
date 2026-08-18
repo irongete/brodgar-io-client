@@ -57,7 +57,7 @@ none is protected.
 > A slot's `cooldown` is present only for an ability with a meter, and it is a `0..1` **fraction, not
 > seconds**.
 
-Subscribe to [`ActionbarChanged`](event.md#character-and-status), whose payload is the
+Subscribe to [`ActionbarChanged`](event/bus.md#character-and-status), whose payload is the
 changed `Slot` itself, to react to a slot being set, cleared or changed. It does **not** fire on a
 cooldown ticking, which would be every frame; read `:cooldown()` live off the object instead.
 
@@ -117,7 +117,7 @@ hafen.actionbar():get(11):pagina(dig)                    -- the entry now draws 
 | `slot:pagina(nil)` | the `Slot` | end the hold, whoever took it; inert on a slot nobody is holding |
 
 Nothing reaches the server, so this needs **no permission** and it lands **immediately** — where
-`slot:res(name)` below is a round trip. [`ActionbarChanged`](event.md#character-and-status) fires on both
+`slot:res(name)` below is a round trip. [`ActionbarChanged`](event/bus.md#character-and-status) fires on both
 edges, taking the hold and ending it.
 
 While a slot is held it reads as the entry: `slot:res()` is that entry's `addon/…` identity, `slot:name()`
@@ -162,7 +162,7 @@ The call that re-applies it is [`hafen.menugrid():add(id)`](menugrid.md#hafenmen
 addon already makes:
 
 ```lua
-hafen.event():on("EnterWorld", function()
+hafen.event():on("SessionEnteredWorld", function()
   local dig = hafen.menugrid():add("dig"):name("Auto-dig"):icon(hafen.asset():get("dig.png"))
   dig:on("use", function() hafen.log():write("dug") end)
 end)                                         -- if it was on the bar, it is on the bar again
@@ -203,4 +203,4 @@ One string could never mean both.
 - [`hafen.menugrid`](menugrid.md) — where the resource names the write takes come from, and where your own entries are added
 - [permissions](../guides/permissions.md) — the permission the two protected writes share
 - [`ActionbarSlot`](types.md#actionbarslot) — the snapshot shape `:info()` returns
-- [events](event.md#character-and-status) — `ActionbarChanged`
+- [events](event/bus.md#character-and-status) — `ActionbarChanged`

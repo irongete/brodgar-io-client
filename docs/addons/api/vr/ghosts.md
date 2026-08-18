@@ -103,7 +103,7 @@ hafen.event():on("GhostClicked", function(ev)
 end)
 ```
 
-Both the per-ghost `:onClick` and the [`GhostClicked`](../event.md#world-ghosts-and-sprites) event fire on
+Both the per-ghost `:onClick` and the [`GhostClicked`](../event/bus.md#world-ghosts-and-sprites) event fire on
 every click, and `GhostClicked` reaches only *your* addon, since a ghost is private to the addon that made
 it.
 
@@ -141,4 +141,4 @@ full.
 - [sprites](sprites.md) — your own image in the world, on the same core
 - [`hafen.world`](../world.md#the-position-type) — the Position type, and the snapping a drag uses
 - [`hafen.world():place`](../world.md#write-protected) — committing a real build, protected
-- [events](../event.md#world-ghosts-and-sprites) — `GhostClicked`
+- [events](../event/bus.md#world-ghosts-and-sprites) — `GhostClicked`

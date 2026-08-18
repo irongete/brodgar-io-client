@@ -786,13 +786,20 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * registers its OCache callback only when it is added -- so this one branch is the whole
 	 * difference between a dormant session costing network and one meshing terrain, building gob
 	 * sprites and rasterizing a click-map for a picture nobody will ever look at. The voice channel
-	 * and the addon engine are the client's one live pair for the same reason: they follow the view
-	 * that is drawn. Promoting a member to anchor (F5) is what will need the inverse of this. */
+	 * follows the view that is drawn for the same reason. Promoting a member to anchor (F5) is what
+	 * will need the inverse of this. */
 	this.dormant = io.brodgar.session.Sessions.dormant(glob);
+	/* addon: (074.3) OUTSIDE the gate, and it is the addon layer's whole model that puts it there. A
+	 * session that reaches the world while another holds the screen is dormant right here, so gating
+	 * this would mean SessionEnteredWorld never fired for it -- not on the tab that draws it later,
+	 * not ever, because a constructor runs once. An addon is the client's now and hears about every
+	 * session, drawn or not; what is gated below is the SCENE, which is a different question. The call
+	 * raises a flag and returns (073.1: the scene's own glob says whose world it is, since this widget
+	 * has no ui yet), so a dormant session pays one field write. */
+	io.brodgar.addon.AddonManager.attach(this, glob);
 	if(!dormant) {
 	    attachscene();
 	    io.brodgar.voice.Voice.attach(this);   // brodgar voice: connect on entering the game
-	    io.brodgar.addon.AddonManager.attach(this, glob);   // addon: the world came up -> EnterWorld on the next tick (073.1: the scene's own glob says whose world it is; this widget has no ui yet)
 	}
     }
 
