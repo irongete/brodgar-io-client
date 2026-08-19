@@ -17,15 +17,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A <b>Maneuver object</b> — one combat maneuver or attack you know ({@code hafen.fight():maneuver()}), as the
- * Martial Arts and Combat Schools tab lists it: the resource that names it, and how many copies of it you may
- * slot against how many you have slotted.
+ * A <b>Maneuver object</b> — one combat maneuver or attack a character knows ({@code s:fight():maneuver()}),
+ * as its Martial Arts and Combat Schools tab lists it: the resource that names it, and how many copies of it
+ * that character may slot against how many it has slotted.
  *
  * <p><b>The intern key is the engine's own object</b> (§2.4's <i>mutates one object in place</i> row). The
  * server's {@code "avail"} message rebuilds the maneuver list, but it carries the existing entry over for a
- * maneuver you already knew and only mints one for a maneuver you have just learnt — and the {@code "used"}
- * message then writes the slot count straight onto those same entries. So the object is the identity, and a
- * stashed Maneuver tracks its counts rather than freezing them.
+ * maneuver already known and only mints one for a maneuver just learnt — and the {@code "used"} message then
+ * writes the slot count straight onto those same entries. So the object is the identity, and a stashed
+ * Maneuver tracks its counts rather than freezing them.
+ *
+ * <p><b>The account rides beside that key without joining it</b> (077.4). An {@code Action} is a record of
+ * one {@link FightWnd}, which stands in exactly one session's tree — so two characters knowing the same
+ * maneuver hold two different {@code Action}s and the object alone already tells them apart, which is why
+ * the intern map stays one level deep. The handle carries the account anyway, because {@code :exists()} has
+ * to re-read the list this entry is in and an {@code Action} does not name its own window.
  *
  * <p><b>The collection has no {@code :get}</b> (D-128): a maneuver is addressed by nothing the reader has —
  * the server's numeric resource id is private to the window — so a string is a search over the resource and
@@ -36,10 +42,13 @@ import java.util.Map;
  * <i>outside</i> it, where a {@code Loading} can be caught and answered as {@code nil}.
  */
 public final class LuaManeuver {
-    /** The window's own entry for this maneuver — the whole state of a handle. */
+    /** The account whose schools tab this entry is in — not part of the key, but the funnel {@code :exists()} re-reads through. */
+    public final String user;
+    /** The window's own entry for this maneuver — the identity of a handle. */
     public final FightWnd.Action act;
 
-    private LuaManeuver(FightWnd.Action act) {
+    private LuaManeuver(String user, FightWnd.Action act) {
+        this.user = user;
         this.act = act;
     }
 
@@ -49,9 +58,9 @@ public final class LuaManeuver {
         return "Maneuver(" + ((r == null) ? "?" : r) + ")";
     }
 
-    /** An interned Maneuver object for {@code act} in {@code owner}'s env. */
-    static LuaValue of(Addon owner, FightWnd.Action act) {
-        return owner.maneuvers.of(act);
+    /** An interned Maneuver object for {@code act}, on {@code user}'s schools tab, in {@code owner}'s env. */
+    static LuaValue of(Addon owner, String user, FightWnd.Action act) {
+        return owner.maneuvers.of(user, act);
     }
 
     /** The {@code LuaManeuver} behind a Lua value, or {@code null} for anything else. */
@@ -64,7 +73,10 @@ public final class LuaManeuver {
 
     // ---- the per-addon intern cache + metatable ----------------------------------------------------
 
-    /** One addon's Maneuver cache and metatable (its {@link Addon#maneuvers}), keyed by engine identity. */
+    /**
+     * One addon's Maneuver cache and metatable (its {@link Addon#maneuvers}), keyed by engine identity — the
+     * {@code Action}, which belongs to one character's window and so needs no account beside it (077.4).
+     */
     static final class Cache {
         private final Map<FightWnd.Action, Ref> live = new IdentityHashMap<FightWnd.Action, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
@@ -73,7 +85,7 @@ public final class LuaManeuver {
         Cache(Addon owner) {
         }
 
-        synchronized LuaValue of(FightWnd.Action act) {
+        synchronized LuaValue of(String user, FightWnd.Action act) {
             drain();
             if(act == null)
                 return LuaValue.NIL;
@@ -84,7 +96,7 @@ public final class LuaManeuver {
                     return v;
                 live.remove(act);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaManeuver(act), meta());
+            LuaValue v = LuaValue.userdataOf(new LuaManeuver(user, act), meta());
             live.put(act, new Ref(v, act, dead));
             return v;
         }
@@ -158,10 +170,11 @@ public final class LuaManeuver {
                 return LuaValue.valueOf(handle(self, "used").act.u);
             }
         });
-        // exists() — do you still know this maneuver?
+        // exists() — does that character still know this maneuver?
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(known(handle(self, "exists").act));
+                LuaManeuver h = handle(self, "exists");
+                return LuaValue.valueOf(known(h.user, h.act));
             }
         });
         // info() — the one SNAPSHOT escape hatch.
@@ -177,16 +190,16 @@ public final class LuaManeuver {
         LuaManeuver h = resolve(self);
         if(h == null)
             throw new LuaError("man:" + method + "() — use a COLON call on a Maneuver object"
-                + " (hafen.fight():maneuver():list()[i])");
+                + " (" + CharApi.FT + ":maneuver():list()[i])");
         return h;
     }
 
     // ---- the reads ----------------------------------------------------------------------------------
 
-    /** Every maneuver the window currently lists, copied under the UI monitor (the list is swapped there). */
-    static List<FightWnd.Action> actions() {
+    /** Every maneuver <b>that character's</b> window lists, copied under the UI monitor (the list is swapped there). */
+    static List<FightWnd.Action> actions(String user) {
         List<FightWnd.Action> out = new ArrayList<FightWnd.Action>();
-        FightWnd fw = CharApi.fightwnd();
+        FightWnd fw = CharApi.fightwnd(user);
         if(fw == null)
             return out;
         synchronized(LuaWidget.monitor(fw)) {
@@ -195,9 +208,9 @@ public final class LuaManeuver {
         return out;
     }
 
-    /** Is {@code act} still one of the maneuvers you know? The predicate {@code :exists()} answers. */
-    private static boolean known(FightWnd.Action act) {
-        for(FightWnd.Action a : actions()) {
+    /** Is {@code act} still one of {@code user}'s maneuvers? The predicate {@code :exists()} answers. */
+    private static boolean known(String user, FightWnd.Action act) {
+        for(FightWnd.Action a : actions(user)) {
             if(a == act)
                 return true;
         }
@@ -229,18 +242,18 @@ public final class LuaManeuver {
     // ---- the collection -----------------------------------------------------------------------------
 
     /**
-     * {@code hafen.fight():maneuver()} — every maneuver and attack you know, in the window's own order.
-     * Read-only, and <b>keyless</b>: a maneuver's server id is private to the window, so {@code :find(needle)}
-     * over the resource and display name is how you address one and {@code :list()[n]} is how you take a
-     * position.
+     * {@code s:fight():maneuver()} — every maneuver and attack <b>that character</b> knows, in its window's
+     * own order. Read-only, and <b>keyless</b>: a maneuver's server id is private to the window, so
+     * {@code :find(needle)} over the resource and display name is how you address one and {@code :list()[n]}
+     * is how you take a position. Empty before that character's schools tab has built.
      */
-    static LuaValue collection(final Addon owner) {
-        return LuaCollection.create("hafen.fight():maneuver()", new LuaCollection.Source() {
+    static LuaValue collection(final Addon owner, final String user) {
+        return LuaCollection.create(CharApi.FT + ":maneuver()", new LuaCollection.Source() {
             public List<LuaValue> members() {
-                List<FightWnd.Action> acts = actions();
+                List<FightWnd.Action> acts = actions(user);
                 List<LuaValue> out = new ArrayList<LuaValue>(acts.size());
                 for(int i = 0; i < acts.size(); i++)   // names resolved OUTSIDE the lock (res.get() may Loading)
-                    out.add(of(owner, acts.get(i)));
+                    out.add(of(owner, user, acts.get(i)));
                 return out;
             }
 

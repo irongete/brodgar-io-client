@@ -59,7 +59,7 @@ import static io.brodgar.addon.AddonManager.*;
  * The character-read subsystem: the sections a Session hands back — {@code s:player()}, {@code s:char()},
  * {@code s:study()}, {@code s:party()}, {@code s:kin()}, {@code s:buff()}, {@code s:meter()},
  * {@code s:quest()}, {@code s:wound()}, {@code s:actionbar()}, {@code s:speed()}, {@code s:craft()} and
- * {@code s:menugrid()} — plus {@code hafen.fight} and the item
+ * {@code s:menugrid()} and {@code s:fight()} — plus the item
  * reads: the widget-tree reads of character state,
  * plus the change-detection {@link TreeAdapter}s that fire the semantic events (BuffAdded, FepChanged,
  * ...). {@link AddonManager} drives it via {@link #dispatchUimsg} (the onUimsg tap),
@@ -98,6 +98,9 @@ final class CharApi {
     // 077.3: and the four that ACT -- the action bar, the speed selector, the open recipe and the action
     // menu. Two of them report a WINDOW THE GAME PUT UP rather than a fact about a character, and a session
     // that is not drawn still has its GameUI: its recipe window is open, and its action menu answers.
+    // 077.4: and the fight closes the family. A combat school is configured on one character and a fight is
+    // fought by one body, so both halves of the section read the named session's own sheet and its own
+    // combat view -- there is no "the" deck any more than there is "the" world.
 
     /** {@code s:char()} — the sheet. */
     static final String C = "session:char()";
@@ -123,6 +126,8 @@ final class CharApi {
     static final String CR = "session:craft()";
     /** {@code s:menugrid()} — the action menu. */
     static final String MG = "session:menugrid()";
+    /** {@code s:fight()} — the combat-schools tab, and the fight that character is in. */
+    static final String FT = "session:fight()";
 
     /**
      * <b>The nine change-detection adapters, for one session</b> (073.3) — built when that session's
@@ -1279,46 +1284,68 @@ final class CharApi {
     }
 
     /**
-     * Build {@code hafen.fight()} for {@code owner}. From installHafen. Three projections of the combat-schools
-     * tab plus one read of the live combat view: {@code :maneuver()} is the collection of what you know,
-     * {@code :deck()} the loaded school's layout as a plain array (§2.3 — a layout is addressed by its own
-     * order), {@code :summary()} the scalars around it, and {@code :target()} who you are fighting.
+     * Build the fight section object for {@code (owner, user)} — <b>one character's combat schools, and the
+     * fight it is in</b>, reached as {@code s:fight()} (077.4). Three projections of that character's
+     * combat-schools tab plus one read of its live combat view: {@code :maneuver()} is the collection of what
+     * it knows, {@code :deck()} the loaded school's layout as a plain array (§2.3 — a layout is addressed by
+     * its own order), {@code :summary()} the scalars around it, and {@code :target()} who it is fighting.
+     *
+     * <p><b>A school is configured on one character and a fight is fought by one body.</b> Both halves read
+     * the named session's own widgets — its {@link FightWnd} through {@link #fightwnd(String)} and its
+     * {@link haven.Fightview} through the HUD — so a character nobody is looking at answers about its own
+     * deck and its own opponent. One with no HUD yet answers {@code nil}-shaped, exactly as it does before
+     * entering the world.
+     *
+     * <p><b>077.4: it is built per {@code (addon, session)}</b> and hung on the interned Session handle, the
+     * shape {@link WorldApi#world} established — so {@code s:fight() == s:fight()} and the maneuver
+     * collection under it is minted once for that pair.
      */
-    static void installFight(LuaTable hafen, final Addon owner) {
-        final LuaValue maneuvers = LuaManeuver.collection(owner);
+    static LuaValue fight(final Addon owner, final String user) {
+        final LuaValue maneuvers = LuaManeuver.collection(owner, user);
         LuaTable fight = new LuaTable();
-        // maneuver() — every maneuver and attack you know, minted once and handed back by identity.
+        // maneuver() — every maneuver and attack THAT character knows, minted once and handed back by identity.
         fight.set("maneuver", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "fight", "maneuver");
+                Section.self(a.arg1(), "fight", "maneuver", FT);
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen.fight():maneuver() takes no arguments — it IS the collection,"
+                    throw new LuaError(FT + ":maneuver() takes no arguments — it IS the collection,"
                         + " and :list(filter) / :find(filter) search it");
                 return maneuvers;
             }
         });
-        // deck() — the filled hotkey slots of the loaded school, in key order. A plain array, never nil.
+        // deck() — the filled hotkey slots of the school THAT character has loaded, in key order. A plain
+        // array, never nil, and empty before its schools tab has built.
         fight.set("deck", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "fight", "deck");
-                return LuaDeckCard.deck(owner);
+                Section.self(a.arg1(), "fight", "deck", FT);
+                if(Args.passed(a, 2))
+                    throw new LuaError(FT + ":deck() takes no arguments — it is a layout, ordered by hotkey,"
+                        + " and every card carries its own :slot() and :key()");
+                return LuaDeckCard.deck(owner, user);
             }
         });
-        // summary() — the action-point budget and the saved-school slots, nil before the tab is built.
+        // summary() — that character's action-point budget and saved-school slots, nil before the tab is built.
         fight.set("summary", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "fight", "summary");
-                return LuaFightSummary.of(owner, fightwnd());
+                Section.self(a.arg1(), "fight", "summary", FT);
+                if(Args.passed(a, 2))
+                    throw new LuaError(FT + ":summary() takes no arguments — the five counts are its own"
+                        + " verbs, and sum:info() is the whole table at once");
+                return LuaFightSummary.of(owner, fightwnd(user));
             }
         });
-        // target() — who you are fighting, nil out of combat. An Opponent, whose :gob() is the creature.
+        // target() — who THAT character is fighting, nil out of combat. An Opponent, whose :gob() is the
+        // creature, resolved in the session the fight is in.
         fight.set("target", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "fight", "target");
-                return LuaOpponent.target(owner);
+                Section.self(a.arg1(), "fight", "target", FT);
+                if(Args.passed(a, 2))
+                    throw new LuaError(FT + ":target() takes no arguments — there is one opponent picked,"
+                        + " and target:gob() is the creature it names");
+                return LuaOpponent.target(owner, user);
             }
         });
-        Section.install(hafen, "fight", fight);
+        return Section.object("fight", fight, FT);
     }
 
     /**
@@ -1454,12 +1481,6 @@ final class CharApi {
      */
     static CharWnd charwnd(String user) {
         GameUI g = gameui(user);
-        return (g == null) ? null : g.chrwdg;
-    }
-
-    /** The DRAWN session's character window, for the sections not addressed through a Session yet. */
-    private static CharWnd charwnd() {
-        GameUI g = gui();
         return (g == null) ? null : g.chrwdg;
     }
 
@@ -1856,7 +1877,7 @@ final class CharApi {
         return true;
     }
 
-    // ---- combat schools (A10: hafen.fight) -------------------------------------------------------
+    // ---- combat schools (A10: s:fight()) ---------------------------------------------------------
     // The combat-school / maneuver-deck builder is a FightWnd (@RName("fmg")) — the character sheet's
     // "Martial Arts & Combat Schools" tab, held by the public CharWnd.fight field (created hidden at login
     // but live, so it reads without opening the window, exactly like A9's quests/wounds). This is the
@@ -1877,11 +1898,16 @@ final class CharApi {
     // under the ui monitor, then resolve resource names OUTSIDE the lock (res.get() may Loading). The public
     // int reads (a/u/maxact/usesave) outside the lock are snapshot-atomic like A9-2's wound ints.
 
-    /** The Combat Schools window (the character sheet's "Martial Arts & Combat Schools" tab — created hidden
-     *  at login but live), or {@code null} before it exists. Via the public {@code CharWnd.fight} field. It is
-     *  the one funnel {@link LuaManeuver}, {@link LuaDeckCard} and {@link LuaFightSummary} resolve through. */
-    static FightWnd fightwnd() {
-        CharWnd c = charwnd();
+    /** <b>That character's</b> Combat Schools window (its own sheet's "Martial Arts &amp; Combat Schools"
+     *  tab — created hidden at login but live), or {@code null} before it exists. Via the public
+     *  {@code CharWnd.fight} field. It is the one funnel {@link LuaManeuver}, {@link LuaDeckCard} and
+     *  {@link LuaFightSummary} resolve through, every call (D-012).
+     *
+     *  <p>077.4: off {@link #charwnd(String)}, the named session's own sheet, and never off the drawn one.
+     *  Two characters configure two schools, and a deck read through {@code s:fight()} is that character's
+     *  whether or not the player is looking at it. */
+    static FightWnd fightwnd(String user) {
+        CharWnd c = charwnd(user);
         return (c == null) ? null : c.fight;
     }
 }

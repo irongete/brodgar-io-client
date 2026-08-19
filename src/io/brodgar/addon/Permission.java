@@ -33,7 +33,8 @@ import java.util.Map;
  * would mean an addon the user allowed to add kin cannot add kin on an alt, a distinction the user never
  * drew — every one of those characters is theirs. So the {@code line} each entry carries is written to be
  * read across every login the client holds — 077.3 says it of the four that act on a character's bar, its
- * speed, its open recipe and its action menu, exactly as 077.2 said it of the kin roster.
+ * speed, its open recipe and its action menu, exactly as 077.2 said it of the kin roster, and 077.4 of the
+ * radial menu a character has open, which is a widget in that character's tree rather than the screen's.
  */
 public enum Permission {
     PLAYER_MOVE      ("player.move",        "session:player():move",          "walk your character to a place"),
@@ -47,8 +48,10 @@ public enum Permission {
     WORLD_SELECT     ("world.select",       "session:world():select",         "select an area of the ground"),
     MENUGRID_USE     ("menugrid.use",       "pag:use",                        "invoke entries of the action menu,"
                                                                               + " on any of your characters"),
-    FLOWERMENU_SELECT("flowermenu.select",  "hafen.flowermenu():select",      "choose from the radial menu"),
-    FLOWERMENU_CANCEL("flowermenu.cancel",  "hafen.flowermenu():cancel",      "dismiss the radial menu"),
+    FLOWERMENU_SELECT("flowermenu.select",  "session:flowermenu():select",    "choose from the radial menu of any"
+                                                                              + " of your characters"),
+    FLOWERMENU_CANCEL("flowermenu.cancel",  "session:flowermenu():cancel",    "dismiss the radial menu of any of"
+                                                                              + " your characters"),
     CRAFT_MAKE       ("craft.make",         "session:craft():current():make", "press the Craft button, on any of"
                                                                               + " your characters"),
     ACTIONBAR_USE    ("actionbar.use",      "slot:use",                       "press the action-bar buttons of any"

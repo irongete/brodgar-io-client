@@ -24,8 +24,8 @@ consent dialog tells the user, word for word.
 | `world.place` | [`session:world():place`](../api/world.md#write-protected) | place buildings and objects |
 | `world.select` | [`session:world():select`](../api/world.md#write-protected) | select an area of the ground |
 | `menugrid.use` | [`pag:use`](../api/menugrid.md#use-protected) | invoke entries of the action menu, on any of your characters |
-| `flowermenu.select` | [`hafen.flowermenu():select`](../api/flowermenu.md#write-protected) | choose from the radial menu |
-| `flowermenu.cancel` | [`hafen.flowermenu():cancel`](../api/flowermenu.md#write-protected) | dismiss the radial menu |
+| `flowermenu.select` | [`s:flowermenu():select`](../api/flowermenu.md#write-protected) | choose from the radial menu of any of your characters |
+| `flowermenu.cancel` | [`s:flowermenu():cancel`](../api/flowermenu.md#write-protected) | dismiss the radial menu of any of your characters |
 | `craft.make` | [`session:craft():current():make`](../api/craft.md#write-protected) | press the Craft button, on any of your characters |
 | `actionbar.use` | [`slot:use`](../api/actionbar.md#write-protected) | press the action-bar buttons of any of your characters |
 | `actionbar.res` | [`slot:res`](../api/actionbar.md#write-protected) | change what any of your characters' action-bar buttons hold |

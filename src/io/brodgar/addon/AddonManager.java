@@ -1502,7 +1502,7 @@ public final class AddonManager {
     /**
      * The <b>radial-menu seams</b> (047.1) — the four {@code // addon:} lines in {@link FlowerMenu} that turn
      * the client's own context menu into {@code FlowerMenuOpened}/{@code FlowerMenuClosed} and feed
-     * {@code hafen.flowermenu()}. {@link FlowerMenuApi} holds the rules; these are the door haven calls
+     * {@code s:flowermenu()}. {@link FlowerMenuApi} holds the rules; these are the door haven calls
      * through.
      *
      * <p>{@link #flowerOpened} is the end of {@code added()} (the only point where the petal set is complete);
@@ -1524,7 +1524,7 @@ public final class AddonManager {
     /**
      * The <b>click token</b> seam (047.3) — the one {@code // addon:} line in {@code MapView.Click.hit}, beside
      * the voice feature's own {@code VoiceTarget.note}. It records which object a press resolved to, so a radial
-     * menu that opens straight afterwards can say what it belongs to ({@code hafen.flowermenu():gob()}); the
+     * menu that opens straight afterwards can say what it belongs to ({@code s:flowermenu():gob()}); the
      * server sends no such thing, so the client correlates it itself. {@link ClickToken} holds the rules.
      *
      * <p>{@code g} is {@code null} for a press that hit the ground, and that is recorded too — it <b>replaces</b>
@@ -2668,16 +2668,20 @@ public final class AddonManager {
         // SessionEnteredWorld may be short and fills in sub-second. The PROTECTED pag:use() ("menugrid.use")
         // keeps its one key addressed at any character, and sends through that grid's own button.
 
-        // hafen.flowermenu() — the OPEN RADIAL MENU (the ring of petals a right-click puts up), which is a
-        // different thing from the action menu above: that one is a catalogue the character carries, this one
-        // is a menu that exists for a second. So the section IS the open menu and its members are bare
-        // LABELS — :list() and :count() — because a petal set is frozen from the moment it opens until it
-        // dies and there is nothing for a live object to track. Every read answers with no menu up ({} and
-        // 0): none being open is the normal state, not an error. :gob() names the object the ring was opened
-        // ON — a correlation the client makes from the press that opened it, since the server sends no such
-        // thing, and nil wherever that correlation cannot vouch for an answer. The two events,
-        // FlowerMenuOpened and FlowerMenuClosed, are where an automation addon actually reacts.
-        FlowerMenuApi.installFlowerMenu(hafen, owner);
+        // s:flowermenu() — the OPEN RADIAL MENU (the ring of petals a right-click puts up), off the Session
+        // (077.4) and a different thing from the action menu above: that one is a catalogue the character
+        // carries, this one is a menu that exists for a second. So the section IS the open menu and its
+        // members are bare LABELS — :list() and :count() — because a petal set is frozen from the moment it
+        // opens until it dies and there is nothing for a live object to track. Every read answers with no
+        // menu up ({} and 0): none being open is the normal state, not an error. A menu is a WIDGET IN ONE
+        // SESSION'S TREE rather than the gesture that raised it, so the finder walks the named session's own
+        // root: a ring the player left up and tabbed away from is still open, still readable, and still
+        // selectable — and every other session answers the same nothing it answers with none up. :gob()
+        // names the object the ring was opened ON — a correlation the client makes from the press that
+        // opened it, since the server sends no such thing, and nil wherever that correlation cannot vouch
+        // for an answer; the id resolves in the tree the menu stands in. The two PROTECTED verbs,
+        // :select(label|n) and :cancel(), keep the one key each has addressed at any character. The two
+        // events, FlowerMenuOpened and FlowerMenuClosed, are where an automation addon actually reacts.
 
         // hafen.map():* — the RECORDED map (037): the client's on-disk map database (MapFile), the map the
         // player has EXPLORED, as opposed to the live terrain above. Five collections, re-shaped in 039.4:
@@ -2797,8 +2801,9 @@ public final class AddonManager {
         // does, in the session that window stands in. No CraftChanged event (read on demand, like A7 speed — a
         // recipe changes only when the player opens one).
 
-        // hafen.fight.* — combat schools / the maneuver deck builder (A10), read from the character
-        // sheet's "Martial Arts & Combat Schools" tab (FightWnd, @RName("fmg"), reached via CharWnd.fight —
+        // s:fight() — combat schools / the maneuver deck builder (A10), off the Session (077.4) and read
+        // from THAT character's own sheet's "Martial Arts & Combat Schools" tab (FightWnd, @RName("fmg"),
+        // reached via CharWnd.fight —
         // created hidden at login but live, so it reads without opening the window). This is the OUT-OF-COMBAT
         // configuration editor (distinct from the in-combat hafen.combat.* view, which is Fightview/Fightsess
         // with live cooldowns). maneuvers([filter]) returns every combat maneuver/attack you know as {res,
@@ -2812,7 +2817,9 @@ public final class AddonManager {
         // the protected Phase-4 action tier; no FightChanged event (a school changes only on explicit player
         // action, like A4 skills / A8 craft — read on demand). Saved-school NAMES are deferred (the private
         // FightWnd.saves[] would need a haven-package accessor; usesave/nsave identify the active slot).
-        CharApi.installFight(hafen, owner);
+        // A school is configured on one character and a fight is fought by one body, so a deck index and an
+        // opponent's gob id both count inside one login: the cards and the target carry the account beside
+        // their key, and :target():gob() resolves in that session's own object cache.
 
         // s:actionbar() — the action bar / hotbar (the engine calls it the "belt": GameUI.belt, a
         // BeltSlot[144]), off the Session (077.3) and via the widget-tree mechanism (1d-4). A slot index names
@@ -2843,7 +2850,7 @@ public final class AddonManager {
         // snapPlace/snapAngle that prepare their arguments (048.4); a menu entry is
         // s:menugrid():get(name):use(), which gained this same permission (048.5); the escape hatch is
         // widget:send(msg, ...), where the receiver IS the target (048.6); and a petal is
-        // hafen.flowermenu():select(label|n) (048.7, which also deleted act():enabled() — see actionsGranted
+        // s:flowermenu():select(label|n) (048.7, which also deleted act():enabled() — see actionsGranted
         // above). Same messages, same gate, on the things they act on; hafen.act and every one of its ten verb
         // names throw from Retired naming the new home.
         // The per-subsystem protected verbs that always lived on their own subsystem (speed:current(n),
@@ -3575,6 +3582,20 @@ public final class AddonManager {
     static GameUI gameui(String user) {
         Sessions.Member m = Sessions.byuser(user);
         return (m == null) ? null : m.gameui();
+    }
+
+    /**
+     * <b>That session's whole UI</b>, or {@code null} while the client holds no such session — the tree its
+     * widgets stand in, root included, which is what a walk for a widget the server placed anywhere at all
+     * has to start from ({@link GameUI} is only the HUD subtree, and a radial menu is not under it).
+     *
+     * <p>Never {@link #host()}: that answers the session on screen, and the whole point of addressing one is
+     * that the two part company. A member between trees answers {@code null}, exactly as {@link
+     * #gameui(String)} does, so every caller guards.
+     */
+    static UI sessionui(String user) {
+        Sessions.Member m = Sessions.byuser(user);
+        return (m == null) ? null : m.ui;
     }
 
     /**

@@ -14,7 +14,7 @@ import java.util.WeakHashMap;
 
 
 /**
- * {@code hafen.flowermenu()} — the <b>open radial context menu</b> (spec {@code 047-flowermenu}), the ring of
+ * {@code s:flowermenu()} — the <b>open radial context menu</b> (spec {@code 047-flowermenu}), the ring of
  * petals a right-click puts up, plus the two events that say when one comes and goes.
  *
  * <p><b>The section IS the open menu</b>, not a wrapper around one. A petal set is frozen from the moment the
@@ -23,6 +23,14 @@ import java.util.WeakHashMap;
  * nobody asks. With no menu open every read answers ({@code {}}, {@code 0}) rather than throwing — a menu is
  * the player's, and "none is up" is the normal state, not an error.
  *
+ * <p><b>And a menu is one session's</b> (077.4). It looks screen-shaped, because a right-click is a mouse
+ * gesture and the client has one pointer — but the section is the open <b>menu</b>, and a menu is a widget in
+ * one session's tree rather than the gesture that raised it. So the finder walks the <i>named</i> session's
+ * own root: a ring left up on a character the player then tabbed away from is still open, still readable, and
+ * still selectable, and the section on every other session answers the same nothing it answers with no menu
+ * up. That is also what makes {@code :gob()} resolve in the right object cache — the id the click recorded is
+ * an id in the tree the menu stands in.
+ *
  * <p><b>{@code :gob()} is a correlation, not a message</b> (047.3). The server's {@code "sm"} carries captions
  * and nothing else, so <i>which object this ring belongs to</i> is something the client works out for itself:
  * {@link ClickToken} records the gob a press resolved to, keyed on the press point the menu will place itself
@@ -30,15 +38,17 @@ import java.util.WeakHashMap;
  * {@code nil} — an inventory item's menu, the Kin window's, one the player's next click intervened on.
  *
  * <p><b>The write half is protected</b> (047.2): {@code :select(label|n)} and {@code :cancel()} commit a choice, so
- * they sit behind their own per-addon {@code flowermenu.*} keys like every other write, and they drive
+ * they sit behind their own per-addon {@code flowermenu.*} keys like every other write. Each keeps the
+ * <b>one</b> key it has whichever character it is addressed at (077.4) — a key names the action, not the
+ * target, and the player could have tabbed to that character and picked the petal themselves. They drive
  * {@link FlowerMenu#choose} rather than re-encoding {@code wdgmsg("cl", num)} (D-009) — which is the only reason
  * a client-side petal keeps handling itself. They are also the one half that <b>throws</b> instead of answering:
  * see {@link #required}.
  *
  * <p><b>The finder lives here</b>, and since 048.7 it is the only thing that does (D-103, one mechanism one
- * door): the single open menu is the first {@link FlowerMenu} in a recursive walk of the UI root, which is
- * exact rather than approximate because an open menu grabs mouse <i>and</i> keyboard, so only one is ever
- * really up. {@code ActApi} used to borrow it for {@code hafen.act():flower(label)}, the older door onto the
+ * door): that session's open menu is the first {@link FlowerMenu} in a recursive walk of <b>its</b> UI root,
+ * which is exact rather than approximate because an open menu grabs mouse <i>and</i> keyboard, so one tree
+ * only ever really holds one. {@code ActApi} used to borrow it for {@code hafen.act():flower(label)}, the older door onto the
  * same {@code choose}; that verb is gone and {@link #select} is the one way onto a petal.
  *
  * <p><b>The events.</b> Three {@code // addon:} seams in {@link FlowerMenu} drive them, and the choice of seam
@@ -84,22 +94,31 @@ final class FlowerMenuApi {
      */
     private static final Map<FlowerMenu, Long> clicked = new WeakHashMap<FlowerMenu, Long>();
 
+    /** {@code s:flowermenu()} — how this section is reached, and so how every one of its messages spells itself. */
+    static final String FM = "session:flowermenu()";
+
     /**
-     * Build {@code hafen.flowermenu()} for {@code owner}. From installHafen. A plain section object whose
-     * verbs all answer with no menu open.
+     * Build the flower-menu section object for {@code (owner, user)} — <b>the menu THAT character has
+     * open</b>, reached as {@code s:flowermenu()} (077.4). A plain section object whose reads all answer with
+     * no menu up.
+     *
+     * <p><b>077.4: it is built per {@code (addon, session)}</b> and hung on the interned Session handle, the
+     * shape {@link WorldApi#world} established — so {@code s:flowermenu() == s:flowermenu()}. Every verb
+     * finds the menu in <b>that</b> session's own tree, so a ring left open on a character the player tabbed
+     * away from reads and picks exactly as the drawn one's does.
      */
-    static void installFlowerMenu(LuaTable hafen, final Addon owner) {
+    static LuaValue flowermenu(final Addon owner, final String user) {
         LuaTable menu = new LuaTable();
         // list() — the open menu's petal captions, as strings, in ring order (the order the ring is numbered
         // in, which is the order a petal is addressed by). An empty array when no menu is open.
         menu.set("list", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "flowermenu", "list");
+                Section.self(a.arg1(), "flowermenu", "list", FM);
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen.flowermenu():list() takes no arguments: a petal is a bare"
+                    throw new LuaError(FM + ":list() takes no arguments: a petal is a bare"
                         + " label with no field to filter on, and a string here would read as \"pick this"
-                        + " one\" — picking a petal is hafen.flowermenu():select(label)");
-                String[] names = names(open());
+                        + " one\" — picking a petal is " + FM + ":select(label)");
+                String[] names = names(open(user));
                 LuaTable t = new LuaTable();
                 for(int i = 0; i < names.length; i++)
                     t.set(i + 1, LuaValue.valueOf((names[i] == null) ? "" : names[i]));
@@ -109,65 +128,73 @@ final class FlowerMenuApi {
         // count() — how many petals the open menu has; 0 when none is open. The arity sibling of list().
         menu.set("count", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "flowermenu", "count");
+                Section.self(a.arg1(), "flowermenu", "count", FM);
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen.flowermenu():count() takes no arguments: there is nothing to"
+                    throw new LuaError(FM + ":count() takes no arguments: there is nothing to"
                         + " filter on — a petal is a bare label");
-                return LuaValue.valueOf(names(open()).length);
+                return LuaValue.valueOf(names(open(user)).length);
             }
         });
         // gob() — the game object the open menu was opened ON, or nil. A CORRELATION, not something the server
         // sends (see ClickToken): the answer is the gob the press that put this ring up resolved to, and it is
         // nil for a menu opened from an inventory item, for the Kin window's own menu, and whenever any other
-        // press intervened. Unprotected: it names what is already on screen.
+        // press intervened. Unprotected: it names an object that character can see.
         menu.set("gob", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "flowermenu", "gob");
+                Section.self(a.arg1(), "flowermenu", "gob", FM);
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen.flowermenu():gob() takes no arguments: there is one open menu"
+                    throw new LuaError(FM + ":gob() takes no arguments: there is one open menu"
                         + " and it was opened on one object — to read that object, call it bare");
-                long id = gobOf(open());
-                // An open radial menu is on screen by definition (077 gives it its own address).
-                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, AddonManager.drawnUser(), id);
+                long id = gobOf(open(user));
+                // The id was recorded by a press in the tree this menu stands in, so it resolves in THAT
+                // session's object cache (077.4) — the same one s:world():gob():get(id) reads.
+                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, user, id);
             }
         });
         // select(label | n) — pick a petal of the OPEN menu, exactly as a click on it does: by its caption
         // (matched exactly, case-insensitively) or by its 1-based position on the ring, the same index :list()
         // hands back and the same number the menu's own 1..9 keys use. PROTECTED (D-027): it commits a choice.
+        // The one key is unchanged whichever character it is addressed at (077.4).
         menu.set("select", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "flowermenu", "select");
+                Section.self(a.arg1(), "flowermenu", "select", FM);
                 AddonManager.requirePermission(owner, Permission.FLOWERMENU_SELECT);
-                select(Args.required(a, 2, "hafen.flowermenu():select", "key"));
+                select(user, Args.required(a, 2, FM + ":select", "key"));
                 return LuaValue.NIL;
             }
         });
-        // cancel() — close the open menu with nothing chosen, exactly as Esc and a click away do. PROTECTED: it
-        // takes the player's menu off the screen, which is as much a commitment as picking from it.
+        // cancel() — close that character's open menu with nothing chosen, exactly as Esc and a click away
+        // do. PROTECTED: it takes a menu the player put up off its screen, which is as much a commitment as
+        // picking from it. Its one key is unchanged too.
         menu.set("cancel", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "flowermenu", "cancel");
+                Section.self(a.arg1(), "flowermenu", "cancel", FM);
                 AddonManager.requirePermission(owner, Permission.FLOWERMENU_CANCEL);
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen.flowermenu():cancel() takes no arguments: there is one open"
-                        + " menu and cancelling it chooses nothing — to pick a petal, use"
-                        + " hafen.flowermenu():select(label|n)");
-                required("hafen.flowermenu():cancel").choose(null);   // the very call Esc makes
+                    throw new LuaError(FM + ":cancel() takes no arguments: there is one open"
+                        + " menu and cancelling it chooses nothing — to pick a petal, use "
+                        + FM + ":select(label|n)");
+                required(user, FM + ":cancel").choose(null);   // the very call Esc makes
                 return LuaValue.NIL;
             }
         });
-        Section.install(hafen, "flowermenu", menu);
+        return Section.object("flowermenu", menu, FM);
     }
 
     // ---- the open menu ---------------------------------------------------------------------------
 
     /**
-     * The single OPEN radial context menu, or {@code null} if none is up — the first {@link FlowerMenu} in a
-     * recursive walk of the UI root. Shared with {@code ActApi}'s {@code flower(label)}, which is the older
-     * door onto the same widget.
+     * <b>That character's</b> open radial context menu, or {@code null} if none is up — the first
+     * {@link FlowerMenu} in a recursive walk of <b>its own</b> UI root (077.4).
+     *
+     * <p>One tree only ever really holds one, because an open menu grabs the mouse and the keyboard. It is
+     * the session's root and never {@link AddonManager#host()}: a ring the player left up on a character and
+     * then tabbed away from is still parented to that session's tree, which is what makes it readable and
+     * pickable at a distance — and asking the drawn tree would have called it closed. A session the client
+     * no longer holds, or one whose UI is between trees, simply has no menu.
      */
-    static FlowerMenu open() {
-        UI u = AddonManager.host();
+    static FlowerMenu open(String user) {
+        UI u = AddonManager.sessionui(user);
         if((u == null) || (u.root == null))
             return null;
         for(FlowerMenu fm : u.root.children(FlowerMenu.class))   // only one is ever open (it grabs input)
@@ -198,8 +225,9 @@ final class FlowerMenuApi {
     /**
      * The press point a menu is placed at — {@code added()} does {@code c = parent.ui.lcc}, and that is the very
      * value {@link ClickToken} keys on. Read off the widget's own {@code ui} so a probe can drive the seam
-     * without the manager's live one; {@link AddonManager#host()} is the fallback for a menu asked before it is
-     * parented.
+     * without the manager's live one, and so the point is the one taken in the tree the ring stands in;
+     * {@link AddonManager#host()} is the fallback for a menu asked before it is parented, which is the only
+     * case with no tree to ask.
      */
     private static haven.Coord lcc(FlowerMenu fm) {
         if((fm != null) && (fm.ui != null))
@@ -234,16 +262,19 @@ final class FlowerMenuApi {
     }
 
     /**
-     * The open menu, or a refusal naming {@code verb} — the "no menu is open" door both write verbs take.
-     * Reads answer with no menu up because none being up is the ordinary state; a write cannot, because there
-     * is no petal to commit to and silently doing nothing is the failure an automation never notices.
+     * <b>That character's</b> open menu, or a refusal naming {@code verb} — the "no menu is open" door both
+     * write verbs take. Reads answer with no menu up because none being up is the ordinary state; a write
+     * cannot, because there is no petal to commit to and silently doing nothing is the failure an automation
+     * never notices. The refusal names the character asked about, since a ring being up on the screen says
+     * nothing about the session the verb was addressed at (077.4).
      */
-    static FlowerMenu required(String verb) {
-        FlowerMenu fm = open();
+    static FlowerMenu required(String user, String verb) {
+        FlowerMenu fm = open(user);
         if(fm == null)
-            throw new LuaError(verb + ": no radial menu is open (hafen.flowermenu():count() is 0). A menu is"
-                + " put up by a right-click and lives about a second, so pick from a FlowerMenuOpened handler"
-                + " or a timer armed from one — nothing you type can reach the client while one is up.");
+            throw new LuaError(verb + ": no radial menu is open on " + user + " (" + FM + ":count() is 0). A"
+                + " menu is put up by a right-click and lives about a second, so pick from a FlowerMenuOpened"
+                + " handler or a timer armed from one — nothing you type can reach the client while one is"
+                + " up.");
         return fm;
     }
 
@@ -259,7 +290,7 @@ final class FlowerMenuApi {
     }
 
     /**
-     * {@code hafen.flowermenu():select} backing — resolve {@code key} against the open menu and choose that
+     * {@code s:flowermenu():select} backing — resolve {@code key} against the open menu and choose that
      * petal. A <b>string</b> is a caption, matched exactly and case-insensitively (an action commits, so it
      * matches precisely where a read would take a substring); a <b>number</b> is the 1-based position on the
      * ring, which is real identity here — it is the index {@code :list()} answers with and the {@code 1}..{@code 9}
@@ -267,8 +298,8 @@ final class FlowerMenuApi {
      * in LuaJ a number answers {@code isstring()} too, and {@code :select("3")} means the petal <i>labelled</i>
      * "3".
      */
-    private static void select(LuaValue key) {
-        selectOn(required("hafen.flowermenu():select"), key);
+    private static void select(String user, LuaValue key) {
+        selectOn(required(user, FM + ":select"), key);
     }
 
     /**
@@ -276,7 +307,7 @@ final class FlowerMenuApi {
      * hand-built {@link FlowerMenu} with no {@code UI} behind it (the finder is the one part that needs one).
      */
     static void selectOn(FlowerMenu fm, LuaValue key) {
-        final String verb = "hafen.flowermenu():select";
+        final String verb = FM + ":select";
         String[] names = names(fm);
         int idx;
         if(key.type() == LuaValue.TNUMBER) {
@@ -299,7 +330,7 @@ final class FlowerMenuApi {
         FlowerMenu.Petal[] opts = fm.opts;
         if((opts == null) || (idx >= opts.length) || (opts[idx] == null))
             throw new LuaError(verb + ": the menu's petals changed while it was being read — read"
-                + " hafen.flowermenu():list() again");
+                + " " + FM + ":list() again");
         fm.choose(opts[idx]);   // the client's own selection, client-side petals and all (D-009)
     }
 

@@ -15,17 +15,24 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * An <b>Opponent object</b> — who you are fighting ({@code hafen.fight():target()}). The combat view keeps one
- * of these per creature you are in a fight with and paints the one you have picked; this is that one.
+ * An <b>Opponent object</b> — who a character is fighting ({@code s:fight():target()}). That character's
+ * combat view keeps one of these per creature it is in a fight with and paints the one it has picked; this is
+ * that one.
  *
- * <p><b>{@code target:gob()} is what this entity exists for.</b> The combat target used to be a number the API
- * never published and could not resolve, so the creature you are fighting was the one thing in the world you
- * could see on screen and not read. It is now one verb, and like every other door onto a gob it is never
- * {@code nil}: an id the object cache does not hold answers a Gob whose {@code :exists()} is false.
+ * <p><b>{@code target:gob()} is what this entity exists for.</b> The creature is otherwise the one thing in
+ * the world you can see and not read: the view publishes a number and nothing else. It is one verb, and like
+ * every other door onto a gob it is never {@code nil} — an id the object cache does not hold answers a Gob
+ * whose {@code :exists()} is false.
  *
  * <p><b>The intern key is the gob id</b> (§2.4) — the only thing the server publishes about an opponent. The
  * combat view mints a fresh record whenever a fight starts, so keying on the record would call the same
  * creature two opponents across two fights.
+ *
+ * <p><b>And a gob id counts inside one session's object cache</b> (077.4), which is why the account is half
+ * the handle: two characters fighting are two fights, each with its own view and its own ids, and id 4711 in
+ * one of them is not the creature id 4711 names in the other. Two levels of intern map, on
+ * {@code (account, id)} — the {@link LuaGob} shape, and what makes {@code target:gob()} resolve in the same
+ * cache {@code s:world():gob():get(id)} reads.
  *
  * <p><b>What is deliberately not here.</b> An opponent carries no name and no moment-to-moment combat numbers:
  * everything you can read about the creature belongs to its gob, and is read there. There is no collection
@@ -35,10 +42,13 @@ import java.util.Map;
  * monitor, so the list is walked inside it.
  */
 public final class LuaOpponent {
-    /** The opponent's gob id — the whole state of a handle. */
+    /** The account whose fight this is — half the address, and the cache the id resolves in. */
+    public final String user;
+    /** The opponent's gob id, in that session's own object cache. */
     public final long gobid;
 
-    private LuaOpponent(long gobid) {
+    private LuaOpponent(String user, long gobid) {
+        this.user = user;
         this.gobid = gobid;
     }
 
@@ -47,9 +57,9 @@ public final class LuaOpponent {
         return "Opponent(" + gobid + ")";
     }
 
-    /** An interned Opponent object for {@code gobid} in {@code owner}'s env. */
-    static LuaValue of(Addon owner, long gobid) {
-        return owner.opponents.of(gobid);
+    /** An interned Opponent object for {@code gobid} <b>in {@code user}'s fight</b>, in {@code owner}'s env. */
+    static LuaValue of(Addon owner, String user, long gobid) {
+        return owner.opponents.of(user, gobid);
     }
 
     /** The {@code LuaOpponent} behind a Lua value, or {@code null} for anything else. */
@@ -62,10 +72,14 @@ public final class LuaOpponent {
 
     // ---- the per-addon intern cache + metatable ----------------------------------------------------
 
-    /** One addon's Opponent cache and metatable (its {@link Addon#opponents}), keyed by gob id. */
+    /**
+     * One addon's Opponent cache and metatable (its {@link Addon#opponents}), keyed by the <b>account plus</b>
+     * the gob id: an id is one session's object cache's, so the same number in two fights is two creatures.
+     * Two levels of map, the {@link LuaGob} shape.
+     */
     static final class Cache {
         private final Addon owner;
-        private final Map<Long, Ref> live = new HashMap<Long, Ref>();
+        private final Map<String, Map<Long, Ref>> live = new HashMap<String, Map<Long, Ref>>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
@@ -73,18 +87,21 @@ public final class LuaOpponent {
             this.owner = owner;
         }
 
-        synchronized LuaValue of(long gobid) {
+        synchronized LuaValue of(String user, long gobid) {
             drain();
+            Map<Long, Ref> byid = live.get(user);
+            if(byid == null)
+                live.put(user, byid = new HashMap<Long, Ref>());
             Long key = Long.valueOf(gobid);
-            Ref r = live.get(key);
+            Ref r = byid.get(key);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(key);
+                byid.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaOpponent(gobid), meta());
-            live.put(key, new Ref(v, key, dead));
+            LuaValue v = LuaValue.userdataOf(new LuaOpponent(user, gobid), meta());
+            byid.put(key, new Ref(v, user, key, dead));
             return v;
         }
 
@@ -92,8 +109,13 @@ public final class LuaOpponent {
             Reference<? extends LuaValue> r;
             while((r = dead.poll()) != null) {
                 Ref or = (Ref)r;
-                if(live.get(or.key) == or)
-                    live.remove(or.key);
+                Map<Long, Ref> byid = live.get(or.user);
+                if(byid == null)
+                    continue;
+                if(byid.get(or.key) == or)     // not already replaced by a fresh handle for the same id
+                    byid.remove(or.key);
+                if(byid.isEmpty())
+                    live.remove(or.user);
             }
         }
 
@@ -105,10 +127,12 @@ public final class LuaOpponent {
     }
 
     private static final class Ref extends WeakReference<LuaValue> {
+        final String user;
         final Long key;
 
-        Ref(LuaValue v, Long key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, String user, Long key, ReferenceQueue<LuaValue> q) {
             super(v, q);
+            this.user = user;
             this.key = key;
         }
     }
@@ -137,17 +161,19 @@ public final class LuaOpponent {
             }
         });
         // gob() — the creature itself. NEVER nil: an id the object cache does not hold answers a Gob whose
-        // :exists() is false, exactly as s:world():gob():get(id) does.
+        // :exists() is false, exactly as s:world():gob():get(id) does. Resolved in the object cache of the
+        // session whose fight this is (077.4), which is the cache the id came out of.
         m.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                // Who the drawn character is fighting (077 gives combat its own address).
-                return LuaGob.of(owner, AddonManager.drawnUser(), handle(self, "gob").gobid);
+                LuaOpponent h = handle(self, "gob");
+                return LuaGob.of(owner, h.user, h.gobid);
             }
         });
-        // exists() — are you still in a fight with them?
+        // exists() — is that character still in a fight with them?
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(fighting(handle(self, "exists").gobid));
+                LuaOpponent h = handle(self, "exists");
+                return LuaValue.valueOf(fighting(h.user, h.gobid));
             }
         });
         // info() — the one SNAPSHOT escape hatch.
@@ -165,21 +191,21 @@ public final class LuaOpponent {
         LuaOpponent h = resolve(self);
         if(h == null)
             throw new LuaError("opp:" + method + "() — use a COLON call on an Opponent object"
-                + " (hafen.fight():target())");
+                + " (" + CharApi.FT + ":target())");
         return h;
     }
 
     // ---- the reads ----------------------------------------------------------------------------------
 
-    /** The combat view, or {@code null} before the HUD is up (it is created with the rest of the HUD). */
-    private static Fightview view() {
-        GameUI g = AddonManager.gui();
+    /** <b>That character's</b> combat view, or {@code null} before its HUD is up (it is created with the rest of the HUD). */
+    private static Fightview view(String user) {
+        GameUI g = AddonManager.gameui(user);
         return (g == null) ? null : g.fv;
     }
 
-    /** Are you still in a fight with {@code gobid}? The predicate {@code :exists()} answers. */
-    private static boolean fighting(long gobid) {
-        Fightview fv = view();
+    /** Is {@code user} still in a fight with {@code gobid}? The predicate {@code :exists()} answers. */
+    private static boolean fighting(String user, long gobid) {
+        Fightview fv = view(user);
         if(fv == null)
             return false;
         synchronized(LuaWidget.monitor(fv)) {   // lsrel is added to / removed from on a loader thread
@@ -191,15 +217,15 @@ public final class LuaOpponent {
         return false;
     }
 
-    /** {@code hafen.fight():target()} — the opponent the combat view has picked, or {@code NIL} out of a fight. */
-    static LuaValue target(Addon owner) {
-        Fightview fv = view();
+    /** {@code s:fight():target()} — the opponent <b>that character's</b> combat view has picked, or {@code NIL} out of a fight. */
+    static LuaValue target(Addon owner, String user) {
+        Fightview fv = view(user);
         if(fv == null)
             return LuaValue.NIL;
         Fightview.Relation rel;
         synchronized(LuaWidget.monitor(fv)) {   // `current` is reassigned from the "cur" uimsg off-thread
             rel = fv.current;
         }
-        return ((rel == null) || rel.invalid) ? LuaValue.NIL : of(owner, rel.gobid);
+        return ((rel == null) || rel.invalid) ? LuaValue.NIL : of(owner, user, rel.gobid);
     }
 }

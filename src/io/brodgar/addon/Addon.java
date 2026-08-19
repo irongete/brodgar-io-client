@@ -561,13 +561,16 @@ public final class Addon {
 
     /**
      * This addon's <b>party and combat interning caches</b> (spec {@code 039-uniform-api} §4.3/§4.6):
-     * {@code hafen.party()} and {@code hafen.fight():target()} keyed by the <b>gob id</b> — the only thing the
-     * server publishes about a member or an opponent, and what makes a stashed handle self-heal when they come
-     * back — {@code hafen.fight():maneuver()} by the window's own record (the server carries it over across a
-     * refresh and writes the slot counts onto it), {@code :deck()} by the hotkey <b>slot</b> (the layout is made
-     * of places, and loading another school rewrites what is in them) and {@code :summary()} by the window.
-     * D-094 throughout: the key is whatever the engine keeps stable. Same contract as {@link #gobs} — per-addon,
-     * weak-valued, dead with this {@link Addon} on {@code :reload}/disable.
+     * {@code s:party()} and {@code s:fight():target()} keyed by the <b>account plus the gob id</b> — the id is
+     * the only thing the server publishes about a member or an opponent, and what makes a stashed handle
+     * self-heal when they come back, while the account is what makes it mean one creature, since an id counts
+     * inside one session's object cache (077) — {@code s:fight():maneuver()} by the window's own record alone
+     * (the server carries it over across a refresh and writes the slot counts onto it, and a record belongs to
+     * one character's window), {@code :deck()} by the account plus the hotkey <b>slot</b> (the layout is made
+     * of places, every character configures its own, and loading another school rewrites what is in them) and
+     * {@code :summary()} by the window. D-094 throughout: the key is whatever the engine keeps stable. Same
+     * contract as {@link #gobs} — per-addon, weak-valued, dead with this {@link Addon} on
+     * {@code :reload}/disable.
      */
     final LuaPartyMember.Cache partyMembers = new LuaPartyMember.Cache(this);
     final LuaManeuver.Cache maneuvers = new LuaManeuver.Cache(this);

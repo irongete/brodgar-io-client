@@ -15,9 +15,9 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
- * A <b>FightSummary object</b> — the scalars around the deck ({@code hafen.fight():summary()}): the action-point
- * budget and what the loaded school spends of it, how many hotkey slots the deck has, and how many saved schools
- * you keep against which one is loaded.
+ * A <b>FightSummary object</b> — the scalars around one character's deck ({@code s:fight():summary()}): the
+ * action-point budget and what the loaded school spends of it, how many hotkey slots the deck has, and how
+ * many saved schools that character keeps against which one is loaded.
  *
  * <p><b>Why an object where the study window's totals are a plain read.</b> Study's summary is <i>derived</i> —
  * it is the sum over the slots, and there is nothing behind it to exist or not exist. These five numbers are
@@ -28,6 +28,12 @@ import java.util.Map;
  * <p><b>The intern key is the window</b> (§2.4's <i>exposes only a widget</i> row) — the combat-schools tab is
  * created hidden at login and lives as long as the character sheet does, and nothing else identifies the budget
  * it holds.
+ *
+ * <p><b>The window is the whole address, so no account is added to it</b> (077.4), exactly as for
+ * {@link LuaCraft}: a widget stands in one session's tree and names it, where an id or an index would count
+ * inside one character alone. That is also what {@code :exists()} asks — it <b>walks up from the window</b>
+ * to its own tree's root rather than comparing against the tab of whoever is on screen, which would have
+ * called every background character's budget gone.
  *
  * <p><b>The verb names expand the engine's</b> (§2.6's N1): the fields are spelled for a client programmer and
  * are unreadable as an API. {@code :info()} keeps the engine's own spelling, so nothing a reader had is lost.
@@ -134,10 +140,10 @@ public final class LuaFightSummary {
         m.set("deckSize", number("deckSize", 2));
         m.set("saveCount", number("saveCount", 3));
         m.set("activeSave", number("activeSave", 4));
-        // exists() — is the combat-schools tab still the one this summary was read from?
+        // exists() — is that character's combat-schools tab still standing in its own tree?
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "exists").wnd == CharApi.fightwnd());
+                return LuaValue.valueOf(live(handle(self, "exists").wnd) != null);
             }
         });
         // info() — the one SNAPSHOT escape hatch, in the window's own spelling.
@@ -172,7 +178,7 @@ public final class LuaFightSummary {
         LuaFightSummary h = resolve(self);
         if(h == null)
             throw new LuaError("sum:" + method + "() — use a COLON call on a FightSummary object"
-                + " (hafen.fight():summary())");
+                + " (" + CharApi.FT + ":summary())");
         return h;
     }
 
@@ -184,7 +190,7 @@ public final class LuaFightSummary {
      * the same number the window paints beside the cap.
      */
     private static int[] read(FightWnd fw) {
-        if((fw == null) || (fw != CharApi.fightwnd()))
+        if(live(fw) == null)
             return null;
         int[] out = new int[5];
         synchronized(LuaWidget.monitor(fw)) {
@@ -198,5 +204,20 @@ public final class LuaFightSummary {
             out[4] = fw.usesave;
         }
         return out;
+    }
+
+    /**
+     * The schools tab this handle reads, or {@code null} once it is no longer up — <b>asked of the window
+     * itself</b> (077.4): a widget still parented to its own tree's root is still there, whichever session
+     * that tree belongs to and whoever is looking at it. Comparing against the tab on screen would have
+     * called every background character's summary gone the moment the player tabbed away.
+     */
+    private static FightWnd live(FightWnd fw) {
+        if(fw == null)
+            return null;
+        UI u = fw.ui;
+        if((u == null) || (u.root == null))
+            return null;
+        return (!u.destroyed && fw.hasparent(u.root)) ? fw : null;
     }
 }

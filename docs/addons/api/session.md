@@ -41,6 +41,8 @@ A Session is the **address**, so the reads that are about one character hang off
 | [`s:speed()`](speed.md) | its crawl, walk, run and sprint selector |
 | [`s:craft()`](craft.md) | the recipe window it has open, and its Craft button |
 | [`s:menugrid()`](menugrid.md) | its action menu: every action it knows, invoking one, and entries of your own |
+| [`s:fight()`](fight.md) | its combat schools, its maneuver deck, and who it is fighting |
+| [`s:flowermenu()`](flowermenu.md) | the radial menu it has open, and the petal to pick |
 
 ```lua
 for _, s in ipairs(hafen.session():list()) do

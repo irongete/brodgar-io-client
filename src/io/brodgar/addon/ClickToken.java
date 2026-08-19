@@ -3,7 +3,7 @@ package io.brodgar.addon;
 import haven.Coord;
 
 /**
- * The <b>click token</b> (047.3) — the one-shot record that lets {@code hafen.flowermenu():gob()} answer
+ * The <b>click token</b> (047.3) — the one-shot record that lets {@code s:flowermenu():gob()} answer
  * <i>which object this ring belongs to</i>.
  *
  * <p><b>The server never says.</b> A radial menu arrives as a bare {@code "sm"} widget carrying a list of

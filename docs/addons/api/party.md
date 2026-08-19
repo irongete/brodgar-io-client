@@ -81,4 +81,4 @@ when they leave the party and comes back to life if they rejoin, because the id 
 - [Gob](gob.md) — what `member:gob()` hands back, and every read on it
 - [`PartyMember`](types.md#partymember) — the snapshot shape `member:info()` returns
 - [`session:kin`](kin.md) — the other roster, the one that does carry names
-- [`hafen.fight`](fight.md) — combat, whose target resolves its gob the same way
+- [`session:fight`](fight.md) — combat, whose target resolves its gob the same way

@@ -218,8 +218,9 @@ event is about *visibility*, and at `disappear` the widget is a key to match, no
 **Every `FlowerMenuOpened` is followed by exactly one `FlowerMenuClosed`**, whether you picked a petal,
 pressed Esc, clicked away, or the menu died under you; the payload is `nil` for everything but a pick. Both
 cover the menus the client puts up itself, such as the Kin window's, as well as the server's. Read the ring
-from the payload or from [`hafen.flowermenu()`](../flowermenu.md), which is the open menu and also names the
-object it was opened on.
+from the payload or from [`s:flowermenu()`](../flowermenu.md), which is the menu one character has open and
+also names the object it was opened on. A ring goes up on the character the pointer is on, so the session to
+ask is [`hafen.session():current()`](../session.md) — and it stays up, and readable, if you tab away.
 
 ## World ghosts and sprites
 

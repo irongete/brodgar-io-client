@@ -49,7 +49,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [`session:craft`](craft.md) | the open recipe window, and its Craft button |
 | [`session:quest`](quest.md) | the quest log, current and completed, and a quest's objectives |
 | [`session:wound`](wound.md) | the wounds on the Health and Wounds tab, as a tree |
-| [`hafen.fight`](fight.md) | the maneuver-deck builder, and who you are fighting |
+| [`session:fight`](fight.md) | one character's maneuver-deck builder, and who it is fighting |
 | [`session:actionbar`](actionbar.md) | the hotbar: read a slot, use it, assign one, hold one for an entry of your own |
 
 ## Acting
@@ -62,7 +62,7 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 | Page | What it holds |
 |---|---|
 | [`session:menugrid`](menugrid.md) | the action menu: every action the character knows, invoking one, and entries of your own that run your Lua |
-| [`hafen.flowermenu`](flowermenu.md) | the radial menu a right-click puts up: its petals, the object it belongs to, picking one, and when one opens and closes |
+| [`session:flowermenu`](flowermenu.md) | the radial menu one character has open: its petals, the object it belongs to, picking one, and when one opens and closes |
 
 ## The UI
 

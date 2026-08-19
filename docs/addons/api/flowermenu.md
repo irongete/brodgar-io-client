@@ -1,8 +1,10 @@
-# hafen.flowermenu: the radial menu
+# session:flowermenu: the radial menu
 
 The **radial menu** is the ring of petals a right-click puts up: the game's main context gesture, and the
-way almost every interaction with an object starts. `hafen.flowermenu()` **is** the open menu — what it
-offers, how many petals that is, and which one to pick.
+way almost every interaction with an object starts. `s:flowermenu()` **is** the menu one character has
+open — what it offers, how many petals that is, and which one to pick. You reach it through the
+[session](session.md) whose character you mean, and the writes are protected; their keys are in
+[permissions](../guides/permissions.md).
 
 ```lua
 hafen.event():on("FlowerMenuOpened", function(petals)
@@ -14,22 +16,40 @@ hafen.event():on("FlowerMenuClosed", function(label)
 end)
 ```
 
+## A menu is one character's, not the screen's
+
+A right-click is a mouse gesture and the client has one pointer, so a ring only ever goes **up** on the
+character you are looking at. But the section is the open **menu**, and a menu is a widget in one
+character's own window tree — not the gesture that raised it. Tab to another character with a ring still
+up and it is still up: still readable, and still pickable.
+
+```lua
+local menu = hafen.session():get("alt"):flowermenu()     -- the ring that character left open
+if menu:count() > 0 then
+  hafen.log():write("the alt is being offered: " .. table.concat(menu:list(), ", "))
+end
+```
+
+Every other character answers exactly what it answers with nothing open, which is the ordinary state: an
+empty array and `0`. So a handler that wants the ring the event is about reads it from
+[`hafen.session():current()`](session.md), which is the character a right-click reached.
+
 ## Read
 
 | Call | Returns |
 |---|---|
-| `hafen.flowermenu():list()` | the petal captions, as strings, in ring order — an empty array when no menu is open |
-| `hafen.flowermenu():count()` | how many petals are on the ring; `0` when no menu is open |
-| `hafen.flowermenu():gob()` | the object the ring was opened on, or `nil` |
+| `s:flowermenu():list()` | the petal captions, as strings, in ring order — an empty array when that character has no menu open |
+| `s:flowermenu():count()` | how many petals are on the ring; `0` when none is open |
+| `s:flowermenu():gob()` | the object the ring was opened on, or `nil` |
 
 None of them throws, ever: no menu being open is the ordinary state of the game rather than an error, and
-all three answer before you have entered the world. All three are unprotected.
+all three answer before that character has entered the world. All three are unprotected.
 
 ## Which object the menu belongs to
 
-`hafen.flowermenu():gob()` is the [Gob](gob.md) you right-clicked to put the ring up — the tree you are
+`s:flowermenu():gob()` is the [Gob](gob.md) that was right-clicked to put the ring up — the tree you are
 about to chop, the animal you are about to butcher. It is what turns a list of captions into a decision an
-addon can make.
+addon can make, and it resolves in that character's own world, which is where the click happened.
 
 Where that answer comes from is worth knowing, because it is what decides when there is none. **The menu
 carries no object of its own**: what arrives is a list of captions and nothing else, so the client works
@@ -47,7 +67,7 @@ keeps answering while the ring fades, and it is `nil` once the ring is gone.
 
 ```lua
 hafen.event():on("FlowerMenuOpened", function(petals)
-  local gob = hafen.flowermenu():gob()
+  local gob = hafen.session():current():flowermenu():gob()
   local name = gob and gob:name()
   if name and name:find("tree") then
     hafen.log():write("a tree offers: " .. table.concat(petals, ", "))
@@ -76,34 +96,37 @@ this one*; passing anything raises an error pointing at `:select`, which is how 
 > quarter-to-three-quarter-second fade, and the ring is still there for it — so a `:count()` read from
 > inside a `FlowerMenuClosed` handler is not yet `0`. Read what you need from the event's own payload.
 
-**Two menus at once** should not happen — an open menu grabs the mouse and the keyboard, which is what
-makes "the open menu" a well-defined thing. If it ever does, these verbs answer for the first one the
-client is holding.
+**Two menus at once on one character** should not happen — an open menu grabs the mouse and the keyboard,
+which is what makes "the open menu" a well-defined thing for that character. If it ever does, these verbs
+answer for the first one that character's tree is holding.
 
 ## Write (protected)
 
 | Method | Key | Description |
 |---|---|---|
-| `hafen.flowermenu():select(label)` | `flowermenu.select` | pick the petal captioned `label`, matched whole and case-insensitively |
-| `hafen.flowermenu():select(n)` | `flowermenu.select` | pick the petal at position `n` on the ring, counting from `1` |
-| `hafen.flowermenu():cancel()` | `flowermenu.cancel` | close the menu with nothing chosen, exactly as Esc does |
+| `s:flowermenu():select(label)` | `flowermenu.select` | pick the petal captioned `label`, matched whole and case-insensitively |
+| `s:flowermenu():select(n)` | `flowermenu.select` | pick the petal at position `n` on the ring, counting from `1` |
+| `s:flowermenu():cancel()` | `flowermenu.cancel` | close the menu with nothing chosen, exactly as Esc does |
 
 Picking and dismissing are separate keys, so an addon may declare one without the other; the group
 `flowermenu.*` covers both. Called from an addon that did not declare the key it needs, each raises an error
-naming that key; see [the permission model](conventions.md#the-permission-model).
+naming that key; see [the permission model](conventions.md#the-permission-model). **One key covers every
+character**: a key names the action, and the player could have tabbed to that character and picked the
+petal themselves.
 
 A string is always a caption and a number is always a position, so
-`hafen.flowermenu():select("3")` picks the petal captioned `3` and never the third one.
+`s:flowermenu():select("3")` picks the petal captioned `3` and never the third one.
 
 Both verbs go through the client's own selection, which is what makes them exact rather than
 approximate: a petal the **client** handles by itself — the Kin window's entries, the mute toggle on
 another player — is handled locally, and nothing is sent to the server for it.
 
 Where the reads answer, these **raise**. A menu is up for about a second, so *there was nothing to pick*
-is a race you have to hear about rather than a value you might forget to test. `:select` raises when no
-menu is open, when no caption matches, when the position is outside `1`..the petal count, and when the
-key is neither a string nor a number; `:cancel()` raises when no menu is open. Each of those errors
-lists the ring that **is** open, numbered, so the spelling you missed is in the message.
+is a race you have to hear about rather than a value you might forget to test. `:select` raises when that
+character has no menu open, when no caption matches, when the position is outside `1`..the petal count, and
+when the key is neither a string nor a number; `:cancel()` raises when no menu is open. Each of those
+errors names the character asked about and lists the ring that **is** open, numbered, so the spelling you
+missed is in the message.
 
 You can pick from inside a `FlowerMenuOpened` handler, and that is the usual place. The ring is still
 animating open at that moment — the one window a real click cannot use, because the menu swallows mouse
@@ -121,7 +144,8 @@ ended: you picked a petal, you pressed Esc, you clicked away, or it simply died 
 connection dropped. The payload is the label on a pick and `nil` on everything else.
 
 `FlowerMenuOpened` fires at the one moment the petal set is complete, so the array it carries is the whole
-ring — the same array `hafen.flowermenu():list()` answers with if you call it from inside the handler.
+ring — the same array `hafen.session():current():flowermenu():list()` answers with if you call it from
+inside the handler, since a ring goes up on the character the pointer is on.
 
 Both events cover the menus the **client** puts up as well as the server's. The Kin window's right-click
 menu is one of those: it never reaches the server at all, and it still opens and closes here.
@@ -145,6 +169,7 @@ console command or a hotkey cannot be the thing that reacts to a menu. A handler
 
 ## See also
 
+- [`hafen.session`](session.md) — the address the section is reached through
 - [Gob](gob.md) — what `:gob()` hands you, and `gob:click(3)`, the right-click that puts the ring up
 - [`session:menugrid`](menugrid.md) — the *other* menu: the catalogue of what a character can do
 - [`hafen.event`](event/bus.md#the-radial-menu) — the bus these two events sit on, and every other key

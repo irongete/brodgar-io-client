@@ -142,7 +142,7 @@ holds, and nothing of yours is torn down or rebuilt when the screen moves.
 ## The filter argument
 
 Every enumerating verb — `s:world():gob():list`, `s:kin():list`, `hafen.map():icon():list`,
-`hafen.fight():maneuver():list`, … — takes one optional **filter**, always in the same form:
+`s:fight():maneuver():list`, … — takes one optional **filter**, always in the same form:
 
 | `filter` | Keeps |
 |---|---|

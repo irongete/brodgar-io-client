@@ -1,0 +1,10 @@
+{
+  "name": "077.4 — the open menu, and the fight",
+  "id": "077-the-character-belongs-to-a-session.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 077.4: s:fight() and s:flowermenu() hang off the session, read the character they were addressed at, keep their one permission key each, and their loose spellings are retired.",
+  "api_version": 1,
+  "permissions": ["flowermenu.select"],
+  "files": ["main.lua"]
+}

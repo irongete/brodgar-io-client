@@ -251,7 +251,7 @@ or a chance byproduct.
 
 ## Maneuver, DeckCard, FightSummary
 
-From the `:info()` escape hatch on each of [`hafen.fight`](fight.md)'s objects; the reads themselves hand
+From the `:info()` escape hatch on each of [`session:fight`](fight.md)'s objects; the reads themselves hand
 you the live objects.
 
 - **Maneuver** — `{ res?, name?, avail = number, used = number }`, `avail` dealable against `used`

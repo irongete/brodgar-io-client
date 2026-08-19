@@ -142,7 +142,7 @@ remove an active kin, call both.
 
 There is no add-by-name. Kinning needs a shared hearth secret, or the right-click "Add as kin" petal,
 which is [`gob:click(3)`](gob.md#write-protected) followed by
-[`hafen.flowermenu():select`](flowermenu.md#write-protected).
+[`s:flowermenu():select`](flowermenu.md#write-protected).
 
 ## See also
 

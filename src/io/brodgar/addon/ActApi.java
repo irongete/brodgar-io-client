@@ -28,7 +28,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * and area-selecting are {@code s:world():place/:select}, beside the {@code snapPlace}/{@code snapAngle}
  * that prepare their arguments (048.4); a menu action is {@code s:menugrid():get(name):use()}, which gained
  * the same permission (048.5); the escape hatch is {@code widget:send(msg, ...)}, where the receiver IS the
- * target (048.6); and a petal is {@code hafen.flowermenu():select(label|n)} (048.7, which also deleted
+ * target (048.6); and a petal is {@code s:flowermenu():select(label|n)} (048.7, which also deleted
  * {@code enabled()} — a running addon is granted exactly what it declared, so the question answered
  * itself). Every one of those spellings, and {@code hafen.act} itself, throws from {@link Retired} naming its
  * new home.
@@ -82,7 +82,7 @@ final class ActApi {
     // removed the global switch it was built to report, so the only caller it could ever answer `false` was one
     // that can read the same answer in its own manifest.json. A feature-detection verb whose answer is a fact
     // about the caller is not a feature detector.
-    //   flower(label) is DELETED because 047.2 already built the better door: hafen.flowermenu():select(label|n)
+    //   flower(label) is DELETED because 047.2 already built the better door: s:flowermenu():select(label|n)
     // RAISES where flower returned a bare false, takes a ring position as well as a caption, and has :cancel()
     // beside it. actFlower had been delegating to FlowerMenuApi since 047.1, so what stood here was the old door
     // D-103 requires closing — and its one pure helper (the case-insensitive petal lookup) moved to its single

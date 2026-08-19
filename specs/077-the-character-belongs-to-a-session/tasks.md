@@ -76,7 +76,7 @@ must still be **212**. A cut this size fails by moving too much.
       `get("<the first account>"):craft():current()` still names that recipe — the window is open on a
       session you are not looking at, which is what makes a cross-character crafting addon possible.
 
-- [ ] **077.4 — The open menu, and the fight.**
+- [x] **077.4 — The open menu, and the fight.**
       Moves `flowermenu` and `fight`, and closes the family. `flowermenu` looks screen-shaped because
       a right-click is a mouse gesture and there is one mouse — but its page's own first line settles
       it: **the section *is* the open menu**, a widget in one session's tree rather than the gesture

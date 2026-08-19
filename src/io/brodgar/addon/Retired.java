@@ -193,6 +193,20 @@ final class Retired {
         sectionObj("craft", "current");
         sectionObj("menugrid", "list", "count", "find", "get", "roots", "add", "remove");
 
+        // ---- 077.4: and the last two, which close the family. `flowermenu` is the one that had to be -----
+        // ---- argued rather than repeated: a right-click is a mouse gesture and there is one mouse, so the
+        // ---- section looks like the screen's -- but the section IS THE OPEN MENU, and a menu is a widget in
+        // ---- one session's tree. So a ring left up on a character the player tabbed away from is still
+        // ---- open, still readable and still selectable, and both its keys stay the one key each.
+        put("hafen.fight", "hafen.fight() is now session:fight()" + addr + ". A combat school is configured"
+            + " on one character and a fight is fought by one body: the deck, the budget and the opponent"
+            + " are all that character's own.");
+        put("hafen.flowermenu", "hafen.flowermenu() is now session:flowermenu()" + addr + ". The section IS"
+            + " the open menu, and a menu is a widget in one session's tree rather than the right-click that"
+            + " raised it — so one left open on a character you tabbed away from still reads and still picks.");
+        sectionObj("fight", "maneuver", "deck", "summary", "target");
+        sectionObj("flowermenu", "list", "count", "gob", "select", "cancel");
+
         // ---- ...and the character a login is playing is the SESSION's read, not the Player's: one fact with
         // ---- two spellings whose only difference was which door you came through is the dual style §2 cuts.
         put("session:player():name", "session:player():name() is now s:character(), on the Session itself: a"
@@ -244,7 +258,7 @@ final class Retired {
             + " gob:click(button, mods) clicks an object, item:use(mods) / :take() / :drop(n) / :transfer(n) act"
             + " on an item, session:world():place(p, angle, button, mods) / :select(p1, p2, mods) act on the world,"
             + " session:menugrid():get(name):use() fires a menu action and widget:send(msg, ...) is the escape"
-            + " hatch. hafen.act():flower(label) is hafen.flowermenu():select(label|n), which raises instead of"
+            + " hatch. hafen.act():flower(label) is session:flowermenu():select(label|n), which raises instead of"
             + " answering false and takes a ring position too; hafen.act():enabled() is gone — a running addon"
             + " is granted what it declared, and that is a fact its own manifest.json already states."
             + " The model is unchanged, its granularity is not: every protected verb has its own key"
@@ -284,11 +298,11 @@ final class Retired {
             + " \"gameui\" is hafen.ui():find(\"@GameUI\") and \"root\" is hafen.ui():root(). Bound widgets"
             + " only, exactly as before — widget:id() is nil on one your addon built — and the arguments"
             + " marshal unchanged");
-        act("flower", "hafen.act():flower(label) is now hafen.flowermenu():select(label|n) — the radial menu"
+        act("flower", "hafen.act():flower(label) is now session:flowermenu():select(label|n) — the radial menu"
             + " owns its own petal selection (047), and that door is strictly better: it RAISES naming what is"
             + " open where this answered a bare false, it takes the petal's 1-based ring position as well as"
-            + " its caption, and it has hafen.flowermenu():cancel() beside it. Pick from a FlowerMenuOpened"
-            + " handler rather than a guessed timer — hafen.flowermenu():list() is the ring");
+            + " its caption, and it has session:flowermenu():cancel() beside it. Pick from a FlowerMenuOpened"
+            + " handler rather than a guessed timer — session:flowermenu():list() is the ring");
         act("enabled", "hafen.act():enabled() is gone: it answered whether THIS addon declared the write"
             + " permission, which is a fact about your own manifest.json rather than anything the client"
             + " decides (D-028 removed the global switch it was built to report). A protected verb is granted"
@@ -585,8 +599,9 @@ final class Retired {
 
         // ---- combat: three projections of the schools tab, plus who you are fighting ---------------------
         put("hafen.fight.maneuvers", "hafen.fight.maneuvers(filter) is now"
-            + " hafen.fight():maneuver():list(filter)");
-        section("fight", "deck", "summary");
+            + " session:fight():maneuver():list(filter)");
+        put("hafen.fight.deck", "hafen.fight.deck() is now session:fight():deck()");
+        put("hafen.fight.summary", "hafen.fight.summary() is now session:fight():summary()");
 
         // ---- crafting: the recipe is an entity, and the Craft button belongs to the recipe ---------------
         put("hafen.craft.current", "hafen.craft.current() is now session:craft():current(), and it hands"

@@ -125,7 +125,7 @@ re-home row above (plus `delfocusable` if `canfocus`); `ui.removed(w)` is skippe
 
 | What | Where |
 |---|---|
-| Child list (tree order) | `Widget.children()` (returns a `Children` view — copy under `synchronized(ui)`) |
+| Child list (tree order) · finding one by type | `Widget.children()` returns a `Children` view of the **direct** children (copy under `synchronized(ui)`), but `Widget.children(Class)` is **recursive over the whole subtree** despite reading like its sibling — its own comment says it "should be renamed to `rchildren`". A lazy `Set` walking `child`/`next`/`parent`, so `ui.root.children(FlowerMenu.class)` finds the one open menu wherever the server parented it, and the walk is per-iteration rather than cached. `findchild(Class)` is the deprecated first-hit form of the same walk |
 | Server id (`-1` = not server-bound) | `Widget.wdgid()` → `UI.widgetid` (looks up `rwidgets`) |
 | Pos/size/visibility/parent/class + root box | `Widget.c`, `sz`, `visible()`, `parent`, `getClass().getSimpleName()`, `rootpos()` |
 | **Text source (best-effort, one switch)** | `Label.texts` (public `String`); button captions / `TextEntry` per type; unknown → none |

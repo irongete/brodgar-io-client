@@ -43,7 +43,9 @@ import java.util.Map;
  * {@code s:party()}, and 077.3 the four that ACT — {@code s:actionbar()}, {@code s:speed()},
  * {@code s:craft()} and {@code s:menugrid()}, the last two of which report a WINDOW the game put up rather
  * than a fact about a body, and answer on a session nobody is looking at because that session keeps its
- * {@code GameUI}. Each is minted once per {@code (addon, session)} and kept on the
+ * {@code GameUI}. 077.4 closes the family with {@code s:fight()} and {@code s:flowermenu()} — the second of
+ * which looks screen-shaped and is not: the section IS the open menu, and a menu is a widget in one session's
+ * tree rather than the right-click that raised it. Each is minted once per {@code (addon, session)} and kept on the
  * handle — see {@link #worldObj}. Every verb under them reads the session named rather than the one on
  * screen; the ones that are inherently the screen's say so where they are defined ({@code screenToWorld},
  * {@code worldToScreen}) and the ones that <b>send</b> go through {@link AddonManager#sendView}, because a
@@ -76,6 +78,8 @@ public final class LuaSession {
     private LuaValue kinObj, partyObj;
     /** The four that ACT (077.3): the bar, the speed selector, the open recipe and the action menu. */
     private LuaValue actionbarObj, speedObj, craftObj, menugridObj;
+    /** The last two (077.4): the combat schools with the fight, and the radial menu this session has open. */
+    private LuaValue fightObj, flowermenuObj;
 
     private LuaSession(String user) {
         this.user = user;
@@ -345,6 +349,30 @@ public final class LuaSession {
                 if(h.menugridObj == null)
                     h.menugridObj = CharApi.menugrid(owner, h.user);
                 return h.menugridObj;
+            }
+        });
+        // fight() — THIS character's combat schools, and the fight it is in. A school is configured on one
+        // character and a fight is fought by one body: the deck read here is that character's own layout, and
+        // :target() is who IT is fighting, resolved in its own object cache.
+        m.set("fight", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "fight");
+                if(h.fightObj == null)
+                    h.fightObj = CharApi.fight(owner, h.user);
+                return h.fightObj;
+            }
+        });
+        // flowermenu() — the radial menu THIS character has open. It looks like the screen's, because a
+        // right-click is a mouse gesture and there is one mouse — but the section IS the open menu, and a menu
+        // is a widget in one session's tree. So a ring left up on a character the player tabbed away from is
+        // still open, still readable, and still selectable; every other session answers the same nothing it
+        // answers with none up.
+        m.set("flowermenu", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "flowermenu");
+                if(h.flowermenuObj == null)
+                    h.flowermenuObj = FlowerMenuApi.flowermenu(owner, h.user);
+                return h.flowermenuObj;
             }
         });
         // info() — the one SNAPSHOT escape hatch, and always a table: a Session that does not exist is
