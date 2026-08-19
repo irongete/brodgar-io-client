@@ -749,7 +749,7 @@ final class VrApi {
                 } catch(Loading l) {
                     throw(l);
                 } catch(RuntimeException e) {
-                    UI u = host();
+                    UI u = screen();
                     if(u != null)
                         u.error(clampMsg("addon: ghost resource '" + rnm + "' could not be loaded"));
                     synchronized(gh) { gh.failed = true; gh.streaming = false; }
@@ -1484,7 +1484,7 @@ final class VrApi {
                                               LuaPosition.Anchor place) {
         final MapView mv = screenView();
         final Glob g = glob();
-        final UI u = host();
+        final UI u = (mv == null) ? null : mv.ui;      // 078.4: the SCENE's own tree — the surface stands where it draws
         if((mv == null) || (g == null) || (u == null) || (u.root == null))
             return null;                               // not in the world yet — no scene to add to
         Widget content = standable(owner, wv);         // AFTER the world check (don't re-home when there is no scene)
@@ -2293,7 +2293,7 @@ final class VrApi {
                 } catch(Loading l) {
                     throw(l);
                 } catch(RuntimeException e) {
-                    UI u = host();
+                    UI u = screen();
                     if(u != null)
                         u.error(clampMsg("addon: ghost resource '" + nm + "' could not be loaded"));
                     return;                            // keep the old visual (non-fatal)

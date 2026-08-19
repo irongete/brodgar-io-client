@@ -46,7 +46,7 @@
 | Setting group | Backing |
 |---|---|
 | Panels (read these for the authoritative write) | `VideoPanel`, `AudioPanel`, `InterfacePanel`, `BindingPanel`, `CameraPanel` (fork) |
-| Video | `GSettings` **named fields**, not constants: `lshadow`, `vsync`, `hz`/`bghz` (/), `rscale`, `lightmode`, `maxlights` |
+| Video | `GSettings` **named fields**, not constants: `lshadow`, `vsync`, `hz`/`bghz` (/), `rscale`, `lightmode`, `maxlights`. ⚠️ **`gprefs` is per `UI`**, exactly as the audio sub-mix below is: `UI`'s field initialiser runs `GSettings.load(true)` in every tree the loop builds, `UI.setgprefs` publishes into that tree alone, and `UI.tick` flushes the dirty one to the single shared `gconf/*` pref store. So a tree nobody published into keeps what it loaded at construction, and the last one to publish is what every tree reads at the next client start |
 | UI scale | pref `uiscale` (restart to take effect) |
 | Placement granularity | `MapView.plobpgran` / `plobagran`  statics + like-named prefs |
 | Camera inversion | `MapView.invcamx` / `invcamy`  statics + like-named prefs; consumed by `Camera.invdx`/`invdy` |

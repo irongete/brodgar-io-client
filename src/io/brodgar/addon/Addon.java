@@ -49,7 +49,7 @@ public final class Addon {
      * questions have no answer yet.
      */
     AddonManager.SessionState state() {
-        return AddonManager.state(AddonManager.host());
+        return AddonManager.state(AddonManager.screen());
     }
 
     /**

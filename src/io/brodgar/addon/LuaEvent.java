@@ -355,8 +355,8 @@ public final class LuaEvent {
      * the client's own buttons, 061.1) — minted per (addon, widget, key) fire like {@link #input}, since the
      * caller is that owner's own {@link Subs} firing. {@code w} is the widget this addon holds the key on,
      * {@code actor} the one whose own method {@code ev:resend()} re-issues (the same widget everywhere but the
-     * list family, 061.3), and {@code u} is captured so a resend from a LATER frame still finds a session to
-     * run in.
+     * list family, 061.3), and {@code u} — the borrowed widget's own tree, which is where a resend has to
+     * land — is captured so a resend from a LATER frame still finds a session to run in.
      *
      * <p>{@code moved} is the one family where this event is a <b>report</b> (061.4): a slider and a scrollbar
      * write their value and say so afterwards, so there is nothing left to hold back and both verbs that would
@@ -364,7 +364,7 @@ public final class LuaEvent {
      */
     static LuaValue control(Addon owner, String key, Widget w, Widget actor, Object value, Subs.Cancel c,
                             boolean moved) {
-        LuaEvent e = new LuaEvent(owner, Shape.CONTROL, c, key, w, null, AddonManager.host(), null);
+        LuaEvent e = new LuaEvent(owner, Shape.CONTROL, c, key, w, null, w.ui, null);
         e.nval = value;
         e.actor = actor;
         e.moved = moved;

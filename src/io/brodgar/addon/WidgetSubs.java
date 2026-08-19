@@ -75,7 +75,7 @@ final class WidgetSubs {
 
     /**
      * <b>The tree this record is about</b> (073.2) — the {@code UI} of the very widget it watches, which is
-     * what indexes it in {@link UiApi}'s per-session watch list. Never {@code AddonManager.host()}: this
+     * what indexes it in {@link UiApi}'s per-session watch list. Never {@code AddonManager.screen()}: this
      * record is offered every placement and every removal in its own tree, and a subscription on a widget of
      * a background session must not be walked by the drawn session's seams.
      */
@@ -243,7 +243,7 @@ final class WidgetSubs {
      * what enters afterward.
      */
     private void startListening() {
-        UI u = AddonManager.host();
+        UI u = ui();     // 078.4: the widget's own tree — its id counts there, and so does its liveness
         this.boundId = (u == null) ? -1 : u.widgetid(wdg);
         if((u != null) && !live(u)) {
             subs.fire("Destroy");

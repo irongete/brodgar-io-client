@@ -1619,7 +1619,7 @@ public final class LuaWidget {
             return mine;
         if(UiApi.hiddenOwner(w) != null)
             return null;                      // 031.2: somebody else's window
-        UI u = AddonManager.host();
+        UI u = w.ui;                          // the id counts inside the tree the window stands in
         Hidden h = new Hidden(owner, w, (u == null) ? -1 : u.widgetid(w));
         owner.hiddenNative.add(h);
         anyHidden = true;                     // 031.1: this addon now owns that window's toggle
@@ -1835,7 +1835,7 @@ public final class LuaWidget {
         Moved m = findMoved(owner, w);
         if(m != null)
             return m;
-        UI u = AddonManager.host();
+        UI u = w.ui;                          // the id counts inside the tree the widget stands in
         m = new Moved(owner, w, (u == null) ? -1 : u.widgetid(w));
         owner.movedNative.add(m);
         anyMoved = true;

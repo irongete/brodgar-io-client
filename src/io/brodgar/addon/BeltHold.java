@@ -69,7 +69,7 @@ import static io.brodgar.addon.AddonManager.state;
  * {@code g.ui} the key); the tick's are handed the state it already holds; and each {@link Hold} carries the
  * bar it was taken on, which is what lets an ending put a slot back on the bar it was borrowed from rather
  * than on whichever one is drawn at that moment — the case that matters, because {@code init} tears the old
- * session's addons down once {@link AddonManager#host()} ALREADY answers the session being switched to. The
+ * session's addons down once {@link AddonManager#screen()} ALREADY answers the session being switched to. The
  * verbs an addon calls ({@code slot:pagina(pag)}, {@code s:menugrid():add(id)}) name their own session, and
  * that is the same bar the rest of {@code LuaSlot} reads.
  *

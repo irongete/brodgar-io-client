@@ -87,7 +87,7 @@ final class UiApi {
     // `matched` map needs no lock of its own.
     // 073.2: and BOTH LISTS ARE ONE SESSION'S. They hold widgets of a tree, so they are
     // {@code SessionState.selectorWatches} / {@code .selectorPending}, reached with the ui of the widget the
-    // seam was handed — never {@link AddonManager#host()}, which answers the session on screen and is a
+    // seam was handed — never {@link AddonManager#screen()}, which answers the session on screen and is a
     // different one at every seam here: the placement seam runs on a Loader thread of whichever session sent
     // the message, and the teardown below runs from {@code init} once the anchor has ALREADY moved to the
     // session being switched to. A subscription records the tree it was made against ({@link
@@ -195,7 +195,7 @@ final class UiApi {
     static void onWidgetPlaced(int id, Widget wdg) {
         // 073.2: whose tree the widget entered is the widget's own question — this seam runs inside
         // AddWidget.run on a Loader thread, which is the thread of the session that sent the message and
-        // not of the one on screen, so host() here could offer another session's placement to these lists.
+        // not of the one on screen, so screen() here could offer another session's placement to these lists.
         SessionState st = state(wdg.ui);
         if((st != null) && !st.selectorWatches.isEmpty())
             offerPlaced(st, wdg, id);
@@ -356,7 +356,7 @@ final class UiApi {
                 LuaValue y = Args.required(a, 3, "hafen.ui():tipAt", "y");
                 if(!x.isnumber() || !y.isnumber())
                     throw new LuaError("hafen.ui():tipAt(x, y) expects numbers");
-                UI u = host();
+                UI u = screen();
                 if((u == null) || (u.root == null))
                     return LuaValue.NIL;
                 Widget from = LuaWidget.tipAt(u, Px.in(new Coord(x.toint(), y.toint())));   // design px, like :at
@@ -653,7 +653,7 @@ final class UiApi {
      * that session's root rather than at a window of yours.
      *
      * <p><b>Any session, drawn or not.</b> Every verb resolves through {@link AddonManager#sessionui(String)} —
-     * that login's own {@code UI} — and never through {@link AddonManager#host()}, which answers the session on
+     * that login's own {@code UI} — and never through {@link AddonManager#screen()}, which answers the session on
      * screen. A background session keeps its whole tree, so its Inventory is open, findable and readable while
      * the player is looking at another character. A session the client does not hold, or one between trees
      * (connecting, on the character list, gone), answers {@code nil}-shaped rather than throwing, exactly as
@@ -976,8 +976,8 @@ final class UiApi {
      * the whole of why a window keeps its place, its focus and any grab it holds across a character switch —
      * nothing is re-homed, because nothing it lives in ends.
      *
-     * <p>{@link AddonManager#host()} is untouched and means the other thing: the tree an addon <b>searches</b>,
-     * which is the client's own windows and does belong to a session.
+     * <p>The tree an addon <b>searches</b> is the other thing entirely: {@link AddonManager#sessionui(String)},
+     * one character's own, reached through {@code session:ui()} and never from here.
      */
     static UI requireUi(String what) {
         UI u = AddonManager.layer();
@@ -1032,7 +1032,7 @@ final class UiApi {
         Widget oldw = old.rootw(), neww = neu.rootw();
         // 072.2: the monitor is the widget's own (072.1's rule — this block mutates oldw and neww), and the
         // root the new one falls back to is the OLD WIDGET'S OWN (073.2): a control this layer built is in the
-        // tree it built it in, and asking host() for it was asking which session is on screen — a different
+        // tree it built it in, and asking screen() for it was asking which session is on screen — a different
         // question, and a different answer the moment the player tabs to another one mid-statement.
         UI u = oldw.ui;
         synchronized(LuaWidget.monitor(oldw)) {
@@ -1269,7 +1269,7 @@ final class UiApi {
     // step, so what may start matching is a widget somewhere BELOW the window whose caption landed.
     // 073.2: and it is ONE SESSION'S — the recorded windows are windows of one tree, so the queue is
     // {@code SessionState.selectorCapChanged}, reached with w.ui at the seam. That is not a nicety on this
-    // thread: chcap runs on whichever Loader thread applied the message, so host() would file a background
+    // thread: chcap runs on whichever Loader thread applied the message, so screen() would file a background
     // session's renamed window under the drawn session and its tick would walk a subtree of another tree.
 
 
@@ -1400,7 +1400,7 @@ final class UiApi {
         if(a.selectorWatches.isEmpty())
             return;
         // 073.2: each one is dropped from the tree IT recorded, not from the tree on screen. An addon may have
-        // subscribed in several sessions and the screen is on one of them, so host() here would leave every
+        // subscribed in several sessions and the screen is on one of them, so screen() here would leave every
         // subscription made in any other standing in its list, still matching, and still calling an addon that
         // no longer exists.
         for(LuaSelectorWatch w : a.selectorWatches) {
@@ -1444,26 +1444,34 @@ final class UiApi {
      * (026.1) do not. Since 031.1 a hidden window's <i>toggle</i> is owned as well, which makes {@code :reload}
      * the escape hatch for a hide typed into the console: without this the key stays swallowed until a relog.
      *
-     * <p><b>The guard decides relog vs {@code :reload}.</b> The anchor has already moved to the NEW session by
-     * the time this teardown runs, so {@link AddonManager#host()} is that session's and after a relog a
-     * server-bound entry's id no longer maps to the recorded widget (and a client-only one is no longer under the live root) — the restore is correctly skipped,
-     * the old tree being gone entirely. Within one session both tests still hold and the widget is put back.
-     * Tree ops → under the {@code ui} monitor, like every other write into the client's tree.
+     * <p><b>Each record names its own tree</b> (078.4). The window is put back in the {@code UI} it was hidden
+     * in — {@code h.wdg.ui} — so an addon that hid a window on each of two characters gives both of them back,
+     * and the monitor taken is the one guarding that widget rather than whichever session holds the screen. A
+     * relog leaves the old tree behind entirely: a server-bound entry's id no longer maps to the recorded widget
+     * there and a client-only one is no longer under that root, so the restore is correctly skipped. Tree ops →
+     * under the {@code ui} monitor, like every other write into the client's tree.
      */
     static void teardownHidden(Addon a) {
         if((a == null) || a.hiddenNative.isEmpty())    // null: the :lua REPL owner, which exists only once used
             return;
-        final UI u = host();
         final List<LuaWidget.Hidden> hs = new ArrayList<LuaWidget.Hidden>(a.hiddenNative);
         a.hiddenNative.clear();
         LuaWidget.recountHidden();      // 031.1: the toggles this addon owned go back to the client
+        for(LuaWidget.Hidden h : hs)
+            endHidden(h);
+    }
+
+    /**
+     * Put ONE hidden window back and end its substitution, under the monitor of the tree that window stands in.
+     * The rule is asked BEFORE the view is killed, because it reads the view's visibility.
+     */
+    private static void endHidden(final LuaWidget.Hidden h) {
+        final UI u = h.wdg.ui;
         Runnable restore = () -> {
-            for(LuaWidget.Hidden h : hs) {
-                restoreHidden(u, h);          // the rule — asked BEFORE the view is killed
-                AddonWidget v = h.view;
-                h.view = null;
-                destroyView(h.owner, v);      // 032.1: the view's fate follows the substitution, teardown included
-            }
+            restoreHidden(u, h);              // the rule — asked BEFORE the view is killed
+            AddonWidget v = h.view;
+            h.view = null;
+            destroyView(h.owner, v);          // 032.1: the view's fate follows the substitution, teardown included
         };
         if(u != null) {
             synchronized(u) { restore.run(); }
@@ -1495,7 +1503,7 @@ final class UiApi {
             return;
         h.owner.hiddenNative.remove(h);
         LuaWidget.recountHidden();
-        UI u = host();
+        UI u = h.wdg.ui;                      // the tree that window stands in, not the one on screen
         if(u != null) {
             synchronized(u) { restoreHidden(u, h); }
         } else {
@@ -1638,10 +1646,11 @@ final class UiApi {
 
     /**
      * Give back every native widget this addon moved or resized ({@code :reload}/disable), then drop the list.
-     * The counterpart of {@link #teardownHidden} one property along, and the same guard: a record whose widget is
-     * no longer the live one is skipped, so a relog — where {@link AddonManager#host()} is the NEW session by
-     * the time the teardown runs — correctly restores nothing (that tree is gone), while a same-session
-     * {@code :reload} puts every widget back.
+     * The counterpart of {@link #teardownHidden} one property along, and it names trees the same way: each record
+     * is restored in the {@code UI} its widget stands in ({@code m.wdg.ui}), under that tree's own monitor, so a
+     * layout an addon held on two characters at once is given back on both. The same guard rides along — a record
+     * whose widget is no longer the live one of that tree is skipped, so a relog correctly restores nothing (that
+     * tree is gone), while a same-session {@code :reload} puts every widget back.
      *
      * <p><b>The restore is the exact inverse of the write</b>: the position half goes back through
      * {@link Widget#move}, the size half through {@link Widget#resize} with the argument
@@ -1658,18 +1667,16 @@ final class UiApi {
     static void teardownMoved(Addon a) {
         if((a == null) || a.movedNative.isEmpty())    // null: the :lua REPL owner, which exists only once used
             return;
-        final UI u = host();
         final List<LuaWidget.Moved> ms = new ArrayList<LuaWidget.Moved>(a.movedNative);
         a.movedNative.clear();
         LuaWidget.recountMoved();
-        Runnable restore = () -> {
-            for(LuaWidget.Moved m : ms)
-                restoreMoved(u, m, true, true);
-        };
-        if(u != null) {
-            synchronized(u) { restore.run(); }
-        } else {
-            restore.run();
+        for(final LuaWidget.Moved m : ms) {
+            final UI u = m.wdg.ui;             // the tree that widget stands in, not the one on screen
+            if(u != null) {
+                synchronized(u) { restoreMoved(u, m, true, true); }
+            } else {
+                restoreMoved(null, m, true, true);
+            }
         }
         Layout.sweep();
     }
@@ -1987,7 +1994,7 @@ final class UiApi {
     private static LuaValue nodeAt(Addon owner, LuaValue xv, LuaValue yv) {
         if(!xv.isnumber() || !yv.isnumber())
             throw new LuaError("hafen.ui.at(x, y) expects numbers");
-        UI u = host();
+        UI u = screen();
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         Widget hit;
@@ -2236,7 +2243,7 @@ final class UiApi {
      * teardowns like any other entity this addon placed.
      */
     static void teardownGobOverlays(Addon a) {
-        UI u = host();
+        UI u = screen();
         Runnable detach = () -> {
             try {
                 for(Gob g : allGobs()) {
@@ -2268,7 +2275,7 @@ final class UiApi {
      * twin, because teardown may run off the UI thread (session bind) while {@code ctick} rebuilds the state.
      */
     static void teardownGobScales(Addon a) {
-        UI u = host();
+        UI u = screen();
         Runnable unscale = () -> {
             try {
                 for(Gob g : allGobs())

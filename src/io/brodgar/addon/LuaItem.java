@@ -409,8 +409,9 @@ public final class LuaItem {
     /**
      * The live {@link GItem} behind a handle, or {@code null} once it is gone. Tree reachability is the
      * test, exactly as it is for a widget: the server destroying an item unlinks it, and an item that is
-     * not under the root is not in any container. A missing {@link UI} answers {@code null} without
-     * clearing anything — unresolvable now is not proven dead.
+     * not under the root is not in any container. <b>The tree is the item's own</b> ({@code it.ui}), so an
+     * item in a container one character has open is live while the player looks at another. A missing
+     * {@link UI} answers {@code null} without clearing anything — unresolvable now is not proven dead.
      */
     static GItem live(LuaItem h) {
         return (h == null) ? null : live(h.wdg);
@@ -420,7 +421,7 @@ public final class LuaItem {
     static GItem live(GItem it) {
         if(it == null)
             return null;
-        UI u = AddonManager.host();
+        UI u = it.ui;
         if((u == null) || (u.root == null))
             return null;
         return it.hasparent(u.root) ? it : null;

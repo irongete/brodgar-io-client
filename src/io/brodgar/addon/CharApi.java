@@ -70,16 +70,14 @@ import static io.brodgar.addon.AddonManager.*;
  * its diff key, and those widgets are <b>one login's</b>, so the set of them lives in {@code SessionState}
  * ({@link #newAdapters}) and every seam reaches it with the {@code ui} of the widget it was handed:
  * {@code w.ui} at the uimsg tap and the placement seam, and the state the tick already holds at the drains.
- * Never {@link AddonManager#host()}, which answers the session on screen — the uimsg tap runs on a Loader
+ * Never {@link AddonManager#screen()}, which answers the session on screen — the uimsg tap runs on a Loader
  * thread of whichever session sent the message, and the placement seam on the thread of whichever session
  * placed the widget.
  *
- * <p><b>What an adapter READS is still the drawn HUD</b>, and that is deliberate: an adapter body asks
- * {@link AddonManager#gui()}, which answers the session on screen, exactly as it did before — 073 indexes the
- * caches and changes no read, and {@code host()}/{@code screenView()} growing a session argument is named out
- * of scope by the spec. With one session live the two are the same {@code GameUI} and nothing can tell. What
- * this task buys is that when they stop being the same, each adapter already knows whose it is, and the seam
- * that must then hand it its own HUD has one caller to fix rather than nine caches to untangle first.
+ * <p><b>What an adapter READS is the drawn HUD</b>: an adapter body asks {@link AddonManager#gui()}, which
+ * answers the session on screen. Each adapter already knows whose cache it is, so the seam that must hand it
+ * its own HUD instead has one caller to fix rather than nine caches to untangle first — and until it does, an
+ * adapter indexed under a background session reports the drawn character's numbers.
  *
  * <p><b>Built with the state, not re-added on a switch.</b> The {@code resetSession} that used to empty the
  * list and construct nine fresh adapters on every {@code init} is gone: a session's HUD is not a different
@@ -157,7 +155,7 @@ final class CharApi {
      * The inbound-uimsg tap body (behind AddonManager.onUimsg): flag the interested adapter(s) of the
      * widget's <b>own</b> session dirty.
      *
-     * <p>073.3: {@code w.ui} and never {@link AddonManager#host()} — this runs on a Loader thread of the
+     * <p>073.3: {@code w.ui} and never {@link AddonManager#screen()} — this runs on a Loader thread of the
      * session that sent the message, which is not the session on screen, so the drawn session's adapters
      * would be asked whether they are interested in another character's update and its own would never
      * hear about it. A session with no state (the login screen, a destroyed tree) has no adapters to mark.
@@ -206,7 +204,7 @@ final class CharApi {
      * other placement consumer ({@code UiApi}'s selectors), so firing Lua here is safe.
      *
      * <p>073.3: the adapters offered are the ones of the tree the widget was placed <b>into</b>, which is what
-     * {@code wdg.ui} answers and what {@link AddonManager#host()} would not.
+     * {@code wdg.ui} answers and what {@link AddonManager#screen()} would not.
      */
     static void dispatchPlaced(Widget wdg) {
         if(wdg == null)

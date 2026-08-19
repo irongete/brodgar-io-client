@@ -162,7 +162,7 @@ final class Gesture extends Widget {
         if(a == null)
             return;
         // 073.2: over every tree, because an addon knows which gestures are its own and not which session it
-        // was running in — and this is called from init, when host() already answers the session being
+        // was running in — and this is called from init, when screen() already answers the session being
         // switched TO. With one session live it is the same single list it always was.
         for(AddonManager.SessionState s : AddonManager.allStates()) {
             for(Gesture g : s.gesturesRunning) {
@@ -258,7 +258,7 @@ final class Gesture extends Widget {
         if(ev.b != 1)
             return false;
         // 073.2: the tree the HANDLE is in, not the one on screen. They are the same tree whenever this fires
-        // — a press reaches the widget the pointer is over — but asking host() said "the drawn session" where
+        // — a press reaches the widget the pointer is over — but asking screen() says "the drawn session" where
         // what is meant is "this widget's session", and the gesture is added to u.root a few lines down.
         UI u = handle.ui;
         AddonManager.SessionState st = AddonManager.state(u);

@@ -95,7 +95,7 @@ final class Layout {
 
     // 073.2: the list is ONE TREE'S ({@code SessionState.layoutPending}). It holds widgets waiting for a
     // caption of their own session, filled at the placement seam from w.ui — the thread there is a Loader
-    // thread of whichever session sent the message, so host() would queue one session's window for another
+    // thread of whichever session sent the message, so screen() would queue one session's window for another
     // session's re-check, and that re-check would then walk a tree the widget is not in.
 
 
@@ -309,7 +309,7 @@ final class Layout {
      * <b>The {@code UI} is {@code w}'s own</b> (072.2), and it is one read answering both questions this method
      * asks of it: which monitor guards the write, and which tree the anchor derivation measures in. Neither is a
      * question about the session on screen — the widget being written is not always the drawn one — so
-     * {@link AddonManager#host()} would be the wrong answer to both, and the widget has carried the right one
+     * {@link AddonManager#screen()} would be the wrong answer to both, and the widget has carried the right one
      * all along. An unattached widget has a null {@code ui} and gets {@link LuaWidget#monitor}'s stand-in,
      * exactly as it did before this task: it still takes its text and its style, and every step of the geometry
      * that needs a tree already guards on {@code u} being null.
@@ -607,11 +607,16 @@ final class Layout {
      * <p>Called from {@link Sheet} <b>outside</b> its own lock: matching takes {@code Sheet.class} while holding the
      * {@code ui} monitor (the order the draw pass established), so a sweep that already held {@code Sheet.class}
      * would be the one path able to invert it.
+     *
+     * <p><b>The tree on screen</b> ({@link AddonManager#screen()}), and that is a limit rather than an address: a
+     * sheet is the addon's own declaration and matches in every session, but the re-derivation of what is ALREADY
+     * placed runs here alone, while {@link #placed} carries a new widget in any session. A window a background
+     * character already had open takes a rule installed now on its next placement, not on this sweep.
      */
     static void sweep() {
         if(!active())
             return;                                   // no rule, nothing held: a stock client sweeps nothing
-        UI u = AddonManager.host();
+        UI u = AddonManager.screen();
         if((u == null) || (u.root == null))
             return;
         synchronized(u) {
@@ -721,8 +726,8 @@ final class Layout {
      * screen resize.
      */
     static void dispatchResized(Widget w) {
-        UI u = w.ui;   // 073.2: "is this the SCREEN?" is a question about the widget's own tree — host() asked
-        if((u != null) && (w == u.root))   //   whether it was the DRAWN one's root, which a background
+        UI u = w.ui;   // 073.2: "is this the SCREEN?" is a question about the widget's own tree, not about
+        if((u != null) && (w == u.root))   //   whether it is the DRAWN one's root, which a background
             rederiveScreenAnchored();      //   session's root never is however often it resizes
         moved(w);
     }

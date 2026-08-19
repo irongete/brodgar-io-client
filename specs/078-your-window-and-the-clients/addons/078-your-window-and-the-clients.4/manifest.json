@@ -1,0 +1,9 @@
+{
+  "name": "078.4 — your window, and the client's",
+  "id": "078-your-window-and-the-clients.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Closing proof for task 078.4: one window of your own, in the layer, reading every live session's inventory at once.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

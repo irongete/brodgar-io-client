@@ -76,7 +76,7 @@ stays 212, and the survivor count is whatever `078.1` computed in `verbs.md`.
       Expect: the second character reads `nil` for that key and its own account-scope value reads
       unchanged — one file for the client, one folder each.
 
-- [ ] **078.4 — `host()` takes the session, and the sequence closes.**
+- [x] **078.4 — `host()` takes the session, and the sequence closes.**
       Deletes `AddonManager.host()`'s argumentless form, so the build is the proof: a site nobody
       converted does not compile. Its remaining callers are read **one at a time and not swept** —
       `AddonManager` 19, `VrApi` 17, `Retired` 6, `ProfHandle` 4, `Layout` 4, `CharApi` 4, `LuaEvent`

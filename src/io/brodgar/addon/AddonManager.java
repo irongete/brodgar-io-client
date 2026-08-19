@@ -268,28 +268,34 @@ public final class AddonManager {
      * the client — so a window in it keeps its place, its focus and any grab it holds across a character
      * switch, because nothing about it moves.
      *
-     * <p><b>Derived, never stored</b>, for {@link #host()}'s reason one line down: {@code UILoop} owns every
+     * <p><b>Derived, never stored</b>, for {@link #screen()}'s reason one line down: {@code UILoop} owns every
      * {@code UI} the client has, and a second copy of which one is the layer is a copy that can disagree.
-     * {@code null} before {@link Sessions#init} has a loop, exactly as {@code host()} is.
+     * {@code null} before {@link Sessions#init} has a loop, exactly as {@code screen()} is.
      */
     static UI layer() {
         return Sessions.layer();
     }
 
     /**
-     * <b>The {@code UI} whose widget tree this addon layer works in</b> (072.2) — where a selector searches,
-     * whose console a slash command is registered against, and whose audio,
-     * settings and connection the read verbs report. It is <b>not</b> "the screen": the pointer and the drawn
-     * {@link MapView} are one however many sessions are live, and they get their own names ({@code screen()},
-     * {@code screenView()}) precisely so that this one — the only genuinely session-shaped question in the
-     * layer — can grow a session argument later without dragging them along. Its callers are then exactly the
-     * list of sites that must grow one.
+     * <b>The screen</b> (072.3) — the {@code UI} the client actually draws, which is where the pointer is, what
+     * the modifier keys are being held over, and where a message printed for the user lands. <b>There is one
+     * pointer and one coordinate space however many sessions are live</b>, so a verb reading it never has a
+     * session to be handed.
      *
-     * <p><b>Derived, never stored.</b> It answers {@link Sessions#anchor()} — the session the client draws —
-     * rather than a field kept in sync by hand, which is the shape {@code 071} spent three tasks deleting one
-     * layer down: two copies of "which session is drawn" disagree eventually, and the one that disagrees is
-     * the one nothing reads on the tick. Since 074.2 nothing could keep such a field anyway: the engine is not
-     * handed the session on screen at any moment at all, because no moment tears it down and rebuilds it.
+     * <p><b>It is one of three names, and the whole of the choice</b> (078.4). A tree read is one of exactly
+     * three questions, and the site says which by the name it calls: {@link #sessionui(String)} for <i>that
+     * character's</i> widgets, {@link #layer()} for the addon's own windows, and this for the screen. <b>There
+     * is no fourth name</b> meaning "whichever session happens to be drawn, for want of an address": every site
+     * that could call one is a site that has stopped saying which session it meant, and the three above are the
+     * whole vocabulary. Nothing derived from a widget in hand asks here either — the tree guarding a widget,
+     * holding its id and receiving its restore is {@code w.ui}, and a site with a widget already has its
+     * answer.
+     *
+     * <p><b>Derived, never stored.</b> It answers {@link Sessions#anchor()} rather than a field kept in sync by
+     * hand, which is the shape {@code 071} spent three tasks deleting one layer down: two copies of "which
+     * session is drawn" disagree eventually, and the one that disagrees is the one nothing reads on the tick.
+     * Since 074.2 nothing could keep such a field anyway — no moment tears the drawn session down and rebuilds
+     * it.
      *
      * <p><b>It answers the login screen when the client holds no session</b>, because that is what is drawn —
      * and since 074.2 the addon layer is running there, loaded and ticking, with every session-shaped read
@@ -297,18 +303,6 @@ public final class AddonManager {
      *
      * <p>{@code null} before {@link Sessions#init} has a loop, and the {@link UI#root} of what it answers may
      * be null as well — every caller guards.
-     */
-    static UI host() {
-        return Sessions.anchor();
-    }
-
-    /**
-     * <b>The screen</b> (072.3) — the {@code UI} the client actually draws, which is where the pointer is and
-     * what the modifier keys are being held over. Distinct from {@link #host()} in what it will become rather
-     * than in what it answers: both are {@link Sessions#anchor()} today, and when sessions become addressable
-     * {@code host()} grows an argument while this one cannot. <b>There is one pointer however many sessions
-     * are live</b>, so a verb reading it never has a session to be handed — and separating the two names is
-     * how the sites that must grow one stay told apart from the sites that must not.
      */
     static UI screen() {
         return Sessions.anchor();
@@ -406,7 +400,7 @@ public final class AddonManager {
         // ---- the widget layer (073.2) ------------------------------------------------------------
         // Every one of these names WIDGETS OF ONE TREE, and each is filled from the widget it is about:
         // w.ui at the placement, removal and caption seams, the handle's own ui at a press, the tree a
-        // builder attached to. None of them is reached through host(), which answers "the session on
+        // builder attached to. None of them is reached through screen(), which answers "the session on
         // screen" — the taps that fill them run on a Loader thread as often as not, and an addon teardown
         // walks whatever that addon owns across every tree it drew into (074.2: one addon, many sessions).
         // See the reason column of census.md's widget-layer table for each.
@@ -437,7 +431,7 @@ public final class AddonManager {
         // Each of these names ONE CHARACTER'S HUD. An adapter reads a GameUI, and a session has one; a
         // slot index names a bar, and each character has their own. Both are reached with the ui of the
         // widget the seam was handed — w.ui at the uimsg and placement taps, the GameUI itself at the three
-        // seams inside it — and never through host(), for the reason the widget layer above gives.
+        // seams inside it — and never through screen(), for the reason the widget layer above gives.
 
         /** The nine change-detection adapters reading THIS session's HUD ({@link CharApi}). Built with the
          *  state and never rebuilt: a session's HUD does not become another HUD because the player tabbed,
@@ -530,7 +524,7 @@ public final class AddonManager {
      * <b>The engine's state for one session</b> (073.1), created on first ask — and the only door to it.
      *
      * <p><b>The key is the {@code UI}</b>, for three reasons that agree. It is what the engine already holds
-     * at nearly every site after {@code 072} ({@code w.ui} at a monitor, {@link #host()} at a tree read); it
+     * at nearly every site ({@code w.ui} at a monitor, {@link #sessionui(String)} at a tree read); it
      * is what a relogin <i>replaces</i>, through {@code UILoop.bgui}, which is exactly the moment every cached
      * widget id, gob id and slot index stops meaning anything; and it is not {@code Sessions.Member}, which
      * survives a relogin by swapping its {@code sess} and {@code ui} and so means "this slot in the switcher".
@@ -542,7 +536,7 @@ public final class AddonManager {
      * <p><b>{@code null} for a {@code UI} that is not a session</b>: none at all, the login screen (which
      * holds no {@code Session} and runs no addons), or one already destroyed. A destroyed {@code UI} must
      * never mint an entry here, or {@link #sweepStates()} and this would race each other forever — and the
-     * caller's own guard is the same one it already had for a null {@code host()}.
+     * caller's own guard is the same one it already had for a null {@code screen()}.
      */
     static SessionState state(UI u) {
         /* 074.1: the ADDON LAYER has a state too, and for the reason the widget-layer half of this object
@@ -688,7 +682,7 @@ public final class AddonManager {
      * <p><b>It is handed the scene's own {@link Glob}</b> (073.1), because that is what names the session
      * this world came up for. {@code mv.ui} cannot: the seam is the <i>end of the constructor</i>, and a
      * widget gets its {@code ui} when it is added to a tree, which has not happened yet. Reading
-     * {@link #host()} here would be worse than useless — a session reaching the world while another is on
+     * {@link #screen()} here would be worse than useless — a session reaching the world while another is on
      * screen would raise the flag on the session the player is looking at.
      */
     public static void attach(MapView mv, Glob glob) {
@@ -787,7 +781,7 @@ public final class AddonManager {
      * Register a weak-safe {@link OCache} callback that enqueues gob spawn/despawn for the tick. The callback
      * <b>closes over its own session's state</b> (073.1) rather than looking one up when it fires: it runs on
      * the network and Loader threads of <i>this</i> session, which are not the drawn session's, so
-     * {@link #host()} at that moment would file another session's gobs under whichever one holds the screen.
+     * {@link #screen()} at that moment would file another session's gobs under whichever one holds the screen.
      */
     private static void registerOcache(final SessionState st, UI u) {
         try {
@@ -922,7 +916,7 @@ public final class AddonManager {
             // Custom UI overlays (2b): queue the HUD-overlay afterdraw for THIS frame if any addon has one.
             // UI.drawafter is one-shot, tick precedes draw, so it paints above the HUD this frame. The SCREEN's
             // after-draw: a HUD overlay paints over what is drawn.
-            UI hu = host();
+            UI hu = screen();
             if((hu != null) && UiApi.anyHudOverlays())
                 hu.drawafter(UiApi.hudAfterDraw);
 
@@ -1662,8 +1656,8 @@ public final class AddonManager {
         if(!anyStreamSub(msg, true))
             return true;                              // fast path: nothing anywhere listens to this action
         // 073.1: the SENDER's own session, which is the tree the message is leaving and the monitor that
-        // guards it. host() would have answered the same thing today and the wrong thing the moment a
-        // message is sent from a session that is not the one drawn.
+        // guards it. screen() would answer the wrong thing the moment a message is sent from a session
+        // that is not the one drawn.
         UI u = (sender == null) ? null : sender.ui;
         SessionState st = state(u);
         if((st == null) || !Thread.holdsLock(u))
@@ -2049,7 +2043,7 @@ public final class AddonManager {
         }
         UI u = (w == null) ? null : w.ui;
         if(u == null)
-            u = host();
+            u = screen();
         return ((u == null) || (u.root == null)) ? w : u.root;
     }
 
@@ -2095,7 +2089,7 @@ public final class AddonManager {
             return null;
         LuaWidgetEntity e = ((WidgetSurface)w).ent;
         Widget p = (e == null) ? null : e.prevParent;
-        UI u = host();
+        UI u = w.ui;                     // 078.4: the surface's own tree — the record is where the widget WAS
         if((p == null) || (p == w) || (u == null) || (u.root == null) || !p.hasparent(u.root))
             return null;
         return p;
@@ -3213,7 +3207,7 @@ public final class AddonManager {
     private static void eval(String src) {
         if(src.isEmpty())
             return;
-        UI u = host();
+        UI u = screen();   // where the answer is printed: the console the line was typed into
         System.out.println("[console] :lua " + src);               // echo the input to the terminal
         try {
             LuaValue chunk;
@@ -3305,7 +3299,7 @@ public final class AddonManager {
             if(g != null)
                 return g;
         }
-        UI u = host();
+        UI u = screen();
         return (u == null) ? null : findGui(u.root);
     }
 
@@ -3589,7 +3583,7 @@ public final class AddonManager {
      * widgets stand in, root included, which is what a walk for a widget the server placed anywhere at all
      * has to start from ({@link GameUI} is only the HUD subtree, and a radial menu is not under it).
      *
-     * <p>Never {@link #host()}: that answers the session on screen, and the whole point of addressing one is
+     * <p>Never {@link #screen()}: that answers the session on screen, and the whole point of addressing one is
      * that the two part company. A member between trees answers {@code null}, exactly as {@link
      * #gameui(String)} does, so every caller guards.
      */

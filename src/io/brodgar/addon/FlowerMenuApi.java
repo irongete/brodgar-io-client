@@ -188,7 +188,7 @@ final class FlowerMenuApi {
      * {@link FlowerMenu} in a recursive walk of <b>its own</b> UI root (077.4).
      *
      * <p>One tree only ever really holds one, because an open menu grabs the mouse and the keyboard. It is
-     * the session's root and never {@link AddonManager#host()}: a ring the player left up on a character and
+     * the session's root and never {@link AddonManager#screen()}: a ring the player left up on a character and
      * then tabbed away from is still parented to that session's tree, which is what makes it readable and
      * pickable at a distance — and asking the drawn tree would have called it closed. A session the client
      * no longer holds, or one whose UI is between trees, simply has no menu.
@@ -226,13 +226,13 @@ final class FlowerMenuApi {
      * The press point a menu is placed at — {@code added()} does {@code c = parent.ui.lcc}, and that is the very
      * value {@link ClickToken} keys on. Read off the widget's own {@code ui} so a probe can drive the seam
      * without the manager's live one, and so the point is the one taken in the tree the ring stands in;
-     * {@link AddonManager#host()} is the fallback for a menu asked before it is parented, which is the only
-     * case with no tree to ask.
+     * {@link AddonManager#screen()} is the fallback for a menu asked before it is parented, which is the only
+     * case with no tree to ask — the press that would raise one lands on the screen.
      */
     private static haven.Coord lcc(FlowerMenu fm) {
         if((fm != null) && (fm.ui != null))
             return fm.ui.lcc;
-        UI u = AddonManager.host();
+        UI u = AddonManager.screen();
         return (u == null) ? null : u.lcc;
     }
 

@@ -375,7 +375,7 @@ final class StoreApi {
      * actually hold, whether that session was tabbed away from or ended outright.
      */
     static void rescope() {
-        AddonManager.SessionState st = AddonManager.state(AddonManager.host());
+        AddonManager.SessionState st = AddonManager.state(AddonManager.screen());
         String want = (st == null) ? null : st.charScope;
         if((want == null) ? (cur == null) : want.equals(cur))
             return;

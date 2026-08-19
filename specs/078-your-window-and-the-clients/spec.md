@@ -106,7 +106,6 @@ catches it.
 - `specs/078-your-window-and-the-clients/verbs.md` — 1 (writes), 2, 3, 4 (read)
 - `src/io/brodgar/addon/UiApi.java` — 1, 2, 4
 - `src/io/brodgar/addon/LuaSession.java` — 2, 3
-- `src/io/brodgar/addon/LuaWidget.java` — 2
 - `src/io/brodgar/addon/Layout.java` — 2, 4
 - `src/io/brodgar/addon/Sheet.java` — 1, 2
 - `src/io/brodgar/addon/LuaMouse.java` — 1
@@ -120,6 +119,14 @@ catches it.
 - `src/io/brodgar/addon/WidgetSubs.java` — 4
 - `src/io/brodgar/addon/LuaWidgetEntity.java` — 4
 - `src/io/brodgar/addon/VideoOptions.java` — 4
+- `src/io/brodgar/addon/AudioOptions.java` — 4
+- `src/io/brodgar/addon/Addon.java` — 4 (`state()` is a `host()` caller, and `HttpApi` is its only reader)
+- `src/io/brodgar/addon/HttpApi.java` — 4 (what `Addon.state()` is resolved for)
+- `src/io/brodgar/addon/AddonRegistry.java` — 4
+- `src/io/brodgar/addon/HookApi.java` — 4
+- `src/io/brodgar/addon/LuaGrab.java` — 4
+- `src/io/brodgar/addon/LuaItem.java` — 4
+- `src/io/brodgar/addon/LuaWidget.java` — 2, 4
 - `src/io/brodgar/addon/Retired.java` — 2, 3, 4
 - `src/io/brodgar/addon/Section.java` — 2, 3 (the per-verb `__index` a split section mounts)
 - `src/io/brodgar/addon/Manifest.java` — 3 (`SavedVar.account`: the declaration IS the split)

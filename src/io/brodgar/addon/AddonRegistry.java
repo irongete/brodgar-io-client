@@ -300,7 +300,7 @@ public final class AddonRegistry {
                                                              //   (no camera pan, no clicks) until :release() is called
                                                              //   by hand, :reload's escape hatch not included
         loadAll();                                   // re-scan disk + enabled set; re-run; fire Load
-        AddonManager.SessionState st = AddonManager.state(host());   // the character on screen, if there is one
+        AddonManager.SessionState st = AddonManager.state(screen());   // the character on screen, if there is one
         GameUI g = (st == null) ? null : AddonManager.gui(st.ui);
         if(g != null) {
             StoreApi.enterWorld(st, g);              // reload per-char saved vars (the scope is still valid)

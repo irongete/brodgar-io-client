@@ -65,7 +65,7 @@ final class LuaSelectorWatch {
      * <b>The tree this subscription watches</b> (073.2) — the session's {@code UI}, recorded once at
      * registration and never re-derived. A subscription is not about a widget, so nothing else on it can say
      * which session it belongs to; without this the only answer available at teardown would be
-     * {@code AddonManager.host()}, which by then is the session the anchor has already moved TO, and the
+     * {@code AddonManager.screen()}, which by then is the session the anchor has already moved TO, and the
      * subscription would be dropped from that session's list while staying in the one it was made against.
      *
      * <p>{@code null} when there was no session to register in (the login screen's {@code :lua} console) — the
