@@ -23,15 +23,12 @@ verification passes.
    searching, and it stays true only if a gap is said out loud.
 4. The **`docs/addons/` pages** of every surface the task touches, the **`docs/client/` pages** of
    the subsystems it works against, and **`DOCUMENTATION.md`** — before writing a page, not after.
-5. **`specs/ROADMAP.md`** — §4 files a finding only when it is not already there, and a line can
-   only be struck at the close by someone who has seen it.
 
-Then `git status --short src docs addons specs`. The active feature's own `specs/<NNN>-*/` being
-untracked is expected on task `.1` — `/plan` wrote it and nothing commits until the first `/end`.
-**Anything else uncommitted means a previous task may not have been closed**: report exactly those
-paths and ask before starting. `/end` commits the whole of the task's tree, so a second task started
-on top lands both in one commit. Nothing records that a task is in flight, and nothing needs to: the
-working tree says it.
+The working tree may hold other work in flight — a task someone else has open, an edit of the
+maintainer's, a scratch file. **Leave every bit of it alone: never stage it, never report it, never
+ask about it.** `/end` commits the explicit list of paths THIS task writes and nothing besides, so
+what is already in the tree cannot reach your commit. Nothing records that a task is in flight, and
+nothing needs to: what you wrote in this context is the list.
 
 ## 2. Implement the ONE task
 
@@ -127,8 +124,21 @@ docs sweep as the next task of the same feature, and the close charges it. Nothi
   map is checked against `src/`. Class and member names, **never a line number**, upstream only,
   ≤150 lines. If a page you leaned on turned out to be wrong about `src/`, fix it here too: `src/`
   always wins.
-- Any engine defect or missing API you find goes to `specs/ROADMAP.md` with `(filed: NNN)`, unless
-  the line is already there. **Never fix it here.**
+- **Every finding is routed, and every route lands inside this feature.** Nothing is left as a note
+  for later, and **no command writes `specs/ROADMAP.md`** — that file is the maintainer's:
+  - **A gap or a defect in the surface THIS FEATURE ships** — the `hafen.*` spellings its tasks add
+    or change, and the `src/io/brodgar/**` those run through — **is not a finding, it is a task that
+    was missing.** Raise it at the close: it becomes a new task in this feature's `tasks.md`, or the
+    maintainer takes it out of scope and its reason goes into `plan.md`'s *Discarded alternatives*.
+    The feature does not close while one of them stands undecided.
+  - **A defect or a trap in upstream `haven`** becomes a **gotcha on that subsystem's `docs/client/`
+    page**, written here, in this same task, to `DOCUMENTATION.md` §12 — unless this task cannot
+    make its own claim true without the fix, in which case the fix is part of the task and the page
+    records what it now does.
+  - **A page your own writing pushes over its ceiling** is **split here**, by `DOCUMENTATION.md`
+    §9: split by subject, price it by the inbound anchors, re-point them in this same task.
+  - **Anything else** — a capability the client has not got, an idea past this feature's boundary —
+    is **one sentence in the close report**, for the maintainer to queue or drop.
 
 ## 5. Stop, and iterate — in THIS context, through to the close
 
@@ -140,6 +150,12 @@ the one record that cannot go stale.
 client scans `bin/addons/`, not `addons/` — say which copy you made, and repeat it each round. An
 un-synced fix has the maintainer re-run the previous build of your suite and paste a result that is
 not yours.
+
+**Report what the task found, beside its one command.** A gap in this feature's own surface is a
+decision the maintainer takes before the feature can close: name it, and say whether it reads as a
+new task or as a line for *Discarded alternatives*. A task added mid-feature is written to
+`tasks.md`'s own template and density; if the feature stops fitting that budget it was mis-scoped,
+and the maintainer splits it. Anything past the boundary is one sentence in the same report.
 
 **Report exactly one command: `:t<NNN>-<X>`.** Never ask for a second one — if verifying this task
 needs another suite, the assertion is missing from this one. Then stay with the maintainer for as

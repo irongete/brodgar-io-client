@@ -13,7 +13,7 @@ World-of-Warcraft-style Lua (LuaJ) AddOn system in `src/io/brodgar/addon/`, on b
 | `src/` | The `haven` engine (upstream) and `src/io/brodgar/**` (ours) |
 | `addons/` | The two tools — `profiler` and `widgetstack` — and the one task suite in flight |
 | `bin/addons/` | What the running client actually scans, beside the jar. A suite is copied here to be run, and gitignored |
-| `specs/ROADMAP.md` | The only queue: open defects and candidates |
+| `specs/ROADMAP.md` | The maintainer's own long-term queue. `/plan` reads it; **no command writes it** |
 | `specs/NNN-<feature>/` | `spec.md` · `plan.md` (its *Discarded alternatives* are the decision record) · `tasks.md`, plus the archived suites. Written once, then frozen |
 | `DOCUMENTATION.md` | How a page under `docs/` is written |
 
@@ -38,6 +38,12 @@ frozen folder. If the reason does not stand on its own words, it is not prior ar
 - **`/end` makes the only self-driven commit**, and it lands the whole task at once — code, docs,
   specs, addons — *after* the maintainer's verification. `/plan` and `/implement` commit nothing.
 - **Everything in English**: the docs, the specs, the code and its comments.
+- **A feature ships whole, and closes with nothing of its own left open.** A gap or a defect in the
+  surface the feature itself ships is a **task of that feature**, never a note left somewhere for
+  later. A defect or a trap in upstream `haven` is a **gotcha on its `docs/client/` page**. A page
+  your own writing pushes over a ceiling is **split in the task that wrote it**. Everything else — a
+  capability the client has not got, an idea past this feature's boundary — is **reported to the
+  maintainer at the close**, and is theirs to queue.
 - **`/archive` is a frozen backup — NEVER read it.**
 - Core edits to `haven` stay minimal, centralized, and tagged `// addon:`.
 - Read nothing outside what the running command lists, unless the maintainer names it.

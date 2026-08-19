@@ -199,7 +199,9 @@ Over the pages it touched. Report counts, with the offenders listed.
    a line-oriented pattern and reads as clean. Three shapes are resolved, not one — a page path, an
    anchor into another page, an anchor within the same page. A move also leaves **link text** stale
    where no link is broken, so grep the text, not only the targets.
-2. **Size** — `wc -l` on every page touched, against the 300-line ceiling.
+2. **Size** — `wc -l` on every page touched, against the 300-line ceiling. **A page your own
+   writing pushes over it is split here**, by §9: split by subject, price the split by its inbound
+   anchors, and re-point them in this same task.
 3. **Headings** — `grep -rnE "^#.*( [—/&] |\[, )" docs/` returns nothing; no `#####`, no internal
    codes, no trailing punctuation.
 4. **Wording** — the change-note constructions from §8. Every hit read, not counted.
@@ -210,8 +212,10 @@ Over the pages it touched. Report counts, with the offenders listed.
    is the check that exists because a feature documents the pages it opens,
    while the stale sentence sits in a page it never opened, written in the negative, invisible to
    every grep aimed at the new syntax.
-7. **Findings** — any engine defect or missing API found while documenting goes to
-   `specs/ROADMAP.md` with its `(filed: NNN)` stamp, and is **never fixed here**.
+7. **Findings** — a gap or a defect in the surface being documented belongs to the feature that
+   ships it: it is raised at the close and becomes a task of that feature. A trap in upstream
+   `haven` becomes a **gotcha on its `docs/client/` page** (§12.4), written in this same task.
+   Nothing is filed anywhere else.
 
 ## 12. `docs/client/` — the engine map
 

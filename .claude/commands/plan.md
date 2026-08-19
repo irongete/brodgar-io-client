@@ -11,7 +11,9 @@ first `/end`.
 1. **`docs/addons/**` — the pages of every surface this feature touches.** For anything that
    already ships, **the shipped reference IS the contract and the only current model.** There is no
    prose summary of it anywhere; do not go looking for one.
-2. **`specs/ROADMAP.md`** — is this already filed as a defect or a candidate?
+2. **`specs/ROADMAP.md`** — the maintainer's own long-term queue, and the one file a command reads
+   and never writes. Is this ground already stated there? Take what it says as input to the scope;
+   the lines are struck by hand, by the maintainer, when they choose.
 3. **`docs/client/`** — `ls` it, then the 1–2 subsystem pages this feature touches. That is the map
    of upstream `haven`, and it is where you start rather than in `src/`.
 4. **The source**, where the feature needs engine behaviour neither tier states. `grep` `src/` for
@@ -30,6 +32,12 @@ first `/end`.
 
 - **What & why** · **acceptance criteria**, each verifiable in-game through the task's own suite ·
   **out of scope**.
+- **Scope it so the surface it ships is WHOLE when it closes.** *Out of scope* is a **boundary,
+  never a remainder**: the place where this feature's surface ends and another's begins, drawn so
+  that everything inside stands on its own. A write whose undo comes later, a read that answers for
+  one of its two callers, half of a pair that has to round-trip — those are not out of scope, they
+  are the feature unfinished, and the close refuses them. If only half of the ground fits, draw the
+  boundary where that half is itself coherent, and say in one line what the other half would be.
 - **`Docs impact:`** the pages that will be written, **plus the derived impact set** — grep the
   prose names of this surface across the whole of `docs/` and write the command *and its result*.
   *This exists because a feature documents the pages it opens, while the stale sentence sits in a
@@ -83,11 +91,12 @@ it and in the tasks that read it. It freezes with the folder, like everything el
 
 ## 3. Register and stop
 
-- Remove the line from `specs/ROADMAP.md` if the feature came from there.
+- **Write no file but the three.** Where this feature's scope covers ground the maintainer's
+  `specs/ROADMAP.md` already states, **name those lines in the report** — striking them is theirs.
 - **Write nothing else** — the three files, and nothing that records state. The feature is *active*
   because its `tasks.md` has unchecked boxes, which is derived.
-- **STOP for review, and do not commit.** Report the files written and the `ROADMAP.md` line
-  removed. Stay in the review loop as long as it takes.
+- **STOP for review, and do not commit.** Report the files written and the `ROADMAP.md` lines this
+  scope covers. Stay in the review loop as long as it takes.
 - **Every decision the review reaches goes back into the three files before you hand over** — the
   approach into `plan.md`, what the maintainer rejected into *Discarded alternatives* with its
   reason, the scope into `spec.md`. The conversation ends here and `/implement` reads the files and

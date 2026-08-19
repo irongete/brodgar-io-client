@@ -1,8 +1,11 @@
-# ROADMAP — future work and open findings
+# ROADMAP — the maintainer's long-term queue
 
-> **One line each**, and every line ends with `(filed: NNN)` — the feature that raised it. `/plan`
-> removes the line it picks up. This is the ONLY place open work lives: a finding never sits in
-> another tree, and never in a feature folder, which is frozen.
+> **The maintainer's own file, and the one file here no command writes.** `/plan` reads it, to take
+> what it states into a feature's scope; the lines are struck by hand, when the maintainer chooses.
+> **One line each**, and a `(filed: NNN)` stamp names the feature whose work raised it. A feature
+> closes whole, so nothing arrives here on its own: what a feature leaves undone about its own
+> surface is a task of that feature, an upstream trap is a gotcha in `docs/client/`, and what lies
+> past a feature's boundary is reported at the close and reaches this file through the maintainer.
 
 ## Defects
 
