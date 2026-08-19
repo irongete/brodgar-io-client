@@ -1,0 +1,9 @@
+{
+  "name": "081.4 — Session Manager",
+  "id": "081-session-manager.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 081.4: the cycle Session Manager's hotkey runs, the row label's fallback, and the layer being out of a session tree's reach.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

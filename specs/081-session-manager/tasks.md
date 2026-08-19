@@ -48,7 +48,7 @@
       `[manual]`: run `:session wnd` and report what the console says — it must be the unknown-
       subcommand line, not a window.
 
-- [ ] **081.4 — Session Manager.** The addon at `addons/session-manager/`, copied to
+- [x] **081.4 — Session Manager.** The addon at `addons/session-manager/`, copied to
       `bin/addons/session-manager/`: a layer window with one row per live session — the character's
       name where there is one, the account before that, the row for the session on screen marked — a
       button per row that writes `hafen.session():current(s)`, an `X` per row calling `s:close()`
@@ -63,3 +63,18 @@
       shows every character, that a button and the key both move the screen, that the window does
       **not** flicker on a switch, that `X` logs that character out, and that its position survives a
       client restart.
+
+- [ ] **081.5 — The write says whether it landed.** `hafen.session():current(s)` on a session whose
+      `UI` is momentarily absent — connecting, or between the two UIs of a character handoff — is a
+      no-op with a console line and no signal to Lua, and the cycling example under it derives the
+      next session from `:current()` each call, which is the one shape that stalls on that login
+      forever. Docs only, no Java: `docs/addons/api/session.md`'s write group says the no-op is
+      detected by **re-reading `:current()`**, names both moments it happens, and its example checks
+      the step and walks past — the shape `addons/session-manager/` already ships.
+      *Its suite* asserts the shape rather than the sentence: `hafen.session():current(s)` hands the
+      collection back so writes chain; writing the session **already** on screen is the one no-op a
+      suite can produce on demand, and `:current()` re-read still answers that same `Session`; and a
+      checked lap over `hafen.session():list()` visits each session once and ends where it started.
+      `[manual]`: two accounts up, then `:session add` a third and press the `session-manager` key
+      while it is still connecting — report that the screen did not move and what the console said,
+      and that pressing again once it has a character list lands on it.

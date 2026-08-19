@@ -66,7 +66,7 @@ Derived impact set —
 
 ## Context files
 
-- `docs/addons/api/session.md` — 1, 2, 4
+- `docs/addons/api/session.md` — 1, 2, 4, 5
 - `docs/addons/api/conventions.md` — 1, 2
 - `docs/addons/api/event/bus.md` — 1, 2, 4
 - `docs/addons/api/event/README.md` — 2, 4 (`:on`/`sub:off`: every suite here subscribes)
@@ -76,7 +76,7 @@ Derived impact set —
 - `docs/addons/guides/permissions.md` — 2
 - `docs/addons/runtime.md` — 2, 4
 - `docs/client/multi-session.md` — 1, 2, 3
-- `DOCUMENTATION.md` — 1, 2, 3
+- `DOCUMENTATION.md` — 1, 2, 3, 5
 - `src/io/brodgar/addon/SessionApi.java` — 1
 - `src/io/brodgar/addon/LuaSession.java` — 1, 2
 - `src/io/brodgar/addon/Args.java` — 1, 2
@@ -93,3 +93,4 @@ Derived impact set —
 - `docs/addons/api/client/keybindings.md` — 4
 - `docs/addons/api/store.md` — 4
 - `addons/widgetstack/` — 4 (the shape of an addon that builds and toggles a window)
+- `addons/session-manager/` — 5 (the checked cycle the page's example is to show, already written)

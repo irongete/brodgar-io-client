@@ -17,7 +17,7 @@ character. Everything it may touch arrives through one `hafen.*` API.
 | [guides](addons/guides/README.md) | one page per task: the world, events, UI, saved data, permissions, theming, debugging |
 | [API reference](addons/api/README.md) | every `hafen.*` namespace, verb, argument and return |
 | [the runtime](addons/runtime.md) | the manifest, the sandbox, the CPU budgets, the AddOns panel, the console commands |
-| [the bundled addons](addons/examples.md) | the two tools that ship with the client, and what each is for |
+| [the bundled addons](addons/examples.md) | the addons that ship with the client, and what each is for |
 
 ## Changing the client
 
