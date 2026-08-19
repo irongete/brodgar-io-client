@@ -72,7 +72,7 @@ end
 | `grid:live()` | bool | is this grid streamed in right now? |
 | `grid:exists()` | bool | does the database carry this grid? |
 | `grid:segmentCoord()` | `{x, y}` \| nil | its coord inside its segment |
-| `grid:position()` | [Position](../world.md#the-position-type) \| nil | its upper-left corner |
+| `grid:position()` | [Position](../position.md) \| nil | its upper-left corner |
 | `grid:segment()` | [`Segment`](#the-segment-object) \| nil | the segment it belongs to |
 | `grid:tile(c)` | `{name, prio}` \| nil | the recorded tile at within-grid tile coord `{x, y}`, `0..99` |
 | `grid:height(c)` | number \| nil | the recorded height there |
@@ -106,7 +106,7 @@ A within-grid tile coord is `0..99`; anything else is refused rather than read a
 **Store the Position, never the segment coordinate.** A segment id is bookkeeping this client invented,
 and when two explored areas turn out to touch, the merge **rewrites** the loser's grid coords and every
 marker inside it. A stored `seg` + tile coord would not go `nil` after that — it would point at the *wrong
-place*, which is worse. A [Position](../world.md#the-position-type) anchors on a grid id, which comes from
+place*, which is worse. A [Position](../position.md) anchors on a grid id, which comes from
 the server, means the same thing to every player, and no merge ever moves.
 
 | Read it as | From | Then |
@@ -116,7 +116,7 @@ the server, means the same thing to every player, and no merge ever moves.
 
 `hafen.store` and `hafen.json` marshal a Position by themselves, so there is nothing to convert; the
 `{gridId, x, y}` table `p:info()` hands out is for a shape that has to leave the client some other way,
-and [`s:world():position(saved)`](../world.md#the-position-type) brings it back.
+and [`s:world():position(saved)`](../position.md) brings it back.
 
 ## See also
 

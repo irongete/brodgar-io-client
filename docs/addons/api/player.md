@@ -35,7 +35,7 @@ logged in, while [`hand:use`](#the-hand) is a gesture with the pointer.
 | Method | Returns | Description |
 |---|---|---|
 | `s:player():gob()` | [Gob](gob.md) \| nil | that character's own game object; `nil` before that session is in the world |
-| `s:player():worldToScreen(p)` | `{x, y}` \| nil | project a [Position](world.md#the-position-type) to a screen point, in root [design pixels](ui/pixels.md); `nil` unless that session is on screen |
+| `s:player():worldToScreen(p)` | `{x, y}` \| nil | project a [Position](position.md) to a screen point, in root [design pixels](ui/pixels.md); `nil` unless that session is on screen |
 
 `s:player():gob()` is the same object as `s:world():gob():get(<that character's id>)` — so
 `gob == s:player():gob()` is how you tell "is this that character?" from any other gob read through the same
@@ -70,7 +70,7 @@ per-player state, so they live in [`session:meter`](meter.md).
 
 ### `s:player():move(p)`
 
-Walk that character to a [Position](world.md#the-position-type) — the click a left-click on that patch of
+Walk that character to a [Position](position.md) — the click a left-click on that patch of
 ground sends, so an **off-screen destination is fine**. Returns the Player, so a move chains. It needs the
 `player.move` [permission key](../guides/permissions.md) declared in your manifest; without it the call
 raises an error naming that key, before anything is sent.
@@ -95,7 +95,7 @@ Before that session is in the world there is no map view, and it raises saying s
 those cases.
 
 > **Walking is the whole of what a character you are not looking at will take.** Everything else a click can
-> mean — [clicking an object](gob.md#write-protected), [placing](world.md#write-protected) what is on the
+> mean — [clicking an object](world.md#write-protected), [placing](world.md#write-protected) what is on the
 > pointer, an area select, [applying a held item](#the-hand) — belongs to the character on screen and raises
 > naming `hafen.session():current()` for any other. That line is the client's own: an order carries a
 > destination and never a target.
@@ -158,7 +158,7 @@ the three the client itself has:
 | `target` | What it does |
 |---|---|
 | an [`Item`](ui/items.md#the-item-object) | apply it onto that item, wherever the item is |
-| a [Position](world.md#the-position-type) | apply it to the ground there |
+| a [Position](position.md) | apply it to the ground there |
 | a [Gob](gob.md) | apply it to that object — the waterskin onto the plant, not onto the dirt beside it |
 
 `mods` is optional and defaults to `0`: a bitfield, Shift = 1, Ctrl = 2, Alt = 4, added together. It
@@ -175,7 +175,7 @@ cases.
 ## See also
 
 - [`hafen.session`](session.md) — the address this hangs off, and the character it is playing
-- [Gob](gob.md) — everything positional about that character, and `gob:click`
+- [Gob](gob.md) — everything positional about that character
 - [items](ui/items.md) — the Item the hand carries, and the verbs on one in a container
 - [`session:meter`](meter.md) — the HUD bars
 - [`session:char`](char.md) — attributes, skills and food

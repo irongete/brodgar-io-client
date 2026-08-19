@@ -18,7 +18,7 @@ o:rotate(math.pi / 4):scale(1.5)                   -- face 45 degrees, 1.5 times
 
 `asset` is a [`hafen.asset`](../asset.md) **mesh handle** —
 [handle-only](README.md#the-anchor-is-an-argument), so a path string is an error — and the
-[anchor](README.md#the-anchor-is-an-argument) is a [Position](../world.md#the-position-type) to stand it
+[anchor](README.md#the-anchor-is-an-argument) is a [Position](../position.md) to stand it
 at a point or a [Gob](../gob.md) to make it follow one.
 A new object has scale `1`, full opacity, no tint and is not clickable.
 

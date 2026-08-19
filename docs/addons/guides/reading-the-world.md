@@ -47,10 +47,10 @@ if tree and tree:exists() then
 end
 ```
 
-Two Gobs read through the same session for the same object are the **same value**, so `==` compares them and
-a table can be keyed by one directly — which is how you remember what you have already seen without juggling
-ids. Across two characters the same object is two Gobs, and [`gob:id()`](../api/gob.md#identity) is what
-crosses them.
+Two Gobs for the same object are the **same value**, so `==` compares them and a table can be keyed by one
+directly — which is how you remember what you have already seen without juggling ids. That holds across your
+characters too: two of them looking at one tree find the same Gob, so a set keyed by Gobs counts objects
+rather than viewings. See [identity](../api/gob.md#identity).
 
 ## Do not scan every frame
 
@@ -105,7 +105,7 @@ hafen.log():write(t and (t.name or t.id) or "not loaded yet")
 
 > **World coordinates do not hold.** The client re-bases them whenever the server drops the map — every
 > login does it, and so does a walk into a cave — and they mean nothing to another player, which is why a
-> place is a [Position](../api/world.md#the-position-type) rather than a pair of numbers:
+> place is a [Position](../api/position.md) rather than a pair of numbers:
 > it anchors itself to a map grid, so it goes into [`hafen.store`](../api/store.md) and comes back the
 > same place next session.
 
@@ -115,7 +115,7 @@ Everything above is the world **streamed around that character**. The ground you
 a different thing entirely — it is on disk, it outlives the session, and it is
 [`hafen.map`](../api/map/README.md):
 segments and grids, the claims and provinces that covered them, your markers, and the drawings the corner
-minimap paints. A [Position](../api/world.md#the-position-type) is the door between the two halves, in
+minimap paints. A [Position](../api/position.md) is the door between the two halves, in
 both directions:
 
 ```lua

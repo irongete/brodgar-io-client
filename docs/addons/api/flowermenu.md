@@ -170,6 +170,7 @@ console command or a hotkey cannot be the thing that reacts to a menu. A handler
 ## See also
 
 - [`hafen.session`](session.md) — the address the section is reached through
-- [Gob](gob.md) — what `:gob()` hands you, and `gob:click(3)`, the right-click that puts the ring up
+- [Gob](gob.md) — what `:gob()` hands you
+- [`session:world`](world.md#write-protected) — `s:world():click(gob, 3)`, the right-click that puts the ring up
 - [`session:menugrid`](menugrid.md) — the *other* menu: the catalogue of what a character can do
 - [`hafen.event`](event/bus.md#the-radial-menu) — the bus these two events sit on, and every other key

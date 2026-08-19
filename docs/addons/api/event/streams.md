@@ -25,11 +25,11 @@ reaches the server, which an event on [the bus](bus.md) would arrive too late to
 | `ev:msg()` | the message name |
 | `ev:sender()` | the sending [Widget](../ui/widget.md) |
 | `ev:args()` | a 1-based array snapshot of the raw protocol arguments, in the units the wire carries; a coordinate is `{x=, y=}` |
-| `ev:position(i)` | argument `i` as a [Position](../world.md#the-position-type); throws when that argument is not a coordinate |
+| `ev:position(i)` | argument `i` as a [Position](../position.md); throws when that argument is not a coordinate |
 | `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the sending widget's own space; throws when that argument is not a coordinate |
 | `ev:preventDefault()` | cancel the send |
 | `ev:resend()` | re-send the original arguments verbatim; implies `preventDefault` |
-| `ev:send(t)` | send a new argument table, a [Position](../world.md#the-position-type) where a coordinate goes; implies `preventDefault` |
+| `ev:send(t)` | send a new argument table, a [Position](../position.md) where a coordinate goes; implies `preventDefault` |
 
 A coordinate argument is in one of two spaces and nothing in its shape says which: a `click` carries the
 press point at 1 and the destination in the world at 2, both `{x=, y=}`. Name the space at the index you
@@ -83,10 +83,10 @@ to be applied to a widget.
 | `ev:msg()` | the message name |
 | `ev:target()` | the receiving [Widget](../ui/widget.md) |
 | `ev:args()` | a 1-based array snapshot of the raw protocol arguments, in the units the wire carries |
-| `ev:position(i)` | argument `i` as a [Position](../world.md#the-position-type), as on `action` above |
+| `ev:position(i)` | argument `i` as a [Position](../position.md), as on `action` above |
 | `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the receiving widget's own space |
 | `ev:preventDefault()` | **swallow** the update, so the widget never applies it |
-| `ev:rewrite(t)` | apply the update with new arguments, a [Position](../world.md#the-position-type) included, as on `action` above |
+| `ev:rewrite(t)` | apply the update with new arguments, a [Position](../position.md) included, as on `action` above |
 
 `preventDefault` wins over `rewrite` if both are called. Common `msg` names: `set` · `add` · `del`.
 
@@ -104,5 +104,5 @@ Like `action`, a `message` key is open: any string is accepted and may never fir
 - [`hafen.event()`](README.md) — subscribing, and the handle that ends one
 - [the catalogue](bus.md) — the closed set of client-wide facts, for what a message is not
 - [the Widget object](../ui/widget.md) — what `ev:sender()` and `ev:target()` hand you
-- [`session:world`](../world.md#the-position-type) — the Position type both streams take and answer with
+- [Position](../position.md) — the place type both streams take and answer with
 - [conventions](../conventions.md#threading) — why a handler must not block

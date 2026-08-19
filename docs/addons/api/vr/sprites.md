@@ -15,7 +15,7 @@ hafen.vr():sprite():remove(sprite)                       -- or let reload or dis
 
 `asset` is a [`hafen.asset`](../asset.md) **image handle** —
 [handle-only](README.md#the-anchor-is-an-argument), so a path string is an error — and the
-[anchor](README.md#the-anchor-is-an-argument) is a [Position](../world.md#the-position-type) to stand it
+[anchor](README.md#the-anchor-is-an-argument) is a [Position](../position.md) to stand it
 at a point or a [Gob](../gob.md) to make it follow one.
 Everything else is a setter on what comes back, and every setter returns the sprite, so a whole placement is
 one chain. A new sprite has scale `1`, full opacity, no tint, faces `"fixed"` and is not clickable.

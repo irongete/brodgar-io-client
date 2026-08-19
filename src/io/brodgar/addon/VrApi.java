@@ -474,7 +474,7 @@ final class VrApi {
         LuaValue v = Args.required(a, 3, verb, "anchor");
         LuaGob lg = LuaGob.resolve(v);
         if(lg != null) {
-            Gob g = getgob(lg.id);
+            Gob g = anygob(lg.id);   // 079.3: the object, wherever it is held -- gob:exists()'s own question
             if(g == null)
                 throw new LuaError(verb + "(what, gob): that gob is gone — it had already left the object cache"
                     + " when this call ran, so there is nothing to follow (read gob:exists() first, or place it"

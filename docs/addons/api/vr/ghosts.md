@@ -19,7 +19,7 @@ g:rotate(math.pi)
 `res` is a resource name, e.g. `"gfx/terobjs/arch/logcabin"`, resolved through the game resource pool, so
 any server or client resource works. A ghost has no name of its own, so a string `filter` matches that
 resource name. The [anchor](README.md#the-anchor-is-an-argument) is a
-[Position](../world.md#the-position-type) to stand it at a point or a [Gob](../gob.md) to make it follow one.
+[Position](../position.md) to stand it at a point or a [Gob](../gob.md) to make it follow one.
 
 A ghost is **client-only**: a game object with **no server id**, so it is never sent to the server, the
 server never learns it exists, and it grants no gameplay advantage. It is a visualization, exactly like a
@@ -114,7 +114,7 @@ it.
 
 ## Layouts and persistence
 
-To save a layout across sessions, keep each ghost's [Position](../world.md#the-position-type) — it is
+To save a layout across sessions, keep each ghost's [Position](../position.md) — it is
 durable by construction, so [`hafen.store`](../store.md) keeps it and hands the same place back next session
 — and re-place the ghost there once it resolves. That is the same rule [markers](../map/markers.md) follow.
 A base planner is exactly this: clickable blueprint ghosts saved through [`hafen.store`](../store.md) and
@@ -140,6 +140,6 @@ full.
 
 - [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [sprites](sprites.md) — your own image in the world, on the same core
-- [`session:world`](../world.md#the-position-type) — the Position type, and the snapping a drag uses
+- [Position](../position.md) — the place an anchor is given, and the durable form it keeps
 - [`session:world():place`](../world.md#write-protected) — committing a real build, protected
 - [events](../event/bus.md#world-ghosts-and-sprites) — `GhostClicked`

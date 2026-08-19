@@ -22,7 +22,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  *
  * <p><b>{@code hafen.act()} is gone</b> (048). It was the one section grouped by PERMISSION rather than by what
  * it acts on, and 048 dissolved it verb by verb onto the things each verb changes: walking the character is
- * {@code s:player():move(p)} and clicking an object {@code gob:click(button, mods)} (048.1); the held-item
+ * {@code s:player():move(p)} and clicking an object {@code s:world():click(gob, button, mods)}; the held-item
  * gesture is {@code s:player():hand():use(target, mods)}, on a cursor that is <i>nil</i> when it is empty
  * (048.2); what you can do TO an item is on the item — {@code item:use/:take/:drop/:transfer} (048.3); placing
  * and area-selecting are {@code s:world():place/:select}, beside the {@code snapPlace}/{@code snapAngle}

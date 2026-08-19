@@ -20,7 +20,7 @@ matches the marker's name; a function filter is called with the Marker itself.
 |---|---|---|
 | `marker:name()` | string \| nil | the label the map shows |
 | `marker:type()` | string | `"player"` or `"system"` |
-| `marker:position()` | [Position](../world.md#the-position-type) \| nil | where it is — the form you may **store or send** |
+| `marker:position()` | [Position](../position.md) \| nil | where it is — the form you may **store or send** |
 | `marker:segmentTile()` | `{x, y}` | its segment tile coord — where it really lives in the database |
 | `marker:segment()` | [`Segment`](grids.md#the-segment-object) | the segment it is recorded in |
 | `marker:distance()` | number \| nil | how far the character **on screen** is from it |
@@ -79,4 +79,4 @@ add, remove or edit, including ones the player makes.
 - [segments and grids](grids.md) — `seg:markers()`, and why a Position is what you store
 - [`Marker`](../types.md#marker) — the snapshot `marker:info()` hands back
 - [events](../event/bus.md#roster-quests-markers) — `MarkersChanged`
-- [`session:world`](../world.md#the-position-type) — the Position type, and rebuilding one from a stored form
+- [Position](../position.md) — the place type, and rebuilding one from a stored form

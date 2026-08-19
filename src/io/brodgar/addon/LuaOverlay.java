@@ -109,7 +109,7 @@ public final class LuaOverlay {
      */
     private static List<LuaValue> members(Addon owner, long gobId) {
         List<LuaValue> out = new ArrayList<LuaValue>();
-        Gob g = AddonManager.getgob(gobId);
+        Gob g = AddonManager.anygob(gobId);
         if(g == null)
             return out;
         LuaGobOverlay store = LuaGobOverlay.on(g);
@@ -155,7 +155,7 @@ public final class LuaOverlay {
 
             public LuaValue getMember(LuaValue key) {
                 String k = keyArg(key, "gob:overlay():get");
-                Gob g = AddonManager.getgob(gobId);
+                Gob g = AddonManager.anygob(gobId);
                 if(g == null)
                     return LuaValue.NIL;
                 LuaGobOverlay store = LuaGobOverlay.on(g);
@@ -176,7 +176,7 @@ public final class LuaOverlay {
             // under it is a different one.
             public LuaValue addMember(Varargs a) {
                 String k = keyArg(Args.required(a, 2, "gob:overlay():add", "key"), "gob:overlay():add");
-                Gob g = AddonManager.getgob(gobId);
+                Gob g = AddonManager.anygob(gobId);
                 if(g == null)
                     throw new LuaError("gob:overlay():add(\"" + k + "\"): that gob is gone, so there is nothing"
                         + " to attach it to -- gob:exists() is the test, and an overlay dies with its gob");
@@ -216,7 +216,7 @@ public final class LuaOverlay {
                 } else {
                     k = keyArg(x, "gob:overlay():remove");
                 }
-                Gob g = AddonManager.getgob(gobId);
+                Gob g = AddonManager.anygob(gobId);
                 if(g == null)
                     return;                          // it died with its gob: the removal already happened
                 if(LuaGobOverlay.findNative(g, k))
@@ -328,7 +328,7 @@ public final class LuaOverlay {
         // gob() — the Gob it is attached to (D-066: the relation, not a stored id).
         m.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaGob.of(owner, AddonManager.drawnUser(), handle(self, "gob").gob);
+                return LuaGob.of(owner, handle(self, "gob").gob);
             }
         });
         // native() — is this one of the GAME's overlays (read-only) rather than one of ours? A hafen.vr() entity
@@ -460,7 +460,7 @@ public final class LuaOverlay {
         m.set("count", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaOverlay h = handle(self, "count");
-                Gob g = AddonManager.getgob(h.gob);
+                Gob g = AddonManager.anygob(h.gob);
                 if(g == null)
                     return LuaValue.NIL;
                 if(h.src == NATIVE) {
@@ -488,7 +488,7 @@ public final class LuaOverlay {
                 t.set("native", LuaValue.valueOf(h.nat()));
                 if(h.src == NATIVE) {
                     t.set("res", LuaValue.valueOf(h.key));
-                    t.set("count", LuaValue.valueOf(LuaGobOverlay.countNative(AddonManager.getgob(h.gob), h.key)));
+                    t.set("count", LuaValue.valueOf(LuaGobOverlay.countNative(AddonManager.anygob(h.gob), h.key)));
                 } else if(h.src == VR) {
                     LuaWorldEntity e = (LuaWorldEntity)r;
                     t.set("count", LuaValue.valueOf(1));
@@ -517,7 +517,7 @@ public final class LuaOverlay {
      * disagree.
      */
     private static Object rec(Addon owner, LuaOverlay h) {
-        Gob g = AddonManager.getgob(h.gob);
+        Gob g = AddonManager.anygob(h.gob);
         if(g == null)
             return null;
         if(h.src == NATIVE)

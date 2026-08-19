@@ -59,7 +59,7 @@ stays 212. `hafen.event()` is global and stays global — this feature changes w
       and re-run. Expect: the suite reports the same value, read from disk. Before this task it is
       gone unless thirty seconds happened to pass.
 
-- [ ] **079.3 — A gob is one object, and the click belongs to a character.**
+- [x] **079.3 — A gob is one object, and the click belongs to a character.**
       `LuaGob` wraps *"an id and the session that reads it"*; it becomes keyed on **the id alone** and
       gains `gob:sessions()` — which live sessions hold it, asked of their `OCache`s at the moment of
       the call rather than kept, so a session that dies drops out of the answer with nothing notified.

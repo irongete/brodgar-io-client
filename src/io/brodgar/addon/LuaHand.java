@@ -166,10 +166,13 @@ final class LuaHand {
                 LuaGob tg = LuaGob.resolve(target);
                 if(tg != null) {
                     MapView mv = view(user);
-                    Gob gb = AddonManager.getgob(tg.user, tg.id);
+                    // The target is resolved in THIS character's world: the hand is its own, and it can only
+                    // reach an object it can see (079.3 — a Gob names the object, not one character's copy).
+                    Gob gb = AddonManager.getgob(user, tg.id);
                     if(gb == null)
-                        throw new LuaError(USE + ": that gob is gone — it left view or despawned"
-                            + " (gob:exists() is false). Nothing was sent.");
+                        throw new LuaError(USE + ": that character cannot see that object — it left view,"
+                            + " despawned, or was never in this character's world (gob:sessions() says who"
+                            + " has it). Nothing was sent.");
                     Coord2d grc;
                     synchronized(gb) { grc = gb.rc; }   // OCache discipline: copy under the gob lock
                     if(grc == null)

@@ -1,12 +1,9 @@
 package io.brodgar.addon;
 
-import haven.Coord;
 import haven.Coord2d;
 import haven.Gob;
 import haven.GobHealth;
-import haven.MapView;
 import haven.Moving;
-import haven.OCache;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -25,9 +22,8 @@ import java.util.Map;
 /**
  * A <b>Gob object</b> — the OOP successor of the flat {@code hafen.gob.*(ref)} accessor (spec
  * {@code 017-gob-oop}, D-044). {@code s:world():gob():get(id)} mints one; {@code gob:position()} /
- * {@code gob:name()} / {@code gob:health()} … read it. It wraps <b>an id and the session that reads it</b>: every
- * method re-resolves against that session's {@link haven.OCache} through {@link AddonManager#getgob(String, long)}
- * and returns {@code nil} if the gob is gone, so the
+ * {@code gob:name()} / {@code gob:health()} … read it. It wraps <b>the gob id and nothing else</b>: every
+ * method re-resolves against a live {@link haven.OCache} and returns {@code nil} if the gob is gone, so the
  * freshness semantics of D-012 survive verbatim — what changed is that the reference stopped being an argument
  * and became the object.
  *
@@ -39,69 +35,70 @@ import java.util.Map;
  * and the raw {@link Gob} never crosses the facade. Field access is methods-only — {@code gob.id} is the
  * function, {@code gob:id()} the number, and a retired spelling ({@code gob.pos}) throws naming its replacement.
  *
- * <p><b>It wraps the SESSION beside the id</b> (spec {@code 076-the-session-is-the-address}). A gob id is the
- * <b>server's</b> and names the same object in every session that has loaded it, but the {@link Gob} is not
- * shared: each {@link OCache} holds its own, placed against its own session's map, and {@code Gob.rc} is in
- * that session's frame. So the id says <i>which object</i> and the session says <i>whose copy of it</i> —
- * which is what makes a read taken on the session an addon named be about that character rather than about
- * whoever holds the screen.
+ * <p><b>A gob is ONE OBJECT, however many characters are looking at it</b> (spec
+ * {@code 079-what-the-address-left-behind}). A gob id is the <b>server's</b> and names the same thing in every
+ * session that has loaded it, and every read here answers about that thing: {@code name}, {@code health} and
+ * {@code overlay} come off the server's object, and {@code position()} hands back a {@link LuaPosition} whose
+ * anchor is a <b>server</b> grid id, so whichever session computes it the answer matches. What each session
+ * holds is its own {@link Gob} — placed against its own map, with {@code Gob.rc} in its own frame — so a read
+ * still has to say which one computes it, and that is one rule stated once in
+ * {@link AddonManager#gobUser(long)}: <b>the session on screen when it holds the object, and otherwise the
+ * first that does</b>. It is the rule a bare {@code p:distance()} already had, and with one character logged
+ * in it resolves to that one.
  *
- * <p><b>Identity by interning (D-045), on the pair.</b> Each addon's {@link Cache} (held in
- * {@link Addon#gobs}) maps {@code account} to {@code id} to a {@link WeakReference} of the handle, with a
- * {@link ReferenceQueue}, so two reads of one id <b>in one session</b> are {@code ==} and
- * {@code seen[gob] = true} is reliable, and {@code s:player():gob()} is literally the same object as
- * {@code s:world():gob():get(<player id>)}. Across two sessions the same id is two handles, and
- * {@code :id()} is the identity that crosses them: Lua table keys use primitive equality rather than
- * {@code __eq}, so one object per pair is the only arrangement whose two equalities cannot disagree. Two
- * levels of map rather than one composite key, because the composite would be an allocation on the hottest
- * path in the layer. Weak <b>values</b> (not a {@code WeakHashMap}: that is weak
- * <i>keys</i>) so an entry dies when the addon drops its last reference; the queue is drained on every access
- * (amortised, no sweep timer) because the key + the dead {@code WeakReference} would otherwise
- * accumulate — a per-tick world sweep sees tens of thousands of ids over a session. The cache is
- * <b>per-addon</b> (never static in {@link AddonManager}): no Lua value crosses a sandbox boundary, and it dies
- * whole with the {@link Addon} on {@code :reload}/disable.
+ * <p><b>Which characters can see it is a read, not bookkeeping</b> — {@code gob:sessions()} asks the live
+ * object caches at the moment of the call, so a session that ends drops out of the answer with nothing having
+ * to be notified, and an object nobody holds answers the empty array rather than {@code nil}.
+ *
+ * <p><b>Identity by interning (D-045), on the id.</b> Each addon's {@link Cache} (held in {@link Addon#gobs})
+ * maps {@code id} to a {@link WeakReference} of the handle, with a {@link ReferenceQueue}, so two reads of one
+ * id are {@code ==} however they were reached — {@code seen[gob] = true} is reliable, {@code s:player():gob()}
+ * is literally the same object as {@code s:world():gob():get(<player id>)}, and so is the Gob two characters
+ * standing together each find. That is what lets one object be reported once. Weak <b>values</b> (not a
+ * {@code WeakHashMap}: that is weak <i>keys</i>) so an entry dies when the addon drops its last reference; the
+ * queue is drained on every access (amortised, no sweep timer) because the key + the dead
+ * {@code WeakReference} would otherwise accumulate — a per-tick world sweep sees tens of thousands of ids over
+ * a session. The cache is <b>per-addon</b> (never static in {@link AddonManager}): no Lua value crosses a
+ * sandbox boundary, and it dies whole with the {@link Addon} on {@code :reload}/disable.
  *
  * <p><b>No pinning.</b> A {@code LuaGob} holds no {@link Gob} reference, so a stashed handle can never keep a
  * despawned gob (or its {@code .res}/overlays) alive — strictly better than {@link LuaWidget}, which has to
  * null its {@code Widget} by hand.
+ *
+ * <p><b>The one thing a Gob does not do is act.</b> Clicking an object is something a <i>character</i> does,
+ * and an object that belongs to no character has nobody to send it as — so the click lives on the world of the
+ * session that makes it, {@code s:world():click(gob, button, mods)} ({@link WorldApi}), beside the two other
+ * gestures with the pointer.
  *
  * <p><b>Threading.</b> Reads run on the UI thread (addon tick / REPL), each attribute under the gob monitor and
  * {@code Loading}-guarded (a resource-backed read throws before it resolves → {@code nil}), exactly as the flat
  * accessor did. The {@link Cache} map itself is guarded on its own monitor (UI + REPL threads touch it).
  */
 public final class LuaGob {
-    /** The gob id — the object this handle names, in every session that has loaded it. */
+    /** The gob id — the object this handle names, in every session that has loaded it, and the whole ref. */
     public final long id;
-    /** The account whose session this handle reads it through — the other half of the pair it is interned on. */
-    public final String user;
 
-    private LuaGob(String user, long id) {
-        this.user = user;
+    private LuaGob(long id) {
         this.id = id;
     }
 
     /**
      * {@code tostring(gob)} (also the {@code __tostring} answer): {@code Gob(<id>)}.
      *
-     * <p>The id alone, and the session left out: the id is what names the object and is the same number in
-     * every session that has loaded it, so two of them printed side by side compare the thing that crosses.
-     * Which session a handle reads through is in the addon's own hand — {@code s} is what it called
-     * {@code :world()} on — and never in a string it would have to parse back out.
+     * <p>The id is the whole of the handle and the whole of the print: it is the number the server names the
+     * object by, so two of them printed side by side compare the thing that crosses.
      */
     public String toString() {
         return "Gob(" + id + ")";
     }
 
-    /**
-     * An interned Gob object for {@code id} <b>as session {@code user} sees it</b>, in {@code owner}'s env —
-     * the one way a Gob reaches Lua.
-     */
-    static LuaValue of(Addon owner, String user, long id) {
-        return owner.gobs.of(user, id);
+    /** An interned Gob object for {@code id} in {@code owner}'s env — the one way a Gob reaches Lua. */
+    static LuaValue of(Addon owner, long id) {
+        return owner.gobs.of(id);
     }
 
     /**
-     * Resolve a Lua value handed to a Gob consumer ({@code gob:click}, {@code follow=}, {@code :same}-
+     * Resolve a Lua value handed to a Gob consumer ({@code s:world():click}, {@code follow=}, {@code :same}-
      * style comparisons) back to its {@code LuaGob}; {@code null} for anything that is not a Gob object (nil, a
      * raw id, a token string — the hard cut accepts none of those, D-044).
      */
@@ -121,8 +118,8 @@ public final class LuaGob {
      */
     static final class Cache {
         private final Addon owner;
-        /** {@code account} to {@code id} to handle. Two levels, so the per-call key is the {@code Long} it was. */
-        private final Map<String, Map<Long, Ref>> live = new HashMap<String, Map<Long, Ref>>();
+        /** {@code id} to handle — one level, because the id is the whole key an object is named by. */
+        private final Map<Long, Ref> live = new HashMap<Long, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
@@ -130,41 +127,29 @@ public final class LuaGob {
             this.owner = owner;
         }
 
-        /** The interned handle for {@code (user, id)} — a hit, or a freshly minted (and inserted) one. */
-        synchronized LuaValue of(String user, long id) {
+        /** The interned handle for {@code id} — a hit, or a freshly minted (and inserted) one. */
+        synchronized LuaValue of(long id) {
             drain();
-            Map<Long, Ref> byid = live.get(user);
-            if(byid == null)
-                live.put(user, byid = new HashMap<Long, Ref>());
             Long key = Long.valueOf(id);
-            Ref r = byid.get(key);
+            Ref r = live.get(key);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                byid.remove(key);
+                live.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaGob(user, id), meta());
-            byid.put(key, new Ref(v, user, key, dead));
+            LuaValue v = LuaValue.userdataOf(new LuaGob(id), meta());
+            live.put(key, new Ref(v, key, dead));
             return v;
         }
 
-        /**
-         * Drop the map entries whose handle Lua has released (the key + dead ref would leak otherwise). An
-         * account's inner map goes with its last entry, so a session that has ended leaves nothing behind
-         * once the addon has let go of its handles.
-         */
+        /** Drop the map entries whose handle Lua has released (the key + dead ref would leak otherwise). */
         private void drain() {
             Reference<? extends LuaValue> r;
             while((r = dead.poll()) != null) {
                 Ref gr = (Ref)r;
-                Map<Long, Ref> byid = live.get(gr.user);
-                if(byid == null)
-                    continue;
-                if(byid.get(gr.key) == gr)     // not already replaced by a fresh handle for the same pair
-                    byid.remove(gr.key);
-                if(byid.isEmpty())
-                    live.remove(gr.user);
+                if(live.get(gr.key) == gr)     // not already replaced by a fresh handle for the same id
+                    live.remove(gr.key);
             }
         }
 
@@ -175,14 +160,12 @@ public final class LuaGob {
         }
     }
 
-    /** A weak handle reference that remembers both map keys, so the {@link ReferenceQueue} drain can unmap it. */
+    /** A weak handle reference that remembers its map key, so the {@link ReferenceQueue} drain can unmap it. */
     private static final class Ref extends WeakReference<LuaValue> {
-        final String user;
         final Long key;
 
-        Ref(LuaValue v, String user, Long key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, Long key, ReferenceQueue<LuaValue> q) {
             super(v, q);
-            this.user = user;
             this.key = key;
         }
     }
@@ -220,6 +203,23 @@ public final class LuaGob {
                 return LuaValue.valueOf(gob(self, "exists") != null);
             }
         });
+        // sessions() — which of your characters can see this object RIGHT NOW, as an array of Sessions in the
+        // order they joined (079.3). A plain array and not a collection: it is an answer about one object, not
+        // a set to address into — hafen.session() is where a session is looked up by name.
+        //   A LIVE READ. The object caches are asked at the moment of the call and nothing is kept, so a
+        // character that logs out is simply not in the next answer and nothing had to be notified — which is
+        // what makes "it left one of several sessions" need no event at all. Empty, never nil: an object
+        // nobody holds is exactly the case a GobRemoved handler asks about.
+        m.set("sessions", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaGob h = handle(self, "sessions");
+                LuaTable out = new LuaTable();
+                int i = 0;
+                for(String user : AddonManager.gobUsers(h.id))
+                    out.set(++i, LuaSession.of(owner, user));
+                return out;
+            }
+        });
         // info() — the one SNAPSHOT escape hatch (the old hafen.gob.info shape), for logging/serialising.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -229,19 +229,22 @@ public final class LuaGob {
         // position() — where the gob is, as a Position (039.2): computable (p:offset(dx, dy) crosses grid
         // boundaries) and durable (p:info() is the {gridId, x, y} form hafen.store keeps). nil once the gob is
         // gone, or before it has a position at all.
-        //   076.3: Gob.rc is in the gob's OWN session's frame, so the durable anchor is derived through THAT
-        // session's map, here, where the session is known — and what is handed back is an ordinary Position
-        // with no session in it. A place is answerable in whichever session you ask; a frame-relative pair of
-        // numbers is not, so the value that escapes the session is the grid id and the offset inside it.
+        //   Gob.rc is in ONE session's frame, so the durable anchor is derived through the session this read
+        // resolves through, here, where it is known — and what is handed back is an ordinary Position with no
+        // session in it, anchored on a SERVER grid id. So two characters looking at one object compute the
+        // same place out of two different frames, which is what lets the object itself be the handle.
         m.set("position", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaGob h = handle(self, "position");
-                Gob g = AddonManager.getgob(h.user, h.id);
+                String user = AddonManager.gobUser(h.id);
+                if(user == null)
+                    return LuaValue.NIL;
+                Gob g = AddonManager.getgob(user, h.id);
                 if(g == null)
                     return LuaValue.NIL;
                 Coord2d rc;
                 synchronized(g) { rc = g.rc; }
-                return LuaPosition.of(owner, h.user, rc);
+                return LuaPosition.of(owner, user, rc);
             }
         });
         m.set("facing", new OneArgFunction() {
@@ -321,19 +324,12 @@ public final class LuaGob {
         // are READ-ONLY: an :add onto a native key, or a :remove of one, raises naming the key.
         // The collection is a VIEW — derived from the gob on every call, holding nothing — so it cannot outlive
         // the gob, and the state it reads lives on the gob itself: nothing is searched and nothing is swept.
-        //   076.3: an overlay is DRAWN, and there is one screen. A session that is not drawn has no render
-        // tree, so an overlay attached to one of its gobs is never ticked and never appears — and the
-        // screen-space half is projected through the drawn view besides. So this answers for the session on
-        // screen and refuses for any other, naming it, rather than handing back a collection that draws
-        // nothing. What IS addressable on a background session's gob is every read, and gob:scale.
+        //   079.3: what is attached is attached to the OBJECT, keyed on its id, and the client draws whichever
+        // character has the screen — so an overlay appears whenever the character being drawn can see the
+        // object it is on, and there is no session here to be right or wrong about.
         m.set("overlay", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaGob h = handle(a.arg1(), "overlay");
-                if(!AddonManager.drawn(h.user))
-                    throw new LuaError("gob:overlay(): that gob was read through a session that is not on"
-                        + " screen, and an overlay is drawn — a session the client is not drawing has no"
-                        + " scene to draw it into. Read the gob through hafen.session():current() to draw"
-                        + " at it.");
                 if(Args.passed(a, 2))
                     throw new LuaError("gob:overlay(key[, spec]) is now a COLLECTION: gob:overlay():get(key)"
                         + " reads one, gob:overlay():add(key) attaches one and its setters say what it draws"
@@ -342,65 +338,28 @@ public final class LuaGob {
                 return LuaOverlay.collection(owner, h.id);
             }
         });
-        // scale() / scale(k) -- how big the game object is DRAWN, and the handle's first WRITE (046.1). Bare
+        // scale() / scale(k) -- how big the game object is DRAWN, and the handle's one WRITE (046.1). Bare
         // reads the factor (1 for a gob nobody scaled, nil once the gob is gone); one number writes it and
         // hands the GOB back, so gob:scale(2):name() is one chain. It is the read/write pair every hafen.vr()
-        // entity answers, on the same footing gob:overlay() stands on: client-local, purely visual, unprotected —
+        // entity answers, on the same footing gob:overlay() stands on: client-local, purely visual, unprotected --
         // nothing goes on the wire and nothing about what the gob IS changes. The size is applied in place
         // (T·R·S), so the object's feet stay where they were and it still turns and moves normally, and it
         // ENDS WITH THE LOADED OBJECT: walk far enough to unload it and it comes back its original size.
+        //   It lands on the copy this read resolves through, like every reader here: the character on screen
+        // when it can see the object, and otherwise whichever of yours can.
         m.set("scale", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                LuaGob h = handle(self, "scale");
+                handle(self, "scale");
                 LuaValue sv = Args.written(a, 2, "gob:scale", "k");
-                // That session's own Gob: a size set on one nobody is looking at is applied to the object
-                // it names and is there when that session takes the screen.
-                Gob g = AddonManager.getgob(h.user, h.id);
+                Gob g = gob(self, "scale");
                 if(sv == null)
                     return (g == null) ? LuaValue.NIL : LuaValue.valueOf((double)GobScale.value(g));
                 float k = scaleArg(sv);
                 // A gob that is gone takes the write and does nothing with it: every method here answers nil
-                // once the gob is gone and none of them throws, and the first write is no exception to that.
+                // once the gob is gone and none of them throws, and the write is no exception to that.
                 if(g != null)
                     GobScale.apply(g, owner, k);
-                return self;
-            }
-        });
-        // click([button [, mods]]) — click the game object, and the handle's first SERVER write (048.1): exactly
-        // the MapView "click" a left/right-click on this gob sends, so the client stays server-authoritative.
-        // button 1 = left (default; select/interact), 3 = right (the radial menu); mods = a modifier bitfield
-        // (0 default; Shift=1 Ctrl=2 Alt=4, matching the keybind syntax). It sends the bare gob-click encoding
-        // {…, 0, gobid, gobrc, 0, -1} — a generic "the WHOLE object", faithful for world objects
-        // (trees/containers/…); a specific sub-mesh or composite body part is not targeted (deferred).
-        //   PROTECTED by the per-addon "gob.click" permission, and the gate runs FIRST — before the gob is even
-        // looked up (D-213), so an addon that never declared it is told that rather than "no such gob". Unlike
-        // every read here, a gob that is GONE throws: a click is a message about a specific object, and there is
-        // no such thing as sending it to nothing. Hands the Gob back, so a click chains.
-        m.set("click", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.GOB_CLICK);
-                LuaGob h = handle(self, "click");
-                // 076.3: the send goes to the character on SCREEN and to no other — a walk is the whole of
-                // what a background session takes, which is the client's own line rather than this API's.
-                MapView mv = AddonManager.sendView(h.user, "gob:click");
-                Gob g = AddonManager.getgob(h.user, h.id);
-                if(g == null)
-                    throw new LuaError("gob:click: this gob is gone — it left view or despawned"
-                        + " (gob:exists() is false). Nothing was sent.");
-                Coord2d rc;
-                synchronized(g) { rc = g.rc; }              // OCache discipline: copy under the gob lock
-                if(rc == null)
-                    throw new LuaError("gob:click: the gob has no position yet");
-                Coord pc = (mv.ui != null) ? mv.ui.mc : Coord.z;   // dummy screen coord, like MiniMap.mvclick
-                mv.wdgmsg("click", clickGobArgs(pc, a.arg(2).optint(1), a.arg(3).optint(0),
-                                                (int)g.id, rc.floor(OCache.posres)));
-                // 047.3: the same token the real click records in MapView.Click.hit — and here the gob is not
-                // correlated but KNOWN, this being addon code that named it. lcc is untouched by a programmatic
-                // click, so a menu the server opens in reply matches on the press point exactly as it does for a
-                // mouse click, and a player press in between moves lcc and invalidates it, which is the point.
-                ClickToken.note(g.id, (mv.ui != null) ? mv.ui.lcc : null);
                 return self;
             }
         });
@@ -414,59 +373,57 @@ public final class LuaGob {
         // kin() — the O(1) half of the Kin <-> Gob link (020.2): the SERVER marks a kinned player's gob with
         // the `ui/obj/buddy` attrib, which carries the buddy id, so this is a single attribute read. nil is
         // AMBIGUOUS on purpose: not on that character's roster / the gob is gone / it is not a player at all.
-        // The Kin it hands back is THIS gob's session's (077.2): a buddy id counts inside one roster, and
-        // this gob is the one that session can see, so the mark on it is a number in that same roster.
+        // A buddy id counts inside ONE roster, so the Kin this hands back is the roster of the session the
+        // read resolved through, and the mark it read is a number in that same roster. Ask a named character
+        // whether it knows somebody with s:kin(), which is the addressed door.
         m.set("kin", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaGob h = handle(self, "kin");
-                Gob g = gob(self, "kin");
-                Integer bid = LuaKin.buddyId(g);
-                return (bid == null) ? LuaValue.NIL : LuaKin.of(owner, h.user, bid.intValue());
+                String user = AddonManager.gobUser(h.id);
+                if(user == null)
+                    return LuaValue.NIL;
+                Integer bid = LuaKin.buddyId(AddonManager.getgob(user, h.id));
+                return (bid == null) ? LuaValue.NIL : LuaKin.of(owner, user, bid.intValue());
             }
         });
-        // distance([other]) — world distance to another Gob; `other` defaults to the player.
+        // distance([other]) — world distance to another Gob; `other` defaults to the character measuring.
+        //   Gob.rc is one session's frame, so subtracting two of them across sessions measures nothing: the
+        // pair is measured inside ONE character's world, the screen's when it holds both and otherwise the
+        // first that does. Two objects no single character can see have no distance between them and answer
+        // nil — the same nothing an object that has despawned answers.
         m.set("distance", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue other) {
                 LuaGob ha = handle(self, "distance");
-                Gob a = AddonManager.getgob(ha.user, ha.id);
-                Gob b;
                 if(other.isnil()) {
-                    b = AddonManager.playerGob(ha.user);   // the character whose eyes this gob was seen with
-                } else {
-                    LuaGob h = resolve(other);
-                    if(h == null)
-                        throw new LuaError("gob:distance([other]) -- 'other' must be a Gob object (s:world():gob():get(id)), or nil for that session's own character");
-                    // Gob.rc is its session's frame, so subtracting two of them across sessions measures
-                    // nothing. Two characters standing together still have two frames; the offset between
-                    // them is the client's own business and is not arithmetic an addon should be handed.
-                    if(!h.user.equals(ha.user))
-                        throw new LuaError("gob:distance(other): the two gobs were read through different"
-                            + " sessions, and each session's coordinates are relative to where it logged in"
-                            + " — so there is no distance between them. Read both through one session.");
-                    b = AddonManager.getgob(h.user, h.id);
+                    String user = AddonManager.gobUser(ha.id);
+                    if(user == null)
+                        return LuaValue.NIL;
+                    // the character whose eyes this object is being seen with
+                    return between(AddonManager.getgob(user, ha.id), AddonManager.playerGob(user));
                 }
-                if((a == null) || (b == null))
+                LuaGob hb = resolve(other);
+                if(hb == null)
+                    throw new LuaError("gob:distance([other]) -- 'other' must be a Gob object"
+                        + " (s:world():gob():get(id)), or nil for the character measuring");
+                String user = AddonManager.gobUser(ha.id, hb.id);
+                if(user == null)
                     return LuaValue.NIL;
-                Coord2d ra, rb;
-                synchronized(a) { ra = a.rc; }
-                synchronized(b) { rb = b.rc; }
-                if((ra == null) || (rb == null))
-                    return LuaValue.NIL;
-                return LuaValue.valueOf(ra.dist(rb));
+                return between(AddonManager.getgob(user, ha.id), AddonManager.getgob(user, hb.id));
             }
         });
         return m;
     }
 
-    /**
-     * The full MapView {@code "click"} args for a generic click on the gob {@code (gobId, gobRc)} — the
-     * {@code {pc, mc, button, mods}} prefix extended with {@link haven.Gob.GobClick#clickargs}'
-     * {@code {0, gobid, gobrc, 0, -1}} (no overlay, no specific sub-mesh). {@code mc} = the gob's own floored
-     * position, as a click landing on its base would carry. Pure/testable — it holds no live state, so the wire
-     * shape can be asserted without a session.
-     */
-    static Object[] clickGobArgs(Coord pc, int button, int mods, int gobId, Coord gobRc) {
-        return new Object[] {pc, gobRc, button, mods, 0, gobId, gobRc, 0, -1};
+    /** World distance between two of one session's gobs, or {@code nil} while either has no position. */
+    private static LuaValue between(Gob a, Gob b) {
+        if((a == null) || (b == null))
+            return LuaValue.NIL;
+        Coord2d ra, rb;
+        synchronized(a) { ra = a.rc; }
+        synchronized(b) { rb = b.rc; }
+        if((ra == null) || (rb == null))
+            return LuaValue.NIL;
+        return LuaValue.valueOf(ra.dist(rb));
     }
 
     /**
@@ -501,11 +458,10 @@ public final class LuaGob {
     }
 
     /**
-     * The LIVE gob behind a method's {@code self} — re-resolved every call <b>in the handle's own session</b>,
-     * {@code null} once it is gone (and while that session is not one the client holds).
+     * The LIVE gob behind a method's {@code self} — re-resolved every call, in whichever session
+     * {@link AddonManager#gobUser(long)} names, and {@code null} once no session holds it at all.
      */
     private static Gob gob(LuaValue self, String method) {
-        LuaGob h = handle(self, method);
-        return AddonManager.getgob(h.user, h.id);
+        return AddonManager.anygob(handle(self, method).id);
     }
 }

@@ -18,8 +18,9 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [`session:world`](world.md) | one character's live world: every object it has loaded, the terrain, and a position that survives the coordinates moving under it |
+| [`session:world`](world.md) | one character's live world: every object it has loaded, the terrain it stands on, and the clicks and drags it makes on both |
 | [Gob](gob.md) | one object in the world — `s:world():gob():get(id)` gives a Gob you read with methods, and `gob:scale(k)` says how big it is drawn |
+| [Position](position.md) | a place: the one position type, computable and saveable, that every spatial verb takes |
 | [Overlay](overlay.md) | what is drawn at a gob: the game's own, the labels and painters you attach, and what you stood there |
 | [`hafen.map`](map/README.md) | the hub: the map you have explored, kept on disk, and the order to read these pages in |
 | [segments and grids](map/grids.md) | the shape of the database, the one Grid entity both halves hand back, and storing a place |
@@ -54,7 +55,7 @@ you came for from the tables below. Every page in the tree is listed here.
 
 ## Acting
 
-The verbs that act are on the pages of what they change — [`session:player`](player.md), [Gob](gob.md),
+The verbs that act are on the pages of what they change — [`session:player`](player.md),
 [`session:world`](world.md), [items](ui/items.md) and [the Widget object](ui/widget.md) — under a
 `Write (protected)` heading, each stating the permission key it needs. The whole catalogue of keys is in
 [permissions](../guides/permissions.md). Two catalogues have a page of their own:

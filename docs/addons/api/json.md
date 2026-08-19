@@ -25,7 +25,7 @@ Parses a JSON document and returns the equivalent Lua value.
 | `true` / `false` | boolean |
 | number | Lua number; an integral value comes back as an **integer**, so `{"n":5}` is `5`, not `5.0` |
 | `null` | **`nil`**, with the consequence below |
-| `{"gridId": …, "x": …, "y": …}` | a [Position](world.md#the-position-type) — the durable form of a place, and the one object this parser rebuilds |
+| `{"gridId": …, "x": …, "y": …}` | a [Position](position.md) — the durable form of a place, and the one object this parser rebuilds |
 
 **A JSON `null` disappears.** Lua cannot hold `nil` as a live table value, so inside an object the key
 is simply **absent** — `parse('{"a":1,"b":null}').b` is `nil` — and inside an array it leaves a

@@ -977,18 +977,19 @@ final class CharApi {
      * <p><b>Every verb reads the session it hangs on.</b> The one exception is {@code :worldToScreen}, which
      * answers a point on the screen — there is one screen however many sessions are live — so it answers
      * {@code nil} for a session that is not the drawn one, and {@code :move} sends, so until a background
-     * session can be ordered it goes through the same door {@code gob:click} does.
+     * session can be ordered it goes through the same door {@code s:world():click} does.
      */
     static LuaValue player(final Addon owner, final String user) {
         LuaTable methods = new LuaTable();
         // gob() — THAT character's Gob object, or nil before that session is in the world. Interning on the
-        // (session, id) pair makes this the SAME object as s:world():gob():get(<that character's id>).
+        // id makes this the SAME object as s:world():gob():get(<that character's id>), read through any
+        // session at all: a body is one object, and this says which one rather than whose copy.
         //   076.3: off the session's own HUD (GameUI.plid) rather than off a map view, so it needs no widget
         // walk and answers a beat earlier — the HUD arrives before its map view is parented.
         methods.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 long id = plgob(user);
-                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, user, id);
+                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, id);
             }
         });
         /* vitals() is GONE (027-meters-oop's hard cut): the HUD bars are s:meter():list(), which is every meter

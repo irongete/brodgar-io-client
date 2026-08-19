@@ -178,7 +178,7 @@ public final class LuaPartyMember {
         m.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaPartyMember h = handle(self, "gob");
-                return LuaGob.of(owner, h.user, h.gobid);
+                return LuaGob.of(owner, h.gobid);
             }
         });
         // position() — where the member is: the live gob position while they are in view, the last-known one

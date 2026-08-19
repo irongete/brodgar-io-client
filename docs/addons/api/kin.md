@@ -141,7 +141,7 @@ which the kin is memorized but still listed, then `kin:forget()` drops the memor
 remove an active kin, call both.
 
 There is no add-by-name. Kinning needs a shared hearth secret, or the right-click "Add as kin" petal,
-which is [`gob:click(3)`](gob.md#write-protected) followed by
+which is [`s:world():click(gob, 3)`](world.md#write-protected) followed by
 [`s:flowermenu():select`](flowermenu.md#write-protected).
 
 ## See also

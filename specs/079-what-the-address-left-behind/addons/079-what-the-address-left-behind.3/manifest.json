@@ -1,0 +1,9 @@
+{
+  "name": "079.3 — a gob is one object, and the click belongs to a character",
+  "id": "079-what-the-address-left-behind.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 079.3: a Gob is interned on the gob id alone, so every character that can see an object finds the same handle and every read answers the same; gob:sessions() reads which of them hold it; and gob:click is retired into session:world():click(gob, button, mods), which refuses without the gob.click key this addon deliberately does not declare.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

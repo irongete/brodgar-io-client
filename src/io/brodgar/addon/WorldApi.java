@@ -51,10 +51,13 @@ import static io.brodgar.addon.AddonManager.*;
  * even agree on units. (The {@link #placeAngle} below is a different thing entirely — 048.4's pure encoder for
  * the {@code "place"} message's angle field.)
  *
- * <p><b>And the world has two PROTECTED verbs</b> (048.4): {@code :place(p, angle, button, mods)} and
- * {@code :select(p1, p2, mods)}, which arrived from the dissolving {@code hafen.act()} — a verb lives with what
- * it CHANGES, and both change the world. {@code place} in particular lands beside the {@code snapPlace} /
+ * <p><b>And the world is where the character ACTS on it</b> (048.4): {@code :place(p, angle, button, mods)}
+ * and {@code :select(p1, p2, mods)} arrived from the dissolving {@code hafen.act()} — a verb lives with what it
+ * CHANGES, and both change the world. {@code place} in particular lands beside the {@code snapPlace} /
  * {@code snapAngle} that exist to prepare its two arguments and until now sat a whole section away from it.
+ * {@code :click(gob, button, mods)} joins them from the other direction (079.3): a {@link LuaGob} is the
+ * server's object rather than one character's reading of it, so it has nobody to send a click as, and the
+ * session that makes the gesture is what supplies one.
  */
 final class WorldApi {
     private WorldApi() {}
@@ -236,12 +239,14 @@ final class WorldApi {
                 return LuaValue.valueOf(snapPlaceAngle(ang, a.arg(3).toboolean()));
             }
         });
-        // ---- the two PROTECTED verbs (048.4) ---------------------------------------------------------
-        // They arrived from hafen.act(), the one section that grouped its verbs by PERMISSION rather than by
-        // what they act on. Both change the world, so both live here — and `place` lands directly beside the
-        // snapPlace/snapAngle that exist to prepare its two arguments. Each sends exactly the MapView wdgmsg
-        // the matching mouse gesture produces (mousedown's place branch / Selector.mmouseup), so the client
-        // stays server-authoritative: an addon can only send what a player could.
+        // ---- the PROTECTED verbs (048.4, 079.3) ------------------------------------------------------
+        // Two arrived from hafen.act(), the one section that grouped its verbs by PERMISSION rather than by
+        // what they act on, and the third from the Gob, which stopped being one character's reading of an
+        // object and so stopped having anybody to act as. All three change the world, so all three live here —
+        // and `place` lands directly beside the snapPlace/snapAngle that exist to prepare its two arguments.
+        // Each sends exactly the MapView wdgmsg the matching mouse gesture produces (mousedown's place branch,
+        // its click branch, Selector.mmouseup), so the client stays server-authoritative: an addon can only
+        // send what a player could.
         //   The gate runs FIRST — before the receiver and the arguments are looked at (D-213) — so an addon
         // that never declared "world.place" is told THAT rather than "angle must be a number". Each hands the
         // section back, so a run of writes chains like every other setter in the API.
@@ -263,6 +268,51 @@ final class WorldApi {
                 double ang = number(a, 3, W + ":place", "angle");
                 MapView mv = sendView(user, W + ":place");
                 mv.wdgmsg("place", placeArgs(rc, ang, a.arg(4).optint(1), a.arg(5).optint(0)));
+                return self;
+            }
+        });
+        // click(gob [, button [, mods]]) — click a game object: exactly the MapView "click" a left/right-click
+        // on it sends, so the client stays server-authoritative. button 1 = left (default; select/interact),
+        // 3 = right (the radial menu); mods = a modifier bitfield (0 default; Shift=1 Ctrl=2 Alt=4, matching
+        // the keybind syntax). It sends the bare gob-click encoding {…, 0, gobid, gobrc, 0, -1} — a generic
+        // "the WHOLE object", faithful for world objects (trees/containers/…); a specific sub-mesh or
+        // composite body part is not targeted (deferred).
+        //   079.3: it lives HERE and not on the Gob, because a Gob is the object and an object has nobody to
+        // send a click as. A click is something a CHARACTER does, so the session acts and the world is the
+        // target — session:player():move(p)'s shape. The key stays "gob.click": a key names the ACTION, and
+        // the action is still clicking an object.
+        //   PROTECTED, and the gate runs FIRST — before the receiver and the gob are looked at (D-213), so an
+        // addon that never declared it is told that rather than "no such gob". Unlike every read on a Gob, an
+        // object this character cannot see throws: a click is a message about a specific object, and there is
+        // no such thing as sending it to nothing. Hands the section back, so a click chains.
+        m.set("click", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                AddonManager.requirePermission(owner, Permission.GOB_CLICK);
+                Section.self(self, "world", "click", W);
+                LuaValue gv = Args.required(a, 2, W + ":click", "gob");
+                LuaGob h = LuaGob.resolve(gv);
+                if(h == null)
+                    throw new LuaError(W + ":click(gob, button, mods): gob must be a Gob object"
+                        + " (s:world():gob():get(id), s:world():gob():nearest(...)), got " + gv.typename());
+                MapView mv = sendView(user, W + ":click");
+                Gob g = getgob(user, h.id);
+                if(g == null)
+                    throw new LuaError(W + ":click: that character cannot see that object — it left view,"
+                        + " despawned, or was never in this character's world (gob:sessions() says who has"
+                        + " it). Nothing was sent.");
+                Coord2d rc;
+                synchronized(g) { rc = g.rc; }              // OCache discipline: copy under the gob lock
+                if(rc == null)
+                    throw new LuaError(W + ":click: the gob has no position yet");
+                Coord pc = (mv.ui != null) ? mv.ui.mc : Coord.z;   // dummy screen coord, like MiniMap.mvclick
+                mv.wdgmsg("click", clickGobArgs(pc, a.arg(3).optint(1), a.arg(4).optint(0),
+                                                (int)g.id, rc.floor(OCache.posres)));
+                // 047.3: the same token the real click records in MapView.Click.hit — and here the gob is not
+                // correlated but KNOWN, this being addon code that named it. lcc is untouched by a programmatic
+                // click, so a menu the server opens in reply matches on the press point exactly as it does for a
+                // mouse click, and a player press in between moves lcc and invalidates it, which is the point.
+                ClickToken.note(g.id, (mv.ui != null) ? mv.ui.lcc : null);
                 return self;
             }
         });
@@ -311,7 +361,7 @@ final class WorldApi {
                 for(Gob g : allGobs(user)) {
                     if(g.id == self)
                         continue;
-                    if(!gobMatches(filter, owner, user, g))
+                    if(!gobMatches(filter, owner, g))
                         continue;
                     double d = distTo(g, prc);
                     if(Double.isNaN(d) || (d >= bestd))
@@ -319,7 +369,7 @@ final class WorldApi {
                     bestd = d;
                     best = g;
                 }
-                return (best == null) ? LuaValue.NIL : LuaGob.of(owner, user, best.id);
+                return (best == null) ? LuaValue.NIL : LuaGob.of(owner, best.id);
             }
         });
         extra.set("within", new VarArgFunction() {
@@ -340,12 +390,12 @@ final class WorldApi {
                 for(Gob g : allGobs(user)) {
                     if(g.id == self)
                         continue;
-                    if(!gobMatches(filter, owner, user, g))
+                    if(!gobMatches(filter, owner, g))
                         continue;
                     double d = distTo(g, prc);
                     if(Double.isNaN(d) || (d > r))
                         continue;
-                    out.set(++i, LuaGob.of(owner, user, g.id));
+                    out.set(++i, LuaGob.of(owner, g.id));
                 }
                 return out;
             }
@@ -354,13 +404,13 @@ final class WorldApi {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
                 for(Gob g : allGobs(user))
-                    out.add(LuaGob.of(owner, user, g.id));
+                    out.add(LuaGob.of(owner, g.id));
                 return out;
             }
 
             public String needle(LuaValue member) {
                 LuaGob h = LuaGob.resolve(member);
-                Gob g = (h == null) ? null : getgob(h.user, h.id);
+                Gob g = (h == null) ? null : anygob(h.id);
                 return (g == null) ? null : gobName(g);
             }
 
@@ -377,7 +427,7 @@ final class WorldApi {
                 if(!key.isnumber())
                     throw new LuaError(W + ":gob():get(id) expects a gob id (a number) — the"
                         + " \"player\"/\"me\"/\"partyN\" tokens are gone; your own gob is session:player():gob()");
-                return LuaGob.of(owner, user, (long)key.todouble());
+                return LuaGob.of(owner, (long)key.todouble());
             }
         }, extra);
     }
@@ -478,6 +528,17 @@ final class WorldApi {
      */
     static Object[] selArgs(Coord2d p1, Coord2d p2, int mods) {
         return new Object[] {p1.floor(MCache.tilesz), p2.floor(MCache.tilesz), mods};
+    }
+
+    /**
+     * The full MapView {@code "click"} args for a generic click on the gob {@code (gobId, gobRc)} — the
+     * {@code {pc, mc, button, mods}} prefix extended with {@link haven.Gob.GobClick#clickargs}'
+     * {@code {0, gobid, gobrc, 0, -1}} (no overlay, no specific sub-mesh). {@code mc} = the gob's own floored
+     * position, as a click landing on its base would carry. Pure/testable — it holds no live state, so the wire
+     * shape can be asserted without a session.
+     */
+    static Object[] clickGobArgs(Coord pc, int button, int mods, int gobId, Coord gobRc) {
+        return new Object[] {pc, gobRc, button, mods, 0, gobId, gobRc, 0, -1};
     }
 
     /** A required number argument, refusing an explicit nil like every other write does (§2.9). */

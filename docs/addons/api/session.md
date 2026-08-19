@@ -71,7 +71,7 @@ folder; an account's are your addon's single file and are reached without an add
 **screen** — there is one screen however many characters are logged in — and each of those says so where
 it is described: [`screenToWorld`](world.md#screen-to-world-and-placement-snapping) and
 [`worldToScreen`](player.md#read) read and answer a pixel, and
-[`place`](world.md#write-protected)/`select`, [`gob:click`](gob.md#write-protected) and
+[`click`](world.md#write-protected), `place`/`select` and
 [`hand:use`](player.md#the-hand) are gestures with the pointer.
 
 > **Walking is the whole of what a character you are not looking at will take.** That is the client's own

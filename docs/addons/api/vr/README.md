@@ -56,7 +56,7 @@ return keeping it.
 `:add(what, anchor)` takes **two** things and both are required. `what` is the thing to draw, and `anchor` is
 one of exactly two values:
 
-- a **[Position](../world.md#the-position-type)** — it stands there and stays there.
+- a **[Position](../position.md)** — it stands there and stays there.
 - a **[Gob](../gob.md)** — it follows that game object every frame, wherever it goes.
 
 Anything else raises, naming both forms. The place is an argument rather than a setter with a default
@@ -64,7 +64,7 @@ because the scene resolves the tile under a thing as it enters it, so **one with
 all**.
 
 **A Position anchor has to be a place that can be kept.** What one standing at a point holds is the
-[durable](../world.md#the-position-type) form of that place — the grid the ground belongs to, and where
+[durable](../position.md) form of that place — the grid the ground belongs to, and where
 inside that grid the point sits — rather than a plain world coordinate, which is
 [the answer of whichever character is looking](#the-ground-under-one-that-stands-still), and nothing more.
 Ground nobody has ever
@@ -102,7 +102,7 @@ Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the
 
 | Method | Description |
 |---|---|
-| `e:position()` | where it actually is, as a [Position](../world.md#the-position-type) |
+| `e:position()` | where it actually is, as a [Position](../position.md) |
 | `e:position(p, a)` | stand it at `p`, optionally setting facing — **for one that stands still** |
 | `e:offset()` / `e:offset(x, y, z)` | where it sits relative to the gob it follows, world units, `z` up — **for one that follows** |
 | `e:rotate()` / `e:rotate(a)` | its own facing in radians, keeping position |
@@ -155,7 +155,7 @@ drawn character's answer to that place and are free to come back different. That
 not an accident of how the place is stored.
 
 **A place the character on screen cannot locate is a legal place to stand something.** Hand `:add` a
-[Position](../world.md#the-position-type) rebuilt from somewhere you have not been since you logged in — one
+[Position](../position.md) rebuilt from somewhere you have not been since you logged in — one
 out of [`hafen.store`](../store.md), one recorded in another part of the world — and nothing raises. The
 entity exists, `:position():info()` answers the grid it was given, `:x()` answers `nil`, and `:drawn()` is
 `false`; it stands itself up the moment that ground resolves, with nothing further done to it. Nothing
@@ -266,7 +266,7 @@ which also depends on where the camera is pointing.
 ## See also
 
 - [`hafen.asset`](../asset.md) — the one door for the images and meshes these collections take
-- [`session:world`](../world.md#the-position-type) — the Position type, and placement snapping
+- [Position](../position.md) — the place an anchor is given, and the placement snapping beside it
 - [`gob:overlay()`](../overlay.md) — what is drawn *at* a gob, including these read-only
 - [the Widget object](../ui/widget.md) — what a standing widget goes on answering, unchanged
 - [drawing](../ui/drawing.md) — the same images, drawn on screen instead

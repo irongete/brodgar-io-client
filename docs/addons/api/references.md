@@ -15,11 +15,11 @@ if tree then tree:overlay():add("mark"):text("here") end   -- and a Gob is what 
 
 `s:world():gob()` is the collection of the game objects one of your characters has loaded, and everything
 on it hands back a [**Gob**](gob.md) whose methods read the live one; `s:player():gob()` is that character
-itself. `s` is a [Session](session.md), which is what says **which** character the read is about, and a Gob
-carries the session it was read through — see [identity](gob.md#identity). Every method re-resolves, so it
-answers `nil` once the gob is gone while `:id()` still answers. Anywhere a single gob is addressed —
-[`gob:overlay()`](overlay.md), [`s:player():hand():use(gob)`](player.md#the-hand) — you pass the Gob itself,
-never an id.
+itself. `s` is a [Session](session.md), which says **which** character's world is being searched — but a Gob
+is the object rather than that character's view of it, so two of your characters find the same value for one
+tree; see [identity](gob.md#identity). Every method re-resolves, so it answers `nil` once the gob is gone
+while `:id()` still answers. Anywhere a single gob is addressed — [`gob:overlay()`](overlay.md),
+[`s:player():hand():use(gob)`](player.md#the-hand) — you pass the Gob itself, never an id.
 
 ## Kin: a roster entry
 

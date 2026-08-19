@@ -284,7 +284,7 @@ any addon can address any entry by name, so the answer must not depend on who ow
 `use` raises an error on a category, on an entry that is no longer in the menu, and on one whose
 resource has not finished loading; check `:exists()` first if you are holding a stashed handle. A
 ground-targeted action enters targeting mode, just as the click would, and you supply the target with
-[`gob:click`](gob.md#write-protected) or [`session:world():place`](world.md#write-protected).
+[`session:world():click`](world.md#write-protected) or [`place`](world.md#write-protected).
 
 Because it goes through the client's own button code, `use` sends the action **by path when it has one and
 by id when it does not** — so it reaches the id-only entries, such as server-pushed abilities, that no path

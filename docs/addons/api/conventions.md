@@ -174,7 +174,7 @@ hafen.map():marker():list(function(m) return m:type() == "player" end)   -- a Ma
 
 ## Coordinates
 
-A place in the world is a **[Position](world.md#the-position-type)**, not a pair of numbers: one type,
+A place in the world is a **[Position](position.md)**, not a pair of numbers: one type,
 carried by every spatial verb, and the only thing `position()` ever answers. It is computable —
 `p:offset(dx, dy)` moves it in world units and the engine crosses grid boundaries for you — and durable,
 so it goes into [`hafen.store`](store.md) and comes back unchanged. Everything else that counts is a
@@ -245,4 +245,4 @@ is already sending. [`hafen.http`](http.md) declares separately, a `network` hos
 - [data types](types.md) — every snapshot shape the readers return
 - [events](event/bus.md) — the bus, and what each event hands your handler
 - [permissions](../guides/permissions.md) — the protected tier in full
-- [the Position type](world.md#the-position-type) — the one place type every spatial verb takes
+- [the Position type](position.md) — the one place type every spatial verb takes

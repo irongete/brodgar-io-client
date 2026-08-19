@@ -90,7 +90,7 @@ tileset id plus resource name.
 
 ## Position
 
-From [`p:info()`](world.md#the-position-type). `{ gridId = number, x = number, y = number }` — a grid id
+From [`p:info()`](position.md). `{ gridId = number, x = number, y = number }` — a grid id
 and the offset **within** that grid, which is the durable form and not the same numbers as `p:x()`/`p:y()`.
 It is `nil` for a place that is not durable, and it is what `s:world():position(saved)` rebuilds from.
 
@@ -160,7 +160,7 @@ never sent one.
 | `color` | [Color](#color) | party colour; optional |
 | `leader` | bool | whether this member is the party leader |
 
-The live reads are `member:id()`, `:position()` — a [Position](world.md#the-position-type), not the two
+The live reads are `member:id()`, `:position()` — a [Position](position.md), not the two
 loose numbers — `:color()` and `:leader()`.
 
 ## Buff

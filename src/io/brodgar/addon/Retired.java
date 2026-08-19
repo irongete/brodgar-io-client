@@ -272,8 +272,9 @@ final class Retired {
         // ---- It NAMES ALL TEN replacements, because it is the row every one of them is now reached through.
         put("hafen.act", "hafen.act() is gone: every verb moved to what it changes — session:player():move(p) walks"
             + " and session:player():hand():use(target, mods) applies what you are holding (nil cursor = nil hand),"
-            + " gob:click(button, mods) clicks an object, item:use(mods) / :take() / :drop(n) / :transfer(n) act"
-            + " on an item, session:world():place(p, angle, button, mods) / :select(p1, p2, mods) act on the world,"
+            + " session:world():click(gob, button, mods) clicks an object, item:use(mods) / :take() / :drop(n)"
+            + " / :transfer(n) act on an item, session:world():place(p, angle, button, mods) /"
+            + " :select(p1, p2, mods) act on the world,"
             + " session:menugrid():get(name):use() fires a menu action and widget:send(msg, ...) is the escape"
             + " hatch. hafen.act():flower(label) is session:flowermenu():select(label|n), which raises instead of"
             + " answering false and takes a ring position too; hafen.act():enabled() is gone — a running addon"
@@ -287,8 +288,9 @@ final class Retired {
         // ---- told about. The rows are the inventory; which __index happens to fire first is not.
         act("moveTo", "hafen.act():moveTo(p) is now session:player():move(p) — the verb lives on the character"
             + " it moves");
-        act("clickGob", "hafen.act():clickGob(gob, button, mods) is now gob:click(button, mods) — the verb"
-            + " lives on the object it clicks");
+        act("clickGob", "hafen.act():clickGob(gob, button, mods) is now"
+            + " session:world():click(gob, button, mods) — a click is something a CHARACTER does, so the"
+            + " session acts and the object is the target");
         act("useItemOn", "hafen.act():useItemOn(p, mods) is now session:player():hand():use(p, mods) — the"
             + " gesture belongs to what is ON THE CURSOR, and session:player():hand() is nil when nothing is,"
             + " so it can no longer be sent blind. The target is an Item, a Position or a Gob:"
@@ -342,10 +344,18 @@ final class Retired {
         put("gob:isplayer", "gob:isplayer() is now gob:isPlayer()");
         put("gob:overlays", "gob:overlays() is now gob:overlay():list() — gob:overlay() is the collection of"
             + " everything attached to the gob, and the verb says how many");
+        // 079.3: a Gob is the server's OBJECT rather than one character's reading of it, so it has nobody to
+        // send a click as -- the one verb on the handle that ACTED moves onto the world of the session that
+        // makes the gesture. The permission key is unchanged: a key names the action, and this one still
+        // names clicking an object.
+        put("gob:click", "gob:click(button, mods) is now s:world():click(gob, button, mods), where s is a"
+            + " Session (hafen.session():current() for the character on screen): a Gob names the OBJECT,"
+            + " which every character looking at it shares, and a click is something one character does."
+            + " The permission key is still \"gob.click\"");
         put("overlay:clickable", "overlay:clickable(b) does not exist — the thing under an overlay is the GOB,"
-            + " and a click on a gob is the client's own (gob:click)");
+            + " and a click on a gob is the client's own (session:world():click(gob))");
         put("overlay:onClick", "overlay:onClick(fn) does not exist — the thing under an overlay is the GOB, and"
-            + " a click on a gob is the client's own (gob:click)");
+            + " a click on a gob is the client's own (session:world():click(gob))");
         put("overlay:move", "overlay:move(x, y) does not exist — an overlay's position IS its gob's, and what"
             + " you set is where it sits relative to the gob, in SCREEN PIXELS: ov:offset(x, y)");
 

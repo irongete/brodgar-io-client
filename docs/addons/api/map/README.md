@@ -13,8 +13,8 @@ hafen.map():marker():remove(pin)
 ```
 
 > **Recorded, not live.** Nothing under `hafen.map` reads the terrain streamed around you — that is
-> [`session:world`](../world.md), which owns `tile`, `height`, the Position type and the rest of the
-> coordinate space. `hafen.map` is the database behind the map window and the corner minimap.
+> [`session:world`](../world.md), which owns `tile`, `height` and the rest of the coordinate space,
+> and hands back a [Position](../position.md). `hafen.map` is the database behind the map window and the corner minimap.
 
 ## One map for the client
 
@@ -22,7 +22,7 @@ There is **one recorded map per world you play in**, and every character you log
 it. Two of your own characters exploring in different places fill in one database: a pin the first drops is
 on the second's map, ground either of them walks over is explored for both, and one write lock covers the
 whole of it. Which character is on screen decides nothing about what this namespace answers — what it
-decides is where a [Position](../world.md#the-position-type) can be resolved, and that is a question about
+decides is where a [Position](../position.md) can be resolved, and that is a question about
 the live world.
 
 The map window and the corner minimap are one character's windows **over** that database, so closing a map,
@@ -53,7 +53,7 @@ it cannot outlive its grid — two calls are two objects on purpose. What is int
 The database is on disk. **A read that needs a grid the client has not loaded starts the load and
 returns `nil`; call again next tick and it answers.** Nothing blocks, and nothing ever throws a loading
 error at you — the same rule
-[a Position](../world.md#the-position-type) already follows. So a
+[a Position](../position.md) already follows. So a
 panel that draws the map simply re-asks every frame and fills in as the ground arrives; there is no
 callback to register and no "ready" event to wait for.
 

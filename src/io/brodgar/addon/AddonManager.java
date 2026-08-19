@@ -180,8 +180,8 @@ public final class AddonManager {
     static final Map<String, String> autoDisabledWarn = new ConcurrentHashMap<String, String>();
 
     // -- the permissions tier (spec 12-security-and-permissions / D-010 / D-025 / D-027; refined by D-028):
-    // the protected surface. Every protected verb — player:move, hand:use, gob:click, the four item verbs,
-    // world:place/:select, pag:use, widget:send, speed:set, craft:make, slot:use/:res, the kin writes,
+    // the protected surface. Every protected verb — player:move, hand:use, the four item verbs,
+    // world:click/:place/:select, pag:use, widget:send, speed:set, craft:make, slot:use/:res, the kin writes,
     // flowermenu:select/:cancel — DRIVES the character by sending a
     // player-action wdgmsg — it acts on the user's behalf (moves them, uses items, interacts with the world),
     // which is powerful, so each is a PER-ADDON permission granted only to an addon that DECLARED that verb's
@@ -1059,10 +1059,10 @@ public final class AddonManager {
                 // standing on it that survived because ANOTHER character has it in view is re-asked whether
                 // the one on screen does. A flag, and only for the ids something is actually standing on.
                 VrApi.anchorSeen(ge.gob.id);
-                // 076.3: the payload Gob is read through the session that SAW the object — this queue is that
-                // session's own, so the handle names the right character's copy without anything having to be
-                // guessed. The event itself still carries no Session; that is filed on the roadmap.
-                fireGob(ge.added ? "GobAdded" : "GobRemoved", Sessions.nameof(u), ge.gob.id);
+                // 079.3: the payload Gob is the OBJECT — interned on the id alone, so the handle a handler is
+                // given is the same one s:world():gob():get(id) hands back and there is no session to guess.
+                // The event itself still fires once per session that saw it; that is filed on the roadmap.
+                fireGob(ge.added ? "GobAdded" : "GobRemoved", ge.gob.id);
             }
 
             // 1'. The two gob-overlay events (038.3), captured on the loader threads (the game's own) and inside
@@ -1894,14 +1894,14 @@ public final class AddonManager {
      * for the addons that don't listen. On {@code GobRemoved} the gob is already gone, so only {@code :id()}
      * answers — an addon that needs the name must have indexed it on {@code GobAdded}.
      */
-    static void fireGob(String event, String user, long id) {
+    static void fireGob(String event, long id) {
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, LuaGob.of(a, user, id));
+                fireTo(a, event, LuaGob.of(a, id));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, LuaGob.of(c, user, id));
+            fireTo(c, event, LuaGob.of(c, id));
     }
 
     /**
@@ -2929,7 +2929,7 @@ public final class AddonManager {
         // server-authoritative: an addon can only send what a player click could send. What changed is WHERE the
         // verbs live. A verb belongs with what it CHANGES, not with what it COSTS — a permission is not a
         // namespace — so 048 dissolved the one section that was grouped by its gate, verb by verb:
-        //   s:player():move(p) walks and gob:click(button, mods) clicks (048.1); s:player():hand() is the
+        //   s:player():move(p) walks and s:world():click(gob, button, mods) clicks; s:player():hand() is the
         // cursor and :use(target, mods) applies what you hold to an Item, a Position or a Gob (048.2); an item
         // answers item:use/:take/:drop/:transfer (048.3); s:world():place / :select stand beside the
         // snapPlace/snapAngle that prepare their arguments (048.4); a menu entry is
@@ -3633,8 +3633,8 @@ public final class AddonManager {
     }
 
     /**
-     * The live {@link Gob} for an id <b>in that session</b>, or {@code null} — the one resolution point every
-     * {@link LuaGob} method funnels through since a Gob handle carries its session beside its id.
+     * The live {@link Gob} for an id <b>in that session</b>, or {@code null} — what every read addressed at a
+     * named character funnels through.
      *
      * <p>A gob id is the <b>server's</b> and names the same object in every session that has loaded it, but
      * the {@link Gob} is not shared: each {@link OCache} holds its own, placed against its own session's map.
@@ -3644,6 +3644,89 @@ public final class AddonManager {
     static Gob getgob(String user, long id) {
         OCache oc = oc(user);
         return (oc == null) ? null : oc.getgob(id);
+    }
+
+    // ------------------------------------------------------- one OBJECT, however many hold it (079.3)
+    //
+    // A LuaGob is keyed on the gob id alone, so a read on one has to say which session computes it. These
+    // three are that rule, in one place:
+    //
+    //   gobUsers(id)  every live session that holds the object, in membership order -- gob:sessions()
+    //   gobUser(id)   the ONE a bare read resolves through: the session on screen when it holds the
+    //                 object, and otherwise the first that does
+    //   anygob(id)    the Gob that session holds
+    //
+    // The screen first, because that is the rule this API already has for a value carrying no session: a
+    // bare p:distance() and p:x() answer for the character on screen. With one session logged in -- the
+    // whole of the client until 076 -- it resolves to that one and every read costs exactly what it did.
+    //
+    // Nothing is kept. The set is asked of the OCaches at the moment of the call, so a session that has
+    // ended drops out of every answer with nothing having to be notified, and a count that could disagree
+    // with the caches is never built.
+
+    /**
+     * <b>The accounts of every live session whose object cache holds {@code id}</b>, in membership order —
+     * {@code gob:sessions()}'s answer. Empty when nobody holds it, which is what a despawned object reads.
+     */
+    static List<String> gobUsers(long id) {
+        List<String> out = new ArrayList<String>();
+        for(Sessions.Member m : Sessions.members()) {
+            if(holds(m, id))
+                out.add(m.user);
+        }
+        return out;
+    }
+
+    /**
+     * <b>The session a bare Gob read resolves through</b> — the one on screen when it holds the object,
+     * otherwise the first that does, {@code null} when none does. The drawn session is tried without
+     * copying the membership list, so the ordinary read is one lookup and one {@code OCache} probe.
+     */
+    static String gobUser(long id) {
+        String drawn = drawnUser();
+        if((drawn != null) && (getgob(drawn, id) != null))
+            return drawn;
+        for(Sessions.Member m : Sessions.members()) {
+            if(holds(m, id))
+                return m.user;
+        }
+        return null;
+    }
+
+    /**
+     * <b>The session a read across TWO gobs resolves through</b> — the one on screen when it holds both,
+     * otherwise the first that does, {@code null} when no single character can see them together.
+     * {@code gob:distance(other)}'s door: {@code Gob.rc} is one session's frame, so a pair measured across two
+     * of them measures nothing, and the pair has to be resolved before it is subtracted.
+     */
+    static String gobUser(long a, long b) {
+        String drawn = drawnUser();
+        if((drawn != null) && (getgob(drawn, a) != null) && (getgob(drawn, b) != null))
+            return drawn;
+        for(Sessions.Member m : Sessions.members()) {
+            if(holds(m, a) && holds(m, b))
+                return m.user;
+        }
+        return null;
+    }
+
+    /** The live {@link Gob} for an id, in whichever session {@link #gobUser(long)} names; {@code null} for none. */
+    static Gob anygob(long id) {
+        String user = gobUser(id);
+        return (user == null) ? null : getgob(user, id);
+    }
+
+    /** Does this member's object cache hold {@code id}? A session being taken down answers no, not a throw. */
+    private static boolean holds(Sessions.Member m, long id) {
+        haven.Session s = m.sess;
+        Glob gl = (s == null) ? null : s.glob;
+        if(gl == null)
+            return false;
+        try {
+            return gl.oc.getgob(id) != null;
+        } catch(RuntimeException e) {
+            return false;
+        }
     }
 
     /** A copy of that session's gob list (taken under its OCache lock; snapshots built by the caller). */
@@ -3813,17 +3896,16 @@ public final class AddonManager {
      * a <b>function</b> → called with the owner's interned {@link LuaGob} object, truthy keeps it (an error drops
      * it). The caller must already be OUTSIDE the OCache lock — a function filter re-enters Lua.
      *
-     * <p>{@code user} is the session the collection being filtered is enumerating (076.3), so the Gob a
-     * predicate is handed reads the same character's world the {@code :list()} around it does — a filter that
-     * measured against the screen while its collection measured against another login would quietly disagree
-     * with the array it was building.
+     * <p>The Gob a predicate is handed is the object itself (079.3), interned on the id alone, so it is the
+     * very handle the {@code :list()} around it is building an array of — the filter and the array cannot
+     * disagree about what they are talking about.
      */
-    static boolean gobMatches(LuaValue filter, Addon owner, String user, Gob g) {
+    static boolean gobMatches(LuaValue filter, Addon owner, Gob g) {
         if((filter == null) || filter.isnil())
             return true;
         if(filter.isfunction()) {
             try {
-                return filter.call(LuaGob.of(owner, user, g.id)).toboolean();
+                return filter.call(LuaGob.of(owner, g.id)).toboolean();
             } catch(RuntimeException e) {   // LuaError is a RuntimeException
                 return false;
             }

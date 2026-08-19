@@ -517,8 +517,8 @@ public final class LuaEvent {
     /** {@code ev:gob()} (OVERLAY) — the interned Gob handle, minted on the first ask (like {@code :sender()}). */
     private LuaValue gob() {
         if(gobObj == null)
-            // The bus carries no session yet (filed on the roadmap), so the gob is the screen's.
-            gobObj = LuaGob.of(owner, AddonManager.drawnUser(), gobId);
+            // A Gob is the object, so this is the same handle s:world():gob():get(id) hands back (079.3).
+            gobObj = LuaGob.of(owner, gobId);
         return gobObj;
     }
 

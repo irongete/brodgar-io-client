@@ -2220,7 +2220,7 @@ final class UiApi {
                 if(o.draw != null)
                     // A gob overlay is drawn into the scene on screen, so its gob is that session's.
                     callLua(o.owner, Addon.C_DRAW, o.draw, gt,
-                            LuaGob.of(o.owner, AddonManager.drawnUser(), gob.id), sx, sy);
+                            LuaGob.of(o.owner, gob.id), sx, sy);
                 else
                     gwrap.label(g, o.text, sc.add(Px.in(o.screenOffset())), 0.5, 1.0, o.color);
             } catch(RuntimeException e) {

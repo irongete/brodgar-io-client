@@ -72,7 +72,7 @@ end)
 ```
 
 That example is the general shape of saving anything positional: a raw `x, y` is meaningless next session,
-so store a [Position](../api/world.md#the-position-type) instead.
+so store a [Position](../api/position.md) instead.
 
 ## When it is written
 

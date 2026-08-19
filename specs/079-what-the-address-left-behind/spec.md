@@ -159,7 +159,9 @@ what a handler *receives*, never how the bus is reached.
 - `src/io/brodgar/addon/WorldApi.java` — 3 (`s:world():gob()` returns the same interned handle)
 - `src/io/brodgar/session/Sessions.java` — 2, 3
 - `specs/ROADMAP.md` — 1, 2, 3 (each task removes its own line)
-- `docs/addons/api/event/bus.md`, `api/gob.md` — 3
+- `docs/addons/api/event/bus.md` — 4
+- `docs/addons/api/gob.md`, `api/world.md`, `api/position.md` — 3 (`world.md` hit the 300-line
+  ceiling, so the Position type split off into its own sibling type page)
 - `docs/addons/api/store.md`, `guides/saved-data.md` — 1, 2
 - `docs/addons/runtime.md` — 2
 - `DOCUMENTATION.md` — 1, 2, 3

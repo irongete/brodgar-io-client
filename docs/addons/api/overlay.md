@@ -65,7 +65,7 @@ it.
 **`ov:offset` means exactly one thing: pixels.** An overlay is painted at a projected point, so that is the
 only unit it could be in — the same design pixel the `sx, sy` beside it is in — and a third argument raises. There is no `ov:clickable` and no `ov:onClick`:
 the thing under an overlay is the gob, and clicking a gob is
-[`gob:click`](gob.md#gobclickbutton-mods). There is no `ov:move` either: an overlay's position **is**
+[`s:world():click`](world.md#write-protected). There is no `ov:move` either: an overlay's position **is**
 its gob's, and what you set is the offset.
 
 ## A thing you stood at the gob is listed here, read-only

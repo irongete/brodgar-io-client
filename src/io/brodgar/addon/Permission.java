@@ -8,11 +8,13 @@ import java.util.Map;
  * D-028 for the model). Each entry carries the three things every consumer of the tier needs, so the three
  * lists that would otherwise drift are one that cannot:
  * <ul>
- *   <li>its <b>key</b> ({@code gob.click}) — what an addon declares in {@code manifest.json}'s
+ *   <li>its <b>key</b> ({@code item.transfer}) — what an addon declares in {@code manifest.json}'s
  *       {@code "permissions"} array, named {@code <section>.<verb>} after the section the verb LIVES on
  *       (D-215: a verb lives with what it changes), so {@code pag:use()} is {@code menugrid.use} and
- *       {@code slot:use()} is {@code actionbar.use}; {@code player.hand.use} is the one nested case;</li>
- *   <li>its <b>Lua spelling</b> ({@code gob:click}) — the verb as an author writes it, which is what the
+ *       {@code slot:use()} is {@code actionbar.use}; {@code player.hand.use} is the one nested case.
+ *       {@code gob.click} is the one key whose section is not where its verb sits — the action is clicking
+ *       an object, and it kept that name when the verb moved onto the world of the session that clicks;</li>
+ *   <li>its <b>Lua spelling</b> ({@code item:transfer}) — the verb as an author writes it, which is what the
  *       gate's refusal opens with;</li>
  *   <li>its <b>plain-language line</b> (<i>"click objects in the world"</i>) — what the enable-time consent
  *       dialog says this key lets the addon do, in the user's words rather than the API's.</li>
@@ -39,7 +41,7 @@ import java.util.Map;
 public enum Permission {
     PLAYER_MOVE      ("player.move",        "session:player():move",          "walk your character to a place"),
     PLAYER_HAND_USE  ("player.hand.use",    "session:player():hand():use",    "use whatever it is holding on things"),
-    GOB_CLICK        ("gob.click",          "gob:click",                      "click objects in the world"),
+    GOB_CLICK        ("gob.click",          "session:world():click",          "click objects in the world"),
     ITEM_USE         ("item.use",           "item:use",                       "use items"),
     ITEM_TAKE        ("item.take",          "item:take",                      "pick items up onto the cursor"),
     ITEM_DROP        ("item.drop",          "item:drop",                      "drop items"),

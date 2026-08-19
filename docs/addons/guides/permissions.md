@@ -16,7 +16,7 @@ consent dialog tells the user, word for word.
 |---|---|---|
 | `player.move` | [`session:player():move`](../api/player.md#write-protected) | walk your character to a place |
 | `player.hand.use` | [`session:player():hand():use`](../api/player.md#the-hand) | use whatever it is holding on things |
-| `gob.click` | [`gob:click`](../api/gob.md#write-protected) | click objects in the world |
+| `gob.click` | [`session:world():click`](../api/world.md#write-protected) | click objects in the world |
 | `item.use` | [`item:use`](../api/ui/items.md#write-protected) | use items |
 | `item.take` | [`item:take`](../api/ui/items.md#write-protected) | pick items up onto the cursor |
 | `item.drop` | [`item:drop`](../api/ui/items.md#write-protected) | drop items |
@@ -55,6 +55,10 @@ So read every line of the table above across the whole client. "Change your move
 character's speed; "add someone to any of your characters' kin lists" says the same thing in the one place
 the plural is easy to miss. What the user approves is a **capability**, and the character it is pointed at
 is your addon's to choose.
+
+A key is named after the action for the same reason, which is why `gob.click` is the one key whose name is
+not the section its verb sits under: what it grants is clicking an object, and that is what it kept when the
+verb moved onto the world of the character doing the clicking.
 
 ## Groups
 
@@ -159,7 +163,7 @@ hafen.slash():register("gotree", function()
   local tree = s:world():gob():nearest("terobjs/tree")
   if tree then
     s:player():move(tree:position())            -- player.move
-    tree:click(3)                               -- gob.click, and open its radial menu
+    s:world():click(tree, 3)                    -- gob.click, and open its radial menu
   end
 end)
 ```
