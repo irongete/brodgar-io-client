@@ -104,7 +104,7 @@ a table key. So are the things that hang off one: hold the `Session` and `s:worl
 ## Read
 
 The first five are called on the collection, the rest on a `Session`. Nothing here is protected, and a
-`Session`'s own verbs never throw — `s:world()` and `s:player()` answer for a session that has ended too,
+`Session`'s own reads never throw — `s:world()` and `s:player()` answer for a session that has ended too,
 and everything under them then reads `nil`-shaped.
 
 | Method | Returns | Description |
@@ -155,6 +155,37 @@ does whose effect leaves the client, and taking the screen changes which widget 
 else: the server is never told, and nothing about any character is altered. There is no
 `hafen.session():add`, either — a second account is logged in with `:session add`, which is the console's
 own, and this API manages the sessions that exist.
+
+## Write (protected)
+
+### `s:close()`
+
+End that session, which is the logout `:session drop` performs, on the character you name. It needs the
+`session.close` permission, and it hands the `Session` back so writes chain.
+
+```lua
+for _, s in ipairs(hafen.session():list()) do              -- log the alts out, keep the one on screen
+  if s ~= hafen.session():current() then s:close() end
+end
+```
+
+**It is asynchronous.** The verb asks the session to close and returns; that login is still in
+`hafen.session():list()` on the next line and leaves a tick or more later, on its own thread. `s:exists()`
+is the read that answers and [`SessionDestroyed`](event/bus.md#sessions) is the edge, so poll the one or
+subscribe to the other rather than reading the list again on the line below.
+
+Closing the session **on screen** is allowed: the screen goes to another live session, or to the login
+screen when that was the last one. `s:user()` answers afterwards, as it does for every `Session` whose
+login has ended, so the handle you closed is still the key you drop your own tables by.
+
+It raises on a session the client does not hold, naming the account. `:get(user)` mints an object for any
+account name and a closed session is one the client no longer holds, so closing the same one twice is the
+second call raising rather than a silent nothing.
+
+**Why it is protected.** Logging a character out leaves the client: the server is told, and that
+character goes. The line the user reads when they enable your addon is "log out any of your
+characters", and it covers every login the client holds — the key names the action rather than the
+character it is pointed at.
 
 ## Sessions that come and go
 

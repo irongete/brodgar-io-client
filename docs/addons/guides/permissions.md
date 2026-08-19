@@ -35,6 +35,7 @@ consent dialog tells the user, word for word.
 | `kin.endKin` | [`kin:endKin`](../api/kin.md#write-protected) | end kinship with someone, on any of your characters |
 | `kin.forget` | [`kin:forget`](../api/kin.md#write-protected) | forget someone from any of your characters' kin lists |
 | `speed.set` | [`session:speed():set`](../api/speed.md#write-protected) | change the movement speed of any of your characters |
+| `session.close` | [`session:close`](../api/session.md#write-protected) | log out any of your characters |
 | `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected) | send any message the client itself could send |
 | `widget.value` | [`widget:value`](../api/ui/edit.md#driving-one-protected) | flip the client's own controls — a box it ticks, a field it types into — which the server sees |
 
@@ -75,8 +76,8 @@ A `<prefix>.*` entry stands for every key under that prefix, so one line asks fo
 | `player.hand.*` | `player.hand.use` |
 | `widget.*` | `widget.send`, `widget.value` |
 
-Any key's prefix is a legal group, so `gob.*`, `menugrid.*`, `craft.*` and `speed.*` parse too — each a
-longer way of writing the single key it covers.
+Any key's prefix is a legal group, so `gob.*`, `menugrid.*`, `craft.*`, `speed.*` and `session.*` parse
+too — each a longer way of writing the single key it covers.
 
 The prefix is matched on **whole dot segments**, so a group can never reach a key that merely starts with the
 same letters — and it does reach a nested one. `player.hand.use` is the only nested key: `player.*` covers it

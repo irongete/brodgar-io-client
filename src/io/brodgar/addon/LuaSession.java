@@ -56,6 +56,11 @@ import java.util.Map;
  * {@code worldToScreen}) and the ones that <b>send</b> go through {@link AddonManager#sendView}, because a
  * walk is the whole of what a character nobody is looking at takes.
  *
+ * <p><b>The one verb here that is not a namespace and not a read</b> (081.2): {@code :close()} ends this
+ * login, behind the {@code session.close} permission. It is the only write a Session carries — the screen is
+ * the collection's ({@code hafen.session():current(s)}), because there is one screen however many logins
+ * there are, while ending a login is about the one it names.
+ *
  * <p><b>Threading.</b> Every read runs on the UI thread. {@code Sessions.members()} copies the membership
  * list, and a member's {@code ui} is null in the gaps ({@code Sessions.Member.run} clears it while the UI is
  * taken down and during a character handoff), so every verb answers {@code nil}-shaped there rather than
@@ -409,6 +414,27 @@ public final class LuaSession {
                 if(h.storeObj == null)
                     h.storeObj = StoreApi.store(owner, h.user);
                 return h.storeObj;
+            }
+        });
+        // close() — END this session: the one protected verb a Session carries ("session.close", D-027/D-028),
+        // gated as the FIRST statement (D-213). Sessions.Member.drop() closes the Session, so RemoteUI.run
+        // unwinds through its own cleanup instead of being torn out from under itself — which is exactly what
+        // `:session drop` does, and is why this is protected while taking the screen is not: a logout leaves
+        // the client. It is ASYNCHRONOUS: drop() returns before the member leaves the list, so :exists() and
+        // SessionDestroyed are what answer, a tick or more later. Closing the session ON SCREEN is allowed —
+        // relinquish/reclaim hand the screen to another live session, or to the login screen when there is
+        // none left. Returns self, so writes chain.
+        m.set("close", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                AddonManager.requirePermission(owner, Permission.SESSION_CLOSE);
+                LuaSession h = handle(self, "close");
+                Sessions.Member mem = Sessions.byuser(h.user);
+                if(mem == null)
+                    throw new LuaError("session:close(): the client holds no session for the account '"
+                        + h.user + "' — s:exists() is the test, and a session that has already ended has"
+                        + " nothing left to close");
+                mem.drop();
+                return self;
             }
         });
         // info() — the one SNAPSHOT escape hatch, and always a table: a Session that does not exist is

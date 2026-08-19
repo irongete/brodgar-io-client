@@ -37,6 +37,9 @@ import java.util.Map;
  * read across every login the client holds — 077.3 says it of the four that act on a character's bar, its
  * speed, its open recipe and its action menu, exactly as 077.2 said it of the kin roster, and 077.4 of the
  * radial menu a character has open, which is a widget in that character's tree rather than the screen's.
+ * 081.2 says it of the login itself: {@code session.close} logs a character out, and the character it is
+ * pointed at is the addon's to choose, exactly as the player could have typed {@code :session drop} at any
+ * of them.
  */
 public enum Permission {
     PLAYER_MOVE      ("player.move",        "session:player():move",          "walk your character to a place"),
@@ -67,6 +70,7 @@ public enum Permission {
     KIN_FORGET       ("kin.forget",         "kin:forget",                     "forget someone from any of your characters' kin lists"),
     SPEED_SET        ("speed.set",          "session:speed():set",            "change the movement speed of any of"
                                                                               + " your characters"),
+    SESSION_CLOSE    ("session.close",      "session:close",                  "log out any of your characters"),
     WIDGET_SEND      ("widget.send",        "widget:send",                    "send any message the client itself could send"),
     WIDGET_VALUE     ("widget.value",       "widget:value",                   "flip the client's own controls — a box it ticks,"
                                                                               + " a field it types into — which the server sees");

@@ -16,7 +16,7 @@
       `[manual]`: log in a second account with `:session add` before running; report whether the screen
       visibly moved to the other character and back.
 
-- [ ] **081.2 — A session can be closed from an addon.** `s:close()` on `LuaSession`: the
+- [x] **081.2 — A session can be closed from an addon.** `s:close()` on `LuaSession`: the
       `session.close` gate first, then `Sessions.byuser(user)` and `Member.drop()`. A session that no
       longer exists is refused by name. `Permission.SESSION_CLOSE` carries the consent line *"log out
       any of your characters"*. `docs/addons/api/session.md` gets the verb under a

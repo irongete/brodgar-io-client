@@ -1,0 +1,12 @@
+{
+  "name": "081.2 — a session can be closed from an addon",
+  "id": "081-session-manager.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 081.2: s:close() ends a login behind the session.close permission, asynchronously, and refuses a session the client no longer holds.",
+  "api_version": 1,
+  "permissions": ["session.close"],
+  "files": [
+    "main.lua"
+  ]
+}
