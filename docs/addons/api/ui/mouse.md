@@ -4,6 +4,11 @@
 capture that makes a drag yours. It is not a [Widget](widget.md): `:mouse()` hands back the pointer
 **itself**, the same shape a [session's Player](../player.md) has.
 
+**There is one pointer.** A Player is one character's and is reached through that character's
+[Session](../session.md); the cursor is not. However many characters the client holds, there is one
+place the pointer is, one set of modifier keys held over it and one widget under it — the screen's —
+so `:mouse()` names no character and hangs off `hafen.ui()` alone.
+
 ```lua
 local m = hafen.ui():mouse()
 m:x()  m:y()                  -- where the cursor is, in root coords (design pixels)

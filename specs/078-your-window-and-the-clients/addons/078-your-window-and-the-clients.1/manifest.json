@@ -1,0 +1,9 @@
+{
+  "name": "078.1 — which half each verb is in",
+  "id": "078-your-window-and-the-clients.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 078.1: the screen's verbs answer for a point the caller picks and for the client's own scale, and the layer's verbs build a surface of yours -- the verdicts verbs.md records, proved through the API.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

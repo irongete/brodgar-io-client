@@ -36,6 +36,10 @@ local m = hafen.ui():mouse()
 hafen.ui():at(m:x(), m:y()) == m:over()          -- true: one pair, asked two ways
 ```
 
+**And one screen asking them.** The client can hold several characters logged in and draws one of them,
+so the pointer, the point `hafen.ui():at(x, y)` tests and the scale below are the screen's rather than
+any character's — none of the three is reached through a [Session](../session.md).
+
 **A point in the world enters and leaves through the same space.**
 [`s:player():worldToScreen(p)`](../player.md) answers a root pair in this unit, and
 [`s:world():screenToWorld(sx, sy, fn)`](../world.md#screen-to-world-and-placement-snapping) takes one,
