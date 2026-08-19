@@ -64,7 +64,7 @@
       **not** flicker on a switch, that `X` logs that character out, and that its position survives a
       client restart.
 
-- [ ] **081.5 — The write says whether it landed.** `hafen.session():current(s)` on a session whose
+- [x] **081.5 — The write says whether it landed.** `hafen.session():current(s)` on a session whose
       `UI` is momentarily absent — connecting, or between the two UIs of a character handoff — is a
       no-op with a console line and no signal to Lua, and the cycling example under it derives the
       next session from `:current()` each call, which is the one shape that stalls on that login

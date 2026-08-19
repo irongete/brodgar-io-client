@@ -1,0 +1,9 @@
+{
+  "name": "081.5 — the write says whether it landed",
+  "id": "081-session-manager.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 081.5: hafen.session():current(s) hands the collection back, writing the session already on screen is a no-op that re-reading :current() detects, and a checked lap visits every reachable session once and ends where it started.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

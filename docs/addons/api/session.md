@@ -5,7 +5,7 @@ the collection of them, and a **Session** is how you name one character rather t
 screen.
 
 ```lua
-local s = hafen.session():current()                       -- the session on screen, nil on the login screen
+local s = hafen.session():current()               -- the session on screen, nil on the login screen
 if s then
   hafen.log():write(s:user() .. " is playing " .. (s:character() or "nobody yet"))
 end
@@ -134,16 +134,32 @@ Session — raises. To search, use the ordinary [filter](conventions.md#the-filt
 Hand the screen to `s`. It is the whole gesture rather than half of one — the RTS selection and the camera
 follow the screen, exactly as they do when the player takes it with `:session anchor` — and it hands the
 collection back, so writes chain. Naming the session **already** on screen changes nothing and fires no
-[`SessionSelected`](event/bus.md#sessions); a session that is still connecting has no screen to be given
-yet, and the client says so on the console rather than raising.
+[`SessionSelected`](event/bus.md#sessions).
+
+> **A session with no screen of its own yet cannot be given the screen.** There are two moments a login is
+> in that state: while it is connecting, before the client has built anything for it, and during a
+> character switch, between the screen it is leaving and the one it is about to get. The write is then a
+> no-op — the client says so on the console, nothing is raised, and no event fires. **Re-read
+> `:current()` to learn whether it landed**: the write itself reports nothing, and the session it comes
+> back with is the one that actually holds the screen.
 
 ```lua
-local list, at = hafen.session():list(), 1                 -- go to the next login, and round
+local list = hafen.session():list()                        -- go to the next login, and round
+local cur, at = hafen.session():current(), 0
 for i, s in ipairs(list) do
-  if s == hafen.session():current() then at = i end
+  if s == cur then at = i end
 end
-hafen.session():current(list[(at % #list) + 1])
+for step = 1, #list do                                     -- bounded: give up if none will take it
+  local want = list[((at + step - 1) % #list) + 1]
+  hafen.session():current(want)
+  if hafen.session():current() == want then break end      -- it landed; otherwise walk past it
+end
 ```
+
+The starting point is taken once and every step after it comes from the list, so each write names a login
+the lap has not tried yet and the read back says whether to stop. A cycle that re-derives its next session
+from `:current()` on every press names the same unreachable login each time instead, and the key does
+nothing for as long as that character has no screen.
 
 It raises, naming what is wrong, on three things: a value that is not a `Session`, an explicit `nil`
 (arity is the verb — call it with no argument to read), and a `Session` the client does not hold. The last
@@ -164,7 +180,7 @@ End that session, which is the logout `:session drop` performs, on the character
 `session.close` permission, and it hands the `Session` back so writes chain.
 
 ```lua
-for _, s in ipairs(hafen.session():list()) do              -- log the alts out, keep the one on screen
+for _, s in ipairs(hafen.session():list()) do           -- log the alts out, keep the one on screen
   if s ~= hafen.session():current() then s:close() end
 end
 ```
