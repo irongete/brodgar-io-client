@@ -147,6 +147,12 @@ Key your tables by `s:user()` rather than by the Session object when what you ar
 outlive the session: the string is a plain Lua value that survives your addon being reloaded, while an
 object is one addon's handle. Both address the same login.
 
+**The four are not the only events that name a session.** Everything the bus reports about one
+character — its meters, buffs, food, study, equipment, action bar, wounds, roster, quests and radial
+menu — hands you that character's `Session` as the handler's
+[last argument](event/bus.md#whose-character-it-was), so a handler reads the character the event was
+about rather than the one on screen.
+
 ## See also
 
 - [events](event/bus.md#sessions) — the four moments a session announces

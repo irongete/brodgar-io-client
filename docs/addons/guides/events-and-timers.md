@@ -93,12 +93,20 @@ hafen.event():on("SessionEnteredWorld", function(s)
   end)
 end)
 
-hafen.event():on("MeterChanged", function(m)             -- ...or let the client tell you
-  if m:res() == "gfx/hud/meter/hp" then hafen.log():write("hp: " .. tostring(m:value())) end
+hafen.event():on("MeterChanged", function(m, s)          -- ...or let the client tell you
+  if m:res() == "gfx/hud/meter/hp" then
+    hafen.log():write(s:user() .. " hp: " .. tostring(m:value()))
+  end
 end)
 ```
 
 The second is better whenever an event exists, and one exists for most of what streams in.
+
+**An event about a character says which character.** The bar that changed there could be any of the ones
+you have logged in, so `MeterChanged` — and every other event about one character — hands you its
+[`Session`](../api/session.md) as its **last** argument. Take it when you need it and leave it out when
+you do not: `function(m)` goes on working, because Lua drops an argument the function did not declare.
+The [catalogue](../api/event/bus.md#whose-character-it-was) lists which events carry one.
 
 ## Lists arrive whole
 

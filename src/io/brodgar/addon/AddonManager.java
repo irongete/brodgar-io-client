@@ -374,7 +374,9 @@ public final class AddonManager {
         /** Re-entrancy guard for {@link #dispatchAction}: a handler body that itself sends a {@code wdgmsg}. */
         boolean dispatchingAction;
 
-        /** Gob spawn/despawn from this session's {@link OCache}, captured on the network/loader threads. */
+        /** Gob spawn/despawn from this session's {@link OCache}, captured on the network/loader threads.
+         *  Filled per session and drained by the LAYER (079.4): the deltas are one session's, the object they
+         *  are about is the client's, and the edge cannot be settled until every session's are in. */
         final Queue<GobEvent> gobEvents = new ConcurrentLinkedQueue<GobEvent>();
         /** 038.3: the same marshalling for the two gob-overlay events. */
         final Queue<OverlayEvent> overlayEvents = new ConcurrentLinkedQueue<OverlayEvent>();
@@ -599,6 +601,10 @@ public final class AddonManager {
         // 079.1: ...and the tables that session's saved variables live in go with it, so they are handed on
         // before the state is dropped rather than looked for afterwards in a map they are no longer in.
         StoreApi.sessionEnded(states.remove(u));
+        // 079.4: ...and every object that session alone could see has left its last session, which nothing
+        // else will ever say — OCache reports an arrival and a departure and has no third callback, so a
+        // cache going whole goes in silence. The held set is re-asked on the next drain.
+        gobRescans++;
         // 074.2: ...and every record an addon left naming a widget of that tree. It was `init` that pruned
         // these, on a switch, for the one owner that outlived one; now that EVERY addon outlives a session,
         // the prune belongs where the tree actually ends — which is here, and is what the census's route (b)
@@ -696,6 +702,7 @@ public final class AddonManager {
             if(e.getKey().destroyed) {
                 StoreApi.sessionEnded(e.getValue());   // 079.1: a missed hook must not cost that character
                 it.remove();                           //   their saved variables as well as their state
+                gobRescans++;                          // 079.4: ...nor the world it alone could see its GobRemoved
             }
         }
     }
@@ -864,8 +871,9 @@ public final class AddonManager {
         try {
             OCache oc = u.sess.glob.oc;
             OCache.ChangeCallback cb = new OCache.ChangeCallback() {
-                // ...and only while a pump is attached to drain it: a session's queue with nothing draining
-                // it would grow for the life of that session.
+                // ...and only once this session's own step is up: the layer drains the queue (079.4), but a
+                // state that never finished init is one whose gobs nothing else in this layer knows about,
+                // and its queue would grow for the life of the session.
                 public void added(Gob g)   { if(st.addonRoot != null) st.gobEvents.add(new GobEvent(true, g)); }
                 public void removed(Gob g) { if(st.addonRoot != null) st.gobEvents.add(new GobEvent(false, g)); }
             };
@@ -969,6 +977,12 @@ public final class AddonManager {
             // with the addons that own them (074.2): the seam is handed a bare Runnable and knows no session.
             drainResolveQueue();
 
+            // 079.4: every session's gob queue, settled and reported ONCE for the client — GobAdded into the
+            // first session that sees an object, GobRemoved out of the last, and nothing in between. Before
+            // drainGround, because a spawn or a despawn is exactly what moves the ground under a thing
+            // standing on it, and this is the drain that raises that flag.
+            drainGobEvents();
+
             // The ground under a thing standing in the world (044.9), and since 075.3 the scene it stands in
             // as well: the terrain's cut map changed — the player crossed a cut boundary, or a grid streamed
             // in or out — or the screen moved to another session, which changes where every entity is drawn
@@ -1022,7 +1036,8 @@ public final class AddonManager {
      *
      * <p><b>It is told which session it is stepping</b> (073.1): the pump is a widget on one session's root,
      * so the tree it was reached through is the answer, and what it drains is that session's own queues — its
-     * gobs, its HUD adapters, its widgets, its world, its store.
+     * HUD adapters, its widgets, its world, its store. Its <b>gobs</b> are not among them since 079.4: an
+     * object is the client's and its queue is drained with every other session's, on the layer's tick.
      *
      * <p><b>What is NOT here is what an addon has one of</b> (074.2): {@code Update}, the timers, the Lua
      * budget and the engine clock run on the layer's own pump ({@link #layerTick}), once for the client, so
@@ -1043,33 +1058,17 @@ public final class AddonManager {
             CDropdown.drainRaises(st);    // 040.10: re-raise a popup the enclosing window's own click-to-raise
                                            //   buried this same frame (see CDropdown's class doc)
 
-            // 1. Gob spawn/despawn captured on network/loader threads → dispatch on the UI thread.
-            GobEvent ge;
-            while((ge = st.gobEvents.poll()) != null) {
-                // 038.2: an overlay dies with its gob. Done BEFORE the event reaches Lua, so a GobRemoved handler
-                // already reads the truth — and it is what a world-space overlay costs: its visual is a
-                // client-only gob of its own, which nothing disposes just because the target left OCache.
-                // 043.2: the same is true of a hafen.vr() entity that :add(what, gob) anchored, which has no
-                // record on the gob to be found through — VrApi's by-target index is what makes that O(1) too.
-                if(!ge.added) {
-                    LuaGobOverlay.gobGone(ge.gob);
-                    VrApi.anchorGone(ge.gob.id);   // 075.3: the client's one index, and only if no session still sees it
-                }
-                // 075.3: ...and either way, which characters can see that object just changed — so a thing
-                // standing on it that survived because ANOTHER character has it in view is re-asked whether
-                // the one on screen does. A flag, and only for the ids something is actually standing on.
-                VrApi.anchorSeen(ge.gob.id);
-                // 079.3: the payload Gob is the OBJECT — interned on the id alone, so the handle a handler is
-                // given is the same one s:world():gob():get(id) hands back and there is no session to guess.
-                // The event itself still fires once per session that saw it; that is filed on the roadmap.
-                fireGob(ge.added ? "GobAdded" : "GobRemoved", ge.gob.id);
-            }
+            // 1. The gob queue is NOT drained here (079.4). A gob is one object for the client, so the four
+            //    world events are settled once for the client on the layer's own tick (drainGobEvents) — a
+            //    per-session drain can only report per session, which is the defect.
 
             // 1'. The two gob-overlay events (038.3), captured on the loader threads (the game's own) and inside
-            //     gob:overlay (an addon's own). Drained AFTER the gob queue, so an overlay the server hangs on a
-            //     gob that just spawned is reported after the GobAdded that introduced it — and a removal caused
-            //     by the gob leaving has already been fired synchronously by LuaGobOverlay.gobGone above, before
-            //     that gob's own GobRemoved, so an overlay is never reported dying after the thing it was on.
+            //     gob:overlay (an addon's own). Drained on the session that captured them and AFTER the layer's
+            //     gob drain — the layer ticks first in a frame — so an overlay the server hangs on a gob that
+            //     just spawned is reported after the GobAdded that introduced it, and a removal caused by the
+            //     gob leaving has already been fired synchronously by LuaGobOverlay.gobGone in that drain,
+            //     before the gob's own GobRemoved, so an overlay is never reported dying after the thing it
+            //     was on.
             drainOverlayEvents(st);
 
             // 1a. HTTP results (N2a): a pool worker finished a request → deliver its res table to the addon's
@@ -1893,6 +1892,11 @@ public final class AddonManager {
      * handle for the id — minted only when that owner actually subscribes, so a busy spawn stream costs nothing
      * for the addons that don't listen. On {@code GobRemoved} the gob is already gone, so only {@code :id()}
      * answers — an addon that needs the name must have indexed it on {@code GobAdded}.
+     *
+     * <p><b>Reached once per object and not once per session</b> (079.4): the payload is the interned handle
+     * for the id — the same one {@code s:world():gob():get(id)} answers with — and which characters can see it
+     * is {@code gob:sessions()}, a live read. {@link #drainGobEvents} is the one caller, and the edge it
+     * settles is what makes "once" true.
      */
     static void fireGob(String event, long id) {
         for(Addon a : addons) {
@@ -2008,14 +2012,180 @@ public final class AddonManager {
      * a handler that attaches or removes an overlay of its own queues another event, and draining until empty
      * would let a handler that re-attaches under the same key spin the frame forever. One frame's worth per
      * frame turns that into a slow loop the addon can see and its watchdog can price, instead of a hang.
+     *
+     * <p><b>The game's own overlays are a world fact and fire once</b> (079.4) — every session that has loaded
+     * the object is told about the decoration on it, and one flame on one fire is one event however many
+     * characters can see it. {@link #nativeEdge} is that gate; an addon's own attach is queued at a single
+     * gob and needs none.
      */
     private static void drainOverlayEvents(SessionState st) {
         for(int n = st.overlayEvents.size(); n > 0; n--) {
             OverlayEvent oe = st.overlayEvents.poll();
             if(oe == null)
                 break;
+            if(oe.nat && !nativeEdge(oe))
+                continue;
             fireGobOverlay(oe.added ? "GobOverlayAdded" : "GobOverlayRemoved", oe.gobId, oe.key, oe.nat, oe.owner);
         }
+    }
+
+    // ------------------------------------------------------------- the world's edge (079.4)
+    //
+    // THE FOUR WORLD EVENTS FIRE ONCE. A gob id is the server's and names one object; five characters standing
+    // together see one tree, and five GobAdded for it is the defect rather than the reporting of it. So the
+    // client keeps the one thing a live read cannot answer -- WHICH SIDE OF THE EDGE IT WAS ON LAST -- and
+    // reads everything else off the object caches at the moment it settles:
+    //
+    //   enters any session      -> GobAdded
+    //   leaves one, still in another -> nothing (gob:sessions() is a live read; there is nothing to announce)
+    //   leaves the last         -> GobRemoved
+    //
+    // Two sets, UI-thread only, and nothing else is kept: no reference count, which would be a second copy of
+    // what the OCaches already know and the one that disagrees is the one nothing reads.
+
+    /** The ids at least one live session holds, as of the last settle — the edge {@code GobAdded}/{@code
+     *  GobRemoved} fire on. */
+    private static final Set<Long> heldGobs = new LinkedHashSet<Long>();
+
+    /** The game's own overlay keys at least one session carries, per gob id — the same edge, one level down,
+     *  and dropped whole with the gob it hangs on. */
+    private static final Map<Long, Set<String>> heldNative = new HashMap<Long, Set<String>>();
+
+    /**
+     * <b>How many sessions have gone</b> (079.4) — the signal that what one of them alone could see has to be
+     * re-asked. {@link OCache} reports an object arriving and leaving and has no third callback: a session
+     * ending drops its whole cache in silence, so nothing would ever say that the last holder of an object is
+     * gone.
+     *
+     * <p>A counter and not a flag, because it is bumped off the tick — on the dying session's own thread — and
+     * a flag the drain cleared could swallow one raised an instant before it. A lost increment cannot hide a
+     * death either: two at once still move the number, and one rescan re-asks the whole set anyway.
+     */
+    private static volatile int gobRescans = 0;
+
+    /** The {@link #gobRescans} the drain has already answered. UI thread only. */
+    private static int gobRescansSeen = 0;
+
+    /**
+     * <b>Every session's gob queue, drained together and settled before anything is emitted</b> (079.4) — on
+     * the LAYER's tick, because these events are the client's now and there is one edge for the client.
+     *
+     * <p><b>Settling is the whole of it.</b> {@code 073} queues the deltas per session, so one frame's worth
+     * is several sessions' worth: a gob that leaves A and enters B in that window never really left, and a
+     * drain that emitted as it walked would report the removal it saw first and then an arrival, for an object
+     * that never went anywhere. So the walk only applies the per-gob consequences and remembers which ids were
+     * touched; the caches are asked afterwards, when they have stopped moving, and only the ids that crossed
+     * the edge are reported. That is what works with one session and fails with five moving.
+     */
+    private static void drainGobEvents() {
+        List<Long> touched = null;
+        for(SessionState st : allStates()) {
+            GobEvent ge;
+            while((ge = st.gobEvents.poll()) != null) {
+                // 038.2: an overlay dies with its gob. Done BEFORE the event reaches Lua, so a GobRemoved
+                // handler already reads the truth — and it is what a world-space overlay costs: its visual is
+                // a client-only gob of its own, which nothing disposes just because the target left OCache.
+                // 043.2: the same is true of a hafen.vr() entity that :add(what, gob) anchored, which has no
+                // record on the gob to be found through — VrApi's by-target index is what makes that O(1) too.
+                if(!ge.added) {
+                    LuaGobOverlay.gobGone(ge.gob);
+                    VrApi.anchorGone(ge.gob.id);   // 075.3: the client's one index, and only if no session still sees it
+                }
+                // 075.3: ...and either way, which characters can see that object just changed — so a thing
+                // standing on it that survived because ANOTHER character has it in view is re-asked whether
+                // the one on screen does. A flag, and only for the ids something is actually standing on.
+                VrApi.anchorSeen(ge.gob.id);
+                if(touched == null)
+                    touched = new ArrayList<Long>();
+                touched.add(Long.valueOf(ge.gob.id));
+            }
+        }
+        int gen = gobRescans;
+        boolean rescan = (gen != gobRescansSeen);
+        gobRescansSeen = gen;
+        if(touched != null) {
+            for(int i = 0, n = touched.size(); i < n; i++)
+                settleGob(touched.get(i).longValue());   // a repeated id is idempotent: only an edge fires
+        }
+        if(rescan) {
+            // A session ended. Whatever it alone could see left its last session at that moment, and the
+            // caches are the only place that says so — so the held set is re-asked whole. Collected first and
+            // reported afterwards, because a handler runs between the two.
+            List<Long> gone = new ArrayList<Long>();
+            for(Long id : heldGobs) {
+                if(!gobHeld(id.longValue()))
+                    gone.add(id);
+            }
+            heldGobs.removeAll(gone);
+            for(int i = 0, n = gone.size(); i < n; i++)
+                gobLeft(gone.get(i).longValue());
+        }
+    }
+
+    /** One id, settled against the caches: {@code GobAdded} into the first session, {@code GobRemoved} out of
+     *  the last, and nothing at all for the sessions in between. */
+    private static void settleGob(long id) {
+        Long key = Long.valueOf(id);
+        if(gobHeld(id)) {
+            if(heldGobs.add(key))
+                fireGob("GobAdded", id);
+        } else if(heldGobs.remove(key)) {
+            gobLeft(id);
+        }
+    }
+
+    /** The object left its last session: forget the game's overlays that hung on it, then report it gone. */
+    private static void gobLeft(long id) {
+        heldNative.remove(Long.valueOf(id));   // the client drops a departing gob whole, decorations and all
+        fireGob("GobRemoved", id);
+    }
+
+    /** <b>Does any live session hold {@code id}?</b> Asked of the object caches, never counted. */
+    private static boolean gobHeld(long id) {
+        for(Sessions.Member m : Sessions.members()) {
+            if(holds(m, id))
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * <b>Is this event the client's edge for one of the game's own overlays?</b> True exactly when the key
+     * crossed into its first session or out of its last, and the set is updated as it answers.
+     *
+     * <p>The per-session union gate in {@link #nativeOverlayEvent} still stands in front of this and answers a
+     * different question: a second overlay of one resource on one gob is not a second key. This one is about
+     * one key seen by several characters.
+     */
+    private static boolean nativeEdge(OverlayEvent oe) {
+        Long id = Long.valueOf(oe.gobId);
+        Set<String> keys = heldNative.get(id);
+        boolean was = (keys != null) && keys.contains(oe.key);
+        boolean now = nativeHeld(oe.gobId, oe.key);
+        if(now == was)
+            return false;
+        if(now) {
+            if(keys == null) {
+                keys = new LinkedHashSet<String>();
+                heldNative.put(id, keys);
+            }
+            keys.add(oe.key);
+        } else {
+            keys.remove(oe.key);
+            if(keys.isEmpty())
+                heldNative.remove(id);
+        }
+        return true;
+    }
+
+    /** Does any live session's copy of that gob carry one of the game's overlays under that resource name? */
+    private static boolean nativeHeld(long gobId, String key) {
+        for(Sessions.Member m : Sessions.members()) {
+            Gob g = getgob(m.user, gobId);
+            if((g != null) && (LuaGobOverlay.countNative(g, key) > 0))
+                return true;
+        }
+        return false;
     }
 
     // ------------------------------------------------------------- widget removal (M1, 042.1)
@@ -2408,6 +2578,38 @@ public final class AddonManager {
         }
     }
 
+    // ------------------------------------------------------------- whose character it was (079.4)
+    //
+    // THE CHARACTER EVENTS CARRY THEIR SESSION, AND CARRY IT LAST. The meters, buffs, food, study, equipment,
+    // action bar, wounds, roster, quests and radial menu of five characters are five different facts, so five
+    // firings are right and the label is what makes them usable: fn(payload, session).
+    //
+    // Last and not first, because an addon that does not care which character an event came from is not wrong.
+    // Lua drops a trailing argument a function did not declare, so `function(m) … end` goes on working exactly
+    // as it did and one that cares writes `function(m, s) … end`.
+    //
+    // The world events grow none of this: a gob is one object and there is no character it belongs to. Nor do
+    // Load, Update, Disable, MarkersChanged or the three vr click events, which are the client's or the
+    // addon's own — see BUS_KEYS.
+
+    /**
+     * One owner's <b>session argument</b> — the last argument of every character event. {@code nil} for a
+     * session that cannot be named, which is what a tree with no login behind it answers; a handler that took
+     * the parameter reads nil there rather than a Session that answers about nobody.
+     */
+    private static LuaValue sessionArg(Addon owner, String user) {
+        return (user == null) ? LuaValue.NIL : LuaSession.of(owner, user);
+    }
+
+    /**
+     * <b>The account of the tree a HUD widget stands in</b> — the character the event that carries it is
+     * about. {@code w.ui} and never {@link #screen()}: the widget is the whole of the address here, and the
+     * session on screen need not be the one whose bar changed.
+     */
+    static String userOf(Widget w) {
+        return (w == null) ? null : Sessions.nameof(w.ui);
+    }
+
     /**
      * Fire {@code KinChanged} whose payload is an array of <b>Kin objects</b> (020.3), the roster in the Kin
      * window's sort order. Same shape as {@link #fireGob}: interning is per-addon (D-045) so the payload cannot
@@ -2420,11 +2622,11 @@ public final class AddonManager {
     static void fireKin(String user, int[] ids) {
         for(Addon a : addons) {
             if(hasSub(a, "KinChanged"))
-                fireTo(a, "KinChanged", kinPayload(a, user, ids));
+                fireTo(a, "KinChanged", kinPayload(a, user, ids), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "KinChanged"))
-            fireTo(c, "KinChanged", kinPayload(c, user, ids));
+            fireTo(c, "KinChanged", kinPayload(c, user, ids), sessionArg(c, user));
     }
 
     /**
@@ -2441,11 +2643,11 @@ public final class AddonManager {
     static void fireSlot(String user, int index) {
         for(Addon a : addons) {
             if(hasSub(a, "ActionbarChanged"))
-                fireTo(a, "ActionbarChanged", LuaSlot.of(a, user, index));
+                fireTo(a, "ActionbarChanged", LuaSlot.of(a, user, index), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "ActionbarChanged"))
-            fireTo(c, "ActionbarChanged", LuaSlot.of(c, user, index));
+            fireTo(c, "ActionbarChanged", LuaSlot.of(c, user, index), sessionArg(c, user));
     }
 
     /**
@@ -2462,13 +2664,14 @@ public final class AddonManager {
      * object can replace the snapshot this event used to carry.
      */
     static void fireBuff(String event, Buff b) {
+        String user = userOf(b);
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, LuaBuff.of(a, b));
+                fireTo(a, event, LuaBuff.of(a, b), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, LuaBuff.of(c, b));
+            fireTo(c, event, LuaBuff.of(c, b), sessionArg(c, user));
     }
 
     /**
@@ -2485,13 +2688,14 @@ public final class AddonManager {
      * answers {@code :res()}/{@code :value()}/… and reports {@code :exists()} false.
      */
     static void fireMeter(String event, IMeter m) {
+        String user = userOf(m);
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, LuaMeter.of(a, m));
+                fireTo(a, event, LuaMeter.of(a, m), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, LuaMeter.of(c, m));
+            fireTo(c, event, LuaMeter.of(c, m), sessionArg(c, user));
     }
 
     /**
@@ -2504,13 +2708,14 @@ public final class AddonManager {
      * time — so a stashed payload keeps reading the meal after it.
      */
     static void fireFood(BAttrWnd w) {
+        String user = userOf(w);
         for(Addon a : addons) {
             if(hasSub(a, "FepChanged"))
-                fireTo(a, "FepChanged", LuaFood.of(a, w));
+                fireTo(a, "FepChanged", LuaFood.of(a, w), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "FepChanged"))
-            fireTo(c, "FepChanged", LuaFood.of(c, w));
+            fireTo(c, "FepChanged", LuaFood.of(c, w), sessionArg(c, user));
     }
 
     /**
@@ -2523,14 +2728,14 @@ public final class AddonManager {
      * <p>Change <i>detection</i> stays in {@code CharApi}'s study adapter (the per-slot snapshot diff); the
      * items arrive already diffed.
      */
-    static void fireStudy(java.util.List<GItem> items) {
+    static void fireStudy(String user, java.util.List<GItem> items) {
         for(Addon a : addons) {
             if(hasSub(a, "StudyChanged"))
-                fireTo(a, "StudyChanged", studyPayload(a, items));
+                fireTo(a, "StudyChanged", studyPayload(a, items), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "StudyChanged"))
-            fireTo(c, "StudyChanged", studyPayload(c, items));
+            fireTo(c, "StudyChanged", studyPayload(c, items), sessionArg(c, user));
     }
 
     /**
@@ -2541,14 +2746,14 @@ public final class AddonManager {
      * <p>Change <i>detection</i> stays in {@code CharApi}'s equipment adapter, which keeps a string rather than
      * these objects: an interned item compares by identity, so it cannot see the very change the event reports.
      */
-    static void fireEquip(java.util.List<GItem> items) {
+    static void fireEquip(String user, java.util.List<GItem> items) {
         for(Addon a : addons) {
             if(hasSub(a, "EquipChanged"))
-                fireTo(a, "EquipChanged", itemPayload(a, items));
+                fireTo(a, "EquipChanged", itemPayload(a, items), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "EquipChanged"))
-            fireTo(c, "EquipChanged", itemPayload(c, items));
+            fireTo(c, "EquipChanged", itemPayload(c, items), sessionArg(c, user));
     }
 
     /** One owner's {@code EquipChanged} payload: its own interned Item objects, in the window's order. */
@@ -2579,11 +2784,11 @@ public final class AddonManager {
     static void fireQuest(String user, String event, int id) {
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, LuaQuest.of(a, user, id));
+                fireTo(a, event, LuaQuest.of(a, user, id), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, LuaQuest.of(c, user, id));
+            fireTo(c, event, LuaQuest.of(c, user, id), sessionArg(c, user));
     }
 
     /**
@@ -2597,11 +2802,11 @@ public final class AddonManager {
     static void fireWounds(String user, int[] ids) {
         for(Addon a : addons) {
             if(hasSub(a, "WoundChanged"))
-                fireTo(a, "WoundChanged", woundPayload(a, user, ids));
+                fireTo(a, "WoundChanged", woundPayload(a, user, ids), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "WoundChanged"))
-            fireTo(c, "WoundChanged", woundPayload(c, user, ids));
+            fireTo(c, "WoundChanged", woundPayload(c, user, ids), sessionArg(c, user));
     }
 
     /** One owner's {@code WoundChanged} payload: its own interned Wound objects, in tree order. */
@@ -2619,14 +2824,14 @@ public final class AddonManager {
      * actually subscribes, and it is built <i>per owner</i> even though nothing here is interned — a table
      * handed to Lua is mutable, and one addon must not be able to edit another's petal list.
      */
-    static void fireFlowerMenu(String event, String[] petals, String label) {
+    static void fireFlowerMenu(String user, String event, String[] petals, String label) {
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, flowerPayload(petals, label));
+                fireTo(a, event, flowerPayload(petals, label), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, flowerPayload(petals, label));
+            fireTo(c, event, flowerPayload(petals, label), sessionArg(c, user));
     }
 
     /** One owner's radial-menu payload: the captions on an open, the label (or nil) on a close. */

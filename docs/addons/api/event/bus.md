@@ -4,6 +4,28 @@ Every event the client fires on the bus, and what each one hands your handler. S
 [`hafen.event():on(key, fn)`](README.md#subscribe), which is where the rules for a subscription are; this
 page is the closed set of keys it accepts.
 
+## Whose character it was
+
+Sixteen of the events below are **one character's** — the meters, buffs, food, study slots, equipment,
+action bar, wounds, roster, quests and radial menu. Five characters' meters are five different facts, so
+five firings are right, and each of the sixteen hands your handler the [`Session`](../session.md) it was
+about as its **last** argument: a `MeterChanged` handler written `function(m, s)` reads the bar that moved
+and the character it belongs to, and `s:user()` is the account it is on. There is a
+[worked one](../../guides/events-and-timers.md) in the guide.
+
+Last, and not first, so a handler that does not care which character an event came from takes no second
+parameter and reads exactly as it did — Lua drops an argument the function did not declare.
+
+The rest carry no session, and each group has its own reason:
+
+| Events | Why they carry none |
+|---|---|
+| `GobAdded`, `GobRemoved`, `GobOverlayAdded`, `GobOverlayRemoved` | a game object is the world's rather than a character's, and each of these fires **once** for it — see [World](#world) |
+| `SessionAdded`, `SessionEnteredWorld`, `SessionSelected`, `SessionDestroyed` | the session **is** the payload |
+| `Load`, `Update`, `Disable` | your addon's own, and there is one of it however many characters are up |
+| `MarkersChanged` | the recorded map is one database for the client |
+| `GhostClicked`, `SpriteClicked`, `ObjectClicked` | a thing you stood in the world stands in it once, for whichever character looks at it |
+
 ## Lifecycle
 
 Your addon's own three, and each is about the addon rather than about a character.
@@ -84,14 +106,23 @@ variables were just put back, and says nothing about the others.
 
 | Event | Payload | Fires |
 |---|---|---|
-| `GobAdded` | [Gob](../gob.md) | a game object enters the world or your view |
-| `GobRemoved` | [Gob](../gob.md) | a game object leaves |
+| `GobAdded` | [Gob](../gob.md) | a game object enters the view of the first of your characters to see it |
+| `GobRemoved` | [Gob](../gob.md) | it leaves the view of the last one that could |
 | `GobOverlayAdded` | `ev` — `:gob()` `:key()` `:native()` | something is attached to a game object — see [`gob:overlay()`](../overlay.md) |
 | `GobOverlayRemoved` | `ev` — `:gob()` `:key()` `:native()` | something attached to a game object goes away |
 
 Prefer these over scanning [`s:world():gob():list`](../world.md) every frame. `ev:gob()` is a live
 [Gob object](../gob.md). On `GobRemoved` the gob is **already gone**, so only `gob:id()` answers there; if
 you need its name, index it on `GobAdded`.
+
+**One object, one event.** A tree is one tree however many of your characters are standing in front of
+it, so five characters together produce one `GobAdded` for it and not five. A character walking away from
+an object another one can still see fires nothing at all: [`gob:sessions()`](../gob.md) reads who can see
+it right now, so an addon that cares asks at the moment it cares rather than following an event stream to
+find out. The two overlay events are the same fact one level down — the game's own decoration on an
+object is reported when it reaches the first character who can see it and when it leaves the last. A
+session **ending** is its objects leaving their last view, so what only that character could see is
+reported gone.
 
 ### Overlays coming and going
 
@@ -219,8 +250,9 @@ event is about *visibility*, and at `disappear` the widget is a key to match, no
 pressed Esc, clicked away, or the menu died under you; the payload is `nil` for everything but a pick. Both
 cover the menus the client puts up itself, such as the Kin window's, as well as the server's. Read the ring
 from the payload or from [`s:flowermenu()`](../flowermenu.md), which is the menu one character has open and
-also names the object it was opened on. A ring goes up on the character the pointer is on, so the session to
-ask is [`hafen.session():current()`](../session.md) — and it stays up, and readable, if you tab away.
+also names the object it was opened on — and `s` is the session the event carries, so nothing has to be
+looked up. A ring goes up on the character the pointer is on, and it stays up, and readable, if you tab
+away.
 
 ## World ghosts and sprites
 

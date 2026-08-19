@@ -1,0 +1,9 @@
+{
+  "name": "079.4 — the world fires once, and the character says which",
+  "id": "079-what-the-address-left-behind.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 079.4: the four world events fire once for an object however many characters can see it, the sixteen character events carry their session as the handler's last argument, and the seven that need none do not grow one.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

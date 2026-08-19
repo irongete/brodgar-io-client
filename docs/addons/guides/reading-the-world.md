@@ -70,6 +70,9 @@ hafen.event():on("GobRemoved", function(gob)
 end)
 ```
 
+`boars` counts boars and not viewings: an object arriving fires once whichever of your characters sees it
+first, and it is reported gone when the last of them loses sight of it.
+
 When you do have to poll — a value with no event behind it — poll on a [timer](events-and-timers.md), not
 in `Update`.
 

@@ -7,8 +7,8 @@ open — what it offers, how many petals that is, and which one to pick. You rea
 [permissions](../guides/permissions.md).
 
 ```lua
-hafen.event():on("FlowerMenuOpened", function(petals)
-  hafen.log():write("menu: " .. table.concat(petals, ", "))   -- {"Chop", "Pick branch", …}
+hafen.event():on("FlowerMenuOpened", function(petals, s)
+  hafen.log():write(s:user() .. " menu: " .. table.concat(petals, ", "))   -- {"Chop", "Pick branch", …}
 end)
 
 hafen.event():on("FlowerMenuClosed", function(label)
@@ -31,8 +31,8 @@ end
 ```
 
 Every other character answers exactly what it answers with nothing open, which is the ordinary state: an
-empty array and `0`. So a handler that wants the ring the event is about reads it from
-[`hafen.session():current()`](session.md), which is the character a right-click reached.
+empty array and `0`. A handler that wants the ring the event is about needs no lookup at all: the two
+events hand it that character's session as their last argument.
 
 ## Read
 
@@ -144,8 +144,8 @@ ended: you picked a petal, you pressed Esc, you clicked away, or it simply died 
 connection dropped. The payload is the label on a pick and `nil` on everything else.
 
 `FlowerMenuOpened` fires at the one moment the petal set is complete, so the array it carries is the whole
-ring — the same array `hafen.session():current():flowermenu():list()` answers with if you call it from
-inside the handler, since a ring goes up on the character the pointer is on.
+ring — the same array `s:flowermenu():list()` answers with inside the handler, where `s` is the
+[session the event carries](event/bus.md#whose-character-it-was).
 
 Both events cover the menus the **client** puts up as well as the server's. The Kin window's right-click
 menu is one of those: it never reaches the server at all, and it still opens and closes here.

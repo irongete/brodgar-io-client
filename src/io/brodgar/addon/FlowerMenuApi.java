@@ -349,7 +349,9 @@ final class FlowerMenuApi {
         long g = ClickToken.take(lcc(fm));
         if(g >= 0)
             clicked.put(fm, Long.valueOf(g));
-        AddonManager.fireFlowerMenu("FlowerMenuOpened", names(fm), null);
+        // 079.4: whose ring it is, as the two events' last argument — the tree the menu went up in and
+        // not the one on screen, because a ring stays up, and readable, when the player tabs away from it.
+        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuOpened", names(fm), null);
     }
 
     /**
@@ -377,6 +379,7 @@ final class FlowerMenuApi {
         if((fm == null) || !live.containsKey(fm))
             return;
         String chosen = live.remove(fm);
-        AddonManager.fireFlowerMenu("FlowerMenuClosed", null, (label != null) ? label : chosen);
+        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuClosed", null,
+                                    (label != null) ? label : chosen);
     }
 }

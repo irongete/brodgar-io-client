@@ -83,7 +83,7 @@ stays 212. `hafen.event()` is global and stays global — this feature changes w
       `[manual]`: with two characters standing together, run and read the `:sessions()` line. Expect:
       it names **both** accounts for a gob they can both see.
 
-- [ ] **079.4 — The world fires once, and the character says which.**
+- [x] **079.4 — The world fires once, and the character says which.**
       **The four world events fire once**: `GobAdded` when a gob enters its first session,
       `GobRemoved` when it leaves its last, and nothing when it leaves one of several — the middle case
       needs no event because `gob:sessions()` is a live read. The two overlay events follow the gob

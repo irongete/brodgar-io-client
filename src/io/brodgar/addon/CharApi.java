@@ -521,12 +521,13 @@ final class CharApi {
             if(!(w instanceof GItem))
                 return;
             GItem it = (GItem)w;
-            Widget study = studyWidget(drawnUser());
+            String user = drawnUser();
+            Widget study = studyWidget(user);
             if((study == null) || (it.parent != study) || cache.containsKey(it))
                 return;
             cache.put(it, LuaStudySlot.snapshot(it));
             resolveInfo(it);
-            fireStudy(LuaStudySlot.items(drawnUser()));
+            fireStudy(user, LuaStudySlot.items(user));
         }
 
         public void removed(Widget w) {
@@ -535,7 +536,8 @@ final class CharApi {
             GItem it = (GItem)w;
             if(cache.remove(it) == null)
                 return;
-            fireStudy(LuaStudySlot.items(drawnUser()));
+            String user = drawnUser();
+            fireStudy(user, LuaStudySlot.items(user));
         }
 
         /**
@@ -554,7 +556,8 @@ final class CharApi {
                         LuaValue snap = LuaStudySlot.snapshot(it);
                         if(cache.containsKey(it) && !studySlotEqual(snap, cache.get(it))) {
                             cache.put(it, snap);
-                            fireStudy(LuaStudySlot.items(drawnUser()));
+                            String user = drawnUser();
+                            fireStudy(user, LuaStudySlot.items(user));
                         }
                     }
                 });
@@ -686,20 +689,23 @@ final class CharApi {
                     changed = true;
                 }
             }
-            if(changed)
-                fireEquip(LuaItem.items(equipory(drawnUser())));
+            if(changed) {
+                String user = drawnUser();
+                fireEquip(user, LuaItem.items(equipory(user)));
+            }
         }
 
         public void placed(Widget w) {
             if(!(w instanceof GItem))
                 return;
             GItem it = (GItem)w;
-            Equipory eq = equipory(drawnUser());
+            String user = drawnUser();
+            Equipory eq = equipory(user);
             if((eq == null) || (it.parent != eq) || cache.containsKey(it))
                 return;
             cache.put(it, LuaItem.equipKey(it));
             resolveInfo(it);
-            fireEquip(LuaItem.items(eq));
+            fireEquip(user, LuaItem.items(eq));
         }
 
         public void removed(Widget w) {
@@ -711,7 +717,8 @@ final class CharApi {
             // The widget is unlinked, not cleared: the payload still answers :res()/:name()/… (025.2's
             // rule, mirrored here). Equipory's own child list no longer has it, so items() below already
             // reads the post-removal set.
-            fireEquip(LuaItem.items(equipory(drawnUser())));
+            String user = drawnUser();
+            fireEquip(user, LuaItem.items(equipory(user)));
         }
 
         /**
@@ -730,7 +737,8 @@ final class CharApi {
                         String key = LuaItem.equipKey(it);
                         if(cache.containsKey(it) && !key.equals(cache.get(it))) {
                             cache.put(it, key);
-                            fireEquip(LuaItem.items(equipory(drawnUser())));
+                            String user = drawnUser();
+                            fireEquip(user, LuaItem.items(equipory(user)));
                         }
                     }
                 });
