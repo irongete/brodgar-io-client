@@ -44,6 +44,7 @@ A Session is the **address**, so the reads that are about one character hang off
 | [`s:fight()`](fight.md) | its combat schools, its maneuver deck, and who it is fighting |
 | [`s:flowermenu()`](flowermenu.md) | the radial menu it has open, and the petal to pick |
 | [`s:ui()`](ui/README.md) | the widgets the client put up for it: find one, watch for one, read its backpack |
+| [`s:store()`](store.md) | its own saved variables, in its own folder on disk |
 
 ```lua
 for _, s in ipairs(hafen.session():list()) do
@@ -60,10 +61,11 @@ character: *the* world, *the* kin roster and *the* action bar are not things a c
 has. The windows among them — a recipe, an action menu — belong to the character that put them up, so they
 are readable and usable on a session you tabbed away from.
 
-[`s:ui()`](ui/README.md) is the one that is **half** of a namespace rather than all of it. The client's own
-widgets stand in one character's tree and are reached here; the windows your addon *builds* stand in a layer
-above every session and stay [`hafen.ui():window()`](ui/custom.md). Your window and the client's window are
-not the same thing.
+**Two of them are half of a namespace rather than all of it.** [`s:ui()`](ui/README.md) is the client's own
+widgets, which stand in one character's tree; the windows your addon *builds* stand in a layer above every
+session and stay [`hafen.ui():window()`](ui/custom.md), because your window and the client's window are not
+the same thing. [`s:store()`](store.md) is the saved variables of one character, in that character's own
+folder; an account's are your addon's single file and are reached without an address.
 
 **A read answers for the session you named, whichever one is drawn.** What does not is what belongs to the
 **screen** — there is one screen however many characters are logged in — and each of those says so where

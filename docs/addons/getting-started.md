@@ -83,6 +83,7 @@ you enter the world, and keep the handle:
 
 ```lua
 local window                                    -- the window, once we are in the world
+local settings                                  -- this character's saved variables, once it is up
 local trees = 0                                 -- what it displays
 
 hafen.event():on("SessionEnteredWorld", function(s)
@@ -142,22 +143,25 @@ The window should come back the way you left it. Declare a saved variable in `ma
 "saved_variables": ["settings"]
 ```
 
-`hafen.store():get("settings")` is then an ordinary table that the engine fills before `SessionEnteredWorld`
-and writes back to disk for you. Record the state in the hotkey, and apply it when the window is built:
+A bare name is that character's own, so it is reached through the session playing it — and the
+`SessionEnteredWorld` handler is already holding one. Keep the table in a local beside the window:
 
 ```lua
-  if hafen.store():get("settings").open == false then window:visible(false) end
+  settings = s:store():get("settings")
+  if settings.open == false then window:visible(false) end
 ```
 
-goes at the end of the `SessionEnteredWorld` handler, and the hotkey's body becomes:
+goes at the end of the `SessionEnteredWorld` handler, `local settings` beside `local window` at the top, and
+the hotkey's body becomes:
 
 ```lua
   if window:visible() then window:visible(false) else window:visible(true) end
-  hafen.store():get("settings").open = window:visible()
+  settings.open = window:visible()
 ```
 
-Reload, hide the window, log out and back in: it stays hidden. See [`hafen.store`](api/store.md) for the
-account-wide scope and for what a saved table may hold.
+The engine fills that table before `SessionEnteredWorld` fires and writes it back to disk for you, and the
+reference stays live, so there is nothing to put back. Reload, hide the window, log out and back in: it stays
+hidden. See [`hafen.store`](api/store.md) for the account-wide scope and for what a saved table may hold.
 
 ## The whole addon
 
@@ -179,6 +183,7 @@ account-wide scope and for what a saved table may hold.
 
 ```lua
 local window                                    -- the window, once we are in the world
+local settings                                  -- this character's saved variables, once it is up
 local trees = 0                                 -- what it displays
 
 hafen.log():write("myaddon loaded")
@@ -191,7 +196,8 @@ hafen.event():on("SessionEnteredWorld", function(s)
     g:color(255, 220, 120)
     g:text("trees nearby: " .. trees, 6, 4)
   end)
-  if hafen.store():get("settings").open == false then window:visible(false) end
+  settings = s:store():get("settings")
+  if settings.open == false then window:visible(false) end
 end)
 
 hafen.timer():every(1, function()
@@ -202,7 +208,7 @@ end)
 hafen.client():options():keybindings():register("toggle", function()
   if not window then return end
   if window:visible() then window:visible(false) else window:visible(true) end
-  hafen.store():get("settings").open = window:visible()
+  settings.open = window:visible()
 end)
 ```
 

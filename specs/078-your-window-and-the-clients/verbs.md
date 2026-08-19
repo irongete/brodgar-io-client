@@ -163,6 +163,20 @@ only one spelling — which is the work `078.2` was charged with and not drift:
 `api/session.md` is the twelfth page carrying an occurrence without being on `spec.md`'s **Written**
 list — it carried none before, so no grep could have found it, and only the missing row did.
 
+**What `078.3` landed.** The `store` half came out at exactly the 13 survivors the table predicts, and the
+ten movers are the ten it names, so the combined figure now reads **199** — the target the row above set for
+`078.4`, met without an allowance. Two notes for that task:
+
+- The split is **by variable name and not by verb**, which is what the table above derived and what
+  `tasks.md` had not yet: both halves carry `:get` and `:flush`, and which half a name is in is the
+  manifest's declaration. So no `Retired` row can carry it — the names are the addon's own — and the
+  refusal is built per owner where the manifest is read, beside the one that already answers
+  `hafen.store.<name>`.
+- `api/conventions.md` gained the `store` half of its *Several logins, one screen* paragraph and
+  `api/session.md` the `s:store()` row, and **neither spells `hafen.store()`** — the distinction there is
+  *with an address* against *without one*, which the prose can say without the call. That is why the count
+  landed on the prediction rather than one over it.
+
 ## The impact set is short by five pages
 
 `spec.md`'s **Written** list names the pages this feature rewrites. Five pages carry a **moving**

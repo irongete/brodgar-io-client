@@ -110,7 +110,7 @@ catches it.
 - `src/io/brodgar/addon/Layout.java` — 2, 4
 - `src/io/brodgar/addon/Sheet.java` — 1, 2
 - `src/io/brodgar/addon/LuaMouse.java` — 1
-- `src/io/brodgar/addon/StoreApi.java` — 3
+- `src/io/brodgar/addon/StoreApi.java` — 3, 4 (`rescope` is a `host()` caller)
 - `src/io/brodgar/addon/AddonManager.java` — 1, 2, 3, 4
 - `src/io/brodgar/addon/VrApi.java` — 4
 - `src/io/brodgar/addon/CharApi.java` — 4
@@ -122,6 +122,8 @@ catches it.
 - `src/io/brodgar/addon/VideoOptions.java` — 4
 - `src/io/brodgar/addon/Retired.java` — 2, 3, 4
 - `src/io/brodgar/addon/Section.java` — 2, 3 (the per-verb `__index` a split section mounts)
+- `src/io/brodgar/addon/Manifest.java` — 3 (`SavedVar.account`: the declaration IS the split)
+- `src/io/brodgar/addon/SessionApi.java` — 3, 4 (`:get(user)` answers for an account the client does not hold)
 - `src/io/brodgar/session/Sessions.java` — 2, 4
 - `docs/addons/api/conventions.md` — 1, 2, 3
 - `DOCUMENTATION.md` — 1, 2, 3, 4

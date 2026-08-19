@@ -59,7 +59,7 @@ stays 212, and the survivor count is whatever `078.1` computed in `verbs.md`.
       `get("<the other account>"):ui():find("window[title=Inventory]")` answers **that** character's
       window — found in a tree that is not on screen.
 
-- [ ] **078.3 — Saved variables know whose they are.**
+- [x] **078.3 — Saved variables know whose they are.**
       Splits `hafen.store()`. The **account scope stays global** — one file for the client, whichever
       character is up, and it is the addon's rather than a character's. The **per-character scope is
       reached through its session**, `session:store()`, and goes on flushing when that session ends,

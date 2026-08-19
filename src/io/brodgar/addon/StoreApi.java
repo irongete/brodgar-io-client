@@ -29,20 +29,27 @@ import java.util.Set;
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * The saved-variables subsystem ({@code hafen.store()}, 1e / D-002 / D-023). One Lua table per manifest-declared
- * saved variable, persisted to JSON under {@code savedata/} (account-scope + per-character
- * {@code <genus>_<char>} scope). {@link AddonManager} drives it via {@link #enterWorld} (a session learns its
- * character), {@link #rescope} (the layer's tick, and the whole of when the per-character half moves),
- * {@link #loadScope} (account vars at install), {@link #flush} (teardown), and {@link #autosave} (the
- * throttled tick save). Not instantiable.
+ * The saved-variables subsystem (1e / D-002 / D-023). One Lua table per manifest-declared saved variable,
+ * persisted to JSON under {@code savedata/} (account scope + per-character {@code <genus>_<char>} scope).
+ * {@link AddonManager} drives it via {@link #enterWorld} (a session learns its character), {@link #rescope}
+ * (the layer's tick, and the whole of when the per-character half moves), {@link #loadScope} (account vars at
+ * install), {@link #flush} (teardown), and {@link #autosave} (the throttled tick save). Not instantiable.
+ *
+ * <p><b>The section SPLITS by scope</b> (078.3), because an account's saved variables and a character's are
+ * not the same thing. The account scope is the addon's — one file for the client, whichever character is up —
+ * and is {@code hafen.store()}, built by {@link #installStore}; a per-character scope is one character's own
+ * folder and is {@code session:store()}, built by {@link #store}. Scope is declared in the manifest rather
+ * than chosen at the call, so the two halves carry the same two verbs and each refuses a name belonging to the
+ * other, naming the door it does have.
  *
  * <p><b>Every session knows its own character folder</b> (073.5, {@code SessionState.charScope}): a client
  * with two logins has two answers, and each is that login's own.
  *
- * <p><b>The per-character half belongs to the SESSION ON SCREEN</b> (074.4), which is the only referent it can
- * have while an addon has one {@code hafen.store} and the client has several characters — 075 gives it an
- * address instead. So there is <i>one</i> answer for the whole layer, {@link #cur}, and the screen moves it:
- * every per-character path here is built through it, and {@link #rescope} is the one door that changes it.
+ * <p><b>The per-character half belongs to the SESSION ON SCREEN</b> (074.4). 078.3 gave it an address and left
+ * that lifecycle standing: there is still <i>one</i> answer for the whole layer, {@link #cur}, the screen
+ * moves it, every per-character path here is built through it, and {@link #rescope} is the one door that
+ * changes it. What the address buys is that an addon must now say <i>whose</i>, and that saying the wrong one
+ * is a refusal ({@link #held}) rather than another character's data under this one's name.
  *
  * <p><b>It is held, not looked up</b>, and that is what makes the last write land. A session's per-character
  * variables are written back when it stops being the screen — including the case where it stopped by
@@ -94,40 +101,174 @@ final class StoreApi {
         owner.store = vars;
 
         LuaTable store = new LuaTable();
-        // get(name) — the LIVE table for one declared saved variable. A name the manifest does not declare is
-        // a typo with no future meaning (the set is closed at load), so it throws listing what IS declared
-        // rather than answering nil and failing one index later with nothing to name.
+        // get(name) — the LIVE table for one declared ACCOUNT-scope saved variable. A per-character name is
+        // refused naming the session it is reached through (078.3): scope is declared in the manifest rather
+        // than chosen at the call, so which half a name is in is the MANIFEST's answer and this is the only
+        // place that knows it. A name the manifest does not declare at all is a typo with no future meaning
+        // (the set is closed at load), so it throws listing what IS declared rather than answering nil and
+        // failing one index later with nothing to name.
         store.set("get", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "store", "get");
-                LuaValue nm = Args.required(a, 2, "hafen.store():get", "name");
-                if(nm.type() != LuaValue.TSTRING)
-                    throw new LuaError("hafen.store():get(name): name must be a string (a saved variable"
-                        + " declared in manifest.json)");
-                LuaValue t = owner.store.get(nm.tojstring());
-                if(!t.istable())
-                    throw new LuaError("hafen.store():get(\"" + nm.tojstring() + "\"): this addon declares no"
-                        + " saved variable of that name. Declared: " + declared(owner)
-                        + " — add it to \"saved_variables\" in manifest.json");
-                return t;
+                Manifest.SavedVar sv = nameArg(owner, a, ACC);
+                if(!sv.account)
+                    throw new LuaError(ACC + ":get(\"" + sv.name + "\") — \"" + sv.name + "\" is declared PER"
+                        + " CHARACTER, and a character's saved variables are reached through the session whose"
+                        + " character they are: hafen.session():current():store():get(\"" + sv.name + "\") is"
+                        + " the character on screen. " + ACC + " is the ACCOUNT scope — one file for the"
+                        + " client, whichever character is up — and a variable joins it by being declared"
+                        + " {\"name\": \"" + sv.name + "\", \"scope\": \"account\"} in manifest.json");
+                return owner.store.get(sv.name);
             }
         });
-        // flush() — the one write an addon ASKS for, and therefore the one that can answer. It refuses a
-        // value a saved variable cannot hold, naming where it sits, BEFORE writing anything; the timer and
-        // the teardown go on writing whatever they find, because a write nobody asked for must not cost an
-        // addon the rest of its file (the same rule Json.writePos states for a position with no anchor).
+        // flush() — the one write an addon ASKS for, and therefore the one that can answer. It writes the
+        // ACCOUNT scope, which is the half this section IS; the other half is session:store():flush(), and
+        // splitting them is what keeps each call about the file it names. It refuses a value a saved variable
+        // cannot hold, naming where it sits, BEFORE writing anything; the timer and the teardown go on
+        // writing whatever they find, because a write nobody asked for must not cost an addon the rest of its
+        // file (the same rule Json.writePos states for a position with no anchor).
         store.set("flush", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "flush");
-                carriable(owner);
-                flush(owner);
+                carriable(owner, true, ACC);
+                try {
+                    writeScope(owner, true);
+                } catch(RuntimeException e) {
+                    log(owner, "store: flush failed: " + e);
+                }
                 return self;
             }
         });
         LuaValue obj = Section.object("store", store);
         Section.mount(hafen, "store", obj,
-                      "hafen.store.<name> is now hafen.store():get(\"<name>\")", new LuaTable(), index(owner));
+                      "hafen.store.<name> is now hafen.store():get(\"<name>\") for an account-scope name and"
+                      + " hafen.session():current():store():get(\"<name>\") for a per-character one",
+                      new LuaTable(), index(owner));
         loadScope(owner, true);                          // account-scope vars: ready before Load
+    }
+
+    /** How the account half is reached, and the spelling its messages quote. */
+    private static final String ACC = "hafen.store()";
+
+    /** How the per-character half is reached (078.3), and the spelling every one of its messages quotes. */
+    private static final String SS = "session:store()";
+
+    /**
+     * Build the {@code store} section object for {@code (owner, user)} — <b>the saved variables of one
+     * character</b>, reached as {@code session:store()} (078.3).
+     *
+     * <p><b>An account's saved variables and a character's are not the same thing</b>, which is why this
+     * namespace SPLITS rather than moves. The account scope is the <i>addon's</i> — one file for the client,
+     * whichever character is up — and keeps its global spelling; a per-character scope is one character's own
+     * folder, so it grows an address and is reached here. Which half a name is in is not a verb but the
+     * manifest's own declaration, so both halves carry the same two verbs and each refuses a name belonging
+     * to the other, naming where it is reached instead.
+     *
+     * <p><b>What moves is the ADDRESS, not the lifecycle.</b> The client holds <i>one</i> set of per-character
+     * tables per addon and they hold the character on screen ({@link #cur}, 074.4) — which is what makes a
+     * reference an addon cached at load time still the one being written to disk. So this section answers for
+     * the session whose character those tables hold and <b>refuses for every other</b> ({@link #held}):
+     * handing back the screen's table would be another character's saved variables under this one's name, and
+     * handing back an empty one would accept writes and silently never save them, which is the exact class of
+     * failure {@code :get} exists to delete. The address is what an addon must now say; the storage still
+     * follows the screen, and ROADMAP carries the gap between the two.
+     *
+     * <p>Minted once per {@code (addon, session)} and hung on the interned Session handle, the shape
+     * {@code WorldApi.world} established — so {@code s:store() == s:store()}.
+     */
+    static LuaValue store(final Addon owner, final String user) {
+        LuaTable m = new LuaTable();
+        // :get(name) — the LIVE table for one declared PER-CHARACTER saved variable, that character's own. An
+        // account-scope name is refused naming hafen.store(), which is the same mistake from the other side.
+        m.set("get", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "store", "get", SS);
+                Manifest.SavedVar sv = nameArg(owner, a, SS);
+                if(sv.account)
+                    throw new LuaError(SS + ":get(\"" + sv.name + "\") — \"" + sv.name + "\" is declared"
+                        + " account scope, and an account's saved variables are the ADDON's rather than a"
+                        + " character's: one file for the client whichever character is up, so it is reached"
+                        + " without an address — " + ACC + ":get(\"" + sv.name + "\")");
+                held(user, "get(\"" + sv.name + "\")");
+                return owner.store.get(sv.name);
+            }
+        });
+        // :flush() — write THIS character's half now: its saved variables, and the places it remembers for
+        // widget:remember(name), which are per character for the same reason and land beside them. The account
+        // half is hafen.store():flush(). Refuses an uncarriable value first, exactly as that one does.
+        m.set("flush", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "store", "flush", SS);
+                held(user, "flush()");
+                carriable(owner, false, SS);
+                try {
+                    LuaWidget.rememberCapture(owner);   // 062: where every remembered widget stands right now
+                    writePlacements(owner);
+                } catch(RuntimeException e) {
+                    log(owner, "store: could not save remembered placements: " + e);
+                }
+                try {
+                    writeScope(owner, false);
+                } catch(RuntimeException e) {
+                    log(owner, "store: flush failed: " + e);
+                }
+                return self;
+            }
+        });
+        return Section.object("store", m, SS);
+    }
+
+    /**
+     * The declared-variable name a {@code :get} was handed — a string, and one this addon's manifest names.
+     * Shared by both halves, so a misspelt name is answered the same way whichever door it came through.
+     */
+    private static Manifest.SavedVar nameArg(Addon owner, Varargs a, String how) {
+        LuaValue nm = Args.required(a, 2, how + ":get", "name");
+        if(nm.type() != LuaValue.TSTRING)
+            throw new LuaError(how + ":get(name): name must be a string (a saved variable declared in"
+                + " manifest.json)");
+        Manifest.SavedVar sv = declaredVar(owner, nm.tojstring());
+        if(sv == null)
+            throw new LuaError(how + ":get(\"" + nm.tojstring() + "\"): this addon declares no saved variable"
+                + " of that name. Declared: " + declared(owner)
+                + " — add it to \"saved_variables\" in manifest.json");
+        return sv;
+    }
+
+    /** This addon's declaration of {@code name}, or {@code null}. The first wins, as {@link #installStore} does. */
+    private static Manifest.SavedVar declaredVar(Addon a, String name) {
+        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
+            if(sv.name.equals(name))
+                return sv;
+        }
+        return null;
+    }
+
+    /** The {@code <genus>_<char>} folder of the session named, or {@code null} while it has no character. */
+    private static String charScope(String user) {
+        AddonManager.SessionState st = AddonManager.state(AddonManager.sessionui(user));
+        return (st == null) ? null : st.charScope;
+    }
+
+    /**
+     * <b>Are the per-character tables holding THIS session's character?</b> — the one guard the addressed half
+     * has, and the honest half of what 074.4 left standing. There is one set of tables for the whole layer and
+     * it holds whoever is on screen, so a session that is not the screen has its data on disk and nothing of
+     * it in memory: answering the tables anyway would hand back another character's saved variables under this
+     * one's name, and answering an empty table would take writes and never save them. Both are wrong quietly,
+     * so this one is wrong loudly, and it says which of the two reasons it is.
+     */
+    private static void held(String user, String call) {
+        String want = charScope(user);
+        if((want != null) && want.equals(cur))
+            return;
+        throw new LuaError(SS + ":" + call + " — that character's saved variables are not in memory."
+            + ((want == null)
+               ? " That session has no character yet (it is connecting, or on the character list), so it has"
+                 + " no per-character folder at all: its variables arrive with SessionEnteredWorld."
+               : " The client holds ONE set of per-character tables and they hold the character ON SCREEN, so"
+                 + " this one's are on disk until the player tabs to it. hafen.session():current():store() is"
+                 + " the character being looked at."));
     }
 
     /** The declared saved-variable names, quoted, for the message a misspelt {@code :get} raises. */
@@ -151,12 +292,15 @@ final class StoreApi {
             public LuaValue call(LuaValue self, LuaValue key) {
                 if(key.type() == LuaValue.TSTRING) {
                     String nm = key.tojstring();
-                    for(Manifest.SavedVar sv : owner.manifest.savedVariables) {
-                        if(sv.name.equals(nm))
-                            throw new LuaError("hafen.store." + nm + " is now hafen.store():get(\"" + nm
-                                + "\") — what it hands back is the same live table, so writing into it still"
-                                + " persists");
-                    }
+                    Manifest.SavedVar sv = declaredVar(owner, nm);
+                    if(sv != null)
+                        throw new LuaError("hafen.store." + nm + " is now "
+                            + (sv.account ? ACC + ":get(\"" + nm + "\")"
+                                          : "hafen.session():current():store():get(\"" + nm + "\")")
+                            + " — what it hands back is the same live table, so writing into it still persists"
+                            + (sv.account ? "" : ". A bare name in \"saved_variables\" is PER CHARACTER, and a"
+                                + " character's saved variables are reached through the session whose"
+                                + " character they are"));
                 }
                 return rest.call(self, key);
             }
@@ -317,28 +461,30 @@ final class StoreApi {
      * addon put a widget in the table it saves its layout from, and the name of the variable alone would send
      * it looking through the whole thing.
      */
-    private static void carriable(Addon a) {
+    private static void carriable(Addon a, boolean account, String how) {
         if(a.store == null)
             return;
         for(Manifest.SavedVar sv : a.manifest.savedVariables) {
+            if(sv.account != account)
+                continue;                       // 078.3: a flush answers for the scope it was asked on
             LuaValue v = a.store.get(sv.name);
             if(v.istable())
-                carriable((LuaTable)v, "\"" + sv.name + "\"", Collections.newSetFromMap(
+                carriable((LuaTable)v, "\"" + sv.name + "\"", how, Collections.newSetFromMap(
                               new IdentityHashMap<LuaValue, Boolean>()));
         }
     }
 
-    private static void carriable(LuaTable t, String path, Set<LuaValue> seen) {
+    private static void carriable(LuaTable t, String path, String how, Set<LuaValue> seen) {
         if(!seen.add(t))
             return;                             // a cycle: the writer breaks it, and one visit reads it all
         for(LuaValue k : t.keys()) {
             LuaValue v = t.get(k);
             String at = path + "." + k.tojstring();
             if(v.istable()) {
-                carriable((LuaTable)v, at, seen);
+                carriable((LuaTable)v, at, how, seen);
             } else if(!v.isnil() && !v.isboolean() && !(v instanceof LuaNumber) && !(v instanceof LuaString)
                       && (LuaPosition.resolve(v) == null)) {
-                throw new LuaError("hafen.store():flush(): " + at + " holds a " + v.typename() + ", and a saved"
+                throw new LuaError(how + ":flush(): " + at + " holds a " + v.typename() + ", and a saved"
                     + " variable may hold only tables, strings, numbers, booleans and Positions — save what"
                     + " describes the thing (a resource name, a colour's three numbers) and rebuild it on load");
             }

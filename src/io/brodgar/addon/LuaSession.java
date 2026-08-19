@@ -47,8 +47,11 @@ import java.util.Map;
  * which looks screen-shaped and is not: the section IS the open menu, and a menu is a widget in one session's
  * tree rather than the right-click that raised it. 078.2 adds {@code s:ui()}, which is not a namespace moving
  * but half of one SPLITTING: the client's own widgets stand in one character's tree and are reached here, while
- * the windows an addon BUILDS stay {@code hafen.ui():window()} in the layer above every session. Each is minted
- * once per {@code (addon, session)} and kept on the handle — see {@link #worldObj}. Every verb under them reads the session named rather than the one on
+ * the windows an addon BUILDS stay {@code hafen.ui():window()} in the layer above every session. 078.3 adds
+ * {@code s:store()}, the second half-namespace and the last of the sequence: a character's saved variables are
+ * that character's own folder and are reached here, while an account's are the addon's one file and stay
+ * {@code hafen.store()}. Each is minted once per {@code (addon, session)} and kept on the handle — see
+ * {@link #worldObj}. Every verb under them reads the session named rather than the one on
  * screen; the ones that are inherently the screen's say so where they are defined ({@code screenToWorld},
  * {@code worldToScreen}) and the ones that <b>send</b> go through {@link AddonManager#sendView}, because a
  * walk is the whole of what a character nobody is looking at takes.
@@ -84,6 +87,8 @@ public final class LuaSession {
     private LuaValue fightObj, flowermenuObj;
     /** The client's own widgets (078.2) — the half of {@code ui} that names a tree rather than the layer. */
     private LuaValue uiObj;
+    /** This character's saved variables (078.3) — the half of {@code store} that names a folder of its own. */
+    private LuaValue storeObj;
 
     private LuaSession(String user) {
         this.user = user;
@@ -390,6 +395,20 @@ public final class LuaSession {
                 if(h.uiObj == null)
                     h.uiObj = UiApi.ui(owner, h.user);
                 return h.uiObj;
+            }
+        });
+        // store() — the saved variables of THIS character. The second half-namespace, and it splits for the
+        // same reason ui does: an account's saved variables are the ADDON's, one file whichever character is
+        // up, and keep hafen.store(); a character's are that character's own folder and are reached here. Which
+        // half a name is in is the manifest's declaration rather than a verb, so each half refuses the other's
+        // names. The client holds one set of per-character tables and they hold the character on screen, so a
+        // read here for any other session refuses rather than answering the wrong character's data.
+        m.set("store", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "store");
+                if(h.storeObj == null)
+                    h.storeObj = StoreApi.store(owner, h.user);
+                return h.storeObj;
             }
         });
         // info() — the one SNAPSHOT escape hatch, and always a table: a Session that does not exist is

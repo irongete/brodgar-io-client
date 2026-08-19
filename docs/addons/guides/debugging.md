@@ -9,7 +9,8 @@ installed, and you never log out. This guide is what to do when the console does
 from, prefixed with your addon's id — which is what makes several addons logging at once readable.
 
 ```lua
-hafen.log():write("state: " .. hafen.json():encode(hafen.store():get("settings")))
+local settings = hafen.session():current():store():get("settings")
+hafen.log():write("state: " .. hafen.json():encode(settings))
 ```
 
 The in-game line is clipped at 500 characters, so print a big table and read it off the terminal;

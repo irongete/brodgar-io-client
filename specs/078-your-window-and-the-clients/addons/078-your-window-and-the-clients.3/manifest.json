@@ -1,0 +1,10 @@
+{
+  "name": "078.3 — saved variables know whose they are",
+  "id": "078-your-window-and-the-clients.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 078.3: a character's saved variables are reached through its session and an account's without an address, each half refuses the other's names, a session that is not on screen refuses rather than answering another character's data, and each flush writes its own scope alone.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "saved_variables": ["mine", { "name": "ours", "scope": "account" }]
+}

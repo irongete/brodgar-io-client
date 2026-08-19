@@ -1,8 +1,8 @@
 # Saved data
 
-Anything your addon should still know next week goes in a **saved variable**: a Lua table you declare in
-the manifest, which the engine restores when you load and writes back to disk for you. There is no file to
-open and no format to choose.
+Anything your addon should still know next week goes in a **saved variable**: a Lua table you declare in the
+manifest, which the engine restores when you load and writes back to disk for you. There is no file to open
+and no format to choose.
 
 ## Declare it, then use it
 
@@ -11,15 +11,19 @@ open and no format to choose.
 ```
 
 ```lua
-hafen.store():get("settings").window = { x = 40, y = 200 }
-hafen.store():get("seen").lastLogin  = os.time()
+hafen.session():current():store():get("settings").window = { x = 40, y = 200 }
+hafen.store():get("seen").lastLogin = os.time()
 ```
 
-A bare name is **per character**; the object form with `"scope": "account"` is shared by all your
-characters on the account. A declared name is always a usable table, empty when there is nothing saved yet,
-so there is nothing to create and no `nil` check to write. The table object itself never changes — a
-restore refills it in place — so a local reference you cache stays valid. See
-[`hafen.store`](../api/store.md) for the whole surface.
+A bare name is **per character**; the object form with `"scope": "account"` is shared by all your characters
+on the account. That is also the whole of the difference in how you reach one: a character's saved variables
+are that character's own folder, so you name [the session](../api/session.md) they belong to, and an
+account's are your addon's one file, so you name nobody. Ask for either through the other's door and you get
+an error naming the right one.
+
+A declared name is always a usable table, empty when there is nothing saved yet, so there is nothing to
+create and no `nil` check to write. The table object itself never changes — a restore refills it in place —
+so a local reference you cache stays valid. See [`hafen.store`](../api/store.md) for the whole surface.
 
 ## Read it at the right moment
 
@@ -32,19 +36,21 @@ are until you are in the world.
 | per character | `SessionEnteredWorld` onwards |
 
 ```lua
-hafen.event():on("SessionEnteredWorld", function()
-  local pos = hafen.store():get("settings").window
+hafen.event():on("SessionEnteredWorld", function(s)
+  local pos = s:store():get("settings").window
   if pos then window:position(pos.x, pos.y) end
 end)
 ```
 
-Reading a per-character table in `Load` is not an error; it is simply empty, which is the bug that looks
-like "my settings do not load".
+Reading a character's table in `Load` is not an error; it is simply empty, which is the bug that looks like
+"my settings do not load".
 
-A per-character table holds **the character on screen**. Your addon is loaded once for the client, which
-can have several characters logged in at once, so tabbing to another one hands the same tables that
-character's saved data — same table objects, so a reference you cached stays live, different contents. If
-you keep your own copy of something you read out of one, read it again when the screen moves; the
+**The character has to be the one on screen.** Your addon is loaded once for the client, which can have
+several characters logged in at once, so there is one set of per-character tables and they hold the character
+you are looking at. Tabbing to another one hands the same tables that character's saved data — same table
+objects, so a reference you cached stays live, different contents — and asking a session that is *not* on
+screen raises rather than answering, because that character's file is on disk and nothing of it is in memory.
+If you keep your own copy of something you read out of one, read it again when the screen moves; the
 [session events](../api/event/bus.md#sessions) are how you hear that it did.
 
 ## Store data, not objects
@@ -59,7 +65,7 @@ you can draw again. Rebuild the live objects from that on load.
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function(s)
-  for _, prop in ipairs(hafen.store():get("settings").props or {}) do
+  for _, prop in ipairs(s:store():get("settings").props or {}) do
     local p = s:world():position(prop.at)          -- :x() is nil until that grid is reachable
     if p then hafen.vr():ghost():add(prop.res, p) end
   end
@@ -76,10 +82,11 @@ when your addon is disabled or reloaded; a character's own tables are written wh
 the screen**, whether you tabbed away from them or logged them out, because that is the last moment their
 data is the data in the tables.
 
-`hafen.store():flush()` forces a write now, which is worth doing after a change the user would be annoyed
-to lose and unnecessary the rest of the time. It refuses a value a saved variable cannot hold, naming
-where in your table it sits, which is the fastest way to find out that you stored the widget instead of
-its place.
+`s:store():flush()` and `hafen.store():flush()` each force a write of their own scope now, which is worth
+doing after a change the user would be annoyed to lose and unnecessary the rest of the time. Either refuses
+a value a saved variable cannot hold,
+naming where in your table it sits, which is the fastest way to find out that you stored the widget instead
+of its place.
 
 A file the engine cannot parse leaves your tables empty and logs the failure rather than raising it: your
 addon starts with default settings instead of not starting.
