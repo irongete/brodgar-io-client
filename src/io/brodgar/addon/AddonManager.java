@@ -3883,6 +3883,41 @@ public final class AddonManager {
     }
 
     /**
+     * <b>Every live session's copy of one object</b>, in membership order — what a visual WRITE lands on
+     * (080.1). A gob id is the server's and names one object, but a {@link Gob} is per {@link OCache}: the
+     * object is what an addon addresses, and the copies are what the engine paints. So a read resolves
+     * through {@link #gobUser(long)} and picks one, while {@code gob:scale(k)} and an overlay attach take
+     * this list and land on all of them — one object drawn the same whichever character is looking at it.
+     *
+     * <p>Live, like the set it is built from: the caches are asked at the moment of the call, so a session
+     * that joined since the last write is in it with nothing having been notified, and one that ended is
+     * simply not. <b>A session that does not hold the object is not in the list at all</b> — a state, not a
+     * fault, exactly as an empty {@code gob:sessions()} is.
+     */
+    static List<Gob> gobCopies(long id) {
+        List<Gob> out = new ArrayList<Gob>();
+        for(String user : gobUsers(id)) {
+            Gob g = getgob(user, id);
+            if(g != null)                  // it left that cache between the two reads: skipped, not a fault
+                out.add(g);
+        }
+        return out;
+    }
+
+    /**
+     * <b>The accounts of every live session</b>, in membership order — the walk a client-wide sweep takes
+     * when it has no object to ask about. {@link UiApi#teardownGobScales} and
+     * {@link UiApi#teardownGobOverlays} are what it is for: an addon going away has to be undone in every
+     * session it wrote in, and by then there is nothing left to say which those were.
+     */
+    static List<String> users() {
+        List<String> out = new ArrayList<String>();
+        for(Sessions.Member m : Sessions.members())
+            out.add(m.user);
+        return out;
+    }
+
+    /**
      * <b>The session a bare Gob read resolves through</b> — the one on screen when it holds the object,
      * otherwise the first that does, {@code null} when none does. The drawn session is tried without
      * copying the membership list, so the ordinary read is one lookup and one {@code OCache} probe.
@@ -4059,19 +4094,6 @@ public final class AddonManager {
         if(mv == null)
             throw new LuaError(verb + ": no map view (not in the world yet)");
         return mv;
-    }
-
-    /** A copy of the live gob list (taken under the OCache lock; snapshots built by the caller). */
-    static List<Gob> allGobs() {
-        List<Gob> out = new ArrayList<Gob>();
-        OCache oc = oc();
-        if(oc == null)
-            return out;
-        synchronized(oc) {
-            for(Gob g : oc)
-                out.add(g);
-        }
-        return out;
     }
 
     /**

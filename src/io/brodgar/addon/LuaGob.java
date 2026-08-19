@@ -345,20 +345,26 @@ public final class LuaGob {
         // nothing goes on the wire and nothing about what the gob IS changes. The size is applied in place
         // (T·R·S), so the object's feet stay where they were and it still turns and moves normally, and it
         // ENDS WITH THE LOADED OBJECT: walk far enough to unload it and it comes back its original size.
-        //   It lands on the copy this read resolves through, like every reader here: the character on screen
-        // when it can see the object, and otherwise whichever of yours can.
+        //   THE WRITE IS ADDRESSED AT THE OBJECT (080.1). A Gob is per object cache, so the size is applied to
+        // EVERY live session's copy of it: one object is drawn the same whichever character is looking at it,
+        // and tabbing to another character does not find it its old size. A session that does not hold the
+        // object is skipped -- a state, not a fault, like every other answer about who can see a thing. The
+        // READ still resolves through one copy, like every reader here (the character on screen when it can
+        // see the object, and otherwise whichever of yours can), because they all now agree.
         m.set("scale", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                handle(self, "scale");
+                LuaGob h = handle(self, "scale");
                 LuaValue sv = Args.written(a, 2, "gob:scale", "k");
-                Gob g = gob(self, "scale");
-                if(sv == null)
+                if(sv == null) {
+                    Gob g = gob(self, "scale");
                     return (g == null) ? LuaValue.NIL : LuaValue.valueOf((double)GobScale.value(g));
+                }
                 float k = scaleArg(sv);
                 // A gob that is gone takes the write and does nothing with it: every method here answers nil
-                // once the gob is gone and none of them throws, and the write is no exception to that.
-                if(g != null)
+                // once the gob is gone and none of them throws, and the write is no exception to that. Nobody
+                // holds it, so the walk is empty and that IS doing nothing with it.
+                for(Gob g : AddonManager.gobCopies(h.id))
                     GobScale.apply(g, owner, k);
                 return self;
             }

@@ -27,12 +27,16 @@ an error.
 
 Each of your characters holds its own copy of the object, placed against its own map, so a read still has to
 be computed by one of them. **The character on screen does it when it can see the object, and otherwise
-whichever of your characters can** — one rule, for every method on this page. With one character logged in it
+whichever of your characters can** — one rule, for every read on this page. With one character logged in it
 is that character, and [`gob:sessions()`](#gobsessions) is how you see the choice being made.
 
 The answers do not depend on which one it was. `:name()`, `:health()` and the rest read the **server's**
 object, and `:position()` hands back a [Position](position.md) anchored on a **server** grid
 id, so two characters looking at one tree compute the same place out of two different frames.
+
+**The two writes go the other way**: [`gob:scale(k)`](#size-unprotected) and
+[`gob:overlay()`](overlay.md)`:add(key)` change how the object *looks*, and one object looks one way — so
+they are written to every character that can see it, not to the one that would have done a read.
 
 ### `gob:sessions()`
 
@@ -116,9 +120,10 @@ if boar then
 end
 ```
 
-The size lands on the copy the read resolves through, like every other method here: the character on screen
-when it can see the object, and otherwise whichever of yours can — so a boar you resize on a character you
-are not looking at is that size when you tab to it.
+The size is written on the **object**, so every character that can see the boar sees the same boar: tab
+between two standing together and it is the size you set on both. [`gob:sessions()`](#gobsessions)
+is the list the write goes to — a character that loads the object later draws it the size the game draws it
+at, the same way a gob that unloads and comes back is unscaled.
 
 It is **client-local and purely visual**, on the same footing as an [overlay](overlay.md): only you see
 it, the size is applied in place so the object's feet stay where they were, and it still turns, moves
@@ -133,7 +138,8 @@ behind. Once the gob is gone the read answers `nil` and a write does nothing.
 
 > **The size ends with the loaded object.** Walk far enough away for it to unload and it comes back the
 > size the game draws it at. Re-apply it from [`GobAdded`](event/bus.md#world) if you want it kept — and a
-> `:reload` or a disable puts back everything you resized, so nothing is left distorted behind you.
+> `:reload` or a disable puts back everything you resized, in every character's view, so nothing is left
+> distorted behind you anywhere.
 
 ## Overlays
 
@@ -141,8 +147,8 @@ Everything drawn at a gob — the game's own, the labels and painters you attach
 [stood in the world](vr/README.md) anchored to it — is the collection
 [`gob:overlay()`](overlay.md), and it is unprotected.
 
-An overlay is attached to the **object**, and the client draws one scene: it appears whenever the character
-being drawn can see the object it is on.
+An overlay is attached to the **object**, and every character that can see the object draws it: it appears
+whichever of them is on screen, and a `:reload` or a disable takes it off all of them.
 
 ## Clicking one
 

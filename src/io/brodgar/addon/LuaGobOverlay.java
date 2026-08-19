@@ -43,8 +43,8 @@ import java.util.Map;
  * <p><b>Death with the gob is therefore free.</b> {@code Gob.dispose()} disposes every {@link GAttrib} and a gob
  * dropped from {@code OCache.objs} takes its attribs with it, so there is no addon-side map keyed by gob id to
  * sweep and nothing is kept "in case it comes back" (a felled tree never does). The one caller that must still
- * find an addon's overlays across gobs is teardown ({@code :reload}/disable), which is a single sweep of the
- * object cache at a rare moment — {@link UiApi#teardownGobOverlays}.
+ * find an addon's overlays across gobs is teardown ({@code :reload}/disable), which is a single sweep of every
+ * live session's object cache at a rare moment — {@link UiApi#teardownGobOverlays}.
  *
  * <p><b>The native overlays are read here too</b> ({@link #nativeKeys}/{@link #findNative}): the game's own
  * {@code Gob.ols} are keyed by their <b>resource name</b>, which is the only part of a {@code Gob.Overlay} a name
@@ -222,7 +222,14 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         LuaGobOverlay ol = on(g);
         if(ol == null)
             return;
+        // 080.1: one copy of the object left, and a record stands on every copy -- so this copy's records go
+        // with it, and the REPORT waits for the last one. An overlay another character can still see has not
+        // been removed, and saying it was is the removal an addon's own set would never get back. Same shape
+        // and same moment as VrApi.anchorGone's "another character still has that object in view".
+        boolean last = AddonManager.gobUsers(g.id).isEmpty();
         for(Attach a : ol.removeAll()) {
+            if(!last)
+                continue;
             // 038.3: and it is REPORTED. Fired straight, not queued: this already runs on the UI thread from the
             // tick's GobRemoved drain, and firing here is what puts GobOverlayRemoved BEFORE the gob's own
             // GobRemoved — an overlay is never reported dying after the thing it was attached to. The record is
@@ -259,6 +266,57 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
             }
         }
         return out;
+    }
+
+    // ---- the write, addressed at the OBJECT (080.1) ------------------------------------------------
+    //
+    // A record is attached to the object, and a Gob is per object cache -- so one record goes into EVERY live
+    // session's copy, and the SAME Attach instance goes into each. It holds no Gob and nothing else about a
+    // session, so one instance in several attribs is one record with several painters: ov:text("...") on the
+    // handle relabels what every character sees, because there is one thing to relabel.
+    //   A session that does not hold the object is not walked at all, and one whose copy cannot take the
+    // attrib yet is skipped -- the refusal that reaches the caller is the resolved copy's, where the call was
+    // aimed. The EVENT is fired once, off that same copy: one attach is one attach however many draw it.
+
+    /**
+     * Attach {@code rec} to every live session's copy of the object, and answer what it displaced on
+     * {@code primary} — the copy the call resolved through, whose {@code ensure} refusal is the call's own.
+     */
+    static Attach attach(Gob primary, long id, Attach rec) {
+        Attach old = ensure(primary).put(rec);
+        for(Gob g : AddonManager.gobCopies(id)) {
+            if(g == primary)
+                continue;
+            try {
+                ensure(g).put(rec);
+            } catch(RuntimeException e) {
+                /* that copy is not renderable yet: it simply does not draw this one */
+            }
+        }
+        return old;
+    }
+
+    /**
+     * Drop {@code owner}'s record under {@code key} from every live session's copy, pruning each attrib left
+     * with nothing, and answer what {@code primary} held — so the removal is reported once, or not at all.
+     */
+    static Attach detach(Gob primary, long id, Addon owner, String key) {
+        Attach had = drop(primary, owner, key);
+        for(Gob g : AddonManager.gobCopies(id)) {
+            if(g != primary)
+                drop(g, owner, key);
+        }
+        return had;
+    }
+
+    /** One copy's half of {@link #detach}: remove the record if that copy carries one, then prune. */
+    private static Attach drop(Gob g, Addon owner, String key) {
+        LuaGobOverlay store = on(g);
+        if(store == null)
+            return null;
+        Attach had = store.remove(owner, key);
+        prune(g);
+        return had;
     }
 
     /** Detach the attrib from {@code g} once nothing is attached (the caller already holds the UI monitor). */

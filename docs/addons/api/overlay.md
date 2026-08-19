@@ -15,6 +15,11 @@ It is **unprotected**, the attach included: what you paint at a gob is your own 
 nothing the server, the client or another addon owns — the same footing as
 [a HUD overlay](ui/custom.md#overlays).
 
+**An overlay hangs on the object, not on a character.** Attach one and every character of yours that can
+see the gob draws it — [`gob:sessions()`](gob.md#gobsessions) is who that was at the moment you attached it
+— so the label is there whichever of them you tab to, and one `:remove(key)` takes it off all of them. A
+character that loads the object later draws it bare, the same way a gob that unloads and comes back is.
+
 ## The collection
 
 The verbs below are the standard
@@ -136,8 +141,11 @@ a `*` in front of the key on the game's own.
 
 **An overlay dies with its gob.** The record lives on the game object, so a felled tree takes yours with
 it and nothing is kept in case it comes back — a gob that returns is bare, and re-attaching is your own
-call from [`GobAdded`](event/bus.md#world). A `:reload` or a disable likewise removes every overlay you
-attached and leaves the game's untouched. A thing you stood in the world and anchored here
+call from [`GobAdded`](event/bus.md#world). The object leaving one character's view is not that moment: it
+dies when the **last** of your characters that can see it loses it, and that is when
+[`GobOverlayRemoved`](event/bus.md#overlays-coming-and-going) fires. A `:reload` or a disable likewise
+removes every overlay you attached, from every character that can see it, and leaves the game's untouched.
+A thing you stood in the world and anchored here
 [dies with the gob too](vr/README.md#the-anchor-is-an-argument), rather than being left floating where the
 target used to stand.
 

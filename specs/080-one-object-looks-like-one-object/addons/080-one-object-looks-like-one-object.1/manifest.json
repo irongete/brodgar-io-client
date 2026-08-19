@@ -1,0 +1,9 @@
+{
+  "name": "080.1 — a gob is one object, and it looks like one",
+  "id": "080-one-object-looks-like-one-object.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 080.1: gob:scale(k) and gob:overlay():add(key) are writes on the OBJECT, so they land in every live session that holds it and the read-back agrees; gob:sessions() names who was walked; the range refusal still names the range. The undo is two-phase and manual, because the addon that wrote is gone by the time there is anything to check.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

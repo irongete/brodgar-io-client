@@ -2235,59 +2235,74 @@ final class UiApi {
      * Drop every overlay {@code a} attached to any gob, and detach the attrib from the gobs left with nothing
      * ({@code :reload}/disable). This is the ONE place that has to find an addon's overlays across gobs — the
      * state lives on the gob precisely so that nothing else ever sweeps — and it runs at a rare moment.
-     * Mutating a gob's render slots is done under {@code synchronized(ui)} (like {@link #destroyWidgets})
-     * because teardown may run off the UI thread (session bind). The game's own overlays are untouched.
+     * The game's own overlays are untouched.
+     *
+     * <p><b>Every live session, because an overlay was attached to the object</b> (080.1): the write reached
+     * every copy of it, so the undo reaches every copy too, and what an addon left on a thing only a
+     * background character has loaded goes with the rest. A session that dropped the gob in between leaves
+     * nothing behind — the copy went with it — which looks like a leak and is not.
+     *
+     * <p><b>One monitor at a time.</b> Mutating a gob's render slots is done under {@code synchronized(ui)}
+     * (like {@link #destroyWidgets}) because teardown may run off the UI thread (session bind) — so each
+     * session's own monitor is taken for that session's walk and released before the next, and two are never
+     * held at once: the tick holds one UI monitor at a time, and that is the direction everything here takes.
+     * A session whose {@code UI} has gone is skipped, not a reason to run unguarded.
      *
      * <p>Since 043.3 a record owns nothing but itself — the world kinds left {@code gob:overlay()}, so dropping
      * it from the map IS its end, and what stands in the 3D scene is freed by {@code VrApi}'s own per-kind
      * teardowns like any other entity this addon placed.
      */
     static void teardownGobOverlays(Addon a) {
-        UI u = screen();
-        Runnable detach = () -> {
-            try {
-                for(Gob g : allGobs()) {
-                    LuaGobOverlay ol = LuaGobOverlay.on(g);
-                    if(ol == null)
-                        continue;
-                    if(!ol.removeOwner(a).isEmpty())
-                        LuaGobOverlay.prune(g);
+        for(String user : users()) {
+            UI u = sessionui(user);
+            if(u == null)
+                continue;
+            synchronized(u) {
+                try {
+                    for(Gob g : allGobs(user)) {
+                        LuaGobOverlay ol = LuaGobOverlay.on(g);
+                        if(ol == null)
+                            continue;
+                        if(!ol.removeOwner(a).isEmpty())
+                            LuaGobOverlay.prune(g);
+                    }
+                } catch(RuntimeException e) {
+                    /* best-effort cleanup — a leftover idle attrib draws nothing anyway */
                 }
-            } catch(RuntimeException e) {
-                /* best-effort cleanup — a leftover idle attrib draws nothing anyway */
             }
-        };
-        if(u != null) {
-            synchronized(u) { detach.run(); }
-        } else {
-            detach.run();
         }
     }
 
     /**
      * Put every gob {@code a} resized back to its original size ({@code :reload}/disable) — the twin of
-     * {@link #teardownGobOverlays} and, like it, one walk of the object cache at a rare moment. Nothing an
-     * addon that is no longer running left distorted stays distorted, which is what makes a purely visual
-     * write on the game's own objects safe to leave unprotected.
+     * {@link #teardownGobOverlays} and, like it, one walk of the object caches at a rare moment. Nothing an
+     * addon that is no longer running left distorted stays distorted, <b>in any session it is distorted
+     * in</b>, which is what makes a purely visual write on the game's own objects safe to leave unprotected.
      *
-     * <p>A gob scaled by a <i>different</i> addon is untouched: the size records who wrote it, and a gob has
-     * one size, so teardown reverts only what this addon last set. Under {@code synchronized(ui)} like its
-     * twin, because teardown may run off the UI thread (session bind) while {@code ctick} rebuilds the state.
+     * <p>Every live session, for its twin's reason (080.1): {@code gob:scale(k)} lands on every copy of the
+     * object, so the sweep that undoes it reads every session's cache — the guarantee is about the object,
+     * and an object only a background character has loaded is one of them.
+     *
+     * <p><b>Widening the walk does not widen what is reverted.</b> A gob scaled by a <i>different</i> addon is
+     * untouched in every session alike: the size records who wrote it, and a gob has one size, so teardown
+     * reverts only what this addon last set on that copy.
+     *
+     * <p>Under each session's own {@code synchronized(ui)}, taken and released one at a time like its twin,
+     * because teardown may run off the UI thread (session bind) while {@code ctick} rebuilds the state.
      */
     static void teardownGobScales(Addon a) {
-        UI u = screen();
-        Runnable unscale = () -> {
-            try {
-                for(Gob g : allGobs())
-                    GobScale.revert(g, a);
-            } catch(RuntimeException e) {
-                /* best-effort cleanup — a leftover scale is visual only, and dies with the gob anyway */
+        for(String user : users()) {
+            UI u = sessionui(user);
+            if(u == null)
+                continue;
+            synchronized(u) {
+                try {
+                    for(Gob g : allGobs(user))
+                        GobScale.revert(g, a);
+                } catch(RuntimeException e) {
+                    /* best-effort cleanup — a leftover scale is visual only, and dies with the gob anyway */
+                }
             }
-        };
-        if(u != null) {
-            synchronized(u) { unscale.run(); }
-        } else {
-            unscale.run();
         }
     }
 }

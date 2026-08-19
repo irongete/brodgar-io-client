@@ -189,7 +189,11 @@ public final class LuaOverlay {
                     throw new LuaError("gob:overlay():add(\"" + k + "\"): that key names a hafen.vr():" + vr.kind()
                         + "() standing at this gob, which is listed here read-only -- pick a key of your own"
                         + " (a vr key is generated, so it always looks like \"vr#7\")");
-                LuaGobOverlay.Attach old = LuaGobOverlay.ensure(g).put(new LuaGobOverlay.Attach(owner, k));
+                // 080.1: onto EVERY live session's copy of the object, so what is attached to the object is
+                // drawn whichever character is looking at it. One record, shared by the copies — the setters
+                // that say what it draws act on the one thing, and the event is fired once, off this copy.
+                LuaGobOverlay.Attach old =
+                    LuaGobOverlay.attach(g, gobId, new LuaGobOverlay.Attach(owner, k));
                 if(old != null)
                     AddonManager.queueGobOverlay(false, g, k, owner);
                 AddonManager.queueGobOverlay(true, g, k, owner);
@@ -228,12 +232,9 @@ public final class LuaOverlay {
                         + "() standing at this gob, listed here read-only -- the collection placed it, so the"
                         + " collection ends it: hafen.vr():" + vr.kind() + "():remove(x), with the handle :add"
                         + " gave you (or one out of hafen.vr():" + vr.kind() + "():list())");
-                LuaGobOverlay store = LuaGobOverlay.on(g);
-                if(store == null)
-                    return;
-                if(store.remove(owner, k) != null)
+                // ...and off every copy, the twin of the walk :add takes — one removal, reported once.
+                if(LuaGobOverlay.detach(g, gobId, owner, k) != null)
                     AddonManager.queueGobOverlay(false, g, k, owner);
-                LuaGobOverlay.prune(g);
             }
         }, null);
     }

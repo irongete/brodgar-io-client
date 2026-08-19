@@ -119,8 +119,9 @@ you need its name, index it on `GobAdded`.
 it, so five characters together produce one `GobAdded` for it and not five. A character walking away from
 an object another one can still see fires nothing at all: [`gob:sessions()`](../gob.md) reads who can see
 it right now, so an addon that cares asks at the moment it cares rather than following an event stream to
-find out. The two overlay events are the same fact one level down — the game's own decoration on an
-object is reported when it reaches the first character who can see it and when it leaves the last. A
+find out. The two overlay events are the same fact one level down — a decoration on an object, yours or
+the game's own, is reported when it reaches the first character who can see it and when it leaves the
+last. A
 session **ending** is its objects leaving their last view, so what only that character could see is
 reported gone.
 
