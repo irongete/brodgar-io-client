@@ -38,6 +38,21 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public final class Subs {
     /**
+     * <b>Every message on this stream</b> — the key {@code hafen.event():action():on("*", fn)} and
+     * {@code hafen.event():message():on("*", fn)} reserve on the two emitters whose key set is OPEN (spec
+     * {@code 082-the-whole-stream}). It cannot collide with a message name: a {@code wdgmsg} name is a
+     * protocol identifier, so no message is ever called {@code *}, and the same character already means
+     * <i>any</i> in a {@link Selector} and in a permission group.
+     *
+     * <p><b>The constant lives here, the MEANING does not.</b> {@link #fire} and {@link #has} know nothing
+     * about it: a wildcard is a second list the two stream dispatches look up beside the named one
+     * ({@link AddonManager#dispatchAction}), never a rule inside the mechanism. Giving {@code "*"} a meaning
+     * in {@code fire} would give it one on every emitter, a widget's per-frame {@code Draw} included, and the
+     * two streams are the only emitters whose key set is open in the first place.
+     */
+    public static final String WILD = "*";
+
+    /**
      * How this emitter charges a handler's Lua time, per key — one of {@link Addon#C_EVENT}… Per KEY rather
      * than per emitter because a widget's {@code Draw} is {@code draw} while its {@code MouseDown} is
      * {@code widgets}, and the two live in one {@code Subs}.
@@ -83,6 +98,17 @@ public final class Subs {
     /** {@code key → the handlers on it}, in registration order. */
     private final Map<String, CopyOnWriteArrayList<LuaSub>> byKey =
         new ConcurrentHashMap<String, CopyOnWriteArrayList<LuaSub>>();
+    /**
+     * Does anyone here listen to {@link #WILD}? A cached answer to {@code has(WILD)}, written only on the
+     * three cold paths that can change it ({@link #on}, {@link #off}, {@link #clear}) and read on the hot one
+     * ({@link AddonManager#dispatchAction}'s gate, once per addon per message). That is the whole reason it is
+     * a field rather than a second map lookup: the gate is paid by every addon on every message, including
+     * the ones that named their key and want nothing to do with a wildcard.
+     *
+     * <p>Volatile, and for the same reason the handler lists are copy-on-write: a subscription may be made or
+     * ended from inside a running handler, on whichever thread that fire is on.
+     */
+    private volatile boolean wild;
 
     /** An emitter whose every key costs the same category (the bus: {@code events}). */
     Subs(Addon owner, final int cat) {
@@ -119,7 +145,18 @@ public final class Subs {
     LuaValue on(String key, LuaValue fn) {
         LuaSub s = new LuaSub(this, key, fn);
         list(key).add(s);
+        if(WILD.equals(key))
+            wild = true;
         return s.handle();
+    }
+
+    /**
+     * Does anyone here listen to <b>every</b> message ({@link #WILD})? Read by the two stream dispatches, in
+     * front of the {@code has(msg)} lookup they already did — see {@link #wild the field} for why it is
+     * cached. It answers for THIS emitter only, so a wildcard one addon holds changes nothing for another.
+     */
+    public boolean wild() {
+        return wild;
     }
 
     /** The handler list for {@code key}, created on the first subscription to it. */
@@ -185,7 +222,10 @@ public final class Subs {
      */
     void off(LuaSub s) {
         CopyOnWriteArrayList<LuaSub> l = byKey.get(s.key);
-        if((l != null) && l.remove(s) && (idle != null) && l.isEmpty())
+        boolean gone = (l != null) && l.remove(s);
+        if(WILD.equals(s.key))
+            wild = has(WILD);         // recomputed, never decremented: two wildcards, one ended, still one
+        if(gone && (idle != null) && l.isEmpty())
             idle.idle(s.key);
     }
 
@@ -200,5 +240,6 @@ public final class Subs {
                 s.alive = false;
         }
         byKey.clear();
+        wild = false;
     }
 }

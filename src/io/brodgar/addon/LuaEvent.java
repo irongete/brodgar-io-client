@@ -320,8 +320,10 @@ public final class LuaEvent {
 
     /**
      * The {@code ev} for one outbound action ({@code hafen.event():action()}), minted per addon that listens —
-     * the {@code hasSub} gate (spec §2.1) keeps an unlistened action free. {@code u} is captured for a
-     * deferred {@code resend}/{@code send}.
+     * the {@code hasSub} gate (spec §2.1) keeps an unlistened action free. What that gate lets through is an
+     * addon holding this message's NAME <b>or</b> {@link Subs#WILD}, the whole stream (082.1); when it holds
+     * both, this one value is what both lists are fired over, so a cancel from either stops the send once.
+     * {@code u} is captured for a deferred {@code resend}/{@code send}.
      */
     static LuaValue action(Addon owner, Widget sender, String msg, Object[] args, Subs.Cancel c, UI u) {
         return of(new LuaEvent(owner, Shape.ACTION, c, msg, sender, args, u, null));

@@ -10,8 +10,8 @@ widget applies it.
 > own behaviour.
 
 **Both key sets are open**, unlike [the bus catalogue](bus.md): a message name is protocol the server can
-introduce, not a catalogue the client owns, so any string is accepted and one that never arrives simply
-never fires.
+introduce, not a catalogue the client owns, so any string is accepted. One string is reserved: `*` is
+[the whole stream](#the-whole-stream), every message on it.
 
 ## Intercepting an outbound action
 
@@ -69,9 +69,10 @@ end)
 
 `ev:sender()` is a live handle, so `ev:sender():type()` reads the class and `ev:sender():parent()`
 navigates from it. Common `msg` names: `click` · `itemact` · `drop` · `place` · `sel` · `act` · `use` ·
-`take` · `transfer`. An `action` key is **not** in [the closed set](bus.md): any string is accepted, because a
-message name is protocol the server can introduce, and refusing an unknown one would refuse a legitimate
-one tomorrow. Two handlers on one `msg` both run; either one calling `preventDefault` cancels the send.
+`take` · `transfer`. An `action` key is **not** in [the closed set](bus.md): any string is accepted,
+because a message name is protocol the server can introduce, and refusing an unknown one would refuse a
+legitimate one tomorrow — and `*` reaches [all of them at once](#the-whole-stream). Two handlers on one
+`msg` both run; either one calling `preventDefault` cancels the send.
 
 ## Filtering an inbound update
 
@@ -98,6 +99,48 @@ end)
 ```
 
 Like `action`, a `message` key is open: any string is accepted and may never fire.
+
+## The whole stream
+
+`hafen.event():action():on("*", fn)` fires for every message the client sends, whatever its name. It is
+the one subscription you cannot write by hand: the key set is open because a message name is protocol the
+server can introduce, so the list of names is unknowable and enumerating it is exactly what the openness
+exists to avoid. Reach for it when you cannot name what you are after in advance — a live log of the
+client's traffic, a filter list that fills itself from what actually arrives, an audit of what a window
+sends before you have read a line of it.
+
+```lua
+-- every action the client sends, as it goes out:
+hafen.event():action():on("*", function(ev)
+  hafen.log():write(ev:sender():type() .. " -> " .. ev:msg() .. " (" .. #ev:args() .. " args)")
+end)
+```
+
+The `ev` is the one a named key is handed, whole: `ev:msg()` says which message fired, and `ev:sender()`,
+`ev:args()`, `ev:position(i)`, `ev:pixel(i)`, `ev:preventDefault()`, `ev:resend()` and `ev:send(t)` behave
+exactly as they do above. The key collides with nothing, because a message name is an identifier and no
+message is called `*`.
+
+Hold a name **and** `*`, and both handlers run for that name, **the named one first**, over **one** `ev`:
+the specific claim on a message sees it before the ambient one, and a `preventDefault` from either cancels
+the send once. `sub:off()` on the wildcard ends that subscription alone, leaving a named one on the same
+stream firing. A wildcard is your addon's own: an addon holding only `click` is never called for another
+name, whatever anyone else subscribed to.
+
+> **A wildcard costs you the whole stream.** Your handler runs on every message the client sends, where a
+> named key runs it on one — so keep the body short, and read
+> [threading](../conventions.md#threading) before you make one wait on anything. An addon that named its
+> key pays nothing for someone else's wildcard.
+
+Two sends the `action` stream does not report, and a wildcard is where you would notice:
+
+- **A message sent from inside an `action` handler.** The stream is not re-entered while it is
+  dispatching, which is what stops a handler recursing on its own traffic — so that send reaches the
+  server without being reported to anyone, your own wildcard included. `ev:resend()` and `ev:send(t)`
+  bypass the stream for the same reason.
+- **A send made off the UI-locked path.** Handlers run only where the sending code already holds the
+  client's UI lock, which is every player action and every message a widget sends while the client is
+  running. A send from a thread outside it passes straight through.
 
 ## See also
 

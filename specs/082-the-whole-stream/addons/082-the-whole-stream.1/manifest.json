@@ -1,0 +1,12 @@
+{
+  "name": "082.1 — every outbound message, under one name",
+  "id": "082-the-whole-stream.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 082.1: \"*\" on the action stream is handed every outbound message, over the same one ev a named key gets, named list first.",
+  "api_version": 1,
+  "permissions": ["widget.send"],
+  "files": [
+    "main.lua"
+  ]
+}

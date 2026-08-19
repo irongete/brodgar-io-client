@@ -163,8 +163,14 @@ public final class Addon {
      * This addon's subscriptions to the <b>outbound action stream</b> ({@code hafen.event():action():on(msg,
      * fn)}, 041.2) — every player action, at the single {@link haven.UI#wdgmsg} choke point, before the server
      * sees it. A separate {@link Subs} from {@link #subs} because the key set is a different KIND: a
-     * {@code wdgmsg} name is protocol, so this one is OPEN (any string is accepted) where the bus's 26 are
+     * {@code wdgmsg} name is protocol, so this one is OPEN (any string is accepted) where the bus keys are
      * closed (D-129).
+     *
+     * <p><b>Two doors in, and {@link AddonManager#fireAction} fires them in that order.</b> A key names one
+     * message; {@link Subs#WILD} names every message on the stream (082.1), which is the subscription an
+     * open key set cannot be enumerated into — a message name is protocol the server can introduce, so the
+     * list is unknowable by construction. The {@code hasSub} gate lets a message through for this addon when
+     * EITHER holds, and both are handed one {@code ev}.
      *
      * <p>It charges {@link #C_EVENT}, not {@link #C_HOOK}: the two streams are doors of the bus now, and the
      * {@code hooks} column is what is left of {@code hafen.hook()} — hotkeys and slash commands.

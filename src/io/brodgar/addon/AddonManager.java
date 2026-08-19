@@ -1689,7 +1689,13 @@ public final class AddonManager {
      *
      * <p>One verb, {@code :on(msg, fn)}, and a CLOSED vocabulary around an OPEN key set — the two are
      * different questions. An unknown <i>verb</i> on the emitter throws (the grammar is the client's), while
-     * an unknown <i>msg</i> is accepted and may simply never fire (the name is the protocol's, D-129).
+     * an unknown <i>msg</i> is accepted (the name is the protocol's, D-129).
+     *
+     * <p><b>One key is reserved</b>: {@link Subs#WILD} means every message on this stream, which is the one
+     * subscription a caller cannot write by hand — the key set is open precisely because the list is
+     * unknowable, so enumerating it is the thing this exists to avoid. It is validated nowhere because
+     * nothing about it needs refusing: it goes into the same {@link Subs} as any other key, and it is the
+     * dispatch that looks its list up beside the named one.
      */
     private static LuaValue stream(final String nm, final Subs subs) {
         LuaTable m = new LuaTable();
@@ -1709,7 +1715,8 @@ public final class AddonManager {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("hafen.event():" + nm + "()", m,
             "a message stream answers one verb, :on(msg, fn), and its key set is OPEN: any message name is"
-            + " accepted, because a wdgmsg name is protocol rather than a catalogue the client owns"));
+            + " accepted, because a wdgmsg name is protocol rather than a catalogue the client owns, and"
+            + " \"*\" is every message on this stream"));
         mt.set("__name", LuaValue.valueOf("Stream"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue v) {
@@ -1763,10 +1770,30 @@ public final class AddonManager {
         return !c.prevented();
     }
 
-    /** Run one owner's action handlers, with its own {@code ev} over the shared cancel flag. */
+    /**
+     * Run one owner's action handlers, with its own {@code ev} over the shared cancel flag — <b>the named
+     * list first, then the wildcard one</b> ({@link Subs#WILD}), over the SAME {@code ev}.
+     *
+     * <p><b>One payload, two lists.</b> An addon holding both {@code "click"} and {@code "*"} has both
+     * handlers handed the very same value, so the shared {@link Subs.Cancel} behaves exactly as it does
+     * between two handlers on one key: either one cancels the send once, and the last {@code send}/
+     * {@code resend} wins. Named first because the named key is the SPECIFIC claim on this message and the
+     * wildcard the ambient one — the specific handler sees the {@code ev} first, the ambient one sees what
+     * was done to it.
+     *
+     * <p>{@code named} is {@code has(msg) && !WILD.equals(msg)} so a message that somehow arrived called
+     * {@code *} fires one list rather than the same list twice.
+     */
     private static void fireAction(Addon a, Widget sender, String msg, Object[] args, Subs.Cancel c, UI u) {
-        if(a.actionSubs.has(msg))
-            a.actionSubs.fire(msg, c, LuaEvent.action(a, sender, msg, args, c, u));
+        boolean named = a.actionSubs.has(msg) && !Subs.WILD.equals(msg);
+        boolean wild = a.actionSubs.wild();
+        if(!named && !wild)
+            return;                                   // the hasSub gate, kept: no ev for an owner not listening
+        LuaValue ev = LuaEvent.action(a, sender, msg, args, c, u);
+        if(named)
+            a.actionSubs.fire(msg, c, ev);
+        if(wild)
+            a.actionSubs.fire(Subs.WILD, c, ev);
     }
 
     /**
@@ -1802,14 +1829,23 @@ public final class AddonManager {
             a.messageSubs.fire(msg, c, LuaEvent.message(a, target, msg, args, c, rewritten));
     }
 
-    /** Does any owner subscribe to {@code msg} on the action ({@code true}) or message stream? */
+    /**
+     * Does any owner subscribe to {@code msg} on the action ({@code true}) or message stream — <b>or to the
+     * whole of it</b> ({@link Subs#WILD})? The wildcard is one volatile field read in FRONT of the map lookup
+     * this gate already did, so an addon that named its key pays less here than it did rather than more:
+     * a hit on the field short-circuits, and a miss costs a boolean.
+     */
     private static boolean anyStreamSub(String msg, boolean action) {
         for(Addon a : addons) {
-            if((action ? a.actionSubs : a.messageSubs).has(msg))
+            Subs s = action ? a.actionSubs : a.messageSubs;
+            if(s.wild() || s.has(msg))
                 return true;
         }
         Addon c = consoleOwner;
-        return (c != null) && (action ? c.actionSubs : c.messageSubs).has(msg);
+        if(c == null)
+            return false;
+        Subs s = action ? c.actionSubs : c.messageSubs;
+        return s.wild() || s.has(msg);
     }
 
     // --------------------------------------------------- the session family (074.3)
@@ -3270,8 +3306,8 @@ public final class AddonManager {
         // same one verb every emitter answers. The section is singular like every other one: an event NAME
         // keeps its plural (MarkersChanged is a sentence), the section does not.
         //
-        // The key set is CLOSED (D-129): the client fires all 26 and knows them at load, so an unknown one
-        // throws rather than being accepted and never firing. The four lifecycle keys dropped their On prefix
+        // The key set is CLOSED (D-129): the client fires every one of BUS_KEYS and knows them at load, so an
+        // unknown one throws rather than being accepted and never firing. The four lifecycle keys dropped their On prefix
         // in 041 (:on already says it), and those four spellings throw naming their replacement.
         LuaTable event = new LuaTable();
         event.set("on", new VarArgFunction() {
@@ -3299,7 +3335,8 @@ public final class AddonManager {
         //
         // Their key sets are OPEN, unlike the bus's own (D-129): a wdgmsg/uimsg name is PROTOCOL, not a
         // catalogue the client owns, so refusing an unknown one would refuse a legitimate message the server
-        // introduces tomorrow.
+        // introduces tomorrow. Which is also why one key is RESERVED (Subs.WILD, 082.1): a list that cannot
+        // be known is a list an addon cannot enumerate, so "*" is how it asks for the whole of it.
         final LuaValue actions = stream("action", owner.actionSubs);
         final LuaValue messages = stream("message", owner.messageSubs);
         event.set("action", new VarArgFunction() {
