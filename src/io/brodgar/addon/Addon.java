@@ -192,7 +192,7 @@ public final class Addon {
      */
     public final List<LuaKeyBind> keybinds = new CopyOnWriteArrayList<LuaKeyBind>();
     /**
-     * Live selector subscriptions owned by this addon ({@code hafen.ui.on(sel, "appear"|"disappear", fn)}, 030.2 —
+     * Live selector subscriptions owned by this addon ({@code s:ui():on(sel, "appear"|"disappear", fn)}, 030.2 —
      * what replaced {@code hafen.ui.onWidgetCreate} and its descriptor): each watches the whole tree for widgets
      * matching one {@link Selector}, fired from the placement seam and the removal seam (event-driven since
      * 042.9). They live in a flat global dispatch list in {@link UiApi} (a subscription watches the whole tree,
@@ -615,7 +615,7 @@ public final class Addon {
     final LuaCraft.Cache crafts = new LuaCraft.Cache(this);
 
     /**
-     * This addon's <b>Widget interning cache</b> ({@code hafen.ui.root()}/{@code node(id)}/{@code at(x,y)}, spec
+     * This addon's <b>Widget interning cache</b> ({@code s:ui():root()}/{@code node(id)}/{@code at(x,y)}, spec
      * {@code 029-widget-oop}): the {@code Widget → Widget object} map and the per-addon metatable that make
      * {@code hafen.ui.at(m.x,m.y) == hafen.ui.at(m.x,m.y)} true and let {@code node:same()} be cut. Per-addon like
      * every other cache here — no Lua value crosses a sandbox boundary (D-017) and the whole cache dies with this

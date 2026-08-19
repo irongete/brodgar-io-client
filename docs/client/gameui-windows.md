@@ -21,7 +21,10 @@ and never `makewnd`, which is one field for whichever recipe is newest. See the 
 [widgets.md](widgets.md).
 
 **The wrappers are hidden from birth** — `maininv` exists from login, the `Hidewnd` around it does not, so *"put
-the inventory back"* is **never** a blind `show()`. **TRAP — that wrapper
+the inventory back"* is **never** a blind `show()`. **And only the GRID is the server's**: the wrapper is
+constructed here rather than sent, so `Widget.wdgid()` on it is `-1` and it appears in no `UI.rwidgets` entry —
+address the inventory by id through `maininv` (`GameUI.equwnd`'s `Equipory` likewise), and reserve the wrapper
+for what it is, a frame the client hangs around it. **TRAP — that wrapper
 PACKS AROUND ITS GRID and cannot be resized from outside**: it is anonymous, with
 `cresize(ch) { pack(); }`, and `Widget.resize`
 notifies `parent.cresize(this)` — so `resize2`'s `deco.iresize` makes the deco call back and the window re-packs

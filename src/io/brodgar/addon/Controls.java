@@ -333,7 +333,7 @@ final class Controls {
      * {@code hafen.ui():scroll()} — a scrolling container over {@link haven.Scrollport}'s own two pieces (task
      * 040.8): {@code :parent(sp)} on any control puts it INSIDE the scrolling area, never beside the bar, and
      * the bar answers the same {@code :range}/{@code :value}/{@code :onChange} as a bare {@code :scrollbar()}
-     * (found the ordinary way, {@code hafen.ui():all("@Scrollbar")} or {@code sp:children()}) once content
+     * (found the ordinary way, {@code s:ui():all("@Scrollbar")} or {@code sp:children()}) once content
      * taller than the box makes it live. The container itself has no verb of its own.
      */
     static LuaValue scroll(Addon owner, Varargs a) {

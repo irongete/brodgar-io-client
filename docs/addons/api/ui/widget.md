@@ -4,7 +4,7 @@ A **Widget** is one piece of the UI — a window, a button, a container, a label
 yourself. It is the one type `hafen.ui` hands back, and every door below returns it.
 
 ```lua
-local inv = hafen.ui():inventory()
+local inv = hafen.session():current():ui():inventory()
 if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items") end
 ```
 
@@ -14,28 +14,31 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 |---|---|
 | `hafen.ui():window()` / `hafen.ui():widget()` | a surface you [painted](custom.md) — owned, and in [the layer](custom.md#your-windows-live-in-the-layer) rather than in the client's tree |
 | one of the [control builders](controls/README.md#builders) (`:button()`, `:label()`, `:image()`, …) | a [control](controls/README.md) you built — owned, and drawn by the client |
-| `hafen.ui():find(selector)` | the **one** widget matching a [selector](selectors.md), or `nil` — [two or more raises](selectors.md#one-or-all-of-them) |
-| `hafen.ui():all(selector)` | **every** match, in tree order — an empty array, never `nil` |
+| `s:ui():find(selector)` | the **one** widget matching a [selector](selectors.md) in that character's tree, or `nil` — [two or more raises](selectors.md#one-or-all-of-them) |
+| `s:ui():all(selector)` | **every** match, in tree order — an empty array, never `nil` |
 | `w:find(selector)` / `w:all(selector)` | the same two, searched inside **one widget's** subtree — see [searching inside one widget](#searching-inside-one-widget) |
-| `hafen.ui():root()` | the top of the whole client tree; walk down to any open window |
-| `hafen.ui():node(id)` | the widget for a **server widget id**, or `nil` if it does not resolve |
+| `s:ui():root()` | the top of that character's tree; walk down to any window it has open |
+| `s:ui():node(id)` | the widget for a **server widget id** in that character's tree, or `nil` if it does not resolve |
+| `s:ui():inventory()` | that character's main backpack grid, a container like any other |
+| `s:ui():equipment()` | that character's worn-equipment grid |
+| [`s:player():hand()`](../player.md#the-hand) | that character's cursor, and the [`Item`](items.md#the-item-object) on it |
 | `hafen.ui():at(x, y)` | the **deepest** widget under a root-coord point — see [hit-testing](selectors.md#hit-testing) |
 | `hafen.ui():tipAt(x, y)` | the widget whose **tooltip** the client would show at that point, or `nil` — see [tooltips](#tooltips-and-focus) |
 | `hafen.ui():mouse()` | the pointer — not a Widget, see [the mouse](mouse.md) |
-| `hafen.ui():inventory()` | your main backpack grid, a container like any other |
-| `hafen.ui():equipment()` | your worn-equipment grid |
-| [`s:player():hand()`](../player.md#the-hand) | one character's cursor, and the [`Item`](items.md#the-item-object) on it |
 
-The last row hangs off a [Session](../session.md) rather than off `hafen.ui()`, because a cursor belongs to
-a character: `s` is `hafen.session():current()` for the one on screen.
+`s` is a [Session](../session.md): `hafen.session():current()` for the character on screen,
+`hafen.session():get(user)` for any other. **A widget the client put up belongs to one character**, and a
+session nobody is looking at keeps its whole tree, so its windows stay findable and readable from another
+character. What you built is in none of those trees: hold the handle the builder gave you. The rows still
+on `hafen.ui()` ask about the **screen**, and there is one.
 
 A Widget is opaque, facade-safe userdata: no raw widget crosses into Lua and one cannot be forged. It is
 **interned per addon**, so two lookups of the same live widget are the *same* Lua value:
 
 ```lua
-local m = hafen.ui():mouse()
+local m, s = hafen.ui():mouse(), hafen.session():current()
 hafen.ui():at(m:x(), m:y()) == hafen.ui():at(m:x(), m:y())   -- true
-hafen.ui():inventory() == hafen.ui():node(invId)             -- true: one widget, one object
+s:ui():inventory() == s:ui():node(invId)                     -- true: one widget, one object
 ```
 
 `==` **is** the identity test, so there is no `:same()`. You can key a table by a Widget, stash one across
@@ -94,7 +97,7 @@ Reading the tree is unprotected client-side data.
 
 ```lua
 -- dump the client's full nested tree from the :lua console
-hafen.ui():root():walk(function(n, d)
+hafen.session():current():ui():root():walk(function(n, d)
   hafen.log():write(string.rep("  ", d) .. n:type()
     .. (n:role() and (" [" .. n:role() .. "]") or "")
     .. (n:id()   and (" #" .. n:id())          or "")
@@ -113,7 +116,7 @@ below turns on, so you send from the nearest server-bound ancestor rather than f
 | `:find(selector)` | Widget \| nil | the **one** match inside this widget's subtree, itself included, or `nil` |
 | `:all(selector)` | array | **every** match inside it, in tree order — an empty array, never `nil` |
 
-These are [`hafen.ui():find` and `:all`](selectors.md#one-or-all-of-them) with a narrower scope, and they
+These are [`s:ui():find` and `:all`](selectors.md#one-or-all-of-them) with a narrower scope, and they
 answer the same way. Their whole contract — the strict `find`, the absence case, what the scope decides and
 the refusal on a widget that has left the tree — is stated once, under
 [inside one widget](selectors.md#inside-one-widget).
@@ -126,7 +129,8 @@ reachable at all: input on a widget you found by selector goes through the same 
 built.
 
 ```lua
-local sub = hafen.ui():find("window[title=Cupboard] inventory"):on("MouseDown", function(ev)
+local sub = hafen.session():current():ui()
+  :find("window[title=Cupboard] inventory"):on("MouseDown", function(ev)
   if ev:button() == 3 then ev:preventDefault() end    -- right-click disabled on this cupboard only
 end)
 sub:off()
@@ -250,7 +254,7 @@ it the call raises an error naming that key. It is the widest key in the catalog
 verbs can send, this can send too — so declare it only where none of them fit.
 
 ```lua
-hafen.ui():find("@MapView"):send("click", {x = 0, y = 0}, {x = 0, y = 0}, 1, 0)
+hafen.session():current():ui():find("@MapView"):send("click", {x = 0, y = 0}, {x = 0, y = 0}, 1, 0)
 ```
 
 **Bound widgets only.** One your addon built has no server id, so there is nobody to deliver to and the

@@ -127,6 +127,11 @@ after the player tabs — so take it inside your handler rather than keeping one
 meaning whichever is drawn. What belongs to the **screen** rather than to a character stays where it was:
 there is one pointer and one scene however many logins are live.
 
+**One namespace is on both sides**, and it is [`ui`](ui/README.md): the client's widgets stand in the tree
+of the character they were put up for, so `s:ui():find(selector)` is addressed — while the windows your
+addon *builds* are yours, live in a layer above every session, and stay `hafen.ui():window()`. Your window
+and the client's window are two different things, and the door you come through says which you mean.
+
 Your own addon is the client's, not a login's: it is loaded once, runs beside every session the client
 holds, and nothing of yours is torn down or rebuilt when the screen moves.
 

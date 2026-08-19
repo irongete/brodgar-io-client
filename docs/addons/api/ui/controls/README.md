@@ -20,9 +20,10 @@ There is no separate control type. What a builder here hands back is the same
 [Widget object](../widget.md) every lookup gives you, so every read and every write on that page answers on a
 control with nothing added: `:type()`, `:role()`, `:position(x, y)`, `:size(w, h)`, `:parent(w)`,
 `:visible(b)`, `:destroy()`, `:style()`, `:rule()`, `:info()`. A [selector](../selectors.md) finds one too —
-`hafen.ui():all("button")` includes the buttons you built alongside the client's. `:type()` reports the
-**engine's** class, so a button you built and a button you found read the same `"Button"` — one selector,
-one role and one stylesheet key point at both.
+`s:ui():all("button")` finds the client's buttons in that character's tree, and a button you built is
+found through the handle its builder gave you. `:type()` reports the **engine's** class, so a button you
+built and a button you found read the same `"Button"` — one selector, one role and one stylesheet key
+point at both.
 
 ## Builders
 

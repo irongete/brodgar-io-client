@@ -21,7 +21,7 @@ import java.util.WeakHashMap;
  *
  * <pre>
  *   hafen.ui():sheet():rule("chat"):font(mono):color(200, 210, 200)
- *   hafen.ui():find("window[title=Cupboard]"):rule():padding(6)
+ *   s:ui():find("window[title=Cupboard]"):rule():padding(6)
  * </pre>
  *
  * <p><b>Two bindings, one type.</b> A rule reached through a {@link LuaSheet} is named by a <b>selector</b> and

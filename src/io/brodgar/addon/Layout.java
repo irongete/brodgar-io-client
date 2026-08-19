@@ -24,7 +24,7 @@ import java.util.WeakHashMap;
  *
  * <pre>
  *   hafen.ui():sheet():rule("window[title=Equipment]"):position(40, 200)   -- matched
- *   hafen.ui():find("window[title=Equipment]"):position(40, 200)            -- named by hand
+ *   s:ui():find("window[title=Equipment]"):position(40, 200)            -- named by hand
  * </pre>
  *
  * <p><b>One fold, two levels</b> (D-077 verbatim, one property along): a tree rule that names a widget carries
@@ -40,7 +40,7 @@ import java.util.WeakHashMap;
  * answer at the moments it can change, and never inside a draw (035.1's {@code chdeco} lesson):
  * <ul>
  *   <li>a sheet is installed, replaced or dropped, and at teardown ({@link #sweep} over the live tree);</li>
- *   <li>a widget is placed into the tree ({@link #placed}, off the same seam {@code hafen.ui.on} uses — plus
+ *   <li>a widget is placed into the tree ({@link #placed}, off the same seam {@code s:ui():on} uses — plus
  *       030.2's bounded re-check, because a {@code [title=]} caption arrives by {@code uimsg} a tick late);</li>
  *   <li>a verb is called or undone ({@link #apply} on that one widget);</li>
  *   <li>the geometry an {@link Anchor} <i>derives from</i> changed (036.3, event-driven since 042.10/D-181) —
@@ -850,7 +850,7 @@ final class Layout {
                     to = Anchor.SCREEN;
                 } else {
                     throw new LuaError(ctx + ".anchor.to: expected \"screen\" or a widget"
-                        + " — hafen.ui():find(\"window[title=Inventory]\"), got " + pv.typename());
+                        + " — s:ui():find(\"window[title=Inventory]\"), got " + pv.typename());
                 }
             } else if("at".equals(p)) {
                 corner = cornerOf(ctx, pv);

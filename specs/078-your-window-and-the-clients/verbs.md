@@ -149,6 +149,20 @@ it, so their prose mentions of `hafen.ui()` and `hafen.store()` are editorial. E
 count is structural and follows from the table above. A close that lands off 196 says which of the
 three pages moved and by how much, or it is a cut that moved too much.
 
+**What `078.2` landed, and the three pages that account for it.** The `ui` half came out at **209**
+occurrences rather than the 206 the table predicts, so the target `078.4` checks is **199** and not
+196. Every one of the three is a page that had to name a KEPT spelling where it previously needed
+only one spelling — which is the work `078.2` was charged with and not drift:
+
+| Page | Over | Why |
+|---|---|---|
+| `api/ui/README.md` | +1 | the allowance above: the page that explains the split |
+| `api/conventions.md` | +1 | *Several logins, one screen* gains the paragraph saying that one namespace is on both sides, and it has to spell `hafen.ui():window()` to say which half stays |
+| `api/session.md` | +1 | the impact set was short this page too: it lists what hangs on a Session, `s:ui()` is now one of them, and the note beside the table says the builders are not |
+
+`api/session.md` is the twelfth page carrying an occurrence without being on `spec.md`'s **Written**
+list — it carried none before, so no grep could have found it, and only the missing row did.
+
 ## The impact set is short by five pages
 
 `spec.md`'s **Written** list names the pages this feature rewrites. Five pages carry a **moving**

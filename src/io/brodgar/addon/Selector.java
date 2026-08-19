@@ -12,7 +12,7 @@ import java.util.List;
  * A <b>UI selector</b> — the one way to point at a part of the client's UI (spec {@code 030-ui-selectors}, feature
  * B2; regrammared by {@code 049-css-selectors}). A selector is a <b>string</b>, parsed here ONCE into this small
  * immutable value object and then applied as a predicate over one widget ({@link #matches}), so the same object
- * serves {@code hafen.ui():find/:all}, {@code widget:find/:all}, the selector events and the stylesheet. Parsing
+ * serves {@code s:ui():find/:all}, {@code widget:find/:all}, the selector events and the stylesheet. Parsing
  * never happens per node.
  *
  * <p><b>The grammar is CSS</b>, not merely CSS-shaped — because that is the mental model everyone already has, and

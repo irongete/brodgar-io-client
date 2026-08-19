@@ -8,7 +8,7 @@ property.
 **Which kind a key is, in one line:** a **bare role** is a site key; a **role with a refiner** — or a role
 with no site behind it (`window`, `inventory`) — is a tree key. Nothing is ambiguous and nothing has to be
 declared: the key's own shape decides. A key that is not valid *grammar* is an error, and exactly the error
-[`hafen.ui():find(selector)`](../selectors.md) gives.
+[`s:ui():find(selector)`](../selectors.md) gives.
 
 ## Site keys
 
@@ -68,8 +68,9 @@ that matches a widget is folded into one style, and
 
 ```lua
 hafen.ui():sheet():rule("window[title=Cupboard]"):color(200, 180, 140):sheet():install()
-hafen.ui():find("window[title=Cupboard]"):style()     --> { color = {r=200, g=180, b=140, a=255} }
-hafen.ui():inventory():style()                   --> nil
+local s = hafen.session():current()
+s:ui():find("window[title=Cupboard]"):style()    --> { color = {r=200, g=180, b=140, a=255} }
+s:ui():inventory():style()                       --> nil
 ```
 
 **A tree rule covers the widget it names *and everything drawn inside it*.** The client draws parents

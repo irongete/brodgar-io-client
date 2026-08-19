@@ -61,7 +61,7 @@ or produced count, with `-1` meaning unspecified, and `opt` marks an optional in
 byproduct.
 
 There is no `CraftChanged` event, because a recipe changes only when the player opens one. To notice
-that, watch for the window with [`hafen.ui():on`](ui/replace.md): `hafen.ui():on("window", "appear", fn)`.
+that, watch for the window with [`s:ui():on`](ui/replace.md): `s:ui():on("window", "appear", fn)`.
 
 ## Write (protected)
 

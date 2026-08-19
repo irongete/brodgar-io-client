@@ -27,11 +27,11 @@
 --     [res*=<last path segment>] beside it -- that is the migration form. And where a value has a stable stem
 --     before its first digit ("Hunger: 87%"), it offers [text^=Hunger:], the form that keeps matching when the
 --     tail moves; the walk below decides which of the two is actually true.
---   * The list is SELF-VALIDATING: each candidate is resolved with hafen.ui():all() and kept only if the hovered
+--   * The list is SELF-VALIDATING: each candidate is resolved with s:ui():all() and kept only if the hovered
 --     widget is in the result. So nothing is ever offered that does not resolve -- which is exactly the claim
 --     the offered line makes. A candidate that does not even PARSE is dropped by the same pcall.
---   * `hafen.ui():find("sel")` is offered only where the candidate matches this widget and NOTHING else;
---     otherwise the line is `hafen.ui():all("sel")[i]`, because find() refuses an ambiguous answer rather than
+--   * `s:ui():find("sel")` is offered only where the candidate matches this widget and NOTHING else;
+--     otherwise the line is `s:ui():all("sel")[i]`, because find() refuses an ambiguous answer rather than
 --     handing back whichever widget the walk met first. The offered line is the most specific candidate that
 --     names it ALONE, falling back to the most specific of all -- a chain usually IS the one that names it alone.
 --   * "*" is deliberately omitted: it matches every widget, so it says nothing and it is the one walk that
@@ -72,7 +72,7 @@ local hoverPos            -- { x=, y= } the hovered leaf's top-left in root coor
 local hoverSize           -- { x=, y= } its size
 local rebuilds = 0        -- how many times we rebuilt the stack (proves the `==` guard: it should NOT
                           -- climb while the cursor sits still)
-local walks = 0           -- how many hafen.ui():all() walks the last rebuild cost (the honest price of the panel)
+local walks = 0           -- how many s:ui():all() walks the last rebuild cost (the honest price of the panel)
 local frozen = false      -- the "freeze" hotkey: hold the stack still so you can mouse into the window to read it
 
 local LINE = 14                     -- row height, shared by every list here
@@ -80,7 +80,18 @@ local STACK_Y0 = 22                 -- first stack row y (shared by draw + click
 local STACK_MAXROWS = 11            -- stack rows that fit above the selector panel
 
 -- ============================================================== the selector inspector (030.3), shared by
--- the hover panel and each Inspector window. Pure Lua over w:role()/:type()/:res() + hafen.ui():all().
+-- the hover panel and each Inspector window. Pure Lua over w:role()/:type()/:res() + s:ui():all().
+--
+-- A LOOKUP IS ADDRESSED AT A CHARACTER: the client's widgets stand in the tree of the session that put them
+-- up, so every walk and every offered line goes through hafen.session():current() -- the one the pointer is
+-- over. On the login screen there is none, and the panel simply offers nothing.
+
+local SPELL = "hafen.session():current():ui()"     -- what an offered line is pasted as
+
+local function clientUi()
+  local s = hafen.session():current()
+  return s and s:ui()
+end
 
 local function trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 
@@ -166,12 +177,12 @@ local function stepCands(keys)
   return out
 end
 
--- The ready-to-paste line for one candidate. hafen.ui():find(sel) answers only where there IS one answer, so it is
+-- The ready-to-paste line for one candidate. :find(sel) answers only where there IS one answer, so it is
 -- offered only when this candidate matches this widget and NOTHING else; otherwise the index form is what actually
 -- hands back this widget. Offering it for the first of several would hand the user a line that raises.
 local function pasteLine(c)
-  if c.count == 1 then return ('hafen.ui():find("%s")'):format(c.sel) end
-  return ('hafen.ui():all("%s")[%d]'):format(c.sel, c.idx)
+  if c.count == 1 then return ('%s:find("%s")'):format(SPELL, c.sel) end
+  return ('%s:all("%s")[%d]'):format(SPELL, c.sel, c.idx)
 end
 
 -- The walk budget. Candidates are RANKED before a single walk is paid for, so what the cap drops is always the
@@ -180,7 +191,7 @@ end
 local MAXWALKS = 36
 
 -- Build the selector report for `w`: its parts, its anchor, every candidate built from those that really matches
--- it (verified by resolving it), most-specific-first, and the one to offer. Costs one hafen.ui():all() walk per
+-- it (verified by resolving it), most-specific-first, and the one to offer. Costs one s:ui():all() walk per
 -- candidate walked -- which is why it runs on a hover CHANGE, never per frame, and why the count is reported.
 local function selectorsFor(w)
   local rep = { role = w:role(), cls = w:type(), res = w:res(), walks = 0, chains = 0, cands = {} }
@@ -223,7 +234,9 @@ local function selectorsFor(w)
     local c = all[i]
     rep.walks = rep.walks + 1
     if c.chain then rep.chains = rep.chains + 1 end
-    local ok, hits = pcall(function() return hafen.ui():all(c.s) end)  -- a candidate that will not parse is dropped
+    -- ...in the tree of the session on screen, which is where the hovered widget stands. pcall covers both
+    -- a candidate that will not parse and the login screen, where there is no session to ask.
+    local ok, hits = pcall(function() return clientUi():all(c.s) end)
     if ok and hits then
       local idx
       for k = 1, #hits do

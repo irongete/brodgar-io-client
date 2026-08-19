@@ -9,7 +9,7 @@ Nothing here is a new section, a new object or a new verb. Every name below is o
 widget your addon built; what this page says is where the same name also answers on a widget you did not.
 
 ```lua
-hafen.ui():on("window[title=Options]", "appear", function(win)
+hafen.session():current():ui():on("window[title=Options]", "appear", function(win)
   win:find("@IButton"):on("Pressed", function(ev)
     ev:preventDefault()                  -- the X on this window does nothing while your addon is loaded
   end)
@@ -24,7 +24,7 @@ a **title** is a window's caption, **text** is everything else, and each verb re
 naming the one that answers there.
 
 ```lua
-local win = hafen.ui():find("window[title=Options]")
+local win = hafen.session():current():ui():find("window[title=Options]")
 win:title("Options, edited")
 win:all("@Button")[1]:text("Go")
 ```
@@ -71,7 +71,7 @@ close button on every window is three pictures and has no caption to write.
 `w:pack()` refits that window around what is now inside it:
 
 ```lua
-local win = hafen.ui():find("window[title=Options]")
+local win = hafen.session():current():ui():find("window[title=Options]")
 hafen.ui():button():text("Reload"):parent(win):position(0, win:size().y)
 win:pack()
 ```
@@ -137,7 +137,7 @@ emits a stream of these. So their `Changed` is a report rather than a question: 
 `ev:resend()` both **raise** there, naming that the value has already moved.
 
 ```lua
-local vol = hafen.ui():find("window[title=Options]"):all("@HSlider")[1]
+local vol = hafen.session():current():ui():find("window[title=Options]"):all("@HSlider")[1]
 vol:on("Changed", function(ev) hafen.log():write("now at " .. ev:value()) end)
 ```
 
@@ -148,7 +148,7 @@ thumb back is a write rather than a cancel, so nothing here pretends otherwise.
 
 A [dropdown](lists.md#dropdown)'s rows live in a popup list of their own, and a [menu](lists.md#menu)'s in an
 inner list — neither of which is the control you hold, and a dropdown's popup is not even inside it. The key
-fires on the **control**: `hafen.ui():all("@SDropBox")[1]:on("Changed", fn)` is where a dropdown's row
+fires on the **control**: `s:ui():all("@SDropBox")[1]:on("Changed", fn)` is where a dropdown's row
 arrives. Subscribing on the list of rows instead raises, naming the control the key fires on — the address
 picks the door, and there is exactly one door per control. A list that is a control in its own right is its
 own address, which is the ordinary case.
@@ -202,7 +202,7 @@ the control through the very method their gesture ends in, so what the client se
 and whatever that particular control was built to do is what happens.
 
 ```lua
-local box = hafen.ui():find("window[title=Options]"):all("@CheckBox")[1]
+local box = hafen.session():current():ui():find("window[title=Options]"):all("@CheckBox")[1]
 box:value(not box:value())             -- ticked, exactly as a click would have ticked it
 ```
 
@@ -285,7 +285,7 @@ Everything above, on one of the client's windows, in one subscription: what it s
 inside it, the frame refitted around that control, and its close button doing what you say instead.
 
 ```lua
-hafen.ui():on("window[title=Options]", "appear", function(win)
+hafen.session():current():ui():on("window[title=Options]", "appear", function(win)
   win:title("Options, edited")                    -- what the window says
   local go = hafen.ui():button()                  -- ...a control of yours, inside the client's frame
     :text("Reload addons")
@@ -314,7 +314,7 @@ local keys = hafen.client():options():keybindings()
 local armed = false
 
 keys:register("edit", function()               -- the user assigns the key in Options > Keybindings
-  local win = hafen.ui():find("window[title=Options]")
+  local win = hafen.session():current():ui():find("window[title=Options]")
   if not win then return end
   if armed then win:revert() else win:title("Options, edited") end
   armed = not armed

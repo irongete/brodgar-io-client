@@ -33,7 +33,7 @@ s:install()
 
 ```lua
 local sheet = hafen.ui():sheet()
-local w = hafen.ui():find("window[title=Equipment]")
+local w = hafen.session():current():ui():find("window[title=Equipment]")
 sheet:rule("window[title=Equipment]"):position(40, 200)
 sheet:install()
 w:position()            --> {x = 40,  y = 200}    -- the rule
@@ -55,9 +55,10 @@ what it hangs off changes — so it survives a resized game window, a widget tha
 that packed itself around new contents:
 
 ```lua
-local s = hafen.ui():sheet()
+local s   = hafen.ui():sheet()
+local cur = hafen.session():current()
 s:rule("window[title=Inventory]"):anchor{ to = "screen", at = "bottomright", offset = {-8, -8} }
-s:rule("window[title=Equipment]"):anchor{ to = hafen.ui():find("window[title=Inventory]"),
+s:rule("window[title=Equipment]"):anchor{ to = cur:ui():find("window[title=Inventory]"),
                                           at = "topright" }
 s:rule("window[title=Cupboard]"):anchor{ at = "center" }        -- every field has a default
 s:install()

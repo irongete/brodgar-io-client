@@ -63,7 +63,7 @@ final class UiApi {
         public void draw(GOut g) { paintHudOverlays(g); }
     };
 
-    // -- selector subscriptions (030.2): hafen.ui():on(sel, "appear"|"disappear", fn) — the discovery primitive that
+    // -- selector subscriptions (030.2): s:ui():on(sel, "appear"|"disappear", fn) — the discovery primitive that
     // replaced onWidgetCreate. A FLAT global list (a subscription watches the whole tree, not one keyed target),
     // consulted at the placement seam and at the removal seam (dispatchSelectorRemoved, 042.9, event-driven —
     // no more per-tick poll); globally empty = a near-zero fast path, so a client with no subscription pays one
@@ -209,7 +209,7 @@ final class UiApi {
      *
      * <p><b>The section, and the root that moved</b> (spec {@code 039-uniform-api} §2.1). {@code hafen.ui()} was
      * the ROOT widget — the no-argument form of a callable namespace — and is now the section object, so the tree's
-     * top is {@code hafen.ui():root()} and every lookup is a colon verb on the section. The collision is why the
+     * top is {@code s:ui():root()} and every lookup is a colon verb on the section. The collision is why the
      * root could not simply stay: one expression cannot be both the namespace and a member of it.
      *
      * <p><b>Every verb is on the section now</b> (039.7). {@code skin} was the last one still a plain field on
@@ -225,54 +225,23 @@ final class UiApi {
         // is attached (the game's own overlays included), and the state lives on the gob, so it dies with it.
         // "Every player gets a label" is a GobAdded handler plus a loop; that trade is the point.
         LuaTable m = new LuaTable();
-        // hafen.ui():on(selector, "appear"|"disappear", fn) — 030.2: WATCH the client's own UI for a part of it, named
-        // with the same selector a lookup uses. fn(widget) receives the Widget ENTITY (the very value hafen.ui(sel)
-        // would hand back, interned — so `==` and your own tables work across the two events). This is the discovery
-        // primitive: hafen.ui.onWidgetCreate and its {id,type,place,caption,parentType} descriptor are HARD CUT, and
-        // with them the second vocabulary an addon had to learn to say "wait for the cupboard".
-        //   appear     -- a matching widget was PLACED into the tree, or was ALREADY there when you subscribed
-        //                 (registration scans the live tree once — which is exactly what onWidgetCreate could not
-        //                 do, and why a :reload used to lose every window already open).
-        //   disappear  -- a widget that had matched is GONE, where GONE means the server destroyed it (its id stops
-        //                 resolving) -- the moment it stops being REAL, not the moment it stops being DRAWN: a
-        //                 Window only starts a fade-out in reqdestroy(), so it lingers in the tree, unbound and
-        //                 still readable, for the length of that animation. Take the entity as a KEY to match (==)
-        //                 against what you kept at appear; do not count on being able to read it.
-        // Both are about the TREE, not visibility: a window the client merely hides (the inventory's Tab toggle)
-        // never left, so it fires neither. One event per call — subscribe twice to watch both. A [title=]/[res=]
-        // selector still fires exactly once for a window whose caption lands late — and that holds for a CHAIN
-        // ("window[title=Cupboard] inventory"), whose caption lands on the ANCESTOR step: the caption seam
-        // re-offers the renamed window's whole subtree (049.3). Returns a handle with :remove(); auto-removed
-        // on reload/disable (P2), which fires nothing — a reload is not a destroy.
-        m.set("on", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "ui", "on");
-                LuaValue sel = Args.required(a, 2, "hafen.ui():on", "selector");
-                LuaValue event = Args.required(a, 3, "hafen.ui():on", "event");
-                LuaValue fn = Args.required(a, 4, "hafen.ui():on", "fn");
-                return newSelectorWatch(owner, sel, event, fn);
-            }
-        });
         // hafen.ui.adopt(id) is GONE (029.2). It only ever existed to get a readable handle on a native widget, and
-        // it charged you a hidden window for the privilege. Now every widget IS an entity: hafen.ui.node(id) hands
+        // it charged you a hidden window for the privilege. Now every widget IS an entity: s:ui():node(id) hands
         // you the same one WITHOUT hiding anything, and widget:visible(false) (which records the restore, see below) is the
         // separate, explicit act it always should have been.
         // hafen.ui.replace(type, opts, fn) is GONE too (032.2, hard cut — it reads as plain nil). It was the LAST
         // place that named a window a different way: its {id,type,place,caption,parentType} descriptor (D-024) was
         // a second vocabulary for "which window", and it was PRIVILEGED — only it could bind a view to a hidden
         // native window, so an addon doing the same by hand got a swallowed toggle and nothing driving it. Both
-        // halves are ordinary API now: hafen.ui.on(sel, "appear", fn) does the WAITING (and fires for what is
+        // halves are ordinary API now: s:ui():on(sel, "appear", fn) does the WAITING (and fires for what is
         // already open, D-068), and widget:replace(view) does the REPLACING. The whole pattern is
-        //     hafen.ui.on("inventory[title=Inventory]", "appear", function(w) w:replace(buildMyView(w)) end)
-        // hafen.ui():find(sel) / :all(sel) / :root() / :node(id) / :at(x,y) — the widget-tree entry points (spec 20
-        // W1/W2, rebuilt on the ONE entity by 029-widget-oop). Walk ANY widget's children to arbitrary depth from Lua
-        // (the generic reader that complements the spec-14 typed adapters). Entry points for distinct inputs (D-012):
-        // :find(selector) = THE widget matching a selector string, or nil — and since 049.2 an ERROR when two or
-        // more match, because "the first in tree order" is a wrong answer in place of no answer; :all(selector) =
-        // every match as a 1-based array (empty, never nil); :root() = the ROOT of the whole client tree (discovery,
-        // walk DOWN to any open window — it is a VERB now, because hafen.ui() is the section, 039.5);
-        // node(id) = the Widget object for a SERVER widget id (another widget's :id(), typically) — nil if it
-        // doesn't resolve. All of them hand back the SAME type: opaque, facade-safe
+        //     s:ui():on("inventory[title=Inventory]", "appear", function(w) w:replace(buildMyView(w)) end)
+        // THE WIDGET ENTITY (spec 20 W1/W2, rebuilt on the ONE entity by 029-widget-oop) — what every door of
+        // this section hands back, whether the widget is one the game placed or one you built. The doors onto
+        // the CLIENT's own widgets are the session's, 078.2: s:ui():find(sel), :all(sel), :root(), :node(id),
+        // :inventory(), :equipment() — see {@link #ui}. The ones left here answer about YOUR layer or about the
+        // SCREEN: :at(x, y) hit-tests a point, and every constructor mints one of your own. All of them hand
+        // back the SAME type: opaque, facade-safe
         // userdata (no raw haven.Widget crosses into Lua, P1/D-017), INTERNED per addon — so two lookups of one
         // live widget are the SAME value and `==` is the identity test (:same() is GONE, 029.1). Not an
         // owned-registry entry: it checks liveness per access, and once its widget leaves the tree it nulls its
@@ -310,7 +279,7 @@ final class UiApi {
         //                       the widget you point at, so replacing the inventory GRID takes the whole stock
         //                       window with it; the view is destroyed when the substitution ends (undo, teardown,
         //                       or the server destroying the window). Wait for the target with
-        //                       hafen.ui():on(sel, "appear", fn) — that half is not part of the verb.
+        //                       s:ui():on(sel, "appear", fn) — that half is not part of the verb.
         //   :items()         -- 029.3: the Item snapshots inside this container (a relation, like :children()) —
         //                       an Inventory, an Equipory (each entry also carrying its `slot`), or any widget with
         //                       WItems under it. Read it with the window VISIBLE and interactive: nothing is hidden.
@@ -328,36 +297,6 @@ final class UiApi {
         // Otherwise READ-ONLY: to ACT on the GAME, send from a server-bound widget itself — the protected
         // widget:send(msg, ...) (D-025) — no new action surface, no new gate (reading the tree is unprotected
         // client data).
-        m.set("root", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "ui", "root");
-                return nodeRoot(owner);
-            }
-        });
-        m.set("find", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "ui", "find");
-                LuaValue sel = Args.required(a, 2, "hafen.ui():find", "selector");
-                return selectFirst(owner, selArg(sel, "hafen.ui():find(selector)"));
-            }
-        });
-        // :all(selector) — EVERY widget matching the selector, as a 1-based array in tree order (empty,
-        // never nil). One walk of the tree testing each node, not a deep helper per node (that is O(n²)); the
-        // selector is parsed ONCE here, never per node. HOLD the result — entities are interned, so keeping it is
-        // free, while re-selecting every frame is a whole tree walk every frame.
-        m.set("all", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "ui", "all");
-                LuaValue sel = Args.required(a, 2, "hafen.ui():all", "selector");
-                return selectAll(owner, selArg(sel, "hafen.ui():all(selector)"));
-            }
-        });
-        m.set("node", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "ui", "node");
-                return nodeById(owner, Args.required(a, 2, "hafen.ui():node", "id"));
-            }
-        });
         // hafen.ui():mouse() / :at(x,y) — W2 hit-testing, the WoW /framestack enabler (spec 20 §W2, D-042).
         // Both speak DESIGN PIXELS (058.1), the same space :position()/:size() do — which is what makes
         // hafen.ui():at(m:x(), m:y()) == m:over() true rather than nearly true on a scaled client.
@@ -375,27 +314,6 @@ final class UiApi {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "ui", "mouse");
                 return LuaMouse.of(owner);
-            }
-        });
-        // :inventory() / :equipment() — 029.3, what replaced the hafen.items section (hard cut). They are
-        // LOOKUPS, not a section of their own: they hand back the Widget entity for the player's backpack
-        // (GameUI.maininv) and Equipory, so the items are read the same way as any other container's —
-        // hafen.ui():inventory():items() — and every other widget verb answers on them too. nil before the HUD
-        // is up.
-        //   048.2: :hand() has LEFT. The cursor is not a container and never was a widget lookup — it is the
-        // one place that carries a verb of its own (apply what you are holding), so it became an object on the
-        // character it belongs to: s:player():hand(), nil while the cursor is empty, and the Item is
-        // s:player():hand():item(). Retired names its replacement.
-        m.set("inventory", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "ui", "inventory");
-                return LuaWidget.of(owner, CharApi.maininv());
-            }
-        });
-        m.set("equipment", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Section.self(self, "ui", "equipment");
-                return LuaWidget.of(owner, CharApi.equipory());
             }
         });
         m.set("at", new VarArgFunction() {
@@ -658,7 +576,7 @@ final class UiApi {
             }
         });
         // :sheet() — 033.1 feature C1a, reshaped into objects by 039.7: THE STYLESHEET. It says what the client
-        // looks like, as a SELECTOR (the very string hafen.ui():find takes — one vocabulary, not two) naming a
+        // looks like, as a SELECTOR (the very string s:ui():find takes — one vocabulary, not two) naming a
         // RULE whose properties are setters:
         //     local s = hafen.ui():sheet()
         //     s:rule("*"):font(body)
@@ -677,7 +595,7 @@ final class UiApi {
         //   always were, so no render site is re-routed and no drawing code changed: what changed is who fills the
         //   provider stack. A TREE key (@Class, [title=…], [res=…], or a role that classifies a widget rather than
         //   a site, like `window`/`inventory`) is resolved per widget against the live tree (034, C1b) and folded
-        //   over the site half per property. A malformed key errors exactly as hafen.ui():find(sel) does.
+        //   over the site half per property. A malformed key errors exactly as s:ui():find(sel) does.
         //   Conflict between addons is D-043 reused literally: last applied wins, an addon's entries are pulled on
         //   its teardown, the surface falls back to the next owner beneath and finally to stock.
         // Properties, one setter each: `font` (a handle from hafen.font(name) or hafen.asset(path), optionally
@@ -710,9 +628,134 @@ final class UiApi {
         // 039.7: `skin` was the last verb still a plain field on the callable table, so the table is empty and
         // this is the plain mount again.
         Section.install(hafen, "ui", m,
-                        "hafen.ui(selector) is now hafen.ui():find(selector), and the tree's own top,"
-                        + " which the bare hafen.ui() used to be, is hafen.ui():root()");
+                        "hafen.ui(selector) is now s:ui():find(selector) and the tree's own top is s:ui():root(),"
+                        + " where s is a Session — a widget the game put up stands in the tree of the character"
+                        + " it put it up for. Your own surfaces are hafen.ui():window() and the constructors");
     }
+
+    /**
+     * Build the {@code ui} section object for {@code (owner, user)} — <b>the widgets the client put up for one
+     * character</b>, reached as {@code session:ui()} (078.2).
+     *
+     * <p><b>Your window and the client's window are not the same thing</b>, which is why this namespace SPLITS
+     * rather than moves. {@code hafen.ui():window()}, {@code :widget()}, {@code :overlay()} and the sixteen
+     * constructors build something of <i>yours</i> — parented into {@code LayerRoot} since 074.1, drawn above
+     * every session — and keep their global spelling; {@code :sheet()} is a rule declaration owned by the addon
+     * and applies in every session at once; {@code :mouse()}, {@code :at(x, y)}, {@code :tipAt(x, y)} and
+     * {@code :scale()} ask about the screen, and there is one pointer and one coordinate space however many
+     * characters are logged in. The seven verbs here are the ones that reach a widget <b>the game placed for
+     * one character</b>, so each grows an address. Only a client with one login could pretend the two halves
+     * shared a namespace.
+     *
+     * <p><b>Two trees, and the search says which.</b> A lookup here starts at that session's own
+     * {@link UI#root}; the addon layer is a separate {@code UI} and is not under it. So nothing you built is
+     * findable through this door, and {@code widget:parent()} walked up from anything it hands back arrives at
+     * that session's root rather than at a window of yours.
+     *
+     * <p><b>Any session, drawn or not.</b> Every verb resolves through {@link AddonManager#sessionui(String)} —
+     * that login's own {@code UI} — and never through {@link AddonManager#host()}, which answers the session on
+     * screen. A background session keeps its whole tree, so its Inventory is open, findable and readable while
+     * the player is looking at another character. A session the client does not hold, or one between trees
+     * (connecting, on the character list, gone), answers {@code nil}-shaped rather than throwing, exactly as
+     * the sections 076 and 077 put on the Session do.
+     *
+     * <p><b>{@code :on(sel, "appear", fn)} scans the live tree at registration</b>, and here it scans the tree
+     * of the session it was addressed at — so subscribing on a background session fires at once for what that
+     * character already has open. The watch records that tree ({@link LuaSelectorWatch#ui}), which is what lets
+     * its {@code :remove()}, the addon's teardown and the prune following that tree's death all name it rather
+     * than whichever session holds the screen at the time. Its handle ends with {@code :remove()}.
+     *
+     * <p>Minted once per {@code (addon, session)} and hung on the interned Session handle, the shape
+     * {@link WorldApi#world} established — so {@code s:ui() == s:ui()}.
+     */
+    static LuaValue ui(final Addon owner, final String user) {
+        LuaTable m = new LuaTable();
+        // :root() — the top of THAT session's whole widget tree, or nil before it has one. From here an addon
+        // walks DOWN to any open window; a selector names one directly. There is no layer twin: an addon that
+        // wants its own window holds the handle the builder gave it.
+        m.set("root", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "root", UIS);
+                if(Args.passed(a, 2))
+                    throw new LuaError(UIS + ":root() takes no arguments — it IS the top of that session's"
+                        + " tree, and a widget under it is :find(selector) or :node(id)");
+                return nodeRoot(owner, sessionui(user));
+            }
+        });
+        // :find(selector) — THE widget matching sel in THAT session's tree, or nil, and a REFUSAL when two or
+        // more match (049.2): "the first in tree order" is a wrong answer in place of no answer. Strict.
+        m.set("find", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "find", UIS);
+                LuaValue sel = Args.required(a, 2, UIS + ":find", "selector");
+                return selectFirst(owner, sessionui(user), selArg(sel, UIS + ":find(selector)"));
+            }
+        });
+        // :all(selector) — EVERY widget matching the selector in THAT session's tree, as a 1-based array in
+        // tree order (empty, never nil). One walk testing each node, not a deep helper per node (that is
+        // O(n²)); the selector is parsed ONCE here, never per node. HOLD the result — entities are interned,
+        // so keeping it is free, while re-selecting every frame is a whole tree walk every frame.
+        m.set("all", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "all", UIS);
+                LuaValue sel = Args.required(a, 2, UIS + ":all", "selector");
+                return selectAll(owner, sessionui(user), selArg(sel, UIS + ":all(selector)"));
+            }
+        });
+        // :node(id) — the Widget for a SERVER widget id (another widget's :id(), typically) in THAT session's
+        // tree, or nil if it does not resolve. A widget id counts inside one session's own tree: the same
+        // number names a different widget on the other character, which is why this reads through the address.
+        m.set("node", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "node", UIS);
+                return nodeById(owner, sessionui(user), Args.required(a, 2, UIS + ":node", "id"));
+            }
+        });
+        // :on(selector, "appear"|"disappear", fn) — WATCH THAT session's own tree for a part of it, named with
+        // the same selector a lookup uses. fn(widget) receives the Widget entity, interned — so `==` and your
+        // own tables work across the two events. Registration SCANS the live tree, so an already-open target
+        // fires at once; addressed at a background session that is that session's tree, which exists whether or
+        // not it is drawn. Both events are about the TREE, not visibility: a window the client merely hides
+        // (the inventory's Tab toggle) never left, so it fires neither. One event per call — subscribe twice to
+        // watch both. Returns a handle with :remove(); auto-removed on reload/disable (P2), which fires
+        // nothing — a reload is not a destroy.
+        m.set("on", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "on", UIS);
+                LuaValue sel = Args.required(a, 2, UIS + ":on", "selector");
+                LuaValue event = Args.required(a, 3, UIS + ":on", "event");
+                LuaValue fn = Args.required(a, 4, UIS + ":on", "fn");
+                return newSelectorWatch(owner, sessionui(user), sel, event, fn);
+            }
+        });
+        // :inventory() / :equipment() — LOOKUPS, not a section of their own: the Widget entity for THAT
+        // character's backpack (GameUI.maininv) and its Equipory, so their contents are read the same way as
+        // any other container's — s:ui():inventory():items() — and every other widget verb answers on them
+        // too. Two characters carry two backpacks, and a background session's is open and readable. nil before
+        // that session's HUD is up.
+        m.set("inventory", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "inventory", UIS);
+                if(Args.passed(a, 2))
+                    throw new LuaError(UIS + ":inventory() takes no arguments — it hands back that character's"
+                        + " backpack, and what is in it is :items()");
+                return LuaWidget.of(owner, CharApi.maininv(user));
+            }
+        });
+        m.set("equipment", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "equipment", UIS);
+                if(Args.passed(a, 2))
+                    throw new LuaError(UIS + ":equipment() takes no arguments — it hands back that character's"
+                        + " equipment, and what is worn is :items(), each entry carrying its own slot");
+                return LuaWidget.of(owner, CharApi.equipory(user));
+            }
+        });
+        return Section.object("ui", m, UIS);
+    }
+
+    /** How {@link #ui}'s section is reached, and the spelling every one of its messages quotes. */
+    private static final String UIS = "session:ui()";
 
     // ------------------------------------------------------------------ selectors (hafen.ui(sel), 030.1)
 
@@ -723,7 +766,7 @@ final class UiApi {
     static Selector selArg(LuaValue v, String where) {
         if(v.isnumber())
             throw new LuaError(where + ": the argument is a SELECTOR string (e.g. \"window[title=Cupboard]\"),"
-                + " not a number — hafen.ui.node(id) is the one that takes a widget id");
+                + " not a number — s:ui():node(id) is the one that takes a widget id");
         if(!v.isstring())
             throw new LuaError(where + " expects a selector string (e.g. \"*\", \"inventory\","
                 + " \"@Equipory\", \"window[title=Cupboard]\"), got " + v.typename());
@@ -731,34 +774,36 @@ final class UiApi {
     }
 
     /**
-     * {@code hafen.ui():find(selector)} — <b>THE</b> widget matching {@code sel}, or {@code nil}, and (049.2) a
-     * <b>refusal</b> when two or more match. It used to be "the first in tree order", which is a wrong answer in
-     * place of no answer the moment a second window matches: an addon that reached the Close button of "the" Foo
-     * window kept working right up to the day the player opened a second Foo, and then quietly clicked the other
-     * one. So the walk no longer short-circuits — it collects every match and says how many there were, which is
-     * the rule {@link LuaWidget#role} beside it has always followed.
+     * {@code session:ui():find(selector)} — <b>THE</b> widget matching {@code sel} in {@code u}, or {@code nil},
+     * and (049.2) a <b>refusal</b> when two or more match. It used to be "the first in tree order", which is a
+     * wrong answer in place of no answer the moment a second window matches: an addon that reached the Close
+     * button of "the" Foo window kept working right up to the day the player opened a second Foo, and then
+     * quietly clicked the other one. So the walk does not short-circuit — it collects every match and says how
+     * many there were, which is the rule {@link LuaWidget#role} beside it has always followed.
      *
-     * <p>The price is the whole tree on every call (0.08 ms / 625 widgets, measured 030.1), which is nothing once
-     * per event and a real slice of the frame budget sixty times a second — so <i>hold your result</i> stopped
-     * being advice and became load-bearing.
+     * <p><b>{@code u} is the tree the caller named</b> (078.2), that session's own and not the drawn one, so a
+     * character nobody is looking at is searched exactly as one on screen is. {@code null} — no such session, or
+     * one between trees — answers {@code nil}, the same nothing an empty tree answers.
+     *
+     * <p>The price is the whole tree on every call, which is nothing once per event and a real slice of the frame
+     * budget sixty times a second — so <i>hold your result</i> stopped being advice and became load-bearing.
      */
-    private static LuaValue selectFirst(Addon owner, Selector sel) {
-        UI u = host();
+    private static LuaValue selectFirst(Addon owner, UI u, Selector sel) {
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         List<Widget> hits = new ArrayList<Widget>();
         synchronized(u) { collect(u.root, sel, hits); }
-        return one(owner, hits, sel, "hafen.ui():");
+        return one(owner, hits, sel, UIS + ":");
     }
 
     /**
-     * {@code hafen.ui.all(selector)} — every match as a 1-based Lua array in tree order; <b>empty, never nil</b>
-     * (the collection form always answers). ONE pre-order walk testing each node — never {@link Widget#children}
-     * per node, which is a deep traversal and would make this O(n²) (the 029.4 lesson). The whole walk runs under
-     * the {@code ui} monitor, so it never races tree mutation, and the matcher calls no Lua.
+     * {@code session:ui():all(selector)} — every match in {@code u} as a 1-based Lua array in tree order;
+     * <b>empty, never nil</b> (the collection form always answers). ONE pre-order walk testing each node — never
+     * {@link Widget#children} per node, which is a deep traversal and would make this O(n²) (the 029.4 lesson).
+     * The whole walk runs under that tree's own {@code ui} monitor, so it never races its mutation, and the
+     * matcher calls no Lua.
      */
-    private static LuaValue selectAll(Addon owner, Selector sel) {
-        UI u = host();
+    private static LuaValue selectAll(Addon owner, UI u, Selector sel) {
         if((u == null) || (u.root == null))
             return new LuaTable();
         List<Widget> hits = new ArrayList<Widget>();
@@ -789,7 +834,7 @@ final class UiApi {
      * The strict answer of a {@code find} door: {@code nil} for no match, the widget for exactly one, and an error
      * for two or more that says <b>how many</b> and hands back the two spellings that do have an answer — the
      * collection with an index, and (since the chain exists) a selector that names the one widget exactly.
-     * {@code door} is the receiver the caller wrote, so the message quotes {@code hafen.ui():all(…)} or
+     * {@code door} is the receiver the caller wrote, so the message quotes {@code s:ui():all(…)} or
      * {@code widget:all(…)} rather than a form the reader was not using.
      */
     private static LuaValue one(Addon owner, List<Widget> hits, Selector sel, String door) {
@@ -1086,17 +1131,18 @@ final class UiApi {
     }
 
 
-    // ------------------------------------------------- selector subscriptions (hafen.ui.on, 030.2)
+    // ------------------------------------------------- selector subscriptions (s:ui():on, 030.2)
 
     /**
-     * Register a selector subscription ({@code hafen.ui.on(selector, "appear"|"disappear", fn)}): parse the selector
+     * Register a selector subscription ({@code s:ui():on(selector, "appear"|"disappear", fn)}): parse the selector
      * ONCE, install the {@link LuaSelectorWatch} in the global list (consulted at the placement seam and the removal
      * seam, event-driven since 042.9 — no per-tick sweep) and in the addon's owned-resource registry (dropped on
      * reload/disable, P2), then SCAN the live tree once so an already-open target is not missed. Returns the Lua
      * handle ({@code :remove()}).
      */
-    private static LuaValue newSelectorWatch(final Addon owner, LuaValue selv, LuaValue eventv, LuaValue fn) {
-        final String where = "hafen.ui.on(selector, event, fn)";
+    private static LuaValue newSelectorWatch(final Addon owner, UI wu, LuaValue selv, LuaValue eventv,
+                                             LuaValue fn) {
+        final String where = UIS + ":on(selector, event, fn)";
         Selector sel = selArg(selv, where);
         if(!eventv.isstring())
             throw new LuaError(where + ": event must be \"appear\" or \"disappear\", got " + eventv.typename());
@@ -1107,11 +1153,11 @@ final class UiApi {
                 + " (one that had matched left it)");
         if(!fn.isfunction())
             throw new LuaError(where + " expects a handler function fn(widget)");
-        // 073.2: the tree this subscription is about is the one the addon asked in — the session on SCREEN,
-        // which since 074.2 is one of several the addon outlives. Recorded on the watch, so that every later
-        // act on it — the handle's :remove(), the addon's teardown, the prune that follows that tree's death —
-        // names THIS tree rather than re-asking host() at a moment when the screen has moved.
-        final UI wu = host();
+        // 073.2: the tree this subscription is about is recorded on the watch, so that every later act on it —
+        // the handle's :remove(), the addon's teardown, the prune that follows that tree's death — names THIS
+        // tree rather than re-asking at a moment when the screen has moved. 078.2: and it is the tree of the
+        // session the addon ADDRESSED rather than the one on screen, which is what lets a subscription be made
+        // on a character nobody is looking at and fire for what that character already has open.
         final LuaSelectorWatch w = new LuaSelectorWatch(owner, wu, sel, ev, fn);
         SessionState wst = state(wu);
         if(wst != null)                        // no session behind it (the login screen's console): owned,
@@ -1903,27 +1949,26 @@ final class UiApi {
     // -------------------------------------------------- generic widget-tree introspection (hafen.ui, W1, spec 20)
 
     /**
-     * {@code hafen.ui()} — the {@link LuaWidget} entity for {@code ui.root}, the top of the whole client tree
-     * (spec 20, W1; the no-argument form of the callable namespace since 030.1, which hard-cut
-     * {@code hafen.ui.root()}). Returns {@code nil} if no UI is up yet. From here an addon walks DOWN to any open
-     * window — or names one directly with a selector.
+     * {@code session:ui():root()} — the {@link LuaWidget} entity for that session's {@code ui.root}, the top of
+     * one character's whole widget tree (spec 20, W1). {@code nil} while that session has no tree. From here an
+     * addon walks DOWN to any window that character has open — or names one directly with a selector.
      */
-    private static LuaValue nodeRoot(Addon owner) {
-        UI u = host();
+    private static LuaValue nodeRoot(Addon owner, UI u) {
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         return LuaWidget.of(owner, u.root);
     }
 
     /**
-     * {@code hafen.ui.node(id)} — the {@link LuaWidget} entity for a SERVER widget id (another widget's
-     * {@code :id()}, typically), or {@code nil} if the id doesn't resolve (no such server widget, or it was
-     * destroyed). A non-number id is a clear error.
+     * {@code session:ui():node(id)} — the {@link LuaWidget} entity for a SERVER widget id (another widget's
+     * {@code :id()}, typically), or {@code nil} if the id doesn't resolve (no such server widget in that
+     * session's tree, or it was destroyed). <b>A widget id counts inside one tree</b>: the same number names a
+     * different widget on the other character, which is why the read goes through the address. A non-number id
+     * is a clear error.
      */
-    private static LuaValue nodeById(Addon owner, LuaValue idv) {
+    private static LuaValue nodeById(Addon owner, UI u, LuaValue idv) {
         if(!idv.isnumber())
-            throw new LuaError("hafen.ui.node(id) expects a widget id (number)");
-        UI u = host();
+            throw new LuaError(UIS + ":node(id) expects a widget id (number)");
         if(u == null)
             return LuaValue.NIL;
         Widget w = u.getwidget(idv.toint());
@@ -1936,7 +1981,7 @@ final class UiApi {
      * {@code hafen.ui.at(x, y)} — the DEEPEST {@link LuaWidget} entity under a root-coord point (spec 20, W2), or
      * {@code nil}. Runs {@link LuaWidget#hitTest} from {@code ui.root} (the point is already in root-local coords),
      * under the {@code ui} monitor so the walk never races tree mutation. Non-number args are a clear error, like
-     * {@code hafen.ui.node}. Interned, so two calls on the same widget answer the SAME value — which is what let
+     * {@code s:ui():node}. Interned, so two calls on the same widget answer the SAME value — which is what let
      * {@code :same()} be cut (029.1).
      */
     private static LuaValue nodeAt(Addon owner, LuaValue xv, LuaValue yv) {
@@ -2119,7 +2164,7 @@ final class UiApi {
      * Paint every addon's HUD overlays. Runs as a one-shot {@link UI.AfterDraw} (re-queued from {@link #tick})
      * after {@code root.draw}, so overlays land ON TOP of the whole HUD. The {@code g} is the full-screen
      * root GOut (absolute screen coords); {@code w,h} are the screen size, in <b>design</b> pixels (058.2) —
-     * the pair {@code hafen.ui():root():size()} answers, and the space every {@code g:} coordinate the painter
+     * the pair {@code s:ui():root():size()} answers, and the space every {@code g:} coordinate the painter
      * then writes is read in. On the UI thread (inside UI.draw).
      */
     static void paintHudOverlays(GOut g) {

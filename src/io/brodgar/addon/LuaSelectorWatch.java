@@ -9,7 +9,7 @@ import java.util.Map;
 
 /**
  * A <b>selector subscription</b> (spec {@code 030-ui-selectors}, task 030.2) — the Java half of
- * {@code hafen.ui.on(selector, "appear"|"disappear", fn)}, the client's <b>discovery primitive</b>. It replaces
+ * {@code s:ui():on(selector, "appear"|"disappear", fn)}, the client's <b>discovery primitive</b>. It replaces
  * {@code hafen.ui.onWidgetCreate} and its {@code desc} descriptor, both hard cut: an addon no longer describes the
  * widget it is waiting for in a second vocabulary (a server type string, a placement string, a parent class name)
  * — it names it with the same {@link Selector} it would use for a lookup, and the callback receives the same

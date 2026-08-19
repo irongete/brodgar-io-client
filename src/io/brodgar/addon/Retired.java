@@ -29,6 +29,14 @@ import org.luaj.vm2.lib.TwoArgFunction;
  * {@code __index} can be hung off it. Those live in their own table ({@link #eventKey}) and the emitter
  * consults it at the door, before it decides whether the key is one it answers.
  *
+ * <p><b>And a fourth kind, which is not retired at all</b> (078.2): where a namespace <b>splits</b>, half
+ * its verbs grow an address and half keep their global spelling, and the mistake goes both ways — a sweep
+ * that addresses {@code hafen.ui():window()} writes code that compiles, runs and is wrong. So the verbs
+ * that KEPT their spelling carry a row too, in {@link #MISPLACED}: it fires from the side the verb is
+ * absent from and says which half the verb is in. Those spellings are <b>live</b> and must be kept out of
+ * {@link #NAMES}, which is the list a documentation sweep derives to check that no retired name is written
+ * on a page.
+ *
  * <p>The entries are pure data, generated from the feature's before/after inventory, so coverage is
  * mechanical rather than remembered: a spelling that moved with no row here is a porting error nobody is
  * told about.
@@ -48,6 +56,15 @@ final class Retired {
      * falling into the generic "unknown event" refusal.
      */
     private static final Map<String, String> KEYS = new HashMap<String, String>();
+
+    /**
+     * <b>Live spellings reached through the wrong door</b> (078.2) — keyed exactly as {@link #NAMES} is, and
+     * consulted after it. A verb of a namespace that SPLIT is missing from one of its two section objects,
+     * and reading it there would otherwise fail with the generic "has no verb", which says the call is wrong
+     * without saying which half the verb is in. <b>Nothing here is retired</b>: every name in this map is a
+     * spelling a page is supposed to write, which is why it is not in {@link #NAMES}.
+     */
+    private static final Map<String, String> MISPLACED = new HashMap<String, String>();
 
     static {
         // ---- the bus: the lifecycle keys drop the On prefix (:on already says it). Every other key is ------
@@ -405,12 +422,8 @@ final class Retired {
         put("marker:dist", "marker:dist() is now marker:distance()");
 
         // ---- hafen.ui: the lookups move onto the section, and the ROOT stops being the call itself -------
-        put("hafen.ui.all", "hafen.ui.all(selector) is now hafen.ui():all(selector)");
-        put("hafen.ui.node", "hafen.ui.node(id) is now hafen.ui():node(id)");
         put("hafen.ui.at", "hafen.ui.at(x, y) is now hafen.ui():at(x, y)");
         put("hafen.ui.mouse", "hafen.ui.mouse() is now hafen.ui():mouse()");
-        put("hafen.ui.inventory", "hafen.ui.inventory() is now hafen.ui():inventory()");
-        put("hafen.ui.equipment", "hafen.ui.equipment() is now hafen.ui():equipment()");
         // 048.2: the cursor LEFT hafen.ui() for the character it belongs to, so this row stopped being a
         // re-spelling and became a move — under both field reads (D-216), the dotted pre-039 one and the
         // colon call every shipped addon actually wrote.
@@ -418,7 +431,39 @@ final class Retired {
             + " object of its own (a Hand) because it carries a verb no Item can: hand:use(target, mods)"
             + " applies what you are holding to an Item, a Position or a Gob. session:player():hand() is nil"
             + " while the cursor is empty, which is the guard the old read could not give you");
-        put("hafen.ui.on", "hafen.ui.on(selector, event, fn) is now hafen.ui():on(selector, event, fn)");
+
+        // ---- 078.2: hafen.ui SPLITS, and this is the one table that has to say which half a verb is in. ----
+        // ---- The seven below reach a widget THE GAME PLACED for one character, so each grows an address;
+        // ---- everything left on hafen.ui() builds something of YOURS in the layer, restyles the client's
+        // ---- surfaces, or asks about the screen. Both directions are answered from here, and each key fires
+        // ---- on exactly the side where the verb is absent: a moved verb is missing from the global section,
+        // ---- so `hafen.ui():find` reaches this table; a kept verb is missing from the session's, so
+        // ---- `s:ui():window` reaches the same row from the other door. A verb present on the section it is
+        // ---- called on is found by rawget and never gets here, which is what keeps one row per verb honest.
+        String twoTrees = " — your window and the client's window are not the same thing, and they stand in"
+            + " two trees";
+        uiMoved("find", "find(selector)", "THE widget matching a selector in that character's tree");
+        uiMoved("all", "all(selector)", "every widget matching it, in tree order");
+        uiMoved("on", "on(selector, event, fn)", "a watch on that character's own tree, which scans it at"
+                + " registration and so fires for what that character already has open");
+        uiMoved("root", "root()", "the top of that character's whole tree");
+        uiMoved("node", "node(id)", "the widget with that server id — an id counts inside one tree, and the"
+                + " same number names a different widget on the other character");
+        uiMoved("inventory", "inventory()", "that character's own backpack");
+        uiMoved("equipment", "equipment()", "what that character is wearing");
+        uiKept("window", "builds a window of YOURS, in the addon layer above every session" + twoTrees);
+        uiKept("widget", "builds a bare container of YOURS, in the addon layer" + twoTrees);
+        uiKept("overlay", "mints an overlay of YOURS" + twoTrees);
+        uiKept("sheet", "is a declaration of rules owned by your addon, applied live to whatever matches in"
+               + " every session at once — a theme is not one character's");
+        uiKept("mouse", "is the POINTER, and there is one pointer however many characters are logged in");
+        uiKept("at", "hit-tests a point on the SCREEN, and there is one coordinate space");
+        uiKept("tipAt", "asks who would speak for a point on the SCREEN");
+        uiKept("scale", "is the device factor the client is running at");
+        for(String c : new String[] {"button", "label", "entry", "check", "radio", "slider", "scroll",
+                                     "scrollbar", "dropdown", "menu", "list", "table", "grid", "image",
+                                     "progress", "separator"})
+            uiKept(c, "mints a control of YOURS, in the addon layer" + twoTrees);
 
         // ---- the three UI builders: no config table survives, so each key is a setter on what you get back --
         put("hafen.ui.window", "hafen.ui.window{…} is now hafen.ui():window() plus chained setters:"
@@ -690,6 +735,32 @@ final class Retired {
         }
     }
 
+    /**
+     * One verb of {@code hafen.ui} that moved <b>onto the session</b> (078.2), under both field reads: the
+     * dotted pre-039 spelling and the colon call. A sibling of {@link #sectionObj} for a section that SPLITS —
+     * the message has to name the whole replacement rather than a section, because the section it was called
+     * on is still there and still right for the other half.
+     */
+    private static void uiMoved(String verb, String call, String what) {
+        moved("ui", verb, "hafen.ui():" + call + " is now hafen.session():current():ui():" + call + " — "
+            + what + ". s:ui() reads any session you name, drawn or not: hafen.session():current() is the"
+            + " character on screen and hafen.session():get(user) is any other. The windows your addon BUILDS"
+            + " stay on hafen.ui() — they are yours, in the layer above every session.");
+    }
+
+    /**
+     * One verb of {@code hafen.ui} that <b>kept</b> its global spelling (078.2). The row is keyed the same way
+     * a moved one is, and fires from the other side: the verb is absent from the session's own section, so
+     * {@code s:ui():window()} lands here instead of on a bare "has no verb". This is the half a sweep gets
+     * wrong — moving too much compiles, runs, and is wrong — so the refusal says which half the verb is in.
+     */
+    private static void uiKept(String verb, String why) {
+        MISPLACED.put("hafen.ui():" + verb, "s:ui():" + verb + "(…) does not exist: hafen.ui():" + verb
+            + "(…) " + why
+            + ". The session's half of hafen.ui is the widgets THE CLIENT put up — :find, :all, :on, :root,"
+            + " :node, :inventory and :equipment.");
+    }
+
     /** Register the plain {@code hafen.<section>.<verb>(…)} → {@code hafen.<section>():<verb>(…)} rows. */
     private static void section(String section, String... verbs) {
         for(String verb : verbs) {
@@ -702,9 +773,13 @@ final class Retired {
         NAMES.put(name, message);
     }
 
-    /** The message for a retired spelling, or {@code null} when the name was never registered. */
+    /**
+     * The message for a spelling this table answers for, or {@code null} when the name was never registered:
+     * a retired one first ({@link #NAMES}), then a live one read through the wrong door ({@link #MISPLACED}).
+     */
     static String message(String name) {
-        return NAMES.get(name);
+        String m = NAMES.get(name);
+        return (m != null) ? m : MISPLACED.get(name);
     }
 
     /**

@@ -319,7 +319,7 @@ plate's `styled` says whether the last frame painted it from a rule or from the 
 is the client's either way.
 
 ```lua
-local w = hafen.ui():find("window[title=Inventory]")
+local w = hafen.session():current():ui():find("window[title=Inventory]")
 if w then hafen.log():write("caption at " .. w:chrome().caption.x) end
 ```
 

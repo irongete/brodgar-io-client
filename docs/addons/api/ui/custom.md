@@ -28,10 +28,11 @@ win:position(320, 200)                        -- the handle the builder gave you
 holds, drawn over whichever one is on screen and over the login screen when none is. It is in no character's
 tree: nothing about it is a window of the client's, and a logout leaves it exactly where it was.
 
-The [search verbs](widget.md#getting-a-widget) answer about **the client's** tree — `hafen.ui():find`,
-`:all`, `:at`, `:root` and an [`"appear"` subscription](replace.md#watching-for-a-widget) are all about the
-client's own windows, never about yours. Hold the handle the builder gave you: it is the widget, `==` is its
-identity, and `w:find(selector)` searches **inside** it.
+That is why the [search verbs](widget.md#getting-a-widget) are addressed at a character —
+`s:ui():find`, `:all`, `:root` and an [`"appear"` subscription](replace.md#watching-for-a-widget) all
+search one session's tree, never the layer — while a hit test, which asks about a point on the screen,
+is not addressed at all. None of them reaches a window of yours. Hold the handle the builder gave you: it
+is the widget, `==` is its identity, and `w:find(selector)` searches **inside** it.
 
 ## Windows and widgets
 
@@ -137,7 +138,7 @@ Two things follow. A surface you build and destroy in the same breath never appe
 on screen, where the way to move a widget is `:position(x, y)`.
 
 ```lua
-local hud = hafen.ui():find("@GameUI")               -- the HUD is just another widget
+local hud = hafen.session():current():ui():find("@GameUI")   -- the HUD is just another widget
 local panel = hafen.ui():widget():parent(hud):size(120, 40)
 ```
 
@@ -166,7 +167,7 @@ nothing in the tree.
 
 | Method | Description |
 |---|---|
-| `:onDraw(fn)` / `:onDraw()` | paint `fn(g, w, h)` on top of the HUD each frame; `w, h` is the screen size, the pair `hafen.ui():root():size()` answers |
+| `:onDraw(fn)` / `:onDraw()` | paint `fn(g, w, h)` on top of the HUD each frame; `w, h` is the screen size |
 | `:destroy()` | stop it; also done automatically on reload or disable |
 | `:exists()` | is it still painting |
 
@@ -192,7 +193,7 @@ window per widget you click, and a HUD overlay that outlines whatever the cursor
 
 ## Observer handles
 
-[`hafen.ui():on`](replace.md#watching-for-a-widget) returns a handle with a single method:
+[`s:ui():on`](replace.md#watching-for-a-widget) returns a handle with a single method:
 
 | Method | Description |
 |---|---|

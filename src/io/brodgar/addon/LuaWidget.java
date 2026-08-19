@@ -324,7 +324,7 @@ public final class LuaWidget {
         // and it is what replaced the old `parent = "gameui"` string — a widget is named by a Widget, not by a
         // word, which is the second vocabulary 032.2 deleted from this section for exactly the same reason.
         // 074.1: THE ADDON LAYER is the default — a surface of yours is built into the tree above the
-        // sessions — and hafen.ui():find("@GameUI") is the HUD, which is one session's.
+        // sessions — and s:ui():find("@GameUI") is the HUD, which is one session's.
         //
         // Legal only while the surface is still being BUILT (before its arming tick). Re-homing one the user is
         // already looking at is a capability this API never had, and the honest place to refuse it is here: the
@@ -348,7 +348,7 @@ public final class LuaWidget {
                 Widget p = (h == null) ? null : live(h);
                 if(p == null)
                     throw new LuaError("widget:parent(w) expects a Widget that is in the tree — a surface of"
-                        + " yours is in the addon layer unless you name one, and hafen.ui():find(\"@GameUI\")"
+                        + " yours is in the addon layer unless you name one, and s:ui():find(\"@GameUI\")"
                         + " is the HUD");
                 if(p == w.parent)
                     return self;
@@ -740,9 +740,9 @@ public final class LuaWidget {
         // custom window left standing over a container that is gone is worse than no window. One window has one
         // view: installing a different one ends the previous substitution (and destroys that view).
         //
-        // WAITING IS NOT PART OF IT: hafen.ui():on(selector, "appear", fn) already waits, and already fires for what
+        // WAITING IS NOT PART OF IT: s:ui():on(selector, "appear", fn) already waits, and already fires for what
         // is ALREADY open (D-068) — so the whole pattern is
-        //     hafen.ui():on("inventory[title=Inventory]", "appear", function(w) w:replace(buildMyView(w)) end)
+        //     s:ui():on("inventory[title=Inventory]", "appear", function(w) w:replace(buildMyView(w)) end)
         m.set("replacement", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Widget w = live(handle(self, "replacement"));
@@ -853,8 +853,8 @@ public final class LuaWidget {
         // hafen.act():raw(target, msg, ...), and the move deletes an address space rather than relocating it: the
         // RECEIVER is the target now, so `raw`'s private target vocabulary — a numeric server widget id, or the
         // tokens "mapview" / "gameui" / "root" — has nothing left to address. Every one of them is an ordinary
-        // handle already: hafen.ui():node(id) for an id, hafen.ui():find("@MapView") for the map view and
-        // hafen.ui():find("@GameUI") for the HUD (@Class resolves through typeName, and MapView is not
+        // handle already: s:ui():node(id) for an id, s:ui():find("@MapView") for the map view and
+        // s:ui():find("@GameUI") for the HUD (@Class resolves through typeName, and MapView is not
         // subclassed in this fork). The trailing args marshal exactly as the two message streams do
         // (LuaMarshal.toJava: a {x=,y=} table becomes a Coord; numbers, strings and booleans pass through).
         //   PROTECTED by the per-addon "widget.send" permission, and the gate runs FIRST (D-213) — before the
@@ -884,8 +884,8 @@ public final class LuaWidget {
                 if(w.wdgid() < 0)
                     throw new LuaError("widget:send(msg, ...): this widget is not BOUND — it has no server id"
                         + " (widget:id() is nil), so there is no one to send to. Only a widget the SERVER"
-                        + " placed can be sent from: hafen.ui():find(\"@MapView\") is the map view and"
-                        + " hafen.ui():find(\"@GameUI\") is the HUD.");
+                        + " placed can be sent from: s:ui():find(\"@MapView\") is the map view and"
+                        + " s:ui():find(\"@GameUI\") is the HUD.");
                 int n = a.narg();
                 Object[] args = new Object[Math.max(0, n - 2)];
                 for(int i = 3; i <= n; i++)
@@ -1280,7 +1280,7 @@ public final class LuaWidget {
         // what element.querySelector does in CSS. Inside an :on(sel, "appear", fn) callback this is the only
         // correct lookup: the root-anchored form asks "the Cupboard's grid" of a client that may have two open,
         // and the one you were handed is not necessarily the one it meets first.
-        //   :find is STRICT, like hafen.ui():find — nil for no match, the widget for exactly one, and a REFUSAL
+        //   :find is STRICT, like s:ui():find — nil for no match, the widget for exactly one, and a REFUSAL
         // naming widget:all(sel)[i] for two or more. :all is the collection form: empty, never nil.
         //   A STALE widget REFUSES at both doors, and it is the one read in this section that does not answer
         // nil/empty (029.2). A search inside a subtree that no longer exists has no honest empty answer: "no
@@ -1457,7 +1457,9 @@ public final class LuaWidget {
         LuaWidget h = resolve(self);
         if(h == null)
             throw new LuaError("widget:" + method + "() — use a COLON call on a Widget object"
-                + " (hafen.ui():root(), hafen.ui():find(selector), hafen.ui():node(id), hafen.ui():at(x, y))");
+                + " (hafen.session():current():ui():root(), :find(selector) or :node(id) on the same s:ui()"
+                + " for the client's own widgets, hafen.ui():at(x, y) for a point on the screen, and the"
+                + " handle hafen.ui():window() gave you for one of yours)");
         return h;
     }
 

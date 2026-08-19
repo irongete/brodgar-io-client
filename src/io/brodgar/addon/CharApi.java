@@ -663,7 +663,7 @@ final class CharApi {
      * re-fires {@code EquipChanged} only if the key actually changed — never a delayed poll.
      *
      * <p>The payload is an array of <b>Item objects</b> ({@link AddonManager#fireEquip}), the same objects
-     * {@code hafen.ui():equipment():items()} hands back, so a handler reads it with the item verbs and a
+     * {@code s:ui():equipment():items()} hands back, so a handler reads it with the item verbs and a
      * stashed payload goes on answering after the gear comes off.
      */
     private static final class EquipAdapter implements TreeAdapter {
@@ -689,14 +689,14 @@ final class CharApi {
                 }
             }
             if(changed)
-                fireEquip(LuaItem.items(equipory()));
+                fireEquip(LuaItem.items(equipory(drawnUser())));
         }
 
         public void placed(Widget w) {
             if(!(w instanceof GItem))
                 return;
             GItem it = (GItem)w;
-            Equipory eq = equipory();
+            Equipory eq = equipory(drawnUser());
             if((eq == null) || (it.parent != eq) || cache.containsKey(it))
                 return;
             cache.put(it, LuaItem.equipKey(it));
@@ -713,7 +713,7 @@ final class CharApi {
             // The widget is unlinked, not cleared: the payload still answers :res()/:name()/… (025.2's
             // rule, mirrored here). Equipory's own child list no longer has it, so items() below already
             // reads the post-removal set.
-            fireEquip(LuaItem.items(equipory()));
+            fireEquip(LuaItem.items(equipory(drawnUser())));
         }
 
         /**
@@ -732,7 +732,7 @@ final class CharApi {
                         String key = LuaItem.equipKey(it);
                         if(cache.containsKey(it) && !key.equals(cache.get(it))) {
                             cache.put(it, key);
-                            fireEquip(LuaItem.items(equipory()));
+                            fireEquip(LuaItem.items(equipory(drawnUser())));
                         }
                     }
                 });
@@ -1109,7 +1109,7 @@ final class CharApi {
     // hafen.items is a HARD CUT (029.3, D-013). In Hafen there is no inventory model outside the widget tree —
     // GameUI.maininv is an Inventory exactly like a chest's — so a section of its own only preserved the
     // player-inventory privilege the Widget entity removes. Items are now a RELATION on their container:
-    // hafen.ui():inventory():items() / hafen.ui():equipment():items() / s:player():hand():item(), and :items() answers on ANY
+    // s:ui():inventory():items() / s:ui():equipment():items() / s:player():hand():item(), and :items() answers on ANY
     // container widget (a chest, a cupboard, another player's equipory) with nothing hidden. `find` had no
     // replacement built for it: it was a name/res substring filter over one array, which is a Lua one-liner over
     // :items(). What a container hands back is the Item entity ({@link LuaItem}), keyed on the item widget.
@@ -1451,19 +1451,26 @@ final class CharApi {
     private static final String[] ATTR_NAMES =
         {"str", "agi", "int", "con", "prc", "csm", "dex", "wil", "psy"};
 
-    /** The player's main inventory widget, or {@code null} before the HUD/inventory exists. */
-    static Inventory maininv() {
-        GameUI g = gui();
+    /**
+     * <b>That character's</b> main inventory widget, or {@code null} before its HUD exists.
+     *
+     * <p>078.2: off {@link AddonManager#gameui(String)}, the named session's own HUD, and never off the drawn
+     * one — two characters carry two backpacks, and a session nobody is looking at keeps its {@code GameUI},
+     * so its backpack is open and its contents readable.
+     */
+    static Inventory maininv(String user) {
+        GameUI g = gameui(user);
         return (g == null) ? null : g.maininv;
     }
 
     /**
-     * The player's equipment widget: the {@link Equipory} under the HUD. {@code GameUI.equwnd} is a
-     * private {@code Window}, so we descend to the Equipory itself — typically the only one open (a
-     * second appears only while inspecting another gob's equipment). {@code null} before it exists.
+     * <b>That character's</b> equipment widget: the {@link Equipory} under its HUD. {@code GameUI.equwnd} is a
+     * private {@code Window}, so we descend to the Equipory itself — typically the only one open under that
+     * HUD (a second appears only while that character is inspecting another gob's equipment). {@code null}
+     * before it exists.
      */
-    static Equipory equipory() {
-        GameUI g = gui();
+    static Equipory equipory(String user) {
+        GameUI g = gameui(user);
         if(g != null) {
             for(Equipory e : g.children(Equipory.class))
                 return e;

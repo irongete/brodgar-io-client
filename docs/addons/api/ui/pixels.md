@@ -73,7 +73,7 @@ that means one thing on every client:
 
 ```lua
 hafen.ui():sheet():rule("window[title=Equipment]"):position(40, 200):install()
-hafen.ui():find("window[title=Equipment]"):position()   -- {x = 40, y = 200}, at any scale
+hafen.session():current():ui():find("window[title=Equipment]"):position()   -- {x = 40, y = 200}, at any scale
 ```
 
 **A control's own height is not a number you write at all.** It is a fact of the client's pictures — a

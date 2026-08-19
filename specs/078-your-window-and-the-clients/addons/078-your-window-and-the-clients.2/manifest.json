@@ -1,0 +1,9 @@
+{
+  "name": "078.2 — the client's widgets, through their session",
+  "id": "078-your-window-and-the-clients.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 078.2: the client's widgets are found through the session whose tree they stand in, a window the suite builds stands in the layer and no selector reaches it, an appear subscription fires for a window already open, and each half of the split refuses the other's spelling.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -111,11 +111,11 @@ events carry what.
 
 There is no `WidgetCreated` event, because a window is not a global fact: you say *which* widget you care
 about, with a [selector](../api/ui/selectors.md), and
-[`hafen.ui():on`](../api/ui/replace.md#watching-for-a-widget) waits for it — including one that is already
+[`s:ui():on`](../api/ui/replace.md#watching-for-a-widget) waits for it — including one that is already
 open when you subscribe.
 
 ```lua
-hafen.ui():on("window[title=Cupboard]", "appear", function(w)
+hafen.session():current():ui():on("window[title=Cupboard]", "appear", function(w)
   hafen.log():write(#w:items() .. " items")
 end)
 ```

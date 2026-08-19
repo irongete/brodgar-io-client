@@ -121,7 +121,7 @@ catches it.
 - `src/io/brodgar/addon/LuaWidgetEntity.java` — 4
 - `src/io/brodgar/addon/VideoOptions.java` — 4
 - `src/io/brodgar/addon/Retired.java` — 2, 3, 4
-- `src/io/brodgar/addon/Section.java` — 2
+- `src/io/brodgar/addon/Section.java` — 2, 3 (the per-verb `__index` a split section mounts)
 - `src/io/brodgar/session/Sessions.java` — 2, 4
 - `docs/addons/api/conventions.md` — 1, 2, 3
 - `DOCUMENTATION.md` — 1, 2, 3, 4

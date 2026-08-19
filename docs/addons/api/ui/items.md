@@ -6,14 +6,18 @@ equipment grid — while the window stays visible and interactive. Nothing is hi
 registered. Reading is unprotected.
 
 ```lua
-for _, it in ipairs(hafen.ui():inventory():items()) do
+local s = hafen.session():current()              -- the character on screen
+for _, it in ipairs(s:ui():inventory():items()) do
   hafen.log():write((it:name() or it:res() or "?") .. " x" .. (it:quantity() or 1))
 end
 
-local s = hafen.session():current()              -- the character on screen
 local h = s:player():hand()                      -- the cursor, or nil while it is empty
 local cursor = h and h:item()                    -- the item on it
 ```
+
+A container the client put up belongs to one character, so it is reached through that character's
+[session](../session.md): two characters carry two backpacks, and the one nobody is looking at answers
+just as well as the one on screen.
 
 ## Read
 
@@ -22,7 +26,7 @@ local cursor = h and h:item()                    -- the item on it
 | `widget:items()` | [`Item`](#the-item-object)`[]` | the items inside this widget, in the container's own order |
 | [`s:player():hand():item()`](../player.md#the-hand) | [`Item`](#the-item-object) \| nil | the item on the cursor |
 
-- The search is **deep**, so a whole window answers for the grid inside it: `hafen.ui():node(chestId):items()`
+- The search is **deep**, so a whole window answers for the grid inside it: `s:ui():node(chestId):items()`
   works whether you point at the window or at its `Inventory` child.
 - **Each item appears once.** The equipment window draws a worn item in every slot it fills, and
   `item:slots()` names them all — so a two-slot piece of gear is one entry, not two. The window does not
@@ -95,7 +99,7 @@ pair is handed over exactly as the row states it, `cur` first, and the row is dr
 reaches `max`.
 
 ```lua
-for _, it in ipairs(hafen.ui():equipment():items()) do
+for _, it in ipairs(hafen.session():current():ui():equipment():items()) do
   local d = it:durability()
   if d then
     hafen.log():write((it:name() or "?") .. ": worn " .. d.cur .. " of " .. d.max)
@@ -134,7 +138,7 @@ item's contents are `==`. It answers `nil` while the item's info is still resolv
 object — so `nil` means "holds nothing" and an empty `:items()` means "an empty container".
 
 ```lua
-for _, it in ipairs(hafen.ui():inventory():items()) do
+for _, it in ipairs(hafen.session():current():ui():inventory():items()) do
   local held = it:contents()
   for _, one in ipairs(held and held:items() or {}) do
     hafen.log():write((one:name() or "?") .. " q" .. (one:quality() or 0)   -- its own quality...
@@ -160,7 +164,7 @@ lifts the whole pile in one message.
 A bucket, a jug, a barrel holds something and carries no items, so the other three reads answer instead:
 
 ```lua
-local b = hafen.ui():inventory():items()[1]        -- a jug holding water
+local b = hafen.session():current():ui():inventory():items()[1]   -- a jug holding water
 local c = b:contents()
 
 c:text()                   --> "4.55 l of Water"   the line its tooltip states
@@ -202,7 +206,7 @@ Each needs its own [permission key](../../guides/permissions.md) declared in you
 `item.*`, which covers all four — and raises an error naming that key when it was not declared.
 
 ```lua
-local first = hafen.ui():inventory():items()[1]
+local first = hafen.session():current():ui():inventory():items()[1]
 if first then first:take() end
 ```
 
@@ -239,7 +243,7 @@ Two chests can be open at once, so take each one as it opens rather than naming 
 ```lua
 local function label(item) return item:name() or item:res() or "?" end
 
-hafen.ui():on("window[title=Chest]", "appear", function(chest)
+hafen.session():current():ui():on("window[title=Chest]", "appear", function(chest)
   chest:on("ItemAdded",   function(item) hafen.log():write("in:  " .. label(item)) end)
   chest:on("ItemRemoved", function(item) hafen.log():write("out: " .. label(item)) end)
   chest:on("Destroy",     function() hafen.log():write("chest closed") end)

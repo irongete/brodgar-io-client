@@ -45,8 +45,10 @@ import java.util.Map;
  * than a fact about a body, and answer on a session nobody is looking at because that session keeps its
  * {@code GameUI}. 077.4 closes the family with {@code s:fight()} and {@code s:flowermenu()} — the second of
  * which looks screen-shaped and is not: the section IS the open menu, and a menu is a widget in one session's
- * tree rather than the right-click that raised it. Each is minted once per {@code (addon, session)} and kept on the
- * handle — see {@link #worldObj}. Every verb under them reads the session named rather than the one on
+ * tree rather than the right-click that raised it. 078.2 adds {@code s:ui()}, which is not a namespace moving
+ * but half of one SPLITTING: the client's own widgets stand in one character's tree and are reached here, while
+ * the windows an addon BUILDS stay {@code hafen.ui():window()} in the layer above every session. Each is minted
+ * once per {@code (addon, session)} and kept on the handle — see {@link #worldObj}. Every verb under them reads the session named rather than the one on
  * screen; the ones that are inherently the screen's say so where they are defined ({@code screenToWorld},
  * {@code worldToScreen}) and the ones that <b>send</b> go through {@link AddonManager#sendView}, because a
  * walk is the whole of what a character nobody is looking at takes.
@@ -80,6 +82,8 @@ public final class LuaSession {
     private LuaValue actionbarObj, speedObj, craftObj, menugridObj;
     /** The last two (077.4): the combat schools with the fight, and the radial menu this session has open. */
     private LuaValue fightObj, flowermenuObj;
+    /** The client's own widgets (078.2) — the half of {@code ui} that names a tree rather than the layer. */
+    private LuaValue uiObj;
 
     private LuaSession(String user) {
         this.user = user;
@@ -373,6 +377,19 @@ public final class LuaSession {
                 if(h.flowermenuObj == null)
                     h.flowermenuObj = FlowerMenuApi.flowermenu(owner, h.user);
                 return h.flowermenuObj;
+            }
+        });
+        // ui() — the widgets the client put up for THIS character. The half of a namespace that SPLITS rather
+        // than moves: hafen.ui():window() builds something of yours, in the layer above every session, and
+        // keeps its global spelling — this reaches a window the game placed in one character's own tree. Two
+        // trees, so a lookup here never finds anything you built, and a background session keeps its whole
+        // tree: its Inventory is open, findable and readable while the player is looking at another character.
+        m.set("ui", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "ui");
+                if(h.uiObj == null)
+                    h.uiObj = UiApi.ui(owner, h.user);
+                return h.uiObj;
             }
         });
         // info() — the one SNAPSHOT escape hatch, and always a table: a Session that does not exist is

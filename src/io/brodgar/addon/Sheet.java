@@ -38,7 +38,7 @@ import java.util.WeakHashMap;
  * setter called a moment later changes nothing until the sheet is applied again.
  *
  * <p><b>A key resolves one of two ways, and C1a ships one of them</b> (D-067 is why there are two). Keys go
- * through the {@link Selector} parser, so the grammar and its errors are exactly {@code hafen.ui():find(sel)}'s —
+ * through the {@link Selector} parser, so the grammar and its errors are exactly {@code s:ui():find(sel)}'s —
  * there is no second thing to learn and no second thing to keep in sync. The parsed selector is then
  * classified ({@link #siteOf}):
  * <ul>

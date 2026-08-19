@@ -1,11 +1,12 @@
 # hafen.ui: watching for a widget, and replacing it
 
-Two verbs, and they are meant to be used together: `hafen.ui():on` waits for a part of the client's UI to
+Two verbs, and they are meant to be used together: `s:ui():on` waits for a part of the client's UI to
 appear, and `widget:replace` stands your own window in its place. Both are unprotected, and both are undone
 when your addon goes away.
 
 ```lua
-hafen.ui():on("window[title=Inventory] inventory", "appear", function(inv)
+local s = hafen.session():current()                    -- the character on screen
+s:ui():on("window[title=Inventory] inventory", "appear", function(inv)
   local view = hafen.ui():window():title("Bags"):size(200, 120)
   view:on("Draw", function(ev) ev:g():text(#inv:items() .. " items", 6, 6) end)
   inv:replace(view)
@@ -14,12 +15,12 @@ end)
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.ui():on(selector, event, fn)` | [handle](custom.md#observer-handles) | `fn(widget)` when a widget matching a [selector](selectors.md) appears or disappears |
+| `s:ui():on(selector, event, fn)` | [handle](custom.md#observer-handles) | `fn(widget)` when a widget matching a [selector](selectors.md) appears or disappears in that character's tree |
 | `widget:replace(view)` | the widget, chains | put your own window in place of the native one around it |
 
 ## Watching for a widget
 
-`hafen.ui():on` names what it waits for with the same [selector](selectors.md) a lookup uses, and hands the
+`s:ui():on` names what it waits for with the same [selector](selectors.md) a lookup uses, and hands the
 match back as the same interned [Widget](widget.md), so `==` and a Lua table keyed by it work across both
 events. `event` is one of two strings, and a subscription carries exactly one — subscribe twice to watch
 both:
@@ -30,15 +31,19 @@ both:
 | `"disappear"` | a widget that had matched is destroyed |
 
 ```lua
-hafen.ui():on("window[title=Cupboard]", "appear", function(w)
+s:ui():on("window[title=Cupboard]", "appear", function(w)
   hafen.log():write(("cupboard open: %d item(s)"):format(#w:items()))
 end)
 ```
 
-Four things are worth knowing:
+What is worth knowing:
 
-- **`appear` covers what is already open.** Registering scans the live tree once, so an addon reloaded with
-  a window open still sees it. You never have to handle "was it there before me?" yourself.
+- **The subscription watches one character's tree**, the one `s` names — so watching two characters is two
+  subscriptions, and each callback knows whose window it was handed.
+- **`appear` covers what is already open.** Registering scans that character's live tree once, so an addon
+  reloaded with a window open still sees it, and a subscription made on a character nobody is looking at
+  fires at once for what that character has open. You never have to handle "was it there before me?"
+  yourself.
 - **Search inside the widget you were handed**, with [`w:find(sel)`](widget.md#searching-inside-one-widget),
   not from the root. Two cupboards can be open at once, and only the callback knows which one this is.
 - **Neither event is about visibility.** They track the *tree*: a window the client merely hides — the
@@ -76,7 +81,7 @@ frame left standing around a hole is not a replacement. This is exactly where it
 [`w:visible(false)`](native.md#hiding-a-native-widget-carries-a-restore), which hides precisely what you
 point at and nothing more. Two operations, two rules; pick by what you want left on screen.
 
-**Waiting is not part of it.** `hafen.ui():on(sel, "appear", fn)` already waits for anything and already
+**Waiting is not part of it.** `s:ui():on(sel, "appear", fn)` already waits for anything and already
 fires for what is open, so the whole pattern is the two together — the example at the top of this page is
 the complete shape.
 

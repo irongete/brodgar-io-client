@@ -411,7 +411,7 @@ public final class AddonManager {
         // walks whatever that addon owns across every tree it drew into (074.2: one addon, many sessions).
         // See the reason column of census.md's widget-layer table for each.
 
-        /** {@code hafen.ui():on(sel, …)} subscriptions watching THIS tree ({@link UiApi}, 030.2). */
+        /** {@code s:ui():on(sel, …)} subscriptions watching THIS tree ({@link UiApi}, 030.2). */
         final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
         /** Widgets of this tree still awaiting a late {@code [title=]}/{@code [res=]} (030.2's re-check). */
         final List<UiApi.PendingMatch> selectorPending = new CopyOnWriteArrayList<UiApi.PendingMatch>();
@@ -1382,7 +1382,7 @@ public final class AddonManager {
      * The <b>widget-placement seam</b> — called from the {@code UI.AddWidget.run} core edit, right after
      * {@code pwdg.addchild(wdg, pargs)}, i.e. the first COMPLETE moment: the widget is in the tree, so a
      * {@link Selector} can be applied to it. <b>One consumer since 032.2</b>: the 030.2 selector subscriptions
-     * ({@code hafen.ui.on}), which see the live widget itself. The other two are gone — {@code
+     * ({@code s:ui():on}), which see the live widget itself. The other two are gone — {@code
      * hafen.ui.onWidgetCreate} with 030.2, and {@code hafen.ui.replace}'s {@code {id, type, place, caption,
      * parentType}} descriptor (D-024) with 032.2 — so the seam no longer needs the parent or the placement args,
      * and the {@code UI.NewWidget.run} edit that recorded the server type string for that descriptor is gone too.
@@ -2729,7 +2729,7 @@ public final class AddonManager {
         // out of scope here. The audio section is hafen.sound and nothing else.
 
         // hafen.items is GONE (029.3, hard cut D-013). Items are a RELATION on their container now:
-        // hafen.ui():inventory():items() / hafen.ui():equipment():items() / s:player():hand():item(), and widget:items()
+        // s:ui():inventory():items() / s:ui():equipment():items() / s:player():hand():item(), and widget:items()
         // answers on ANY container — a chest, a cupboard — with its window visible and interactive. What it hands
         // back is an interned LuaItem keyed on the item WIDGET (039.14): a server widget id is recycled, so an
         // entity keyed on the number would silently start naming a different item and a protected write through it

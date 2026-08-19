@@ -202,8 +202,8 @@ n:rule():remove()                       -- drop it again
 - **Some windows have no text to restyle.** An Inventory or Equipment window contains item *icons*; its
   only text is the caption, so a style there shows up on the title bar alone. Pick a text-rich window when
   you want to see the effect.
-- `hafen.ui():root():rule()` works and covers the entire client, but that is what a sheet's `["*"]` rule
-  is for.
+- `s:ui():root():rule()` works and covers that character's whole tree, but a sheet's `["*"]` rule is what
+  covers the client, in every session at once.
 
 ## The cascade
 

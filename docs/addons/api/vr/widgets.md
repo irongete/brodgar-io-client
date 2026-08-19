@@ -15,7 +15,7 @@ hafen.vr():widget():add(win, cupboard):facing("camera"):offset(0, 0, 12)
 ```
 
 The shape that pays for itself is entirely event-driven:
-[`hafen.ui():on(sel, "appear", …)`](../ui/replace.md#watching-for-a-widget) is the window opening,
+[`s:ui():on(sel, "appear", …)`](../ui/replace.md#watching-for-a-widget) is the window opening,
 `w:on("Destroy", …)` is the server closing it, and a panel of your own stands in the same place between the
 two. No timer, and no distance check.
 

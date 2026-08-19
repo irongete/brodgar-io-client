@@ -51,8 +51,8 @@ always fresh. [`session:world`](world.md) and the `GobAdded`/`GobRemoved` events
 ## Item
 
 From [`item:info()`](ui/items.md#the-item-object), the one snapshot escape hatch. Any widget's
-[`:items()`](ui/items.md) — your backpack (`hafen.ui():inventory()`), your worn gear
-(`hafen.ui():equipment()`), a chest, a cupboard — and [`s:player():hand()`](player.md#the-hand) for
+[`:items()`](ui/items.md) — that character's backpack (`s:ui():inventory()`), its worn gear
+(`s:ui():equipment()`), a chest, a cupboard — and [`s:player():hand()`](player.md#the-hand) for
 the cursor item hand you a live [`Item` object](ui/items.md#the-item-object), not this table. Every field
 is optional.
 

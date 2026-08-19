@@ -38,7 +38,7 @@ stays 212, and the survivor count is whatever `078.1` computed in `verbs.md`.
       `[manual]`: paste the two numbers `verbs.md` computed. Expect: they are stated, and the
       guardrail reads 212.
 
-- [ ] **078.2 — The client's widgets are reached through their session.**
+- [x] **078.2 — The client's widgets are reached through their session.**
       Moves the client-facing half onto `LuaSession`: `session:ui():find`, `:all`, `:on`, `:root`,
       `:widget`, `:node`, `:inventory`, `:equipment`, built as a lazily interned handle exactly as
       `076` interns `worldObj`. `UiApi`'s twenty-one `host()` callers take the session that reached

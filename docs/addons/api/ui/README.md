@@ -9,11 +9,18 @@ cursor and the container an [`appear` subscription](replace.md#watching-for-a-wi
 callback are all the same [Widget object](widget.md). What you create and what you find are not
 different things.
 
-**And one way to name one.** `hafen.ui()` is the section, and every lookup is a verb on it:
-`hafen.ui():find("window[title=Cupboard]")` is the one matching widget, `hafen.ui():all("inventory")` is
-every one, and `hafen.ui():root()` is the top of the whole client tree. That same [selector](selectors.md)
-is the key of a [stylesheet](style/README.md) rule, so there is one vocabulary for "which part of the UI",
-not two.
+**Two trees, and the door says which.** What you build is **yours**: `hafen.ui():window()` puts it in the
+addon layer, above every session and above the login screen, where it stays when the player tabs. The
+client's own widgets stand in the tree of the character the game put them up for, so they are reached
+through that character's [session](../session.md) — `s:ui():find("window[title=Cupboard]")` is the one
+matching widget of the character `s` names, `s:ui():all("inventory")` is every one, and `s:ui():root()` is
+the top of that character's tree. Nothing you built is findable through that door, and nothing the client
+put up is findable without it.
+
+Both halves speak the same [selector](selectors.md), which is also the key of a
+[stylesheet](style/README.md) rule — one vocabulary for "which part of the UI", not two. The pointer, a
+hit test and the [scale](pixels.md) stay on `hafen.ui()` whole: there is one screen however many
+characters are logged in.
 
 Almost everything here is client-side and **unprotected**, and everything is bridge-owned: a window you
 create, an overlay you install, a sheet you apply and a widget you moved are all given back on `:reload` or
@@ -22,6 +29,9 @@ sends a message the server acts on, and [`widget:value(v)`](edit.md#driving-one-
 client's own controls the way the user would.
 
 ```lua
+local s = hafen.session():current()                    -- the character on screen
+hafen.log():write(#s:ui():inventory():items() .. " items in the backpack")
+
 local clock = hafen.ui():window():title("Clock"):size(160, 40):position(50, 50)
 clock:on("Draw", function(ev)
   ev:g():text(string.format("%.0f", hafen.time():clock() or 0), 6, 12)
@@ -36,9 +46,9 @@ Four tracks, each self-contained. Start wherever your task is.
 inside it, [controls](controls/README.md) puts the client's own buttons in it instead of painting them, and
 [lists](lists.md) does the same for a list, a dropdown or a menu of rows.
 
-**Point at the client's UI** — [selectors](selectors.md) names a widget, [widget](widget.md) reads it,
-[items](items.md) reads what is inside a container, [mouse](mouse.md) says where the pointer is. At a
-screen point, `hafen.ui():at(x, y)` is what is under it and
+**Point at the client's UI** — [selectors](selectors.md) names a widget in one character's tree,
+[widget](widget.md) reads it, [items](items.md) reads what is inside a container, [mouse](mouse.md) says
+where the pointer is. At a screen point, `hafen.ui():at(x, y)` is what is under it and
 [`hafen.ui():tipAt(x, y)`](widget.md#tooltips-and-focus) is whose tooltip would speak for it. All of them,
 and every box below, are measured in [design pixels](pixels.md).
 

@@ -1,18 +1,28 @@
 # hafen.ui: naming a widget
 
-A **selector is a string**, and `hafen.ui():find` / `:all` are the lookups. Reach for one whenever you
+A **selector is a string**, and `s:ui():find` / `:all` are the lookups. Reach for one whenever you
 need a piece of the client's UI — to read it, to move it, to replace it, or as the key of a
 [stylesheet](style/keys.md) rule.
 
+A lookup searches **one character's tree**, so it is addressed at that character's
+[session](../session.md): `s` below is `hafen.session():current()` for the one on screen, and
+`hafen.session():get(user)` for any other. A session nobody is looking at keeps its whole tree, so its
+windows answer the same searches.
+
 ```lua
-hafen.ui():find("window[title=Cupboard]")             -- the one match, or nil
-hafen.ui():all("inventory")                           -- every open container, in tree order
-hafen.ui():find("window[title=Cupboard] inventory")   -- the grid inside that window
-hafen.ui():find("window[title=Foo] button[text=Close]")  -- one exact widget, named in one string
-hafen.ui():find("@Equipory")                          -- by widget class
-hafen.ui():all("*[res*=gfx/hud/meter]")               -- by resource name, matched as a substring
-hafen.ui():root()                                     -- no selector at all: the whole tree's root
+local s = hafen.session():current()
+s:ui():find("window[title=Cupboard]")             -- the one match, or nil
+s:ui():all("inventory")                           -- every open container, in tree order
+s:ui():find("window[title=Cupboard] inventory")   -- the grid inside that window
+s:ui():find("window[title=Foo] button[text=Close]")  -- one exact widget, named in one string
+s:ui():find("@Equipory")                          -- by widget class
+s:ui():all("*[res*=gfx/hud/meter]")               -- by resource name, matched as a substring
+s:ui():root()                                     -- no selector at all: that character's whole tree
 ```
+
+The windows **your addon** builds are not in any of those trees — they stand in the addon layer, above
+every session — so no selector reaches one. Hold the handle
+[the builder](custom.md) gave you.
 
 ## One, or all of them
 
@@ -34,14 +44,14 @@ same errors, same strictness. The scope decides which widgets are *candidates*; 
 name a widget above it, exactly as in CSS.
 
 ```lua
-hafen.ui():on("window[title=Cupboard]", "appear", function(w)
+s:ui():on("window[title=Cupboard]", "appear", function(w)
   local grid = w:find("inventory")        -- THIS cupboard's grid, whatever else is open
   ...
 end)
 ```
 
 That is the right lookup inside an [`appear` callback](replace.md#watching-for-a-widget), and the reason the
-pair exists: `hafen.ui():find("window[title=Cupboard] inventory")` asks the whole tree a question that has no
+pair exists: `s:ui():find("window[title=Cupboard] inventory")` asks a whole tree a question that has no
 single answer while two cupboards are open, while the widget your callback was handed does.
 
 Both **refuse on a widget that has left the tree**, rather than reporting an empty result — "nothing matched"
@@ -168,8 +178,9 @@ every container on screen. The panel offers [the operators](#the-grammar) too, w
 the part of its value before the first digit — `[title^=…]` on a window, `[text^=…]` on anything else, the
 form that keeps matching when a counter ticks over.
 
-The bottom line is ready to paste into `:lua` — it is `hafen.ui():find("…")` when the selector matches this
-widget and **nothing else**, and `hafen.ui():all("…")[i]` when it matches more. Every offered selector is
+The bottom line is ready to paste into `:lua` — it is
+`hafen.session():current():ui():find("…")` when the selector matches this widget and **nothing else**, and
+`…:all("…")[i]` when it matches more. Every offered selector is
 resolved before it is offered, so it always hands back the widget you were pointing at.
 
 Some widgets cannot be named alone, and the panel says so rather than inventing a key: nine identical
@@ -201,7 +212,7 @@ on any widget in the tree, whoever put it there, so those are the lines you read
 
 ## Hold the result
 
-Every lookup walks its whole scope — the client's tree for `hafen.ui():find` and `:all`, one widget's
+Every lookup walks its whole scope — one character's tree for `s:ui():find` and `:all`, one widget's
 subtree for [the pair on a widget](#inside-one-widget) — and `:find` walks all of it too, since it cannot
 know a match is the only one until it has looked everywhere. Once per event, or once when the hover changes,
 that is nothing; sixty times a second it is a real slice of your frame budget. Because widgets are
