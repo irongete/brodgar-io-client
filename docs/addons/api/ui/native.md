@@ -228,9 +228,9 @@ the stock place back.
 
 **What is saved is where your levels stand**, at every write to disk: after a gesture, on the save timer, and
 when that character leaves the screen — a place the user dragged it to and one you wrote yourself being the
-same thing to it. The slot is **per character**, like a [per-character saved variable](../store.md) and in
-every way they are: it follows the screen, and calling it before you are in the world has nothing to put back
-— it says so in the log and remembers the name anyway.
+same thing to it. The slot is **per character** like a [per-character saved variable](../store.md), and that
+character is the one **on screen**, because a window stands over whichever session you are looking at. Calling
+it before you are in the world has nothing to put back — it says so in the log and remembers the name anyway.
 
 | Call | Does |
 |---|---|

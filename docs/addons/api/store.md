@@ -5,8 +5,9 @@ restores it on load and writes it back to disk for you. Saved variables are **un
 written only inside your addon's own save folder.
 
 **A scope is an address.** A character's saved variables are that character's own folder, so they are reached
-through [its session](session.md); an account's are your addon's — one file for the client, whichever
-character is up — so they are reached without naming anyone.
+through [its session](session.md) and answer about the character that session is playing, on screen or not;
+an account's are your addon's — one file for the client, whichever character is up — so they are reached
+without naming anyone.
 
 ```lua
 local settings = hafen.session():current():store():get("settings")   -- the live table, not a copy
@@ -53,19 +54,22 @@ than something you choose at the call, so asking for a per-character variable wi
 naming the session spelling, and asking for an account variable through a session is an error naming the
 other. Neither answers anything: a scope you did not mean is a file you did not mean.
 
-## The character has to be the one on screen
+## Each character's variables are their own
 
-The client can hold several characters logged in at once and draws one of them. There is **one** set of
-per-character tables and they hold the character you are looking at, so `s:store()` answers for that session
-and **raises for every other**: another character's variables are in their own file on disk and nothing of
-them is in memory. Tab to that character and the same tables — the same table objects, so a reference you
-cached is still the live one — hold its saved data instead, and holding nothing is what no character on
-screen looks like.
+The client can hold several characters logged in at once and draws one of them, and every one of them has
+its own tables. `s:store()` answers for the session you named — the character on screen and the character
+behind it alike — so two characters read and write two folders, neither sees the other's keys, and the
+handle you cached from one session goes on being that character's for as long as that session lives.
+
+Two states have no variables to answer with, and both **raise** rather than hand back an empty table that
+would take your writes and never save them: a session that is not live, whose data went to disk when it
+ended, and one that has not reached the world yet, which has no character and therefore no folder at all.
+`s:exists()` tells you the first; `SessionEnteredWorld` is when the second stops being true.
 
 **When each scope is ready.** Account tables are filled before your files run, so they are readable in the
-file body and in `Load`. A character's tables are filled when that character comes to the screen — for the
-first character that is just before `SessionEnteredWorld` fires, because the character's folder is not known
-until then. Read them from there, not in `Load`.
+file body and in `Load`. A session's tables are filled when that session enters the world, just before its
+`SessionEnteredWorld` fires, because the character's folder is not known until then. Read them from there,
+not in `Load`.
 
 **What survives.** The tables are stored as JSON, so tables, strings, numbers and booleans round-trip and
 nothing else does — with one exception, and it is the one worth having: a
@@ -80,15 +84,15 @@ array, and a `nil` value is simply an absent key. Store plain data and a rebuild
 | Scope | Written |
 |---|---|
 | account | on the timer, and when your addon is disabled or reloaded |
-| per character | on the timer, and when that character **leaves the screen** — tabbed away from, or logged out |
+| per character | on the timer, and when that session **ends** or picks another character |
 
 The timer runs roughly every 30 seconds, so an ordinary quit loses nothing. A file whose content has not
 changed is not rewritten, and writes are atomic, so an interrupted write cannot leave a half-file behind.
 
 Your addon outlives every character switch, so a character's data cannot wait for it to be unloaded: their
-moment is when they stop being the one on screen, and that is when their file is written and their tables are
-handed over to whoever comes next. Dropping a session writes it too — log that character back in and what you
-left is there.
+moment is when the session holding it stops playing them. Tabbing between characters writes nothing and
+loses nothing, because each session keeps its own tables the whole time. Dropping a session writes it — log
+that character back in and what you left is there.
 
 `flush()` writes the scope you call it on immediately, and it is worth calling after a change the user would
 be upset to lose and unnecessary the rest of the time. It is also the one write that **refuses**: it names
@@ -107,10 +111,11 @@ saved by the *user* moving something, not by your addon deciding to write it dow
 a variable to allow it would be asking permission for a gesture they made themselves.
 
 It lands in a file of its own beside the one above, `savedata/<genus>_<char>/<addon>.layout.json`, and is
-therefore **per character**, with the same timing: it arrives with the character it belongs to and there is
-nothing to put back before one is on screen. Every write here writes it too, `s:store():flush()` included, so
-an addon that only remembers places still saves on the timer and when its character goes though it declares
-nothing at all.
+therefore **per character** — the character **on screen**, because a window stands over whichever session
+you are looking at. So there is nothing to put back before a character is in world, and tabbing hands the
+records over to the character you tabbed to. Every write here writes them too, and `s:store():flush()` does
+when the session you call it on is the one on screen, so an addon that only remembers places still saves on
+the timer and when the screen moves though it declares nothing at all.
 
 ## See also
 

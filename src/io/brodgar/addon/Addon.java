@@ -254,11 +254,12 @@ public final class Addon {
      */
     public final Map<String, Widget> remembered = new ConcurrentHashMap<String, Widget>();
     /**
-     * What is saved under each of those names for the character in world right now (062) — a place, a box, or
-     * both, in design pixels. Loaded from {@code savedata/<genus>_<char>/<id>.layout.json} by
+     * What is saved under each of those names for the character on screen (062) — a place, a box, or both,
+     * in design pixels. Loaded from {@code savedata/<genus>_<char>/<id>.layout.json} by
      * {@link StoreApi#rescope} when that character comes on screen, and written back by every flush and
      * when they leave it, so a remembered placement needs no {@code saved_variables} declaration and no
-     * handler of the addon's own.
+     * handler of the addon's own. A window an addon builds stands in the layer over whichever session is
+     * drawn, which is why this one set follows the screen where a saved variable follows its session.
      */
     public final Map<String, StoreApi.Placement> placements = new ConcurrentHashMap<String, StoreApi.Placement>();
     /** The last placement JSON written for this addon, so an unchanged file is not rewritten. */
@@ -744,13 +745,17 @@ public final class Addon {
     LuaValue mouseObj;
 
     /**
-     * The {@code hafen.store} proxy table (saved variables, Phase 1e). Holds one Lua table per
-     * declared saved variable plus the {@code flush} function. Populated in
-     * {@link AddonManager#installHafen}; the engine reads it on flush. {@code null} until installed.
+     * The {@code hafen.store()} tables — <b>the ACCOUNT scope</b>, one Lua table per declared account-scope
+     * saved variable. Populated in {@link AddonManager#installHafen}; the engine reads it on flush.
+     * {@code null} until installed.
+     *
+     * <p>The other scope is nowhere near here (079.1): a character's saved variables are one session's, so
+     * they live in that session's own {@link AddonManager.SessionState#charStores} and there are as many
+     * sets as the client has logins.
      */
     public LuaTable store;
-    /** Write-skip caches: the last JSON serialized for each scope, so an unchanged flush skips disk I/O. */
-    public String lastCharJson, lastAccountJson;
+    /** Write-skip cache: the last JSON serialized for the account scope, so an unchanged flush skips disk I/O. */
+    public String lastAccountJson;
 
     /**
      * Soft per-tick CPU-budget accounting (D-018 layer 2). {@link #tickLuaNanos} is the total time this

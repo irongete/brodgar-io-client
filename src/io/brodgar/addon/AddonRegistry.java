@@ -263,10 +263,12 @@ public final class AddonRegistry {
      * login screen rebuilds the layer and announces nothing, which is exactly what a fresh boot there does.
      *
      * <p><b>The screen's session and no other</b>, and that is a boundary rather than an oversight (074.3):
-     * an addon has one {@code hafen.store} and its per-character half holds the character on screen (074.4),
-     * so announcing a second session here would be announcing one whose saved variables are not the ones in
-     * the tables. The other sessions stay in the world and say nothing about it; what an addon knows about
-     * them after a reload is what it asks for.
+     * {@code SessionEnteredWorld} announces the character the player typed {@code :reload} in front of, and
+     * announcing a second session here would be announcing one that did not enter anything. The other
+     * sessions stay in the world and say nothing about it; what an addon knows about them after a reload is
+     * what it asks for. Their <i>saved variables</i> are not part of that boundary (079.1): the tables are
+     * each session's own and are read back in the first time the new addons ask for them, so a background
+     * character's data is there whether or not anything was said about it.
      */
     public static synchronized void reload() {
         log("reloading addons...");
@@ -274,9 +276,9 @@ public final class AddonRegistry {
         for(int i = cur.size() - 1; i >= 0; i--)     // reverse load order
             teardown(cur.get(i));
         addons.clear();
-        StoreApi.detach();                           // 074.4: the tables just flushed and dropped held this
-                                                     //   character; the ones about to be built hold nobody, so
-                                                     //   the load below has a change of scope to answer
+        StoreApi.detach();                           // 074.4/079.1: every session's tables were just flushed
+                                                     //   and belong to addons that are going; the ones about to
+                                                     //   be built hold nobody until they are asked for
         LuaGOut.clearResourceCache();                // U1/D-039: drop the g:resource name cache on reload
         LuaSound.teardownSounds(AddonManager.consoleOwner);  // 024.2: the REPL survives a reload, its clips do not
         LuaGOut.teardownTexts(AddonManager.consoleOwner);    // 026.1: ...nor does its cached text (same reason)

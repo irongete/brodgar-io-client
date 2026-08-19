@@ -505,6 +505,17 @@ public final class AddonManager {
          *  the folder every per-character file of that session is read from and written back to. Volatile:
          *  it is written on the tick that entered the world and read by whatever thread flushes. */
         volatile String charScope;
+        /**
+         * <b>The per-character saved variables of this session</b> (079.1, {@link StoreApi.CharStore}), one
+         * entry per addon and minted on the first ask. They are the session's rather than the screen's,
+         * which is what lets {@code s:store()} answer about the character it names — the tables of two
+         * logins are two objects, and neither can be handed out under the other's name.
+         *
+         * <p>Concurrent because the map is reached from every thread that runs Lua (the loop's tick, the
+         * console's own), and because the entry for one addon is minted where it is first needed.
+         */
+        final Map<Addon, StoreApi.CharStore> charStores =
+            new ConcurrentHashMap<Addon, StoreApi.CharStore>();
         /** Engine-clock time of this session's last throttled flush ({@link StoreApi}). */
         double storeLastAutoSave;
 
@@ -585,19 +596,20 @@ public final class AddonManager {
     public static void uiDestroyed(UI u) {
         if(u == null)
             return;
-        states.remove(u);
+        // 079.1: ...and the tables that session's saved variables live in go with it, so they are handed on
+        // before the state is dropped rather than looked for afterwards in a map they are no longer in.
+        StoreApi.sessionEnded(states.remove(u));
         // 074.2: ...and every record an addon left naming a widget of that tree. It was `init` that pruned
         // these, on a switch, for the one owner that outlived one; now that EVERY addon outlives a session,
         // the prune belongs where the tree actually ends — which is here, and is what the census's route (b)
         // says in the first place.
         UiApi.pruneDeadTrees();
-        // 074.4: what this does NOT do is write that session's per-character saved variables, though this is
-        // where they stop being reachable. It runs on the dying session's OWN thread, and the store's tables
-        // are Lua, which runs on the UI thread and nowhere else (P5). So the write is left to the layer's next
-        // tick, which finds the screen holding a different character from the one the tables hold and puts
-        // them back where they came from — StoreApi holds that folder rather than looking it up, which is what
-        // makes a dead session's data still land. A session ending in the BACKGROUND needs nothing here at
-        // all: the tables were never its, so there is nothing of its to write.
+        // 074.4/079.1: what this does NOT do is WRITE that session's per-character saved variables, though
+        // this is where they stop being reachable. It runs on the dying session's OWN thread, and the store's
+        // tables are Lua, which runs on the UI thread and nowhere else (P5). So the write is left to the
+        // layer's next tick, which drains what sessionEnded filed above — and it lands in the right folder
+        // because each set of tables HOLDS the one it was loaded for rather than asking a session that has
+        // stopped being able to answer.
     }
 
     /**
@@ -618,8 +630,11 @@ public final class AddonManager {
      */
     private static void sweepStates() {
         for(Iterator<Map.Entry<UI, SessionState>> it = states.entrySet().iterator(); it.hasNext(); ) {
-            if(it.next().getKey().destroyed)
-                it.remove();
+            Map.Entry<UI, SessionState> e = it.next();
+            if(e.getKey().destroyed) {
+                StoreApi.sessionEnded(e.getValue());   // 079.1: a missed hook must not cost that character
+                it.remove();                           //   their saved variables as well as their state
+            }
         }
     }
 
@@ -899,9 +914,14 @@ public final class AddonManager {
             // the one they are drawn in. Free when nothing moved: two reference reads.
             VrApi.drainGround();
 
-            // 074.4: whose character the per-character saved variables belong to, which is the session on
-            // SCREEN — so this runs before the two fires below and an addon told the screen moved reads the
-            // character it moved to. One string compare on a frame that changed nothing.
+            // 079.1: the saved variables of any session that ended since the last frame, written back into
+            // that character's own folder — the seam that saw it die runs on the dying session's thread and
+            // may only file it, so the write is here, where Lua is read (P5).
+            StoreApi.drainEnded();
+
+            // 074.4: whose character the remembered placements belong to, which is the session on SCREEN —
+            // so this runs before the two fires below and an addon told the screen moved reads the character
+            // it moved to. One string compare on a frame that changed nothing.
             StoreApi.rescope();
 
             // 074.3: sessions that came, were picked or went since the last frame. Before Update, so a handler

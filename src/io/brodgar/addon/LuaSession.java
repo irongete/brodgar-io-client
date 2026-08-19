@@ -401,8 +401,8 @@ public final class LuaSession {
         // same reason ui does: an account's saved variables are the ADDON's, one file whichever character is
         // up, and keep hafen.store(); a character's are that character's own folder and are reached here. Which
         // half a name is in is the manifest's declaration rather than a verb, so each half refuses the other's
-        // names. The client holds one set of per-character tables and they hold the character on screen, so a
-        // read here for any other session refuses rather than answering the wrong character's data.
+        // names. The tables are the named session's own (079.1), so this answers for a character nobody is
+        // looking at exactly as it does for the drawn one — two logins are two folders.
         m.set("store", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaSession h = handle(self, "store");

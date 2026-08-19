@@ -33,7 +33,7 @@ are until you are in the world.
 | Scope | Readable from |
 |---|---|
 | account | your file bodies and `Load` |
-| per character | `SessionEnteredWorld` onwards |
+| per character | that session's `SessionEnteredWorld` onwards |
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function(s)
@@ -45,13 +45,12 @@ end)
 Reading a character's table in `Load` is not an error; it is simply empty, which is the bug that looks like
 "my settings do not load".
 
-**The character has to be the one on screen.** Your addon is loaded once for the client, which can have
-several characters logged in at once, so there is one set of per-character tables and they hold the character
-you are looking at. Tabbing to another one hands the same tables that character's saved data — same table
-objects, so a reference you cached stays live, different contents — and asking a session that is *not* on
-screen raises rather than answering, because that character's file is on disk and nothing of it is in memory.
-If you keep your own copy of something you read out of one, read it again when the screen moves; the
-[session events](../api/event/bus.md#sessions) are how you hear that it did.
+**Every character has its own.** Your addon is loaded once for the client, which can have several
+characters logged in at once, and each of those sessions keeps its own set of per-character tables. So
+`s:store()` answers about the character that session is playing whether or not you are looking at it, two
+characters write two folders, and a table you cached from one session stays that character's. What raises
+is a session with no character to have variables for — one that has ended, and one that has not reached the
+world yet; the [session events](../api/event/bus.md#sessions) are how you hear about both.
 
 ## Store data, not objects
 
@@ -78,9 +77,9 @@ so store a [Position](../api/world.md#the-position-type) instead.
 ## When it is written
 
 Changes are flushed on a timer, so an ordinary quit loses nothing. Your account tables are written again
-when your addon is disabled or reloaded; a character's own tables are written when that character **leaves
-the screen**, whether you tabbed away from them or logged them out, because that is the last moment their
-data is the data in the tables.
+when your addon is disabled or reloaded; a character's own tables are written when the session holding them
+**ends** or picks another character, because that is the last moment their data is the data in those tables.
+Tabbing between characters writes nothing and loses nothing — each session keeps its own the whole time.
 
 `s:store():flush()` and `hafen.store():flush()` each force a write of their own scope now, which is worth
 doing after a change the user would be annoyed to lose and unnecessary the rest of the time. Either refuses
@@ -108,8 +107,8 @@ end)
 
 There is no declaration, no table and no handler, because every addon that saved a layout by hand wrote
 the same ten lines of packing a position into a table and unpacking it on load. It is per character, like
-the tables above, which is why it belongs in `SessionEnteredWorld` for the same reason they do — and why
-it follows the screen the same way.
+the tables above, which is why it belongs in `SessionEnteredWorld` for the same reason they do — and the
+character is the one **on screen**, because a window stands over whichever session you are looking at.
 
 ## The other two kinds of file
 

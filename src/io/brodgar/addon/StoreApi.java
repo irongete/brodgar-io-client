@@ -23,7 +23,9 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 
 import static io.brodgar.addon.AddonManager.*;
@@ -31,9 +33,10 @@ import static io.brodgar.addon.AddonManager.*;
 /**
  * The saved-variables subsystem (1e / D-002 / D-023). One Lua table per manifest-declared saved variable,
  * persisted to JSON under {@code savedata/} (account scope + per-character {@code <genus>_<char>} scope).
- * {@link AddonManager} drives it via {@link #enterWorld} (a session learns its character), {@link #rescope}
- * (the layer's tick, and the whole of when the per-character half moves), {@link #loadScope} (account vars at
- * install), {@link #flush} (teardown), and {@link #autosave} (the throttled tick save). Not instantiable.
+ * {@link AddonManager} drives it via {@link #enterWorld} (a session learns its character and reads that
+ * character's variables in), {@link #sessionEnded}/{@link #drainEnded} (a session died, and its variables go
+ * back to disk), {@link #rescope} (the layer's tick, and the whole of when the remembered placements move),
+ * {@link #flush} (teardown) and {@link #autosave} (the throttled tick save). Not instantiable.
  *
  * <p><b>The section SPLITS by scope</b> (078.3), because an account's saved variables and a character's are
  * not the same thing. The account scope is the addon's — one file for the client, whichever character is up —
@@ -42,22 +45,30 @@ import static io.brodgar.addon.AddonManager.*;
  * than chosen at the call, so the two halves carry the same two verbs and each refuses a name belonging to the
  * other, naming the door it does have.
  *
+ * <p><b>The per-character tables ARE the session's</b> (079.1), held in that session's own
+ * {@link AddonManager.SessionState} as one {@link CharStore} per addon, and there are as many sets as there
+ * are logins. So {@code s:store()} answers about the character it names — the one on screen or any other —
+ * which is what every other section on a Session does, and two characters write two folders without either
+ * seeing the other's keys. What a session cannot answer is a character it has not got: a login still
+ * connecting or sitting on the character list has no folder at all, and that is a refusal ({@link #session})
+ * rather than a table that would take writes and never save them.
+ *
  * <p><b>Every session knows its own character folder</b> (073.5, {@code SessionState.charScope}): a client
- * with two logins has two answers, and each is that login's own.
- *
- * <p><b>The per-character half belongs to the SESSION ON SCREEN</b> (074.4). 078.3 gave it an address and left
- * that lifecycle standing: there is still <i>one</i> answer for the whole layer, {@link #cur}, the screen
- * moves it, every per-character path here is built through it, and {@link #rescope} is the one door that
- * changes it. What the address buys is that an addon must now say <i>whose</i>, and that saying the wrong one
- * is a refusal ({@link #held}) rather than another character's data under this one's name.
- *
- * <p><b>It is held, not looked up</b>, and that is what makes the last write land. A session's per-character
- * variables are written back when it stops being the screen — including the case where it stopped by
+ * with two logins has two answers, and each is that login's own. A {@link CharStore} <b>holds</b> the folder
+ * it was loaded for rather than looking it up, and that is what makes the last write land: a session's
+ * variables are written back when it stops playing that character — including the case where it stopped by
  * <i>ending</i>, which destroys its {@code UI} before anything on the tick notices. Asking a dead session for
- * its folder answers {@code null} exactly when the data has to be persisted; holding the folder string answers
- * it. The addon's tables are then emptied and refilled with whoever is on screen now, so a reference an addon
- * cached at load time is still the one being written to disk, and what it holds is still the character being
- * looked at.
+ * its folder answers {@code null} exactly when the data has to be persisted; holding the folder string
+ * answers it.
+ *
+ * <p><b>A table is refilled, never replaced</b>, so a reference an addon cached at load time is still the one
+ * being written to disk. A session that changes character writes the outgoing one's variables back and reads
+ * the incoming one's into the very same tables.
+ *
+ * <p><b>What still follows the SCREEN is the remembered placements</b> ({@code widget:remember(name)}, 062).
+ * A placement is where a window sits, the windows an addon builds stand in the layer above every session, and
+ * the layer is drawn wherever the player is looking — so there is one set of them, holding the character on
+ * screen, moved by {@link #rescope}.
  */
 final class StoreApi {
     private StoreApi() {}
@@ -65,17 +76,46 @@ final class StoreApi {
     private static final double SAVE_INTERVAL = 30.0;   // throttled auto-save period (seconds; UI thread)
 
     /**
-     * <b>The character folder the per-character half is holding right now</b> — {@code <genus>_<char>} of the
-     * session on screen, or {@code null} when no character is being looked at (the login screen, a session
-     * that has not reached the world yet, or the beat between one ending and the next being drawn). Every
-     * per-character path here is built through it, so there is one answer to <i>whose character is this</i>,
-     * and every addon's tables hold that character's data and no other's.
+     * <b>One session's per-character saved variables, for one addon</b> (079.1) — the live tables
+     * {@code s:store():get(name)} hands back, and the folder they came from.
+     *
+     * <p>Minted on demand and kept in {@link AddonManager.SessionState#charStores}, so it dies with the
+     * session that owns it and with the addon that declared it, and neither can reach the other's.
+     */
+    static final class CharStore {
+        /** Declared per-character name &rarr; the live table. Refilled in place; never replaced. */
+        final LuaTable vars = new LuaTable();
+        /**
+         * The {@code <genus>_<char>} folder these tables were read from, or {@code null} while they hold
+         * nobody. <b>Held, not looked up</b>: this is the folder the write goes back to, and the session that
+         * has to be written is often one that has just ended and can no longer be asked.
+         */
+        String scope;
+        /** The last JSON written for this scope, so an unchanged file is not rewritten. */
+        String lastJson;
+    }
+
+    /**
+     * <b>The character folder the remembered placements are holding right now</b> — {@code <genus>_<char>} of
+     * the session on screen, or {@code null} when no character is being looked at (the login screen, a session
+     * that has not reached the world yet, or the beat between one ending and the next being drawn). A
+     * placement is where a window stands, and the windows an addon builds stand in the layer over whichever
+     * session is drawn, so there is one answer to <i>whose screen is this</i>.
      *
      * <p>Written by {@link #rescope} and {@link #detach} alone, both on the UI thread, which is also the only
-     * thread that reads it — a store write happens on a tick, on a teardown or in a Lua verb, and Lua runs
+     * thread that reads it — a placement is written on a tick, on a teardown or in a Lua verb, and Lua runs
      * there and nowhere else (P5).
      */
-    private static String cur;
+    private static String placeScope;
+
+    /**
+     * <b>Sessions whose {@code UI} died with per-character tables still in them</b> (079.1). Filled by
+     * {@link #sessionEnded} from the dying session's own thread, which may do nothing more than that: the
+     * tables are Lua, and Lua is read on the UI thread and nowhere else (P5). Drained by {@link #drainEnded}
+     * on the layer's tick, which writes each one back into the folder its {@link CharStore} holds.
+     */
+    private static final Queue<AddonManager.SessionState> ended =
+        new ConcurrentLinkedQueue<AddonManager.SessionState>();
 
     /**
      * Build {@code hafen.store()} for {@code owner} + load its account-scope vars (before Load). From
@@ -88,14 +128,18 @@ final class StoreApi {
      * grammar exists to delete. The table object is also stable for the addon's whole life — a restore refills
      * it in place — so a reference cached at load time is still the one being written to disk an hour later.
      *
+     * <p><b>Only the ACCOUNT half is built here</b> (079.1). A per-character table belongs to one session and
+     * is minted in that session's own {@link CharStore}, so this table holds exactly the names the manifest
+     * declares {@code "scope": "account"} and there is nothing here for a second character to overwrite.
+     *
      * <p>The names are the <i>addon's own</i>, so the refusal that catches the old spelling cannot live in the
      * static {@link Retired} table: {@link #index} builds it per owner from the manifest.
      */
     static void installStore(LuaTable hafen, final Addon owner) {
         LuaTable vars = new LuaTable();
         for(Manifest.SavedVar sv : owner.manifest.savedVariables) {
-            if(vars.get(sv.name).istable())
-                continue;                                // duplicate name in the manifest: keep the first
+            if(!sv.account || vars.get(sv.name).istable())
+                continue;                                // per character (a session's), or a duplicate name
             vars.set(sv.name, new LuaTable());           // always a usable (possibly empty) table
         }
         owner.store = vars;
@@ -115,9 +159,10 @@ final class StoreApi {
                     throw new LuaError(ACC + ":get(\"" + sv.name + "\") — \"" + sv.name + "\" is declared PER"
                         + " CHARACTER, and a character's saved variables are reached through the session whose"
                         + " character they are: hafen.session():current():store():get(\"" + sv.name + "\") is"
-                        + " the character on screen. " + ACC + " is the ACCOUNT scope — one file for the"
-                        + " client, whichever character is up — and a variable joins it by being declared"
-                        + " {\"name\": \"" + sv.name + "\", \"scope\": \"account\"} in manifest.json");
+                        + " the character on screen, and hafen.session():get(user):store() is any other. "
+                        + ACC + " is the ACCOUNT scope — one file for the client, whichever character is up —"
+                        + " and a variable joins it by being declared {\"name\": \"" + sv.name + "\","
+                        + " \"scope\": \"account\"} in manifest.json");
                 return owner.store.get(sv.name);
             }
         });
@@ -130,9 +175,9 @@ final class StoreApi {
         store.set("flush", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "flush");
-                carriable(owner, true, ACC);
+                carriable(owner, owner.store, true, ACC);
                 try {
-                    writeScope(owner, true);
+                    writeAccount(owner);
                 } catch(RuntimeException e) {
                     log(owner, "store: flush failed: " + e);
                 }
@@ -144,7 +189,7 @@ final class StoreApi {
                       "hafen.store.<name> is now hafen.store():get(\"<name>\") for an account-scope name and"
                       + " hafen.session():current():store():get(\"<name>\") for a per-character one",
                       new LuaTable(), index(owner));
-        loadScope(owner, true);                          // account-scope vars: ready before Load
+        loadAccount(owner);                              // account-scope vars: ready before Load
     }
 
     /** How the account half is reached, and the spelling its messages quote. */
@@ -164,14 +209,10 @@ final class StoreApi {
      * manifest's own declaration, so both halves carry the same two verbs and each refuses a name belonging
      * to the other, naming where it is reached instead.
      *
-     * <p><b>What moves is the ADDRESS, not the lifecycle.</b> The client holds <i>one</i> set of per-character
-     * tables per addon and they hold the character on screen ({@link #cur}, 074.4) — which is what makes a
-     * reference an addon cached at load time still the one being written to disk. So this section answers for
-     * the session whose character those tables hold and <b>refuses for every other</b> ({@link #held}):
-     * handing back the screen's table would be another character's saved variables under this one's name, and
-     * handing back an empty one would accept writes and silently never save them, which is the exact class of
-     * failure {@code :get} exists to delete. The address is what an addon must now say; the storage still
-     * follows the screen, and ROADMAP carries the gap between the two.
+     * <p><b>The address is the whole of the answer</b> (079.1): the tables are the named session's own, so
+     * this reads and writes that character's folder whether or not anyone is looking at it, and a second
+     * character reached through a second Session is a second folder. What it refuses is a session with no
+     * character to have variables for — one that has ended, and one that has not reached the world yet.
      *
      * <p>Minted once per {@code (addon, session)} and hung on the interned Session handle, the shape
      * {@code WorldApi.world} established — so {@code s:store() == s:store()}.
@@ -189,26 +230,31 @@ final class StoreApi {
                         + " account scope, and an account's saved variables are the ADDON's rather than a"
                         + " character's: one file for the client whichever character is up, so it is reached"
                         + " without an address — " + ACC + ":get(\"" + sv.name + "\")");
-                held(user, "get(\"" + sv.name + "\")");
-                return owner.store.get(sv.name);
+                return charStore(session(user, "get(\"" + sv.name + "\")"), owner).vars.get(sv.name);
             }
         });
-        // :flush() — write THIS character's half now: its saved variables, and the places it remembers for
-        // widget:remember(name), which are per character for the same reason and land beside them. The account
-        // half is hafen.store():flush(). Refuses an uncarriable value first, exactly as that one does.
+        // :flush() — write THIS character's saved variables now. The account half is hafen.store():flush().
+        // Refuses an uncarriable value first, exactly as that one does.
+        //
+        // It writes the places this addon remembers for widget:remember(name) as well WHEN this session is
+        // the one on screen, because that is whose character those places are: a remembered window stands in
+        // the layer, drawn over whichever session that is.
         m.set("flush", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "flush", SS);
-                held(user, "flush()");
-                carriable(owner, false, SS);
-                try {
-                    LuaWidget.rememberCapture(owner);   // 062: where every remembered widget stands right now
-                    writePlacements(owner);
-                } catch(RuntimeException e) {
-                    log(owner, "store: could not save remembered placements: " + e);
+                AddonManager.SessionState st = session(user, "flush()");
+                CharStore cs = charStore(st, owner);
+                carriable(owner, cs.vars, false, SS);
+                if(st == AddonManager.state(AddonManager.screen())) {
+                    try {
+                        LuaWidget.rememberCapture(owner);   // 062: where every remembered widget stands now
+                        writePlacements(owner);
+                    } catch(RuntimeException e) {
+                        log(owner, "store: could not save remembered placements: " + e);
+                    }
                 }
                 try {
-                    writeScope(owner, false);
+                    writeChar(owner, cs);
                 } catch(RuntimeException e) {
                     log(owner, "store: flush failed: " + e);
                 }
@@ -244,31 +290,48 @@ final class StoreApi {
         return null;
     }
 
-    /** The {@code <genus>_<char>} folder of the session named, or {@code null} while it has no character. */
-    private static String charScope(String user) {
+    /**
+     * <b>The session a per-character verb was addressed to</b> (079.1) — the one guard this half has, and the
+     * whole of it. Every live session in the world answers here, drawn or not, because the tables are that
+     * session's own. Two states cannot: a session that is not live has had its variables written and dropped,
+     * and one that has not reached the world has no folder to have any in. Both would otherwise be an empty
+     * table that takes writes and never saves them, so both are said out loud, and the message says which.
+     */
+    private static AddonManager.SessionState session(String user, String call) {
         AddonManager.SessionState st = AddonManager.state(AddonManager.sessionui(user));
-        return (st == null) ? null : st.charScope;
+        if(st == null)
+            throw new LuaError(SS + ":" + call + " — \"" + user + "\" is not a live session, so it has no"
+                + " saved variables in memory: its own were written to disk when it ended. hafen.session()"
+                + " lists the sessions the client holds, and s:exists() is the test.");
+        if(st.charScope == null)
+            throw new LuaError(SS + ":" + call + " — that session has no character yet (it is connecting, or"
+                + " on the character list), so it has no per-character folder at all: its variables arrive"
+                + " with SessionEnteredWorld.");
+        return st;
     }
 
     /**
-     * <b>Are the per-character tables holding THIS session's character?</b> — the one guard the addressed half
-     * has, and the honest half of what 074.4 left standing. There is one set of tables for the whole layer and
-     * it holds whoever is on screen, so a session that is not the screen has its data on disk and nothing of
-     * it in memory: answering the tables anyway would hand back another character's saved variables under this
-     * one's name, and answering an empty table would take writes and never save them. Both are wrong quietly,
-     * so this one is wrong loudly, and it says which of the two reasons it is.
+     * <b>This session's per-character tables for one addon</b>, minted on the first ask. The tables exist
+     * before the folder does, so an addon loaded while a session is already in world gets that character's
+     * data read in here rather than an empty set it would write over the file.
      */
-    private static void held(String user, String call) {
-        String want = charScope(user);
-        if((want != null) && want.equals(cur))
-            return;
-        throw new LuaError(SS + ":" + call + " — that character's saved variables are not in memory."
-            + ((want == null)
-               ? " That session has no character yet (it is connecting, or on the character list), so it has"
-                 + " no per-character folder at all: its variables arrive with SessionEnteredWorld."
-               : " The client holds ONE set of per-character tables and they hold the character ON SCREEN, so"
-                 + " this one's are on disk until the player tabs to it. hafen.session():current():store() is"
-                 + " the character being looked at."));
+    private static CharStore charStore(AddonManager.SessionState st, Addon a) {
+        CharStore have = st.charStores.get(a);
+        if(have != null)
+            return have;
+        CharStore mk = new CharStore();
+        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
+            if(!sv.account && !mk.vars.get(sv.name).istable())
+                mk.vars.set(sv.name, new LuaTable());    // always a usable (possibly empty) table
+        }
+        CharStore prev = st.charStores.putIfAbsent(a, mk);
+        if(prev != null)
+            return prev;
+        if(st.charScope != null) {
+            mk.scope = st.charScope;
+            loadChar(a, mk);
+        }
+        return mk;
     }
 
     /** The declared saved-variable names, quoted, for the message a misspelt {@code :get} raises. */
@@ -315,15 +378,15 @@ final class StoreApi {
     }
 
     /**
-     * Throttled auto-save of every addon`s saved vars (from this session's tick). flush() skips unchanged
-     * files. The throttle is the ticking session's own, and each addon writes under the scope of the session
-     * <i>it</i> runs for — which is the same one while one session holds the addon layer.
+     * Throttled auto-save from this session's tick: every addon's account file, the places the screen's
+     * character has its windows in, and <b>this session's own</b> per-character variables. The write skips
+     * unchanged files. The throttle is the ticking session's own, so each login pays for its own character.
      */
     static void autosave(AddonManager.SessionState st, double clock) {
         if(clock - st.storeLastAutoSave >= SAVE_INTERVAL) {
             st.storeLastAutoSave = clock;
             for(Addon a : addons)
-                flush(a);
+                save(a, st);
         }
     }
 
@@ -337,32 +400,45 @@ final class StoreApi {
     }
 
     /**
-     * <b>A session learns which character it is playing</b> — its {@code <genus>_<char>} folder, now that the
-     * HUD is up. Called once per world entry, and once more by a {@code :reload} for the session on screen.
+     * <b>A session learns which character it is playing</b>, and reads that character's saved variables in —
+     * its {@code <genus>_<char>} folder, now that the HUD is up. Called once per world entry, and once more
+     * by a {@code :reload} for the session on screen.
      *
      * <p>073.5: it is handed <b>the session it is about and that session's own HUD</b> — the caller has both
      * (the tick that saw the world come up, the reload that found the HUD in its own tree), and reading the
      * screen instead would file one login's folder under whichever character is being looked at.
      *
-     * <p>074.4: what it does <i>not</i> do is load anything. Filling the tables is {@link #rescope}'s, because
-     * which character they hold is the <b>screen's</b> question and this one is the session's — a session that
-     * reaches the world behind another has learnt its folder and changed nothing on screen. It calls
-     * {@code rescope} on the way out all the same, so a session entering the world <i>as</i> the screen has
-     * its saved variables in place before {@code SessionEnteredWorld} fires, which is where the docs send an
-     * addon to read them.
+     * <p>079.1: and it <b>loads</b>, for that session and no other, which is what makes the variables of a
+     * character nobody is looking at be that character's. Whatever the tables held first goes back where it
+     * came from: a session picking a second character keeps its {@code UI} and comes through here again, so
+     * the outgoing character's data is written before the incoming character's is read into the very same
+     * tables. The remembered placements follow the screen, so {@link #rescope} is called on the way out — a
+     * session entering the world <i>as</i> the screen has both in place before {@code SessionEnteredWorld}
+     * fires, which is where the docs send an addon to read them.
      */
     static void enterWorld(AddonManager.SessionState st, GameUI g) {
         if((st == null) || (g == null))
             return;
-        st.charScope = scopeKey(g.genus, g.chrid);
+        String want = scopeKey(g.genus, g.chrid);
+        unloadChar(st);                     // whatever these tables held goes back to the folder it came from
+        st.charScope = want;
+        if(want != null) {
+            for(Addon a : addons) {
+                CharStore cs = charStore(st, a);
+                if(cs.scope == null) {      // minted before this session had a character: fill it now
+                    cs.scope = want;
+                    loadChar(a, cs);
+                }
+            }
+        }
         rescope();
     }
 
     /**
-     * <b>Bring the per-character half into step with the session on screen</b> — the one door, run from the
-     * layer's own tick and from {@link #enterWorld}. When the screen already holds what the tables hold this
-     * is one map read and one string compare; otherwise the outgoing character's data is written back where
-     * it came from and the incoming character's is read in, into the very same tables.
+     * <b>Bring the remembered placements into step with the session on screen</b> — the one door, run from
+     * the layer's own tick and from {@link #enterWorld}. When the screen already holds what they hold this is
+     * one map read and one string compare; otherwise the outgoing character's placements are written back
+     * where they came from and the incoming character's are read in.
      *
      * <p><b>Derived, not notified</b>, and that is deliberate: the screen changes for four different reasons
      * — a tab, a session reaching the world, a session ending, a relogin replacing a {@code UI} under the same
@@ -370,104 +446,119 @@ final class StoreApi {
      * miss one and no way to tell; a comparison on the tick cannot be missed, and answers all four the same.
      *
      * <p><b>A session that ends is one of those four.</b> Its {@code UI} is destroyed from its own thread, so
-     * by the time this runs there is nothing left to ask — which is why the folder is held in {@link #cur}
-     * rather than looked up: the write below lands in the folder of the character whose data the tables
-     * actually hold, whether that session was tabbed away from or ended outright.
+     * by the time this runs there is nothing left to ask — which is why the folder is held in
+     * {@link #placeScope} rather than looked up: the write below lands in the folder of the character whose
+     * placements are actually loaded, whether that session was tabbed away from or ended outright.
      */
     static void rescope() {
         AddonManager.SessionState st = AddonManager.state(AddonManager.screen());
         String want = (st == null) ? null : st.charScope;
-        if((want == null) ? (cur == null) : want.equals(cur))
+        if((want == null) ? (placeScope == null) : want.equals(placeScope))
             return;
-        unload();
-        cur = want;
-        if(cur == null)
-            return;                             // no character on screen: the tables stay empty, and so do we
         for(Addon a : addons) {
-            loadScope(a, false);
-            loadPlacements(a);                  // 062: ...and where this character last left what each addon
-        }                                       //   remembers, so widget:remember(name) has it to put back
-    }
-
-    /**
-     * Write the per-character half back where it came from and empty it. The account scope is untouched: it
-     * is the same for every character on the account, so nothing about it changes when the screen does, and
-     * it goes on being flushed with the addon.
-     *
-     * <p>The tables are <b>emptied rather than replaced</b>, for the reason {@link #loadScope} refills in
-     * place: a reference an addon cached at load time has to go on being the live one. So a per-character
-     * variable read while nobody is on screen is the empty table it is before any character is, which is what
-     * "there is no character" has to look like from Lua.
-     *
-     * <p><b>Emptying is unconditional and writing is not.</b> With no character there is nowhere to write —
-     * but there can still be something to empty, because an addon that wrote into a per-character table on
-     * the login screen wrote it for nobody, and {@link #loadScope} only clears a table it has a file to
-     * refill it from. Carried instead of dropped, those keys would arrive in the first character's tables
-     * and be saved into that character's file as if they had always been theirs.
-     */
-    private static void unload() {
-        for(Addon a : addons) {
-            if(cur != null) {
+            if(placeScope != null) {
                 try {
                     LuaWidget.rememberCapture(a);   // 062: where every remembered widget stands as this
                     writePlacements(a);             //   character goes off screen — the save timer's capture
                 } catch(RuntimeException e) {
                     log(a, "store: could not save remembered placements: " + e);
                 }
-                try {
-                    if(a.store != null)
-                        writeScope(a, false);
-                } catch(RuntimeException e) {
-                    log(a, "store: could not save this character's variables: " + e);
-                }
             }
             forgetPlacements(a);
-            clearCharVars(a);
         }
-        cur = null;
+        placeScope = want;
+        if(placeScope == null)
+            return;                        // nobody on screen: nothing to put back, and nothing held for it
+        for(Addon a : addons)
+            loadPlacements(a);             // 062: where this character last left what each addon remembers,
+    }                                      //   so widget:remember(name) has it to put back
+
+    /**
+     * <b>A session's {@code UI} died with its per-character tables still in it</b> (079.1) — from
+     * {@link AddonManager#uiDestroyed}, on the dying session's own thread, which is why this only files it.
+     * The tables are Lua and are read on the UI thread and nowhere else (P5), so the write is
+     * {@link #drainEnded}'s, on the layer's next tick — and it still lands, because each {@link CharStore}
+     * holds the folder it was loaded for rather than asking a session that no longer exists.
+     */
+    static void sessionEnded(AddonManager.SessionState st) {
+        if((st != null) && !st.charStores.isEmpty())
+            ended.add(st);
+    }
+
+    /** Write back and empty the tables of every session that has ended since the last layer tick. */
+    static void drainEnded() {
+        for(AddonManager.SessionState st = ended.poll(); st != null; st = ended.poll())
+            unloadChar(st);
     }
 
     /**
-     * <b>The layer holds nobody's character</b> — a {@code :reload}, between the teardown that flushed every
-     * addon and the load that builds new ones. Not {@link #unload}: those tables are already written and
-     * already gone, and writing the new addons' empty ones over this character's files is the one way a
-     * reload could cost the user their settings.
+     * Write one session's per-character tables back where they came from and empty them. The account scope is
+     * untouched: it is the same for every character on the account, so nothing about it changes when a
+     * session does, and it goes on being flushed with the addon.
+     *
+     * <p>The tables are <b>emptied rather than replaced</b>, for the reason {@link #loadChar} refills in
+     * place: a reference an addon cached at load time has to go on being the live one.
+     *
+     * <p><b>Emptying is unconditional and writing is not.</b> A set of tables holding no folder has nowhere
+     * to be written — but there can still be something to empty, because an addon that wrote into a session's
+     * tables before it reached the world wrote them for nobody. Carried instead of dropped, those keys would
+     * arrive in that character's tables and be saved into their file as if they had always been theirs.
      */
-    static void detach() {
-        cur = null;
+    private static void unloadChar(AddonManager.SessionState st) {
+        for(Map.Entry<Addon, CharStore> e : st.charStores.entrySet()) {
+            Addon a = e.getKey();
+            CharStore cs = e.getValue();
+            if(cs.scope != null) {
+                try {
+                    writeChar(a, cs);
+                } catch(RuntimeException ex) {
+                    log(a, "store: could not save this character's variables: " + ex);
+                }
+            }
+            cs.scope = null;
+            cs.lastJson = null;
+            for(Manifest.SavedVar sv : a.manifest.savedVariables) {
+                if(sv.account)
+                    continue;
+                LuaValue t = cs.vars.get(sv.name);
+                if(t.istable())
+                    clearTable((LuaTable)t);
+            }
+        }
     }
 
-    /** Empty one addon's per-character tables in place, and forget what was last written for them. */
-    private static void clearCharVars(Addon a) {
-        a.lastCharJson = null;
-        if(a.store == null)
-            return;
-        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
-            if(sv.account)
-                continue;
-            LuaValue t = a.store.get(sv.name);
-            if(t.istable())
-                clearTable((LuaTable)t);
-        }
+    /**
+     * <b>The client holds nobody's addons</b> — a {@code :reload}, between the teardown that flushed every
+     * addon and the load that builds new ones. What the sessions hold is dropped rather than written: those
+     * tables are already written and belong to addons that no longer exist, and writing the new addons' empty
+     * ones over a character's files is the one way a reload could cost the user their settings. A session
+     * that ended and has not been drained yet is drained first, for the same reason — its data is still owed
+     * to its own folder.
+     */
+    static void detach() {
+        drainEnded();
+        for(AddonManager.SessionState st : AddonManager.allStates())
+            st.charStores.clear();
+        placeScope = null;
     }
 
     /**
      * <b>What a saved variable may hold</b>, checked over one addon's declared tables before an asked-for
-     * {@code hafen.store():flush()} writes. A function, a widget handle or any other live thing is written by
-     * the forgiving serializer as a quoted {@code tostring} and read back as that string — data-shaped
-     * garbage, discovered a week later by the addon that trusted it. Here it is discovered at the call.
+     * {@code flush()} writes. A function, a widget handle or any other live thing is written by the forgiving
+     * serializer as a quoted {@code tostring} and read back as that string — data-shaped garbage, discovered
+     * a week later by the addon that trusted it. Here it is discovered at the call.
      *
      * <p>It names the <b>path</b> and not just the variable, because a bad value is nearly always nested: the
      * addon put a widget in the table it saves its layout from, and the name of the variable alone would send
      * it looking through the whole thing.
      */
-    private static void carriable(Addon a, boolean account, String how) {
-        if(a.store == null)
+    private static void carriable(Addon a, LuaTable src, boolean account, String how) {
+        if(src == null)
             return;
         for(Manifest.SavedVar sv : a.manifest.savedVariables) {
             if(sv.account != account)
                 continue;                       // 078.3: a flush answers for the scope it was asked on
-            LuaValue v = a.store.get(sv.name);
+            LuaValue v = src.get(sv.name);
             if(v.istable())
                 carriable((LuaTable)v, "\"" + sv.name + "\"", how, Collections.newSetFromMap(
                               new IdentityHashMap<LuaValue, Boolean>()));
@@ -511,10 +602,14 @@ final class StoreApi {
         return b.toString().trim();
     }
 
-    /** The on-disk JSON file for one addon + scope (may not exist yet). */
-    private static File storeFile(Addon a, boolean account) {
-        File dir = account ? new File(saveDir(), "account") : new File(saveDir(), cur);
-        return new File(dir, a.manifest.id + ".json");
+    /** The on-disk JSON file for one addon's account scope (may not exist yet). */
+    private static File accountFile(Addon a) {
+        return new File(new File(saveDir(), "account"), a.manifest.id + ".json");
+    }
+
+    /** The on-disk JSON file for one addon under one character's folder (may not exist yet). */
+    private static File charFile(Addon a, String scope) {
+        return new File(new File(saveDir(), scope), a.manifest.id + ".json");
     }
 
     /**
@@ -547,50 +642,61 @@ final class StoreApi {
         return new File(new File(saveDir(), st.charScope), "client");
     }
 
-    /**
-     * Load one scope's saved variables from disk into the addon's {@code hafen.store} tables (filling
-     * them in place, preserving table identity). Missing/malformed files leave the tables as-is. After
-     * loading, the write-skip cache is primed with the canonical serialization of what we now hold, so
-     * an unchanged first flush writes nothing.
-     */
-    private static void loadScope(Addon a, boolean account) {
-        if((a.store == null) || !hasScope(a, account))
+    /** One addon's account-scope saved variables, read in at install and primed for the write-skip. */
+    private static void loadAccount(Addon a) {
+        if((a.store == null) || !hasScope(a, true))
             return;
-        if(!account && (cur == null))
-            return;                                     // per-char load needs a known character
-        String text = readFile(storeFile(a, account));
-        if(text != null) {
-            try {
-                Object root = Json.parse(text);
-                if(root instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> m = (Map<String, Object>)root;
-                    for(Manifest.SavedVar sv : a.manifest.savedVariables) {
-                        if(sv.account != account)
-                            continue;
-                        LuaValue cur = a.store.get(sv.name);
-                        LuaTable tgt;
-                        if(cur.istable()) {
-                            tgt = (LuaTable)cur;
-                            clearTable(tgt);            // refill in place → the addon's ref stays valid
-                        } else {
-                            tgt = new LuaTable();
-                            a.store.set(sv.name, tgt);
-                        }
-                        fillTable(tgt, m.get(sv.name), a);  // object or array; absent/scalar → left empty
-                    }
-                }
-            } catch(RuntimeException e) {
-                log(a, "store: could not read " + storeFile(a, account).getName() + ": " + e);
-            }
-        }
-        String canon = scopeJson(a, account);          // prime the write-skip cache
-        if(account) a.lastAccountJson = canon; else a.lastCharJson = canon;
+        loadInto(a, a.store, true, accountFile(a));
+        a.lastAccountJson = scopeJson(a, a.store, true);
+    }
+
+    /** One session's per-character saved variables for one addon, read in from the folder it holds. */
+    private static void loadChar(Addon a, CharStore cs) {
+        if((cs.scope == null) || !hasScope(a, false))
+            return;
+        loadInto(a, cs.vars, false, charFile(a, cs.scope));
+        cs.lastJson = scopeJson(a, cs.vars, false);
     }
 
     /**
-     * Write an addon's changed data to disk: what it <b>remembers</b> ({@code widget:remember(name)}), and its
-     * saved variables in both scopes. Skips unchanged files.
+     * Load one scope's saved variables from disk into the tables that hold them, filling them in place so
+     * that table identity is preserved. A missing or malformed file leaves the tables as they are. The
+     * caller primes the write-skip cache with the canonical serialization of what is now held, so an
+     * unchanged first flush writes nothing.
+     */
+    private static void loadInto(Addon a, LuaTable dst, boolean account, File f) {
+        String text = readFile(f);
+        if(text == null)
+            return;
+        try {
+            Object root = Json.parse(text);
+            if(root instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> m = (Map<String, Object>)root;
+                for(Manifest.SavedVar sv : a.manifest.savedVariables) {
+                    if(sv.account != account)
+                        continue;
+                    LuaValue have = dst.get(sv.name);
+                    LuaTable tgt;
+                    if(have.istable()) {
+                        tgt = (LuaTable)have;
+                        clearTable(tgt);            // refill in place → the addon's ref stays valid
+                    } else {
+                        tgt = new LuaTable();
+                        dst.set(sv.name, tgt);
+                    }
+                    fillTable(tgt, m.get(sv.name), a);  // object or array; absent/scalar → left empty
+                }
+            }
+        } catch(RuntimeException e) {
+            log(a, "store: could not read " + f.getName() + ": " + e);
+        }
+    }
+
+    /**
+     * Write an addon's changed data to disk: what it <b>remembers</b> ({@code widget:remember(name)}), its
+     * account file, and <b>every live session's</b> per-character variables. Skips unchanged files. This is
+     * the teardown's write — the addon is going, so every character it holds tables for is written.
      *
      * <p><b>The remembered placements go first, and they go whatever the manifest declares.</b> An addon that
      * only hands a window to the user declares no saved variables at all — the whole point of the verb being
@@ -609,9 +715,33 @@ final class StoreApi {
         if((a.store == null) || a.manifest.savedVariables.isEmpty())
             return;
         try {
-            writeScope(a, true);                        // account (always resolvable)
-            if(cur != null)
-                writeScope(a, false);                   // per-char (only once in-world)
+            writeAccount(a);                            // account (always resolvable)
+            for(AddonManager.SessionState st : AddonManager.allStates())
+                writeChar(a, st.charStores.get(a));     // ...and each character this addon has tables for
+        } catch(RuntimeException e) {
+            log(a, "store: flush failed: " + e);
+        }
+    }
+
+    /**
+     * The auto-save's write: the placements and the account file as {@link #flush} writes them, and <b>one</b>
+     * session's per-character variables — the one whose tick this is. Every session ticks, so every
+     * character's file is written by its own login rather than by whichever one got there first.
+     */
+    private static void save(Addon a, AddonManager.SessionState st) {
+        if(a == null)
+            return;
+        try {
+            LuaWidget.rememberCapture(a);
+            writePlacements(a);
+        } catch(RuntimeException e) {
+            log(a, "store: could not save remembered placements: " + e);
+        }
+        if((a.store == null) || a.manifest.savedVariables.isEmpty())
+            return;
+        try {
+            writeAccount(a);
+            writeChar(a, st.charStores.get(a));
         } catch(RuntimeException e) {
             log(a, "store: flush failed: " + e);
         }
@@ -632,17 +762,17 @@ final class StoreApi {
 
     /**
      * Is there a character to remember a placement <b>for</b>? A placement is per character, like a
-     * per-character saved variable and for the same reason, so before {@code SessionEnteredWorld} there is
-     * nothing to
-     * put back — and {@code widget:remember(name)} says so rather than applying an empty record.
+     * per-character saved variable, and the character is the one on SCREEN — a remembered window stands in
+     * the layer, drawn over whichever session that is. So before any character is in world there is nothing
+     * to put back, and {@code widget:remember(name)} says so rather than applying an empty record.
      */
     static boolean placementScope() {
-        return cur != null;
+        return placeScope != null;
     }
 
     /** What is saved under {@code name} for this character, or {@code null} (no character, or nothing saved). */
     static Placement placement(Addon a, String name) {
-        return (cur == null) ? null : a.placements.get(name);
+        return (placeScope == null) ? null : a.placements.get(name);
     }
 
     /**
@@ -652,7 +782,7 @@ final class StoreApi {
      * never sized it.
      */
     static void land(Addon a, String name, Coord pos, Coord size) {
-        if((cur == null) || ((pos == null) && (size == null)))
+        if((placeScope == null) || ((pos == null) && (size == null)))
             return;
         Placement p = a.placements.get(name);
         if(p == null)
@@ -671,13 +801,13 @@ final class StoreApi {
 
     /** The per-character placement file, beside the addon's own {@code <id>.json}. */
     private static File placementFile(Addon a) {
-        return new File(new File(saveDir(), cur), a.manifest.id + ".layout.json");
+        return new File(new File(saveDir(), placeScope), a.manifest.id + ".layout.json");
     }
 
     /** Load this character's placements for one addon, replacing whatever the last character left. */
     private static void loadPlacements(Addon a) {
         forgetPlacements(a);
-        if(cur == null)
+        if(placeScope == null)
             return;
         String text = readFile(placementFile(a));
         if(text != null) {
@@ -698,7 +828,7 @@ final class StoreApi {
                 log(a, "store: could not read " + placementFile(a).getName() + ": " + e);
             }
         }
-        a.lastPlacementJson = placementsJson(a);   // prime the write-skip cache, as loadScope does
+        a.lastPlacementJson = placementsJson(a);   // prime the write-skip cache, as a scope load does
     }
 
     /** One {@code {"x": …, "y": …}} half of a parsed record, or {@code null} if it is absent or malformed. */
@@ -716,7 +846,7 @@ final class StoreApi {
 
     /** Write one addon's placements, if they changed and there is a character to write them for. */
     private static void writePlacements(Addon a) {
-        if((cur == null) || (a.placements.isEmpty() && (a.lastPlacementJson == null)))
+        if((placeScope == null) || (a.placements.isEmpty() && (a.lastPlacementJson == null)))
             return;                                     // this addon remembers nothing and never did
         String out = placementsJson(a);
         if(out.equals(a.lastPlacementJson))
@@ -753,17 +883,24 @@ final class StoreApi {
         return "{\"x\":" + c.x + ",\"y\":" + c.y + "}";
     }
 
-    /** Serialize one scope's vars and write the file if it differs from the last write. */
-    private static void writeScope(Addon a, boolean account) {
-        String out = scopeJson(a, account);
-        if(out == null)
-            return;                                     // this addon declares no vars of this scope
-        String last = account ? a.lastAccountJson : a.lastCharJson;
-        if(out.equals(last))
-            return;                                     // unchanged since the last write → skip disk I/O
-        if(writeFile(storeFile(a, account), out)) {
-            if(account) a.lastAccountJson = out; else a.lastCharJson = out;
-        }
+    /** Serialize the account scope and write the file if it differs from the last write. */
+    private static void writeAccount(Addon a) {
+        String out = scopeJson(a, a.store, true);
+        if((out == null) || out.equals(a.lastAccountJson))
+            return;                                     // no account vars, or unchanged → skip disk I/O
+        if(writeFile(accountFile(a), out))
+            a.lastAccountJson = out;
+    }
+
+    /** Serialize one session's per-character scope and write it into the folder that set of tables holds. */
+    private static void writeChar(Addon a, CharStore cs) {
+        if((cs == null) || (cs.scope == null))
+            return;                                     // no tables for this session, or they hold nobody
+        String out = scopeJson(a, cs.vars, false);
+        if((out == null) || out.equals(cs.lastJson))
+            return;
+        if(writeFile(charFile(a, cs.scope), out))
+            cs.lastJson = out;
     }
 
     /**
@@ -771,14 +908,14 @@ final class StoreApi {
      * REPL writer), or {@code null} if the addon declares no vars of this scope. A non-table value at a
      * declared name is written as {@code {}} (the contract is "a table per name").
      */
-    private static String scopeJson(Addon a, boolean account) {
+    private static String scopeJson(Addon a, LuaTable src, boolean account) {
         LuaTable wrap = new LuaTable();
         boolean any = false;
         for(Manifest.SavedVar sv : a.manifest.savedVariables) {
             if(sv.account != account)
                 continue;
             any = true;
-            LuaValue v = a.store.get(sv.name);
+            LuaValue v = src.get(sv.name);
             wrap.set(sv.name, v.istable() ? v : new LuaTable());
         }
         return any ? Json.write(wrap) : null;
@@ -795,8 +932,8 @@ final class StoreApi {
     /**
      * Fill a Lua table <b>in place</b> from a parsed-JSON object (string keys) or array (1-based),
      * delegating each value to the canonical {@link LuaMarshal#jsonToLua} marshal (D-013). Filling in
-     * place (rather than replacing the table) preserves the addon's cached {@code hafen.store} table
-     * reference. Anything but a Map/List is a no-op (a missing/scalar value leaves the table empty).
+     * place (rather than replacing the table) preserves the addon's cached store-table reference.
+     * Anything but a Map/List is a no-op (a missing/scalar value leaves the table empty).
      *
      * <p>The marshal is handed {@code owner} so a saved <b>place</b> comes back as a Position rather than as
      * the {@code {gridId, x, y}} table it is written as — the read half of what makes a Position storable.

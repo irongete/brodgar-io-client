@@ -1,0 +1,10 @@
+{
+  "name": "079.1 — the saved variables follow the address",
+  "id": "079-what-the-address-left-behind.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 079.1: a character's saved variables are the session's own, so s:store() answers for the session it was reached through — the one on screen or any other — the two scopes stay apart, and a session with no character to have variables for refuses rather than answering.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "saved_variables": ["mine", { "name": "ours", "scope": "account" }]
+}

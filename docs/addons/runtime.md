@@ -64,7 +64,7 @@ once, then fires `Load`. Nothing else is automatic: from there your addon does w
 |---|---|
 | your file bodies | the whole `hafen` API is callable; account saved variables are filled; there is no character |
 | `Load` | the same, once every file has run. **Once for the client** |
-| `SessionEnteredWorld` | the HUD, the map view, the player, and — when that session is on screen — that character's saved variables. **Once per session** |
+| `SessionEnteredWorld` | the HUD, the map view, the player, and that character's own saved variables. **Once per session** |
 | `Disable` | your last chance to write, before the engine flushes and tears down. **Once for the client** |
 
 So your addon starts on the login screen, and everything a character owns — the HUD, the world, the map,
@@ -195,9 +195,9 @@ reserved and cannot be taken over.
 `:reload` rebuilds **the addon layer only**, and it is the one thing that does. Every session you have
 logged in stays connected, the world stays loaded, the client's own windows stay as they are, and each
 addon is torn down, the folder and the enabled set are re-read, the enabled addons run again from disk,
-`Load` fires, and — if a character is on screen — per-character saved variables are restored and
-`SessionEnteredWorld` fires again for that one session. The others stay in the world and are not
-re-announced, because only one character's saved variables can be the ones just put back.
+`Load` fires, and `SessionEnteredWorld` fires again for the session on screen — the character you typed
+it in front of. The others stay in the world and are not re-announced, though their saved variables are
+theirs to read as they always were: nothing was said about them because nothing happened to them.
 
 Torn down and re-created, so your addon starts clean: event subscriptions, timers, hotkeys, console
 commands, input hooks, your windows and overlays, world ghosts, sprites and objects, loaded assets, your
