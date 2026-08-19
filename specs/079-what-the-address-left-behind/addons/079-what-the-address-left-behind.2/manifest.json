@@ -1,0 +1,10 @@
+{
+  "name": "079.2 — an ordinary quit stops losing what an addon wrote",
+  "id": "079-what-the-address-left-behind.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 079.2: quitting the client writes every session's saved variables and the account's before the process ends, and Disable fires on the way out too — so a value written and never flushed is still there on the next login.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "saved_variables": ["quit", { "name": "acct", "scope": "account" }]
+}

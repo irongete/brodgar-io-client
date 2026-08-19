@@ -65,7 +65,7 @@ once, then fires `Load`. Nothing else is automatic: from there your addon does w
 | your file bodies | the whole `hafen` API is callable; account saved variables are filled; there is no character |
 | `Load` | the same, once every file has run. **Once for the client** |
 | `SessionEnteredWorld` | the HUD, the map view, the player, and that character's own saved variables. **Once per session** |
-| `Disable` | your last chance to write, before the engine flushes and tears down. **Once for the client** |
+| `Disable` | your last chance to write, before the engine flushes and tears down — on a reload, on being disabled, and on the way out of the client. **Once for the client** |
 
 So your addon starts on the login screen, and everything a character owns — the HUD, the world, the map,
 per-character saved variables — is absent until a session reaches the world. The read verbs say so rather
@@ -206,6 +206,23 @@ back as the user was seeing them. Written first: your saved variables, flushed a
 
 Kept: everything outside the addon layer. The client itself is not reloaded, so a `:reload` never costs you
 your login.
+
+## What quitting writes
+
+Quitting — by closing the window, or with `:q` — writes your saved variables before the process ends. Every logged-in character's own tables go to their own folder and your account file goes to
+yours, whether or not thirty seconds have passed since the last automatic save and whether or not anything
+called `flush()`.
+
+`Disable` fires on the way out as well, and it fires first, so an addon that computes its state at teardown
+rather than keeping it in the store has that write picked up by the flush that follows it.
+
+> **`Disable` cannot hold the exit open.** The addons share one wall-clock budget on the way out, and a
+> handler still running when it is spent is abandoned, with a line on the terminal naming the addon. The
+> flush happens either way — it is the client's own work and runs no code of yours. A quit is never blocked
+> by an addon, and never silently drops one.
+
+Nothing helps a crash or a kill, where the client gets to run nothing at all: the automatic save every
+thirty seconds is the whole of what covers those.
 
 ## See also
 

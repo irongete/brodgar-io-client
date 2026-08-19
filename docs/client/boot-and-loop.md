@@ -37,6 +37,25 @@ using must never be built through it. (c) `Bootstrap.useinitauth` is a **static 
 (d) `Bootstrap.run` needs no ticks to sit and wait — it blocks on its own message queue, which only user
 input fills — so an undrawn login screen simply waits, and works the moment it is drawn again.
 
+## The way out
+
+| What | Where |
+|---|---|
+| What asks for a quit | `Client.EventQueue.event` on a `Toolkit.CloseRequest`, and the `q` entry of `Client.findcmds` — both do the same one thing, `interrupt()` the thread held in `Client.mt`, and there is no other door |
+| What the interrupt reaches | whichever `Runner` `Client.Main.run` is blocked in; `Client.run` catches the `InterruptedException`, so the `while(task != null)` loop is left through its own `finally` |
+| The order on the way out | `Client.run` — inner `finally {newui(null);}` (which **destroys** the slot's `UI`), `savewndstate()`, then the outer `finally`: `UILoop.dispose()`. Then back in `Client.main2`: `Client.dispose()` (`Windeye.dispose`) and `System.exit(0)` |
+| What `dispose` does **not** do | `UILoop.dispose` interrupts `UILoop.th` and `join`s it for 5 s, warning `"ui thread failed to terminate"` if it outlives that — and destroys **no** `UI`: `UILoop.run`'s own `finally` clears `lockedui` and nothing else. A session's `UI` is never destroyed on the way out; the process simply ends under it |
+| The seam (fork) | `Client.run`'s outer `finally`, one call **before** `UILoop.dispose()`, and the same call in `HeadlessClient.run`'s. Before, because every `UI` is still alive there and the addon layer's per-character scopes can still be named |
+
+**Gotchas.** (a) The frame loop is **still running** through all of this: nothing stops ticking or drawing
+until `UILoop.dispose()` returns, so anything hung on the exit path runs beside a live UI thread and has to
+take that tree's monitor — the layer's and each session's, one at a time — to wait a tick or a draw out.
+(b) `System.exit(0)` at the end of `main2` is unconditional, so a thread started on the way out dies wherever
+it is; nothing on the exit path may depend on one finishing. (c) `HeadlessClient.run` is the same shape with
+its own `UILoop` subclass and its own `loop.dispose()` — a seam added to one exit and not the other is a seam
+that is missing half the time. (d) A crash or a kill reaches **none** of this: `main2`'s `finally` runs for a
+thrown exception, but nothing runs for a `SIGKILL` or a hard JVM failure.
+
 ## Frame, tick loop
 
 | What | Where |

@@ -76,10 +76,11 @@ so store a [Position](../api/world.md#the-position-type) instead.
 
 ## When it is written
 
-Changes are flushed on a timer, so an ordinary quit loses nothing. Your account tables are written again
-when your addon is disabled or reloaded; a character's own tables are written when the session holding them
-**ends** or picks another character, because that is the last moment their data is the data in those tables.
-Tabbing between characters writes nothing and loses nothing — each session keeps its own the whole time.
+Changes are flushed on a timer, and again when the client quits, so an ordinary quit loses nothing and a
+crash loses at most the last half-minute. Your account tables are written again when your addon is disabled
+or reloaded; a character's own tables are written when the session holding them **ends** or picks another
+character, because that is the last moment their data is the data in those tables. Tabbing between
+characters writes nothing and loses nothing — each session keeps its own the whole time.
 
 `s:store():flush()` and `hafen.store():flush()` each force a write of their own scope now, which is worth
 doing after a change the user would be annoyed to lose and unnecessary the rest of the time. Either refuses

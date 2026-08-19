@@ -83,11 +83,13 @@ array, and a `nil` value is simply an absent key. Store plain data and a rebuild
 
 | Scope | Written |
 |---|---|
-| account | on the timer, and when your addon is disabled or reloaded |
-| per character | on the timer, and when that session **ends** or picks another character |
+| account | on the timer, when your addon is disabled or reloaded, and when the client quits |
+| per character | on the timer, when that session **ends** or picks another character, and when the client quits |
 
-The timer runs roughly every 30 seconds, so an ordinary quit loses nothing. A file whose content has not
-changed is not rewritten, and writes are atomic, so an interrupted write cannot leave a half-file behind.
+Quitting writes both scopes before the process ends, so a value you set and never flushed is there when you
+log back in. The timer runs roughly every 30 seconds and is what covers the other way out — a crash or a
+kill, where the client gets to write nothing at all. A file whose content has not changed is not rewritten,
+and writes are atomic, so an interrupted write cannot leave a half-file behind.
 
 Your addon outlives every character switch, so a character's data cannot wait for it to be unloaded: their
 moment is when the session holding it stops playing them. Tabbing between characters writes nothing and

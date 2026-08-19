@@ -622,6 +622,68 @@ public final class AddonManager {
         return states.values();
     }
 
+    // ------------------------------------------------------------- the way out (079.2)
+
+    /**
+     * <b>The thread running the client's shutdown, once one is</b> (079.2) — {@code null} for the whole of
+     * an ordinary run, and set by {@link AddonRegistry#shutdown} to the one thread that is allowed to enter
+     * Lua from then on.
+     *
+     * <p>It exists because a quit has to write an addon's tables out while the frame loop is <b>still
+     * running</b>: the flush must go before {@code UILoop.dispose()}, and until that call returns the UI
+     * thread goes on ticking, drawing and firing handlers. Lua runs on one thread and nowhere else (P5), so
+     * a second one reading those tables while a handler writes them is exactly the torn file this task is
+     * closing, one layer down.
+     *
+     * <p>Written once, before the thread it names is started, and read on every entry into Lua.
+     * {@link #quiet()} is the read.
+     */
+    private static volatile Thread quitThread;
+
+    /**
+     * <b>Is addon Lua closed to this thread?</b> True on every thread but the one running the shutdown, from
+     * the moment the shutdown starts. Read by {@link #callLua} — the one choke point every handler, timer,
+     * draw callback and file body goes through — and by the two tick entries, so the engine's own drains
+     * stop as well and nothing mints a payload for a client that is leaving.
+     */
+    static boolean quiet() {
+        Thread t = quitThread;
+        return (t != null) && (t != Thread.currentThread());
+    }
+
+    /**
+     * <b>Close addon Lua to every thread but {@code owner}</b> (079.2). Instant and blocking on nothing, so
+     * the exit path can do it before it starts anything: from here no frame enters an addon's environment
+     * again, and the client can leave whatever else does or does not happen.
+     */
+    static void quiesce(Thread owner) {
+        quitThread = owner;
+    }
+
+    /**
+     * <b>Wait out the tick or draw that was already inside when {@link #quiesce} ran</b> (079.2) — by taking
+     * each tree's monitor once, the layer's and every live session's, <b>one at a time and never nested</b>,
+     * which is this client's one lock direction. That is the monitor a frame holds while it runs one
+     * ({@code UILoop.Frame.tick}, {@code UILoop.display}), so holding it for an instant is the whole wait.
+     *
+     * <p><b>Called on the shutdown's own thread and never on the exit path's</b>, because a monitor cannot be
+     * taken with a timeout: a UI thread wedged inside a frame would hold one for ever, and an exit that waited
+     * here would be the hang this task exists to make impossible. On the abandonable thread it costs at most
+     * the shutdown's budget, after which the flush runs anyway.
+     */
+    static void awaitIdle() {
+        UI l = layer();
+        if(l != null) {
+            synchronized(l) { /* a layer tick or draw in flight has finished by the time this is taken */ }
+        }
+        for(SessionState st : allStates()) {
+            UI u = st.ui;
+            if(u != null) {
+                synchronized(u) { /* ...and the same for each session's own tree */ }
+            }
+        }
+    }
+
     /**
      * The backstop under {@link #uiDestroyed}: drop any state whose {@code UI} is destroyed. A missed hook is
      * a leak of one entry per relogin and would show as nothing at all — so it is checked rather than trusted,
@@ -835,6 +897,8 @@ public final class AddonManager {
      */
     static void layerTick(UI u, double dt) {
         try {
+            if(quiet())
+                return;      // 079.2: the client is quitting; the layer stops stepping before anything is read
             SessionState st = state(u);
             if(st == null)
                 return;
@@ -966,6 +1030,8 @@ public final class AddonManager {
      */
     static void tick(UI u, double dt) {
         try {
+            if(quiet())
+                return;      // 079.2: ...and so does every session's, for the same reason
             SessionState st = state(u);
             if(st == null)
                 return;
@@ -2603,6 +2669,11 @@ public final class AddonManager {
      * one watchdog-armed, CPU-accounted choke point.
      */
     static Varargs callLua(Addon owner, int cat, LuaValue fn, LuaValue... args) {
+        // 079.2: the client is on its way out and this is not the thread taking it out. THE choke point, so
+        // one test closes every door into Lua at once — a handler, a timer, a draw callback, an arming tick —
+        // and the shutdown reads what the addons hold without a frame writing it underneath.
+        if(quiet())
+            return LuaValue.NIL;
         long t0 = System.nanoTime();
         try {
             Sandbox.arm(owner.env);   // reset the watchdog's instruction budget for this callback (D-018)

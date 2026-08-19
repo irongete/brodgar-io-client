@@ -303,6 +303,12 @@ public class Client implements Console.Directory {
 	    }
 	    savewndstate();
 	} finally {
+	    /* addon: (079.2) what an addon wrote goes to disk BEFORE the loop stops. It fires Disable on a
+	     * thread of its own under a wall-clock budget and flushes every session's saved variables, and it
+	     * can neither delay this exit nor prevent it -- see AddonRegistry.shutdown. It is here rather than
+	     * one line down because a destroyed UI is a session whose per-character scope can no longer be
+	     * named, and a flush that cannot name a scope writes nothing and reports success. */
+	    io.brodgar.addon.AddonRegistry.shutdown();
 	    loop.dispose();
 	    this.loop = null;
 	    mt = null;

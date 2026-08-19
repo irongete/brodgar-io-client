@@ -101,6 +101,10 @@ public class HeadlessClient implements Console.Directory, Console.Host {
 		loop.newui(null);
 	    }
 	} finally {
+	    // addon: (079.2) the same seam Client.run carries, and for the same reason: this entry runs the
+	    // addon layer too, so what an addon wrote is written before the loop stops and while every UI
+	    // can still name its own per-character scope. See AddonRegistry.shutdown.
+	    io.brodgar.addon.AddonRegistry.shutdown();
 	    loop.dispose();
 	    stdio.interrupt();
 	    this.loop = null;

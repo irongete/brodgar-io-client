@@ -226,6 +226,133 @@ public final class AddonRegistry {
         }
     }
 
+
+    // ------------------------------------------------------------- the way out (079.2)
+
+    /**
+     * How long the whole {@code Disable} sweep may take when the client is quitting. A wall-clock budget for
+     * the <b>set</b> rather than a per-handler one: what has to be bounded is the exit, and an addon that
+     * spends the budget is one the addons after it do not get to run in. Override with
+     * {@code -Dhaven.addon.quitbudgetms}.
+     */
+    private static final long QUIT_BUDGET_MS = propLong("haven.addon.quitbudgetms", 2000L);
+
+    /** {@link #shutdown} has run. The exit path is one call on one thread; this is the backstop. */
+    private static boolean quitDone;
+
+    /**
+     * <b>What the client owes its addons on the way out</b> (079.2) — run from {@code Client.run}'s
+     * {@code finally}, <b>before</b> {@code UILoop.dispose()}, because a destroyed {@code UI} is a session
+     * whose per-character scope can no longer be named and whose tables are therefore written nowhere.
+     *
+     * <p><b>The flush and {@code Disable} are separated, because the obvious fix is worse than the defect.</b>
+     * Firing {@code Disable} on the way out runs arbitrary addon Lua during shutdown, and a handler that loops
+     * would hang the client on exit — lost data traded for a client that will not close. So:
+     *
+     * <ul>
+     *   <li><b>The flush is engine code and always runs.</b> It walks every live session, writes what
+     *       {@link StoreApi} holds, and runs nothing an addon wrote.</li>
+     *   <li><b>{@code Disable} fires too and cannot delay the exit.</b> It runs on a thread of its own under
+     *       {@link #QUIT_BUDGET_MS}, and a set that overruns is <b>abandoned</b> — with a line on the console,
+     *       because a quit that silently dropped somebody's {@code Disable} would be this same defect one
+     *       layer up.</li>
+     * </ul>
+     *
+     * <p><b>Both run on that one thread in the ordinary case</b>, which is why the flush is inside it rather
+     * than beside it: an addon that computes its state at {@code Disable} has that state written by the very
+     * next thing that happens. Only when the sweep is abandoned <i>before</i> reaching the flush does this
+     * thread run the flush itself, alongside a handler that is still going — which is what abandoning means.
+     *
+     * <p>The frame loop is <b>still running</b> when this is called — nothing stops ticking or drawing until
+     * {@code UILoop.dispose()} returns — so {@link AddonManager#quiesce} closes Lua to every thread but the
+     * sweep's before that thread starts, and the sweep itself waits out whatever was already inside
+     * ({@link AddonManager#awaitIdle}). <b>This thread takes no lock at all</b>: it waits on a clock and
+     * nothing else, which is what makes the exit unblockable by a wedged frame as well as by an addon.
+     *
+     * <p>The 30-second auto-save stays where it is — neither this nor anything else helps a crash or a kill,
+     * and that is the only thing that ever did.
+     */
+    public static void shutdown() {
+        if(quitDone)
+            return;
+        quitDone = true;
+        final List<Addon> cur = new ArrayList<Addon>(addons);
+        final long deadline = System.currentTimeMillis() + QUIT_BUDGET_MS;
+        // 0 = still in the Disable sweep, 1 = flushing, 2 = done. Read by the abandoning branch below, which
+        // must know whether the flush was ever reached and must not start a second one over the first.
+        final java.util.concurrent.atomic.AtomicInteger stage = new java.util.concurrent.atomic.AtomicInteger(0);
+        Thread sweep = new Thread(new Runnable() {
+                public void run() {
+                    try {
+                        AddonManager.awaitIdle();   // let a tick or a draw already inside Lua finish first
+                        for(int i = cur.size() - 1; i >= 0; i--) {     // reverse load order, as a teardown is
+                            Addon a = cur.get(i);
+                            if(System.currentTimeMillis() >= deadline) {
+                                logDiag("shutdown: no budget left for " + ownerName(a) + "'s Disable -- skipped");
+                                continue;
+                            }
+                            try {
+                                fireTo(a, "Disable");
+                            } catch(RuntimeException e) {
+                                /* isolation is per-handler in callLua; this is just a backstop */
+                            }
+                        }
+                    } finally {
+                        stage.set(1);
+                        flushAll(cur);
+                        stage.set(2);
+                    }
+                }
+            }, "addon-shutdown");
+        sweep.setDaemon(true);          // the process leaves whether or not this thread ever finishes
+        AddonManager.quiesce(sweep);    // ...and it is the only thread addon Lua is open to from here
+        sweep.start();                  // THIS thread never takes a lock again: it waits on a clock alone
+        try {
+            sweep.join(QUIT_BUDGET_MS);
+        } catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        if(sweep.isAlive()) {
+            if(stage.get() == 0) {
+                logDiag("shutdown: an addon's Disable overran " + QUIT_BUDGET_MS + "ms -- abandoned;"
+                        + " the saved variables are written without it");
+                flushAll(cur);
+            } else {
+                logDiag("shutdown: the flush overran " + QUIT_BUDGET_MS + "ms -- the client leaves it running");
+            }
+        }
+    }
+
+    /**
+     * The flush the quit always pays: every session that ended and was never drained, then every addon's own
+     * write — its remembered placements, its account file and each live session's per-character variables,
+     * which is what {@link StoreApi#flush} already walks. Engine code throughout: nothing here calls an addon.
+     */
+    private static void flushAll(List<Addon> cur) {
+        try {
+            StoreApi.drainEnded();   // a session that ended on the last frame still owes its own folder
+        } catch(RuntimeException e) {
+            logDiag("shutdown: could not write the sessions that had ended: " + e);
+        }
+        for(Addon a : cur) {
+            try {
+                StoreApi.flush(a);
+            } catch(RuntimeException e) {
+                logDiag("shutdown: could not flush " + ownerName(a) + ": " + e);
+            }
+        }
+    }
+
+    /** A {@code -D} long, as the addon layer's other tunables read one. */
+    private static long propLong(String name, long def) {
+        try {
+            String v = Utils.getprop(name, null);
+            return (v == null) ? def : Long.parseLong(v.trim());
+        } catch(RuntimeException e) {
+            return def;
+        }
+    }
+
     // ------------------------------------------------------------- reload + enabled set (1f-2)
 
     /**

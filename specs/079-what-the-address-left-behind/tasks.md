@@ -38,7 +38,7 @@ stays 212. `hafen.event()` is global and stays global — this feature changes w
       screen, then tab to it and re-run. Expect: that character reads its own value, and the first
       character's is untouched — two folders, not one.
 
-- [ ] **079.2 — An ordinary quit stops losing what an addon wrote.**
+- [x] **079.2 — An ordinary quit stops losing what an addon wrote.**
       `Client.main`'s `finally` runs `savewndstate()`, `loop.dispose()` and `System.exit(0)` and
       touches neither the addons nor the store, so the 30-second auto-save is all an ordinary quit
       persists. **The flush and `Disable` are separated, because the obvious fix is worse than the
