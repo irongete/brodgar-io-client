@@ -14,12 +14,13 @@ end
 | Call | Returns |
 |---|---|
 | `hafen.session():current()` | the `Session` on screen, or `nil` |
+| `hafen.session():current(s)` | hand the screen to that session |
 | `hafen.session():get(user)` | the `Session` for that **account** — always an object, even for an account nobody is logged in as |
 | `hafen.session():list(filter)` | the sessions the client holds, in the order they joined |
 
 Every session the client holds is whole: connected, ticked, answering the server, with a character and
 a world of its own. One of them is drawn and the rest are not, and which one that is changes when the
-player tabs between them.
+player tabs between them and when an addon writes the screen.
 
 ## What hangs on a session
 
@@ -126,9 +127,34 @@ character name hands back a session that does not exist, and anything that is no
 Session — raises. To search, use the ordinary [filter](conventions.md#the-filter-argument):
 `hafen.session():find("bo")` matches part of an account name.
 
-**`:current()` reads and never writes.** Taking the screen is a gesture of the player's — the switcher
-window, an Alt-click, `:session anchor` — so the verb refuses an argument rather than accepting one you
-could not have meant.
+## Write (unprotected)
+
+### `hafen.session():current(s)`
+
+Hand the screen to `s`. It is the whole gesture rather than half of one — the RTS selection and the camera
+follow the screen, exactly as they do when the player takes it with `:session anchor` — and it hands the
+collection back, so writes chain. Naming the session **already** on screen changes nothing and fires no
+[`SessionSelected`](event/bus.md#sessions); a session that is still connecting has no screen to be given
+yet, and the client says so on the console rather than raising.
+
+```lua
+local list, at = hafen.session():list(), 1                 -- go to the next login, and round
+for i, s in ipairs(list) do
+  if s == hafen.session():current() then at = i end
+end
+hafen.session():current(list[(at % #list) + 1])
+```
+
+It raises, naming what is wrong, on three things: a value that is not a `Session`, an explicit `nil`
+(arity is the verb — call it with no argument to read), and a `Session` the client does not hold. The last
+is reachable by construction, since `:get(user)` mints an object for any account name, and `s:exists()` is
+the test that tells them apart.
+
+**The screen needs no permission.** The [protected tier](../guides/permissions.md) is for what an addon
+does whose effect leaves the client, and taking the screen changes which widget tree is drawn and nothing
+else: the server is never told, and nothing about any character is altered. There is no
+`hafen.session():add`, either — a second account is logged in with `:session add`, which is the console's
+own, and this API manages the sessions that exist.
 
 ## Sessions that come and go
 

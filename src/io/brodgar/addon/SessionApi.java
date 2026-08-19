@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import io.brodgar.session.Control;
 import io.brodgar.session.Sessions;
 
 import org.luaj.vm2.LuaError;
@@ -28,9 +29,16 @@ import java.util.List;
  * of a saved file can be held before that account logs in and after it goes, and {@code :exists()} is the
  * liveness test. There is no miss to report.
  *
- * <p><b>{@code :current()} reads and never writes.</b> Taking the screen is a gesture of the player's, not
- * an addon's, so the verb refuses an argument rather than swallowing one — arity is the verb everywhere else
- * in this API, and a silently ignored argument is the one way it stops being.
+ * <p><b>{@code :current(s)} is the screen, read and written</b> (081.1). Arity is the verb, and it sits on
+ * the collection because there is one screen however many logins there are: {@code :current()} answers which
+ * session holds it and {@code :current(s)} hands it to {@code s}. The write goes through
+ * {@link io.brodgar.session.Control#take} rather than {@link Sessions#anchor}, so the screen, the RTS
+ * selection and the camera move together — the same one gesture {@code :session anchor}, an Alt-click on a
+ * character and {@code rts-next-anchor} all spell.
+ *
+ * <p><b>It is unprotected.</b> The protected tier is for an action whose effect leaves the client; taking the
+ * screen changes which widget tree is drawn and nothing else, and the server is never told. A consent line
+ * for a redraw would make the word mean nothing.
  */
 public final class SessionApi {
     private SessionApi() {
@@ -43,18 +51,38 @@ public final class SessionApi {
      */
     static void installSession(LuaTable hafen, final Addon owner) {
         LuaTable extra = new LuaTable();
-        // current() — the session on screen, or nil on the login screen. A distinguished member is a verb on
-        // its collection rather than a second accessor (§2.3), and this is the one an addon reaches for when
-        // it means "the character the player is looking at" — which changes under a stored variable, so it is
-        // taken inside the handler rather than kept.
+        // current() / current(s) — the session on screen, read and written. A distinguished member is a verb
+        // on its collection rather than a second accessor (§2.3), and this is the one an addon reaches for
+        // when it means "the character the player is looking at" — which changes under a stored variable, so
+        // it is taken inside the handler rather than kept. The write is on the collection for the same reason
+        // the read is: there is ONE screen however many logins the client holds, so it is not a property each
+        // member carries.
         extra.set("current", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "current");
-                if(Args.passed(a, 2))
-                    throw new LuaError("hafen.session():current(…) takes no arguments: it READS which"
-                        + " session is on screen. Taking the screen is the player's own gesture.");
-                Sessions.Member m = Sessions.anchormember();
-                return (m == null) ? LuaValue.NIL : LuaSession.of(owner, m.user);
+                LuaValue me = a.arg1();
+                LuaCollection.receiver(me, "current");
+                LuaValue want = Args.written(a, 2, "hafen.session():current", "session");
+                if(want == null) {                         // the read arity
+                    Sessions.Member m = Sessions.anchormember();
+                    return (m == null) ? LuaValue.NIL : LuaSession.of(owner, m.user);
+                }
+                // The write. Control.take and never Sessions.anchor: the screen, the selection and the
+                // camera are one gesture, and a switch that left the previous character selected would send
+                // the next order to somebody off screen. Naming the session already drawn is a no-op inside
+                // anchor(), so it fires no SessionSelected -- which is what the bus already promises about
+                // tabbing, said once for both ways of arriving there.
+                LuaSession h = LuaSession.resolve(want);
+                if(h == null)
+                    throw new LuaError("hafen.session():current(session): session must be a Session object"
+                        + " — what hafen.session():get(user), :find(filter) and :list() hand back"
+                        + " (got a " + want.typename() + ")");
+                Sessions.Member m = Sessions.byuser(h.user);
+                if(m == null)
+                    throw new LuaError("hafen.session():current(session): the client holds no session for"
+                        + " the account '" + h.user + "' — s:exists() is the test, and there is no"
+                        + " screen to give a session that is not logged in");
+                Control.take(m);
+                return me;
             }
         });
         Section.mount(hafen, "session", LuaCollection.create("hafen.session()", new LuaCollection.Source() {

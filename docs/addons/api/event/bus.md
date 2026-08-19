@@ -72,12 +72,14 @@ is the one on screen it is also the point from which its
 [per-character saved variables](../store.md) read back; a character reaching the world behind another
 brings theirs to the tables when you tab to them, which is a `SessionSelected`.
 
-**Taking the screen is not entering the world.** Tabbing between two characters already in the world
-fires `SessionSelected` and nothing else, once per change — and only on a change, so tabbing to the
-session already drawn fires nothing at all. Ending the session **on screen** hands the screen to another
-one, so that session's `SessionDestroyed` comes first and a `SessionSelected` for the one taking over
-follows it. Going to the login screen — which is where dropping your last session leaves you — selects
-nothing, so it fires nothing, and the `SessionDestroyed` before it is what says the screen emptied.
+**Taking the screen is not entering the world.** Going between two characters already in the world
+fires `SessionSelected` and nothing else, once per change — whether the player tabbed or an addon
+wrote the screen with [`hafen.session():current(s)`](../session.md#write-unprotected) — and only on a
+change, so naming the session already drawn fires nothing at all. Ending the session **on screen** hands
+the screen to another one, so that session's `SessionDestroyed` comes first and a `SessionSelected` for
+the one taking over follows it. Going to the login screen — which is where dropping your last session
+leaves you — selects nothing, so it fires nothing, and the `SessionDestroyed` before it is what says the
+screen emptied.
 
 **Nor is entering the world being looked at.** A session that reaches the world while another holds the
 screen fires `SessionEnteredWorld` there and then, without ever having been drawn — the four are about

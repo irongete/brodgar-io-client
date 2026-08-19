@@ -1,0 +1,9 @@
+{
+  "name": "081.1 — the screen is a value an addon can write",
+  "id": "081-session-manager.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 081.1: hafen.session():current(s) hands the screen to a session, fires SessionSelected with it, is a no-op on the session already drawn, and refuses a non-Session, an explicit nil and a session the client does not hold.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

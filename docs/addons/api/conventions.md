@@ -114,13 +114,14 @@ whether something exists still works.
 
 The client can hold more than one account logged in at once, and draws one of them. Each is whole —
 connected, ticked, answering the server, with a character and a world of its own — and which one is on
-screen changes whenever the player tabs between them.
+screen changes whenever the player tabs between them, and whenever an addon writes it with
+[`hafen.session():current(s)`](session.md#write-unprotected).
 
 [`hafen.session()`](session.md) is the collection of those logins, and a **Session** is the object you
 name one by. It wraps the **account**, which is what survives a character switch, a relogin and the
 session ending: `s:user()` answers for a session that is over, and `s:exists()` is the liveness test.
 `hafen.session():current()` is the session on screen, `nil` on the login screen, and a different object
-after the player tabs — so take it inside your handler rather than keeping one.
+after the screen moves — so take it inside your handler rather than keeping one.
 
 **A Session is also the address.** What is one character's is reached through it — [`s:world()`](world.md),
 [`s:player()`](player.md), [`s:kin()`](kin.md) — so a read says which character it is about instead of
