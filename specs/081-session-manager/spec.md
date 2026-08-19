@@ -86,7 +86,6 @@ Derived impact set —
 - `src/io/brodgar/addon/AddonManager.java` — 1, 2
 - `src/io/brodgar/session/Sessions.java` — 1, 2, 3
 - `src/io/brodgar/session/Control.java` — 1
-- `src/io/brodgar/session/SessionWnd.java` — 3
 - `src/haven/Client.java` — 3 (the `:session` console block alone)
 - `docs/addons/api/ui/custom.md` — 4
 - `docs/addons/api/ui/widget.md` — 4

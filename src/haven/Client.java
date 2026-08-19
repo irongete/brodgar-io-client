@@ -388,11 +388,9 @@ public class Client implements Console.Directory {
 			    io.brodgar.session.Sessions.say("empty");
 			for(io.brodgar.session.Sessions.Member m : ms)
 			    io.brodgar.session.Sessions.say("%s", m.status());
-		    } else if(sub.equals("wnd")) {
-			io.brodgar.session.SessionWnd.reopen();   // rts: the session switcher, after it has been closed
 		    } else if(sub.equals("anchor")) {
-			/* rts: (F5) go to another session -- Control.take, the same one gesture the switcher
-			 * window's buttons and the cycle key spell: its screen, its selection alone, its camera. */
+			/* rts: (F5) go to another session -- Control.take, the same one gesture the Alt-click
+			 * and the cycle key spell: its screen, its selection alone, its camera. */
 			if(args.length < 3)
 			    throw(new Exception("usage: session anchor USER"));
 			/* rts: (071.3) `main` named the session the client's own runner chain kept, and there
@@ -417,7 +415,7 @@ public class Client implements Console.Directory {
 			    for(String u : us)
 			    io.brodgar.session.Sessions.say("saved token for %s", u);
 		    } else {
-			throw(new Exception("usage: session add|drop|list|anchor|wnd|users"));
+			throw(new Exception("usage: session add|drop|list|anchor|users"));
 		    }
 		}
 	    });

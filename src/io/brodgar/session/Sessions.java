@@ -147,7 +147,6 @@ public class Sessions {
 	flushsay();
 	reclaim();          // rts: (F5)
 	applymute();        // rts: (F6)
-	SessionWnd.tick();    // rts: the session switcher, on the HUD of whichever session is drawn
 	tickmode();         // rts: (F3) the mode, derived from the membership, outside the branch below
 	if(!members.isEmpty()) {
 	    UI an = anchor();

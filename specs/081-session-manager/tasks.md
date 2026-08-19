@@ -33,7 +33,7 @@
       the first refusal — an addon that declared the key cannot reach the ungranted branch from
       inside itself, and the family has no second key to leave undeclared.
 
-- [ ] **081.3 — The client's own Sessions window is retired.** Delete
+- [x] **081.3 — The client's own Sessions window is retired.** Delete
       `src/io/brodgar/session/SessionWnd.java` whole, the `SessionWnd.tick()` call in
       `Sessions.tick()`, and the `wnd` branch of the `:session` console command in `Client.java`.
       `docs/client/multi-session.md` loses the `:session wnd` row, and the switcher stops being one of

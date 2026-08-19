@@ -13,8 +13,7 @@ screen** and never a game session, so a client with none draws that, `UILoop.lay
 | `:session add USER [CHAR]` | connect and hold a session open. The character name is the **rest of the line**, spaces and all; without one it plays whichever the server offers first. An account already live is refused. A token login does not rotate the token, and a failed add deliberately does not clear it |
 | `:session list` | each session and how far it has got: connecting, character list, loading, or its character and how many grids it has streamed |
 | `:session drop USER\|all` | close a session, **any** session. `Session.close` is what ends it, so `RemoteUI.run` unwinds through its own cleanup instead of being torn out from under itself. Dropping the last one leaves the client on the login screen, which is what logging out does |
-| `:session anchor USER` | go to a character, named by the **account** it logged in as. One of the four spellings of that gesture — with the switcher window's buttons, an Alt-click on a character and `rts-next-anchor` — and every one of them calls `Control.take` rather than `Sessions.anchor` directly, so the screen and the selection always move together. Everything else in the layer reads `Sessions.anchor()`, so the offsets, the orders and the merged patches follow by themselves |
-| `:session wnd` | rebuild the switcher window after its close button. It hides rather than sending `close`, which the server would not understand |
+| `:session anchor USER` | go to a character, named by the **account** it logged in as. One of the three spellings of that gesture — with an Alt-click on a character and `rts-next-anchor`, and all three are inputs — and every one of them calls `Control.take` rather than `Sessions.anchor` directly, so the screen and the selection always move together. Everything else in the layer reads `Sessions.anchor()`, so the offsets, the orders and the merged patches follow by themselves |
 
 ## The RTS mode
 
@@ -43,7 +42,7 @@ becomes *follow the character*. What is copied is [world-3d.md](world-3d.md).
 
 | Input | Does |
 |---|---|
-| Alt and left click, on a character | **go to it** — its screen, and it alone selected: naming one character on the map is the switcher window's gesture said somewhere else, so it does the same thing (below). The nearest within 24px counts as clicked |
+| Alt and left click, on a character | **go to it** — its screen, and it alone selected: naming one character on the map is `:session anchor` said with the mouse, so it does the same thing (below). The nearest within 24px counts as clicked |
 | Alt and left click, on nothing; with shift or ctrl | clear the selection; extend it instead of replacing. Neither is naming one character, so neither changes whose screen it is |
 | Alt and left drag | select by box, and nothing more — a box says who is commanded, not whose screen this is. It and the click above project each character with `MapView.screenxf` and test in screen space: only our own characters are ever selected, so no rectangular pick pass exists |
 | Left click, on the ground, with somebody **else** selected | walk the selection there, and nothing else — the only order there is. The destination is resolved by the client's own pick pass (`MapView.ClickOrder extends Hittest`), so it lands where a real click would. The right button is never taken over at all |

@@ -1,0 +1,9 @@
+{
+  "name": "081.3 — the client's own Sessions window is retired",
+  "id": "081-session-manager.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 081.3: no session's widget tree holds a window titled Sessions, before or after the screen has been handed to every session in turn -- the rebuild path the deleted class used.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
