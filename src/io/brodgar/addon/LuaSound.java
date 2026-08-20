@@ -292,10 +292,14 @@ public final class LuaSound {
 
     // ---- the Sound metatable -----------------------------------------------------------------------
 
-    /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
+    /**
+     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
+     */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(owner));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("sound", methods(owner),
+            "a sound is one clip you can fire: it answers :res() :play() :stop() :playing() and :info()"));
         mt.set("__name", LuaValue.valueOf("Sound"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

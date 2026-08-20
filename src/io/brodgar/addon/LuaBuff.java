@@ -156,10 +156,15 @@ public final class LuaBuff {
 
     // ---- the Buff metatable ------------------------------------------------------------------------
 
-    /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
+    /**
+     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
+     */
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods());
+        mt.set(LuaValue.INDEX, Retired.closedIndex("buff", methods(),
+            "a buff is one icon on the buff bar: it answers :res() :name() :amount() :duration() :number()"
+            + " :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Buff"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

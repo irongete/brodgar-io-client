@@ -26,7 +26,9 @@ public final class InterfaceOptions {
     public static LuaValue create() {
         LuaTable iface = new LuaTable();
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(iface));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("interface", methods(iface),
+            "the interface options answer :scale() :posGran() and :angGran(), each reading with no argument"
+            + " and writing with one"));
         iface.setmetatable(mt);
         return iface;
     }

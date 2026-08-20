@@ -111,3 +111,9 @@ sample rather than assuming.
   half that was missing.
 - **Fixing `s:ui():find(sel)`'s unknown-bare-role miss here** — the rename to `:match`/`:matchAll`
   takes that ground in 088, and a refusal written for a verb about to be renamed is written twice.
+- **Making `Chrome.isSeq` probe with `rawget`** — it asks `v.get("palette")`/`v.get("generate")` of any
+  table to tell a colour sequence from a colour, so a closed handle passed to `rule:color` by mistake
+  answers *"video has no verb 'palette'"* instead of naming what a colour is. A sequence is always a
+  plain literal table, so the wrong sentence only ever lands on an argument that was already nonsense —
+  and the message it replaces named the receiver correctly either way. The one-line change is available
+  to whichever task next opens that file for a reason of its own.

@@ -70,7 +70,8 @@ public final class ProfScope {
             }
         });
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, m);
+        mt.set(LuaValue.INDEX, Retired.closedIndex("scope", m,
+            "a scope is a named marker around your own code: it answers :begin() :finish() and :name()"));
         mt.set("__name", LuaValue.valueOf("ProfScope"));
         mt.set("__tostring", new VarArgFunction() {
             public Varargs invoke(Varargs a) {

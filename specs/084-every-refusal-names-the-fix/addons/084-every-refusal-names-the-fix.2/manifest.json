@@ -1,0 +1,9 @@
+{
+  "name": "084.2 — the twelve that never asked",
+  "id": "084-every-refusal-names-the-fix.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 084.2: the twelve handles whose metatable was the bare methods table now refuse an unknown verb in the closedIndex shape, by call and by field alike.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

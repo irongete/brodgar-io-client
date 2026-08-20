@@ -153,10 +153,15 @@ public final class LuaIconCat {
 
     // ---- the IconCat metatable ---------------------------------------------------------------------
 
-    /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
+    /**
+     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
+     */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(owner));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("cat", methods(owner),
+            "an icon category is one minimap icon type: it answers :res() :name() :show() :notify()"
+            + " :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("IconCat"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

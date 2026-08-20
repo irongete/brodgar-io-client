@@ -23,7 +23,9 @@ public final class VideoOptions {
     public static LuaValue create() {
         LuaTable video = new LuaTable();
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(video));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("video", methods(video),
+            "the video options answer :shadows() :renderScale() :vsync() :fpsLimit() :bgFpsLimit()"
+            + " :lightingMode() and :lightLimit(), each reading with no argument and writing with one"));
         video.setmetatable(mt);
         return video;
     }

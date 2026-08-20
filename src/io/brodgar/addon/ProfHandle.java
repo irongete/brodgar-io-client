@@ -74,7 +74,12 @@ public final class ProfHandle {
     static LuaValue create(Addon owner) {
         LuaTable p = new LuaTable();
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(p, owner));
+        // Retired.closedIndex, not the methods table itself: p:frmae() would otherwise read as plain nil and
+        // fail one character later as "attempt to call a nil value", naming neither the verb nor this line.
+        mt.set(LuaValue.INDEX, Retired.closedIndex("profiling", methods(p, owner),
+            "the profiling handle answers the armed-only :frame() :history() :addons() :widgets() :passes()"
+            + " :gl() :overhead() and :reset(), the always-on counters :memory() :net() :loader() :render()"
+            + " :surfaces() :entities() :session() :textcache(), and :scope()/:measure() for your own code"));
         mt.set("__name", LuaValue.valueOf("Profiling"));
         mt.set("__tostring", new VarArgFunction() {
             public Varargs invoke(Varargs a) {

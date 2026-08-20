@@ -28,7 +28,9 @@ public final class ClientOptions {
     public static LuaValue create() {
         LuaTable client = new LuaTable();
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(client));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("client", methods(client),
+            "the client options answer one setting, :profiling(), reading with no argument and writing"
+            + " with one"));
         client.setmetatable(mt);
         return client;
     }

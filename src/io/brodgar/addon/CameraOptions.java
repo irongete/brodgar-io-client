@@ -28,7 +28,9 @@ public final class CameraOptions {
     public static LuaValue create() {
         LuaTable camera = new LuaTable();
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(camera));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("camera", methods(camera),
+            "the camera options answer :mode() :invertHorizontal() and :invertVertical(), each reading with"
+            + " no argument and writing with one"));
         camera.setmetatable(mt);
         return camera;
     }

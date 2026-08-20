@@ -14,7 +14,7 @@
       `[manual]`: with a character in the world and an inventory open, report the count reached out of
       37 — what it misses needs a kin, a buff or an item, and which those are is the answer.
 
-- [ ] **084.2 — The twelve that never asked.** `LuaBuff`, `LuaMeter`, `LuaSound`, `LuaIconCat`,
+- [x] **084.2 — The twelve that never asked.** `LuaBuff`, `LuaMeter`, `LuaSound`, `LuaIconCat`,
       `LuaMask`, `ProfHandle`, `ProfScope` and the five `*Options` set `LuaValue.INDEX` to the bare
       methods table, so an unknown key reads `nil` **and `Retired` is never consulted**. All twelve take
       `closedIndex` with their own hint — which is what makes 088 and 089 safe, since `buff:duration`,

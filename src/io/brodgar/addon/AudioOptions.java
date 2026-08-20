@@ -25,7 +25,9 @@ public final class AudioOptions {
     public static LuaValue create() {
         LuaTable audio = new LuaTable();
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, methods(audio));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("audio", methods(audio),
+            "the audio options answer :masterVolume() :uiVolume() :eventVolume() :ambientVolume() and"
+            + " :latency(), each reading with no argument and writing with one"));
         audio.setmetatable(mt);
         return audio;
     }
