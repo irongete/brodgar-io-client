@@ -1,6 +1,7 @@
 # 084 — Every refusal names the fix
 
-Discharges: A-001 … A-010, A-012 … A-019.
+Discharges: A-001, A-002, A-003, A-004, A-005, A-006, A-007, A-008, A-009,
+A-010, A-012, A-013, A-014, A-015, A-016, A-017, A-018, A-019.
 
 ## What and why
 
