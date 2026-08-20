@@ -63,11 +63,14 @@ public final class KeybindingsOptions {
         // Returns the handle, so registrations chain.
         m.set("register", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                // a.arg(1) = self (colon call); the arguments start at 2.
-                LuaValue name = a.arg(2), fn = a.arg(3);
-                if(!name.isstring() || !fn.isfunction())
-                    throw new LuaError("keybindings:register(name, fn) expects (string, function)"
-                                       + " — a hotkey starts unbound; the user assigns the key in Options > Keybindings");
+                // a.arg(1) = self (colon call); the arguments start at 2. One argument at a time, through the
+                // house helpers: "expects (string, function)" named neither the missing one nor the wrong one.
+                LuaValue name = Args.str(a, 2, "keybindings:register", "name",
+                    "a hotkey starts unbound; the user assigns the key in Options > Keybindings");
+                LuaValue fn = Args.required(a, 3, "keybindings:register", "fn");
+                if(!fn.isfunction())
+                    throw new LuaError("keybindings:register: fn must be a function — it runs when the user"
+                        + " presses the key they bound, got " + fn.typename());
                 HookApi.newKeyBind(owner, name.tojstring(), fn);
                 return handle;
             }
@@ -80,9 +83,7 @@ public final class KeybindingsOptions {
         // unbound name is a real answer); a WRITE to an unknown name throws, because there is nothing to remap.
         m.set("key", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue name = Args.required(a, 2, "keybindings:key", "name");
-                if(!name.isstring())
-                    throw new LuaError("keybindings:key(name) expects a string");
+                LuaValue name = Args.str(a, 2, "keybindings:key", "name", "the binding's own name");
                 LuaValue key = Args.written(a, 3, "keybindings:key", "key");
                 KeyBinding b = resolve(owner, name.tojstring());
                 if(key == null) {                          // the read arity
@@ -91,8 +92,7 @@ public final class KeybindingsOptions {
                     KeyMatch km = b.key();
                     return ((km == null) || (km == KeyMatch.nil)) ? LuaValue.NIL : LuaValue.valueOf(km.name());
                 }
-                if(!key.isstring())
-                    throw new LuaError("keybindings:key(name, key) expects (string, string)");
+                Args.str(key, "keybindings:key", "key", "\"F5\", \"Ctrl+M\", \"None\" to unbind");
                 if(b == null)
                     throw new LuaError("keybindings:key: no binding named '" + name.tojstring() + "'");
                 KeyMatch km = HookApi.parseKeyMatch(key.tojstring());
@@ -107,9 +107,8 @@ public final class KeybindingsOptions {
         // unregister(name) — unbind one of THIS addon's hotkeys (client bindings are not the addon's to drop).
         m.set("unregister", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue name = a.arg(2);
-                if(!name.isstring())
-                    throw new LuaError("keybindings:unregister(name) expects a string");
+                LuaValue name = Args.str(a, 2, "keybindings:unregister", "name",
+                                         "one YOUR addon registered; a client binding is not yours to drop");
                 HookApi.removeKeyBindsNamed(owner, name.tojstring());
                 return handle;
             }

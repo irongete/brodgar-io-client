@@ -3306,10 +3306,8 @@ public final class AddonManager {
         json.set("parse", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "json", "parse");
-                LuaValue str = Args.required(a, 2, "hafen.json():parse", "text");
-                if(!str.isstring())
-                    throw new LuaError("hafen.json():parse(text) expects a string");
-                String s = str.tojstring();
+                // The parameter is `str` on the page, so it is `str` in the refusal too.
+                String s = Args.str(a, 2, "hafen.json():parse", "str", "the JSON document to read").tojstring();
                 if(s.length() > Json.MAX_INPUT)
                     throw new LuaError("hafen.json():parse: input too large (" + s.length()
                         + " > " + Json.MAX_INPUT + " chars)");
@@ -3401,13 +3399,13 @@ public final class AddonManager {
         timerVerbs.set("after", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "after");
-                return newTimer(owner, a.arg(2), a.arg(3), false);
+                return newTimer(owner, a, false);
             }
         });
         timerVerbs.set("every", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "every");
-                return newTimer(owner, a.arg(2), a.arg(3), true);
+                return newTimer(owner, a, true);
             }
         });
         Section.mount(hafen, "timer", LuaCollection.create("hafen.timer()", new LuaCollection.Source() {
@@ -3445,10 +3443,16 @@ public final class AddonManager {
         g.set("hafen", hafen);
     }
 
-    private static LuaValue newTimer(final Addon owner, LuaValue sec, LuaValue fn, boolean repeat) {
-        if(!sec.isnumber() || !fn.isfunction())
-            throw new LuaError("hafen.timer():" + (repeat ? "every" : "after")
-                + " expects (seconds, function)");
+    private static LuaValue newTimer(final Addon owner, Varargs a, boolean repeat) {
+        // Args first, and one argument at a time: "expects (seconds, function)" named neither which of the
+        // two was missing nor which was the wrong kind — and an accidental nil (a config field that is not
+        // there) is the commonest of the two, which is what Args.required says in the house's own words.
+        String verb = "hafen.timer():" + (repeat ? "every" : "after");
+        LuaValue sec = Args.num(a, 2, verb, "seconds", null);
+        LuaValue fn = Args.required(a, 3, verb, "fn");
+        if(!fn.isfunction())
+            throw new LuaError(verb + ": fn must be a function — it is what the timer runs, got "
+                + fn.typename());
         double s = sec.todouble();
         if(s < 0)
             s = 0;

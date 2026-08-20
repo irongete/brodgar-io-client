@@ -233,9 +233,7 @@ public final class LuaKin {
                     return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.group);
                 }
                 AddonManager.requirePermission(owner, Permission.KIN_GROUP);
-                if(!group.isnumber())
-                    throw new LuaError("kin:group(group): group must be a number (0.." + MAXGROUP + ")");
-                int g = group.toint();
+                int g = Args.num(group, "kin:group", "group", "0.." + MAXGROUP).toint();
                 if((g < 0) || (g > MAXGROUP))
                     throw new LuaError("kin:group(group): group must be 0.." + MAXGROUP + ", got " + g);
                 require(self, "group").chgrp(g);                      // wdgmsg("grp", id, group)
@@ -293,8 +291,7 @@ public final class LuaKin {
         m.set("rename", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue name) {
                 AddonManager.requirePermission(owner, Permission.KIN_RENAME);
-                if(!name.isstring())
-                    throw new LuaError("kin:rename(name): name must be a string");
+                Args.str(name, "kin:rename", "name", "the name YOUR list shows this kin under");
                 require(self, "rename").chname(name.tojstring());     // wdgmsg("nick", id, name)
                 return self;
             }
@@ -472,10 +469,11 @@ public final class LuaKin {
             // is valid and the roster changes on a later tick, which is what KinChanged reports.
             public LuaValue addMember(Varargs a) {
                 AddonManager.requirePermission(owner, Permission.KIN_ADD);
-                LuaValue secret = Args.required(a, 2, CharApi.KN + ":add", "secret");
-                if(!secret.isstring())
-                    throw new LuaError(CharApi.KN + ":add(secret): secret must be a string (the other"
-                        + " player's hearth secret)");
+                // The type, not isstring(): a NUMBER answers isstring() in LuaJ, so the laxer test used to
+                // send :add(1234) to the server as the hearth secret "1234" — a wrong value walking through
+                // the one type check in this family that guards a protected write.
+                LuaValue secret = Args.str(a, 2, CharApi.KN + ":add", "secret",
+                                           "the other player's hearth secret");
                 String s = secret.tojstring();
                 if(s.isEmpty())
                     throw new LuaError(CharApi.KN + ":add(secret): secret must not be empty (the other"

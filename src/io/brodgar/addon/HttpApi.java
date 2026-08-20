@@ -73,7 +73,7 @@ final class HttpApi {
         http.set("get", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "http", "get");
-                String url = a.checkjstring(2);
+                String url = Args.str(a, 2, "hafen.http():get", "url", null).tojstring();
                 LuaValue cb = a.arg(3);
                 if(!cb.isnil() && !cb.isfunction())
                     throw new LuaError("hafen.http():get: callback must be a function");
@@ -89,7 +89,7 @@ final class HttpApi {
         http.set("post", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "http", "post");
-                String url = a.checkjstring(2);
+                String url = Args.str(a, 2, "hafen.http():post", "url", null).tojstring();
                 LuaValue body = a.arg(3);
                 LuaValue cb = a.arg(4);
                 if(!cb.isnil() && !cb.isfunction())
@@ -170,16 +170,14 @@ final class HttpApi {
         // one header has one value however it is spelled, which is also what the wire means by it.
         h.set("header", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                String name = Args.required(a, 2, "request:header", "name").tojstring();
+                String name = Args.str(a, 2, "request:header", "name", null).tojstring();
                 LuaValue value = Args.written(a, 3, "request:header", "value");
                 if(value == null) {
                     String v = headerOf(req.headers, name);
                     return (v == null) ? LuaValue.NIL : LuaValue.valueOf(v);
                 }
                 requireUnsent(req, "header");
-                if(!value.isstring())
-                    throw new LuaError("request:header(name, value): value must be a string, got "
-                        + value.typename());
+                Args.str(value, "request:header", "value", null);
                 putHeader(req.headers, name, value.tojstring());
                 return h;
             }
@@ -191,10 +189,7 @@ final class HttpApi {
                 if(ms == null)
                     return LuaValue.valueOf(req.timeout);
                 requireUnsent(req, "timeout");
-                if(!ms.isnumber())
-                    throw new LuaError("request:timeout(ms): expected a number of milliseconds, got "
-                        + ms.typename());
-                req.timeout = clampTimeout(ms.toint());
+                req.timeout = clampTimeout(Args.num(ms, "request:timeout", "ms", "milliseconds").toint());
                 return h;
             }
         });

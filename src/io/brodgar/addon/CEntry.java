@@ -5,7 +5,6 @@ import haven.GOut;
 import haven.ReadLine;
 import haven.TextEntry;
 
-import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
 /**
@@ -72,9 +71,10 @@ final class CEntry extends TextEntry implements Owned.Control, Controls.Value, C
 
     /** {@code e:value(v)} — {@code v} must be a string; replaces the buffer outright, so it does NOT fire :onChange. */
     public void value(LuaValue v) {
-        if(!v.isstring() || v.isnumber())   // in LuaJ a number IS a string -- that one is just the wrong type
-            throw new LuaError("widget:value(v) on a text entry is a STRING, got " + v.typename());
-        rsettext(v.tojstring());
+        // Args.str, which asks the TYPE: the hand-rolled !isstring() || isnumber() refused "42" and "061.8",
+        // ordinary strings a user types into an ordinary field, because in LuaJ a string that scans as a
+        // number answers isnumber() too.
+        rsettext(Args.str(v, "widget:value", "v", "the text this entry holds").tojstring());
     }
 
     /** A real edit (any keystroke that changes the buffer, {@code ReadLine.Owner}'s own per-edit hook). */

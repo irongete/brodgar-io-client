@@ -94,8 +94,10 @@ Under `src/io/brodgar/addon/`:
 - `LuaBuff`, `LuaMeter`, `LuaSound`, `LuaIconCat`, `LuaMask`, `ProfHandle`, `ProfScope`,
   `OptionsHandle`, the five `*Options` — 2
 - `SessionApi`, `AssetApi`, `FontApi`, `MapApi` — 3
-- `LuaKin`, `LuaItem`, `WorldApi`, `Controls`, `HttpApi`, `HookApi`, `KeybindingsOptions`,
-  `AddonManager` — 4 · `LuaSession`, `StoreApi` — 5
+- `LuaKin`, `LuaItem`, `WorldApi`, `Controls`, `CEntry`, `CRadio`, `HttpApi`, `HookApi`,
+  `KeybindingsOptions`, `AddonManager` — 4 · `LuaSession`, `StoreApi` — 5
+- `AudioOptions`, `CameraOptions`, `InterfaceOptions`, `VideoOptions`, `ProfHandle`, `CProgress`,
+  `CSlider`, `CScrollbar`, `CScrollport`, `CTable`, `LuaPosition` — 7
 
 A suite reaches a live handle of every type it proves, and the reach spellings are on the reference
 pages rather than in the bridge: `api/README.md` (the index), `char.md`, `fight.md`, `ui/custom.md`,
@@ -105,5 +107,6 @@ pages rather than in the bridge: `api/README.md` (the index), `char.md`, `fight.
 Pages: `api/conventions.md` — 1 (the object level of "a retired name says what replaced it"), 3, 4, 5 ·
 `api/buff.md`, `meter.md`, `study.md`, `map/markers.md` — 3 ·
 `api/ui/controls/interactive.md` — 4 · `api/session.md`, `store.md`, `font.md` — 5 ·
+`api/client/README.md`, `api/ui/controls/interactive.md`, `api/position.md` — 7 ·
 `docs/client/widgets.md` — 5 · `docs/client/ui-controls.md` — 4 · `DOCUMENTATION.md` — 3, 4, 5 ·
 `audit/INVENTORY.md` — every task, for the ids `/end` ticks.

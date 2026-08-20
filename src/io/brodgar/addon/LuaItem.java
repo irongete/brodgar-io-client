@@ -367,9 +367,7 @@ public final class LuaItem {
         LuaValue v = Args.written(a, i, verb, param);
         if(v == null)
             return def;
-        if(!v.isnumber())
-            throw new LuaError(verb + "(" + param + "): " + param + " must be a number, got " + v.typename());
-        return v.toint();
+        return Args.num(v, verb, param, null).toint();
     }
 
     /** Refuse an argument to a verb that has none, naming what the caller probably meant instead. */

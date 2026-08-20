@@ -49,6 +49,12 @@ e:on("Submitted", function(s) doSearch(s) end)
 e:value()          --> "gonzalo"
 ```
 
+`:value(s)` takes any string the field could hold, `"42"` and `"061.8"` among them, because a string that
+scans as a number is
+[still a string](../../conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number); a
+number itself is what is refused. The same holds for a [radio's](#radio) row labels, which are what
+`:value(v)` names one by.
+
 `Changed` fires on every keystroke that changes the text; `Submitted` fires once, when Enter is pressed,
 carrying the whole text — a programmatic `:value(v)` fires neither one. While it has focus, a keystroke
 goes to the field only, never also to your character, a hotkey, or the chat line.

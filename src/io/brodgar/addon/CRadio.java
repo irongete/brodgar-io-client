@@ -81,11 +81,11 @@ final class CRadio extends Widget implements Owned.Control, Controls.Value, Cont
         String[] labels = new String[n];
         HashSet<String> seen = new HashSet<String>();
         for(int i = 1; i <= n; i++) {
-            LuaValue lv = t.get(i);
-            if(!lv.isstring() || lv.isnumber())   // in LuaJ a number IS a string -- that one is just the wrong type
-                throw new LuaError("widget:rows(t) on a radio is an array of STRING labels, row " + i + " is a "
-                    + lv.typename());
-            String label = lv.tojstring();
+            // Args.str, which asks the TYPE: the hand-rolled test refused a label like "061.8", because in
+            // LuaJ a string that scans as a number answers isnumber() — and a row so labelled is then
+            // unreachable by :value(label) as well.
+            String label = Args.str(t.get(i), "widget:rows", "row " + i,
+                                    "a radio's rows are STRING labels").tojstring();
             if(!seen.add(label))
                 throw new LuaError("widget:rows(t) on a radio: \"" + label + "\" is repeated — row labels must"
                     + " be unique, since :value(label) is how one is chosen");
@@ -115,10 +115,8 @@ final class CRadio extends Widget implements Owned.Control, Controls.Value, Cont
 
     /** {@code r:value(v)} — {@code v} names one of {@link #rows}'s labels; an unknown one is refused naming them. */
     public void value(LuaValue v) {
-        if(!v.isstring())
-            throw new LuaError("widget:value(v) on a radio is the LABEL of one of its rows (a string), got "
-                + v.typename());
-        String label = v.tojstring();
+        String label = Args.str(v, "widget:value", "v",
+                                "the LABEL of one of this radio's rows").tojstring();
         RadioGroup.RadioButton rb = byLabel.get(label);
         if(rb == null)
             throw new LuaError("widget:value(v) on a radio — no row named \"" + label + "\"; this radio's rows"

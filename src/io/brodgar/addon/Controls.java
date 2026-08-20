@@ -976,7 +976,7 @@ final class Controls {
             return;
         }
         if(w instanceof haven.TextEntry) {
-            String s = str(v, "a text entry", "a STRING");
+            String s = str(v, "a text entry", "the text it holds");
             synchronized(mon) { ((haven.TextEntry)w).settext(s); }
             return;
         }
@@ -998,25 +998,14 @@ final class Controls {
         throw noValue(w);
     }
 
-    /** {@code v} as the number a slider or a scrollbar holds, or the refusal naming what it is. */
+    /** {@code v} as the number a slider or a scrollbar holds, through {@link Args#num}. */
     private static int num(LuaValue v, String what) {
-        if(!v.isnumber())
-            throw new LuaError("widget:value(v) on " + what + " is a NUMBER within its range, got "
-                + v.typename());
-        return v.toint();
+        return Args.num(v, "widget:value", "v", "on " + what + " it is a position within its range").toint();
     }
 
-    /**
-     * {@code v} as a string. <b>{@code TSTRING} rather than {@code isstring()}</b>, the test
-     * {@code widget:send} already uses: in Lua the two coercions run BOTH ways, so a number answers
-     * {@code isstring()} <i>and</i> a string that scans as a number answers {@code isnumber()} — and the
-     * idiom that tests both refuses {@code "061.8"} and {@code "42"}, which are ordinary strings. The type
-     * is the question here, so the type is what is asked.
-     */
+    /** {@code v} as a string, through {@link Args#str} — which is where the LuaJ coercion rule is stated. */
     private static String str(LuaValue v, String what, String is) {
-        if(v.type() != LuaValue.TSTRING)
-            throw new LuaError("widget:value(v) on " + what + " is " + is + ", got " + v.typename());
-        return v.tojstring();
+        return Args.str(v, "widget:value", "v", "on " + what + " it is " + is).tojstring();
     }
 
     /** A value into the bounds the control itself carries — clamped, exactly as a control you built is. */
@@ -1203,9 +1192,8 @@ final class Controls {
             throw new LuaError("widget:rowHeight(n) sets a list's ROW HEIGHT, and hafen.ui():list(),"
                 + " hafen.ui():dropdown(), hafen.ui():menu() and hafen.ui():table() are the builders that take"
                 + " one — " + LuaWidget.typeName(w) + " has none.");
-        if(!v.isnumber())
-            throw new LuaError("widget:rowHeight(n) — n must be a NUMBER of pixels, got " + v.typename());
-        int des = v.toint();                  // DESIGN px, as written: checked, reported and only then converted
+        // DESIGN px, as written: checked, reported and only then converted
+        int des = Args.num(v, "widget:rowHeight", "n", "a NUMBER of design pixels").toint();
         if(des <= 0)
             throw new LuaError("widget:rowHeight(n) — n must be a POSITIVE number of pixels, got " + des);
         int n = Px.in(des);                   // 058.3: the client's own row widgets measure in device px
@@ -1274,13 +1262,9 @@ final class Controls {
         if(!(c instanceof Cell))
             throw new LuaError("widget:cell(w, h) sets a GRID's CELL SIZE, and hafen.ui():grid() is the builder"
                 + " that takes one — " + LuaWidget.typeName(w) + " has none.");
-        LuaValue wv = Args.required(a, 2, "widget:cell", "w");
-        LuaValue hv = Args.required(a, 3, "widget:cell", "h");
-        if(!wv.isnumber())
-            throw new LuaError("widget:cell(w, h) — w must be a NUMBER of pixels, got " + wv.typename());
-        if(!hv.isnumber())
-            throw new LuaError("widget:cell(w, h) — h must be a NUMBER of pixels, got " + hv.typename());
-        int cw = wv.toint(), ch = hv.toint();          // DESIGN px, as written: checked and reported in that space
+        // DESIGN px, as written: checked and reported in that space
+        int cw = Args.num(a, 2, "widget:cell", "w", "a NUMBER of design pixels").toint();
+        int ch = Args.num(a, 3, "widget:cell", "h", "a NUMBER of design pixels").toint();
         if((cw <= 0) || (ch <= 0))
             throw new LuaError("widget:cell(w, h) — both must be POSITIVE numbers of pixels, got " + cw + "x" + ch);
         if(!c.pending())

@@ -42,7 +42,7 @@
       `:find`/`:nearest` and must **not** contain `":get"`.
       `[manual]`: none.
 
-- [ ] **084.4 — One door for an argument.** `Args` grows `str` and `num` asserting
+- [x] **084.4 — One door for an argument.** `Args` grows `str` and `num` asserting
       `type() == TSTRING`/`TNUMBER` — the idiom `SessionApi.getMember` already carries with its reason —
       and the twelve hand-written type tests collapse onto them, closing both directions:
       **`s:kin():add(1234)` stops sending `"1234"` as a hearth secret**, and `entry:value("42")` and
@@ -92,3 +92,25 @@
       means both — `widget:show` — must still fire on both.
       `[manual]`: none.
       <!-- extra context: src/io/brodgar/addon/VrApi.java (entityHandle), Retired.java (the widget: rows) -->
+
+- [ ] **084.7 — The doors the nine files did not reach.** `Args.str`/`Args.num` close the nine files
+      084.4 names and stop there, so the feature's own claim — *no LuaJ `bad argument` reaches an author* —
+      is still false at fourteen sites: `AudioOptions`, `CameraOptions`, `InterfaceOptions`, `VideoOptions`
+      and `ProfHandle` reach `checkjstring`/`checkdouble`, so `hafen.client():profiling():scope()` answers
+      *bad argument: string expected, got no value*. They are five of the twelve 084.2 gave `closedIndex`,
+      and they take `Args` the same way. The numeric controls go with them: `CProgress`, `CSlider`,
+      `CScrollbar`, `CScrollport`, `CTable` and `LuaPosition`'s own `num` still test `isnumber()`, so
+      `slider:value("50")` and `p:offset("1", 2)` coerce where their siblings `entry:value` and
+      `radio:value` no longer do — one control family, two type languages.
+      *Its suite* asserts the negative over every door at once, which is the whole of it: a table of calls
+      that must each raise, no message containing `"bad argument"` and each naming its own verb and
+      parameter — `p:scope()`, `p:measure()`, `opts:audio():masterVolume("loud")`,
+      `opts:video():fpsLimit("60")`, `opts:interface():scale("2")`, `opts:camera():mode(1)`. Then the
+      coercion, both ways: `slider:value("50")` and `p:offset("1", 2)` must refuse naming a number, and
+      `slider:value(50)` after a `:range(0, 100)` must still be taken. Its refusal:
+      `opts:audio():masterVolume(2)` must go on naming the `0.0..1.0` range, so the range refusal is not
+      swallowed by the type one.
+      `[manual]`: none.
+      <!-- extra context: src/io/brodgar/addon/ProfHandle.java, AudioOptions.java, VideoOptions.java,
+           InterfaceOptions.java, CameraOptions.java, CSlider.java, CScrollbar.java, CScrollport.java,
+           CProgress.java, CTable.java, LuaPosition.java · docs/addons/api/client/README.md (the reach) -->

@@ -42,8 +42,15 @@ w:title("Scout"):size(180, 48)     -- writes, and chains
 ```
 
 There is one name per property: no `getX`, no `setX`, no `clearX`. A boolean is a property like any other,
-so a window is shown with `w:visible(true)` rather than a second verb. `coll:get(key)` is no exception: it
-addresses a member rather than reading a property.
+so a window is shown with `w:visible(true)` rather than a second verb.
+
+**Arity binds a verb that names a property.** Three families take arguments without being writes:
+
+| Family | What the argument is | Examples |
+|---|---|---|
+| addressing | which member you want | `coll:get(key)`, `req:header(name)`, `s:world():grid():at(p)` |
+| actions | how the doing is done | `item:drop(n)`, `s:world():place(p, angle, button, mods)`, `sound:play(volume)` |
+| conversions | what is being converted | `p:offset(dx, dy)`, `p:distance(other)`, `grid:tile(c)` |
 
 ### Collections: the noun is the kind, the verb is how many
 
@@ -101,21 +108,28 @@ nothing else does; every shape it returns is in [data types](types.md).
 
 ### nil is an error unless it means something
 
-An explicit `nil` argument raises. Arity is the verb, so a value you meant to write but that arrived
-as `nil` would otherwise turn the write into a read, silently. The meanings it does carry are
-documented on the page that carries each: **undo your layer** (`w:position(nil)`, `w:size(nil)`,
-`w:replace(nil)`), **none** (a `tint(nil)`) and **the root screen** (`pag:parent(nil)`). Everywhere
-else it is an accident, and there is nothing to undo.
+An explicit `nil` argument raises: arity is the verb, so a value that arrived as `nil` would otherwise turn
+the write into a read, silently. Every meaning it does carry is here, and anywhere else it is an accident:
 
-```lua
-w:position(x, y)          -- with an x you forgot to compute, this raises
-w:position()              -- the read is the same verb with no argument
-```
+| `nil` means | Where |
+|---|---|
+| undo your layer, back to the client's own | `w:position(nil)`, `w:size(nil)`, `w:text(nil)`, `w:title(nil)`, `w:replace(nil)` |
+| end the hold | `slot:pagina(nil)` |
+| none | a [vr entity](vr/README.md)'s `:tint(nil)` |
+| the root screen | `pag:parent(nil)` |
+| everything | a [filter](#the-filter-argument): `coll:list(nil)`, `:count(nil)`, `:find(nil)` |
 
 The bridge separates the two cases by counting arguments, and it is exact for a value you pass
 directly, a table field included: `w:size(cfg.width, cfg.height)` with a missing key raises. One gap
 is inherent to it: `f(g())` where `g` returns *nothing* arrives as no argument at all and is read as
 `f()`. A `g` that returns an explicit `nil` is refused like any other value.
+
+### A number is not a string, and a numeric string is not a number
+
+What is checked is an argument's **type**, never what Lua would convert it to: `s:kin():add(1234)` is refused
+because a hearth secret is a string, while `entry:value("42")` is taken and a radio row may be labelled
+`"061.8"`, a string that happens to scan as a number being an ordinary string. The refusal names the verb, the
+parameter and the conversion you meant — `tostring(n)` one way, `tonumber(s)` the other.
 
 ### A table is a value, never named arguments
 

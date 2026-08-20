@@ -420,7 +420,7 @@ public final class LuaWidget {
                         UiApi.releaseMoved(owner, w, true);
                     return self;
                 }
-                Coord to = Coord.of(a.checkint(2), a.checkint(3));          // DESIGN pixels, as written
+                Coord to = pixels(a, "widget:position", "x", "y");          // DESIGN pixels, as written
                 if(w != null) {
                     synchronized(monitor(w)) {
                         if(ownedContent(owner, w) == null) {
@@ -461,7 +461,8 @@ public final class LuaWidget {
                             UiApi.releaseMoved(owner, w, false);
                         return self;
                     }
-                    int width = a.checkint(2);            // w:size(w) — the width; the art answers for the height
+                    // w:size(w) — the width; the art answers for the height
+                    int width = Args.num(a, 2, "widget:size", "w", "a width in design pixels").toint();
                     if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
                         return self;
                     Owned content = ownedContent(owner, w);
@@ -483,7 +484,7 @@ public final class LuaWidget {
                     }
                     return self;
                 }
-                Coord to = Coord.of(a.checkint(2), a.checkint(3));          // DESIGN pixels, as written
+                Coord to = pixels(a, "widget:size", "w", "h");              // DESIGN pixels, as written
                 if(w != null) {
                     Owned content = ownedContent(owner, w);
                     Coord dev = Px.in(to);
@@ -650,13 +651,11 @@ public final class LuaWidget {
                         rememberForget(owner, w);
                     return self;
                 }
-                // TSTRING rather than isstring(): a NUMBER answers isstring() in Lua, so the laxer test would
-                // let a name that is a number through and remember a window under "42" — a key nothing in the
-                // addon would ever spell that way again.
-                if(v.type() != LuaValue.TSTRING)
-                    throw new LuaError("widget:remember(name) expects a string — the name YOUR addon saves this"
-                        + " widget's place and box under. widget:remember() reads it, and widget:remember(nil)"
-                        + " drops the name and deletes what it held");
+                // Args.str, not isstring(): a NUMBER answers isstring() in Lua, so the laxer test would let a
+                // name that is a number through and remember a window under "42" — a key nothing in the addon
+                // would ever spell that way again.
+                Args.str(v, "widget:remember", "name",
+                         "the name YOUR addon saves this widget's place and box under");
                 if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
                     return self;
                 rememberAs(owner, w, v.tojstring());
@@ -877,13 +876,11 @@ public final class LuaWidget {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.WIDGET_SEND);
-                LuaValue msgv = Args.required(a, 2, "widget:send", "msg");
-                // TSTRING rather than isstring(): in Lua a NUMBER answers isstring() (the coercion), so the
-                // laxer test would quietly put "42" on the wire as a message name — which is exactly the
-                // silent misread this grammar refuses. A message name is a string or it is a mistake.
-                if(msgv.type() != LuaValue.TSTRING)
-                    throw new LuaError("widget:send(msg, ...): msg must be a string — the message name the"
-                        + " server knows this widget by (\"click\", \"activate\", …)");
+                // Args.str, not isstring(): in Lua a NUMBER answers isstring() (the coercion), so the laxer
+                // test would quietly put "42" on the wire as a message name — which is exactly the silent
+                // misread this grammar refuses. A message name is a string or it is a mistake.
+                LuaValue msgv = Args.str(a, 2, "widget:send", "msg",
+                    "the message name the server knows this widget by, \"click\", \"activate\", …");
                 Widget w = live(handle(self, "send"));
                 if(w == null)
                     throw new LuaError("widget:send(msg, ...): this widget is gone — it left the tree"
@@ -1044,8 +1041,7 @@ public final class LuaWidget {
                 }
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
-                if(!v.isstring())
-                    throw new LuaError("widget:tooltip(s): the tooltip is a string, got " + v.typename());
+                Args.str(v, "widget:tooltip", "s", "the line the tooltip shows");
                 owned(owner, w, "tooltip(s)");
                 String s = v.tojstring();
                 synchronized(monitor(w)) { w.tooltip = s.isEmpty() ? null : s; }
@@ -2785,6 +2781,18 @@ public final class LuaWidget {
             }
         }
         return from.checkhit(c) ? from : null;
+    }
+
+    /**
+     * The two DESIGN-pixel numbers a geometry write takes, as the {@link Coord} it means. It goes through
+     * {@link Args#num} rather than LuaJ's {@code checkint}, which answers <i>bad argument: number expected,
+     * got nil</i> and names neither the verb nor which of the two was missing — so {@code w:position(nil, 10)}
+     * reads as the house nil refusal, and a number-shaped string is refused rather than coerced.
+     */
+    private static Coord pixels(Varargs a, String verb, String px, String py) {
+        int x = Args.num(a, 2, verb, px, "a design pixel").toint();
+        int y = Args.num(a, 3, verb, py, "a design pixel").toint();
+        return Coord.of(x, y);
     }
 
     /**

@@ -29,6 +29,12 @@ import org.luaj.vm2.Varargs;
  * conventions page states this and the suite asserts it, because a limit that is written down is a contract
  * and a limit that is not is a defect waiting to be discovered.
  *
+ * <p><b>And the type discipline beside it.</b> {@link #str} and {@link #num} are the API's only two type
+ * assertions, and they ask {@link LuaValue#type()} rather than {@code isstring()}/{@code isnumber()} for the
+ * reason written on {@link #str}: in LuaJ those two predicates coerce, so the laxer test lets a number
+ * through as a name and the defensive one refuses a perfectly ordinary string. Stating the rule once is what
+ * keeps the twelve hand-rolled variants of it from disagreeing.
+ *
  * <p>Index conventions: on a colon call the receiver is argument 1, so a verb's first real argument is 2; on
  * a {@code __call} metamethod the callable table itself is argument 1, so the same holds.
  */
@@ -67,6 +73,57 @@ final class Args {
             throw nilRefused(verb, param);
         return v;
     }
+
+    /**
+     * A <b>required string</b> argument, and the one place the API states LuaJ's coercion rule.
+     *
+     * <p><b>In LuaJ a number IS a string and a numeric string IS a number.</b> {@code isstring()} answers
+     * {@code true} for {@code 42} and {@code isnumber()} answers {@code true} for {@code "42"} — they are
+     * arithmetic-coercion predicates, not type tests. So a hand-rolled {@code !v.isstring()} lets a number
+     * through as a name, and the defensive {@code !v.isstring() || v.isnumber()} refuses {@code "061.8"},
+     * which is an ordinary string. Both mistakes were shipped, in opposite directions, and both are the same
+     * mistake: the question here is the <b>type</b>, so the type is what is asked.
+     *
+     * <p>{@code hint} is the half of the sentence only the call site knows — <i>the other player's hearth
+     * secret</i> — or {@code null} where the parameter name says it all.
+     */
+    static LuaValue str(Varargs a, int i, String verb, String param, String hint) {
+        return str(required(a, i, verb, param), verb, param, hint);
+    }
+
+    /** {@link #str(Varargs, int, String, String, String)} over a value already in hand (a table field, a
+     *  {@link #written} result, a control's {@code value(v)}). */
+    static LuaValue str(LuaValue v, String verb, String param, String hint) {
+        if(v.type() != LuaValue.TSTRING)
+            throw new LuaError(verb + ": " + param + " must be a string" + hint(hint) + ", got " + v.typename()
+                + ((v.type() == LuaValue.TNUMBER) ? NUMBER_IS_NOT : ""));
+        return v;
+    }
+
+    /** A <b>required number</b> argument, by type — the other half of {@link #str}, and the same reason. */
+    static LuaValue num(Varargs a, int i, String verb, String param, String hint) {
+        return num(required(a, i, verb, param), verb, param, hint);
+    }
+
+    /** {@link #num(Varargs, int, String, String, String)} over a value already in hand. */
+    static LuaValue num(LuaValue v, String verb, String param, String hint) {
+        if(v.type() != LuaValue.TNUMBER)
+            throw new LuaError(verb + ": " + param + " must be a number" + hint(hint) + ", got " + v.typename()
+                + ((v.type() == LuaValue.TSTRING) ? STRING_IS_NOT : ""));
+        return v;
+    }
+
+    /** What the call site knows and the parameter name does not, in parentheses, or nothing. */
+    private static String hint(String hint) {
+        return (hint == null) ? "" : (" (" + hint + ")");
+    }
+
+    private static final String NUMBER_IS_NOT =
+        " — a number is not a string here, whatever Lua does with it in a concatenation; tostring(n) is the"
+        + " conversion if that is what you meant";
+    private static final String STRING_IS_NOT =
+        " — a string that merely scans as a number is still a string; tonumber(s) is the conversion if that"
+        + " is what you meant";
 
     /** The refusal itself, worded so the reader knows both what went wrong and what the read arity is. */
     static LuaError nilRefused(String verb, String param) {

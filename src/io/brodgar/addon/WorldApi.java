@@ -111,12 +111,9 @@ final class WorldApi {
                 LuaValue first = Args.required(a, 2, W + ":position", "x (or a saved position)");
                 if(first.istable())
                     return savedPosition(owner, first);
-                if(!first.isnumber())
-                    throw new LuaError(W + ":position(x, y): x and y are session world components,"
-                        + " or pass the one table p:info() gave you");
-                LuaValue yv = Args.required(a, 3, W + ":position", "y");
-                if(!yv.isnumber())
-                    throw new LuaError(W + ":position(x, y): y must be a number");
+                Args.num(first, W + ":position", "x",
+                         "a session world component, or pass the one table p:info() gave you");
+                LuaValue yv = Args.num(a, 3, W + ":position", "y", "a session world component");
                 return LuaPosition.ofWorld(owner, user, first.todouble(), yv.todouble());
             }
         });
@@ -558,10 +555,7 @@ final class WorldApi {
 
     /** A required number argument, refusing an explicit nil like every other write does (§2.9). */
     static double number(Varargs a, int i, String verb, String param) {
-        LuaValue v = Args.required(a, i, verb, param);
-        if(!v.isnumber())
-            throw new LuaError(verb + ": " + param + " must be a number");
-        return v.todouble();
+        return Args.num(a, i, verb, param, null).todouble();
     }
 
     /**

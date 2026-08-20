@@ -1,0 +1,10 @@
+{
+  "name": "084.4 — one door for an argument",
+  "id": "084-every-refusal-names-the-fix.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 084.4: a number fails a string check, a numeric string fails a number check, and no LuaJ 'bad argument' reaches an author.",
+  "api_version": 1,
+  "permissions": ["kin.add", "world.place", "item.drop"],
+  "files": ["main.lua"]
+}

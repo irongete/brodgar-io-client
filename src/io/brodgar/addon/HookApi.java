@@ -100,7 +100,7 @@ final class HookApi {
         slash.set("register", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "slash", "register");
-                return newSlashCommand(owner, a.arg(2), a.arg(3));
+                return newSlashCommand(owner, a);
             }
         });
         Section.install(hafen, "slash", slash);
@@ -115,10 +115,15 @@ final class HookApi {
 
     // ================================================================= slash commands (hafen.slash, A11)
 
-    private static LuaValue newSlashCommand(final Addon owner, LuaValue name, LuaValue fn) {
-        if(!name.isstring() || !fn.isfunction())
-            throw new LuaError("hafen.slash():register(name, fn) expects (string, function)");
-        final String cmd = name.tojstring();
+    private static LuaValue newSlashCommand(final Addon owner, Varargs a) {
+        // Args first, and one argument at a time: "expects (string, function)" named neither which of the
+        // two was missing nor which was the wrong kind, and a missing one is the commoner mistake.
+        final String cmd = Args.str(a, 2, "hafen.slash():register", "name",
+                                    "the word typed after the colon").tojstring();
+        LuaValue fn = Args.required(a, 3, "hafen.slash():register", "fn");
+        if(!fn.isfunction())
+            throw new LuaError("hafen.slash():register: fn must be a function — it is called with the rest"
+                + " of the line, got " + fn.typename());
         if((cmd.length() == 0) || hasWhitespace(cmd))
             throw new LuaError("hafen.slash():register: name must be a non-empty word with no spaces (got '" + cmd + "')");
         if(isReservedSlash(cmd))
