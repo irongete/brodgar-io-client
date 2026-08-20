@@ -38,6 +38,12 @@ There is no `get`/`set` pair — one name per option. Always use a **colon** cal
 anything else is an error. Invalid values raise a Lua error rather than being clipped, so a bad write fails
 loudly instead of silently doing nothing.
 
+A **number** option refuses `"60"` and a **string** option refuses `60`: what is checked is the value's
+type, and a numeric string is
+[still a string](../conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number). The
+refusal names the option and its parameter, and it fires before the option is looked up at all, so it is the
+same refusal whether or not the client's UI is up yet.
+
 **An explicit `nil` is an error**, not a read. Because the argument is what makes a call a write,
 `opts:video():shadows(v)` with a `v` that turns out to be `nil` would otherwise read the option and
 report nothing wrong, leaving a write nobody made and a bug with no symptom. Test the value before you
@@ -159,7 +165,8 @@ A write moves an **open** panel's checkbox immediately, since the panel re-reads
 ## Before the client is up
 
 `video()` and `audio()` read **`nil`** until the client's UI exists, because their backing systems are built
-with it, and a write in that window is ignored. `interface()`, `camera()` and `client()` always answer. In
+with it, and a write in that window is ignored — its argument is checked first either way, so a bad one
+raises there as it does anywhere else. `interface()`, `camera()` and `client()` always answer. In
 practice this only matters if you touch options at load time on the login screen — guard the value, or do it
 from `SessionEnteredWorld`:
 

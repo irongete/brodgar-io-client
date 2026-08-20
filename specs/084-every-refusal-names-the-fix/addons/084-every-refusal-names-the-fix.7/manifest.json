@@ -1,0 +1,9 @@
+{
+  "name": "084.7 — the doors the nine files did not reach",
+  "id": "084-every-refusal-names-the-fix.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 084.7: the fourteen options, profiling and numeric-control doors refuse naming their own verb and parameter instead of leaking a LuaJ 'bad argument', a numeric string stops coercing on a slider and a Position, and the range refusals underneath are not swallowed by the type one.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

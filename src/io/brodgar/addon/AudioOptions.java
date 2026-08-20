@@ -38,11 +38,11 @@ public final class AudioOptions {
         return (u == null) ? null : u.audio;
     }
 
-    /** A volume argument, rejected outside 0..1 rather than silently clipped. */
-    private static double volume(LuaValue value, String method) {
-        double v = value.checkdouble();
+    /** A volume, refused outside 0..1 rather than silently clipped. The TYPE is refused first, by the
+     *  caller's {@code num} — so "loud" names a number and 2.0 goes on naming the range. */
+    private static double volume(double v, String verb) {
         if((v < 0) || (v > 1))
-            throw new LuaError("audio:" + method + "(v) — volume must be between 0.0 and 1.0 (got " + v + ")");
+            throw new LuaError(verb + "(v) — volume must be between 0.0 and 1.0 (got " + v + ")");
         return v;
     }
 
@@ -54,9 +54,10 @@ public final class AudioOptions {
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.sys.volume());
             }
             protected void onWrite(LuaValue value) {
+                double v = volume(num(value, "v", "a volume from 0.0 to 1.0").todouble(), verb());
                 ActAudio.Root a = audio();
                 if(a != null)
-                    a.sys.volume(volume(value, "masterVolume"));
+                    a.sys.volume(v);
             }
         });
         m.set("uiVolume", new OptionsMethod(handle, "audio:uiVolume") {
@@ -65,9 +66,10 @@ public final class AudioOptions {
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.aui.volume);
             }
             protected void onWrite(LuaValue value) {
+                double v = volume(num(value, "v", "a volume from 0.0 to 1.0").todouble(), verb());
                 ActAudio.Root a = audio();
                 if(a != null)
-                    a.aui.setvolume(volume(value, "uiVolume"));
+                    a.aui.setvolume(v);
             }
         });
         m.set("eventVolume", new OptionsMethod(handle, "audio:eventVolume") {
@@ -76,9 +78,10 @@ public final class AudioOptions {
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.pos.volume);
             }
             protected void onWrite(LuaValue value) {
+                double v = volume(num(value, "v", "a volume from 0.0 to 1.0").todouble(), verb());
                 ActAudio.Root a = audio();
                 if(a != null)
-                    a.pos.setvolume(volume(value, "eventVolume"));
+                    a.pos.setvolume(v);
             }
         });
         m.set("ambientVolume", new OptionsMethod(handle, "audio:ambientVolume") {
@@ -87,9 +90,10 @@ public final class AudioOptions {
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.amb.volume);
             }
             protected void onWrite(LuaValue value) {
+                double v = volume(num(value, "v", "a volume from 0.0 to 1.0").todouble(), verb());
                 ActAudio.Root a = audio();
                 if(a != null)
-                    a.amb.setvolume(volume(value, "ambientVolume"));
+                    a.amb.setvolume(v);
             }
         });
 
@@ -104,15 +108,16 @@ public final class AudioOptions {
                 return LuaValue.valueOf((a.sys.bufsize() * 1000.0) / Audio.SAMPLE_RATE);
             }
             protected void onWrite(LuaValue value) {
-                ActAudio.Root a = audio();
-                if(a == null)
-                    return;
-                long samples = Math.round((value.checkdouble() * Audio.SAMPLE_RATE) / 1000.0);
+                double ms = num(value, "ms", "the output buffer in milliseconds").todouble();
+                long samples = Math.round((ms * Audio.SAMPLE_RATE) / 1000.0);
                 long min = 128, max = Math.round(Audio.SAMPLE_RATE / 4.0);
                 if((samples < min) || (samples > max))
                     throw new LuaError("audio:latency(ms) — must be between "
                                        + ((min * 1000) / Audio.SAMPLE_RATE) + " and "
                                        + ((max * 1000) / Audio.SAMPLE_RATE) + " ms (got " + value.tojstring() + ")");
+                ActAudio.Root a = audio();
+                if(a == null)
+                    return;
                 a.sys.bufsize((int)samples);   // reopens the output line
             }
         });

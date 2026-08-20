@@ -428,11 +428,9 @@ public final class LuaPosition {
         return p;
     }
 
-    /** A required number argument, refusing an explicit nil like every other write does (§2.9). */
+    /** A required number argument, by TYPE and refusing an explicit nil like every other write does
+     *  (§2.9) — the house door, so {@code p:offset("1", 2)} is refused here as it is everywhere else. */
     private static double num(Varargs a, int i, String verb, String param) {
-        LuaValue v = Args.required(a, i, verb, param);
-        if(!v.isnumber())
-            throw new LuaError(verb + ": " + param + " must be a number (world units)");
-        return v.todouble();
+        return Args.num(a, i, verb, param, "world units").todouble();
     }
 }

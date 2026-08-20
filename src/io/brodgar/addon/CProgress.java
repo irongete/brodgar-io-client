@@ -45,10 +45,8 @@ final class CProgress extends Progress implements Owned.Control, Controls.Value 
 
     /** {@code p:value(v)} — {@code v} must be a number in {@code 0..1}; anything else is refused, not clamped. */
     public void value(LuaValue v) {
-        if(!v.isnumber())
-            throw new LuaError("widget:value(v) on a progress bar is a NUMBER in 0..1 (the fraction filled),"
-                + " got " + v.typename());
-        double d = v.todouble();
+        double d = Args.num(v, "widget:value", "v", "on a progress bar it is the fraction filled, 0..1")
+            .todouble();
         if((d < 0.0) || (d > 1.0))
             throw new LuaError("widget:value(v) on a progress bar must be in 0..1 (the fraction filled), got "
                 + d + " — a percentage is v / 100, not v");

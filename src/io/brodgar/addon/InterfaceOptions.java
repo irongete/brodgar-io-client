@@ -43,7 +43,7 @@ public final class InterfaceOptions {
                 return LuaValue.valueOf(Utils.getprefd("uiscale", 1.0));
             }
             protected void onWrite(LuaValue value) {
-                double v = value.checkdouble();
+                double v = num(value, "v", "1.0 is the display's own pixels").todouble();
                 if(!(v > 0))
                     throw new LuaError("interface:scale(v) — scale must be positive (got " + v + ")");
                 Utils.setprefd("uiscale", v);
@@ -57,7 +57,7 @@ public final class InterfaceOptions {
                 return LuaValue.valueOf(MapView.plobpgran);
             }
             protected void onWrite(LuaValue value) {
-                double v = value.checkdouble();
+                double v = num(value, "v", "subdivisions per tile, or 0 for unsnapped").todouble();
                 if(v < 0)
                     throw new LuaError("interface:posGran(v) — expected 0 (infinite) or a positive number (got " + v + ")");
                 Utils.setprefd("plobpgran", MapView.plobpgran = v);
@@ -70,7 +70,7 @@ public final class InterfaceOptions {
                 return LuaValue.valueOf(180.0 / MapView.plobagran);
             }
             protected void onWrite(LuaValue value) {
-                double deg = value.checkdouble();
+                double deg = num(value, "degrees", "degrees per step, not the divisor").todouble();
                 if(!(deg > 0))
                     throw new LuaError("interface:angGran(degrees) — degrees must be positive (got " + deg + ")");
                 Utils.setprefd("plobagran", MapView.plobagran = (180.0 / deg));

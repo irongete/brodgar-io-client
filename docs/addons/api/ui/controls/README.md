@@ -71,6 +71,10 @@ the server sees, so that one is protected. A write is checked by the control it 
 refuses one outside `0..1`, naming the rule, while a [slider or scrollbar](interactive.md#slider) instead
 CLAMPS a write outside its own `:range` to the nearer bound — because that range is something you set
 yourself with `:range(min, max)` and can narrow at any time, not a fixed contract the value can violate.
+What all three refuse first is the **type**: a number is a number here, and `"50"` is
+[still a string](../../conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number) — the
+mirror of what a [text entry](interactive.md#text-entry) takes. The two bounds of `:range(min, max)` are
+read the same way.
 
 None of this is protected on a control **you** built: it is your own UI, just as
 [a surface you paint](../custom.md) is — every setter above is client-side state, and every one of it

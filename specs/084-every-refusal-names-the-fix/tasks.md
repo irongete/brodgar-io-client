@@ -93,7 +93,7 @@
       `[manual]`: none.
       <!-- extra context: src/io/brodgar/addon/VrApi.java (entityHandle), Retired.java (the widget: rows) -->
 
-- [ ] **084.7 — The doors the nine files did not reach.** `Args.str`/`Args.num` close the nine files
+- [x] **084.7 — The doors the nine files did not reach.** `Args.str`/`Args.num` close the nine files
       084.4 names and stop there, so the feature's own claim — *no LuaJ `bad argument` reaches an author* —
       is still false at fourteen sites: `AudioOptions`, `CameraOptions`, `InterfaceOptions`, `VideoOptions`
       and `ProfHandle` reach `checkjstring`/`checkdouble`, so `hafen.client():profiling():scope()` answers

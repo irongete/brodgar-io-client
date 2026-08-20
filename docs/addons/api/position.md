@@ -21,7 +21,11 @@ hafen.store():get("spot").home = p        -- saved and reloaded as a Position, n
 
 ## Read
 
-Nothing here is protected and nothing throws.
+Nothing here is protected. A read answers `nil` where it has no answer rather than raising; what raises is a
+bad **argument** — `p:offset(dx, dy)` takes two numbers and `p:distance(other)` another Position, and each
+refuses anything else naming the verb and the parameter. A numeric string is
+[still a string](conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number), so
+`p:offset("1", 2)` is refused rather than converted.
 
 | Method | Returns | Description |
 |---|---|---|

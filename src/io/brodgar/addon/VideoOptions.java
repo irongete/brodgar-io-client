@@ -67,9 +67,10 @@ public final class VideoOptions {
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf((double)gs.rscale.val);
             }
             protected void onWrite(LuaValue value) {
+                double v = num(value, "v", "the render resolution multiplier").todouble();
                 GSettings gs = prefs();
                 if(gs != null)
-                    apply(gs.rscale, (float)value.checkdouble(), "renderScale");
+                    apply(gs.rscale, (float)v, "renderScale");
             }
         });
         m.set("vsync", new OptionsMethod(handle, "video:vsync") {
@@ -89,9 +90,10 @@ public final class VideoOptions {
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf((double)gs.hz.val);
             }
             protected void onWrite(LuaValue value) {
+                double v = num(value, "v", "frames per second, or math.huge for no limit").todouble();
                 GSettings gs = prefs();
                 if(gs != null)
-                    apply(gs.hz, (float)value.checkdouble(), "fpsLimit");
+                    apply(gs.hz, (float)v, "fpsLimit");
             }
         });
         m.set("bgFpsLimit", new OptionsMethod(handle, "video:bgFpsLimit") {
@@ -100,9 +102,10 @@ public final class VideoOptions {
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf((double)gs.bghz.val);
             }
             protected void onWrite(LuaValue value) {
+                double v = num(value, "v", "frames per second, or math.huge for no limit").todouble();
                 GSettings gs = prefs();
                 if(gs != null)
-                    apply(gs.bghz, (float)value.checkdouble(), "bgFpsLimit");
+                    apply(gs.bghz, (float)v, "bgFpsLimit");
             }
         });
         m.set("lightingMode", new OptionsMethod(handle, "video:lightingMode") {
@@ -111,10 +114,7 @@ public final class VideoOptions {
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf(gs.lightmode.val.name().toLowerCase());
             }
             protected void onWrite(LuaValue value) {
-                GSettings gs = prefs();
-                if(gs == null)
-                    return;
-                String nm = value.checkjstring().toUpperCase();
+                String nm = str(value, "mode", "\"simple\" or \"zoned\"").tojstring().toUpperCase();
                 GSettings.LightMode mode;
                 try {
                     mode = GSettings.LightMode.valueOf(nm);
@@ -122,6 +122,9 @@ public final class VideoOptions {
                     throw new LuaError("video:lightingMode(mode) — mode must be \"simple\" or \"zoned\" (got \""
                                        + value.tojstring() + "\")");
                 }
+                GSettings gs = prefs();
+                if(gs == null)
+                    return;
                 apply(gs.lightmode, mode, "lightingMode");
             }
         });
@@ -131,9 +134,10 @@ public final class VideoOptions {
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf((double)gs.maxlights.val);
             }
             protected void onWrite(LuaValue value) {
+                double v = num(value, "n", "how many dynamic lights at once").todouble();
                 GSettings gs = prefs();
                 if(gs != null)
-                    apply(gs.maxlights, (int)value.checkdouble(), "lightLimit");
+                    apply(gs.maxlights, (int)v, "lightLimit");
             }
         });
         return m;

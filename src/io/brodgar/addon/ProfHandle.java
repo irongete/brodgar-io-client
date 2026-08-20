@@ -262,7 +262,8 @@ public final class ProfHandle {
         // both use "update". Both verbs are no-ops when profiling is off.
         m.set("scope", new VarArgFunction() {
             public Varargs invoke(Varargs a) {   // colon call: arg(1) is the handle
-                return ProfScope.create(owner, a.arg(2).checkjstring());
+                return ProfScope.create(owner, Args.str(a, 2, "client:profiling():scope", "name",
+                    "the label this section shows under in p:addons()").tojstring());
             }
         });
 
@@ -270,9 +271,15 @@ public final class ProfHandle {
         // it returns, with the scope closed even if fn errors.
         m.set("measure", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                String name = a.arg(2).checkjstring();
-                LuaValue fn = a.arg(3).checkfunction();
-                return ProfScope.measure(owner, name, fn, a.subargs(4));
+                // `nm`, never `name`: LibFunction declares a protected `name` field that a local of that
+                // spelling shadows inside these anonymous subclasses (see ProfScope.create's own note).
+                String nm = Args.str(a, 2, "client:profiling():measure", "name",
+                    "the label this section shows under in p:addons()").tojstring();
+                LuaValue fn = Args.required(a, 3, "client:profiling():measure", "fn");
+                if(!fn.isfunction())
+                    throw new LuaError("client:profiling():measure: fn must be a function — it is run inside"
+                        + " the scope and whatever it returns is handed back, got " + fn.typename());
+                return ProfScope.measure(owner, nm, fn, a.subargs(4));
             }
         });
 

@@ -117,3 +117,13 @@ sample rather than assuming.
   plain literal table, so the wrong sentence only ever lands on an argument that was already nonsense —
   and the message it replaces named the receiver correctly either way. The one-line change is available
   to whichever task next opens that file for a reason of its own.
+- **An `Args.bool` beside `str` and `num`** — a boolean option and a boolean setter read their argument
+  with `toboolean()`, which takes anything that is not `nil` or `false`, so `video:shadows("no")` writes
+  *true* and `camera:invertHorizontal(0)` does too. It is the same silence the two type helpers close,
+  and it stands unclosed on the same reason they were chosen for: **two are the only two the API
+  needs.** The pair exists because LuaJ *coerces* between string and number and the laxer predicate is
+  therefore wrong in both directions; `toboolean()` coerces nothing — it implements Lua's own truthiness,
+  which is the language's rule and not this API's, and a verb that refused a truthy value would be
+  refusing what every `if` in the caller's file already accepts. No LuaJ `bad argument` reaches an
+  author through it, so the feature's claim holds. A verb that wants a *strict* boolean wants it for a
+  reason of its own and states it there.

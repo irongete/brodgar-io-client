@@ -183,10 +183,11 @@ abstract class CTable extends TableBox<CTable.TRow> implements Owned.Control, Co
                 throw new LuaError("widget:columns(t): column " + i + " is missing a string \"title\" key"
                     + " ({title=, width=, of=})");
             LuaValue widthv = e.get("width");
-            if(!widthv.isnumber())
+            if(widthv.isnil())
                 throw new LuaError("widget:columns(t): column " + i + " is missing a number \"width\" key"
                     + " ({title=, width=, of=})");
-            int width = widthv.toint();
+            int width = Args.num(widthv, "widget:columns", "column " + i + "'s \"width\"",
+                                 "the column's box in pixels").toint();
             if(width <= 0)
                 throw new LuaError("widget:columns(t): column " + i + "'s \"width\" must be a POSITIVE number"
                     + " of pixels, got " + width);

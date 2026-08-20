@@ -110,10 +110,7 @@ final class CScrollport extends Widget implements Owned.Control {
 
         /** {@code s:value(v)} — {@code v} must be a number; CLAMPED into {@code :range}, not refused. */
         public void value(LuaValue v) {
-            if(!v.isnumber())
-                throw new LuaError("widget:value(v) on a scrollbar is a NUMBER within its range, got "
-                    + v.typename());
-            this.val = clamp(v.toint());
+            this.val = clamp(Controls.num(v, "a scrollbar"));
             cont.sy = this.val;
         }
 
@@ -134,11 +131,7 @@ final class CScrollport extends Widget implements Owned.Control {
          * the new bounds WITHOUT firing {@code :onChange} (narrowing the range is not a user interaction).
          */
         public void range(LuaValue minv, LuaValue maxv) {
-            if(!minv.isnumber())
-                throw new LuaError("widget:range(min, max) — min must be a NUMBER, got " + minv.typename());
-            if(!maxv.isnumber())
-                throw new LuaError("widget:range(min, max) — max must be a NUMBER, got " + maxv.typename());
-            int nmin = minv.toint(), nmax = maxv.toint();
+            int nmin = Controls.bound(minv, "min"), nmax = Controls.bound(maxv, "max");
             if(nmin > nmax)
                 throw new LuaError("widget:range(min, max) — min (" + nmin + ") must not exceed max (" + nmax
                     + ")");

@@ -998,13 +998,18 @@ final class Controls {
         throw noValue(w);
     }
 
-    /** {@code v} as the number a slider or a scrollbar holds, through {@link Args#num}. */
-    private static int num(LuaValue v, String what) {
+    /**
+     * {@code v} as the number a slider or a scrollbar holds, through {@link Args#num}. Package-private
+     * <b>because the adapters call it too</b>: {@link CSlider}, {@link CScrollbar} and {@link CScrollport}'s
+     * bar hold the same kind of value as the client's own controls of those kinds, and a control family with
+     * two type languages refuses {@code "50"} on one of a pair and takes it on the other.
+     */
+    static int num(LuaValue v, String what) {
         return Args.num(v, "widget:value", "v", "on " + what + " it is a position within its range").toint();
     }
 
     /** {@code v} as a string, through {@link Args#str} — which is where the LuaJ coercion rule is stated. */
-    private static String str(LuaValue v, String what, String is) {
+    static String str(LuaValue v, String what, String is) {
         return Args.str(v, "widget:value", "v", "on " + what + " it is " + is).tojstring();
     }
 
@@ -1146,11 +1151,18 @@ final class Controls {
         return ((Range)c).range();
     }
 
+    /** One {@code :range} bound, through {@link Args#num} — the same door {@link #num} is for a value, and
+     *  the reason the adapters call it rather than testing {@code isnumber()} each for themselves. */
+    static int bound(LuaValue v, String param) {
+        return Args.num(v, "widget:range", param, "a bound of the control's own range").toint();
+    }
+
     /**
      * {@code widget:range(min, max)} — the value BOUNDS of a slider or scrollbar. Dispatches on {@link Range}
-     * and hands both raw bounds to the implementation, which type-checks them and throws naming the rule
-     * (040.6: {@link CSlider}/{@link CScrollbar} require {@code min <= max}, and re-clamp a value that no
-     * longer fits WITHOUT firing {@code :onChange} — narrowing the range is not a user interaction).
+     * and hands both raw bounds to the implementation, which type-checks them through {@link #bound} and
+     * throws naming the rule (040.6: {@link CSlider}/{@link CScrollbar} require {@code min <= max}, and
+     * re-clamp a value that no longer fits WITHOUT firing {@code :onChange} — narrowing the range is not a
+     * user interaction).
      */
     static void range(Owned c, Widget w, Varargs a) {
         if(!(c instanceof Range))

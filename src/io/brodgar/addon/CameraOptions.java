@@ -69,7 +69,7 @@ public final class CameraOptions {
                 return LuaValue.NIL;
             }
             protected void onWrite(LuaValue value) {
-                String nm = value.checkjstring();
+                String nm = str(value, "name", "one of the cameras the client has").tojstring();
                 /* Checked HERE rather than left to setcam, so the refusal is the same one whether or not a
                  * view exists -- with none, the write below never reaches setcam's own check at all. */
                 if(!MapView.camnames().contains(nm))

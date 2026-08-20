@@ -126,11 +126,12 @@ hafen.ui():table()
   :rows(stock)
 ```
 
-`:columns(t)` names each column: `title` heads it, `width` is its pixel box, and `of(row)` is called once
-per row to produce that cell's text, which must be a **string** — `tostring` a number yourself, the same as
-`"Quality"` does above. Writing `:columns(t)` again replaces the whole set and re-reads every current row
-against it; like a [grid's cell box](#grid), it is chosen while the control is being built and refuses once
-the table is on screen.
+`:columns(t)` names each column: `title` heads it, `width` is its pixel box — a **number**, the same as any
+other [control's numbers](controls/README.md#setters) — and `of(row)` is called once per row to produce that
+cell's text, which must be a **string**: `tostring` a number yourself, the same as `"Quality"` does above.
+Writing `:columns(t)` again replaces the whole set and re-reads every current row against it; like a
+[grid's cell box](#grid), it is chosen while the control is being built and refuses once the table is on
+screen.
 
 `:rowHeight(n)` behaves exactly as it does on a list. A table answers no `:value()` and no `Changed` — it
 holds nothing, the same as a [menu](#menu) or a [grid](#grid) — and an empty `:rows{}` is a table with

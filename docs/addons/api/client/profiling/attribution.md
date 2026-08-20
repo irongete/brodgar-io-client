@@ -65,6 +65,9 @@ s:finish()
 | `s:name()` | the scope's name |
 | `p:measure(name, fn, ...)` | run `fn(...)` inside the scope and return whatever it returns |
 
+`name` is a string and `fn` a function, both required: a missing or wrong-typed one raises naming the verb
+and the parameter, so `p:scope()` says which argument it wanted rather than failing later inside the scope.
+
 Names are **per addon**: two addons may both use `"update"` without colliding, and a scope map dies with its
 addon on `:reload` or disable, so there is nothing to clean up. Each scope appears in that addon's
 `addons()` row as `{ms=, msAvg=, msPeak=, calls=}`.

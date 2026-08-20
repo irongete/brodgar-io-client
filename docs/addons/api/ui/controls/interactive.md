@@ -135,7 +135,8 @@ A `:value(v)` outside `:range` **clamps** to the nearer bound rather than refusi
 max)` later re-clamps a value the new bounds no longer cover, silently — that write is not something the
 user did, so it does not fire `Changed`. `:range(nil)` is refused like any other required argument, naming
 the missing bound; there is no "undo" meaning for a control's own bounds the way `:position(nil)` undoes a
-layer.
+layer. A value and a bound are both [numbers](README.md#setters), so `:value("50")` is refused rather than
+converted — the same rule an [entry](#text-entry) reads the other way round.
 
 The client's own sliders report the same key — one of the options window's volume sliders is a `Changed` you
 can subscribe to — and there it is the one capability key that **cannot** be cancelled, because this control
