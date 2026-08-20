@@ -266,7 +266,12 @@ local function push(r)
   r.n = seq
   r.clock = clock()
   r.line = lineOf(num(seq % 100000), r.clock, r.src, r.who, r.wclass, r.name, r.about)
-  r.hay = string.lower(r.line)
+  -- The haystack is the FIELDS, not the line: a line is padded and CUT to its columns, and a word filter
+  -- over it would refuse to find the second half of a resource name the about column had to trim -- which
+  -- is exactly the word somebody searches for. It costs one concatenation more per record, and it means a
+  -- search finds what the row is about rather than what happened to fit.
+  r.hay = string.lower(r.clock .. " " .. r.src .. " " .. r.who .. " " .. r.wclass .. " " .. r.name
+                       .. " " .. r.about)
   head = (head % CAP) + 1
   local old = ring[head]
   if old then recOf[old.line] = nil end                  -- the oldest goes, and its row with it
