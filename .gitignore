@@ -14,3 +14,5 @@
 
 # Brodgar voice library jar — a build artifact of brodgar-io-voice-client, not source
 /lib/brodgar/*.jar
+
+/audit
