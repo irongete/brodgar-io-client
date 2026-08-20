@@ -44,18 +44,34 @@
 -- they arrived and read only when the row is clicked, so a message nobody ever looks at costs one table.
 --
 -- The ring is an array with a head index, never a table that shifts: dropping the oldest by shifting
--- copies the whole ring on every message.
+-- copies the whole ring on every message. CAP is what it holds and the whole of what the list can ever
+-- draw, because the interesting end of a log is the recent end: three hundred lines is a window you
+-- scroll rather than a table that grows, and a record holds an args snapshot and a live handle, so a
+-- ring that never dropped anything would pin every gob it ever saw.
+--
+-- IT RECORDS FROM THE MOMENT IT LOADS, not from the moment you open the window, because the traffic
+-- worth reading has usually already happened: the tree building itself, the first `set`s that fill the
+-- HUD, SessionEnteredWorld. A tool you have to open BEFORE the thing you are debugging can only ever
+-- show you the second time it happens. So `at login` arms the doors as the addon loads and the window
+-- is only a view on to what they caught -- opening and closing it records and loses nothing. Untick it
+-- and the old shape is back: the doors open with the window and shut with it, and nothing is subscribed
+-- to anything while it is down.
+--
+-- NOTHING HERE IS COPYABLE, because the client has no clipboard to offer -- so `log` writes the picked
+-- row's whole detail through hafen.log(), one line at a time, where the console shows it and the
+-- terminal keeps it whole. That is the same door widgetstack's `:selector` uses, and for the same
+-- reason: the point of reading a message name off a window is to type it into a file.
 --
 -- Its place is the ACCOUNT's saved variable, not w:remember(name): that files a placement under the
 -- character on screen, and this window stands in the layer, above every one of them.
 
-local CAP        = 400               -- records kept; past it the oldest go
-local SHOW       = 200               -- rows written to the list at once, newest first
+local CAP        = 300               -- records kept, and the most the list can draw; past it the oldest go
 local PAD        = 6                 -- design px between the window's content edge and what is inside it
 local GAP        = 4                 -- design px between two things on the same row
 local WIDE       = 12                -- design px between two whole fields on the same row
 local CHECK_W    = 74                -- one source's checkbox, the widest caption with room to spare
-local BTN_W      = 60                -- the clear button
+local BTN_W      = 60                -- one button, log and clear alike
+local WIDE_CHECK = 92                -- the one checkbox whose caption is a phrase rather than a word
 local ROW_H      = 20                -- what a row of controls stands at before its own art has answered
 local ALL        = "(all)"           -- row 1 of each filter: the pick that narrows nothing
 local FONT_SZ    = 12                -- the mono face the log and the detail are set in, in design px
@@ -106,12 +122,14 @@ local SESS_AT = {
 
 local st = hafen.store():get("settings")          -- the account's own table; filled before this file runs
 st.sources = st.sources or {out = true, ["in"] = true, bus = true, widget = false}
+if st.atLogin == nil then st.atLogin = true end   -- record from the load, rather than from the window
 
 local ring, count, head = {}, 0, 0    -- the log: the array, how much of it is filled, where the last write went
 local seq = 0                         -- what numbers the next record, and what makes its line its own
 local recOf = {}                      -- [line] = the record that line was built from
 local dirty = false                   -- something arrived, or a filter moved, since the last :rows(t)
 local paused = false                  -- the user is reading: keep recording, stop rewriting
+local armed = false                   -- the doors are open, whether or not there is a window to show it
 local win, log, det, tally            -- the window and its three pieces, or nil while it is down
 local selLine = nil                   -- the line that names the picked row to the list, or nil
 
@@ -295,24 +313,21 @@ local function keep(r)
   return true
 end
 
--- The list's rows: the ring walked BACKWARDS from the newest, narrowed by all five, and cut at SHOW.
--- Everything matching is still counted, so the tally can say what the cut left out.
+-- The list's rows: the ring walked BACKWARDS from the newest, narrowed by all five. There is no second
+-- cut here -- the ring itself is the cut, so what matched is what is drawn.
 local function records()
-  local out, n, matched = {}, 0, 0
+  local out, n = {}, 0
   local first = (count < CAP) and 1 or ((head % CAP) + 1)
   local shown = false
   for i = count, 1, -1 do
     local r = ring[((first + i - 2) % CAP) + 1]
     if keep(r) then
-      matched = matched + 1
-      if n < SHOW then
-        n = n + 1
-        out[n] = r.line
-        if r.line == selLine then shown = true end
-      end
+      n = n + 1
+      out[n] = r.line
+      if r.line == selLine then shown = true end
     end
   end
-  return out, matched, shown
+  return out, shown
 end
 
 -- ---------------------------------------------------------------------------------------------------
@@ -531,15 +546,19 @@ local function disarmSrc(k)
   end
 end
 
+-- Armed is the whole state of "is anything being recorded", and it is not the window's: with `at login`
+-- the doors open as the file loads and stay open through every open and close of the view.
 local function arm()
   mapRoots()
   for _, k in ipairs(SOURCES) do
     if st.sources[k] then armSrc(k) end
   end
+  armed = true
 end
 
 local function disarm()
   for _, k in ipairs(SOURCES) do disarmSrc(k) end
+  armed = false
 end
 
 -- ---------------------------------------------------------------------------------------------------
@@ -597,6 +616,19 @@ local function build()
     if not on then dirty = true end
   end)
 
+  -- The one switch that is not about this window at all: it says when the DOORS open, and it is read at
+  -- the next load. Ticking it here opens them now, since a switch that meant nothing until tomorrow
+  -- would be a switch nobody could test.
+  local al = hafen.ui():check():parent(w):position(x + WIDE + CHECK_W + GAP, PAD):size(WIDE_CHECK)
+    :text("at login"):value(st.atLogin and true or false)
+    :tooltip("record from the moment the addon loads, rather than from the moment this window opens")
+  al:on("Changed", function(on)
+    st.atLogin = on
+    if on and not armed then arm() end
+  end)
+
+  local lg = hafen.ui():button():parent(w):position(WIN_W - PAD - BTN_W * 2 - GAP, PAD):size(BTN_W)
+    :text("log"):tooltip("write the picked row, whole, to the console and the terminal")
   local clr = hafen.ui():button():parent(w):position(WIN_W - PAD - BTN_W, PAD):size(BTN_W):text("clear")
 
   -- A label's box is exactly its own text, so each field is laid out from what its own pieces answer
@@ -627,9 +659,9 @@ local function build()
   le:position(nx, y2 + math.max(0, math.floor((eh - tall(le)) / 2)))
   ent:position(nx + le:size().x + GAP, y2)
 
-  -- shown / matched of kept: the cut this window made, the filters' answer, and the whole ring.
-  local cnt = hafen.ui():label():parent(w):text("0/0 of 0")
-    :tooltip("rows drawn / rows the filters matched / records kept")
+  -- What the filters answered, of what the ring is holding.
+  local cnt = hafen.ui():label():parent(w):text("0 of 0")
+    :tooltip("rows the filters matched, of the records kept")
   cnt:position(nx + le:size().x + GAP + 220 + WIDE, y2 + math.max(0, math.floor((eh - tall(cnt)) / 2)))
 
   refill(ds, srcOrder, pickSrc)
@@ -681,6 +713,26 @@ local function build()
     show((line ~= nil) and recOf[line] or nil)
   end)
 
+  -- The console is the only way a string in this window reaches a file, so this writes the row's whole
+  -- detail rather than a summary of it: the terminal keeps every line whole, where the in-game half
+  -- clips at 500 characters, and one line per field is what makes both halves readable.
+  lg:on("Pressed", function()
+    local r = selLine and recOf[selLine] or nil
+    if r == nil then
+      hafen.log():write("eventstack: pick a row first -- this writes the one you picked")
+      return
+    end
+    hafen.log():write("--- " .. r.line)
+    local ok, lines = pcall(detailOf, r)
+    if not ok then
+      hafen.log():write("  (that record cannot be read any more)")
+      return
+    end
+    for _, ln in ipairs(lines) do
+      if ln ~= "" then hafen.log():write("  " .. ln) end
+    end
+  end)
+
   clr:on("Pressed", function()
     ring, count, head, recOf = {}, 0, 0, {}
     seenSrc, srcOrder = {}, {}
@@ -705,10 +757,10 @@ local function build()
         refill(dn, nameOrder, pickName)
         filtersDirty = false
       end
-      local rows, matched, shown = records()
+      local rows, shown = records()
       l:rows(rows)
       if shown then l:value(selLine) end
-      cnt:text(num(#rows) .. "/" .. num(matched) .. " of " .. num(count))
+      cnt:text(num(#rows) .. " of " .. num(count))
       dirty = false
     end
   end)
@@ -721,7 +773,7 @@ local function build()
 end
 
 close = function()
-  disarm()
+  if not st.atLogin then disarm() end     -- with it ticked the doors stay open behind the closed window
   if win and win:exists() then win:destroy() end
   win, log, det, tally = nil, nil, nil, nil
   selLine = nil
@@ -735,23 +787,29 @@ hafen.slash():register("eventstack", function()
     close()
   else
     build()
-    arm()
+    if not armed then arm() end
   end
 end)
 
--- A character that reaches the world while the log is up is a tree the widget door has not watched yet,
--- and a root the session column has not learnt.
+-- A character that reaches the world while the doors are open is a tree the widget door has not watched
+-- yet, and a root the session column has not learnt. It follows the DOORS and not the window, which is
+-- the whole of what `at login` buys: the login that happens before anybody opens the view is the one
+-- worth having caught.
 hafen.event():on("SessionEnteredWorld", function(s)
-  if win and win:exists() then
-    mapRoots()
-    if st.sources.widget then armWidget(s) end
-  end
+  if not armed then return end
+  mapRoots()
+  if st.sources.widget then armWidget(s) end
 end)
 
 hafen.event():on("SessionDestroyed", function(s)
   disarmWidget(s)
-  if win and win:exists() then mapRoots() end
+  if armed then mapRoots() end
 end)
+
+-- And the doors themselves, opened here rather than by the window. At this point no session exists yet,
+-- so the widget door has nothing to replay and costs nothing to open -- which is the one moment opening
+-- it is free.
+if st.atLogin then arm() end
 
 -- Where the user put it. A window you built is dragged by its own title bar, which reports nothing, so
 -- the place is read on a slow timer rather than written from a gesture.

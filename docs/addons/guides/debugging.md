@@ -77,9 +77,10 @@ The bundled **`eventstack`** addon is that pair of blocks with a window around t
 line per message out, update in, event on the bus, or widget coming and going — with filters over the
 source, the session, the widget and the event name that fill themselves as each value arrives for the
 first time, a word box over the whole line, and a click on any row for the arguments that message actually
-carried. Reach for it when you do not yet know which of those the thing you are watching for comes
-through, and for the console once you do: a name you can subscribe to by itself is cheaper than a window
-watching everything.
+carried. It records from the moment it loads rather than from the moment you open it, so the login you
+wanted to watch is already in it. Reach for it when you do not yet know which of those the thing you are
+watching for comes through, and for the console once you do: a name you can subscribe to by itself is
+cheaper than a window watching everything.
 
 ## When the addon does not load
 

@@ -14,7 +14,10 @@ addon: the switcher over the logins the client holds.
 | [`session-manager`](../../addons/session-manager/main.lua) | go between the characters you have logged in |
 
 The tools are **dormant** — installed and enabled, but drawing nothing and reading nothing until you press
-their hotkey or type their command — so having them on costs you an untouched login. Each is the whole of
+their hotkey or type their command — so having them on costs you an untouched login. The log is the one
+exception, and deliberately: it records from the moment it loads, because what is worth reading has
+usually already happened by the time you think to look. Untick its `at login` box and it is dormant like
+the rest. Each is the whole of
 one subject as well: the inspector is [selectors](api/ui/selectors.md) end to end, the profiler is
 [the profiling surface](api/client/profiling/README.md) end to end, and the log is
 [the streams and the bus](api/event/README.md) at once.
@@ -69,10 +72,18 @@ character, the widget it was about, and then what it carried — a message's pro
 line, or a bus event's payload as it stands at the moment you ask. `pause` holds the view still while you
 read one, with every door still open behind it, and `clear` empties the ring and the filters with it.
 
-`:eventstack` toggles it. The widget source starts off, because subscribing to a widget appearing replays
-every widget that character already has open. It reads the traffic and never touches it — nothing in it
-cancels, rewrites, resends or sends — and where you drag its window is saved for the **account**, like the
-switcher's.
+**Recording and looking are two things**, which is what makes it useful at a login: `at login` opens the
+doors as the addon loads, and `:eventstack` only opens and closes the view on to what they have caught, so
+the tree building itself and the first updates that fill the HUD are already in the ring when you get
+there. Untick it and the old shape is back — the doors open with the window and shut with it. The widget
+source starts off either way, because ticking it while a character is up replays every widget that
+character already has open.
+
+Nothing in this window can be copied, because the client has no clipboard to offer: `log` writes the
+picked row whole through [`hafen.log()`](api/log.md), a line per field, where the console shows it and the
+terminal keeps it — the same door [widgetstack](#widgetstack)'s `:selector` uses, and for the same reason.
+It reads the traffic and never touches it — nothing in it cancels, rewrites, resends or sends — and where
+you drag its window is saved for the **account**, like the switcher's.
 
 ## session-manager
 
