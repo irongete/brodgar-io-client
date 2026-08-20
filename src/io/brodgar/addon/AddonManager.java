@@ -1660,12 +1660,24 @@ public final class AddonManager {
      * family</b> gets all four spelled out (076.2): they differ by one word each, they are what an addon
      * subscribes to before it has anything to read, and a subscription that silently never fires is the most
      * expensive way there is to learn a name.
+     *
+     * <p>{@link Subs#WILD} is refused for that same reason, and its hint names <b>where it does mean
+     * everything</b> (082.3): the bus is a closed set of facts whose payload IS the fact — a {@code Gob}, a
+     * {@code Meter}, a {@code Session} — so a handler here has no parameter a key could arrive in, while
+     * each stream's key set is open and {@code "*"} is the whole of it. The pointer is the point: a reader
+     * who wrote {@code "*"} on the bus wants the streams and does not yet know they are there.
      */
     private static String busKeyRefusal(String key) {
-        String hint = key.toLowerCase().startsWith("session")
-            ? " — the session family is SessionAdded, SessionEnteredWorld, SessionSelected and"
-                + " SessionDestroyed"
-            : "";
+        String hint;
+        if(Subs.WILD.equals(key))
+            hint = " — the bus keys are a closed set of facts and each hands your handler the fact itself,"
+                + " so there is nothing here for \"*\" to name; it is every message on a stream instead:"
+                + " hafen.event():action():on(\"*\", fn) and hafen.event():message():on(\"*\", fn)";
+        else if(key.toLowerCase().startsWith("session"))
+            hint = " — the session family is SessionAdded, SessionEnteredWorld, SessionSelected and"
+                + " SessionDestroyed";
+        else
+            hint = "";
         return "hafen.event():on(key, fn): unknown event '" + key + "'" + hint
             + " — see docs/addons/api/event/bus.md for the catalogue";
     }

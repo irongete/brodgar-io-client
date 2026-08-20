@@ -42,7 +42,9 @@ hafen.event():on("GobAdded ", fn)
 ```
 
 The two [message streams](streams.md) are the exception: their keys are open, because a message name is
-protocol the server can introduce, not a catalogue the client owns.
+protocol the server can introduce, not a catalogue the client owns. What that openness buys is `*`,
+[the whole stream](streams.md#the-whole-stream) — the one subscription you cannot write by hand, because
+the list it stands for is the server's to grow.
 
 ## Pages
 

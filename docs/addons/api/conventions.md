@@ -213,8 +213,11 @@ streams in a beat *after* `SessionEnteredWorld`, so read it on a timer or subscr
 ## Threading
 
 Every `hafen.*` call, every event handler, every timer and every draw callback runs on the client's **UI
-thread**. You never need locks, and you must never block: a long-running handler stalls the client, and
-the sandbox's instruction watchdog aborts a runaway one.
+thread**, with one exception: a handler on the [inbound message stream](event/streams.md) runs on the
+thread that applies the server update, holding the very lock the UI thread takes to tick and to draw. In
+both places yours is the only Lua running and the frame is waiting on it. You never need locks, and you
+must never block: a long-running handler stalls the client, and the sandbox's instruction watchdog
+aborts a runaway one.
 
 ## The permission model
 

@@ -1,0 +1,9 @@
+{
+  "name": "082.3 — the bus refuses \"*\" and says where it means everything",
+  "id": "082-the-whole-stream.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 082.3: the bus refuses \"*\" and its refusal names both message streams, the session-family hint and ordinary bus keys are untouched, and \"*\" stays an unknown key on a widget.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

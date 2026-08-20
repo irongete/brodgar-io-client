@@ -285,6 +285,11 @@ Data that changes only on an explicit, infrequent player action has no change ev
 credos, lore, crafting recipes, combat schools, minimap icon categories, movement speed. Read those on
 demand, from their own section's verbs.
 
+There is no wildcard either: `hafen.event():on("*", fn)` throws. Each key above hands your handler the
+**fact itself** — a [Gob](../gob.md), a [`Meter`](../meter.md), a [`Session`](../session.md), a list — so a
+handler for all of them would have nothing to name the key it was fired on. `*` is every message on
+[a message stream](streams.md) instead, where the key set is open and the names are the server's to invent.
+
 ## See also
 
 - [`hafen.event()`](README.md) — subscribing, and why the key set is closed

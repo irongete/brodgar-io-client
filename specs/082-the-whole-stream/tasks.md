@@ -48,7 +48,7 @@
       window — inbound Lua runs where the UI thread waits for the monitor, and only you can judge
       that.
 
-- [ ] **082.3 — On the bus, `*` is refused and says where it means everything.**
+- [x] **082.3 — On the bus, `*` is refused and says where it means everything.**
       `AddonManager.busKeyRefusal` gains a `"*"` branch naming `hafen.event():action()` and
       `hafen.event():message()`, beside the session-family branch and for the same reason.
       `docs/addons/api/event/bus.md` says the closed set has no wildcard and why — 31 keys whose
@@ -56,15 +56,20 @@
       `docs/addons/api/event/README.md`'s paragraph on why the two key sets are open names the
       wildcard as what that openness buys; `docs/addons/guides/events-and-timers.md`'s routing table
       gains it on the stream row; `docs/addons/guides/debugging.md` gains a short section on finding
-      the name you need by watching the whole stream first. The feature's derived impact set from
-      `spec.md` is discharged here page by page, with the `DOCUMENTATION.md` §11 checks over every
-      page 082 touched.
+      the name you need by watching the whole stream first.
+      `docs/addons/api/conventions.md`'s threading paragraph stops saying that EVERY event handler
+      runs on the UI thread: an inbound `message` handler runs where the update is applied, holding
+      the monitor the frame takes to tick and to draw — which is what makes the streams page's cost
+      callout true, and is the one handler the blanket claim is false about. The two promises around
+      it are unchanged and stay as they are: you never need a lock, and you must never block.
+      The feature's derived impact set from `spec.md` is discharged here page by page, with the
+      `DOCUMENTATION.md` §11 checks over every page 082 touched.
       *Its suite* `pcall`s `hafen.event():on("*", fn)` and asserts it failed **and** that the message
       names both streams — the pointer is the point, not the refusal. `hafen.event():on("Sessoin", fn)`
       must still get all four session keys spelled out, proving the new branch did not displace the
       old hint, and `hafen.event():on("GobAdded", fn)` must still subscribe. On a widget,
       `widget:on("*", fn)` must still refuse as an unknown widget key: the reservation is the
       streams' alone.
-      `[manual]`: read the new wildcard section and the debugging guide's new section, and report
-      whether the swallow warning and the cost callout read as things you would heed **before**
-      writing one, rather than after.
+      `[manual]`: read the new wildcard section, the debugging guide's new section and the corrected
+      threading paragraph, and report whether the swallow warning and the cost callout read as things
+      you would heed **before** writing one, rather than after.

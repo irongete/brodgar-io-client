@@ -106,3 +106,14 @@ and nothing else in `haven` had to be read.
 - **Making the wildcard fire before the named key** — the named key is the specific claim on the
   message and the wildcard the ambient one, so the specific handler is the one that should see the
   `ev` first and the ambient one the one that sees what was done to it.
+- **Widening the session-family hint to catch a typo that breaks the `session` prefix** — the client
+  approximates nothing: `busKey` is an exact `equals` over the catalogue, so a near miss registers
+  nothing whatever the hint says, and the hint is text appended to a call that has already been
+  refused. Catching a transposition means edit distance against the keys, which is a different
+  question — a "did you mean" over all 31 — and belongs to a feature of its own rather than to the
+  task that reserves `"*"`. `"Sessoin"`, which 082.3's own line names, therefore falls through to the
+  bare refusal, and its suite proves the branch order with `"SessionEnteredWord"` instead.
+- **Making an unknown bus key a silent no-op rather than a throw** — a subscription that registers,
+  reads as correct and never fires is the failure this feature exists to remove from the streams, and
+  the refusal at the line that wrote it is the whole reason the bus's key set is closed. Putting that
+  failure back one door along, inside the feature removing it, is the one change this cannot make.

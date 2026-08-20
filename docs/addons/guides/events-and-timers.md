@@ -20,7 +20,7 @@ about?*
 | You hold | You write |
 |---|---|
 | nothing — it is a client-wide fact | `hafen.event():on(key, fn)` |
-| nothing — it is a message stream | `hafen.event():action():on(msg, fn)` / `:message():on(msg, fn)` |
+| nothing — it is a message stream | `hafen.event():action():on(msg, fn)` / `:message():on(msg, fn)`, and `"*"` for [every message on one](../api/event/streams.md#the-whole-stream) |
 | a widget, yours or one you found | `widget:on(key, fn)` |
 | a control you built | `control:on(key, fn)` |
 

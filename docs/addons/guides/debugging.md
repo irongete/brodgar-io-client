@@ -51,6 +51,27 @@ Two answers that surprise people, both from [the inspector's own page](../api/ui
 window's frame gives you the frame, not the window, because the chrome is a widget of its own; and most
 widgets have **no** role at all, which is the classifier being honest rather than a gap.
 
+## Find a message name by watching for it
+
+A message name is the server's rather than the client's, so there is no catalogue to look one up in. Watch
+[the whole stream](../api/event/streams.md#the-whole-stream) with `*`, make the thing happen on screen, and
+read the name off the console:
+
+```lua
+hafen.event():message():on("*", function(ev)                 -- updates arriving
+  hafen.log():write(ev:target():type() .. " <- " .. ev:msg() .. " (" .. #ev:args() .. " args)")
+end)
+
+hafen.event():action():on("*", function(ev)                  -- messages going out
+  hafen.log():write(ev:sender():type() .. " -> " .. ev:msg() .. " (" .. #ev:args() .. " args)")
+end)
+```
+
+Then subscribe to the one name you saw and take the wildcard out again: it runs your handler on everything
+the client sends and receives, which is what makes it a thing you watch with rather than ship. Never call
+`ev:preventDefault()` in one — inbound, that swallows every update the server sends, and the client stops
+hearing from it.
+
 ## When the addon does not load
 
 `:addons` lists every folder the client found with its status, and Options ▸ AddOns says the same thing

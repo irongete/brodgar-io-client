@@ -87,6 +87,7 @@ because" docs/` and `grep -rln "action()\|message()\|message stream\|open key\|k
 - `docs/client/services.md` — 1, 2, 3 (which thread a `:command` body runs on, and with which lock)
 - `docs/addons/api/timer.md` — 2
 - `docs/addons/runtime.md` — 2, 3 (the CPU-budget anchor the wildcard's cost callout links)
+- `docs/addons/api/conventions.md` — 3 (its threading paragraph, corrected there)
 - `docs/addons/api/event/streams.md` — 1, 2
 - `docs/addons/api/event/README.md` — 3
 - `docs/addons/api/event/bus.md` — 3
