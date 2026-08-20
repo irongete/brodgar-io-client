@@ -47,8 +47,8 @@ exception is the one you write yourself: an entry your addon
 `addon/<your addon's id>/<the id>`, and that string is the same in every session.
 [`s:buff()`](buff.md) and [`s:meter()`](meter.md) carry **no `:get`** at all, because their
 members have no key: several bars can share one resource. There a name is a *search*, `:find(needle)`,
-and `:get` raises as a verb the collection does not have — a miss is `nil`, and a **position** is an
-error too.
+and `:get` [raises naming that search](conventions.md#get-what-a-key-that-names-nothing-answers) — a
+miss is `nil`, and a **position** is an error too.
 
 ## Asset: a file your addon ships
 

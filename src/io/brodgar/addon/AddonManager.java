@@ -3419,6 +3419,11 @@ public final class AddonManager {
                 }
                 return out;
             }
+
+            public String noGet() {
+                return "a timer has no key: hafen.timer():after(s, fn) and hafen.timer():every(s, fn)"
+                    + " hand you the timer they make, and hafen.timer():list() is every one of yours";
+            }
         }, timerVerbs), null);
 
         // hafen.store() — saved variables (1e / D-002 / D-023). One Lua table per manifest-declared saved

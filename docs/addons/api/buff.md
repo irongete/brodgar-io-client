@@ -23,8 +23,14 @@ name **and** the display name. A miss is plain `nil`.
 
 **There is no `:get`, and that is the shape rather than an omission.** A buff has no key: two buffs can
 share a resource, and the server can replace a live buff's resource under it, so a needle is a *search*
-and never an address. `s:buff():get(…)` raises, saying the collection has no such verb; the search is
-`:find(needle)` and a position is `s:buff():list()[n]`.
+and never an address. Asking for one says so, and says what to write:
+
+```lua
+s:buff():get("poison")
+-- session:buff() has no verb 'get' — a buff has no key, since two can share a resource and
+-- the server can replace one under a live buff: session:buff():find(needle) is the search
+-- and session:buff():list()[n] takes a position
+```
 
 ## Whose buffs they are
 

@@ -362,6 +362,12 @@ public final class LuaCredo {
             public boolean named() {
                 return true;
             }
+
+            public String noGet() {
+                return "a credo's only key is the server's own token, which is not what anyone writes: "
+                    + CharApi.C + ":credo():find(needle) is the search, and " + CharApi.C
+                    + ":credo():pursuing() is the one being pursued";
+            }
         }, extra);
     }
 }

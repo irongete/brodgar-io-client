@@ -27,7 +27,7 @@
       its `:scope("x")`, and the five options handles, scoring buff and meter over a window.
       `[manual]`: report whether anything installed stopped working — this task changes what a typo does.
 
-- [ ] **084.3 — The collection says what it has not got.** `LuaCollection.Source` grows `noGet()` — the
+- [x] **084.3 — The collection says what it has not got.** `LuaCollection.Source` grows `noGet()` — the
       sentence a keyless collection's missing `:get` carries, so `s:buff():get(x)` says a buff has no
       key and `:find(needle)` is the search — and `missing()` returning `NIL`/`MINT`/`RAISE`, declared
       per collection rather than branched inside `getMember`. `MapApi`'s accessor stops naming a `:get` the
@@ -36,8 +36,10 @@
       *Its suite* asserts each keyless collection refuses `:get` naming its own entry verb **and that
       the named verb exists on it** — the defect `ROADMAP` (075) records for markers. Then the three
       behaviours: `hafen.session():get("nobodyhere")` is **not nil** with `:exists()` false,
-      `s:kin():get(2147483000)` is nil, `hafen.asset():get("no.png")` raises. Its refusal: `hafen.map():marker(1)` must name `:find`/`:nearest` and must **not** contain
-      `":get"`.
+      `hafen.map():icon():get(x)` is nil, `hafen.asset():get("no.png")` raises — and `s:kin()` is the
+      one collection that is two, `:get(id)` **minting** where `:get(name)` answers nil, which is what
+      `missing()` declares: the promise the KEY carries. Its refusal: `hafen.map():marker(1)` must name
+      `:find`/`:nearest` and must **not** contain `":get"`.
       `[manual]`: none.
 
 - [ ] **084.4 — One door for an argument.** `Args` grows `str` and `num` asserting

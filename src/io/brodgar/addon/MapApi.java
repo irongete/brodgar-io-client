@@ -102,14 +102,21 @@ final class MapApi {
         Section.install(hafen, "map", m);
     }
 
-    /** One of the five accessors: a colon call on the section object, no arguments, the collection back. */
+    /**
+     * One of the five accessors: a colon call on the section object, no arguments, the collection back.
+     *
+     * <p><b>The collection says how one of its members is reached</b> ({@link LuaCollection#reach}), because
+     * one of the five has not got a {@code :get}: a marker's only id is a per-session ref this client mints.
+     * One sentence written here for all five named it anyway, which is the shape of mistake this accessor
+     * exists to correct.
+     */
     private static LuaValue section(final Addon owner, final String nm, final LuaValue coll) {
         return new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "map", nm);
                 if(Args.passed(a, 2))
                     throw new LuaError("hafen.map():" + nm + "() takes no arguments — it IS the collection,"
-                        + " and hafen.map():" + nm + "():get(...) addresses one member of it");
+                        + " and " + LuaCollection.reach(coll));
                 return coll;
             }
         };
@@ -146,6 +153,11 @@ final class MapApi {
                 long sid = idArg(key, "hafen.map():segment():get(id)", "segment");
                 return (segIn(mapfile(), sid) == null) ? LuaValue.NIL : LuaSegment.of(owner, sid);
             }
+
+            /** The key is the segment id, a decimal string. */
+            public String keyName() {
+                return "id";
+            }
         }, extra);
     }
 
@@ -176,6 +188,11 @@ final class MapApi {
             public LuaValue getMember(LuaValue key) {
                 long gid = idArg(key, "hafen.map():grid():get(gridId)", "grid");
                 return (gridInfoIn(mapfile(), gid) == null) ? LuaValue.NIL : LuaMapGrid.of(owner, gid);
+            }
+
+            /** The key is the grid id the SERVER published, a decimal string. */
+            public String keyName() {
+                return "gridId";
             }
         }, null);
     }
@@ -234,6 +251,12 @@ final class MapApi {
                         + " :list(), :find(), :nearest() or :add() handed you");
                 removeMarker(x);
             }
+
+            public String noGet() {
+                return "a marker's only id is a per-session ref this client mints, which is not a key"
+                    + " anything could hold on to: hafen.map():marker():find(filter) is the search and"
+                    + " hafen.map():marker():nearest(filter) the closest one";
+            }
         }, extra);
     }
 
@@ -267,6 +290,16 @@ final class MapApi {
 
             public LuaValue getMember(LuaValue key) {
                 return LuaOverlayToggle.of(owner, toggleArg(key));
+            }
+
+            /** The client's display switches are a closed set, unlike a grid's recorded tags. */
+            public LuaCollection.Missing missing() {
+                return LuaCollection.Missing.RAISE;
+            }
+
+            /** The key is one of the client's own display tags. */
+            public String keyName() {
+                return "tag";
             }
         }, null);
     }

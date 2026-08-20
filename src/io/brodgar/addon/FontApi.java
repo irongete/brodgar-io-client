@@ -91,6 +91,16 @@ final class FontApi {
             public LuaValue getMember(LuaValue key) {
                 return builtin(owner, key);
             }
+
+            /** The built-in faces are a closed set, so a name outside it is a typo. */
+            public LuaCollection.Missing missing() {
+                return LuaCollection.Missing.RAISE;
+            }
+
+            /** The key is a built-in font NAME; a font file this addon ships is an asset. */
+            public String keyName() {
+                return "name";
+            }
         }, null);
     }
 

@@ -282,6 +282,11 @@ public final class LuaExperience {
             public boolean named() {
                 return true;
             }
+
+            public String noGet() {
+                return "the only key is a full resource path nobody types: " + CharApi.C
+                    + ":experience():find(needle) searches the display name and the resource together";
+            }
         }, null);
     }
 }

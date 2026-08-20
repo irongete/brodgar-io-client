@@ -316,6 +316,11 @@ public final class LuaPartyMember {
                 long id = (long)key.todouble();
                 return (member(user, id) == null) ? LuaValue.NIL : of(owner, user, id);
             }
+
+            /** A party member is addressed by gob id: they have no name of their own. */
+            public String keyName() {
+                return "gobId";
+            }
         }, extra);
     }
 }

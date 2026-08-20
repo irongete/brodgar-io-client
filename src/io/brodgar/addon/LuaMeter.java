@@ -395,6 +395,12 @@ public final class LuaMeter {
             public boolean named() {
                 return true;
             }
+
+            public String noGet() {
+                return "a meter has no key, only a server-published background resource name several bars"
+                    + " can share: " + CharApi.M + ":find(needle) is the search and " + CharApi.M
+                    + ":list()[n] takes a position";
+            }
         }, null);
     }
 }

@@ -375,6 +375,11 @@ public final class LuaWound {
                 int wid = key.toint();
                 return (wound(user, wid) == null) ? LuaValue.NIL : of(owner, user, wid);
             }
+
+            /** The key is the wound's server id. */
+            public String keyName() {
+                return "id";
+            }
         }, null);
     }
 }

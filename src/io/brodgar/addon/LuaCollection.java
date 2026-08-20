@@ -31,6 +31,13 @@ import org.luaj.vm2.lib.VarArgFunction;
  * :remove}; a collection whose members have no key has no {@code :get}; a collection whose members have no
  * name refuses a string filter naming why, rather than silently matching nothing. Everything else about it
  * is the shared machinery here, so a section that gains a collection gains no vocabulary of its own.
+ *
+ * <p><b>A verb that is not mounted still answers for itself.</b> {@code :get} on a keyless collection is the
+ * commonest reach for a verb that is not there, so the source declares {@link Source#noGet} — the sentence
+ * naming what to search with instead — and an accessor that has to say how a member is reached asks
+ * {@link #reach} rather than assuming every collection has a {@code :get}. Where there IS one,
+ * {@link Source#missing} declares which of {@link Missing}'s three answers a key that names nothing gets, so
+ * the fact is stated beside the lookup rather than read out of it.
  */
 public final class LuaCollection {
     /** How the collection is spelled in Lua ({@code "hafen.timer()"}), for its messages. */
@@ -46,6 +53,21 @@ public final class LuaCollection {
     /** {@code tostring(coll)} → the spelling that produced it. */
     public String toString() {
         return name;
+    }
+
+    /**
+     * What {@code :get(key)} answers for a key that names nothing. <b>Declared per collection</b>
+     * ({@link Source#missing}) rather than read out of each {@code getMember}, because it is the one thing
+     * about {@code :get} an author has to know before they write the line after it — and a fact spread over
+     * twenty method bodies is the fact the page documenting them gets wrong.
+     */
+    public enum Missing {
+        /** A key it does not hold answers {@code nil}. The common case, and what the default source does. */
+        NIL,
+        /** It always hands back an object, so {@code :exists()} is the question rather than {@code nil}. */
+        MINT,
+        /** The set is closed, so a key outside it is a mistake and the call says which keys there are. */
+        RAISE
     }
 
     /**
@@ -105,6 +127,33 @@ public final class LuaCollection {
             return "key";
         }
 
+        /**
+         * Which of the three answers {@link #getMember} gives a key that names nothing. Read only where
+         * {@link #addressable()}; the default is {@link Missing#NIL} because that is what the {@code
+         * getMember} above does, so a source declares this exactly where it overrides that.
+         *
+         * <p><b>It is the promise the KEY carries.</b> {@code session:kin()} declares {@link Missing#MINT}
+         * because {@code :get(id)} always hands back a Kin — the name form it also takes is a lookup rather
+         * than an address and answers {@code nil}, which is the kind of thing that belongs on the page rather
+         * than in an enum.
+         */
+        public Missing missing() {
+            return Missing.NIL;
+        }
+
+        /**
+         * Why this collection has no {@code :get}, and what to write instead — the hint the refusal carries,
+         * in the {@link Retired#closedIndex} shape ({@code "<coll> has no verb 'get' — <this>"}). Declared by
+         * every collection that is not {@link #addressable()}; {@code null} falls back to the sentence that is
+         * true of all of them, which names {@code :find} and {@code :list} and teaches nothing else.
+         *
+         * <p>It is also what an accessor's own refusal quotes ({@link LuaCollection#reach}), so the two places
+         * that have to say how a member is reached say the same words.
+         */
+        public String noGet() {
+            return null;
+        }
+
         /** Does {@code :add(…)} apply? */
         public boolean creatable() {
             return false;
@@ -135,6 +184,27 @@ public final class LuaCollection {
     public static LuaValue create(String name, Source src, LuaTable extra) {
         LuaCollection coll = new LuaCollection(name, src);
         return LuaValue.userdataOf(coll, meta(coll, methods(coll, extra)));
+    }
+
+    /**
+     * How one member of {@code coll} is reached, as a clause an accessor's own refusal can carry —
+     * {@code hafen.map():marker(1)} names {@code :find}/{@code :nearest}, {@code hafen.map():segment(1)}
+     * names {@code :get(id)}. <b>The collection answers for itself</b>, so an accessor written over five of
+     * them cannot name a {@code :get} one of the five has not got.
+     */
+    static String reach(LuaValue coll) {
+        LuaCollection c = receiver(coll, "reach");
+        return c.src.addressable()
+            ? (c.name + ":get(" + c.src.keyName() + ") addresses one member of it")
+            : c.noGet();
+    }
+
+    /** The sentence the missing {@code :get} carries: the source's own, or the one true of every collection. */
+    private String noGet() {
+        String own = src.noGet();
+        return (own != null) ? own
+            : ("these members have no key: " + name + ":find(filter) is the search and " + name
+               + ":list()[n] takes a position");
     }
 
     /** The collection behind a method's {@code self}, or a guiding error (a dot call passes the wrong one). */
@@ -197,7 +267,15 @@ public final class LuaCollection {
             m.set("get", new VarArgFunction() {
                 public Varargs invoke(Varargs a) {
                     LuaCollection c = receiver(a.arg1(), "get");
-                    return c.src.getMember(Args.required(a, 2, c.name + ":get", c.src.keyName()));
+                    LuaValue v = c.src.getMember(Args.required(a, 2, c.name + ":get", c.src.keyName()));
+                    // The one direction of Missing that is always a defect in the client rather than a fact
+                    // about the game: a set declared CLOSED has no miss to answer nil for. It is what keeps
+                    // the declaration and the lookup from drifting while conventions.md quotes the former.
+                    if(v.isnil() && (c.src.missing() == Missing.RAISE))
+                        throw new LuaError(c.name + ":get(" + c.src.keyName() + "): this set is closed, so a"
+                            + " key outside it says which keys there are — answering nil is a bug in the"
+                            + " client, not an answer");
+                    return v;
                 }
             });
         }
@@ -297,6 +375,10 @@ public final class LuaCollection {
                 if(key.isnumber())
                     throw new LuaError(coll.name + " is a collection, not an array: " + coll.name
                         + ":list() is the array and you index that");
+                // The commonest reach for a verb a collection has not got. "has no verb 'get'" is true and
+                // teaches nothing: what the author wants is a member, and there is always a way to one.
+                if(!coll.src.addressable() && key.isstring() && key.tojstring().equals("get"))
+                    throw new LuaError(coll.name + " has no verb 'get' — " + coll.noGet());
                 throw new LuaError(coll.name + " has no verb '" + key.tojstring() + "'");
             }
         });

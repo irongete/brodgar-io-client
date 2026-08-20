@@ -239,6 +239,11 @@ final class VrApi {
             public void removeMember(LuaValue x) {
                 destroyEntity(memberArg(owner.ghosts, x, "hafen.vr():ghost():remove", "ghost"));
             }
+
+            public String noGet() {
+                return "a ghost has no key: hafen.vr():ghost():add(res, p) hands you the ghost it stands,"
+                    + " and hafen.vr():ghost():find(filter) finds one you already put up";
+            }
         }, null);
     }
 
@@ -294,6 +299,11 @@ final class VrApi {
             public void removeMember(LuaValue x) {
                 destroyEntity(memberArg(owner.sprites, x, "hafen.vr():sprite():remove", "sprite"));
             }
+
+            public String noGet() {
+                return "a sprite has no key: hafen.vr():sprite():add(image, p) hands you the sprite it stands,"
+                    + " and hafen.vr():sprite():find(filter) finds one you already put up";
+            }
         }, null);
     }
 
@@ -331,6 +341,11 @@ final class VrApi {
 
             public void removeMember(LuaValue x) {
                 destroyEntity(memberArg(owner.objects, x, "hafen.vr():object():remove", "object"));
+            }
+
+            public String noGet() {
+                return "an object has no key: hafen.vr():object():add(model, p) hands you the object it stands,"
+                    + " and hafen.vr():object():find(filter) finds one you already put up";
             }
         }, null);
     }
@@ -378,6 +393,11 @@ final class VrApi {
 
             public void removeMember(LuaValue x) {
                 destroyEntity(memberArg(owner.surfaces, x, "hafen.vr():widget():remove", "widget"));
+            }
+
+            public String noGet() {
+                return "a panel has no key: hafen.vr():widget():add(w, p) hands you the panel it stands,"
+                    + " and hafen.vr():widget():find(filter) finds one you already put up";
             }
         }, null);
     }

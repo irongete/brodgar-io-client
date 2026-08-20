@@ -1,0 +1,9 @@
+{
+  "name": "084.3 — the collection says what it has not got",
+  "id": "084-every-refusal-names-the-fix.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 084.3: a keyless collection's missing :get names its own entry verb, an accessor quotes the collection instead of assuming a :get, and each of nil / an object / an error is what its collection declared.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

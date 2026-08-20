@@ -244,6 +244,11 @@ public final class LuaSegment {
                 MapFile.Grid g = MapApi.gridAtIn(file, MapApi.segIn(file, id), coordArg(key));
                 return (g == null) ? LuaValue.NIL : LuaMapGrid.of(owner, g.id);
             }
+
+            /** The key is a segment grid coord, which grid:segmentCoord() hands you. */
+            public String keyName() {
+                return "sc";
+            }
         }, extra);
     }
 

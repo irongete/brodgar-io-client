@@ -20,8 +20,14 @@ A string [filter](conventions.md#the-filter-argument) is a plain substring match
 name, and is not trimmed. A miss is plain `nil`.
 
 **There is no `:get`**: a meter has no key, only a server-published resource name several bars could
-share, so a needle is a *search*. `s:meter():get(…)` raises, saying the collection has no such verb; the
-search is `:find(needle)` and a position is `s:meter():list()[n]`.
+share, so a needle is a *search*. Asking for one says so, and says what to write:
+
+```lua
+s:meter():get("hp")
+-- session:meter() has no verb 'get' — a meter has no key, only a server-published background
+-- resource name several bars can share: session:meter():find(needle) is the search and
+-- session:meter():list()[n] takes a position
+```
 
 ## Whose bars they are
 

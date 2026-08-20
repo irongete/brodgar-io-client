@@ -382,6 +382,11 @@ public final class LuaIconCat {
                 String res = key.tojstring();
                 return settingsFor(res).isEmpty() ? LuaValue.NIL : of(owner, res);
             }
+
+            /** A category's identity is its icon RESOURCE name; the player-facing name is a search. */
+            public String keyName() {
+                return "res";
+            }
         }, null);
     }
 }

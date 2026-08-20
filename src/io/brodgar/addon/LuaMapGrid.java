@@ -367,6 +367,11 @@ public final class LuaMapGrid {
                 return (MapApi.maskIn(MapApi.mapfile(), id, t) == null)
                     ? LuaValue.NIL : LuaMask.of(owner, id, t);
             }
+
+            /** The key is the overlay tag the server's resources declare. */
+            public String keyName() {
+                return "tag";
+            }
         }, null);
     }
 

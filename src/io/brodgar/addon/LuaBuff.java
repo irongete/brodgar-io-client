@@ -427,6 +427,12 @@ public final class LuaBuff {
             public boolean named() {
                 return true;
             }
+
+            public String noGet() {
+                return "a buff has no key, since two can share a resource and the server can replace one"
+                    + " under a live buff: " + CharApi.B + ":find(needle) is the search and "
+                    + CharApi.B + ":list()[n] takes a position";
+            }
         }, null);
     }
 }

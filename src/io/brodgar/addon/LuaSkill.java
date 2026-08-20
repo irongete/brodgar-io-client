@@ -317,6 +317,12 @@ public final class LuaSkill {
             public boolean named() {
                 return true;
             }
+
+            public String noGet() {
+                return "a skill's only key is the server's internal token: " + CharApi.C
+                    + ":skill():find(needle) searches the display name and the resource, and " + CharApi.C
+                    + ":skill():available(filter) is the buyable ones";
+            }
         }, extra);
     }
 }

@@ -40,7 +40,14 @@ A string [filter](conventions.md#the-filter-argument) matches the resource name 
 
 **There is no `:get`, and that is the shape rather than an omission.** A study slot has no key: the same
 curiosity can sit in two slots at once, and the window has no index the server addresses. So a string is
-a *search*, and a position is `s:study():slot():list()[n]`.
+a *search*, and asking for the address says which verb that is:
+
+```lua
+s:study():slot():get("bar")
+-- session:study():slot() has no verb 'get' — a slot has no key, since the same curiosity can
+-- sit in two of them: session:study():slot():find(needle) is the search and
+-- session:study():slot():list()[n] takes a position
+```
 
 ## A slot
 

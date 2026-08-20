@@ -55,7 +55,7 @@ object, never a bare array. The plural belongs to the verb.
 | `:list(filter)` | a plain array of members, empty rather than `nil` |
 | `:count(filter)` | how many |
 | `:find(filter)` | the first member that matches, or `nil` |
-| `:get(key)` | one member by its key, or `nil`, where the members have keys |
+| `:get(key)` | one member by its key, where the members have keys — a miss is [below](#get-what-a-key-that-names-nothing-answers) |
 | `:add(...)` | a new member, where the collection can create one |
 | `:remove(keyOrMember)` | the collection, so removals chain, where it can destroy one |
 
@@ -69,6 +69,28 @@ neither one outlives it. Identity lives on the **members**: `gob:overlay():get("
 > **A collection is an object, not a sequence.** `#coll`, `coll[1]` and `ipairs(coll)` are refused,
 > naming what to write instead. Two ways to enumerate one thing is the ambiguity this API does not
 > have: `coll:list()` is the array, and you index that.
+
+### get: what a key that names nothing answers
+
+`:get(key)` **addresses** a member, so what it does with a key nothing answers to belongs to the
+collection and is declared by it:
+
+| A miss gives you | Which collections |
+|---|---|
+| `nil` | every collection not named below |
+| an object, so [`:exists()`](#objects-and-the-snapshot-hatch) is the question | `hafen.session()`, `hafen.sound()`, `s:world():gob()`, `s:kin():get(id)`, `s:actionbar()` |
+| an error naming the keys there are | `hafen.asset()`, `hafen.font()`, `s:char():attr()`, `hafen.map():overlay()` |
+
+**A collection whose members have no key has no `:get`, and says what to reach for instead.** Two buffs
+can share a resource; a marker's only id is one this client mints; a timer is only ever the one you were
+handed. So the address that does not exist is a search, and asking for it hands you the verb that is:
+
+```lua
+hafen.timer():get(1)
+-- hafen.timer() has no verb 'get' — a timer has no key: hafen.timer():after(s, fn) and
+-- hafen.timer():every(s, fn) hand you the timer they make, and hafen.timer():list() is every
+-- one of yours
+```
 
 ### Objects, and the snapshot hatch
 

@@ -487,6 +487,16 @@ public final class LuaKin {
                 bw.wdgmsg("bypwd", s);      // BuddyWnd's own "Add kin" field sends exactly this
                 return a.arg1();
             }
+
+            /** :get(id) always hands back a Kin; the NAME form is a lookup and answers nil. */
+            public LuaCollection.Missing missing() {
+                return LuaCollection.Missing.MINT;
+            }
+
+            /** Both forms come through the one door: the buddy id addresses, an exact name looks up. */
+            public String keyName() {
+                return "idOrName";
+            }
         }, null);
     }
 

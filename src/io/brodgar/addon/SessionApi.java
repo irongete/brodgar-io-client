@@ -122,6 +122,11 @@ public final class SessionApi {
                         + " the session logged in as, not the character it is playing");
                 return LuaSession.of(owner, key.tojstring());
             }
+
+            /** Any account name is addressable, logged in or not: s:exists() is the question. */
+            public LuaCollection.Missing missing() {
+                return LuaCollection.Missing.MINT;
+            }
         }, extra), null);
     }
 }

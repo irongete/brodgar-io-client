@@ -396,6 +396,11 @@ public final class LuaQuest {
                 int qid = key.toint();
                 return (quest(user, qid) == null) ? LuaValue.NIL : of(owner, user, qid);
             }
+
+            /** The key is the quest's server id. */
+            public String keyName() {
+                return "id";
+            }
         }, extra);
     }
 }

@@ -267,6 +267,12 @@ public final class LuaManeuver {
             public boolean named() {
                 return true;
             }
+
+            public String noGet() {
+                return "a maneuver's server id is private to the fight window: " + CharApi.FT
+                    + ":maneuver():find(needle) is the search and " + CharApi.FT
+                    + ":maneuver():list()[n] takes a position";
+            }
         }, null);
     }
 }

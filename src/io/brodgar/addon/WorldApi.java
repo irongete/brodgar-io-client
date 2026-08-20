@@ -429,6 +429,16 @@ final class WorldApi {
                         + " \"player\"/\"me\"/\"partyN\" tokens are gone; your own gob is session:player():gob()");
                 return LuaGob.of(owner, (long)key.todouble());
             }
+
+            /** A gob id is the server's own, so the handle is the identity: gob:exists() is the question. */
+            public LuaCollection.Missing missing() {
+                return LuaCollection.Missing.MINT;
+            }
+
+            /** The key is the gob id the server published. */
+            public String keyName() {
+                return "id";
+            }
         }, extra);
     }
 
@@ -474,6 +484,11 @@ final class WorldApi {
                 long id = MapApi.idArg(key, W + ":grid():get(id)", "grid");
                 return (AddonWidgets.gridWorldUL(mcache(user), id) == null)
                     ? LuaValue.NIL : LuaMapGrid.of(owner, id);
+            }
+
+            /** The key is the grid id the server published, a decimal string. */
+            public String keyName() {
+                return "id";
             }
         }, extra);
     }

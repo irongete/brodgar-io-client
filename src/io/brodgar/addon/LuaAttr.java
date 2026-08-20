@@ -288,6 +288,16 @@ public final class LuaAttr {
                         + " The base attributes are: " + namesList());
                 return of(owner, user, nm);
             }
+
+            /** The base attributes are a closed set, so a name outside it is a typo. */
+            public LuaCollection.Missing missing() {
+                return LuaCollection.Missing.RAISE;
+            }
+
+            /** The key is the attribute's name. */
+            public String keyName() {
+                return "name";
+            }
         }, null);
     }
 }

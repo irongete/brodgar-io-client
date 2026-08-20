@@ -503,6 +503,16 @@ public final class LuaSound {
                     throw new LuaError("hafen.sound():get(name): the resource name is empty");
                 return of(owner, res);
             }
+
+            /** Any resource name is addressable, whether or not it has ever played. */
+            public LuaCollection.Missing missing() {
+                return LuaCollection.Missing.MINT;
+            }
+
+            /** The key is the sound's resource name. */
+            public String keyName() {
+                return "name";
+            }
         }, null);
     }
 }

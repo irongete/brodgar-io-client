@@ -303,6 +303,12 @@ public final class LuaStudySlot {
             public boolean named() {
                 return true;
             }
+
+            public String noGet() {
+                return "a slot has no key, since the same curiosity can sit in two of them: " + CharApi.ST
+                    + ":slot():find(needle) is the search and " + CharApi.ST
+                    + ":slot():list()[n] takes a position";
+            }
         }, null);
     }
 }

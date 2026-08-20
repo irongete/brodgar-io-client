@@ -122,6 +122,16 @@ final class AssetApi {
                         + " hafen.asset():get(\"icon.png\")), got " + key.typename());
                 return AssetApi.load(owner, key.tojstring());   // qualify: LuaValue also has a load(...)
             }
+
+            /** A file this addon does not ship is a mistake in the addon, not a miss. */
+            public LuaCollection.Missing missing() {
+                return LuaCollection.Missing.RAISE;
+            }
+
+            /** The key is the addon-relative PATH of a file this addon ships. */
+            public String keyName() {
+                return "path";
+            }
         }, null);
     }
 

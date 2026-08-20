@@ -14,6 +14,17 @@ server and quest pins, which carry a name and an icon.
 All four answer empty, `0` or `nil` before the map database is ready, and none throws. A string filter
 matches the marker's name; a function filter is called with the Marker itself.
 
+**There is no `:get`, and both doors say so.** A marker's only id is a per-session ref this client
+mints, which is not a key anything could hold on to — so `:find(filter)` is the search, and the
+refusal hands you it whichever way you arrive:
+
+```lua
+hafen.map():marker():get(1)
+-- hafen.map():marker() has no verb 'get' — a marker's only id is a per-session ref this client
+-- mints, which is not a key anything could hold on to: hafen.map():marker():find(filter) is
+-- the search and hafen.map():marker():nearest(filter) the closest one
+```
+
 ## The Marker object
 
 | Method | Returns | Description |

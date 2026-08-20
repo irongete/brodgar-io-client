@@ -422,6 +422,16 @@ public final class LuaSlot {
                         + (SLOTS - 1) + "), got " + n);
                 return of(owner, user, n);
             }
+
+            /** The belt is a fixed array: every index in range is a slot, holding something or not. */
+            public LuaCollection.Missing missing() {
+                return LuaCollection.Missing.MINT;
+            }
+
+            /** The key is the raw 0-based game index. */
+            public String keyName() {
+                return "n";
+            }
         }, null);
     }
 }
