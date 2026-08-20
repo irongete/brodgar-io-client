@@ -1,0 +1,10 @@
+{
+  "name": "083.1 — the log",
+  "id": "083-eventstack.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 083.1: what one :rows(t) costs in of(row) calls, a bounded ring that keeps the newest in arrival order, a record out of each of the four doors, the clock that needs \"%d\", and a table on screen refusing :columns(t).",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["widget.send"]
+}
