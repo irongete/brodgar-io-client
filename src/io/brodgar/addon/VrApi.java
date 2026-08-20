@@ -392,7 +392,7 @@ final class VrApi {
             }
 
             public void removeMember(LuaValue x) {
-                destroyEntity(memberArg(owner.surfaces, x, "hafen.vr():widget():remove", "widget"));
+                destroyEntity(memberArg(owner.surfaces, x, "hafen.vr():widget():remove", "panel"));
             }
 
             public String noGet() {
@@ -826,11 +826,18 @@ final class VrApi {
      * naming its replacement instead of reading as plain {@code nil} and failing one line later — and, since the
      * vocabulary is closed ({@link Retired#closedIndex}), lets a name that was never a verb throw too.
      *
+     * <p><b>The receiver and the collection are two names, not one</b> (084.6). For the three picture kinds
+     * they are the same word; a standing widget is spelled {@code panel} as a receiver — so its refusals are its
+     * own and not the flat {@link LuaWidget}'s, which answers to {@code widget} — while the collection that
+     * placed it is still {@code hafen.vr():widget()}. Every sentence naming the collection therefore takes
+     * {@code sect}, and every sentence naming the thing in hand takes {@code kind}.
+     *
+     * @param sect       the collection verb that placed it: {@code hafen.vr():<sect>()}.
      * @param extraVocab the kind's own verbs, spelled as the tail of the shared sentence the refusal carries —
      *                   written here beside the {@code extra} table it describes, so the two cannot drift apart.
      */
-    private static LuaValue entityHandle(final LuaWorldEntity e, final String kind, LuaTable extra,
-                                         final String extraVocab) {
+    private static LuaValue entityHandle(final LuaWorldEntity e, final String kind, final String sect,
+                                         LuaTable extra, final String extraVocab) {
         LuaTable m = new LuaTable();
         // position() -> a Position, the one type a place in the world has; position(p [, a]) moves it there, and
         // the optional second argument is the facing, because "put it there facing that way" is one act. It is
@@ -849,7 +856,7 @@ final class VrApi {
                         + " that gob's and setting it would be undone on the next frame. Where it sits RELATIVE"
                         + " to that gob is " + kind + ":offset(x, y, z) (world units, z up); its own facing is"
                         + " still " + kind + ":rotate(a); a " + kind + " that stands still is placed with"
-                        + " hafen.vr():" + kind + "():add(what, p)");
+                        + " hafen.vr():" + sect + "():add(what, p)");
                 // 045.1: the SECOND of the two doors that ask for a durable place — a thing is moved to a
                 // place it can go on holding, or it is not moved. The coordinate follows from the anchor,
                 // and since 045.2 it may not be here yet: the same door :add uses, so moving something to
@@ -874,7 +881,7 @@ final class VrApi {
                 if(e.followTgt == 0)
                     throw new LuaError(kind + ":offset(): this " + kind + " stands where it was put, so it is"
                         + " offset from nothing -- its place is " + kind + ":position(p). An offset is what a "
-                        + kind + " placed with hafen.vr():" + kind + "():add(what, gob) sits at relative to that"
+                        + kind + " placed with hafen.vr():" + sect + "():add(what, gob) sits at relative to that"
                         + " gob");
                 if(!Args.passed(a, 2)) {
                     Coord3f off;
@@ -1107,7 +1114,7 @@ final class VrApi {
                 return self;
             }
         });
-        return entityHandle(gh, "ghost", x, " and :res()");
+        return entityHandle(gh, "ghost", "ghost", x, " and :res()");
     }
 
     /**
@@ -1279,7 +1286,7 @@ final class VrApi {
                 return (ob.meshName == null) ? LuaValue.NIL : LuaValue.valueOf(ob.meshName);
             }
         });
-        return entityHandle(ob, "object", x, " and :mesh()");
+        return entityHandle(ob, "object", "object", x, " and :mesh()");
     }
 
     /**
@@ -1379,7 +1386,7 @@ final class VrApi {
             }
         });
         x.set("facing", facingVerb(sp, "sprite"));
-        return entityHandle(sp, "sprite", x, ", :image() and :facing()");
+        return entityHandle(sp, "sprite", "sprite", x, ", :image() and :facing()");
     }
 
     /** The three ways a flat entity — a sprite, a standing widget — can meet the viewer (044.3). */
@@ -1560,19 +1567,27 @@ final class VrApi {
      * viewer one of the same three ways a sprite does (044.3). There is no write half to {@code :widget()},
      * for the same reason an object's mesh has none: standing another widget is another
      * {@code hafen.vr():widget():add(w, p)}.
+     *
+     * <p><b>Its receiver is {@code panel}, and the flat one's is {@code widget}</b> (084.6). Two types cannot
+     * share a receiver spelling and keep {@link Retired}'s promise, because the twenty-odd rows keyed
+     * {@code widget:<verb>} fire on whichever of the two is in hand and only one of the two can be right:
+     * {@code widget:pos} says a widget lives on the screen and this is not a Position, which is the wrong fix
+     * for a thing standing in the world, whose {@code :position()} <b>is</b> a Position. So the panel answers
+     * to a name of its own, the rows that mean the flat widget stay where they are, and the rows that mean
+     * both are stated twice. The collection is untouched: {@code hafen.vr():widget()} still places it.
      */
     private static LuaValue widgetHandle(final LuaWidgetEntity we) {
         LuaTable x = new LuaTable();
         x.set("widget", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(Args.passed(a, 2))
-                    throw new LuaError("widget:widget() reads the Widget that is standing and does not write it"
+                    throw new LuaError("panel:widget() reads the Widget that is standing and does not write it"
                         + " — standing another one is hafen.vr():widget():add(w, p), and taking this one back is"
                         + " hafen.vr():widget():remove(x)");
                 return LuaWidget.of(we.owner, we.content);
             }
         });
-        x.set("facing", facingVerb(we, "widget"));
+        x.set("facing", facingVerb(we, "panel"));
         // screen(x, y) — where a pixel of this panel is drawn, in the screen coordinates the pointer itself
         // reports (044.4). The exact inverse of what a click does, and the same corner map both ways, so
         // "where is my OK button on screen" and "what did the player click" can never disagree. Two numbers,
@@ -1582,8 +1597,8 @@ final class VrApi {
         // device, so the conversion is the two edges of this verb and nothing in between.
         x.set("screen", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                int wx = (int)Math.round(number(a, 2, "widget:screen", "x"));
-                int wy = (int)Math.round(number(a, 3, "widget:screen", "y"));
+                int wx = (int)Math.round(number(a, 2, "panel:screen", "x"));
+                int wy = (int)Math.round(number(a, 3, "panel:screen", "y"));
                 Coord w = Px.in(Coord.of(wx, wy));
                 Coord p = Px.out(SurfaceInput.screenOf(we, w.x, w.y));
                 return (p == null) ? LuaValue.NIL
@@ -1596,14 +1611,14 @@ final class VrApi {
         // the flat UI. Two ways to hear about the same click would be exactly the dual API this area refuses.
         x.set("onClick", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                throw new LuaError("widget:onClick(fn): a standing widget's clicks are the WIDGET's own —"
-                    + " subscribe with widget:widget():on(\"MouseDown\", fn) (or \"MouseUp\", \"MouseMove\","
+                throw new LuaError("panel:onClick(fn): a standing widget's clicks are the WIDGET's own —"
+                    + " subscribe with panel:widget():on(\"MouseDown\", fn) (or \"MouseUp\", \"MouseMove\","
                     + " \"Wheel\"), the same line you would write for it on the flat UI, and read the pixel"
-                    + " off ev:x()/ev:y(). widget:clickable(false) makes the whole panel click-through"
+                    + " off ev:x()/ev:y(). panel:clickable(false) makes the whole panel click-through"
                     + " instead");
             }
         });
-        return entityHandle(we, "widget", x, ", :facing() and :screen()");
+        return entityHandle(we, "panel", "widget", x, ", :facing() and :screen()");
     }
 
     /**

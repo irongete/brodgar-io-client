@@ -583,6 +583,27 @@ final class Retired {
         put("ghost:setRes", "ghost:setRes(res, sdt) is now ghost:res(res, spawnData) — ghost:res() already read"
             + " it, so the pair was one name too many");
 
+        // ---- 084.6: the FOURTH kind, and the one whose receiver is not the word its collection is spelled
+        // ---- with. A standing widget answers to `panel`, because `widget` is the flat entity's and the rows
+        // ---- below have to be a different sentence from the ones keyed `widget:` a few lines up: a panel
+        // ---- stands in the WORLD, so its place is a Position, where a widget's is pixels within its parent.
+        // ---- The two boolean ones say the same thing on both types, so they are stated on both.
+        put("panel:pos", "panel:pos() is now panel:position(), and a panel stands in the WORLD: it hands back a"
+            + " Position, the place it is standing at, the same kind of value gob:position() answers. The widget"
+            + " INSIDE it keeps its own screen coordinates, on panel:widget():position(); the facing and the size"
+            + " out here are panel:rotate() and panel:scale()");
+        put("panel:move", "panel:move(x, y [, a]) is now panel:position(p [, a]), where p is a Position"
+            + " (gob:position(), or session:world():position(x, y)) — one name reads it and writes it. A panel"
+            + " standing ON a gob has no place of its own: what it sits at relative to that gob is"
+            + " panel:offset(x, y, z)");
+        put("panel:show", "panel:show() is now panel:visible(true) — a boolean property is a property, so the"
+            + " value is the argument rather than the verb's name");
+        put("panel:hide", "panel:hide() is now panel:visible(false) — a boolean property is a property, so the"
+            + " value is the argument rather than the verb's name");
+        put("panel:destroy", "panel:destroy() is now hafen.vr():widget():remove(x) — the collection stood it,"
+            + " so the collection takes it down, and the widget goes back where it was standing from."
+            + " Destroying the WIDGET itself is panel:widget():destroy(), which ends the panel with it");
+
         // ---- the six entity collections: the sections move, and four verbs with them ---------------------
         put("kin:setGroup", "kin:setGroup(g) is now kin:group(g) — kin:group() already read it, so the pair"
             + " was one name too many");

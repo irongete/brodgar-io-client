@@ -1,0 +1,9 @@
+{
+  "name": "084.6 — two widgets, one key",
+  "id": "084-every-refusal-names-the-fix.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 084.6: a panel standing in the world and a widget on the screen are two receivers, each refusing in its own vocabulary, and a row that means both still fires on both.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

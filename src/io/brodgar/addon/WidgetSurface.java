@@ -261,7 +261,7 @@ final class WidgetSurface extends Widget {
     /**
      * <b>Does the pointer reach this panel at all?</b> A standing widget takes clicks by default — a window on
      * the flat UI does, and this feature's whole rule is that the world one behaves the same — so
-     * {@code widget:clickable(false)} is the opt OUT, and it means what it means for a sprite: the thing is
+     * {@code panel:clickable(false)} is the opt OUT, and it means what it means for a sprite: the thing is
      * there to look at, and the pointer goes through it to the world beneath.
      */
     boolean takesPointer() {

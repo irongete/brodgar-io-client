@@ -98,7 +98,7 @@ Every entity of every kind answers the same verbs, each a read/write pair on one
 **reads**, calling it with a value **writes** and hands the entity back, so a whole placement is one chain.
 Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the-ghost),
 [`s:image`](sprites.md#the-sprite) and [`s:facing`](sprites.md#facing), [`o:mesh`](models.md#the-object),
-[`x:widget`, `x:facing` and `x:screen`](widgets.md#the-standing-widget).
+[`panel:widget`, `panel:facing` and `panel:screen`](widgets.md#the-standing-widget).
 
 | Method | Description |
 |---|---|
@@ -133,6 +133,12 @@ so `:scale(0)` gives the smallest size these take rather than an error. Resizing
 Three kinds have `:onClick(fn)`, because "it was clicked" is the whole of what a picture has to say; a panel
 fires its own `MouseDown` at the pixel the pointer landed on, so `:onClick` on one raises naming that
 subscription instead, and `:clickable(b)` there means *does this panel take the pointer at all*.
+
+**A refusal names the kind in hand**, and a standing widget's name is `panel`: a verb none of them has
+answers `ghost`, `sprite`, `object` or `panel` and lists what that kind does answer. The panel is named for
+what it is rather than for the collection that placed it, because the [widget](../ui/widget.md) inside it
+answers to `widget` and the two need different sentences — out here a place is a
+[Position](../position.md), in there it is pixels within a parent.
 
 ## The ground under one that stands still
 

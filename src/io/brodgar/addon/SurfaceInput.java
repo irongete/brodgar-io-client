@@ -159,7 +159,7 @@ final class SurfaceInput {
         return (p == null) ? null : new Coord(Math.round(p[0]), Math.round(p[1]));
     }
 
-    /** {@code widget:screen(x, y)} — the same, in the SCREEN coordinates the pointer itself reports. */
+    /** {@code panel:screen(x, y)} — the same, in the SCREEN coordinates the pointer itself reports. */
     static Coord screenOf(LuaWidgetEntity we, int wx, int wy) {
         Coord mr = viewOrigin();
         if((mr == null) || (we == null) || we.dead)
@@ -274,7 +274,7 @@ final class SurfaceInput {
      * dispatched from the surface — the client's own traversal, from a real root, in the panel's own pixels.
      *
      * <p>{@code true} means a panel took it and the caller must not also walk the flat tree. The gate is
-     * {@link WidgetSurface#takesPointer()}, the same one a click passes, so {@code widget:clickable(false)}
+     * {@link WidgetSurface#takesPointer()}, the same one a click passes, so {@code panel:clickable(false)}
      * makes a panel transparent to a hover and a tooltip exactly as it does to a press: it is there to look at.
      *
      * <p><b>The hover flag has to be carried by hand.</b> {@code MouseHoverEvent}'s derive constructor leaves

@@ -48,12 +48,19 @@ The [shared vocabulary](README.md#one-vocabulary-four-kinds) — `:position`, `:
 
 | Method | Description |
 |---|---|
-| `x:widget()` | the [Widget](../ui/widget.md) that is standing — the same object you passed in |
-| `x:facing()` / `x:facing(mode)` | how it meets the viewer: `"fixed"`, `"camera"` or `"screen"` — see [facing](#facing) |
-| `x:screen(wx, wy)` | where a pixel of the panel is drawn, as two screen [design pixels](../ui/pixels.md), or `nil` — see [clicks](#clicks-are-the-widgets-own) |
+| `panel:widget()` | the [Widget](../ui/widget.md) that is standing — the same object you passed in |
+| `panel:facing()` / `panel:facing(mode)` | how it meets the viewer: `"fixed"`, `"camera"` or `"screen"` — see [facing](#facing) |
+| `panel:screen(wx, wy)` | where a pixel of the panel is drawn, as two screen [design pixels](../ui/pixels.md), or `nil` — see [clicks](#clicks-are-the-widgets-own) |
 
-`x:widget()` is read-only, like a ghost's resource and an object's mesh: standing another widget is another
-`hafen.vr():widget():add(w, anchor)`, and taking this one back is `hafen.vr():widget():remove(x)`.
+`panel:widget()` is read-only, like a ghost's resource and an object's mesh: standing another widget is
+another `hafen.vr():widget():add(w, anchor)`, and taking this one back is `hafen.vr():widget():remove(x)`.
+
+**The panel and the widget inside it are two objects, and a refusal names which one you are holding.** A
+mistyped verb on the panel answers `panel has no verb '…'` and lists what a thing in the world answers; the
+same typo on the widget answers `widget has no verb '…'` and lists what one on the screen does. The split is
+what keeps each answer right: `panel:position()` is a [Position](../position.md), the place the panel is
+standing at, and [`w:position()`](../ui/widget.md#read) is pixels within its parent — one question, asked of
+two spaces.
 
 A panel's world size comes from the widget's own [design pixels](../ui/pixels.md), at **a hundred pixels to
 the tile**, so a default `hafen.ui():window()` stands about two tiles across on every client, whatever
@@ -105,28 +112,28 @@ local ok = hafen.ui():button():text("Sort")
 ok:on("Pressed", function() hafen.log():write("pressed, in the world") end)
 ```
 
-`x:onClick(fn)` raises, naming `x:widget():on("MouseDown", fn)` and the three keys beside it. What the entity
-does carry is `x:clickable(b)`: **does this panel take the pointer at all**, default `true`. Set it `false`
-and the panel is click-through — the click reaches the world beneath it, exactly as a click that misses the
-panel always does.
+`panel:onClick(fn)` raises, naming `panel:widget():on("MouseDown", fn)` and the three keys beside it. What
+the entity does carry is `panel:clickable(b)`: **does this panel take the pointer at all**, default `true`.
+Set it `false` and the panel is click-through — the click reaches the world beneath it, exactly as a click
+that misses the panel always does.
 
 Two verbs turn a screen point into a panel pixel and back, and they are exact inverses off one map, so *where
 is my button on screen* and *what did the player click* can never disagree:
 
 | Call | Returns | Description |
 |---|---|---|
-| `x:screen(wx, wy)` | `x, y` \| `nil` | where widget-local pixel `wx, wy` is drawn, in screen coordinates |
+| `panel:screen(wx, wy)` | `x, y` \| `nil` | where widget-local pixel `wx, wy` is drawn, in screen coordinates |
 | `hafen.vr():pointer(key, x, y [, a])` | boolean | put the pointer on whatever is standing at screen point `x, y` |
 
 Both pairs are [design pixels](../ui/pixels.md): the widget-local one is what `:size()` and `ev:x()` speak,
 the screen one what [`hafen.ui():mouse()`](../ui/mouse.md) reports. So the two calls compose — feed
-`x:screen(wx, wy)` to `hafen.vr():pointer` and the panel's own `MouseDown` lands back on `wx, wy`.
+`panel:screen(wx, wy)` to `hafen.vr():pointer` and the panel's own `MouseDown` lands back on `wx, wy`.
 
 `key` is one of `"MouseDown"`, `"MouseUp"`, `"MouseMove"` or `"Wheel"` — the same four keys
 [`widget:on`](../ui/widget.md#subscribing) answers to, so there is one input vocabulary and not two. `a` is
 the button on a press or release (`1` left, `3` right, default `1`) and the amount on a wheel. It hands back
 whether a panel took it; `false` means the point was on none, which is the moment the client's own world
-click goes through untouched. `x:screen` answers `nil` when the panel is not being drawn or is
+click goes through untouched. `panel:screen` answers `nil` when the panel is not being drawn or is
 behind the camera.
 
 Both are unprotected: this is the client's path from the map view inward, it cannot move the character, and
@@ -188,8 +195,8 @@ stood from, painted by that tree's own pass and clicked through it — so it is 
 is, and while another one is you see nothing of it and it takes no clicks.
 
 Nothing is lost meanwhile. The widget is still in that tree, still ticking, still filling with items, and
-`x:exists()` is true from every character; `x:drawn()` is what answers whether it is in the scene you are
-looking at. Tab back and the panel is there, in the state it kept.
+`panel:exists()` is true from every character; `panel:drawn()` is what answers whether it is in the scene
+you are looking at. Tab back and the panel is there, in the state it kept.
 
 ## What is refused
 
@@ -215,8 +222,8 @@ proportional to what is actually being looked at.
   comes back into view.
 
 Being skipped for the view is not the same as being out of the scene: a panel standing at a point whose
-ground is not drawn is not there at all, and [`x:drawn()`](README.md#the-ground-under-one-that-stands-still)
-is what tells the two apart.
+ground is not drawn is not there at all, and
+[`panel:drawn()`](README.md#the-ground-under-one-that-stands-still) is what tells the two apart.
 
 [`hafen.client():profiling():surfaces()`](../client/profiling/counters.md#surfaces) is where that is a
 number rather than a claim: how many panels are standing, how many are being skipped right now, and the

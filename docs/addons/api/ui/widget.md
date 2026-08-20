@@ -234,11 +234,12 @@ window you built it. Addon B looking at addon A's window holds a *borrowed* widg
 answer.
 
 **A widget's place is on the screen, not in the world.** `:position()` and `:rootPos()` answer in
-[design pixels](pixels.md) and hand back a plain `{x=, y=}` table, never a
-[Position](../position.md). The verb is the
-same word because the question is the same one — *where is this thing, in the space it lives in* — and the
-object says which space, so [`s:player():move`](../player.md#write-protected) refuses a
-widget's coordinates instead of walking a character somewhere that merely has the same two numbers.
+[design pixels](pixels.md) and hand back a plain `{x=, y=}` table, never a [Position](../position.md). The
+verb is the same word because the question is the same one — *where is this thing, in the space it lives in*
+— and the object says which space, so [`s:player():move`](../player.md#write-protected) refuses a widget's
+coordinates instead of walking a character somewhere that merely has the same two numbers. It holds out in
+the world too: the [**panel**](../vr/widgets.md) standing there is a second object, answering to `panel`,
+whose place is a Position — so a typo on either is answered in the vocabulary of the one in hand.
 
 ## Send a message (protected)
 

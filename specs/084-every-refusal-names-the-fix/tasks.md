@@ -79,7 +79,7 @@
       variable, wait out the thirty-second timer, and report whether the console names the path it
       degraded.
 
-- [ ] **084.6 — Two widgets, one key.** `VrApi`'s panel kind and `LuaWidget` both spell their receiver
+- [x] **084.6 — Two widgets, one key.** `VrApi`'s panel kind and `LuaWidget` both spell their receiver
       `widget`, so the twenty-odd `Retired` rows keyed `widget:<verb>` fire on whichever of the two the
       author is holding — and `widget:pos`'s message, *"a widget lives on the screen, so this is not a
       Position"*, is the wrong fix for a panel standing in the world, whose `:position()` **is** a
