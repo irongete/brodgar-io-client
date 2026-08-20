@@ -173,10 +173,15 @@ public final class LuaSpeed {
 
     // ---- the Speed metatable -----------------------------------------------------------------------
 
-    /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
+    /**
+     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
+     */
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("speed", methods()));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("speed", methods(),
+            "one movement speed answers :index() :name() :available() :exists() and :info(); picking one "
+            + "is s:speed():set(x)"));
         mt.set("__name", LuaValue.valueOf("Speed"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

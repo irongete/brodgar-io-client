@@ -160,9 +160,10 @@ public final class LuaAttr {
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
         LuaTable m = methods();
-        // Retired.methodIndex, never the methods table itself: a verb this migration renamed must throw
+        // Retired.closedIndex, never the methods table itself: a verb this migration renamed must throw
         // naming its replacement rather than read as plain nil and fail one character later.
-        mt.set(LuaValue.INDEX, Retired.methodIndex("attr", m));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("attr", m,
+            "a character attribute answers :name() :base() :composite() and :info()"));
         mt.set("__name", LuaValue.valueOf("Attr"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

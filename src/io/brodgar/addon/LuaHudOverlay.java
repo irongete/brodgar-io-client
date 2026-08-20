@@ -88,7 +88,8 @@ final class LuaHudOverlay {
             }
         });
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("uioverlay", m));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("uioverlay", m,
+            "a HUD painter answers :onDraw(fn) :exists() and :destroy()"));
         mt.set("__name", LuaValue.valueOf("Overlay"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue v) {

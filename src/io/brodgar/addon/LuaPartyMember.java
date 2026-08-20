@@ -153,7 +153,9 @@ public final class LuaPartyMember {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("partymember", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("partymember", methods(owner),
+            "someone in your party answers :id() :gob() :position() :color() :leader() :exists() and "
+            + ":info()"));
         mt.set("__name", LuaValue.valueOf("PartyMember"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

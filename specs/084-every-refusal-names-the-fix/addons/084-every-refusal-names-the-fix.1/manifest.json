@@ -1,0 +1,9 @@
+{
+  "name": "084.1 — the entity types answer for themselves",
+  "id": "084-every-refusal-names-the-fix.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 084.1: every entity type refuses an unknown verb by call and by field, naming itself and what it does answer, while the retired rows and the section's colon refusal go on firing.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -811,33 +811,22 @@ final class Retired {
 
     /**
      * The {@code __index} for one <b>entity</b>'s metatable: a live verb answers, a retired one throws naming
-     * its replacement, and anything else reads as plain {@code nil} — the same three outcomes a section has,
-     * one level down. The retired rows are keyed {@code "<entity>:<verb>"} ({@code "gob:pos"}), which is how
-     * they are spelled at the call site that has to be fixed.
-     */
-    static LuaValue methodIndex(final String entity, final LuaTable methods) {
-        return new TwoArgFunction() {
-            public LuaValue call(LuaValue self, LuaValue key) {
-                LuaValue m = methods.rawget(key);
-                if(!m.isnil())
-                    return m;
-                if(key.isstring()) {
-                    String msg = NAMES.get(entity + ":" + key.tojstring());
-                    if(msg != null)
-                        throw new LuaError(msg);
-                }
-                return LuaValue.NIL;
-            }
-        };
-    }
-
-    /**
-     * As {@link #methodIndex}, for an entity whose vocabulary is <b>closed</b>: an unknown verb <b>throws</b>
-     * naming what does exist, instead of reading {@code nil}. That is D-072 one shape along — the style
-     * properties became verbs, and a misspelt property has no future meaning to wait for, so answering it with
-     * silence (and a "attempt to call a nil value" one character later) is the worst available answer. Used
-     * where the verb set is the whole of a value's grammar rather than a growing surface a feature probe might
-     * ask about: {@link LuaRule} and {@link LuaSheet}, as {@link Section} and {@link LuaCollection} already do.
+     * its replacement, and <b>anything else throws too</b>, naming what this type does answer. The retired rows
+     * are keyed {@code "<entity>:<verb>"} ({@code "gob:pos"}), which is how they are spelled at the call site
+     * that has to be fixed.
+     *
+     * <p><b>Why an object has no third outcome, where a section has.</b> A section reads a miss as plain
+     * {@code nil} so a feature probe ({@code if hafen.something then}) keeps working — but a probe is asked of
+     * the {@code hafen} table, never of an object already in hand. On an object a name that is not a verb is a
+     * typo, and answering it with silence (and "attempt to call a nil value" one character later) is the worst
+     * answer available: it names neither the verb nor the line that wrote it. So the vocabulary is
+     * <b>closed</b>, and the refusal carries the {@code hint} written beside the methods table it guards —
+     * the key list plus the sentence saying what the type is for, which is what a reader needs and what a
+     * list generated at refusal time would drop.
+     *
+     * <p>The same shape {@link Section} and {@link LuaCollection} already have, one level down: it throws on a
+     * FIELD read ({@code x.nosuch}) exactly as on a call ({@code x:nosuch()}), because LuaJ routes both here.
+     * {@code __name}/{@code __tostring} are exempt — a metamethod is {@code rawget} off the metatable.
      */
     static LuaValue closedIndex(final String entity, final LuaTable methods, final String hint) {
         return new TwoArgFunction() {

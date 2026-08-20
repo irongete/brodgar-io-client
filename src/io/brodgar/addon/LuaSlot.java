@@ -187,10 +187,15 @@ public final class LuaSlot {
 
     // ---- the Slot metatable ------------------------------------------------------------------------
 
-    /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
+    /**
+     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
+     */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("slot", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("slot", methods(owner),
+            "one action-bar slot answers :index() :empty() :res() :pagina() :name() :cooldown() :info(), "
+            + "and :use() presses it"));
         mt.set("__name", LuaValue.valueOf("Slot"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

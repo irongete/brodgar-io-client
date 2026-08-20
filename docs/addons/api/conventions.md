@@ -104,11 +104,23 @@ deliberate rather than missing: it is why a request carries `req:header(name, va
 options table, and it does not reach what a verb *returns* — a `:list()` array and an `:info()` table are
 ordinary Lua tables you index normally.
 
-### A retired name says what replaced it
+### A retired name says what replaced it, and an unknown one says what exists
 
 A spelling this API has replaced does not read as `nil`. It raises, at the line that wrote it, naming
-what to write instead. A name that was never part of this API still reads as plain `nil`, so testing
-whether something exists still works.
+what to write instead.
+
+A name that was never part of this API raises too, **on an object** — `gob:pozition()` and
+`gob.pozition` alike, because a field read and a colon call are the same lookup. The message names the
+receiver and the verbs it does answer:
+
+```lua
+gob:pozition()   -- gob has no verb 'pozition' — a gob is one thing in the world: it answers :id()
+                 -- :exists() :sessions() :info() :position() :facing() :name() … and :distance()
+```
+
+An object's vocabulary is **closed**, so a name outside it is a typo and is said to be one. On the
+`hafen` table and on a section a miss still reads as plain `nil`, because that is where a feature probe
+asks — `if hafen.something then` keeps working.
 
 ## Several logins, one screen
 

@@ -130,7 +130,8 @@ public final class LuaManeuver {
 
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("maneuver", methods()));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("maneuver", methods(),
+            "a fight maneuver answers :res() :name() :available() :used() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Maneuver"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

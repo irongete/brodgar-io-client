@@ -141,7 +141,8 @@ public final class LuaOpponent {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("opponent", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("opponent", methods(owner),
+            "someone you are fighting answers :id() :gob() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Opponent"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

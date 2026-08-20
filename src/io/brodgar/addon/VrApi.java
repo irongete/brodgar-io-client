@@ -803,9 +803,14 @@ final class VrApi {
      *
      * <p>The handle table itself is left <b>empty</b> and every name is answered by the metatable, which is what
      * lets a retired spelling ({@code :pos}, {@code :move}, {@code :show}, {@code :hide}, {@code :destroy}) throw
-     * naming its replacement instead of reading as plain {@code nil} and failing one line later.
+     * naming its replacement instead of reading as plain {@code nil} and failing one line later — and, since the
+     * vocabulary is closed ({@link Retired#closedIndex}), lets a name that was never a verb throw too.
+     *
+     * @param extraVocab the kind's own verbs, spelled as the tail of the shared sentence the refusal carries —
+     *                   written here beside the {@code extra} table it describes, so the two cannot drift apart.
      */
-    private static LuaValue entityHandle(final LuaWorldEntity e, final String kind, LuaTable extra) {
+    private static LuaValue entityHandle(final LuaWorldEntity e, final String kind, LuaTable extra,
+                                         final String extraVocab) {
         LuaTable m = new LuaTable();
         // position() -> a Position, the one type a place in the world has; position(p [, a]) moves it there, and
         // the optional second argument is the facing, because "put it there facing that way" is one act. It is
@@ -987,7 +992,9 @@ final class VrApi {
         }
         LuaTable h = new LuaTable();
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex(kind, m));
+        mt.set(LuaValue.INDEX, Retired.closedIndex(kind, m,
+            "a " + kind + " in the world answers :position() :offset() :rotate() :scale() :alpha() :tint() "
+            + ":visible() :clickable() :onClick() :exists() :drawn()" + extraVocab));
         h.setmetatable(mt);
         return h;
     }
@@ -1080,7 +1087,7 @@ final class VrApi {
                 return self;
             }
         });
-        return entityHandle(gh, "ghost", x);
+        return entityHandle(gh, "ghost", x, " and :res()");
     }
 
     /**
@@ -1252,7 +1259,7 @@ final class VrApi {
                 return (ob.meshName == null) ? LuaValue.NIL : LuaValue.valueOf(ob.meshName);
             }
         });
-        return entityHandle(ob, "object", x);
+        return entityHandle(ob, "object", x, " and :mesh()");
     }
 
     /**
@@ -1352,7 +1359,7 @@ final class VrApi {
             }
         });
         x.set("facing", facingVerb(sp, "sprite"));
-        return entityHandle(sp, "sprite", x);
+        return entityHandle(sp, "sprite", x, ", :image() and :facing()");
     }
 
     /** The three ways a flat entity — a sprite, a standing widget — can meet the viewer (044.3). */
@@ -1576,7 +1583,7 @@ final class VrApi {
                     + " instead");
             }
         });
-        return entityHandle(we, "widget", x);
+        return entityHandle(we, "widget", x, ", :facing() and :screen()");
     }
 
     /**

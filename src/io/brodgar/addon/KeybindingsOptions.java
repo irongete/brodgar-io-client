@@ -33,9 +33,10 @@ public final class KeybindingsOptions {
     public static LuaValue create(final Addon owner) {
         LuaTable kb = new LuaTable();
         LuaTable mt = new LuaTable();
-        // Retired.methodIndex, not the methods table itself: kb:get / kb:set would otherwise read as plain nil
+        // Retired.closedIndex, not the methods table itself: kb:get / kb:set would otherwise read as plain nil
         // and fail one call later as "attempt to call a nil value", saying nothing about what replaced them.
-        mt.set(LuaValue.INDEX, Retired.methodIndex("keybindings", methods(owner, kb)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("keybindings", methods(owner, kb),
+            "the keybindings handle answers :register() :key() :unregister() and :list()"));
         kb.setmetatable(mt);
         return kb;
     }

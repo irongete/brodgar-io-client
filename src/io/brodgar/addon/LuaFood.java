@@ -111,7 +111,9 @@ public final class LuaFood {
 
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("food", methods()));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("food", methods(),
+            "the food meter answers :cap() :total() :feps() :hunger() :label() :efficacy() :exists() and "
+            + ":info()"));
         mt.set("__name", LuaValue.valueOf("Food"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

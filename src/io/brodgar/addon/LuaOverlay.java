@@ -307,7 +307,9 @@ public final class LuaOverlay {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("overlay", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("overlay", methods(owner),
+            "one overlay on a gob answers :key() :gob() :native() :res() :kind() :draw() :text() :color() "
+            + ":offset() :count() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Overlay"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

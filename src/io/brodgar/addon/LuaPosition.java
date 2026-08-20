@@ -329,7 +329,9 @@ public final class LuaPosition {
         synchronized LuaValue meta() {
             if(mt == null) {
                 LuaTable t = new LuaTable();
-                t.set(LuaValue.INDEX, Retired.methodIndex("position", methods(owner)));
+                t.set(LuaValue.INDEX, Retired.closedIndex("position", methods(owner),
+                    "a place in the world answers :x() :y() :offset() :distance() :tileCoord() :durable() "
+                    + "and :info()"));
                 t.set("__name", LuaValue.valueOf("Position"));
                 t.set("__tostring", new OneArgFunction() {
                     public LuaValue call(LuaValue self) {

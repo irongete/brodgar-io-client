@@ -2,6 +2,7 @@ package io.brodgar.addon;
 
 import haven.TexI;
 
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /**
@@ -64,7 +65,11 @@ public final class LuaMesh {
     static LuaMesh resolve(LuaValue v) {
         if(v == null)
             return null;
-        LuaValue u = v.istable() ? v.get(KEY) : v;
+        // rawget, never get: since 084.1 an entity handle is a CLOSED vocabulary, and two of them (a VR
+        // entity, the keybindings handle) are tables — so a get() probe on the wrong argument would fire
+        // that type's "has no verb" refusal instead of the one this verb owes its caller. A private marker
+        // key is a raw lookup by nature: nothing but the wrapper this class built ever carries it.
+        LuaValue u = v.istable() ? ((LuaTable)v).rawget(KEY) : v;
         if(u.isuserdata()) {
             Object o = u.touserdata();
             if(o instanceof LuaMesh)

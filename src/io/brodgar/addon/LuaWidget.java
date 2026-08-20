@@ -214,15 +214,22 @@ public final class LuaWidget {
     // ---- the Widget metatable ----------------------------------------------------------------------
 
     /**
-     * The per-addon metatable: {@code __index} = the methods table <b>through {@link Retired#methodIndex}</b>,
+     * The per-addon metatable: {@code __index} = the methods table <b>through {@link Retired#closedIndex}</b>,
      * plus {@code __tostring}/{@code __name}. The indirection is what makes a retired verb ({@code w:pos},
-     * {@code w:show}) throw naming its replacement instead of reading as plain {@code nil} and failing one line
-     * later as "attempt to call a nil value" — pointing {@code __index} straight at the methods table is the
-     * mistake that hid the cut on two earlier entities.
+     * {@code w:show}) throw naming its replacement, and a verb that never existed throw naming the ones that
+     * do, instead of reading as plain {@code nil} and failing one line later as "attempt to call a nil value"
+     * — pointing {@code __index} straight at the methods table is the mistake that hid the cut on two earlier
+     * entities.
      */
     private static LuaValue buildMeta(Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("widget", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("widget", methods(owner),
+            "a widget answers :type() :role() :res() :picture() :id() :exists() :info() :parent() "
+            + ":children() :position() :size() :rootPos() :walk() :find() :all() and :at(); its content is "
+            + ":title() :text() :tooltip() :image() :value() :source() :rows() :range() :rowHeight() "
+            + ":cell() :columns() :items() :font() and :focused(); its frame is :draggable() :resizable() "
+            + ":remember() :visible() :pack() :chrome() :style() and :rule(); and it acts with :on() "
+            + ":send() :replace() :replacement() :revert() and :destroy()"));
         mt.set("__name", LuaValue.valueOf("Widget"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

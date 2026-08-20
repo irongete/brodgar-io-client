@@ -204,7 +204,9 @@ public final class LuaMarker {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("marker", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("marker", methods(owner),
+            "a map marker answers :name() :type() :segmentTile() :position() :distance() :color() "
+            + ":onMap() :icon() :segment() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Marker"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

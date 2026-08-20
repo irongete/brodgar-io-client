@@ -172,10 +172,16 @@ public final class LuaGob {
 
     // ---- the metatable ---------------------------------------------------------------------------
 
-    /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
+    /**
+     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
+     */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("gob", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("gob", methods(owner),
+            "a gob is one thing in the world: it answers :id() :exists() :sessions() :info() :position() "
+            + ":facing() :name() :health() :moving() :speed() :speech() :icon() :overlay() :scale() "
+            + ":isPlayer() :kin() and :distance()"));
         mt.set("__name", LuaValue.valueOf("Gob"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

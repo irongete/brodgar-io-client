@@ -137,7 +137,9 @@ public final class LuaCraft {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("craft", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("craft", methods(owner),
+            "the open crafting recipe answers :name() :inputs() :outputs() :qualityInputs() :tools() "
+            + ":exists() :info(), and :make() runs it"));
         mt.set("__name", LuaValue.valueOf("Craft"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

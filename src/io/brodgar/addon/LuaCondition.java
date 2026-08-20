@@ -132,7 +132,8 @@ public final class LuaCondition {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("condition", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("condition", methods(owner),
+            "a quest condition answers :description() :status() :text() :quest() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Condition"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

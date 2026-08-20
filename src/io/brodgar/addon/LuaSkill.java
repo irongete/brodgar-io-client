@@ -132,7 +132,8 @@ public final class LuaSkill {
 
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("skill", methods()));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("skill", methods(),
+            "a skill answers :name() :res() :cost() :known() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Skill"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

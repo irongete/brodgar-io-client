@@ -189,10 +189,15 @@ public final class LuaPagina {
 
     // ---- the Pagina metatable ----------------------------------------------------------------------
 
-    /** The per-addon metatable: {@code __index} = the methods table, plus {@code __tostring}/{@code __name}. */
+    /**
+     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
+     */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("pagina", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("pagina", methods(owner),
+            "one entry of the action menu answers :res() :exists() :name() :icon() :path() :tooltip() "
+            + ":addon() :on() :hotkey() :isNew() :parent() :children() :info(), and :use() runs it"));
         mt.set("__name", LuaValue.valueOf("Pagina"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

@@ -132,7 +132,8 @@ public final class LuaExperience {
 
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("experience", methods()));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("experience", methods(),
+            "an experience event answers :name() :res() :score() :modified() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Experience"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

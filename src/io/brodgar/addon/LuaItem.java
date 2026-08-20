@@ -172,7 +172,10 @@ public final class LuaItem {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.methodIndex("item", methods(owner)));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("item", methods(owner),
+            "an item answers :res() :name() :quantity() :progress() :durability() :quality() :contents() "
+            + ":container() :cell() :slots() :handle() :exists() :info(), and acts with :use() :take() "
+            + ":drop() and :transfer()"));
         mt.set("__name", LuaValue.valueOf("Item"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
