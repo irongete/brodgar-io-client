@@ -49,16 +49,25 @@ any profiling addon should have.
 
 ## eventstack
 
-The live log. One line per thing the client did, newest last, in a table: the clock, which source it came
-through, its name, and what it was about. Every source is a checkbox of its own — every message the client
-**sends**, every update it **receives**, every key on the [event bus](api/event/bus.md) but `Update`, and
-every widget appearing and disappearing — so you can hold them all at once and shut off the one that is
-drowning the rest.
+The live log. One line per thing the client did, **newest first**, in a mono list: its number, the clock,
+which source it came through, the session it happened on, the widget it was about, its name, and a glimpse
+of what it carried. Every source is a checkbox of its own — every message the client **sends**, every
+update it **receives**, every key on the [event bus](api/event/bus.md) but `Update`, and every widget
+appearing and disappearing — so you can hold them all at once and shut off the one that is drowning the
+rest.
 
-Its filters **start empty and fill themselves**. A message name is the server's rather than the client's,
-so no list of them can be written in advance: a dropdown over the source and a dropdown over the name each
-begin at `(all)` and gain a row the first time a value arrives on that axis. Picking one narrows the table
-to it, and the pick survives every name that arrives afterwards.
+Its filters **start empty and fill themselves**. A message name is the server's and a widget class is the
+client's, so no list of either can be written in advance: a dropdown over the source, over the session,
+over the widget and over the event name each begin at `(all)` and gain a row the first time a value
+arrives on that axis, and a word box beside them narrows on any fragment of the line itself. Picking one
+narrows the list to it, and the pick survives every name that arrives afterwards. The checkboxes decide
+what is **recorded** and the dropdowns what is **drawn** out of it, so narrowing the view never costs you
+what arrives while you are looking.
+
+**Click a row and it opens underneath**: the clock, the source and the event, the session by account and
+character, the widget it was about, and then what it carried — a message's protocol arguments one to a
+line, or a bus event's payload as it stands at the moment you ask. `pause` holds the view still while you
+read one, with every door still open behind it, and `clear` empties the ring and the filters with it.
 
 `:eventstack` toggles it. The widget source starts off, because subscribing to a widget appearing replays
 every widget that character already has open. It reads the traffic and never touches it — nothing in it
