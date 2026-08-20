@@ -100,7 +100,8 @@ that character back in and what you left is there.
 be upset to lose and unnecessary the rest of the time. It is also the one write that **refuses**: it names
 the path of the first value a saved variable cannot hold instead of writing it. The timer and the teardown do
 not refuse — a write you did not ask for must not cost you the rest of your file, so they write the
-placeholder above and carry on.
+placeholder above and carry on — but they **say so**: each of those writes logs the path of the first value
+it degraded, so a variable that quietly turned into text is reported whether or not you ever call `flush()`.
 
 A file the engine cannot read or parse leaves your tables as they are, and the failure is logged rather than
 raised: your addon starts with empty settings instead of not starting.

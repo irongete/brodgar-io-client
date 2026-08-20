@@ -81,6 +81,21 @@ public final class SessionApi {
                     throw new LuaError("hafen.session():current(session): the client holds no session for"
                         + " the account '" + h.user + "' — s:exists() is the test, and there is no"
                         + " screen to give a session that is not logged in");
+                // A SESSION WITH NO SCREEN OF ITS OWN (084.5). Sessions.anchor says so on the console and
+                // returns, so this used to be a write that reported nothing and fired nothing -- a silence an
+                // addon could only find by reading :current() back and comparing. It is NOT :exists(): the
+                // member is in the list, its Session is live and it is answering the server. It is the gap
+                // Sessions.Member.run leaves, where `ui` is cleared before the outgoing UI is taken down and
+                // the incoming one has not been built -- a character handoff, and the beat after a login is
+                // registered. Read here rather than asked of Control.take, because the whole of the answer is
+                // one field and the refusal owes the caller the reason, not the outcome.
+                if(m.ui == null)
+                    throw new LuaError("hafen.session():current(session): the account '" + h.user + "' has no"
+                        + " screen of its own yet — it is still arriving, or between the character it left"
+                        + " and the one it is taking — so there is nothing to hand the screen to and no"
+                        + " SessionSelected would follow. Its SessionEnteredWorld is the moment it has one:"
+                        + " write the screen from there, or read hafen.session():current() to see who holds"
+                        + " it now");
                 Control.take(m);
                 return me;
             }

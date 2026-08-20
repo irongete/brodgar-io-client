@@ -30,7 +30,12 @@ end
 -- there is still anything to do to it.
 local function goTo(user)
   local s = hafen.session():get(user)
-  if s:exists() then hafen.session():current(s) end
+  if not s:exists() then return end
+  -- :exists() says the login is there; it does not say it has a screen of its own yet, and asking for one
+  -- it has not got is a refusal rather than a no-op. Pressing the row of a character still arriving is an
+  -- ordinary thing to do, so the refusal is reported and nothing else happens.
+  local ok, err = pcall(function() hafen.session():current(s) end)
+  if not ok then hafen.log():write(err) end
 end
 
 local function shut(user)
@@ -112,9 +117,9 @@ end
 -- Forward through the sessions in the order they joined, and round. With nothing on screen the lap
 -- starts at the first login, which is where the login screen leaves you.
 --
--- A session that is still connecting has no screen to be given yet, and writing it leaves the screen
--- where it was -- so the step is checked and the cycle walks past that login rather than making the
--- user press the key twice for nothing. Bounded by the list: with nothing reachable it gives up.
+-- A session that is still arriving has no screen to be given yet, and asking for one it has not got is a
+-- refusal -- so the step is attempted and the cycle walks past that login rather than making the user
+-- press the key twice for nothing. Bounded by the list: with nothing reachable it gives up.
 local function cycle()
   local list = hafen.session():list()
   if #list == 0 then return end
@@ -126,8 +131,7 @@ local function cycle()
 
   for step = 1, #list do
     local want = list[((at + step - 1) % #list) + 1]
-    hafen.session():current(want)
-    if hafen.session():current() == want then return end
+    if pcall(function() hafen.session():current(want) end) then return end
   end
 end
 

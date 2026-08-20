@@ -136,35 +136,21 @@ follow the screen, exactly as they do when the player takes it with `:session an
 collection back, so writes chain. Naming the session **already** on screen changes nothing and fires no
 [`SessionSelected`](event/bus.md#sessions).
 
-> **A session with no screen of its own yet cannot be given the screen.** There are two moments a login is
-> in that state: while it is connecting, before the client has built anything for it, and during a
-> character switch, between the screen it is leaving and the one it is about to get. The write is then a
-> no-op — the client says so on the console, nothing is raised, and no event fires. **Re-read
-> `:current()` to learn whether it landed**: the write itself reports nothing, and the session it comes
-> back with is the one that actually holds the screen.
-
 ```lua
-local list = hafen.session():list()                        -- go to the next login, and round
-local cur, at = hafen.session():current(), 0
-for i, s in ipairs(list) do
-  if s == cur then at = i end
-end
-for step = 1, #list do                                     -- bounded: give up if none will take it
-  local want = list[((at + step - 1) % #list) + 1]
-  hafen.session():current(want)
-  if hafen.session():current() == want then break end      -- it landed; otherwise walk past it
-end
+local list, cur, at = hafen.session():list(), hafen.session():current(), 0   -- go round the logins
+for i, s in ipairs(list) do if s == cur then at = i end end
+hafen.session():current(list[(at % #list) + 1])
 ```
 
-The starting point is taken once and every step after it comes from the list, so each write names a login
-the lap has not tried yet and the read back says whether to stop. A cycle that re-derives its next session
-from `:current()` on every press names the same unreachable login each time instead, and the key does
-nothing for as long as that character has no screen.
+It raises, naming what is wrong, on four things: a value that is not a `Session`, an explicit `nil` (arity
+is the verb — call it with no argument to read), a `Session` the client does not hold, and a session with
+**no screen of its own yet**. The third is reachable by construction, since `:get(user)` mints an object for
+any account name, and `s:exists()` is the test that tells it apart.
 
-It raises, naming what is wrong, on three things: a value that is not a `Session`, an explicit `nil`
-(arity is the verb — call it with no argument to read), and a `Session` the client does not hold. The last
-is reachable by construction, since `:get(user)` mints an object for any account name, and `s:exists()` is
-the test that tells them apart.
+The fourth is a session the client *does* hold, and `s:exists()` is `true` for it: it is still arriving, or
+between the character it left and the one it is taking, so there is nothing to hand the screen to and no
+[`SessionSelected`](event/bus.md#sessions) would follow. Write the screen from that session's
+[`SessionEnteredWorld`](event/bus.md#sessions), which is the moment it has one.
 
 **The screen needs no permission.** The [protected tier](../guides/permissions.md) is for what an addon
 does whose effect leaves the client, and taking the screen changes which widget tree is drawn and nothing

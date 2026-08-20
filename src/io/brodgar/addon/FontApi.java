@@ -170,8 +170,19 @@ final class FontApi {
      */
     static FontHandle face(Addon owner, String what, LuaValue v) {
         FontHandle h = FontHandle.resolve(v);
-        if(h != null)
-            return h;                       // handed over: a built-in, a file, or a :derive()d variant of one
+        if(h != null) {                     // handed over: a built-in, a file, or a :derive()d variant of one
+            // ...and if it carries a colour, it is refused for the same reason a NAMED face carrying one is
+            // (084.5). It used to be accepted and the colour dropped on the floor: h:color() went on reading
+            // back the value that was set, the surface was drawn in the client's own colour, and nothing said
+            // which of the two was the answer. The colour of a client surface is the rule's own property.
+            if(h.color != null)
+                throw new LuaError(what + ": this font carries a colour, and a font's colour never styles a"
+                    + " client surface — it is for your OWN drawing (g:text and widget:font). The colour of a"
+                    + " surface is the rule's own property, said where it can be read: rule:color(r, g, b)."
+                    + " Hand this rule a face that carries none — derive one and leave :color off — and say"
+                    + " the colour beside the font");
+            return h;
+        }
         if(!v.istable())
             throw new LuaError(what + ": expected a face — a handle from hafen.font():get(\"serif\") or"
                 + " hafen.asset():get(\"fonts/Inter.ttf\"), or the same face NAMED: " + FACE
@@ -218,7 +229,7 @@ final class FontApi {
                     italic = f;
             } else if("color".equals(p)) {
                 throw new LuaError(what + ": a face carries no colour on a client surface — the colour of a"
-                    + " surface is the rule's own property, said where it can be read: :color(r, g, b)");
+                    + " surface is the rule's own property, said where it can be read: rule:color(r, g, b)");
             } else {
                 throw new LuaError(what + ": \"" + k.tojstring() + "\" is not a face property — a face is "
                     + FACE);

@@ -209,15 +209,15 @@ Every enumerating verb — `s:world():gob():list`, `s:kin():list`, `hafen.map():
 
 Use the function form to match on any field other than `name` — and on a set whose members have none at
 all, such as a party member, a segment or a timer, where a string is refused naming the forms that do
-work. A member whose name has simply **not arrived yet** does not match, and does not spoil the call. The
-entry your predicate receives is always the **object**, never a snapshot: read it with its own verbs.
+work. The entry your predicate receives is always the **object**, never a snapshot: read it with its own
+verbs. A member whose name has simply **not arrived yet** does not match and does not spoil the call; a
+**mistake** inside your predicate is not that, and raises out of the verb that called it.
 
 ```lua
 local s = hafen.session():current()
 local gobs = s:world():gob()
 gobs:list("rabbit")                                        -- name contains "rabbit"
 gobs:list(function(g) return (g:health() or 1) < 1 end)    -- injured gobs (a Gob object)
-s:kin():list(function(k) return k:online() end)            -- online kin (a Kin object)
 hafen.map():marker():list(function(m) return m:type() == "player" end)   -- a Marker object
 ```
 

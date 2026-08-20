@@ -1,0 +1,10 @@
+{
+  "name": "084.5 — a mistake is loud",
+  "id": "084-every-refusal-names-the-fix.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 084.5: a mistake inside a filter predicate raises out of the call, a stale widget names the tree before the key, a face carrying a colour is refused on a client surface, and the store says what it degrades.",
+  "api_version": 1,
+  "saved_variables": [{ "name": "probe", "scope": "account" }],
+  "files": ["main.lua"]
+}

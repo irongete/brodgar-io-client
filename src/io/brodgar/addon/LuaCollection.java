@@ -1,5 +1,7 @@
 package io.brodgar.addon;
 
+import haven.Loading;
+
 import java.util.List;
 
 import org.luaj.vm2.LuaError;
@@ -339,7 +341,12 @@ public final class LuaCollection {
         if(filter.isfunction()) {
             try {
                 return filter.call(member).toboolean();
-            } catch(RuntimeException e) {   // LuaError is a RuntimeException: a throwing predicate drops it
+            } catch(Loading l) {
+                // NOT RuntimeException, which LuaError is too. A read the predicate made that is not ready
+                // yet is not a "no" -- Loading is control flow, and the member simply does not match, exactly
+                // as a needle that has not arrived does not. A LuaError is a MISTAKE, and it goes on out of
+                // :list/:count/:find at the line that wrote it: catching it made a typo inside a predicate
+                // look like an empty world, which is the one report an author cannot act on.
                 return false;
             }
         }

@@ -60,10 +60,10 @@ comes from its background texture, and list-row heights were measured at constru
 Every key honours `font`. Nothing else about a face travels except its family, size, weight and
 antialiasing.
 
-> **A font handle's own `color` does not style a surface.**
-> `hafen.font():get("serif"):derive():color(255, 0, 0)` installed through a rule, or through
-> [`widget:rule()`](README.md#restyle-one-widget), contributes its family, size and antialiasing — its
-> **colour is ignored**, and `widget:style()` reports no colour for it. A handle's colour is for
+> **A font handle carrying a `color` is refused here.**
+> `hafen.font():get("serif"):derive():color(255, 0, 0)` handed to a rule, or to
+> [`widget:rule()`](README.md#restyle-one-widget), raises naming `rule:color(r, g, b)`; so does a face that
+> **names** one, `{builtin = "serif", color = …}`. A handle's colour is for
 > [your own drawing](../../font.md#draw-with-it): `g:text`, your own widgets. One question, "what colour is
 > this surface", has exactly one answer, and it is written as a `color` where you can see it.
 

@@ -47,10 +47,10 @@ view of engine state, not an owned resource, and there is nothing to tear down.
 
 **Staleness.** A widget that leaves the tree — window closed, server destroy, relog — is *stale*: every
 read answers `nil` or empty, every client-side write is a silent no-op that still chains, and `:exists()`,
-the one read that always answers, is `false`. Two things raise on a stale widget instead:
-[`send`](#send-a-message-protected), and the [two searches](#searching-inside-one-widget) — which
-have a subtree to search and no longer have it. Guard on `:exists()` when "is it still there?" is the
-question you are asking.
+the one read that always answers, is `false`. Three things raise on a stale widget instead:
+[`send`](#send-a-message-protected), [`:on(key, fn)`](#subscribing) — whose refusal names the missing tree
+rather than a key — and the [two searches](#searching-inside-one-widget), which have a subtree to search and
+no longer have it. Guard on `:exists()` when "is it still there?" is the question you are asking.
 
 ## Read
 

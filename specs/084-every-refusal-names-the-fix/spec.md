@@ -107,7 +107,13 @@ pages rather than in the bridge: `api/README.md` (the index), `char.md`, `fight.
 
 Pages: `api/conventions.md` — 1 (the object level of "a retired name says what replaced it"), 3, 4, 5 ·
 `api/buff.md`, `meter.md`, `study.md`, `map/markers.md` — 3 ·
-`api/ui/controls/interactive.md` — 4 · `api/session.md`, `store.md`, `font.md` — 5 ·
+`api/ui/controls/interactive.md` — 4 · `api/session.md`, `store.md`, `font.md`,
+`api/ui/style/text.md` (its blockquote states what a face's `color` does on a surface) — 5 ·
+`api/ui/widget.md` (the staleness paragraph lists what raises; the `widget:` receiver is task 6's) — 5, 6 ·
 `api/client/README.md`, `api/ui/controls/interactive.md`, `api/position.md` — 7 ·
 `docs/client/widgets.md` — 5 · `docs/client/ui-controls.md` — 4 · `DOCUMENTATION.md` — 3, 4, 5 ·
 `audit/INVENTORY.md` — every task, for the ids `/end` ticks.
+
+The bundled addons are consumers like any other: `addons/session-manager/main.lua` is written against
+`hafen.session():current(s)` and `addons/eventstack/main.lua` against `rule:font`, so a task changing one of
+those verbs fixes the demo in the same task.

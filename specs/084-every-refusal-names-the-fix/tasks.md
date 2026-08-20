@@ -59,7 +59,7 @@
       `[manual]`: none.
       <!-- extra context: docs/addons/guides/permissions.md — the suite declares kin.add and world.place -->
 
-- [ ] **084.5 — A mistake is loud.** `LuaCollection.keeps` catches `haven.Loading` alone, so a
+- [x] **084.5 — A mistake is loud.** `LuaCollection.keeps` catches `haven.Loading` alone, so a
       `LuaError` out of a filter predicate propagates while a not-ready read still does not throw out of
       the call containing it. `LuaWidget`'s `on` checks the tree before the key. `SessionApi`'s
       `current(s)` **raises** on a session with no screen of its own — the gap `Sessions.Member.run`

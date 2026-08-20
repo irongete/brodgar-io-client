@@ -717,14 +717,19 @@ public final class LuaWidget {
                 if(!keyArg.isstring() || !fnArg.isfunction())
                     throw new LuaError("widget:on(key, fn) expects (string, function)");
                 String key = keyArg.tojstring();
+                // THE TREE BEFORE THE KEY (084.5). A widget that is gone has no vocabulary of its own left to
+                // read -- widgetKeys(owner, null) answers the universal five and nothing else -- so asking the
+                // key first told an author their Button "has no event 'Pressed'", which is false about a
+                // Button and sends them looking for a spelling that was right. The staleness is the whole
+                // fault and is what the message has to say; the key is only unknown BECAUSE of it.
+                if(w == null)
+                    throw new LuaError("widget:on(key, fn) — this widget is no longer in the tree");
                 List<String> keys = widgetKeys(owner, w);
                 if(!keys.contains(key)) {
-                    throw new LuaError("widget:on(key, fn): a " + ((w == null) ? "Widget" : typeName(w))
+                    throw new LuaError("widget:on(key, fn): a " + typeName(w)
                         + " has no event '" + key + "' — it has: " + join(keys)
                         + Controls.keyElsewhere(w, key));   // 061.3: the key is real, the address is not
                 }
-                if(w == null)
-                    throw new LuaError("widget:on(key, fn) — this widget is no longer in the tree");
                 return owner.widgetSubs(w).on(key, fnArg);
             }
         });

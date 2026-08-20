@@ -171,7 +171,9 @@ final class StoreApi {
         // splitting them is what keeps each call about the file it names. It refuses a value a saved variable
         // cannot hold, naming where it sits, BEFORE writing anything; the timer and the teardown go on
         // writing whatever they find, because a write nobody asked for must not cost an addon the rest of its
-        // file (the same rule Json.writePos states for a position with no anchor).
+        // file (the same rule Json.writePos states for a position with no anchor) -- and since 084.5 they LOG
+        // the first value they degrade, which is the half that was missing: not refusing is not a reason to
+        // say nothing, and an addon that never calls flush() was otherwise never told at all.
         store.set("flush", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "flush");
@@ -553,33 +555,73 @@ final class StoreApi {
      * it looking through the whole thing.
      */
     private static void carriable(Addon a, LuaTable src, boolean account, String how) {
+        String bad = uncarriable(a, src, account);
+        if(bad != null)
+            throw new LuaError(how + ":flush(): " + bad + ", and a saved variable may hold only tables,"
+                + " strings, numbers, booleans and Positions — save what describes the thing (a resource"
+                + " name, a colour's three numbers) and rebuild it on load");
+    }
+
+    /**
+     * <b>The first value in this scope a saved variable cannot hold</b>, as the clause both its readers
+     * quote — {@code "layout".win holds a function} — or {@code null} when every one of them is carriable.
+     * One walk and one sentence, because the two doors say the same fact with different consequences: an
+     * asked-for {@link #carriable} flush refuses it, and the timer and the teardown {@link #degraded} log it
+     * and go on writing.
+     */
+    private static String uncarriable(Addon a, LuaTable src, boolean account) {
         if(src == null)
-            return;
+            return null;
         for(Manifest.SavedVar sv : a.manifest.savedVariables) {
             if(sv.account != account)
                 continue;                       // 078.3: a flush answers for the scope it was asked on
             LuaValue v = src.get(sv.name);
-            if(v.istable())
-                carriable((LuaTable)v, "\"" + sv.name + "\"", how, Collections.newSetFromMap(
-                              new IdentityHashMap<LuaValue, Boolean>()));
+            if(v.istable()) {
+                String bad = uncarriable((LuaTable)v, "\"" + sv.name + "\"", Collections.newSetFromMap(
+                                             new IdentityHashMap<LuaValue, Boolean>()));
+                if(bad != null)
+                    return bad;
+            }
         }
+        return null;
     }
 
-    private static void carriable(LuaTable t, String path, String how, Set<LuaValue> seen) {
+    private static String uncarriable(LuaTable t, String path, Set<LuaValue> seen) {
         if(!seen.add(t))
-            return;                             // a cycle: the writer breaks it, and one visit reads it all
+            return null;                        // a cycle: the writer breaks it, and one visit reads it all
         for(LuaValue k : t.keys()) {
             LuaValue v = t.get(k);
             String at = path + "." + k.tojstring();
             if(v.istable()) {
-                carriable((LuaTable)v, at, how, seen);
+                String bad = uncarriable((LuaTable)v, at, seen);
+                if(bad != null)
+                    return bad;
             } else if(!v.isnil() && !v.isboolean() && !(v instanceof LuaNumber) && !(v instanceof LuaString)
                       && (LuaPosition.resolve(v) == null)) {
-                throw new LuaError(how + ":flush(): " + at + " holds a " + v.typename() + ", and a saved"
-                    + " variable may hold only tables, strings, numbers, booleans and Positions — save what"
-                    + " describes the thing (a resource name, a colour's three numbers) and rebuild it on load");
+                return at + " holds a " + v.typename();
             }
         }
+        return null;
+    }
+
+    /**
+     * <b>The write nobody asked for says what it degraded</b> (084.5), and goes on writing. {@link #flush()}
+     * refuses a value a saved variable cannot hold; the timer and the teardown must not, because a write the
+     * addon did not ask for cannot be allowed to cost it the rest of its file — but the silence that bought
+     * was the whole defect: the forgiving serializer writes a function as a quoted {@code tostring}, which
+     * reads back a week later as data-shaped garbage in an addon that never called {@code flush()} and was
+     * therefore never told.
+     *
+     * <p><b>The FIRST value only, and only where the file actually changes.</b> One line names the path, which
+     * is what an author acts on; a line per key would bury it, and the callers reach this after the
+     * unchanged-content check, so a store left alone says nothing on every one of the timer's laps.
+     */
+    private static void degraded(Addon a, LuaTable src, boolean account, String how) {
+        String bad = uncarriable(a, src, account);
+        if(bad != null)
+            log(a, "store: " + bad + ", which is saved as text and reads back as text — a saved variable may"
+                + " hold only tables, strings, numbers, booleans and Positions. This write was the timer's or"
+                + " the teardown's, so it was made anyway; " + how + ":flush() refuses it instead");
     }
 
     /** Build the {@code <genus>_<char>} folder name (path-sanitized), or {@code null} if no character. */
@@ -888,6 +930,7 @@ final class StoreApi {
         String out = scopeJson(a, a.store, true);
         if((out == null) || out.equals(a.lastAccountJson))
             return;                                     // no account vars, or unchanged → skip disk I/O
+        degraded(a, a.store, true, ACC);                // 084.5: say what is about to be written as text
         if(writeFile(accountFile(a), out))
             a.lastAccountJson = out;
     }
@@ -899,6 +942,7 @@ final class StoreApi {
         String out = scopeJson(a, cs.vars, false);
         if((out == null) || out.equals(cs.lastJson))
             return;
+        degraded(a, cs.vars, false, SS);                // 084.5: say what is about to be written as text
         if(writeFile(charFile(a, cs.scope), out))
             cs.lastJson = out;
     }

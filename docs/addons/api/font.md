@@ -75,11 +75,13 @@ A derived handle is a **variant of a font, not a file**: like a built-in it carr
 > it — so a later write is refused too, rather than looking like it took and changing nothing. Derive
 > another variant instead; deriving from a handle always works.
 
-**`color` is the one option that does not travel.** It applies wherever *you* draw with the handle, and is
-**ignored** when the handle is installed on a client surface through
-[a sheet rule](ui/style/text.md#font) or [`widget:rule()`](ui/style/README.md#restyle-one-widget). A
-surface's colour is a [sheet property](ui/style/text.md#color), stated where you can read it, not a value
-hidden inside a font handle. `size`, `aa`, `bold` and `italic` travel everywhere.
+**`color` is the one option that does not travel.** It applies wherever *you* draw with the handle — the
+widget default and the per-call option below — and a handle carrying one is **refused** where it would style
+a client surface, through [a sheet rule](ui/style/text.md#font) or
+[`widget:rule()`](ui/style/README.md#restyle-one-widget), naming `rule:color(r, g, b)` instead. A surface's
+colour is a [sheet property](ui/style/text.md#color), stated where you can read it, not a value hidden inside
+a font handle: give those a face carrying no colour of its own, and say the colour beside the font. `size`,
+`aa`, `bold` and `italic` travel everywhere.
 
 ## Draw with it
 
