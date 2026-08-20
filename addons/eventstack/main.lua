@@ -4,8 +4,20 @@
 -- resend or a send: an inbound wildcard that cancels stops the client outright -- the widget tree stops
 -- hearing from the server, and the bus goes quiet with it -- and a log is the last place to put one.
 --
--- Four doors, one record. Every source funnels into push(r), so however differently the doors are
--- addressed there is one shape to narrow, one column set and one list.
+-- FIVE DOORS, ONE RECORD. Every source funnels into push(r), so however differently the doors are
+-- addressed there is one shape to narrow, one column set and one list. Four of them are ambient -- the
+-- client sends, receives, puts an event on the bus, opens and closes a widget, and a wildcard hears it.
+-- The fifth is not: a control's own key (a button's Pressed, a list's Changed) fires only for somebody
+-- who subscribed to that widget, so `ui` walks the tree and holds a subscription per control, which is
+-- how the one door a wildcard cannot reach gets into the same list as the rest. It never cancels: the ev
+-- on a borrowed key can stop the client's own action, and a log that stopped a button working would be a
+-- bug with a window around it.
+--
+-- AND THE ROW WRITES ITS OWN SUBSCRIPTION. That is the point of watching traffic at all: you make the
+-- thing happen, you find the row, and what you actually need is the line that catches it next time. So
+-- the detail carries it, spelled for the door the row came through and guarded by the widget column,
+-- because one message name is sent by several widgets and a handler that assumes otherwise reads an
+-- argument that was never there.
 --
 -- FOUR AXES AND A WORD. A record is narrowed by its source, by the session it happened on, by the widget
 -- it was about, by its event name, and by a substring of the whole line. Every axis FILLS ITSELF from
@@ -57,10 +69,11 @@
 -- and the old shape is back: the doors open with the window and shut with it, and nothing is subscribed
 -- to anything while it is down.
 --
--- NOTHING HERE IS COPYABLE, because the client has no clipboard to offer -- so `log` writes the picked
--- row's whole detail through hafen.log(), one line at a time, where the console shows it and the
--- terminal keeps it whole. That is the same door widgetstack's `:selector` uses, and for the same
--- reason: the point of reading a message name off a window is to type it into a file.
+-- NOTHING HERE IS COPYABLE, because the client has no clipboard to offer -- so `log` writes through
+-- hafen.log(), where the console shows it and the terminal keeps it whole: the picked row with its whole
+-- detail, or, with nothing picked, the view itself. That is the same door widgetstack's `:selector`
+-- uses, and for the same reason: the point of reading a message name off a window is to type it into a
+-- file.
 --
 -- Its place is the ACCOUNT's saved variable, not w:remember(name): that files a placement under the
 -- character on screen, and this window stands in the layer, above every one of them.
@@ -80,6 +93,7 @@ local CHAR_W     = 7.5               -- what one mono character measures across,
 local BAR        = 20                -- room for a list's own scrollbar
 local LOG_ROWS   = 22                -- rows of log on screen before it scrolls
 local DET_ROWS   = 9                 -- lines of detail on screen before it scrolls
+local DUMP       = 60                -- rows the log button writes when no single one is picked
 local DEF_X, DEF_Y = 80, 80          -- where the window stands before the user has moved it
 local SAVE_EVERY = 2                 -- seconds between reads of where the user put it
 
@@ -92,8 +106,15 @@ local WIN_W   = LIST_W + PAD * 2
 local LOG_H   = LOG_ROWS * LINE_H
 local DET_H   = DET_ROWS * LINE_H
 
--- The four doors, in the order their checkboxes stand in.
-local SOURCES = {"out", "in", "bus", "widget"}
+-- The five doors, in the order their checkboxes stand in.
+local SOURCES = {"out", "in", "bus", "widget", "ui"}
+
+-- The capability keys one of the CLIENT's own controls can answer -- a button's press, a checkbox's or a
+-- list's change, an entry's Enter, a menu's pick, a grid's cell. Which of them a given widget answers is
+-- asked of the client rather than guessed: widget:on(key, fn) REFUSES a key its widget has not got, so
+-- the subscription that takes is the answer, and the answer is cached per class because the class is what
+-- decides it -- without that every button in the tree would raise four times before finding "Pressed".
+local CTL_KEYS = {"Pressed", "Changed", "Submitted", "Selected", "Cell"}
 
 -- Every key on the bus but Update, which fires once a frame and says only that a frame happened.
 local BUS_KEYS = {
@@ -131,6 +152,7 @@ local dirty = false                   -- something arrived, or a filter moved, s
 local paused = false                  -- the user is reading: keep recording, stop rewriting
 local armed = false                   -- the doors are open, whether or not there is a window to show it
 local win, log, det, tally            -- the window and its three pieces, or nil while it is down
+local pauseBox                        -- ...and its pause tick, which a hotkey has to keep honest
 local selLine = nil                   -- the line that names the picked row to the list, or nil
 
 -- The four axes: what has arrived on each, in the order it first did, and what the user narrowed to.
@@ -145,6 +167,9 @@ local filtersDirty = false            -- a value arrived that no dropdown row ca
 local streams = {}                    -- [src] = the wildcard subscription holding that stream
 local busSubs = {}                    -- one subscription per key above
 local watches = {}                    -- [session] = {appear handle, disappear handle}
+local uiWatch = {}                    -- [session] = the same pair, for the ui door
+local uiSubs = {}                     -- [session] = {[widget] = the capability Sub held on it}
+local keyOfClass = {}                 -- [class] = the key that class answers, or false for none
 local classOf = {}                    -- [widget] = its class, kept from appear for the disappear that cannot read it
 local rootSess = {}                   -- [root widget] = the session whose tree it tops
 local sessOf = {}                     -- [widget] = the account it belongs to, resolved once and kept
@@ -203,6 +228,13 @@ local function fmt(v)
   if t == "string" then
     if string.len(v) > 56 then v = string.sub(v, 1, 55) .. "~" end
     return '"' .. v .. '"'
+  end
+  -- A HANDLE IS USERDATA, not a table: every reference object in this API is LuaValue.userdataOf, so a
+  -- type(v) == "table" test misses every gob, widget and meter there is -- and each of them carries a
+  -- __tostring that names it (Widget(Inventory#42)), which is exactly the line to print.
+  if t == "userdata" then
+    local ok, str = pcall(tostring, v)
+    return (ok and str) or "userdata"
   end
   if t == "table" then
     if (type(v.x) == "number") and (type(v.y) == "number") then
@@ -406,29 +438,79 @@ end
 -- nothing -- and saying so is the honest line, where a snapshot taken per message on the chance somebody
 -- might click it is a cost paid on every message that nobody does.
 
+local SNAP_ITEMS = 12                 -- elements of a payload that is a LIST, before it says how many more
+
+-- :info() is the one snapshot every reference object in this API answers, and it is asked of userdata and
+-- of a table alike -- a handle is userdata, and reading its fields any other way is a guess at a name.
 local function snap(v, out)
   if v == nil then return end
-  if type(v) ~= "table" then
+  local t = type(v)
+  if (t ~= "table") and (t ~= "userdata") then
     out[#out + 1] = "  " .. fmt(v)
     return
   end
-  local ok, t = pcall(function() return v:info() end)
-  if ok and (type(t) == "table") then
+  local ok, info = pcall(function() return v:info() end)
+  if ok and (type(info) == "table") then
     local keys = {}
-    for k in pairs(t) do keys[#keys + 1] = k end
+    for k in pairs(info) do keys[#keys + 1] = k end
     table.sort(keys, function(x, y) return tostring(x) < tostring(y) end)
     if #keys == 0 then out[#out + 1] = "  (the snapshot is empty)" end
     for _, k in ipairs(keys) do
-      out[#out + 1] = "  " .. cell(tostring(k), 12) .. " " .. fmt(t[k])
+      out[#out + 1] = "  " .. cell(tostring(k), 12) .. " " .. fmt(info[k])
     end
     return
   end
-  local n = #v
-  if n > 0 then
-    out[#out + 1] = "  [" .. num(n) .. " item(s)]"
-  else
-    out[#out + 1] = "  (nothing left to read -- it is gone)"
+  -- No snapshot: an array of handles (a study slot list, a kin roster) says what is in it one line at a
+  -- time, since each element names itself; anything else has simply gone, and says so.
+  if t == "table" then
+    local n = #v
+    if n > 0 then
+      out[#out + 1] = "  [" .. num(n) .. " item(s)]"
+      for i = 1, math.min(n, SNAP_ITEMS) do
+        out[#out + 1] = "    [" .. num(i) .. "] " .. fmt(v[i])
+      end
+      if n > SNAP_ITEMS then out[#out + 1] = "    ... and " .. num(n - SNAP_ITEMS) .. " more" end
+      return
+    end
   end
+  out[#out + 1] = "  " .. fmt(v) .. " -- nothing left to read, it is gone"
+end
+
+-- THE LINE YOU WOULD WRITE TO CATCH THIS AGAIN. It is the whole point of watching traffic: you make the
+-- thing happen, you find the row, and what you actually need is the subscription -- so it is written out
+-- here rather than left to be assembled out of five columns and a page of documentation. The door is the
+-- source, the key is the name, and the widget column is the guard nearly every stream handler needs,
+-- because one message name is sent by several widgets and a handler that assumes otherwise reads an
+-- argument that was never there.
+local function subscribeLines(r)
+  local q = '"' .. r.name .. '"'
+  if r.src == "bus" then
+    local at, sig = SESS_AT[r.name], "function(payload)"
+    if at == 1 then sig = "function(s)"
+    elseif at == 2 then sig = "function(payload, s)"
+    elseif (r.name == "Load") or (r.name == "Disable") then sig = "function()" end
+    return {"hafen.event():on(" .. q .. ", " .. sig .. " end)"}
+  end
+  if (r.src == "out") or (r.src == "in") then
+    local door = (r.src == "out") and "action" or "message"
+    local noun = (r.src == "out") and "sender" or "target"
+    local out = {"hafen.event():" .. door .. "():on(" .. q .. ", function(ev)"}
+    if r.wclass ~= "" then
+      out[#out + 1] = '  if ev:' .. noun .. '():type() ~= "' .. r.wclass .. '" then return end'
+    end
+    out[#out + 1] = "end)"
+    return out
+  end
+  if r.src == "widget" then
+    return {'hafen.session():current():ui():on("@' .. r.wclass .. '", "' .. r.name .. '", function(w)',
+            "end)"}
+  end
+  if r.src == "ui" then
+    return {'hafen.session():current():ui():find("@' .. r.wclass .. '"):on(' .. q .. ', function(ev)',
+            "end)",
+            '-- "@' .. r.wclass .. '" may match several: widgetstack names the one you mean'}
+  end
+  return {}
 end
 
 local function detailOf(r)
@@ -446,6 +528,13 @@ local function detailOf(r)
   end
   if r.wclass ~= "" then field("widget", r.wclass) end
   if r.about ~= "" then field("about", r.about) end
+
+  local sl = subscribeLines(r)
+  if #sl > 0 then
+    add("")
+    add("subscribe:")
+    for _, ln in ipairs(sl) do add("  " .. ln) end
+  end
 
   if r.args ~= nil then
     add("")
@@ -478,7 +567,9 @@ local function armWidget(s)
   local a = s:ui():on("*", "appear", function(w)
     local class = w:type()
     classOf[w] = class
-    push{src = "widget", name = "appear", who = user, wclass = class, about = "", w = w}
+    local id = w:id()          -- the server's own name for it, where it has one: what a uimsg is addressed to
+    push{src = "widget", name = "appear", who = user, wclass = class,
+         about = id and ("#" .. num(id)) or "", w = w}
   end)
   -- At disappear the widget is a key to match, not something to read: the class comes from appear.
   local d = s:ui():on("*", "disappear", function(w)
@@ -494,6 +585,65 @@ local function disarmWidget(s)
   h[1]:remove()
   h[2]:remove()
   watches[s] = nil
+end
+
+-- One of the client's own controls, watched for the one thing it does. It never cancels: the ev on a
+-- borrowed key can stop the client's own action, and a log that stopped a button working would be a bug
+-- with a window around it. The key is found by trying, cached per class, and a widget whose class answers
+-- nothing is skipped without a second thought.
+local function watchCtl(s, w, who)
+  local held = uiSubs[s]
+  if (held == nil) or held[w] then return end
+  local class = w:type()
+  local known = keyOfClass[class]
+  if known == false then return end
+  local handler = function(ev)
+    local v
+    local got, r = pcall(function() return ev:value() end)
+    if got then v = r end
+    push{src = "ui", name = keyOfClass[class] or "?", who = who, wclass = class,
+         about = (v ~= nil) and fmt(v) or "", w = w}
+  end
+  local tries = known and {known} or CTL_KEYS
+  for _, key in ipairs(tries) do
+    local ok, sub = pcall(function() return w:on(key, handler) end)
+    if ok and sub then
+      keyOfClass[class] = key
+      held[w] = sub
+      return
+    end
+  end
+  keyOfClass[class] = false
+end
+
+local function armUi(s)
+  if uiWatch[s] then return end
+  local who = s:user()
+  uiSubs[s] = {}
+  local root = s:ui():root()
+  if root then root:walk(function(n) watchCtl(s, n, who) end) end
+  local a = s:ui():on("*", "appear", function(w) watchCtl(s, w, who) end)
+  -- A destroyed widget's subscription has nothing left to fire, but it is still an entry in a table this
+  -- addon holds -- so it goes when the widget does, rather than piling up a login at a time.
+  local d = s:ui():on("*", "disappear", function(w)
+    local held = uiSubs[s]
+    local sub = held and held[w]
+    if sub then
+      sub:off()
+      held[w] = nil
+    end
+  end)
+  uiWatch[s] = {a, d}
+end
+
+local function disarmUi(s)
+  local h = uiWatch[s]
+  if h == nil then return end
+  h[1]:remove()
+  h[2]:remove()
+  uiWatch[s] = nil
+  for _, sub in pairs(uiSubs[s] or {}) do sub:off() end
+  uiSubs[s] = nil
 end
 
 -- One door at a time, because one checkbox at a time is what the user has: a source already open is left
@@ -525,8 +675,13 @@ local function armSrc(k)
     end
   elseif k == "widget" then
     -- Subscribing replays every widget that character already has open, because appear covers what is
-    -- already in the tree -- which is why this door is the one that starts off.
+    -- already in the tree -- which is why this door is one of the two that start off.
     for _, s in ipairs(hafen.session():list()) do armWidget(s) end
+  elseif k == "ui" then
+    -- The other: this one walks the whole tree to find what answers a key, and then holds a subscription
+    -- per control. It is the door that tells you which key a window of the client's own answers, which is
+    -- the one question the other four cannot reach.
+    for _, s in ipairs(hafen.session():list()) do armUi(s) end
   end
 end
 
@@ -543,6 +698,8 @@ local function disarmSrc(k)
   elseif k == "widget" then
     for s in pairs(watches) do disarmWidget(s) end
     classOf = {}
+  elseif k == "ui" then
+    for s in pairs(uiWatch) do disarmUi(s) end
   end
 end
 
@@ -615,6 +772,7 @@ local function build()
     paused = on
     if not on then dirty = true end
   end)
+  pauseBox = ps
 
   -- The one switch that is not about this window at all: it says when the DOORS open, and it is read at
   -- the next load. Ticking it here opens them now, since a switch that meant nothing until tomorrow
@@ -719,7 +877,14 @@ local function build()
   lg:on("Pressed", function()
     local r = selLine and recOf[selLine] or nil
     if r == nil then
-      hafen.log():write("eventstack: pick a row first -- this writes the one you picked")
+      -- Nothing picked is not a mistake to refuse: it is the other question -- "give me what I am looking
+      -- at" -- so the filtered view goes down the same door, newest first and capped, since a console is
+      -- read rather than scrolled.
+      local rows = records()
+      hafen.log():write("eventstack: " .. num(#rows) .. " row(s) match"
+                        .. ((#rows > DUMP) and (", the newest " .. num(DUMP) .. " of them") or ""))
+      hafen.log():write(HEADER)
+      for i = 1, math.min(#rows, DUMP) do hafen.log():write(rows[i]) end
       return
     end
     hafen.log():write("--- " .. r.line)
@@ -775,21 +940,39 @@ end
 close = function()
   if not st.atLogin then disarm() end     -- with it ticked the doors stay open behind the closed window
   if win and win:exists() then win:destroy() end
-  win, log, det, tally = nil, nil, nil, nil
+  win, log, det, tally, pauseBox = nil, nil, nil, nil, nil
   selLine = nil
 end
 
 -- ---------------------------------------------------------------------------------------------------
 -- Dormant until it is asked for: with the window down nothing here is subscribed to anything.
 
-hafen.slash():register("eventstack", function()
+local function toggle()
   if win and win:exists() then
     close()
   else
     build()
     if not armed then arm() end
   end
-end)
+end
+
+-- Pausing from a key has to move the tick as well: the checkbox is what the user reads to know whether
+-- the view is live, and a programmatic :value(v) never re-enters its own Changed, so there is no loop.
+local function togglePause()
+  paused = not paused
+  if not paused then dirty = true end
+  if pauseBox and win and win:exists() then pauseBox:value(paused) end
+  hafen.log():write("eventstack: " .. (paused and "paused -- the doors are still open" or "live"))
+end
+
+hafen.slash():register("eventstack", toggle)
+
+-- Both start UNBOUND: the addon names an action and the user assigns the key, under
+-- Options > Keybindings > EventStack. Pause is worth one, because the row you want to read is usually
+-- going past while you are reaching for the mouse.
+local keys = hafen.client():options():keybindings()
+keys:register("toggle", toggle)
+keys:register("pause", togglePause)
 
 -- A character that reaches the world while the doors are open is a tree the widget door has not watched
 -- yet, and a root the session column has not learnt. It follows the DOORS and not the window, which is
@@ -799,10 +982,12 @@ hafen.event():on("SessionEnteredWorld", function(s)
   if not armed then return end
   mapRoots()
   if st.sources.widget then armWidget(s) end
+  if st.sources.ui then armUi(s) end
 end)
 
 hafen.event():on("SessionDestroyed", function(s)
   disarmWidget(s)
+  disarmUi(s)
   if armed then mapRoots() end
 end)
 

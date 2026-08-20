@@ -55,9 +55,15 @@ any profiling addon should have.
 The live log. One line per thing the client did, **newest first**, in a mono list: its number, the clock,
 which source it came through, the session it happened on, the widget it was about, its name, and a glimpse
 of what it carried. Every source is a checkbox of its own — every message the client **sends**, every
-update it **receives**, every key on the [event bus](api/event/bus.md) but `Update`, and every widget
-appearing and disappearing — so you can hold them all at once and shut off the one that is drowning the
-rest.
+update it **receives**, every key on the [event bus](api/event/bus.md) but `Update`, every widget appearing
+and disappearing, and every activation of one of the client's **own controls** — so you can hold them all
+at once and shut off the one that is drowning the rest.
+
+That last one is the door a wildcard cannot reach. A control's
+[capability key](api/ui/edit.md#taking-over-what-a-control-does) fires only for somebody who subscribed to
+that widget, so `ui` walks the tree and holds one subscription per control — finding the key each answers
+by asking the client rather than by guessing, since `widget:on(key, fn)` refuses a key its widget has not
+got and the subscription that takes is therefore the answer. It watches and never cancels.
 
 Its filters **start empty and fill themselves**. A message name is the server's and a widget class is the
 client's, so no list of either can be written in advance: a dropdown over the source, over the session,
@@ -68,22 +74,27 @@ what is **recorded** and the dropdowns what is **drawn** out of it, so narrowing
 what arrives while you are looking.
 
 **Click a row and it opens underneath**: the clock, the source and the event, the session by account and
-character, the widget it was about, and then what it carried — a message's protocol arguments one to a
-line, or a bus event's payload as it stands at the moment you ask. `pause` holds the view still while you
-read one, with every door still open behind it, and `clear` empties the ring and the filters with it.
+character, the widget it was about, **the subscription you would write to catch it again**, and then what
+it carried — a message's protocol arguments one to a line, or a bus event's payload as it stands at the
+moment you ask. The subscription line is spelled for the door the row came through, guarded by the widget
+column where a stream handler needs that guard, and it is the answer to the question the window exists to
+ask: you made the thing happen, and this is the line that catches it next time. `pause` holds the view
+still while you read one, with every door still open behind it, and `clear` empties the ring and the
+filters with it. Both `toggle` and `pause` are hotkeys as well, unbound until you assign them.
 
 **Recording and looking are two things**, which is what makes it useful at a login: `at login` opens the
 doors as the addon loads, and `:eventstack` only opens and closes the view on to what they have caught, so
 the tree building itself and the first updates that fill the HUD are already in the ring when you get
-there. Untick it and the old shape is back — the doors open with the window and shut with it. The widget
-source starts off either way, because ticking it while a character is up replays every widget that
-character already has open.
+there. Untick it and the old shape is back — the doors open with the window and shut with it. Two sources
+start off either way: `widget`, because ticking it while a character is up replays every widget that
+character already has open, and `ui`, because it walks the tree and subscribes to every control in it.
 
-Nothing in this window can be copied, because the client has no clipboard to offer: `log` writes the
-picked row whole through [`hafen.log()`](api/log.md), a line per field, where the console shows it and the
-terminal keeps it — the same door [widgetstack](#widgetstack)'s `:selector` uses, and for the same reason.
-It reads the traffic and never touches it — nothing in it cancels, rewrites, resends or sends — and where
-you drag its window is saved for the **account**, like the switcher's.
+Nothing in this window can be copied, because the client has no clipboard to offer: `log` writes through
+[`hafen.log()`](api/log.md) — the picked row with its whole detail, or the view itself when no row is
+picked — where the console shows it and the terminal keeps it, the same door
+[widgetstack](#widgetstack)'s `:selector` uses and for the same reason. It reads the traffic and never
+touches it — nothing in it cancels, rewrites, resends or sends — and where you drag its window is saved
+for the **account**, like the switcher's.
 
 ## session-manager
 
