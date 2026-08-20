@@ -1,0 +1,9 @@
+{
+  "name": "083.2 — the filters fill themselves",
+  "id": "083-eventstack.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 083.2: a dropdown's rows clear its pick and the write-back restores it, a seen set gains one entry per value in first-seen order, and the two picks narrow a ring to their intersection.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

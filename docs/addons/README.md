@@ -30,7 +30,7 @@ a permission, a build step or a restart: drop the folder into `addons/`, type `:
 | [the guides](guides/README.md) | you know the shape and want to do a thing — read the world, schedule work, draw UI, save data, add hotkeys, act, theme, debug |
 | [the API reference](api/README.md) | you want a name: every namespace, verb, argument, return and error |
 | [the runtime](runtime.md) | the manifest field by field, the sandbox, the CPU budgets, the AddOns panel, and the console commands |
-| [the bundled addons](examples.md) | the addons that ship with the client: what a widget is, where the frame went, and the switcher |
+| [the bundled addons](examples.md) | the addons that ship with the client, and what each one answers |
 
 ## The API at a glance
 

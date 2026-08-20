@@ -121,6 +121,29 @@ final class LuaRows {
             + v.typename());
     }
 
+    /** How many rows a refusal spells out before it stops: a refusal is read, not scrolled. */
+    private static final int NAMED = 12;
+
+    /**
+     * The current rows, quoted, for a refusal that has to say which values ARE pickable — the shape
+     * {@link CRadio}'s own {@code :value(v)} refusal already gives. Every model-backed control with a
+     * selection shares it, so one wording answers on all of them.
+     */
+    static String names(List<Row> rows) {
+        if(rows.isEmpty())
+            return "it has no rows";
+        StringBuilder sb = new StringBuilder("its rows are ");
+        int n = Math.min(rows.size(), NAMED);
+        for(int i = 0; i < n; i++) {
+            if(i > 0)
+                sb.append(", ");
+            sb.append('"').append(rows.get(i).text).append('"');
+        }
+        if(rows.size() > n)
+            sb.append(", and ").append(rows.size() - n).append(" more");
+        return sb.toString();
+    }
+
     /**
      * One resolved {@link Row} &rarr; the client's own ready-made row widget — {@code TextItem} or
      * {@code IconText}, chosen by whether {@link Row#icon} is set. This is the BARE content, with no

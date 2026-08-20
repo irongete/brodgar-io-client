@@ -147,7 +147,8 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
             }
         }
         throw new LuaError("widget:value(v) on a dropdown — that value is not one of its current rows"
-            + " (widget:rows(t) gave it, or widget:onChange's argument did)");
+            + " (widget:rows(t) gave it, or widget:on(\"Changed\", fn)'s argument did): "
+            + LuaRows.names(curItems));
     }
 
     /** {@code d:rowHeight()} — the row height in pixels, as it stands right now. */

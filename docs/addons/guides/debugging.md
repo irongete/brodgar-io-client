@@ -72,6 +72,13 @@ the client sends and receives, which is what makes it a thing you watch with rat
 `ev:preventDefault()` in one — inbound, that swallows every update the server sends, and the client stops
 hearing from it.
 
+The bundled **`eventstack`** addon is that pair of blocks with a window around them, and the
+[event bus](../api/event/bus.md) and the widget tree beside them. `:eventstack` puts up a live log — one
+line per message out, update in, event on the bus, or widget coming and going — with a filter over the
+source and a filter over the name that fill themselves as each name arrives for the first time. Reach for
+it when you do not yet know which of those the thing you are watching for comes through, and for the
+console once you do: a name you can subscribe to by itself is cheaper than a window watching everything.
+
 ## When the addon does not load
 
 `:addons` lists every folder the client found with its status, and Options ▸ AddOns says the same thing

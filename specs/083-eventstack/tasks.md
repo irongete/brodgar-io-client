@@ -27,7 +27,7 @@
       the window came back where you left it after a full client restart.
       <!-- extra context: docs/addons/guides/permissions.md — the suite declares widget.send -->
 
-- [ ] **083.2 — The filters fill themselves.** Two dropdowns above the table — one over the source,
+- [x] **083.2 — The filters fill themselves.** Two dropdowns above the table — one over the source,
       one over the name — each starting as `(all)` **alone**. A value not in that axis's `seen` set
       appends a row, rewrites `:rows(t)`, and **writes the current pick back**, because `:rows(t)`
       clears the selection. A checkbox per source arms and disarms its subscription. The table's rows

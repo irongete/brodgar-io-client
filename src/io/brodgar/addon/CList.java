@@ -102,7 +102,8 @@ final class CList extends SListBox<LuaRows.Row, Widget> implements Owned.Control
             }
         }
         throw new LuaError("widget:value(v) on a list — that value is not one of its current rows"
-            + " (widget:rows(t) gave it, or widget:onChange's argument did)");
+            + " (widget:rows(t) gave it, or widget:on(\"Changed\", fn)'s argument did): "
+            + LuaRows.names(curItems));
     }
 
     /** {@code l:rowHeight()} — the row height in pixels, as it stands right now. */

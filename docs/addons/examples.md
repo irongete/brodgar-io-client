@@ -1,22 +1,23 @@
 # The bundled addons
 
-Three addons ship with the client, in the same `addons/` folder yours goes into. None of them
-illustrates a surface — a reference page states its own. Two are **tools you point at your own addon**:
-one says what a widget on the screen is and how to name it, the other says where the frame went. The
-third is a **surface of the client's own**, written in Lua like any other addon: the switcher over the
-logins the client holds.
+The addons below ship with the client, in the same `addons/` folder yours goes into. None of them
+illustrates a surface — a reference page states its own. The **tools** are the ones you point at your own
+addon: what a widget on the screen is and how to name it, where the frame went, and what the client is
+doing as it does it. Beside them stands a **surface of the client's own**, written in Lua like any other
+addon: the switcher over the logins the client holds.
 
 | Addon | Use it to |
 |---|---|
 | [`widgetstack`](../../addons/widgetstack/main.lua) | find out what a widget is, and how to name it |
 | [`profiler`](../../addons/profiler/main.lua) | find out where the frame went |
+| [`eventstack`](../../addons/eventstack/main.lua) | watch what the client sends, receives and puts on screen |
 | [`session-manager`](../../addons/session-manager/main.lua) | go between the characters you have logged in |
 
-The two tools are **dormant** — installed and enabled, but drawing nothing and reading nothing until you
-press their hotkey or type their command — so having them on costs you an untouched login. They are also
-the two worked examples the API has left, and each is the whole of its own subject: the inspector is
-[selectors](api/ui/selectors.md) end to end, the profiler is
-[the profiling surface](api/client/profiling/README.md) end to end.
+The tools are **dormant** — installed and enabled, but drawing nothing and reading nothing until you press
+their hotkey or type their command — so having them on costs you an untouched login. Each is the whole of
+one subject as well: the inspector is [selectors](api/ui/selectors.md) end to end, the profiler is
+[the profiling surface](api/client/profiling/README.md) end to end, and the log is
+[the streams and the bus](api/event/README.md) at once.
 
 ## widgetstack
 
@@ -45,6 +46,24 @@ Pausing freezes the ring and turns the graph into a timeline you scrub frame by 
 Its per-addon tab is where you find out what **your** addon costs, and its widget tab is where a window you
 built shows up beside the client's own. Dormant until its `toggle` hotkey or `:profiler`, which is the shape
 any profiling addon should have.
+
+## eventstack
+
+The live log. One line per thing the client did, newest last, in a table: the clock, which source it came
+through, its name, and what it was about. Every source is a checkbox of its own — every message the client
+**sends**, every update it **receives**, every key on the [event bus](api/event/bus.md) but `Update`, and
+every widget appearing and disappearing — so you can hold them all at once and shut off the one that is
+drowning the rest.
+
+Its filters **start empty and fill themselves**. A message name is the server's rather than the client's,
+so no list of them can be written in advance: a dropdown over the source and a dropdown over the name each
+begin at `(all)` and gain a row the first time a value arrives on that axis. Picking one narrows the table
+to it, and the pick survives every name that arrives afterwards.
+
+`:eventstack` toggles it. The widget source starts off, because subscribing to a widget appearing replays
+every widget that character already has open. It reads the traffic and never touches it — nothing in it
+cancels, rewrites, resends or sends — and where you drag its window is saved for the **account**, like the
+switcher's.
 
 ## session-manager
 

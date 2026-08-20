@@ -112,13 +112,13 @@ every block is run in order by the maintainer during verification.
   body shown inside the callback it belongs to. No `...` standing in for code (write
   `-- your code here`), no pseudo-code, no invented verbs.
 - **Only symbols that exist.** Every `hafen.*` name in an example is in the reference and in `src/`.
-- **A page carries its own example.** Two addons ship under `addons/`, and both are tools rather than
-  illustrations of a surface, so a page writes the block it needs and leans on no folder for it.
-  Where a page names one of the two it uses bold backticks (**`profiler`**) and says what it is for;
-  the **link belongs to `examples.md` alone** — a reference page names, it does not link out.
+- **A page carries its own example.** Nothing under `addons/` illustrates a surface, so a page writes
+  the block it needs and leans on no folder for it. Where a page names one of them it uses bold
+  backticks (**`profiler`**) and says what it is for; the **link belongs to `examples.md` alone** — a
+  reference page names, it does not link out.
 - **A page documents only what the client itself provides.** A `hafen.*` verb, a manifest field, a
-  file the client reads — never a Lua library the reader would have to be handed, since the two
-  bundled addons are tools and neither is a library anything may build on.
+  file the client reads — never a Lua library the reader would have to be handed, since nothing
+  under `addons/` is a library anything may build on.
 - Invented examples use `myaddon`, `addons/myaddon/main.lua`, lowercase word variables. Never
   `foo`, `bar`, `test`.
 - A reference block shows **one verb**, a guide block **one task**, the tutorial's blocks build
