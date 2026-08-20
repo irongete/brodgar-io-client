@@ -26,7 +26,7 @@
       count line and whether your character actually moved. An observed send still reaches the
       server.
 
-- [ ] **082.2 — Every inbound message, under the same name.** `fireMessage` takes the same shape as
+- [x] **082.2 — Every inbound message, under the same name.** `fireMessage` takes the same shape as
       `fireAction`: one `ev` per addon over the shared `Subs.Cancel` and the shared `rewritten` slot,
       named list first. `anyStreamSub`'s message half reads the same field. `Addon.messageSubs` and
       `LuaEvent.message` say it in their javadoc, and `UI.UiMessage.run`'s `// addon:` comment stops

@@ -1,0 +1,11 @@
+{
+  "name": "082.2 — every inbound message, under the same name",
+  "id": "082-the-whole-stream.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 082.2: \"*\" on the message stream is handed every server update, over the same one ev a named key gets, named list first.",
+  "api_version": 1,
+  "files": [
+    "main.lua"
+  ]
+}

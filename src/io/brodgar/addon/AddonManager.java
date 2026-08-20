@@ -1822,11 +1822,32 @@ public final class AddonManager {
         return (rewritten[0] != null) ? rewritten[0] : args;
     }
 
-    /** Run one owner's message handlers, with its own {@code ev} over the shared cancel + rewrite slots. */
+    /**
+     * Run one owner's message handlers, with its own {@code ev} over the shared cancel and rewrite slots —
+     * <b>the named list first, then the wildcard one</b> ({@link Subs#WILD}), over the SAME {@code ev}. The
+     * inbound mirror of {@link #fireAction}, shape for shape (082.2).
+     *
+     * <p><b>One payload, two lists.</b> An addon holding both {@code "set"} and {@code "*"} has both handlers
+     * handed the very same value, so the shared {@link Subs.Cancel} and the shared {@code rewritten} slot
+     * behave exactly as they do between two handlers on one key: either one swallows the update once, and the
+     * last {@code rewrite} wins. Named first because the named key is the SPECIFIC claim on this message and
+     * the wildcard the ambient one — the specific handler sees the {@code ev} first, the ambient one sees
+     * what was done to it.
+     *
+     * <p>{@code named} is {@code has(msg) && !WILD.equals(msg)} so a message that somehow arrived called
+     * {@code *} fires one list rather than the same list twice.
+     */
     private static void fireMessage(Addon a, Widget target, String msg, Object[] args, Subs.Cancel c,
                                     Object[][] rewritten) {
-        if(a.messageSubs.has(msg))
-            a.messageSubs.fire(msg, c, LuaEvent.message(a, target, msg, args, c, rewritten));
+        boolean named = a.messageSubs.has(msg) && !Subs.WILD.equals(msg);
+        boolean wild = a.messageSubs.wild();
+        if(!named && !wild)
+            return;                                   // the hasSub gate, kept: no ev for an owner not listening
+        LuaValue ev = LuaEvent.message(a, target, msg, args, c, rewritten);
+        if(named)
+            a.messageSubs.fire(msg, c, ev);
+        if(wild)
+            a.messageSubs.fire(Subs.WILD, c, ev);
     }
 
     /**

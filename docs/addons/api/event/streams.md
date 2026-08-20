@@ -98,16 +98,22 @@ hafen.event():message():on("set", function(ev)
 end)
 ```
 
-Like `action`, a `message` key is open: any string is accepted and may never fire.
+Like `action`, a `message` key is open: any string is accepted, because an update's name is protocol
+just as an action's is — and `*` reaches [every one of them at once](#the-whole-stream).
 
 ## The whole stream
 
-`hafen.event():action():on("*", fn)` fires for every message the client sends, whatever its name. It is
-the one subscription you cannot write by hand: the key set is open because a message name is protocol the
-server can introduce, so the list of names is unknowable and enumerating it is exactly what the openness
-exists to avoid. Reach for it when you cannot name what you are after in advance — a live log of the
-client's traffic, a filter list that fills itself from what actually arrives, an audit of what a window
-sends before you have read a line of it.
+`*` is the key both streams reserve for **every message on this stream**, and it is the one subscription
+you cannot write by hand: the key set is open because a name is protocol the server can introduce, so the
+list of names is unknowable and enumerating it is exactly what that openness exists to avoid. The key
+collides with nothing, because a message name is an identifier and no message is called `*`.
+
+### Every message, on the way out
+
+`hafen.event():action():on("*", fn)` fires for every message the client sends, whatever its name. Reach
+for it when you cannot name what you are after in advance — a live log of the client's traffic, a filter
+list that fills itself from what actually arrives, an audit of what a window sends before you have read a
+line of it.
 
 ```lua
 -- every action the client sends, as it goes out:
@@ -118,8 +124,7 @@ end)
 
 The `ev` is the one a named key is handed, whole: `ev:msg()` says which message fired, and `ev:sender()`,
 `ev:args()`, `ev:position(i)`, `ev:pixel(i)`, `ev:preventDefault()`, `ev:resend()` and `ev:send(t)` behave
-exactly as they do above. The key collides with nothing, because a message name is an identifier and no
-message is called `*`.
+exactly as they do above.
 
 Hold a name **and** `*`, and both handlers run for that name, **the named one first**, over **one** `ev`:
 the specific claim on a message sees it before the ambient one, and a `preventDefault` from either cancels
@@ -141,6 +146,41 @@ Two sends the `action` stream does not report, and a wildcard is where you would
 - **A send made off the UI-locked path.** Handlers run only where the sending code already holds the
   client's UI lock, which is every player action and every message a widget sends while the client is
   running. A send from a thread outside it passes straight through.
+
+### Every update, on the way in
+
+`hafen.event():message():on("*", fn)` is the inbound mirror: it fires for every update the server sends,
+whatever its name and whichever widget it is aimed at. This is the one to reach for first, because the
+name you want is usually a window of watching away — make the thing happen on screen, read what arrived,
+then subscribe to it by name.
+
+```lua
+-- every update the server sends, before the widget applies it:
+hafen.event():message():on("*", function(ev)
+  hafen.log():write(ev:target():type() .. " <- " .. ev:msg() .. " (" .. #ev:args() .. " args)")
+end)
+```
+
+The `ev` is the one a named key is handed, whole: `ev:msg()` says which update fired, and `ev:target()`,
+`ev:args()`, `ev:position(i)`, `ev:pixel(i)`, `ev:preventDefault()` and `ev:rewrite(t)` behave exactly as
+they do above. Holding a name **and** `*` behaves here as it does on the way out: both handlers run for
+that name, the named one first, over one `ev`, and `sub:off()` on the wildcard leaves a named
+subscription on the same stream firing.
+
+> **`ev:preventDefault()` on an inbound wildcard stops the client.** A named key swallows one update; a
+> wildcard swallows **every** update, so the widget tree stops hearing from the server altogether — and
+> the client's own change detection reads the updates that were applied, so [the bus](bus.md) goes quiet
+> with it. Swallow inside an `if` on `ev:msg()`, never at the top of the handler.
+
+An inbound handler also runs where the client can feel it. It runs under the very lock the client takes
+to tick and to draw, so the time your handler spends is time the frame is not being drawn — and a
+wildcard spends it on every update the server sends rather than on one name. What stands between a slow
+handler and a visible stutter is the [CPU budget](../../runtime.md#budgets-and-the-watchdog), which
+disables an addon that sustains the overrun rather than letting the client stutter on.
+
+> **Keep an inbound wildcard's body short.** Read a field, count something, append to a table you drain
+> on a [timer](../timer.md) — and read [threading](../conventions.md#threading) before you make one wait
+> on anything at all.
 
 ## See also
 

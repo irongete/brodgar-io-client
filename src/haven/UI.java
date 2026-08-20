@@ -718,11 +718,13 @@ public class UI {
 	    if(wdg != null) {
 		boolean applied = false;
 		synchronized(UI.this) {
-		    // addon: inbound-message hook (L3 — spec 13 §L3). A hafen.hook():message handler runs here, BEFORE
-		    // the widget applies the server update, and may swallow it (ev:preventDefault -> null) or rewrite
-		    // its args (ev:rewrite). onMessage returns the args to apply, or null to swallow. It runs Lua under
-		    // this synchronized(ui) block (the monitor tick/draw hold), so hook Lua never races other Lua, and
-		    // is a near-zero no-op when no message hooks are registered (uimsg application is hot).
+		    // addon: the INBOUND MESSAGE STREAM seam. Every hafen.event():message():on(msg, fn) subscription
+		    // runs here — the ones that named this message, and the ones that took "*", the whole stream —
+		    // BEFORE the widget applies the server update, and may swallow it (ev:preventDefault -> null) or
+		    // rewrite its args (ev:rewrite). onMessage returns the args to apply, or null to swallow. It runs
+		    // Lua under this synchronized(ui) block (the monitor tick/draw hold), so handler Lua never races
+		    // other Lua — and the UI thread waits on that monitor, so a slow handler is a stutter. Near-zero
+		    // when nobody subscribes (uimsg application is hot).
 		    Object[] happly = io.brodgar.addon.AddonManager.onMessage(wdg, msg, args);
 		    if(happly != null) {
 			dispatch(wdg, new Widget.MessageEvent(msg, happly));
@@ -730,7 +732,7 @@ public class UI {
 		    }
 		}
 		if(applied)
-		    io.brodgar.addon.AddonManager.onUimsg(wdg, msg);   // addon: widget-tree read tap (post-apply; enqueues a semantic-event refresh; skipped when an L3 hook swallowed the message)
+		    io.brodgar.addon.AddonManager.onUimsg(wdg, msg);   // addon: widget-tree read tap (post-apply; enqueues a semantic-event refresh; skipped when a message-stream handler swallowed the update)
 	    } else {
 		throw(new UIException("Uimsg to non-existent widget " + id, msg, args));
 	    }

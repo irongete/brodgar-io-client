@@ -185,6 +185,13 @@ public final class Addon {
      * fn)}, 041.2) — every server UI update, at the {@link haven.UI#uimsg} choke point, before the target
      * widget applies it. The inbound mirror of {@link #actionSubs} in every respect: open key set, the
      * {@code events} category, one {@link Subs#clear} at teardown, and no global registry to keep in step.
+     *
+     * <p><b>Two doors in here as well</b>, fired in the same order by {@link AddonManager#fireMessage}: a key
+     * names one update, {@link Subs#WILD} names every update on the stream (082.2), and an addon holding both
+     * is handed one {@code ev} for the one that matches its name. What is the inbound stream's ALONE is the
+     * weight of it — a wildcard here runs Lua on every server update, on a Loader thread under the {@code ui}
+     * monitor the tick and draw wait for, and a {@code preventDefault} from it swallows the client's whole
+     * inbound half rather than one message.
      */
     public final Subs messageSubs = new Subs(this, Addon.C_EVENT);
     /**

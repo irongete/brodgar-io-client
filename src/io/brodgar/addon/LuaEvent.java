@@ -330,9 +330,12 @@ public final class LuaEvent {
     }
 
     /**
-     * The {@code ev} for one inbound message ({@code hafen.event():message()}). {@code rewritten} is shared
-     * across every handler and addon of this one message: the LAST {@code ev:rewrite(t)} wins, and
-     * {@code preventDefault} beats all of them (the caller applies nothing).
+     * The {@code ev} for one inbound message ({@code hafen.event():message()}), minted per addon that listens —
+     * the {@code hasSub} gate, which lets a message through for an owner holding this update's NAME <b>or</b>
+     * {@link Subs#WILD}, the whole stream (082.2); when it holds both, this one value is what both lists are
+     * fired over. {@code rewritten} is shared across every handler and addon of this one message: the LAST
+     * {@code ev:rewrite(t)} wins, and {@code preventDefault} beats all of them (the caller applies nothing,
+     * and skips the post-apply tap besides).
      */
     static LuaValue message(Addon owner, Widget target, String msg, Object[] args, Subs.Cancel c,
                             Object[][] rewritten) {
