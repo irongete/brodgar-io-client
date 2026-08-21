@@ -41,7 +41,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       *Inventory*: A-039, A-040, A-041 — `/end` ticks and strikes them in `audit/INVENTORY.md`.
       <!-- extra context: docs/client/services.md (Console.setscmd, findcmd's three tiers), src/io/brodgar/addon/LuaSelectorWatch.java, LuaSlashCommand.java, LuaKeyBind.java -->
 
-- [ ] **086.2 — What you registered, you can list.** `Subs` grows one read, `List<LuaSub> live()`,
+- [x] **086.2 — What you registered, you can list.** `Subs` grows one read, `List<LuaSub> live()`,
       walking its copy-on-write lists and skipping dead subs, because `byKey` is private and two
       collections now need it. `hafen.slash()` is **mounted as a `LuaCollection`** over
       `owner.slashSubs`, exactly as `hafen.timer()` is mounted over `owner.timers`, with `on` as the

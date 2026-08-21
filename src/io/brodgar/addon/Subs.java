@@ -2,6 +2,8 @@ package io.brodgar.addon;
 
 import org.luaj.vm2.LuaValue;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -209,6 +211,28 @@ public final class Subs {
                 l = fresh;
         }
         return l;
+    }
+
+    /**
+     * Every subscription here that is still live, in no particular order across keys and in registration
+     * order within one (086.2). {@link #byKey} is private and two collections now need to read it:
+     * {@code hafen.slash()} is a collection of one of these emitters, and {@code hafen.event():list(filter)}
+     * is the concatenation of three.
+     *
+     * <p><b>A snapshot, walked off the copy-on-write lists and never sorted.</b> A subscription may be made
+     * or ended from inside a running handler, on whichever thread that fire is on, so the list handed back
+     * is the caller's own: a sub that ends while Lua is walking the array is skipped by {@link LuaSub#alive}
+     * at the next read rather than removed from under it.
+     */
+    List<LuaSub> live() {
+        List<LuaSub> out = new ArrayList<LuaSub>();
+        for(CopyOnWriteArrayList<LuaSub> l : byKey.values()) {
+            for(LuaSub s : l) {
+                if(s.alive)
+                    out.add(s);
+            }
+        }
+        return out;
     }
 
     /**

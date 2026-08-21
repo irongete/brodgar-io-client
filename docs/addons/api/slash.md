@@ -42,6 +42,35 @@ into and goes on running as you tab between them. There is nothing to re-subscri
 addon does, so a command never races your own handlers. It runs under the same watchdog and error
 isolation: an error in it is logged, not propagated.
 
+## Read what you registered
+
+`hafen.slash()` **is** the [collection](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many)
+of your addon's own commands, so the section you subscribe through is the section you read back:
+
+| Verb | Gives you |
+|---|---|
+| `hafen.slash():list(filter)` | every command of yours, as an array of `Sub`s |
+| `hafen.slash():count(filter)` | how many |
+| `hafen.slash():find(filter)` | the first that matches, or `nil` |
+| `hafen.slash():get(name)` | the command registered under `name`, or `nil` |
+
+The members are the very `Sub`s `:on` handed you, so `==` finds the one you are holding and `sub:key()`
+is its name. A string `filter` is a substring match on that name; a function filter is called with each
+`Sub`. Only your addon's commands are here — another addon's are its own, and the client's built-in
+commands were never subscriptions.
+
+`:get(name)` answers `nil` for a name you never registered: there is nothing for it to be a handle to,
+since the registration *is* the subscription. All four verbs are **unprotected**.
+
+```lua
+for _, cmd in ipairs(hafen.slash():list()) do
+  hafen.log():write(":" .. cmd:key())
+end
+
+local greet = hafen.slash():get("greet")
+if greet then greet:off() end
+```
+
 ## See also
 
 - [`hafen.event`](event/README.md) — the `Sub` this hands back, and every other subscription in the API

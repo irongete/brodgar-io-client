@@ -24,8 +24,9 @@ subsystem is a colon call on it, as in `hafen.time():clock()`. The object is the
 so `hafen.time() == hafen.time()` and calling a section inside a draw callback allocates nothing.
 
 A section takes no arguments. Where a section holds exactly one thing, the section object **is** that
-thing rather than a wrapper around it: `hafen.timer()` is the collection of your timers, and
-`hafen.session()` is the collection of the logins the client holds.
+thing rather than a wrapper around it: `hafen.timer()` is the collection of your timers,
+`hafen.slash()` the collection of your console commands, and `hafen.session()` the collection of the
+logins the client holds.
 
 **Not every subsystem hangs off `hafen`.** What names one character's state hangs off the
 [Session](session.md) that names that character instead, and reads the same way one call further in:

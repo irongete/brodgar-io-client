@@ -37,6 +37,28 @@ nothing is sandboxed and every protected verb works there.
 Anything that reads is safe to try. Anything that writes is a real change to your client — that is the
 point of the console, and the reason to keep `:reload` in reach.
 
+## Read back what you registered
+
+Two questions your own code answers for you: did that subscription happen, and am I holding two of them.
+A list is answered for the addon that asks for it, so ask from a command of your own — the addon asking
+in `:lua` is the console, not you.
+
+```lua
+hafen.slash():on("mystate", function()
+  hafen.log():write(hafen.event():count() .. " subscriptions")
+  for _, sub in ipairs(hafen.event():list()) do
+    hafen.log():write("  " .. sub:key())
+  end
+  hafen.log():write(hafen.timer():count() .. " timers")
+end)
+```
+
+[`hafen.event()`](../api/event/README.md#read-what-you-are-listening-to) covers the bus and the two
+message streams; [`hafen.slash()`](../api/slash.md#read-what-you-registered) is the collection of your
+commands; [`hafen.timer()`](../api/timer.md) is the collection of your timers. A count that climbs while
+the client runs is a subscription made from somewhere that is not your file body or `Load` — a handler
+that subscribes on each fire is the usual one, and it goes on firing once per copy.
+
 ## Name a widget you are pointing at
 
 Selectors are guessed wrong more often than anything else in the API, so do not guess. Enable the bundled

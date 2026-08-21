@@ -1,0 +1,9 @@
+{
+  "name": "086.2 — what you registered, you can list",
+  "id": "086-one-handle-one-shape.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 086.2: hafen.slash() is a collection of this addon's own command Subs — :count, the array :list, :get(name) by identity, :find by the string filter and a miss that answers nil — while hafen.event():list/:count answer over the hub's three emitters, both counts fall back on sub:off(), and the arity refusal survived the mount.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -3388,6 +3388,40 @@ public final class AddonManager {
                 return messages;
             }
         });
+        // hafen.event():list(filter) / :count(filter) — what THIS addon is currently listening to, across the
+        // hub's three emitters and in that order: the bus, the outbound action stream, the inbound message
+        // stream (086.2). Members are the very Subs :on handed back, so a predicate reads them with sub:key()
+        // and == finds the one you hold; a string filter is a substring match on that key.
+        //
+        // Two verbs on the hub rather than mounting hafen.event() AS a collection: it is the door for three
+        // emitters, not a set of one kind, and making it a collection would have to elect one of the three to
+        // be "the" members. A widget's own subscriptions stay out — they belong to the widget and die with it.
+        event.set("list", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "event", "list");
+                LuaValue filter = a.arg(2);
+                LuaTable t = new LuaTable();
+                int n = 0;
+                for(LuaSub s : hubSubs(owner)) {
+                    LuaValue h = s.handle();
+                    if(LuaCollection.keeps(filter, h, true, s.key, "hafen.event()", "list"))
+                        t.set(++n, h);
+                }
+                return t;
+            }
+        });
+        event.set("count", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "event", "count");
+                LuaValue filter = a.arg(2);
+                int n = 0;
+                for(LuaSub s : hubSubs(owner)) {
+                    if(LuaCollection.keeps(filter, s.handle(), true, s.key, "hafen.event()", "count"))
+                        n++;
+                }
+                return LuaValue.valueOf(n);
+            }
+        });
         Section.install(hafen, "event", event);
 
         // hafen.timer() — the addon's own scheduling, and a section that contains exactly ONE thing is that
@@ -3441,6 +3475,20 @@ public final class AddonManager {
         Retired.install(hafen);
 
         g.set("hafen", hafen);
+    }
+
+    /**
+     * The three emitters {@code hafen.event()} is the door for — the bus, the outbound action stream and the
+     * inbound message stream — as one list of live subscriptions, in that order (086.2). Concatenated on
+     * every call rather than cached: each {@link Subs#live} is already a snapshot of a copy-on-write list,
+     * and a subscription made or ended inside a handler must show up on the next read.
+     */
+    private static List<LuaSub> hubSubs(Addon owner) {
+        List<LuaSub> out = new ArrayList<LuaSub>();
+        out.addAll(owner.subs.live());
+        out.addAll(owner.actionSubs.live());
+        out.addAll(owner.messageSubs.live());
+        return out;
     }
 
     private static LuaValue newTimer(final Addon owner, Varargs a, boolean repeat) {

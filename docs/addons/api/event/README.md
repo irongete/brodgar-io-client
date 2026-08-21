@@ -53,6 +53,29 @@ protocol the server can introduce, not a catalogue the client owns. What that op
 [the whole stream](streams.md#the-whole-stream) — the one subscription you cannot write by hand, because
 the list it stands for is the server's to grow.
 
+## Read what you are listening to
+
+| Function | Gives you |
+|---|---|
+| `hafen.event():count(filter)` | how many of your subscriptions are live here |
+| `hafen.event():list(filter)` | those subscriptions, as an array of `Sub`s |
+
+Both answer over all three doors this page covers — the bus and the two [message streams](streams.md) —
+in that order, and over your addon's subscriptions alone. A string `filter` is a substring match on
+`sub:key()`; a function filter is called with each `Sub`. Both are **unprotected**.
+
+```lua
+hafen.log():write("listening on " .. hafen.event():count() .. " keys")
+
+for _, sub in ipairs(hafen.event():list(function(s) return s:key() == "GobAdded" end)) do
+  sub:off()
+end
+```
+
+The members are the very `Sub`s `:on` handed you, so `==` finds the one you are holding, and one that
+has been ended is gone from the next read. A subscription you made on a **widget** or a mouse grab
+belongs to that widget and is not here; it dies with it.
+
 ## Pages
 
 | Page | What it covers |

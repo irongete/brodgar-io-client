@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import java.awt.event.KeyEvent;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,19 +93,68 @@ final class HookApi {
      * mounted at all any more (041.5): input, action, message and grab have all moved elsewhere, and a section
      * with nothing left in it is not kept around as an empty shell — reading {@code hafen.hook} throws
      * naming where each half went ({@link Retired}).
+     *
+     * <p><b>The section object IS the collection of this addon's commands</b> (086.2, §2.1: a section that
+     * contains exactly one thing is that thing), mounted the way {@code hafen.timer()} is. Its members are
+     * {@link Addon#slashSubs}' own live {@link LuaSub}s — a command is a subscription, so what
+     * {@code :list()} hands you is the very value {@code :on} handed you — and its key is the command name,
+     * which is what {@code :get(name)} addresses and what a string filter matches.
      */
     static void install(LuaTable hafen, final Addon owner) {
-        LuaTable slash = new LuaTable();
+        LuaTable verbs = new LuaTable();
         // on(name, fn) — route the console command :name to fn(args). It is a SUBSCRIPTION like every other
         // :on in the API (086.1): the Sub it hands back answers :key() (the command name) and :off(), and
         // :off() drops the handler while the engine's own dispatcher stays installed forever (C1).
-        slash.set("on", new VarArgFunction() {
+        verbs.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "slash", "on");
+                LuaCollection.receiver(a.arg1(), "on");
                 return newSlashCommand(owner, a);
             }
         });
-        Section.install(hafen, "slash", slash);
+        Section.mount(hafen, "slash", LuaCollection.create("hafen.slash()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                for(LuaSub s : owner.slashSubs.live())
+                    out.add(s.handle());
+                return out;
+            }
+
+            // A command HAS a name — it is the word typed after the colon, and it is the sub's own key —
+            // so a string filter is a substring match on it rather than the refusal a nameless kind gives.
+            public boolean named() {
+                return true;
+            }
+
+            public String needle(LuaValue member) {
+                LuaSub s = LuaSub.resolve(member);
+                return (s == null) ? null : s.key;
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public String keyName() {
+                return "name";
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                if(!key.isstring())
+                    return LuaValue.NIL;
+                String nm = key.tojstring();
+                for(LuaSub s : owner.slashSubs.live()) {
+                    if(s.key.equals(nm))
+                        return s.handle();
+                }
+                return LuaValue.NIL;
+            }
+
+            // NIL, not MINT: a command you never registered is not a thing to hand back an object for —
+            // there is nothing for it to be a handle TO, since the registration IS the subscription.
+            public LuaCollection.Missing missing() {
+                return LuaCollection.Missing.NIL;
+            }
+        }, verbs), null);
     }
 
     // ================================================================= (the target tokens are gone, 048.6)
