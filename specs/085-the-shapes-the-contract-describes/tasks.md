@@ -158,7 +158,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       *Inventory*: A-025, A-026, A-036 — `/end` ticks and strikes them in `audit/INVENTORY.md`.
       <!-- extra context: src/io/brodgar/addon/LuaFightSummary.java (of, Cache, the number() helper), src/haven/Cal.java, src/haven/Glob.java (the "astro" branch), src/haven/SAttrWnd.java (StudyInfo) -->
 
-- [ ] **085.5 — The same handle every time.** `hafen.client():options() == hafen.client():options()`
+- [x] **085.5 — The same handle every time.** `hafen.client():options() == hafen.client():options()`
       is false today: all seven handles are minted per call, against `conventions.md`'s "the object is
       the same one every time" and `Section`'s own "a section called inside a draw callback at 60 fps
       allocates nothing". `Addon` grows seven lazily-built fields beside `subMeta` and `grabMeta` and

@@ -1,0 +1,9 @@
+{
+  "name": "085.5 — the same handle every time",
+  "id": "085-the-shapes-the-contract-describes.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 085.5: all eight hafen.client() handles are the same object every call and one works as a table key, a read and a write still reach the live store through them, and h:size(nil)/h:aa(nil) undo a font variant's layer under the same ownership guard as any other write.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

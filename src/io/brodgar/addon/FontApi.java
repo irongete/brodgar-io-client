@@ -342,6 +342,13 @@ final class FontApi {
      * they refuse, naming {@code :derive()}. And once a draft has been handed to a rule, to a widget or to a draw
      * call it is SEALED, because each of those reads it at that moment: a later write would look like it took and
      * change nothing, which is the silent failure this grammar exists to delete.
+     *
+     * <p><b>{@code size} and {@code aa} take an explicit {@code nil}</b>, and the other three do not. Those two
+     * are the pair the page documents an inherited state for — "the stock size of whatever surface it is
+     * applied to", "inherits the surface's stock setting" — so writing one is the "undo your layer" meaning
+     * {@code conventions.md} already gives {@code w:size(nil)}, on the same word. {@code bold} and
+     * {@code italic} are baked into the AWT face and have no such state; a {@code nil} at either is the
+     * accident {@link Args#nilRefused} names.
      */
     private static LuaValue property(final FontHandle fh, final String prop) {
         // `prop`, never `name`: LuaJ's LibFunction declares a `protected String name`, and an inherited field
@@ -353,13 +360,19 @@ final class FontApi {
                 if(!Args.passed(a, 2))
                     return read(fh, prop);
                 LuaValue v = a.arg(2);
-                if(v.isnil())
+                // An explicit nil is an accident everywhere the page does not document a meaning for it -- and
+                // on these two the page documents one: `nil` is the stock of whatever surface the handle is
+                // applied to, so h:size(nil) UNDOES this variant's layer, the same meaning w:size(nil) carries
+                // on the same word. It is a write like any other, so the ownership guard judges it first: a
+                // sealed draft refuses it naming :derive(), rather than clearing a field nothing will re-read.
+                boolean clear = v.isnil();
+                if(clear && !"size".equals(prop) && !"aa".equals(prop))
                     throw Args.nilRefused("font:" + prop, prop);
                 fh.writable("font:" + prop);
                 if("size".equals(prop))
-                    fh.size = optSize(v, "font:size");
+                    fh.size = clear ? null : optSize(v, "font:size");
                 else if("aa".equals(prop))
-                    fh.aa = Boolean.valueOf(v.toboolean());
+                    fh.aa = clear ? null : Boolean.valueOf(v.toboolean());
                 else if("color".equals(prop))
                     fh.color = colorArg(a, 2, "font:color");
                 else

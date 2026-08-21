@@ -473,6 +473,23 @@ public final class Addon {
     LuaValue grabMeta;
 
     /**
+     * This addon's <b>client handles</b> ({@link OptionsHandle}) — {@code hafen.client():options()}, its six
+     * subsystem handles ({@code interface} {@code video} {@code audio} {@code camera} {@code client}
+     * {@code keybindings}) and {@code hafen.client():profiling()} — each built on first use and handed back
+     * <b>by identity</b> ever after, so {@code opts:video() == opts:video()} and a draw callback reading one
+     * allocates nothing. That is {@link Section}'s rule, which every other section has kept since it was
+     * written; this namespace was converted to the section shape without the identity half.
+     *
+     * <p>Per addon like every other Lua value here (D-017), and lazily for the same reason as
+     * {@link #subMeta}: an addon that never opens the settings never builds them. Unlocked for the same
+     * reason too — two threads racing build two equal handles and one wins. They are <b>stateless proxies</b>
+     * over the client's live preference stores, so there is nothing to invalidate and nothing to tear down:
+     * the fields go with this {@link Addon}.
+     */
+    LuaValue clientOpts, clientInterface, clientVideo, clientAudio, clientCamera, clientClient,
+             clientKeybindings, clientProfiling;
+
+    /**
      * This addon's <b>event-object metatables</b> ({@link LuaEvent}), one per shape, each built on the first
      * {@code ev} of that shape. Per addon for the reason every metatable here is (D-017), and indexed by
      * {@link LuaEvent.Shape#ordinal()} rather than kept in a map: the shapes are a closed enum known at

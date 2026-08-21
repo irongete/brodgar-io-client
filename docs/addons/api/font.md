@@ -60,8 +60,8 @@ name — bare it reads, with a value it writes and hands the handle back, so a v
 |---|---|---|
 | `h:derive()` | `FontHandle` | a fresh variant of this font, ready to configure |
 | `h:family()` | string | the family name — feed it to a `$font[family, size]{…}` tag for per-run mixing |
-| `h:size()` / `h:size(px)` | number \| nil | [design px](ui/pixels.md), the same unit every coordinate takes. `nil` means the stock size of whatever surface it is applied to |
-| `h:aa()` / `h:aa(b)` | boolean \| nil | antialias. `nil` inherits the surface's stock setting |
+| `h:size()` / `h:size(px)` | number \| nil | [design px](ui/pixels.md), the same unit every coordinate takes. `nil` is the stock size of whatever surface it is applied to, and writing `nil` [undoes](conventions.md#nil-is-an-error-unless-it-means-something) the size this variant carries |
+| `h:aa()` / `h:aa(b)` | boolean \| nil | antialias. `nil` inherits the surface's stock setting, and writing `nil` undoes the flag this variant carries |
 | `h:bold()` / `h:bold(b)` | boolean | style, baked into the font |
 | `h:italic()` / `h:italic(b)` | boolean | style, baked into the font |
 | `h:color()` / `h:color(c)` | [colour](shapes.md#colours) \| nil | text colour — **for your own drawing only**, see below |

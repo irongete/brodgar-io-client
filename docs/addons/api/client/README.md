@@ -15,10 +15,12 @@ opts:client()         -- client-wide toggles
 opts:keybindings()    -- register, inspect and remap hotkeys
 ```
 
-Every handle is a **stateless proxy** over the client's live preference stores. Nothing is cached, so a
-handle you keep in a variable never goes stale, and a write from Lua is indistinguishable from the same
-edit made in the Options window: same stores, same persistence, and the panel shows your value the next
-time it is opened.
+Every handle is a **stateless proxy** over the client's live preference stores — it holds no value of its
+own, so a handle you keep in a variable never goes stale, and a write from Lua is indistinguishable from
+the same edit made in the Options window: same stores, same persistence, and the panel shows your value
+the next time it is opened. Each one is also **the same handle every time** you ask for it,
+`opts:video() == opts:video()`, the identity [a section](../conventions.md#sections-you-call-one) has: a
+handle works as a table key, and polling a setting from a draw callback allocates nothing.
 
 The frame profiler is the other half of this namespace: [`hafen.client():profiling()`](profiling/README.md).
 

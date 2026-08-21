@@ -114,7 +114,7 @@ the write into a read, silently. Every meaning it does carry is here, and anywhe
 
 | `nil` means | Where |
 |---|---|
-| undo your layer, back to the client's own | `w:position(nil)`, `w:size(nil)`, `w:text(nil)`, `w:title(nil)`, `w:replace(nil)` |
+| undo your layer, back to the client's own | `w:position(nil)`, `w:size(nil)`, `w:text(nil)`, `w:title(nil)`, `w:replace(nil)`; a [font](font.md) variant's `h:size(nil)` and `h:aa(nil)` |
 | end the hold | `slot:pagina(nil)` |
 | none | a [vr entity](vr/README.md)'s `:tint(nil)` |
 | the root screen | `pag:parent(nil)` |
