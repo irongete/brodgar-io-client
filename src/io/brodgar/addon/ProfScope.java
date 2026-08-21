@@ -50,7 +50,9 @@ public final class ProfScope {
      * body must avoid that identifier.
      */
     static LuaValue create(final Addon owner, final String nm) {
-        LuaTable s = new LuaTable();
+        // Userdata, like every handle in the API: a typo raises naming the three verbs, s.finish = nil is
+        // refused, and tostring(s) names the scope rather than printing table: 0x...
+        LuaValue s = LuaValue.userdataOf(new Mark(nm));
         LuaTable m = new LuaTable();
         m.set("begin", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -80,6 +82,20 @@ public final class ProfScope {
         });
         s.setmetatable(mt);
         return s;
+    }
+
+    /** The opaque instance behind a scope userdata (facade-safe: no Java object of the client's crosses).
+     *  A scope binds only {@code (owner, name)} and the closures carry the owner, so the name is all of it. */
+    private static final class Mark {
+        private final String nm;
+
+        Mark(String nm) {
+            this.nm = nm;
+        }
+
+        public String toString() {
+            return "ProfScope(" + nm + ")";
+        }
     }
 
     /** Open the scope (no-op when disarmed; only the outermost open starts the clock). */

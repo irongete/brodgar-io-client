@@ -3,6 +3,7 @@ package io.brodgar.addon;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 /**
@@ -25,6 +26,12 @@ import org.luaj.vm2.lib.VarArgFunction;
  * handle works as a table key, and a HUD reading {@code opts:video():fpsLimit()} every frame allocates
  * nothing — {@link Section}'s contract, which every section in the API keeps. <b>Identity is not
  * caching</b>: a handle carries no value of its own, so every read still goes to the store.
+ *
+ * <p><b>Each of the eight is userdata with a closed vocabulary</b> ({@link #open}/{@link #close}), the one
+ * shape every handle in the API has. So {@code opts:vidoe()} raises naming the six panels rather than
+ * reading {@code nil} and failing one call later as <i>attempt to call a nil value</i>, {@code opts.video
+ * = nil} is refused where a table would have let an addon delete its own way in, and {@code tostring(opts)}
+ * is {@code Options} — a log line of an addon's own handles says something.
  */
 public final class OptionsHandle {
     private OptionsHandle() {}
@@ -64,49 +71,99 @@ public final class OptionsHandle {
      * {@code options} closure above, which then holds what it built.
      */
     static LuaValue create(final Addon owner) {
-        LuaTable opts = new LuaTable();
-        opts.set("interface", new VarArgFunction() {
+        LuaValue opts = open("Options");
+        LuaTable m = new LuaTable();
+        m.set("interface", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientInterface == null)
                     owner.clientInterface = InterfaceOptions.create();
                 return owner.clientInterface;
             }
         });
-        opts.set("video", new VarArgFunction() {
+        m.set("video", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientVideo == null)
                     owner.clientVideo = VideoOptions.create();
                 return owner.clientVideo;
             }
         });
-        opts.set("audio", new VarArgFunction() {
+        m.set("audio", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientAudio == null)
                     owner.clientAudio = AudioOptions.create();
                 return owner.clientAudio;
             }
         });
-        opts.set("camera", new VarArgFunction() {
+        m.set("camera", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientCamera == null)
                     owner.clientCamera = CameraOptions.create();
                 return owner.clientCamera;
             }
         });
-        opts.set("client", new VarArgFunction() {
+        m.set("client", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientClient == null)
                     owner.clientClient = ClientOptions.create();
                 return owner.clientClient;
             }
         });
-        opts.set("keybindings", new VarArgFunction() {
+        m.set("keybindings", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientKeybindings == null)
                     owner.clientKeybindings = KeybindingsOptions.create(owner);
                 return owner.clientKeybindings;
             }
         });
-        return opts;
+        return close(opts, "options", m,
+            "the options handle answers one panel of the client's Options window per verb: :interface()"
+            + " :video() :audio() :camera() :client() and :keybindings()");
+    }
+
+    /**
+     * The opaque instance behind an options userdata (facade-safe: no Java object of the client's crosses).
+     * A handle here holds no value of its own, so the one thing it carries is what it prints as.
+     */
+    private static final class Mark {
+        private final String print;
+
+        Mark(String print) {
+            this.print = print;
+        }
+
+        public String toString() {
+            return print;
+        }
+    }
+
+    /**
+     * <b>Mint one options handle</b>, its vocabulary not yet closed: {@code print} is what
+     * {@code tostring()} answers ({@code Options}, {@code Options(video)}). The two halves are separate
+     * because a panel's methods table is built <i>over the handle</i> — an option written with an argument
+     * hands the handle back so writes chain — so the value has to exist before the verbs that answer for
+     * it. {@link #close} finishes it.
+     */
+    static LuaValue open(String print) {
+        return LuaValue.userdataOf(new Mark(print));
+    }
+
+    /**
+     * <b>Close {@code h}'s vocabulary</b>: {@code methods} is all it answers, {@code entity} names it in a
+     * refusal and {@code hint} is what it does answer, spelled for the author. Everything else raises — a
+     * retired spelling with its replacement, any other name with {@code hint} — and, being userdata, so
+     * does a write.
+     */
+    static LuaValue close(LuaValue h, String entity, LuaTable methods, String hint) {
+        final String print = String.valueOf(h.touserdata());
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Retired.closedIndex(entity, methods, hint));
+        mt.set("__name", LuaValue.valueOf("Options"));
+        mt.set("__tostring", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(print);
+            }
+        });
+        h.setmetatable(mt);
+        return h;
     }
 }

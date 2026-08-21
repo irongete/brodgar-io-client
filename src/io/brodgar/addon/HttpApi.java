@@ -165,10 +165,14 @@ final class HttpApi {
         owner.requests.add(req);
         queueStart(owner);
 
-        final LuaTable h = new LuaTable();
+        // The request handle is userdata over the record, the one shape every handle in the API has:
+        // req.cancel = nil is refused where a table let an addon delete its own way of stopping a request,
+        // a typo raises naming the three verbs, and tostring(req) names the method and the URL.
+        final LuaValue h = LuaValue.userdataOf(req);
+        LuaTable m = new LuaTable();
         // header(name) reads, header(name, value) writes and returns SELF so it chains. Case-insensitive:
         // one header has one value however it is spelled, which is also what the wire means by it.
-        h.set("header", new VarArgFunction() {
+        m.set("header", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 String name = Args.str(a, 2, "request:header", "name", null).tojstring();
                 LuaValue value = Args.written(a, 3, "request:header", "value");
@@ -183,7 +187,7 @@ final class HttpApi {
             }
         });
         // timeout() reads the milliseconds this request will wait, timeout(ms) writes it and returns SELF.
-        h.set("timeout", new VarArgFunction() {
+        m.set("timeout", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue ms = Args.written(a, 2, "request:timeout", "ms");
                 if(ms == null)
@@ -194,7 +198,7 @@ final class HttpApi {
             }
         });
         // cancel() — never sent if it has not gone yet, and its callback never fires if it has.
-        h.set("cancel", new ZeroArgFunction() {
+        m.set("cancel", new ZeroArgFunction() {
             public LuaValue call() {
                 if(!req.dead) {
                     req.dead = true;
@@ -204,6 +208,17 @@ final class HttpApi {
                 return LuaValue.NIL;
             }
         });
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Retired.closedIndex("request", m,
+            "a request answers :header(name) :header(name, value) :timeout() :timeout(ms) and :cancel()"));
+        mt.set("__name", LuaValue.valueOf("Request"));
+        mt.set("__tostring", new ZeroArgFunction() {
+            public LuaValue call() {
+                String state = req.dead ? ", cancelled" : (req.started ? ", sent" : "");
+                return LuaValue.valueOf("Request(" + req.method + " " + req.url + state + ")");
+            }
+        });
+        h.setmetatable(mt);
         return h;
     }
 

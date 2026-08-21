@@ -26,13 +26,10 @@ public final class ClientOptions {
 
     /** Create the client options subsystem handle. */
     public static LuaValue create() {
-        LuaTable client = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("client", methods(client),
+        LuaValue client = OptionsHandle.open("Options(client)");
+        return OptionsHandle.close(client, "client", methods(client),
             "the client options answer one setting, :profiling(), reading with no argument and writing"
-            + " with one"));
-        client.setmetatable(mt);
-        return client;
+            + " with one");
     }
 
     private static LuaTable methods(final LuaValue handle) {

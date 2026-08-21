@@ -21,13 +21,10 @@ public final class VideoOptions {
 
     /** Create the video options subsystem handle. */
     public static LuaValue create() {
-        LuaTable video = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("video", methods(video),
+        LuaValue video = OptionsHandle.open("Options(video)");
+        return OptionsHandle.close(video, "video", methods(video),
             "the video options answer :shadows() :renderScale() :vsync() :fpsLimit() :bgFpsLimit()"
-            + " :lightingMode() and :lightLimit(), each reading with no argument and writing with one"));
-        video.setmetatable(mt);
-        return video;
+            + " :lightingMode() and :lightLimit(), each reading with no argument and writing with one");
     }
 
     /** The live GSettings, or null before the UI exists. */

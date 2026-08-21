@@ -1,0 +1,15 @@
+{
+  "name": "086.6 — a setting is an object",
+  "id": "086-one-handle-one-shape.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 086.6: the options handle, its six panels, the profiling handle, a scope, a standing entity and an HTTP request are userdata with a closed vocabulary and a __tostring — so the typo the options handle never answered now raises, a write to a handle is refused, 085's identity survives, and a handle in a saved variable is refused naming the path.",
+  "api_version": 1,
+  "network": {
+    "hosts": ["127.0.0.1"]
+  },
+  "saved_variables": [
+    {"name": "handles", "scope": "account"}
+  ],
+  "files": ["main.lua"]
+}

@@ -101,6 +101,10 @@ Transport-owned headers (`Host`, `Content-Length`, `Connection`, `User-Agent`, â
 setter refuses an explicit `nil`: the read is the same name with no argument, so `req:timeout(t)` with
 a `t` you forgot to set would otherwise read the timeout and change nothing.
 
+The request is a [handle in the API's one shape](conventions.md#snapshots-vs-handles): a name it does not
+answer raises naming these three, nothing can be written onto it, and `tostring(req)` names the method, the
+URL and whether it has gone â€” `Request(GET https://api.example.com/prices, sent)`.
+
 ## The res table
 
 | Field | When | Meaning |

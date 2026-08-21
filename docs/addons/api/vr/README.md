@@ -135,7 +135,8 @@ fires its own `MouseDown` at the pixel the pointer landed on, so `:onClick` on o
 subscription instead, and `:clickable(b)` there means *does this panel take the pointer at all*.
 
 **A refusal names the kind in hand**, and a standing widget's name is `panel`: a verb none of them has
-answers `ghost`, `sprite`, `object` or `panel` and lists what that kind does answer. The panel is named for
+answers `ghost`, `sprite`, `object` or `panel` and lists what that kind does answer. So does
+`tostring(e)`, which is the kind and what it is a picture of — `Ghost(gfx/terobjs/arch/logcabin)`. The panel is named for
 what it is rather than for the collection that placed it, because the [widget](../ui/widget.md) inside it
 answers to `widget` and the two need different sentences — out here a place is a
 [Position](../position.md), in there it is pixels within a parent.

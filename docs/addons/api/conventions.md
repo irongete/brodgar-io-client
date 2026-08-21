@@ -204,6 +204,9 @@ holds, and nothing of yours is torn down or rebuilt when the screen moves.
 - **Handles** are live, bridge-owned proxies with methods (`hafen.ui():window()`, `hafen.timer():every`,
   `hafen.event():on`, …), released for you when the addon is disabled or reloaded. So is every **object**
   a read hands you: it re-resolves rather than holding a value, so one you keep tracks what it names.
+  Every one of them is **userdata with a closed vocabulary**: a name it does not answer raises naming what
+  it does, nothing can be written onto it — so nothing can delete a handle's own `:cancel()` — and
+  `tostring(h)` names the thing, `Timer(every 5s)`, `Options(video)`, `Sub(GobAdded)`.
 - **A table the bridge owns and you write into** is the third kind, and
   [`hafen.store():get(name)`](store.md#read-and-write) is where you meet it. It is neither a copy nor a
   proxy: it is the table that goes to disk, so assigning into it is the whole of saving, and it is the one

@@ -41,7 +41,9 @@ until you open it — which is the shape any profiling addon should have. It als
 | `session()` | table | [what the other sessions answered](counters.md#session) — **always answers** |
 | `textcache()` | table | [the rendered-text cache](counters.md#textcache) — **always answers** |
 
-The handle is a stateless proxy: keep it in a variable forever and it never goes stale. What the read verbs
+The handle is a stateless proxy: keep it in a variable forever and it never goes stale. It is a
+[handle in the API's one shape](../../conventions.md#snapshots-vs-handles), so a misspelt counter raises
+naming the ones there are, and `tostring(p)` is `Profiling`. What the read verbs
 answer are plain **snapshot tables**, not handles — frozen numbers with nothing to re-resolve, so walking
 hundreds of samples for a frame graph is that many table lookups, not that many bridge calls.
 

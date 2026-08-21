@@ -22,6 +22,10 @@ the next time it is opened. Each one is also **the same handle every time** you 
 `opts:video() == opts:video()`, the identity [a section](../conventions.md#sections-you-call-one) has: a
 handle works as a table key, and polling a setting from a draw callback allocates nothing.
 
+Each is also a [handle in the API's one shape](../conventions.md#snapshots-vs-handles): a misspelt panel or
+option raises naming what the handle does answer, rather than reading `nil` and failing a call later, and
+nothing can be written onto one.
+
 The frame profiler is the other half of this namespace: [`hafen.client():profiling()`](profiling/README.md).
 
 ## Reading and writing

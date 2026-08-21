@@ -38,7 +38,12 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       the console and report whether it runs; then run the suite's `:t086off` command and type
       `:t086` again, reporting what the console says. Nothing in Lua can make the client deliver a
       keypress or a console line, so this half is yours (`ROADMAP`, filed 061).
-      *Inventory*: A-039, A-040, A-041 — `/end` ticks and strikes them in `audit/INVENTORY.md`.
+      *Audit*: **A-039** — *"`s:ui():on(sel, event, fn)` hands back a `Sub`"* (`audit/ns-ui.md` F2 · ROADMAP 061) ·
+      **A-040** — *"`hafen.slash():on(name, fn)` → a `Sub`; `register` retires"* (`audit/ns-slash.md` F1) ·
+      **A-041** — *"`keybindings:on(name, fn)` → a `Sub`; `register`/`unregister` retire"* (`audit/ns-client.md` F2).
+      **Read those `audit/` pages before starting** — each carries the evidence, the cost written in a
+      user's own code, and the replacement the one-line row summarises. `/end` ticks and strikes these
+      ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: docs/client/services.md (Console.setscmd, findcmd's three tiers), src/io/brodgar/addon/LuaSelectorWatch.java, LuaSlashCommand.java, LuaKeyBind.java -->
 
 - [x] **086.2 — What you registered, you can list.** `Subs` grows one read, `List<LuaSub> live()`,
@@ -63,8 +68,12 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       fall back. Its refusal: `hafen.slash():on("t086c")` with no handler must raise naming `fn`, so
       mounting the section did not lose `Args.required`.
       `[manual]`: none.
-      *Inventory*: A-042, A-045 — `/end` ticks and strikes them, with A-042's row carrying its strike
-      reason: the member is the `Sub` itself, so `cmd:name()` shipped as `sub:key()`.
+      *Audit*: **A-042** — *"`hafen.slash()` becomes a collection of this addon's commands, with `cmd:name()` and
+      `:get(name)`"* (`audit/ns-slash.md` F2) · **A-045** — *"`hafen.event():list(filter)` / `:count(filter)`
+      and `sub:key()`"* (`audit/ns-event.md` F4).
+      **Read those `audit/` pages before starting** — each carries the evidence, the cost written in a
+      user's own code, and the replacement the one-line row summarises. `/end` ticks and strikes these
+      ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: src/io/brodgar/addon/LuaCollection.java (Source.named/needle/noGet/missing, create, receiver), AddonManager.java (the hafen.timer() mount, as the model) -->
 
 - [x] **086.3 — A binding is an object.** `keybindings:list()` returns `{ [id] = key }`, so
@@ -94,8 +103,14 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       `[manual]`: one. Open the client's Options window at its keybinding panel while the suite's
       binding is assigned, then after the revert, and report whether the panel shows the assigned key
       and then the default. The panel is the client's own widget and nothing in Lua reads it.
-      *Inventory*: A-043 — `/end` ticks and strikes it. `ROADMAP` 066 is covered by this scope;
-      striking that line is the maintainer's.
+      *Audit*: **A-043** — *"`keybindings:binding()` — a collection of `Binding` — replaces `keybindings:list()`,
+      which returns a map that `ipairs` silently skips"* (`audit/ns-client.md` F2). **It also ships
+      A-103** — *"`KeyBinding.key` is three-state and the write handles two — a save-and-restore destroys
+      the default"* (ROADMAP 066) — which the inventory files under **093**; 086.6 ticks it, because this
+      task is where the change lands.
+      **Read those `audit/` pages before starting** — each carries the evidence, the cost written in a
+      user's own code, and the replacement the one-line row summarises. `/end` ticks and strikes these
+      ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: src/haven/KeyBinding.java (defkey, key, set, set(), key(), all — and the comment on set about reverting vs disabling), src/haven/KeyMatch.java (nil, name, reduce), docs/client/multi-session.md (KeyBinding.get runs no exclusivity pass) -->
 
 - [x] **086.4 — A timer answers for itself.** `timer.md` documents a filter — *"a function called
@@ -122,8 +137,12 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       once**. Its refusal: `hafen.timer():after(nil, fn)` must still give the house nil message, not
       a type message.
       `[manual]`: none.
-      *Inventory*: A-044, and the timer's share of A-038 — `/end` ticks A-044 and strikes it; A-038 is
-      ticked with 086.6, which is the task that finishes it.
+      *Audit*: **A-044** — *"the timer handle answers `:interval()` `:repeats()` `:due()` `:alive()` `:info()`, so
+      its documented filter means something"* (`audit/ns-timer.md` F1), and the timer's share of **A-038**
+      (`audit/03-lifecycle.md`), which 086.6 ticks.
+      **Read those `audit/` pages before starting** — each carries the evidence, the cost written in a
+      user's own code, and the replacement the one-line row summarises. `/end` ticks and strikes these
+      ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: src/io/brodgar/addon/AddonManager.java (newTimer, Timer, runTimers, clock, the hafen.timer() mount and its Source) -->
 
 - [x] **086.5 — A file you loaded is an object.** Five handle kinds — image, mesh, data, font and map
@@ -154,10 +173,14 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       bounded `hafen.timer()` window. Its refusal: `hafen.asset():get("no.png")` must still raise
       naming the file, so the sandbox check and the `RAISE` promise survived the rewrite.
       `[manual]`: none.
-      *Inventory*: A-038's asset half — `/end` ticks A-038 with 086.6, which finishes it.
+      *Audit*: the asset half of **A-038** — *"the 11 plain-table handle kinds → userdata with `closedIndex` and
+      `__tostring`"* (`audit/03-lifecycle.md`, §Handle types), ticked by 086.6.
+      **Read those `audit/` pages before starting** — each carries the evidence, the cost written in a
+      user's own code, and the replacement the one-line row summarises. `/end` ticks and strikes these
+      ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: src/io/brodgar/addon/AssetApi.java (imageHandle, meshHandle, dataHandle, addAssetVerbs, Disposer, imageFor, Entry, resolveAddonAsset), LuaImage.java, LuaMesh.java, FontApi.java (mint, fontHandle, handleFor), FontHandle.java, MapImages.java -->
 
-- [ ] **086.6 — A setting is an object.** Everything left. `OptionsHandle.create`'s `opts` table has
+- [x] **086.6 — A setting is an object.** Everything left. `OptionsHandle.create`'s `opts` table has
       **no metatable at all** — 084 gave the six panels it hands out a closed vocabulary and left the
       handle that hands them out bare, so `hafen.client():options():vidoe()` still reads `nil` today.
       It, the six `*Options`, `ProfHandle`, `ProfScope`, `VrApi`'s entity handle and `HttpApi`'s
@@ -184,8 +207,13 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       saved variable and calls `hafen.store():flush()`. Report the refusal the console shows, naming
       the path — a plain-table handle was carried and silently degraded before, and this is the
       moment an addon that stored one finds out.
-      *Inventory*: A-038 — `/end` ticks and strikes it, this being the task that finishes what 086.4
-      and 086.5 started.
+      *Audit*: **A-038** — *"the 11 plain-table handle kinds → userdata with `closedIndex` and `__tostring`"*
+      (`audit/03-lifecycle.md`, §Handle types) — this task finishes what 086.4 and 086.5 started, so it
+      ticks it. It also ticks **A-103** (`audit/ns-client.md` F2 · ROADMAP 066), whose change shipped in
+      086.3 and whose row the inventory files under 093.
+      **Read those `audit/` pages before starting** — each carries the evidence, the cost written in a
+      user's own code, and the replacement the one-line row summarises. `/end` ticks and strikes these
+      ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: src/io/brodgar/addon/OptionsHandle.java, AudioOptions.java, CameraOptions.java, ClientOptions.java, InterfaceOptions.java, VideoOptions.java, KeybindingsOptions.java, ProfHandle.java, ProfScope.java, HttpApi.java, LuaHttp.java, VrApi.java (entityHandle), StoreApi.java (carriable) -->
 
 - [ ] **086.7 — The optional arguments the sweep did not reach.** 084's own claim — *no LuaJ `bad
@@ -199,9 +227,12 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       and sent. Five of the six are protected verbs, where the coerced value reaches the server.
       `s:world():place` is named by name in 084.4's task text: its required arguments were fixed, its
       optional ones were not, and 084.4's suite asserted exactly the argument that was fixed.
-      `Args` gains the optional twin of `num` — `num(Varargs a, int i, String verb, String param,
-      String hint, double dflt)` — asserting `type() == TNUMBER` when `Args.passed(a, i)` and
-      answering `dflt` when it is not. An explicit `nil` in a passed slot still refuses through
+      **The helper already exists and is in the wrong place**: `LuaItem.count(a, i, verb, param, def)` is
+      exactly it — `Args.written` for the nil-aware read, the default when the argument is absent,
+      `Args.num` when it is present — and it has been private to one file while six others hand-rolled
+      LuaJ's `opt*`. **That is why 084's sweep missed them: the pattern existed and was not reachable.**
+      Fold it into `Args` as the optional twin of `num`, point `item:drop` and `item:transfer` at the
+      moved copy, and give the six sites the same door. An explicit `nil` in a passed slot still refuses through
       `Args.nilRefused`, because `place(p, ang, nil, 0)` passes a fourth argument and so passes a
       third: omitted and explicitly-nil are not the same thing, and 084 already made that the rule.
       *Its suite* declares `world.place`, `world.select`, `gob.click` and `item.use`, and every check
@@ -216,7 +247,13 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       house nil message. Its refusal: `s:world():place(p)` with no angle must still raise naming
       `angle` as a required argument, so adding an optional helper did not loosen a required one.
       `[manual]`: none — every check fires before the wire, so nothing needs a server.
-      *Inventory*: none. This is 084's own AC5 and AC6, and 084 is frozen.
+      *Audit*: **A-121** — *"the eight optional arguments of the action verbs still reach LuaJ's
+      `optint`/`optdouble`"* (`audit/06-arity-and-nil.md`, `audit/07-errors-and-refusals.md`). It is an
+      **arrear**: A-005 and A-009 were ticked for 084 and were not wholly true, and both rows now carry a
+      forward pointer to this one.
+      **Read those `audit/` pages before starting** — each carries the evidence, the cost written in a
+      user's own code, and the replacement the one-line row summarises. `/end` ticks and strikes these
+      ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: src/io/brodgar/addon/Args.java (num, passed, nilRefused), WorldApi.java (place, click, select and their placeArgs/clickGobArgs/selArgs), LuaHand.java, LuaSlot.java, VrApi.java (the opts.y read), docs/addons/api/world.md (the optional-argument rows), docs/addons/api/ui/items.md, docs/addons/api/actionbar.md -->
 
 - [ ] **086.8 — The last colour reader.** `Stock.color(Object)` builds `{[1], [2], [3], [4]}`, so
@@ -245,23 +282,43 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       `[manual]`: one. Install the stock sheet the suite round-tripped and report whether the client
       looks unchanged — a program can compare tables, and only an eye can say the window chrome,
       the chat and the tooltips are the colours they were.
-      *Inventory*: none. This is 085's own AC1, and 085 is frozen.
+      *Audit*: **A-122** — *"`Stock.color` still builds a positional colour, so `sheet:stock()` disagrees with
+      `w:style()` on the same stylesheet property"* (`audit/ns-world.md` F2, `audit/12-types-and-shapes.md`).
+      An **arrear** of A-020 and A-022, which were ticked for 085 and were not wholly true.
+      **Read those `audit/` pages before starting** — each carries the evidence, the cost written in a
+      user's own code, and the replacement the one-line row summarises. `/end` ticks and strikes these
+      ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: src/io/brodgar/addon/Stock.java (color, color1, sequence), Chrome.java (the toLua readers), AddonManager.java (color), docs/addons/api/shapes.md (the Colours section), docs/addons/api/ui/style/README.md (The client's own look) -->
 
 ## When the feature closes
 
-`/end` ticks eight rows in `audit/INVENTORY.md` — A-038 … A-045 — turning each box to `☒` and
-striking the id. One carries a strike reason in its own row text: **A-042**, because the member of the
-slash collection is the `Sub` itself, so `cmd:name()` shipped as `sub:key()` — the collection landed,
-the second spelling did not. Then `grep -c '^| ☐' audit/INVENTORY.md` must print **75**, and
+`/end` runs per task and ticks that task's own rows. Across the eight, **eleven** rows are ticked and
+struck in `audit/INVENTORY.md`:
+
+| Rows | Ticked by | Note |
+|---|---|---|
+| A-039, A-040, A-041 | 086.1 | |
+| A-042, A-045 | 086.2 | A-042's row carries its strike reason: the member of the slash collection **is** its subscription, so `cmd:name()` shipped as `sub:key()` |
+| A-043 | 086.3 | |
+| A-044 | 086.4 | |
+| **A-038** | 086.6 | begun by 086.4 and 086.5, finished here |
+| **A-103** | 086.6 | the change shipped in 086.3; the inventory files the row under **093**, and 086 takes it because 086.3 is where it landed. 093's own `spec.md` must not claim it again |
+| **A-121** | 086.7 | an **arrear** of A-005 and A-009 (084) |
+| **A-122** | 086.8 | an **arrear** of A-020 and A-022 (085) |
+
+Nothing else in the file is touched. An id never moves.
+
+With 086.1 … 086.5 closed the open count stands at **78**. When the last task closes,
+`grep -c '^| ☐' audit/INVENTORY.md` must print **74**, and
 
 ```bash
 comm -23 <(grep -oE 'A-[0-9]{3}' audit/INVENTORY.md | sort -u) <(grep -rhoE 'A-[0-9]{3}' specs/*/spec.md | sort -u)
 ```
 
-must no longer name any id between A-038 and A-045.
+must no longer name A-038, A-103, A-121 or A-122. The only id that legitimately stays unclaimed for
+the whole sweep is **A-011**, struck at Step 0 by D3 before any `spec.md` existed.
 
-Two `specs/ROADMAP.md` lines are covered by this scope and are the maintainer's to strike:
-**061** (`hafen.ui():on(sel, event, fn)` is the one `:on` whose handle ends with `:remove()`) and
-**070** (`hafen.timer():every(0, fn)` fires once and is dropped). **066** — nothing puts a binding
-back on its default — is covered by 086.3.
+Three `specs/ROADMAP.md` lines are covered by this scope and are the maintainer's to strike:
+**061** (`hafen.ui():on(sel, event, fn)` is the one `:on` whose handle ends with `:remove()`),
+**070** (`hafen.timer():every(0, fn)` fires once and is dropped) and **066** (nothing puts a binding
+back on its default — A-103).

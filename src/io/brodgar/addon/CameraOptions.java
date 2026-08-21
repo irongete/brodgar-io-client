@@ -26,13 +26,10 @@ public final class CameraOptions {
 
     /** Create the camera options subsystem handle. */
     public static LuaValue create() {
-        LuaTable camera = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("camera", methods(camera),
+        LuaValue camera = OptionsHandle.open("Options(camera)");
+        return OptionsHandle.close(camera, "camera", methods(camera),
             "the camera options answer :mode() :invertHorizontal() and :invertVertical(), each reading with"
-            + " no argument and writing with one"));
-        camera.setmetatable(mt);
-        return camera;
+            + " no argument and writing with one");
     }
 
     private static LuaTable methods(final LuaValue handle) {

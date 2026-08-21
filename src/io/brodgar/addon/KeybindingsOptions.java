@@ -36,14 +36,10 @@ public final class KeybindingsOptions {
 
     /** Create the keybindings subsystem handle for {@code owner}. */
     public static LuaValue create(final Addon owner) {
-        LuaTable kb = new LuaTable();
-        LuaTable mt = new LuaTable();
         // Retired.closedIndex, not the methods table itself: kb:get / kb:set would otherwise read as plain nil
         // and fail one call later as "attempt to call a nil value", saying nothing about what replaced them.
-        mt.set(LuaValue.INDEX, Retired.closedIndex("keybindings", methods(owner),
-            "the keybindings handle answers :on() and :binding()"));
-        kb.setmetatable(mt);
-        return kb;
+        return OptionsHandle.close(OptionsHandle.open("Options(keybindings)"), "keybindings", methods(owner),
+            "the keybindings handle answers :on() and :binding()");
     }
 
     private static LuaTable methods(final Addon owner) {

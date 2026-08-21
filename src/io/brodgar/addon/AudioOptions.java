@@ -23,13 +23,10 @@ public final class AudioOptions {
 
     /** Create the audio options subsystem handle. */
     public static LuaValue create() {
-        LuaTable audio = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("audio", methods(audio),
+        LuaValue audio = OptionsHandle.open("Options(audio)");
+        return OptionsHandle.close(audio, "audio", methods(audio),
             "the audio options answer :masterVolume() :uiVolume() :eventVolume() :ambientVolume() and"
-            + " :latency(), each reading with no argument and writing with one"));
-        audio.setmetatable(mt);
-        return audio;
+            + " :latency(), each reading with no argument and writing with one");
     }
 
     /** The live audio roots, or null before the UI exists. */

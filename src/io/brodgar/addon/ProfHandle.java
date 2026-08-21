@@ -72,7 +72,9 @@ public final class ProfHandle {
      * is built per addon.
      */
     static LuaValue create(Addon owner) {
-        LuaTable p = new LuaTable();
+        // Userdata, like every handle in the API: p:frmae() is answered by the metatable below, p.reset = nil
+        // is refused, and tostring(p) is Profiling rather than table: 0x...
+        LuaValue p = LuaValue.userdataOf(new Mark());
         LuaTable mt = new LuaTable();
         // Retired.closedIndex, not the methods table itself: p:frmae() would otherwise read as plain nil and
         // fail one character later as "attempt to call a nil value", naming neither the verb nor this line.
@@ -88,6 +90,14 @@ public final class ProfHandle {
         });
         p.setmetatable(mt);
         return p;
+    }
+
+    /** The opaque instance behind the profiling userdata (facade-safe: no Java object of the client's
+     *  crosses). The handle is a stateless proxy over {@link Prof}, so it has nothing else to carry. */
+    private static final class Mark {
+        public String toString() {
+            return "Profiling";
+        }
     }
 
     private static LuaTable methods(final LuaValue handle, final Addon owner) {

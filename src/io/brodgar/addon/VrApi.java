@@ -1017,11 +1017,22 @@ final class VrApi {
                 m.set(k, n.arg(2));
             }
         }
-        LuaTable h = new LuaTable();
+        // Userdata over the entity, the one shape every handle in the API has: e.tint = nil is refused —
+        // an addon cannot delete its own way of putting a thing back — and tostring(e) names the kind and
+        // what it is a picture of, so a log line of an addon's own entities reads.
+        LuaValue h = LuaValue.userdataOf(e);
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex(kind, m,
             "a " + kind + " in the world answers :position() :offset() :rotate() :scale() :alpha() :tint() "
             + ":visible() :clickable() :onClick() :exists() :drawn()" + extraVocab));
+        final String printed = Character.toUpperCase(kind.charAt(0)) + kind.substring(1);
+        mt.set("__name", LuaValue.valueOf(printed));
+        mt.set("__tostring", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                String nm = e.visualName();
+                return LuaValue.valueOf(printed + "(" + ((nm == null) ? "" : nm) + ")");
+            }
+        });
         h.setmetatable(mt);
         return h;
     }

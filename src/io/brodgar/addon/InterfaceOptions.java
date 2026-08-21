@@ -24,13 +24,10 @@ public final class InterfaceOptions {
 
     /** Create the interface options subsystem handle. */
     public static LuaValue create() {
-        LuaTable iface = new LuaTable();
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("interface", methods(iface),
+        LuaValue iface = OptionsHandle.open("Options(interface)");
+        return OptionsHandle.close(iface, "interface", methods(iface),
             "the interface options answer :scale() :posGran() and :angGran(), each reading with no argument"
-            + " and writing with one"));
-        iface.setmetatable(mt);
-        return iface;
+            + " and writing with one");
     }
 
     private static LuaTable methods(final LuaValue handle) {
