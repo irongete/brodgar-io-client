@@ -63,8 +63,8 @@ s:study():slot():get("bar")
 | `slot:exists()` | boolean | whether it is still in a study window — always answers |
 | `slot:info()` | [`StudySlot`](types.md#studyslot) \| nil | a plain-table **snapshot** |
 
-> A slot's `time` is the **total** study time for that curiosity, not what is left. The client is not
-> sent a per-item countdown, so there is none to read.
+> A slot's `time` is the total study time for that curiosity in seconds, not what is left and not a
+> [fraction](shapes.md#units). The client is not sent a per-item countdown, so there is none to read.
 
 Just after a curiosity appears it is often resource-only for a beat, because the study profile arrives in
 a second server message — so `:lp()`, `:attention()`, `:cost()` and `:time()` answer `nil` together. That

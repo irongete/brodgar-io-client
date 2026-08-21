@@ -2,7 +2,8 @@
 
 The rules that hold across the whole `hafen.*` API: how it is spelled, what a read gives back, what a
 write costs you. Read this once — every reference page assumes it. The catalogue of things a verb can
-be handed — a Gob, a kin, an asset, a selector — is [references](references.md).
+be handed — a Gob, a kin, an asset, a selector — is [references](references.md), and what a plain table
+of numbers looks like is [shapes](shapes.md).
 
 ```lua
 hafen.timer():every(5, function()
@@ -140,6 +141,13 @@ deliberate rather than missing: it is why a request carries `req:header(name, va
 options table, and it does not reach what a verb *returns* — a `:list()` array and an `:info()` table are
 ordinary Lua tables you index normally.
 
+**A document names a file by path; a Lua call takes the handle.** A [stylesheet](ui/style/README.md) is a
+document rather than a call, so `{asset = "img/panel.png"}` and `{asset = "fonts/Inter.ttf", size = 12}`
+name a file your addon ships and load it through [`hafen.asset()`](asset.md)'s own door, interning to the
+very object `:get(path)` hands you. That is the one place a path string stands for a file: everywhere else
+— a [sprite](vr/sprites.md), an [object](vr/models.md), a [draw verb](ui/drawing.md) — a path is refused
+and the handle is what goes in.
+
 ### A retired name says what replaced it, and an unknown one says what exists
 
 A spelling this API has replaced does not read as `nil`. It raises, at the line that wrote it, naming
@@ -195,6 +203,10 @@ holds, and nothing of yours is torn down or rebuilt when the screen moves.
 - **Handles** are live, bridge-owned proxies with methods (`hafen.ui():window()`, `hafen.timer():every`,
   `hafen.event():on`, …), released for you when the addon is disabled or reloaded. So is every **object**
   a read hands you: it re-resolves rather than holding a value, so one you keep tracks what it names.
+- **A table the bridge owns and you write into** is the third kind, and
+  [`hafen.store():get(name)`](store.md#read-and-write) is where you meet it. It is neither a copy nor a
+  proxy: it is the table that goes to disk, so assigning into it is the whole of saving, and it is the one
+  place in this API where a typo on a key is silent — and then persisted.
 
 ## The filter argument
 
@@ -220,35 +232,6 @@ gobs:list("rabbit")                                        -- name contains "rab
 gobs:list(function(g) return (g:health() or 1) < 1 end)    -- injured gobs (a Gob object)
 hafen.map():marker():list(function(m) return m:type() == "player" end)   -- a Marker object
 ```
-
-## Coordinates
-
-A place in the world is a **[Position](position.md)**, not a pair of numbers: one type,
-carried by every spatial verb, and the only thing `position()` ever answers. It is computable —
-`p:offset(dx, dy)` moves it in world units and the engine crosses grid boundaries for you — and durable,
-so it goes into [`hafen.store`](store.md) and comes back unchanged. Everything else that counts is a
-**lattice** and keeps its own name: tile, grid and segment coords are indices, not places, and screen
-pixels are plain `{x, y}` numbers.
-
-> **There is no global position.** A world coordinate is this session's answer, re-based whenever the
-> server drops the map — a login, a walk into a cave. What a Position saves is a **grid id** plus an
-> offset inside it, and that id comes from the **server**, so it means the same thing to everyone. A map
-> marker records its place differently, in ids this client invented and a map merge rewrites, so one you
-> want to keep is stored as its [`marker:position()`](map/markers.md#the-marker-object); see
-> [storing a place](map/grids.md#storing-a-place).
-
-## Colours
-
-A colour is a table of **0..255 components**, written either way:
-
-```lua
-{ 200, 210, 220 }                                   -- positional: r, g, b, and a if you want it
-{ r = 200, g = 210, b = 220, a = 255 }              -- keyed — what every reader hands back
-```
-
-Both are accepted everywhere a colour goes in: `rule:color(…)`, `g:text{color=…}`, `marker:color(…)`,
-a ghost or sprite `:tint(…)`, `font:color(…)`. So a colour you *read* — `kin:color()`, `meter:color()` —
-passes straight back. Alpha defaults to `255`, and a component outside `0..255` is clamped.
 
 ## Missing data returns nil
 
@@ -294,7 +277,7 @@ is already sending. [`hafen.http`](http.md) declares separately, a `network` hos
 ## See also
 
 - [references](references.md) — every kind of thing a verb takes, and how you name one
+- [shapes](shapes.md) — what a plain table of numbers looks like: places, sizes, colours, units
 - [data types](types.md) — every snapshot shape the readers return
 - [events](event/bus.md) — the bus, and what each event hands your handler
 - [permissions](../guides/permissions.md) — the protected tier in full
-- [the Position type](position.md) — the one place type every spatial verb takes

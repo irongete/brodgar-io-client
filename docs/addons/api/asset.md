@@ -102,9 +102,9 @@ drawn, so it stands beside the client's own art at the same size at every interf
 A disposed image simply **draws nothing** thereafter; the [draw verbs](ui/drawing.md) are forgiving and
 never throw.
 
-A [stylesheet](ui/style/chrome.md#naming-a-picture) takes the handle or the **path**: `{asset =
-"img/panel.png"}` loads through this same door and interns to this same object, so a rule in a JSON file
-reaches your art without a line of Lua that names it.
+A [stylesheet](ui/style/chrome.md#naming-a-picture) may name the file by path instead, `{asset =
+"img/panel.png"}`, which loads through this same door and interns to this same object — the one
+[path exception](conventions.md#a-table-is-a-value-never-named-arguments) in the API.
 
 ### Font
 
@@ -113,9 +113,8 @@ A font asset **is** a [`FontHandle`](font.md) with the three asset verbs on top.
 can install it on. Disposing a font asset frees nothing, since a font holds no releasable resource; it only
 drops the cache entry, so the next load re-reads and re-registers the file.
 
-A [stylesheet](ui/style/text.md#font) takes this handle or the **path**, exactly as it does for an image:
-`{asset = "fonts/Inter.ttf", size = 12}` loads through this same door and interns to this same object, so a
-theme in a JSON file sets the client's text in a face your addon ships.
+A [stylesheet](ui/style/text.md#font) may name it by path too, `{asset = "fonts/Inter.ttf", size = 12}`,
+under the same [path exception](conventions.md#a-table-is-a-value-never-named-arguments) an image gets.
 
 ### Mesh
 

@@ -232,4 +232,4 @@ verbs raise before that session is in the world, and for a Position it cannot lo
 - [`hafen.map`](map/README.md) — the recorded map: its segments and grids, your markers, the icon categories
 - [the `filter` argument](conventions.md#the-filter-argument) — the three forms the object readers accept
 - [`hafen.store`](store.md) — where a Position is saved
-- [coordinates](conventions.md#coordinates) — the spaces, side by side
+- [coordinates](shapes.md#coordinates) — the spaces, side by side

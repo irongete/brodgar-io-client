@@ -87,9 +87,9 @@ if home and home:x() then cur:player():move(home) end
 ```
 
 > **There is no global position**, so a Position saves as a grid id plus an offset — the one anchor that
-> means the same thing to another character and another player, because it comes from the **server**. A grid
-> id is 64-bit and Lua numbers are doubles, so it appears as an exact decimal **string**, the only form safe
-> to store and compare. Why a raw coordinate cannot be saved is in [coordinates](conventions.md#coordinates).
+> means the same thing to another character and another player, because it comes from the **server**. That
+> id crosses as [a decimal string](shapes.md#coordinates), and why a raw coordinate cannot be saved at all
+> is in [coordinates](shapes.md#coordinates).
 
 A durable form also reaches the **recorded** map: `hafen.map():grid():get(p:info().gridId)` hands back the
 very same [`Grid`](map/grids.md#the-grid-object) the live query does, whether or not that ground is streamed
@@ -111,4 +111,4 @@ A **lattice cell** is an index, not a place, and keeps its own name: `grid:segme
 - [`session:player`](player.md#write-protected) — walking a character to one
 - [`hafen.store`](store.md) — saving one, as-is
 - [`hafen.map`](map/README.md) — the recorded map a durable form also reaches
-- [coordinates](conventions.md#coordinates) — the spaces, side by side
+- [coordinates](shapes.md#coordinates) — the spaces, side by side

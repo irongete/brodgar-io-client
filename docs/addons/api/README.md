@@ -6,8 +6,9 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [conventions](conventions.md) | the grammar, snapshots vs handles, filters, coordinates, colours, `nil`, threading, and the permission model |
+| [conventions](conventions.md) | the grammar, snapshots vs handles, filters, `nil`, threading, and the permission model |
 | [references](references.md) | every kind of thing a verb takes: a Gob, a kin, a slot, an asset, an item, a widget, a selector |
+| [shapes](shapes.md) | what a plain table of numbers looks like: places, pixels, sizes, spans, colours, ids and units |
 | [data types](types.md) | every snapshot shape a read hands back, field by field |
 | [`hafen.session`](session.md) | the logins this client holds, the one on screen, the account each is named by, and the world and character that hang off one |
 | [`hafen.event`](event/README.md) | the hub: subscribing, the closed keys and the open ones |

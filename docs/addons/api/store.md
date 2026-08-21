@@ -45,6 +45,10 @@ is no "put it back" step, and a reference you keep in a local goes on being the 
 also stable for the addon's whole life — a restore refills it in place rather than replacing it — so a table
 captured at load time is still valid an hour later. Assign *into* it; you cannot assign over it.
 
+That makes it the [third kind of value](conventions.md#snapshots-vs-handles) in this API, beside a snapshot
+and a handle: a table the bridge owns and you write into, and the one place where a typo on a key is silent
+and then persisted.
+
 A declared name is **always a usable table**, empty when there is nothing saved yet, so you never have to
 create it. A name your manifest does not declare is an error naming the ones it does, because the set of
 saved variables is fixed when your addon loads and a misspelt one has no later meaning to wait for.

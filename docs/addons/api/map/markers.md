@@ -58,7 +58,7 @@ if mark then hafen.store():get("cfg").camp = mark:position() end   -- survives t
 |---|---|---|
 | `hafen.map():marker():add(name, p)` | [`Marker`](#the-marker-object) \| nil | create a **player** marker at a Position; `nil` when the map is not ready |
 | `hafen.map():marker():remove(m)` | the collection | remove a marker; removing one already gone is inert |
-| `marker:color()` / `:color(r, g, b [, a])` | [Color](../types.md#color) \| nil / self | player markers only: the pin colour |
+| `marker:color()` / `:color(r, g, b [, a])` | [colour](../shapes.md#colours) \| nil / self | player markers only: the pin colour |
 | `marker:onMap()` / `:onMap(on)` | bool \| nil / self | player markers only: also drawn on the main map |
 
 A pin is created **bare**, with the client's own gold and off the main map, and configured by chaining —

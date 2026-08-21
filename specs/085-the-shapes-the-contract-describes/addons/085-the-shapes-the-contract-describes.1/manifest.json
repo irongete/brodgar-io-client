@@ -1,0 +1,10 @@
+{
+  "name": "085.1 — where a shape is written down",
+  "id": "085-the-shapes-the-contract-describes.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 085.1: every claim the new shapes page makes, read back off the running client — the 64-bit ids that cross as decimal strings and the grid round trip they exist for, the store table the bridge owns and you write into, the 0..1 fractions, and the {x, y} and {cur, max} shapes.",
+  "api_version": 1,
+  "saved_variables": [{ "name": "probe", "scope": "account" }],
+  "files": ["main.lua"]
+}

@@ -57,9 +57,9 @@ reads exactly as it looks, and what it hands back on a hit is the wound itself.
 | `w:exists()` | boolean | whether it is still on the character — always answers |
 | `w:info()` | [`Wound`](types.md#wound) \| nil | a plain-table **snapshot** |
 
-> A wound's `severity` is the magnitude string the client paints beside it — usually a number, but
-> content-defined, and **not** seconds. It arrives a beat after the wound itself, so it is `nil` for that
-> beat.
+> A wound's `severity` is the magnitude string the client paints beside it — usually a number, and
+> content-defined rather than any [unit](shapes.md#units) of the client's. It arrives a beat after the wound
+> itself, so it is `nil` for that beat.
 
 A wound is interned on its session and its id, so `s:wound():list()[1] == s:wound():get(<that id>)` and
 `seen[w] = true` work, while the same id on two characters is two objects. The client

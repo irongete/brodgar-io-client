@@ -84,5 +84,5 @@ that decides which gob icons the minimap draws.
 ## See also
 
 - [`session:world`](../world.md) — the live half: terrain, the coordinate spaces, and the same Grid entity
-- [coordinates](../conventions.md#coordinates) — why a Position is the only place worth storing
+- [coordinates](../shapes.md#coordinates) — why a Position is the only place worth storing
 - [Gob](../gob.md) — `gob:icon()`, the category name on a live object

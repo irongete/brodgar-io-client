@@ -14,9 +14,9 @@ ground the client wrote down, and to ask what it says about a place.
 `hafen.map():grid()` does not enumerate, and says so rather than answering an empty list: the database
 holds every grid you have ever walked over. Address one by id, or walk a rectangle of one segment.
 
-> **A 64-bit id is a decimal string, and a number is refused.** Segment and grid ids do not survive a
-> Lua number, so `hafen.map():segment():get(1234)` is an error rather than a lookup of some neighbouring
-> segment. Pass `seg:id()` / `grid:id()` and the `gridId` out of a stored position — all of them strings.
+> **An id here is [a decimal string](../shapes.md#coordinates), and a number is refused.** So
+> `hafen.map():segment():get(1234)` is an error rather than a lookup of some neighbouring segment. Pass
+> `seg:id()` / `grid:id()` and the `gridId` out of a stored position — all of them strings.
 
 ## One Grid, two doors
 
@@ -124,4 +124,4 @@ and [`s:world():position(saved)`](../position.md) brings it back.
 - [`session:world`](../world.md) — the live half, and the other door onto this same Grid
 - [drawings](drawings.md) — what `grid:image` hands back
 - [overlays](overlays.md) — what `grid:overlay()` hands back
-- [coordinates](../conventions.md#coordinates) — the coordinate spaces, and which one you may store
+- [coordinates](../shapes.md#coordinates) — the coordinate spaces, and which one you may store

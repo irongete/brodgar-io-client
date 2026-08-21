@@ -57,7 +57,7 @@ The first three are called on the collection, the rest on a `Kin`.
 | `kin:id()` | number | the buddy id — answers even for a forgotten kin |
 | `kin:name()` | string \| nil | the nickname shown in the Kin window |
 | `kin:group()` | number \| nil | the kin's group, `0..254` |
-| `kin:color()` | [`Color`](types.md#color) \| nil | the group's palette colour; `nil` for a group of 8 or more |
+| `kin:color()` | [colour](shapes.md#colours) \| nil | the group's palette colour; `nil` for a group of 8 or more |
 | `kin:online()` | boolean \| nil | whether the kin is online |
 | `kin:exists()` | boolean | whether this id is still on that character's roster |
 | `kin:gob()` | [`Gob`](gob.md) \| nil | the kin's gob in the world, their body if it is loaded |

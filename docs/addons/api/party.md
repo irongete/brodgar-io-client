@@ -50,7 +50,7 @@ a party member has nothing to match it against — see below.
 | `member:id()` | number | the member's gob id — always answers |
 | `member:gob()` | [Gob](gob.md) | the member's live object, in that character's view — never `nil` |
 | `member:position()` | [Position](position.md) \| nil | where they are |
-| `member:color()` | [Color](types.md#color) \| nil | the party colour drawn for them |
+| `member:color()` | [colour](shapes.md#colours) \| nil | the party colour drawn for them |
 | `member:leader()` | boolean | whether they lead the party |
 | `member:exists()` | boolean | whether they are still in the party — always answers |
 | `member:info()` | [`PartyMember`](types.md#partymember) \| nil | a plain-table **snapshot** |

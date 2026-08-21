@@ -72,8 +72,8 @@ At login the occupied slots stream in a beat later, as a burst of `ActionbarChan
 Every reader except `:index()` and `:empty()` answers `nil` for an empty slot. None of them throws, and
 none is protected.
 
-> A slot's `cooldown` is present only for an ability with a meter, and it is a `0..1` **fraction, not
-> seconds**.
+> A slot's `cooldown` is present only for an ability with a meter, and it is a
+> [`0..1` fraction](shapes.md#units).
 
 Subscribe to [`ActionbarChanged`](event/bus.md#character-and-status), whose payload is the
 changed `Slot` itself, to react to a slot being set, cleared or changed. It does **not** fire on a

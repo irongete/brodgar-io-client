@@ -90,9 +90,10 @@ tileset id plus resource name.
 
 ## Position
 
-From [`p:info()`](position.md). `{ gridId = number, x = number, y = number }` — a grid id
-and the offset **within** that grid, which is the durable form and not the same numbers as `p:x()`/`p:y()`.
-It is `nil` for a place that is not durable, and it is what `s:world():position(saved)` rebuilds from.
+From [`p:info()`](position.md). `{ gridId = string, x = number, y = number }` — a grid id, a 64-bit value as
+a [decimal string](shapes.md#coordinates), and the offset **within** that grid, which is the durable form
+and not the same numbers as `p:x()`/`p:y()`. It is `nil` for a place that is not durable, and it is what
+`s:world():position(saved)` rebuilds from.
 
 ## Attr
 
@@ -157,7 +158,7 @@ never sent one.
 |---|---|---|
 | `id` | number | member gob id |
 | `x`, `y` | number | live position if in view, else last-known; optional |
-| `color` | [Color](#color) | party colour; optional |
+| `color` | [colour](shapes.md#colours) | party colour; optional |
 | `leader` | bool | whether this member is the party leader |
 
 The live reads are `member:id()`, `:position()` — a [Position](position.md), not the two
@@ -186,7 +187,7 @@ table.
 | `res` | string | the background resource name, the meter's identity; optional |
 | `index` | number | its 1-based HUD position; absent once the meter is gone |
 | `value` | number | the **first** segment's fill fraction, 0..1; optional |
-| `color` | [Color](#color) | the **first** segment's colour; optional (content-defined) |
+| `color` | [colour](shapes.md#colours) | the **first** segment's colour; optional (content-defined) |
 | `segments` | `{value, color?}[]` | the whole bar, 1-based — always present, may be empty |
 
 ## KinEntry
@@ -199,7 +200,7 @@ live [`Kin` objects](kin.md), not this table.
 | `id` | number | kin id |
 | `name` | string | kin name or nick; optional |
 | `group` | number | the kin's group, 0..254 |
-| `color` | [Color](#color) | the group's colour; **absent for a group of 8 or higher** — the client draws eight |
+| `color` | [colour](shapes.md#colours) | the group's colour; **absent for a group of 8 or higher** — the client draws eight |
 | `online` | bool | whether the kin is online |
 
 ## Speed
@@ -297,9 +298,9 @@ place to store, not the `seg` + `tc` below.
 |---|---|---|
 | `name` | string | marker label; optional |
 | `type` | string | `"player"`, a user pin, or `"system"`, a server or quest pin |
-| `seg` | string | segment id, a 64-bit value as a decimal string — client-local, [never stored](map/grids.md#storing-a-place) |
+| `seg` | string | segment id, a [64-bit decimal string](shapes.md#coordinates) — client-local, [never stored](map/grids.md#storing-a-place) |
 | `tc` | `{x, y}` | segment tile coord — client-local, never stored |
-| `color` | [Color](#color) | player markers only; optional |
+| `color` | [colour](shapes.md#colours) | player markers only; optional |
 | `onmap` | bool | player markers only, read and written live as `marker:onMap(b)` |
 | `icon` | string | system markers only; optional |
 | `x`, `y` | number | session-local world position; present only while the marker is in your current segment |
@@ -312,13 +313,9 @@ From [`cat:info()`](map/icons.md#the-iconcat-object), the snapshot escape hatch 
 icon tooltip, and `show` and `notify` the minimap-draw and spawn-notify flags. The live reads are
 `cat:res()`, `:name()`, `:show()` and `:notify()`.
 
-## Color
-
-A `{ r, g, b, a }` table, each component 0..255. Used by party, kin and marker colours, and accepted
-positionally wherever a colour goes in; see [colours](conventions.md#colours).
-
 ## See also
 
 - [conventions](conventions.md#snapshots-vs-handles) — why some readers hand back an object instead
+- [shapes](shapes.md) — the anonymous tables these fields carry: places, sizes, colours, units
 - [events](event/bus.md) — which of these shapes arrives as an event payload
 - [Gob](gob.md) — the live-object counterpart of `GobInfo`, and the usual way to read a gob

@@ -72,9 +72,9 @@ Nothing on this page is protected and nothing throws once you hold a `Buff`. The
 buff bar is a display of server state, and clicking a buff icon sends a message no buff is known to act
 on, so there is nothing to expose.
 
-> `amount`, `duration` and `number` are content-defined fractions and integers published by the buff's
-> resource. They are often absent, and they are **not** seconds: `duration` is a fraction of the whole,
-> so `0.25` means a quarter left. There is no seconds-based buff timer in the client.
+> `amount`, `duration` and `number` are content-defined and published by the buff's resource, so they are
+> often absent. `duration` is a [`0..1` fraction](shapes.md#units) of the whole run — `0.25` means a
+> quarter left — and there is no seconds-based buff timer in the client.
 
 **A removed buff keeps answering.** Once it is off the bar `:exists()` is `false`, but `:res()`,
 `:name()` and the meters still read the values it had — which is what makes a `BuffRemoved` payload, or
