@@ -16,9 +16,9 @@ paints them all alike; the keys below are how a theme keeps them apart.
 
 ```lua
 local s = hafen.ui():sheet()
-s:rule("chat"):color(180, 190, 200)                     -- everything the four kinds below do not claim
-s:rule("chat.system"):color(255, 200, 0)
-s:rule("chat.private"):color(255, 60, 200)
+s:rule("chat"):color{180, 190, 200}                     -- everything the four kinds below do not claim
+s:rule("chat.system"):color{255, 200, 0}
+s:rule("chat.private"):color{255, 60, 200}
 s:rule("chat.speaker"):color{ palette = {{220, 90, 90}, {90, 200, 120}, {110, 150, 230}} }
 s:rule("chat.urgent"):color{ palette = {{0, 200, 0}, {230, 200, 0}, {230, 0, 0}} }
 s:install()

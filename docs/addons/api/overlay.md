@@ -8,7 +8,7 @@ for one of yours.
 ```lua
 local s = hafen.session():current()      -- the character on screen
 local me = s and s:player():gob()        -- nil until that session is in the world
-if me then me:overlay():add("mark"):text("here"):color(255, 90, 90) end
+if me then me:overlay():add("mark"):text("here"):color{255, 90, 90} end
 ```
 
 It is **unprotected**, the attach included: what you paint at a gob is your own drawing, and it changes
@@ -40,7 +40,7 @@ answers `nil` and `:remove` is inert — an overlay died with the gob, so there 
 while `:add` raises, because there is nothing left to attach it to.
 
 ```lua
-me:overlay():add("hp"):text("hurt"):color(255, 90, 90):offset(0, -6)
+me:overlay():add("hp"):text("hurt"):color{255, 90, 90}:offset(0, -6)
 me:overlay():add("ring"):draw(function(g, gob, sx, sy) g:frect(sx - 2, sy - 2, 4, 4) end)
 me:overlay():remove("hp")
 ```
@@ -64,7 +64,7 @@ it.
 
 | Setter | Meaning |
 |---|---|
-| `ov:color(r, g, b, a)` | the label's colour, `0..255`; `a` is optional |
+| `ov:color(c)` | the label's [colour](shapes.md#colours), `{200, 210, 220}` or `{r=, g=, b=[, a=]}` |
 | `ov:offset(x, y)` | **screen pixels** from the projected anchor point, in [design pixels](ui/pixels.md) |
 
 **`ov:offset` means exactly one thing: pixels.** An overlay is painted at a projected point, so that is the

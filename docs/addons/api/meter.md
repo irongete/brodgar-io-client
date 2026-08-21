@@ -82,7 +82,7 @@ literal into your Lua source.
 | `meter:res()` | string \| nil | the background resource name — the identity |
 | `meter:index()` | number \| nil | its 1-based position in its own HUD; `nil` once the meter is gone |
 | `meter:value()` | number \| nil | the first segment's fill fraction, `0..1` |
-| `meter:color()` | `{r, g, b, a}` \| nil | the first segment's colour, `0..255` per channel |
+| `meter:color()` | [colour](shapes.md#colours) \| nil | the first segment's colour, `{r=, g=, b=, a=}` |
 | `meter:segments()` | `{{value=, color=}, …}` | the whole bar, 1-based — never `nil`, may be empty |
 | `meter:exists()` | boolean | whether this meter is still in its HUD slot — always answers |
 | `meter:info()` | [`Meter`](types.md#meter) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |

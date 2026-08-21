@@ -67,7 +67,7 @@ that matches a widget is folded into one style, and
 [`widget:style()`](README.md#restyle-one-widget) reads the result back, `nil` when nothing names it.
 
 ```lua
-hafen.ui():sheet():rule("window[title=Cupboard]"):color(200, 180, 140):sheet():install()
+hafen.ui():sheet():rule("window[title=Cupboard]"):color{200, 180, 140}:sheet():install()
 local s = hafen.session():current()
 s:ui():find("window[title=Cupboard]"):style()    --> { color = {r=200, g=180, b=140, a=255} }
 s:ui():inventory():style()                       --> nil
@@ -112,7 +112,7 @@ actually names, and the site rule still fills the rest. So the pair below paints
 ```lua
 local s = hafen.ui():sheet()
 s:rule("*"):font(body)                                       -- what KIND of surface (site key)
-s:rule("window[title=Cupboard]"):color(200, 180, 140)        -- WHICH widgets       (tree key)
+s:rule("window[title=Cupboard]"):color{200, 180, 140}        -- WHICH widgets       (tree key)
 s:install()
 ```
 

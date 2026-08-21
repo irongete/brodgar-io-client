@@ -50,7 +50,7 @@ variant starts as a copy, so a property you do not set is the one it came with.
 
 ```lua
 local small = hafen.font():get("serif"):derive():size(11)
-local loud  = small:derive():size(16):bold(true):color(235, 180, 80)
+local loud  = small:derive():size(16):bold(true):color{235, 180, 80}
 ```
 
 Either way you hold an opaque **`FontHandle`**; no AWT font object crosses into Lua. Each property is one
@@ -64,7 +64,7 @@ name — bare it reads, with a value it writes and hands the handle back, so a v
 | `h:aa()` / `h:aa(b)` | boolean \| nil | antialias. `nil` inherits the surface's stock setting |
 | `h:bold()` / `h:bold(b)` | boolean | style, baked into the font |
 | `h:italic()` / `h:italic(b)` | boolean | style, baked into the font |
-| `h:color()` / `h:color(r, g, b, a)` | colour \| nil | text colour `0..255` — **for your own drawing only**, see below |
+| `h:color()` / `h:color(c)` | [colour](shapes.md#colours) \| nil | text colour — **for your own drawing only**, see below |
 
 A derived handle is a **variant of a font, not a file**: like a built-in it carries no `:type`, `:path` or
 `:dispose`, even when the handle it came from was an asset.
@@ -78,7 +78,7 @@ A derived handle is a **variant of a font, not a file**: like a built-in it carr
 **`color` is the one option that does not travel.** It applies wherever *you* draw with the handle — the
 widget default and the per-call option below — and a handle carrying one is **refused** where it would style
 a client surface, through [a sheet rule](ui/style/text.md#font) or
-[`widget:rule()`](ui/style/README.md#restyle-one-widget), naming `rule:color(r, g, b)` instead. A surface's
+[`widget:rule()`](ui/style/README.md#restyle-one-widget), naming `rule:color(c)` instead. A surface's
 colour is a [sheet property](ui/style/text.md#color), stated where you can read it, not a value hidden inside
 a font handle: give those a face carrying no colour of its own, and say the colour beside the font. `size`,
 `aa`, `bold` and `italic` travel everywhere.
@@ -113,7 +113,8 @@ g:atext(str, x, y, ax, ay, { font = h, color = {r, g, b, a} })
 `font` renders this one call in that handle, overriding the widget default; omit it and you get the widget
 default, else the client stock. `color` tints the glyphs and composes with `g:color` exactly as a `g:color`
 call around it would; omit it and the glyphs are white, tinted by the current `g:color`. Coordinates stay
-positional, the same as every other [`g:` call](ui/drawing.md).
+positional, the same as every other [`g:` call](ui/drawing.md) — and so does `g:color` itself, which is
+[the one place](shapes.md#colours) a colour is loose components as well as a table.
 
 The rendered text is [cached per addon](ui/drawing.md#text-is-cached-across-frames), keyed by the string
 *and* the handle, so redrawing the same string in the same font every frame rasterises it once.

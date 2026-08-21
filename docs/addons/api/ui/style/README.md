@@ -11,8 +11,8 @@ local body = hafen.asset():get("fonts/Inter.ttf"):derive():size(12)
 local s = hafen.ui():sheet()
 s:rule("*"):font(body)                                       -- the global fallback
 s:rule("window.title"):font(body:derive():size(14):bold(true))
-s:rule("chat"):font(hafen.font():get("mono"):derive():size(13)):color(200, 210, 200)
-s:rule("tooltip"):color(255, 150, 90)                        -- colour alone: the font stays stock
+s:rule("chat"):font(hafen.font():get("mono"):derive():size(13)):color{200, 210, 200}
+s:rule("tooltip"):color{255, 150, 90}                        -- colour alone: the font stays stock
 s:install()
 ```
 
@@ -48,9 +48,9 @@ re-apply: a sheet is either in force, in which case what it says is what you see
 
 ```lua
 local s = hafen.ui():sheet()
-s:rule("chat"):color(200, 210, 200)
+s:rule("chat"):color{200, 210, 200}
 s:install()                        -- from here the sheet IS the client's look
-s:rule("tooltip"):color(255, 150, 90)   -- ...so this lands on the spot
+s:rule("tooltip"):color{255, 150, 90}   -- ...so this lands on the spot
 s:rule("chat"):remove()                 -- ...and so does dropping one rule
 s:drop()                                -- everything it styled falls back
 ```
@@ -135,7 +135,7 @@ Each is a setter that returns the rule, and each reads back with no argument.
 | Call | Value | Notes |
 |---|---|---|
 | `rule:font(face)` | a [font handle](../../font.md), or the same face **named** | `hafen.font():get(name)` / `hafen.asset():get(path)`, optionally through `:derive()`, or `{builtin = …}` / `{asset = …}` with `size`, `bold`, `italic` and `aa` — see [text](text.md#font) |
-| `rule:color(r, g, b[, a])` | `0..255` each | also takes a colour value, the `{r = …, g = …}` table every reader hands back; on the two keys whose colour the client [walks](chat.md#the-two-colours-the-client-walks) it takes the sequence instead — see [text](text.md#color) |
+| `rule:color(c)` | a [colour](../../shapes.md#colours) | `{200, 210, 220}` or the `{r = …, g = …}` table every reader hands back; on the two keys whose colour the client [walks](chat.md#the-two-colours-the-client-walks) it takes the sequence instead — see [text](text.md#color) |
 | `rule:emboss(v)` | `false`, or `{texture = <art>}` | whether the client's own relief is cut through a surface's letters, and with what. `false` is what lets `color` reach a caption at all — see [`emboss`](text.md#emboss) |
 | `rule:glow(t)` | `{color = {r,g,b[,a]}, radius = n}` | the blurred halo behind a carved surface's letters; a radius of `0` is no halo at all — see [`glow`](text.md#glow) |
 | `rule:bg(t)` | one [surface](chrome.md#naming-a-picture), or an array of them | what something is painted on, one layer or several — see [chrome](chrome.md) |
@@ -169,7 +169,7 @@ already hold, ask it for its own rule — the same Rule object a sheet's selecto
 
 ```lua
 local n = hafen.ui():mouse():over()      -- the widget under the cursor
-n:rule():font(h):color(200, 180, 140)   -- this widget and all inside it; SIBLINGS untouched
+n:rule():font(h):color{200, 180, 140}   -- this widget and all inside it; SIBLINGS untouched
 n:rule():info()                         --> { font = h, color = {r=200, g=180, b=140, a=255} }
 n:rule():remove()                       -- drop it again
 ```

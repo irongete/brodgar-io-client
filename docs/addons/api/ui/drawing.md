@@ -34,7 +34,7 @@ end)
 | `g:prect(cx, cy, radius, fraction)` | a clockwise pie or progress wedge, `fraction` `0..1` — for cooldowns and meters |
 | `g:image(img, x, y, w, h)` | draw an [image asset](../asset.md) at native size, or scaled into `w × h` |
 | `g:aimage(img, x, y, ax, ay)` | draw an [image asset](../asset.md) anchored, like `g:atext` |
-| `g:color(r, g, b, a)` | set the draw colour, `0..255`; `g:color()` resets to white |
+| `g:color(r, g, b, a)` / `g:color(c)` | set the draw colour, `0..255`; `g:color()` resets to white — see [below](#colour-here-is-also-loose-numbers) |
 | `g:resource(name, x, y, w, h)` | draw an engine `.res` image **by name**, at native size or scaled |
 
 `g` is valid **only during the draw callback**. Stashing it and drawing later does nothing — it goes inert
@@ -43,6 +43,33 @@ rather than throwing.
 `g:rect`'s outline is one **screen** pixel whatever the scale, the way the client's own hairlines are — the
 box it traces is design pixels like everything else. `g:line`'s `width` is a design pixel, so a `4` px rule
 keeps the weight of the chrome beside it on a scaled client.
+
+### Colour here is also loose numbers
+
+`g:color` is the one place in this API where a [colour](../shapes.md#colours) is loose components as well as
+a table. Loose numbers are the language of every verb on `g` — `g:line(x1, y1, x2, y2)`,
+`g:frect(x, y, w, h)` — so a colour written the same way reads like its neighbours. Everywhere else a colour
+write takes the table and nothing else.
+
+```lua
+hafen.ui():overlay():onDraw(function(g, w, h)
+  local s = hafen.session():current()
+  local hp = s and s:meter():find("hp")
+  g:color(255, 200, 0)                 -- components, like every other g: call
+  g:frect(4, 4, 40, 6)
+  g:color{255, 200, 0}                 -- the same colour, as a table
+  g:frect(4, 14, 40, 6)
+  if hp then
+    g:color(hp:color())                -- ...and a colour read back from the API, unchanged
+    g:frect(4, 24, 40, 6)
+  end
+  g:color()                            -- back to white
+end)
+```
+
+A table that is not a colour raises, naming what one is. A colour a *read* handed you is always one, so a
+value out of [`meter:color()`](../meter.md), [`kin:color()`](../kin.md) or a
+[snapshot's `color` key](../types.md) goes straight in.
 
 ## Images
 
@@ -91,8 +118,8 @@ rendered in a [loaded font](../font.md) and tinted:
 
 - **`font`** — a [`FontHandle`](../font.md). It overrides the widget's `font =` default for this call;
   omit it and you get the widget default, else the client's stock font.
-- **`color`** — `{r, g, b, a}`, `0..255`. It composes with `g:color` exactly as a `g:color` call around it
-  would. Omit it and the glyphs are white, tinted by the current `g:color`.
+- **`color`** — a [colour](../shapes.md#colours), either spelling. It composes with `g:color` exactly as a
+  `g:color` call around it would. Omit it and the glyphs are white, tinted by the current `g:color`.
 
 The string may also carry rich-text markup — `$font[family,size]{…}`, `$col`, `$b`, `$i`, `$u`, `$size` —
 so several fonts can share one line. Feed a handle's `h:family()` to the `$font` tag; see

@@ -268,10 +268,9 @@ public final class LuaMarker {
                 return LuaValue.valueOf(Math.hypot(worldX(mk, sl) - prc.x, worldY(mk, sl) - prc.y));
             }
         });
-        // color() / color(r, g, b [, a]) / color(c) — a player marker's pin colour. Arity is the verb: no
-        // argument reads {r,g,b,a} (nil on a system marker), an argument writes and returns self so it
-        // chains off :add(). A colour VALUE passes straight back through (§2.8), so m:color(other:color())
-        // is the one canonical setter rather than a second style.
+        // color() / color(c) — a player marker's pin colour. Arity is the verb: no argument reads the keyed
+        // {r=,g=,b=,a=} table (nil on a system marker), an argument writes and returns self so it chains off
+        // :add(). The write takes the TABLE a colour is, so m:color(other:color()) is one expression.
         m.set("color", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -428,20 +427,12 @@ public final class LuaMarker {
         return (MapFile.PMarker)m;
     }
 
-    /** A colour write: positional components, or a colour value straight back out of a read (§2.8). */
+    /**
+     * A colour write: the TABLE a colour is, keyed or positional — so a colour value straight back out of a
+     * read is one of them and {@code m:color(other:color())} is one expression. The refusal is
+     * {@link AddonManager#colorRefusal}, the same words every other colour write raises.
+     */
     private static java.awt.Color colorArg(Varargs a) {
-        LuaValue first = a.arg(2);
-        if(first.istable())
-            return AddonManager.luaColor(first, null);
-        if(!first.isnumber())
-            throw new LuaError("marker:color(r, g, b [, a]): the components are 0..255 — or pass a colour"
-                + " value straight back, as marker:color(other:color())");
-        int r = a.arg(2).toint(), g = a.arg(3).toint(), b = a.arg(4).toint();
-        int al = Args.passed(a, 5) ? a.arg(5).toint() : 255;
-        return new java.awt.Color(clamp(r), clamp(g), clamp(b), clamp(al));
-    }
-
-    private static int clamp(int v) {
-        return (v < 0) ? 0 : ((v > 255) ? 255 : v);
+        return AddonManager.colorArg(a, 2, "marker:color");
     }
 }

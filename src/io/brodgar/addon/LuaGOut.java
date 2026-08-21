@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -427,13 +428,22 @@ final class LuaGOut {
                 return NIL;
             }
         });
-        // g:color(r, g, b [, a=255]) sets the draw color; g:color() resets to default (white).
+        // g:color(r, g, b [, a=255]) sets the draw color; g:color() resets to default (white). THE ONE PLACE a
+        // colour is also loose components: they are the language of every verb on this table (g:line(x,y,x,y),
+        // g:frect(x,y,w,h)), and the exception is written down on the shapes page rather than left as a habit.
+        // A colour TABLE is taken too, so g:color(kin:color()) draws that colour -- toint() on a table is 0 in
+        // LuaJ, not an error, so without this branch a value the API just handed you drew BLACK.
         t.set("color", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
                 LuaValue r = a.arg(2);
                 if(r.isnil()) {
                     d.chcolor();
+                } else if(r.istable()) {
+                    Color c = AddonManager.luaColor(r, null);
+                    if(c == null)
+                        throw new LuaError(AddonManager.colorRefusal("g:color"));
+                    d.chcolor(c);
                 } else {
                     LuaValue al = a.arg(5);
                     d.chcolor(r.toint(), a.arg(3).toint(), a.arg(4).toint(), al.isnil() ? 255 : al.toint());

@@ -178,7 +178,7 @@ final class FontApi {
             if(h.color != null)
                 throw new LuaError(what + ": this font carries a colour, and a font's colour never styles a"
                     + " client surface — it is for your OWN drawing (g:text and widget:font). The colour of a"
-                    + " surface is the rule's own property, said where it can be read: rule:color(r, g, b)."
+                    + " surface is the rule's own property, said where it can be read: rule:color(c)."
                     + " Hand this rule a face that carries none — derive one and leave :color off — and say"
                     + " the colour beside the font");
             return h;
@@ -229,7 +229,7 @@ final class FontApi {
                     italic = f;
             } else if("color".equals(p)) {
                 throw new LuaError(what + ": a face carries no colour on a client surface — the colour of a"
-                    + " surface is the rule's own property, said where it can be read: rule:color(r, g, b)");
+                    + " surface is the rule's own property, said where it can be read: rule:color(c)");
             } else {
                 throw new LuaError(what + ": \"" + k.tojstring() + "\" is not a face property — a face is "
                     + FACE);
@@ -376,7 +376,7 @@ final class FontApi {
         if("aa".equals(prop))
             return (fh.aa == null) ? LuaValue.NIL : LuaValue.valueOf(fh.aa.booleanValue());
         if("color".equals(prop))
-            return colorValue(fh.color);
+            return AddonManager.color(fh.color);
         if("bold".equals(prop))
             return LuaValue.valueOf(fh.font.isBold());
         return LuaValue.valueOf(fh.font.isItalic());

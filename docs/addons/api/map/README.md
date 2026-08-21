@@ -7,7 +7,7 @@ the client wrote down about a piece of ground, and to draw a map of your own.
 
 ```lua
 local p = hafen.session():current():player():gob():position()
-local pin = hafen.map():marker():add("Camp", p):color(0, 200, 0):onMap(true)
+local pin = hafen.map():marker():add("Camp", p):color{0, 200, 0}:onMap(true)
 hafen.store():get("cfg").camp = pin:position()       -- durable: it survives the relog
 hafen.map():marker():remove(pin)
 ```

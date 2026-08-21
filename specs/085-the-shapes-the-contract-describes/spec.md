@@ -136,7 +136,8 @@ them. The split by subject is clean: `conventions.md` is **how you call and what
 `api/ui/style/README.md` · `api/ui/style/text.md` · `api/vr/README.md` · `api/vr/models.md` ·
 `guides/theming.md` · `api/ui/widget.md` · `api/ui/pixels.md` · `api/ui/style/geometry.md` ·
 `api/asset.md` · `api/time.md` · `api/study.md` · `api/fight.md` · `api/wound.md` ·
-`api/client/README.md` · `api/store.md` · `docs/client/state.md`.
+`api/client/README.md` · `api/store.md` · `api/map/README.md` · `api/ui/style/chat.md` ·
+`api/ui/style/keys.md` · `api/vr/ghosts.md` · `guides/custom-ui.md` · `docs/client/state.md`.
 
 **Derived impact set.** The prose names of this surface, greped across the whole of `docs/`:
 
@@ -159,7 +160,9 @@ grep -rnE "r, g, b|\{r=|\{r,|positional|season index|gridId|bounds\(\)|severity|
 | `meter.md` `meter:color()` row | **revise** — `{r, g, b, a}` written as the keyed shape it already is |
 | `ui/drawing.md` the `g:color` row, the `g:text` options, the `color` option | **revise** — the exception, and the table form `g:color` now takes |
 | `ui/style/README.md` `rule:color` row; `ui/style/text.md` §color and the font blockquote; `guides/theming.md` | **revise** — the loose form goes, both table spellings stay |
-| `ui/style/chrome.md`, `ui/style/chat.md`, `ui/style/keys.md` | **discharge** — every hit is `{color = {r, g, b}}`, a positional **table** inside a document, which stays legal |
+| `ui/style/chrome.md` | **discharge** — every hit is `{color = {r, g, b}}`, a positional **table** inside a document, which stays legal |
+| `ui/style/chat.md`, `ui/style/keys.md` | **revise** — the document hits stay legal, but both pages also write the Lua verb loosely (`s:rule("chat"):color(180, 190, 200)`) |
+| `map/README.md`, `vr/ghosts.md`, `guides/custom-ui.md` | **revise** — the grep below carries no `:tint(` and no `:color(<digit>`, so it named none of the three; each writes a colour loosely |
 | `vr/README.md` `e:tint()` row | **revise** |
 | `ui/widget.md` `:size()` row, the `:rootPos()` cross-reference, the arity paragraph | **revise** — `{w=, h=}` |
 | `ui/pixels.md` the two `{x = 100, y = 40}` literals | **revise** |

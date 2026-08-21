@@ -3739,40 +3739,31 @@ public final class AddonManager {
     }
 
     /**
-     * A <b>colour argument</b> to a setter, in the one spelling the uniform grammar gives colours: positional
-     * components, {@code x:tint(r, g, b[, a])}. A colour <i>value</i> read back from anywhere in the API passes
-     * straight through as well, so {@code s:tint(other:tint())} is one call and the read and the write of one
-     * property genuinely take the same thing.
+     * A <b>colour argument</b> to a setter: the TABLE a colour is, keyed or positional. A colour <i>value</i>
+     * read back from anywhere in the API is one of those, so {@code s:tint(other:tint())} is one expression and
+     * the read and the write of one property genuinely take the same thing.
+     *
+     * <p>Loose components are not a colour here: a third spelling of one value leaves a write verb guessing
+     * which of them a caller meant, and the value it hands back is then the one thing it cannot take. The one
+     * exception is the draw context, where loose numbers are the language of every verb ({@code g:line},
+     * {@code g:frect}), and {@code g:color} states the exception on its own page.
      */
     static java.awt.Color colorArg(Varargs a, int i, String verb) {
         LuaValue v = a.arg(i);
-        if(v.istable()) {
-            java.awt.Color c = luaColor(v, null);
-            if(c == null)
-                throw new LuaError(verb + "(color): a colour value is {r, g, b[, a]} (0..255)");
-            return c;
-        }
-        LuaTable t = new LuaTable();
-        int n = 0;
-        for(int j = i; (j <= a.narg()) && a.arg(j).isnumber(); j++)
-            t.set(++n, a.arg(j));
-        java.awt.Color c = luaColor(t, null);
+        java.awt.Color c = v.istable() ? luaColor(v, null) : null;
         if(c == null)
-            throw new LuaError(verb + "(r, g, b[, a]) expects three or four numbers 0..255, or a colour value"
-                + " read back from the API");
+            throw new LuaError(colorRefusal(verb));
         return c;
     }
 
-    /** The colour READ every colour property in the API hands back: the {@code {r, g, b, a}} value. */
-    static LuaValue colorValue(java.awt.Color c) {
-        if(c == null)
-            return LuaValue.NIL;
-        LuaTable t = new LuaTable();
-        t.set(1, LuaValue.valueOf(c.getRed()));
-        t.set(2, LuaValue.valueOf(c.getGreen()));
-        t.set(3, LuaValue.valueOf(c.getBlue()));
-        t.set(4, LuaValue.valueOf(c.getAlpha()));
-        return t;
+    /**
+     * The one refusal a colour write raises, wherever it is parsed — {@link #colorArg}, {@link LuaMarker} and
+     * {@link LuaRule} share it, so the three doors into a colour cannot come to say different things about
+     * what one is.
+     */
+    static String colorRefusal(String verb) {
+        return verb + "(color): a colour is a table — {200, 210, 220} or {r = 200, g = 210, b = 220[, a]},"
+            + " 0..255 each, or a colour value read back from the API";
     }
 
     // ------------------------------------------------------------- shared read helpers (item / resource-name)
@@ -3844,8 +3835,15 @@ public final class AddonManager {
         return (picture == null) ? null : pictures.get(picture);
     }
 
-    /** A {@code {r,g,b,a}} table (0..255) for an AWT color. */
+    /**
+     * The colour READ every colour property in the API hands back: the keyed {@code {r=,g=,b=,a=}} table,
+     * 0..255 per component, and {@link LuaValue#NIL} for no colour at all. One output shape, so {@code .r}
+     * answers on every colour this API produces and a value lifted out of one snapshot goes straight into
+     * any colour write.
+     */
     static LuaValue color(java.awt.Color c) {
+        if(c == null)
+            return LuaValue.NIL;
         LuaTable t = new LuaTable();
         t.set("r", LuaValue.valueOf(c.getRed()));
         t.set("g", LuaValue.valueOf(c.getGreen()));

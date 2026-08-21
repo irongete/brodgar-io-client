@@ -377,7 +377,7 @@ final class Retired {
                 + " hafen.vr():sprite() / :object() / :ghost() — so it is a verb on the handle"
                 + " hafen.vr():<kind>():add(what, gob) hands back, beside :position() :offset(x, y, z)"
                 + " :visible(b) :clickable(b). An overlay is painted at the gob's projected point and has"
-                + " :draw(fn), :text(s), :color(r, g, b) and :offset(x, y) in screen pixels");
+                + " :draw(fn), :text(s), :color(c) and :offset(x, y) in screen pixels");
         }
         put("overlay:position", "overlay:position() belonged to the world kinds, which are now hafen.vr() —"
             + " an overlay is painted AT its gob, so where it is, is where the gob is: ov:gob():position()."
@@ -404,7 +404,7 @@ final class Retired {
         put("hafen.map.markers", "hafen.map.markers is now the collection hafen.map():marker():"
             + " :list(filter) :find(filter) :nearest(filter) :add(name, p) :remove(m). The add takes a"
             + " POSITION, and the colour and the on-map flag are setters on the marker it hands back:"
-            + " m:color(r, g, b), m:onMap(true)");
+            + " m:color(c), m:onMap(true)");
         put("hafen.map.icons", "hafen.map.icons is now the collection hafen.map():icon(): :get(res) for one"
             + " category by its resource name, :list(filter)/:find(filter) to search by display name — so"
             + " there is no longer a rule about which argument shape means which");
@@ -559,7 +559,7 @@ final class Retired {
         put("hafen.render", "hafen.render is now hafen.vr() — one section for everything client-only you stand"
             + " in the 3D world, named for the place rather than the mechanism: hafen.render():sprite() is"
             + " hafen.vr():sprite() and hafen.render():object() is hafen.vr():object(), each :add(asset, p)"
-            + " plus the chained setters :position(p [, a]) :scale(k) :alpha(a) :tint(r, g, b) :clickable(b)"
+            + " plus the chained setters :position(p [, a]) :scale(k) :alpha(a) :tint(c) :clickable(b)"
             + " :onClick(fn). The .res props are hafen.vr():ghost() beside them");
 
         // ---- Sprite / Object / Ghost: one vocabulary, and every property a read/write pair on one name ------

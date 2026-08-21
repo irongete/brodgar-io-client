@@ -939,7 +939,7 @@ final class VrApi {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 if(!Args.passed(a, 2)) {
-                    synchronized(e) { return colorValue(e.tint); }
+                    synchronized(e) { return AddonManager.color(e.tint); }
                 }
                 setEntityTint(e, a.arg(2).isnil() ? null : colorArg(a, 2, kind + ":tint"));
                 return self;

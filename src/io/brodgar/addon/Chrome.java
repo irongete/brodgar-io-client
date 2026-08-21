@@ -830,7 +830,7 @@ final class Chrome {
      *
      * <p><b>Every level alike is still sayable</b>, and has to be said: a one-entry {@code palette} cycles to the
      * same colour for every answer. That is a deliberate sentence rather than an accident of writing
-     * {@code color(r, g, b)} on the wrong key, which is the whole reason the refusal is here.
+     * {@code color(c)} on the wrong key, which is the whole reason the refusal is here.
      */
     private static final String[] SEQ_KEYS = {"chat.speaker", "chat.urgent"};
 

@@ -1,0 +1,9 @@
+{
+  "name": "085.2 — one colour, one shape",
+  "id": "085-the-shapes-the-contract-describes.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 085.2: every colour the API hands back is the keyed table and none of them answers [1], all three write parsers refuse loose components, both table spellings go in and read back keyed, a colour read passes straight into a write, and the draw context takes the table as well as its components. Mints its own map pin for the marker half and removes it again.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -6,9 +6,9 @@ that carries one leaves the others exactly as the surface had them.
 ```lua
 local s = hafen.ui():sheet()
 s:rule("*"):font(hafen.asset():get("fonts/Inter.ttf"):derive():size(12))
-s:rule("chat"):color(200, 210, 200)
-s:rule("tooltip"):font{ builtin = "serif", size = 13 }:color(255, 150, 90)   -- the same face, named
-s:rule("window.title"):emboss(false):color(220, 205, 170)   -- a flat caption instead of a carved one
+s:rule("chat"):color{200, 210, 200}
+s:rule("tooltip"):font{ builtin = "serif", size = 13 }:color{255, 150, 90}   -- the same face, named
+s:rule("window.title"):emboss(false):color{220, 205, 170}   -- a flat caption instead of a carved one
 s:install()
 ```
 
@@ -61,15 +61,15 @@ Every key honours `font`. Nothing else about a face travels except its family, s
 antialiasing.
 
 > **A font handle carrying a `color` is refused here.**
-> `hafen.font():get("serif"):derive():color(255, 0, 0)` handed to a rule, or to
-> [`widget:rule()`](README.md#restyle-one-widget), raises naming `rule:color(r, g, b)`; so does a face that
+> `hafen.font():get("serif"):derive():color{255, 0, 0}` handed to a rule, or to
+> [`widget:rule()`](README.md#restyle-one-widget), raises naming `rule:color(c)`; so does a face that
 > **names** one, `{builtin = "serif", color = …}`. A handle's colour is for
 > [your own drawing](../../font.md#draw-with-it): `g:text`, your own widgets. One question, "what colour is
 > this surface", has exactly one answer, and it is written as a `color` where you can see it.
 
 ## color
 
-`rule:color(r, g, b)` or `rule:color(r, g, b, a)`, `0..255` each. It also takes a colour **value** — the
+`rule:color(c)` takes a [colour](../../shapes.md#colours): `{200, 210, 200}` positionally, or the
 `{r = …, g = …, b = …, a = …}` table every reader in this API hands back, `rule:color()` included — so one
 surface's colour passes straight into another's setter.
 
@@ -118,7 +118,7 @@ the `at`, `offset` and `mode` that place a picture — there is no rectangle for
 
 ```lua
 local s = hafen.ui():sheet()
-s:rule("window.title"):emboss(false):color(230, 220, 190)          -- flat captions, in one colour
+s:rule("window.title"):emboss(false):color{230, 220, 190}          -- flat captions, in one colour
 s:rule("heading"):emboss{ texture = { res = "gfx/hud/fontred" } }  -- the client's red leaf, on headings
 s:rule("button"):emboss{ texture = { asset = "img/brass.png" } }   -- ...and your own, on button captions
 s:install()
@@ -144,7 +144,7 @@ carved caption in this client already sits on, said as a value. It reaches the s
 
 | Field | Value |
 |---|---|
-| `color` | `{r, g, b}` or `{r, g, b, a}`, `0..255` each — also the `{r = …, g = …}` table every reader hands back |
+| `color` | a [colour](../../shapes.md#colours): `{40, 200, 255}`, or the `{r = …, g = …}` table every reader hands back |
 | `radius` | [design px](../pixels.md), `>= 0` — how far the halo reaches on every side |
 
 ```lua

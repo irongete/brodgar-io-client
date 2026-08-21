@@ -42,7 +42,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       them in `audit/INVENTORY.md`, with A-031 and A-037 carrying their strike reason in the row.
       <!-- extra context: docs/addons/api/asset.md (the two stylesheet paragraphs), docs/addons/api/buff.md, meter.md, api/ui/lists.md (the four bolded unit corrections) -->
 
-- [ ] **085.2 — One colour, one shape.** `AddonManager.colorValue` is **deleted** and its three
+- [x] **085.2 — One colour, one shape.** `AddonManager.colorValue` is **deleted** and its three
       readers take `AddonManager.color`: `FontApi`'s `color` property read, `LuaOverlay`'s
       `ov:color()` (its one-line private wrapper goes with it) and `VrApi`'s `e:tint()`. So every
       colour in the API reads back keyed. Going in, **three** parsers each carry the loose branch and

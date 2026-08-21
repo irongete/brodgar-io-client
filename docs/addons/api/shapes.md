@@ -58,16 +58,29 @@ than looked up, because the neighbouring id it rounds to is a real grid somewher
 
 ## Colours
 
-A colour is a table of **0..255 components**, written either way:
+**A colour is a table of 0..255 components.** One shape comes out of the API, and two spellings go in:
 
 ```lua
+{ r = 200, g = 210, b = 220, a = 255 }              -- keyed: what every reader hands back
 { 200, 210, 220 }                                   -- positional: r, g, b, and a if you want it
-{ r = 200, g = 210, b = 220, a = 255 }              -- keyed — what every reader hands back
 ```
 
-Both are accepted everywhere a colour goes in: `rule:color(…)`, `g:text{color=…}`, `marker:color(…)`,
-a ghost or sprite `:tint(…)`, `font:color(…)`. So a colour you *read* — `kin:color()`, `meter:color()` —
-passes straight back. Alpha defaults to `255`, and a component outside `0..255` is clamped.
+Every colour you read is the keyed one — `kin:color()`, `meter:color()`, `marker:color()`, `ov:color()`,
+`h:color()`, `e:tint()`, `rule:color()` — so `.r` answers on all of them and `[1]` on none. Both spellings
+go in at every colour write: `rule:color(c)`, `marker:color(c)`, `ov:color(c)`, `h:color(c)`, a ghost or
+sprite `:tint(c)`, `g:text{color = c}`. A colour you read is one of the two, so `ov:color(kin:color())` is
+one expression. Alpha defaults to `255`, and a component outside `0..255` is clamped.
+
+A [stylesheet document](ui/style/README.md#the-clients-own-look) is the one thing that comes back written
+the other way: `sheet:stock()` answers a document rather than a colour, in the spelling `sheet:load` takes.
+
+**Loose components are not a colour.** `ov:color(200, 210, 220)` raises, naming the table: a third spelling
+of one value is what makes a value you read impossible to pass back into a write without guessing which of
+them you meant.
+
+> **The draw context is the exception.** [`g:color(r, g, b, a)`](ui/drawing.md#draw) takes loose components
+> as well, because loose numbers are the language of every verb on `g` — `g:line(x1, y1, x2, y2)`,
+> `g:frect(x, y, w, h)`. It takes the table too, so `g:color(kin:color())` draws that colour.
 
 The same table is what a snapshot carries under a `color` key — a [party member](types.md#partymember), a
 [kin](types.md#kinentry), a [meter](types.md#meter) and its `segments`, a [marker](types.md#marker) — so a

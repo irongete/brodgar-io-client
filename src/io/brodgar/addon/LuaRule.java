@@ -230,8 +230,8 @@ public final class LuaRule {
                 return self;
             }
         });
-        // color(r, g, b[, a]) — positional components, and a colour VALUE passes straight back through (§2.8),
-        // so rule:color(other:color()) is one expression. Reads back as {r=,g=,b=,a=}, the API's own shape.
+        // color(c) — the TABLE a colour is, keyed or positional, so a colour VALUE read back out of the API is
+        // one of them and rule:color(other:color()) is one expression. Reads back as {r=,g=,b=,a=} either way.
         //
         // 065.16 — and on the two keys whose colour the client WALKS rather than holds, `chat.speaker` and
         // `chat.urgent`, the same verb takes the SEQUENCE instead: {palette=…} or {generate=…}. It is one
@@ -253,6 +253,8 @@ public final class LuaRule {
                 if(a.arg(2).isnil())
                     throw Args.nilRefused(r.where() + ":color", "color");
                 String verb = r.where() + ":color";
+                // A third argument is loose components, which a colour write no longer takes: the flag says so,
+                // Chrome skips the sequence guess, and colorArg below raises with what a colour IS.
                 boolean sq = Chrome.seqShape(verb, r.scope(), a.arg(2), Args.passed(a, 3));
                 Sheet.Props p = r.edit(owner);
                 if(sq) {
@@ -548,26 +550,12 @@ public final class LuaRule {
     }
 
     /**
-     * A colour argument: the positional components a setter is written with, or a colour <b>value</b> read back
-     * out of the API, which passes straight through (§2.8) so {@code r:color(other:color())} is one expression.
+     * A colour argument: the TABLE a colour is, keyed or positional — so a colour <b>value</b> read back out of
+     * the API is one of them and {@code r:color(other:color())} is one expression. The refusal is
+     * {@link AddonManager#colorRefusal}, the same words every other colour write raises.
      */
     private static java.awt.Color colorArg(Varargs a, int i, String verb) {
-        LuaValue v = a.arg(i);
-        if(v.istable()) {
-            java.awt.Color c = AddonManager.luaColor(v, null);
-            if(c == null)
-                throw new LuaError(verb + "(color): a colour value is {r, g, b[, a]} (0..255)");
-            return c;
-        }
-        LuaTable t = new LuaTable();
-        int n = 0;
-        for(int j = i; (j <= a.narg()) && a.arg(j).isnumber(); j++)
-            t.set(++n, a.arg(j));
-        java.awt.Color c = AddonManager.luaColor(t, null);
-        if(c == null)
-            throw new LuaError(verb + "(r, g, b[, a]) expects three or four numbers 0..255, or a colour value"
-                + " read back from the API");
-        return c;
+        return AddonManager.colorArg(a, i, verb);
     }
 
     /**

@@ -52,7 +52,7 @@ value is applied the moment it appears.
 local g = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)
   :rotate(math.pi / 4)                        -- rotated 45 degrees
   :alpha(0.5)                                 -- half-translucent: the ghost look
-  :tint(120, 180, 255)                        -- bluish overlay
+  :tint{120, 180, 255}                        -- bluish overlay
 g:res("gfx/terobjs/arch/timberhouse")         -- morph into a different building
 g:alpha(1):tint(nil)                          -- fully opaque again, tint cleared
 g:visible(false)                              -- take it out of the scene...

@@ -10,7 +10,7 @@ moment your addon is.
 ```lua
 local s = hafen.ui():sheet()
 s:rule("*"):font(hafen.font():get("serif"):derive():size(11))
-s:rule("chat"):color(190, 210, 190)
+s:rule("chat"):color{190, 210, 190}
 s:install()
 ```
 
@@ -24,7 +24,7 @@ the spot.
 
 ```lua
 local s = hafen.ui():sheet()
-s:rule("chat"):color(190, 210, 190)     -- ...or, once the sheet is installed, changes it live
+s:rule("chat"):color{190, 210, 190}     -- ...or, once the sheet is installed, changes it live
 s:rule("chat"):remove()                 -- and this drops that one rule
 ```
 
@@ -49,7 +49,7 @@ properties a given key honours — a site that draws text has no background of i
 
 | Setter | Says |
 |---|---|
-| `:font(h)`, `:color(r, g, b)` | [the text](../api/ui/style/text.md) |
+| `:font(h)`, `:color(c)` | [the text](../api/ui/style/text.md) |
 | `:emboss(v)`, `:glow(t)` | [what a carved caption is filled with, and the halo behind it](../api/ui/style/text.md#emboss) |
 | `:bg(t)`, `:border(t)`, `:padding(n)` | [the surface it is painted on](../api/ui/style/chrome.md) |
 | `:picture(t)` | [the whole plate a surface **is**](../api/ui/style/chrome.md#picture) |
@@ -65,7 +65,7 @@ s:rule("window.frame")
   :bg{ color = {26, 26, 28, 240} }
   :border{ box = "gfx/hud/wnd", mode = "tile" }   -- ...or your own art, cut into a 9-slice
   :padding(4, 12, 4, 4)
-s:rule("window.title"):emboss(false):color(230, 220, 190)
+s:rule("window.title"):emboss(false):color{230, 220, 190}
 s:rule("window[title=Inventory]")
   :anchor{ to = "screen", at = "bottomright", offset = {-8, -8} }
 ```

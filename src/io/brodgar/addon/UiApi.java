@@ -599,7 +599,7 @@ final class UiApi {
         //   Conflict between addons is D-043 reused literally: last applied wins, an addon's entries are pulled on
         //   its teardown, the surface falls back to the next owner beneath and finally to stock.
         // Properties, one setter each: `font` (a handle from hafen.font(name) or hafen.asset(path), optionally
-        // :derive{size=,bold=,…}), `color` (r, g, b[, a] — or a colour value read back from the API), and the
+        // :derive{size=,bold=,…}), `color` (the table a colour is: {200, 210, 220} or {r=,g=,b=[,a=]}), and the
         // chrome three of 035 — `bg` ({color=…} or {image=<asset>}), `border` ({image=<asset>, slice={l,t,r,b}})
         // and `pad` (pixels) — plus the layout three of 036 on a rule that names a WIDGET: `position`, `anchor`
         // and `size`. Any may stand alone: a colour-only rule keeps the site's own font, a border-only rule keeps

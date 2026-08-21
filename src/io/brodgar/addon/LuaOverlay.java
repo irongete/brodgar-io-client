@@ -412,14 +412,14 @@ public final class LuaOverlay {
         });
 
         // ---- how it looks ------------------------------------------------------------------------------
-        // color(r, g, b[, a]) — the label's colour. Positional components, and a colour VALUE passes straight
-        // back through, so ov:color(other:color()) is one call.
+        // color(c) — the label's colour, as the TABLE a colour is: {200, 210, 220} or {r=,g=,b=[,a=]}. The read
+        // hands back the keyed shape every colour reader in this API does, so ov:color(other:color()) is one call.
         m.set("color", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 LuaGobOverlay.Attach rec = writable(owner, self, "color");
                 if(!Args.passed(a, 2))
-                    return (rec == null) ? LuaValue.NIL : colorValue(rec.color);
+                    return (rec == null) ? LuaValue.NIL : AddonManager.color(rec.color);
                 java.awt.Color c = colorArg(a, 2, "overlay:color");
                 if(rec != null)
                     rec.color = c;
@@ -581,13 +581,9 @@ public final class LuaOverlay {
                 + " overlay says ONE thing -- gob:overlay():add(\"" + rec.key + "\") again to replace it");
     }
 
-    /** A colour argument / a colour read — the API's one spelling, shared with every other colour property. */
+    /** A colour argument — the API's one spelling, shared with every other colour property. */
     private static java.awt.Color colorArg(Varargs a, int i, String verb) {
         return AddonManager.colorArg(a, i, verb);
-    }
-
-    private static LuaValue colorValue(java.awt.Color c) {
-        return AddonManager.colorValue(c);
     }
 
     /** A required number argument, refused by name rather than coerced to zero. */

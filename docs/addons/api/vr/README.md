@@ -108,7 +108,7 @@ Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the
 | `e:rotate()` / `e:rotate(a)` | its own facing in radians, keeping position |
 | `e:scale()` / `e:scale(k)` | uniform scale, `1` being original size |
 | `e:alpha()` / `e:alpha(a)` | opacity `0..1`, where `1` is opaque |
-| `e:tint()` / `e:tint(r, g, b, a)` | colour overlay `0..255`, the fourth component being blend strength; `nil` clears it |
+| `e:tint()` / `e:tint(c)` | a [colour](../shapes.md#colours) laid over it, its `a` being blend strength; `nil` clears it |
 | `e:visible()` / `e:visible(b)` | whether you have this one showing; `false` takes it out and keeps the entity |
 | `e:drawn()` | is it in the 3D scene right now? — see [the ground under it](#the-ground-under-one-that-stands-still) |
 | `e:clickable()` / `e:clickable(b)` | the pick surface — opt-in, and client-side only |
