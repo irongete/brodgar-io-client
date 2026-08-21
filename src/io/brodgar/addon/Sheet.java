@@ -27,7 +27,7 @@ import java.util.WeakHashMap;
  *   local s = hafen.ui():sheet()
  *   s:rule("*"):font(body)
  *   s:rule("window.title"):font(body:derive():size(14):bold(true))
- *   s:rule("chat"):color(200, 210, 200)
+ *   s:rule("chat"):color({200, 210, 200})
  *   s:install()                       -- and s:drop()
  * </pre>
  *

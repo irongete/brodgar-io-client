@@ -310,8 +310,8 @@ final class FontApi {
             public Varargs invoke(Varargs a) {
                 if(Args.passed(a, 2))
                     throw new LuaError("font:derive() takes no arguments — the variant is chained setters on"
-                        + " what it hands back: h:derive():size(12):bold(true):color(255, 200, 200), and a read"
-                        + " of each is the same name with none: d:size(), d:bold(), d:color()");
+                        + " what it hands back: h:derive():size(12):bold(true):color({255, 200, 200}), and a"
+                        + " read of each is the same name with none: d:size(), d:bold(), d:color()");
                 return fontHandle(fh.draft());
             }
         });

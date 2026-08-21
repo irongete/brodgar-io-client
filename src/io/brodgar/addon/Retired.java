@@ -110,16 +110,19 @@ final class Retired {
     static {
         // ---- sections whose NAME changed (§2.3: the three surviving plurals go singular) ----------------
         put("hafen.events", "hafen.events is now hafen.event() — subscribe with hafen.event():on(name, fn)");
+        // 085.7: neither of these re-lists the member's verbs any more. A row's job is the ADDRESS — where the
+        // spelling went — and the member's vocabulary is one refusal away on the object itself, where
+        // closedIndex writes it once. The copy here had already drifted: it named a Wound's verbs without the
+        // :label() 085.4 added, so a reader porting an addon was told the truth about the address and a stale
+        // half-truth about the type. Patching a copy leaves the copy; deleting it leaves the one place.
         put("hafen.quests", "hafen.quests is now session:quest(), which IS the collection over both tabs:"
             + " hafen.quests.list(f) is s:quest():list(f), hafen.quests.selected() is s:quest():selected(),"
-            + " and s:quest():get(id) is one quest by its id. Each member is a"
-            + " Quest object: q:id() :title() :res() :status() :modified() :selected() :conditions()"
-            + " :exists() :info()");
+            + " and s:quest():get(id) is one quest by its id — each member is a Quest object, and a name it"
+            + " does not answer names what it does");
         put("hafen.wounds", "hafen.wounds is now session:wound(), which IS the collection:"
             + " hafen.wounds.list(f) is s:wound():list(f) and hafen.wounds.has(needle) is"
             + " s:wound():find(needle), which hands back the Wound rather than a boolean — still truthy."
-            + " Each member is a Wound object: w:id() :name() :res() :severity() :parent() :level()"
-            + " :exists() :info()");
+            + " Each member is a Wound object, and a name it does not answer names what it does");
 
         // ---- hafen.gob is DELETED into the live world (D-066): a gob lives IN the world ------------------
         put("hafen.gob", "hafen.gob(id) is now session:world():gob():get(id) — still never nil, and"
@@ -489,7 +492,7 @@ final class Retired {
 
         // ---- the stylesheet: a Sheet of Rules, so a selector NAMES a rule and its properties are setters ----
         put("hafen.ui.skin", "hafen.ui.skin{…} is now hafen.ui():sheet(): s:rule(selector) hands back the rule"
-            + " for that key and its properties are setters (:font(h) :color(r,g,b) :bg{…} :border{…}"
+            + " for that key and its properties are setters (:font(h) :color(c) :bg{…} :border{…}"
             + " :padding(n) :position(x, y) :anchor{…} :size(w, h)), s:load(t) takes a whole sheet as data, and"
             + " s:install() / s:drop() apply and remove it — hafen.ui.skin(nil) is s:drop()");
         // ---- 065.1: a rule's room around its content is said on all FOUR sides, so the property is named for
@@ -512,7 +515,7 @@ final class Retired {
         put("widget:hide", "widget:hide() is now widget:visible(false) — a boolean property is a property, so the"
             + " value is the argument rather than the verb's name");
         put("widget:skin", "widget:skin{…} is now widget:rule(), the same Rule object a sheet's selectors hand"
-            + " back: its properties are setters (:font(h) :color(r,g,b) :bg{…} :border{…} :padding(n)),"
+            + " back: its properties are setters (:font(h) :color(c) :bg{…} :border{…} :padding(n)),"
             + " widget:rule():info() reads your whole level back, and widget:rule():remove() drops it."
             + " widget:style() still answers what the widget RESOLVES to");
 

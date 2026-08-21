@@ -213,7 +213,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       the audit rows did not enumerate, found by 085.3 while writing `shapes.md`.
       <!-- extra context: src/io/brodgar/addon/LuaMapGrid.java (the info snapshot), MapImages.java (handleFor's size verb and its info snapshot), AddonManager.java (xy) -->
 
-- [ ] **085.7 — A refusal names a fix that works.** This feature cut three spellings and added one verb, and
+- [x] **085.7 — A refusal names a fix that works.** This feature cut three spellings and added one verb, and
       the bridge's own strings still teach what it cut. `Retired` cannot catch it — it keys on a **name**, and
       an argument shape has no name — so the sweep is the fix and the suite is what stops it coming back.
       **Three refusal messages name a spelling that raises.** `FontApi`'s `font:derive()` refusal teaches the

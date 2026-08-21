@@ -19,7 +19,7 @@ import java.util.Map;
  * <pre>
  *   local s = hafen.ui():sheet()
  *   s:rule("window.title"):font(body)
- *   s:rule("chat"):color(200, 210, 200)
+ *   s:rule("chat"):color({200, 210, 200})
  *   s:install()                                  -- and s:drop()
  * </pre>
  *

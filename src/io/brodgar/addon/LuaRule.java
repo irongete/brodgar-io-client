@@ -20,7 +20,7 @@ import java.util.WeakHashMap;
  * returning the rule so a level is one expression:
  *
  * <pre>
- *   hafen.ui():sheet():rule("chat"):font(mono):color(200, 210, 200)
+ *   hafen.ui():sheet():rule("chat"):font(mono):color({200, 210, 200})
  *   s:ui():find("window[title=Cupboard]"):rule():padding(6)
  * </pre>
  *
