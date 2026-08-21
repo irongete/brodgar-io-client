@@ -68,11 +68,10 @@ local doc = hafen.json():parse(hafen.asset():get("theme.json"):text())
 hafen.ui():sheet():load(doc.rules):install()
 ```
 
-That is a look whose Lua never names a surface, a font, a size, a
-colour or a pixel. **Every value a rule takes has a spelling a file can carry**: a colour is an array, a
-border is a slice of four numbers or a colour and a width, a `padding` is one or four, an
-[anchor](geometry.md#anchor) is a corner and an offset — as is the place a window's
-[caption](chrome.md#ornaments) is drawn at — a picture is named by its
+That is a look whose Lua never names a surface, a font, a size, a colour or a pixel. **Every value a rule
+takes has a spelling a file can carry**: a colour is a table of numbers, a border is a slice of four numbers
+or a colour and a width, a `padding` is one or four, an [anchor](geometry.md#anchor) is a corner and an
+offset — as is the place a window's [caption](chrome.md#ornaments) is drawn at — a picture is named by its
 [path or its resource](chrome.md#naming-a-picture), and a face is named the
 [same two ways](text.md#font) — `{builtin = "mono"}` or `{asset = "fonts/Inter.ttf"}`. Nothing in the
 document is a handle, so a whole client look, windows and typography included, is a file and one command.
@@ -94,8 +93,9 @@ a sheet is data and an addon already has a store.
 
 `sheet:stock()` hands back **what this client draws with when no rule says anything**, keyed by
 [site](keys.md#site-keys), in the very shape `sheet:load(rules)` takes. Art comes back named by its
-resource, faces by their built-in, colours as numbers — so the answer is a document, and the shortest way to
-start a theme is to write it to a file and edit it:
+resource, faces by their built-in, colours as the [keyed table](../../shapes.md#colours) every reader in the
+API hands back — so the answer is a document, and the shortest way to start a theme is to write it to a file
+and edit it:
 
 ```lua
 local look = hafen.ui():sheet():stock()

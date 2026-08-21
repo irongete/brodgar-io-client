@@ -1,0 +1,9 @@
+{
+  "name": "086.8 — the last colour reader",
+  "id": "086-one-handle-one-shape.8",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 086.8: sheet:stock() hands back keyed colours, so the stylesheet's two readers agree.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

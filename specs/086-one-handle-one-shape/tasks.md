@@ -256,7 +256,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: src/io/brodgar/addon/Args.java (num, passed, nilRefused), WorldApi.java (place, click, select and their placeArgs/clickGobArgs/selArgs), LuaHand.java, LuaSlot.java, VrApi.java (the opts.y read), docs/addons/api/world.md (the optional-argument rows), docs/addons/api/ui/items.md, docs/addons/api/actionbar.md -->
 
-- [ ] **086.8 — The last colour reader.** `Stock.color(Object)` builds `{[1], [2], [3], [4]}`, so
+- [x] **086.8 — The last colour reader.** `Stock.color(Object)` builds `{[1], [2], [3], [4]}`, so
       `sheet:stock()` hands back **positional** colours while `Chrome`'s readers — `w:style().bg.color`,
       a glow's, a border's — hand back **keyed** through `AddonManager.color`. Both are the
       stylesheet's own colour read back; both javadocs give the same reason, *"the value in the shape

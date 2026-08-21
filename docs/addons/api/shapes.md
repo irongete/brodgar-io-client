@@ -75,8 +75,9 @@ go in at every colour write: `rule:color(c)`, `marker:color(c)`, `ov:color(c)`, 
 sprite `:tint(c)`, `g:text{color = c}`. A colour you read is one of the two, so `ov:color(kin:color())` is
 one expression. Alpha defaults to `255`, and a component outside `0..255` is clamped.
 
-A [stylesheet document](ui/style/README.md#the-clients-own-look) is the one thing that comes back written
-the other way: `sheet:stock()` answers a document rather than a colour, in the spelling `sheet:load` takes.
+The colours inside a [stylesheet document](ui/style/README.md#the-clients-own-look) are that same table.
+`sheet:stock()` answers a whole document rather than a colour, and every colour written in it is the keyed
+one — so `.r` answers there too, and `sheet:load` takes the document back exactly as it came.
 
 **Loose components are not a colour.** `ov:color(200, 210, 220)` raises, naming the table: a third spelling
 of one value is what makes a value you read impossible to pass back into a write without guessing which of

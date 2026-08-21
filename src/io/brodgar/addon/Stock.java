@@ -170,17 +170,17 @@ final class Stock {
         return null;
     }
 
-    /** A colour, as the positional array a file carries and every setter takes. */
+    /**
+     * A colour, keyed as {@link AddonManager#color} hands every colour in this API back, and as
+     * {@code w:style().bg.color} hands back the very same stylesheet property. Both spellings are legal
+     * <i>input</i>, so a catalogue round-trips through {@code sheet:load} either way and the read that agrees
+     * with every other read is the one worth handing over: {@code .r} answers on all of them and {@code [1]}
+     * on none.
+     */
     private static LuaValue color(Object o) {
         if(!(o instanceof Color))
             return null;
-        Color c = (Color)o;
-        LuaTable t = new LuaTable();
-        t.set(1, LuaValue.valueOf(c.getRed()));
-        t.set(2, LuaValue.valueOf(c.getGreen()));
-        t.set(3, LuaValue.valueOf(c.getBlue()));
-        t.set(4, LuaValue.valueOf(c.getAlpha()));
-        return t;
+        return AddonManager.color((Color)o);
     }
 
     /**
@@ -386,7 +386,7 @@ final class Stock {
         return t;
     }
 
-    /** {@code {color = {r,g,b,a}}} — the surface a flat colour is. */
+    /** {@code {color = {r=,g=,b=,a=}}} — the surface a flat colour is. */
     private static LuaValue color1(LuaValue c) {
         if(c == null)
             return null;
