@@ -130,9 +130,24 @@ final class Retired {
 
         // ---- the eight verb-only sections: every dotted verb is now a colon call on the section ---------
         section("time", "clock", "dayFraction", "isNight", "season", "moon", "yearFraction");
-        section("slash", "register");
         section("json", "parse", "encode");
         section("timer", "after", "every");
+
+        // ---- 086.1: the three registries that did not use the API's ONE notification verb. A slash command,
+        // ---- a hotkey and a selector watch are subscriptions, so each hands back a Sub and each ends with
+        // ---- sub:off(). hafen.slash():register is a SECTION verb, so its row covers the dotted pre-039
+        // ---- spelling too (moved()); the keybindings pair are verbs of an OBJECT, keyed the way a call site
+        // ---- spells them. handle:remove() needs no row of its own: the handle is a Sub now, and the closed
+        // ---- vocabulary of a Sub already answers "a subscription has no verb 'remove'".
+        moved("slash", "register", "hafen.slash():register(name, fn) is now hafen.slash():on(name, fn) — a"
+            + " slash command is a subscription like every other :on in the API, and what it hands back is a"
+            + " Sub: sub:key() is the command name and sub:off() ends it, where the old handle had :remove()");
+        put("keybindings:register", "kb:register(name, fn) is now kb:on(name, fn) — a hotkey is a"
+            + " subscription like every other :on in the API. It hands back a Sub rather than the keybindings"
+            + " handle, so registrations no longer chain: keep the Sub and end it with sub:off()");
+        put("keybindings:unregister", "kb:unregister(name) is now sub:off() on the Sub kb:on(name, fn) handed"
+            + " back — one ending for every subscription in the API. The key the user assigned survives it,"
+            + " exactly as it survived unregister");
 
         // ---- 041.5: hafen.hook() is DELETED as a whole -- input (041.3) and the two message streams (041.2)
         // ---- had already left it for widgets/the bus, and grab was its last remaining verb, so a section with

@@ -12,7 +12,7 @@ opts:video()          -- shadows, render scale, vsync, framerate, lighting
 opts:audio()          -- volumes and output latency
 opts:camera()         -- the camera in force, and drag inversion
 opts:client()         -- client-wide toggles
-opts:keybindings()    -- register, inspect and remap hotkeys
+opts:keybindings()    -- declare, inspect and remap hotkeys
 ```
 
 Every handle is a **stateless proxy** over the client's live preference stores — it holds no value of its

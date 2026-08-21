@@ -14,14 +14,14 @@ import org.luaj.vm2.lib.VarArgFunction;
  * dispatch path ({@link AddonRoot#globtype}), the per-addon teardown ({@link Addon#keybinds}) and the client
  * keybind panel's data.
  *
- * <p><b>Addon hotkeys start unbound.</b> {@code register} takes no default key: an addon names an action and
+ * <p><b>Addon hotkeys start unbound.</b> {@code on} takes no default key: an addon names an action and
  * the user assigns the key in the client's keybind panel, matching WoW and the one-key-one-action exclusivity
  * {@link KeyBinding#set} enforces. A default would not be able to steal a key in any case — registration goes
  * through {@link KeyBinding#get}, which never runs that unbind pass — so a clash would just mean the client's
  * binding matches first ({@link AddonRoot} is walked last) and the addon's hotkey silently never fires.
  *
  * <p><b>Name resolution.</b> An addon's own hotkeys live under {@code addon/<addonid>/<name>}, so
- * {@code register("test", ...)} then {@code key("test")} refer to the same binding without the addon ever
+ * {@code on("test", ...)} then {@code key("test")} refer to the same binding without the addon ever
  * spelling its own id. A name that has no addon-scoped binding falls back to the raw registry id, which is how
  * a built-in client hotkey is reached ({@code key("inv")}, {@code key("inv", "Ctrl+I")}). The addon scope is
  * tried first so an addon can never be shadowed by a client binding that happens to share its name.
@@ -36,7 +36,7 @@ public final class KeybindingsOptions {
         // Retired.closedIndex, not the methods table itself: kb:get / kb:set would otherwise read as plain nil
         // and fail one call later as "attempt to call a nil value", saying nothing about what replaced them.
         mt.set(LuaValue.INDEX, Retired.closedIndex("keybindings", methods(owner, kb),
-            "the keybindings handle answers :register() :key() :unregister() and :list()"));
+            "the keybindings handle answers :on() :key() and :list()"));
         kb.setmetatable(mt);
         return kb;
     }
@@ -55,24 +55,27 @@ public final class KeybindingsOptions {
     private static LuaTable methods(final Addon owner, final LuaValue handle) {
         LuaTable m = new LuaTable();
 
-        // register(name, fn) — declare a hotkey owned by this addon. It starts UNBOUND: an addon names an
+        // on(name, fn) — declare a hotkey owned by this addon. It starts UNBOUND: an addon names an
         // action, the user chooses the key (Options > Keybindings), which is the WoW model and the only one
         // consistent with KeyBinding's one-key-one-action exclusivity. An addon-chosen default could not
         // steal a key anyway (KeyBinding.get never runs set()'s unbind pass) — it would simply lose the
         // collision, since the addon root is walked last, leaving a dead hotkey with nothing to explain it.
-        // Returns the handle, so registrations chain.
-        m.set("register", new VarArgFunction() {
+        // It is a SUBSCRIPTION like every other :on in the API (086.1): the Sub it hands back answers
+        // :key() (the name it was registered under) and :off(), which is what unregister used to be. The
+        // KeyBinding registry entry survives that ending, so the user's remap outlives a :reload.
+        m.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 // a.arg(1) = self (colon call); the arguments start at 2. One argument at a time, through the
                 // house helpers: "expects (string, function)" named neither the missing one nor the wrong one.
-                LuaValue name = Args.str(a, 2, "keybindings:register", "name",
+                LuaValue name = Args.str(a, 2, "keybindings:on", "name",
                     "a hotkey starts unbound; the user assigns the key in Options > Keybindings");
-                LuaValue fn = Args.required(a, 3, "keybindings:register", "fn");
+                LuaValue fn = Args.required(a, 3, "keybindings:on", "fn");
                 if(!fn.isfunction())
-                    throw new LuaError("keybindings:register: fn must be a function — it runs when the user"
+                    throw new LuaError("keybindings:on: fn must be a function — it runs when the user"
                         + " presses the key they bound, got " + fn.typename());
-                HookApi.newKeyBind(owner, name.tojstring(), fn);
-                return handle;
+                LuaSub sub = owner.keySubs.add(name.tojstring(), fn);
+                sub.tag = HookApi.newKeyBind(owner, name.tojstring(), fn);
+                return sub.handle();
             }
         });
 
@@ -100,16 +103,6 @@ public final class KeybindingsOptions {
                     throw new LuaError("keybindings:key: cannot parse key '" + key.tojstring()
                                        + "' (examples: \"F5\", \"Ctrl+M\", \"Shift+Alt+Left\", \"None\")");
                 b.set(km);
-                return handle;
-            }
-        });
-
-        // unregister(name) — unbind one of THIS addon's hotkeys (client bindings are not the addon's to drop).
-        m.set("unregister", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue name = Args.str(a, 2, "keybindings:unregister", "name",
-                                         "one YOUR addon registered; a client binding is not yours to drop");
-                HookApi.removeKeyBindsNamed(owner, name.tojstring());
                 return handle;
             }
         });

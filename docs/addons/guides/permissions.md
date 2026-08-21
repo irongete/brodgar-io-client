@@ -159,7 +159,7 @@ and these are not.
 ## Writing an addon that acts
 
 ```lua
-hafen.slash():register("gotree", function()
+hafen.slash():on("gotree", function()
   local s = hafen.session():current()           -- the character on screen
   local tree = s:world():gob():nearest("terobjs/tree")
   if tree then

@@ -582,8 +582,8 @@ end
 local function disarmWidget(s)
   local h = watches[s]
   if h == nil then return end
-  h[1]:remove()
-  h[2]:remove()
+  h[1]:off()
+  h[2]:off()
   watches[s] = nil
 end
 
@@ -639,8 +639,8 @@ end
 local function disarmUi(s)
   local h = uiWatch[s]
   if h == nil then return end
-  h[1]:remove()
-  h[2]:remove()
+  h[1]:off()
+  h[2]:off()
   uiWatch[s] = nil
   for _, sub in pairs(uiSubs[s] or {}) do sub:off() end
   uiSubs[s] = nil
@@ -965,14 +965,14 @@ local function togglePause()
   hafen.log():write("eventstack: " .. (paused and "paused -- the doors are still open" or "live"))
 end
 
-hafen.slash():register("eventstack", toggle)
+hafen.slash():on("eventstack", toggle)
 
 -- Both start UNBOUND: the addon names an action and the user assigns the key, under
 -- Options > Keybindings > EventStack. Pause is worth one, because the row you want to read is usually
 -- going past while you are reaching for the mouse.
 local keys = hafen.client():options():keybindings()
-keys:register("toggle", toggle)
-keys:register("pause", togglePause)
+keys:on("toggle", toggle)
+keys:on("pause", togglePause)
 
 -- A character that reaches the world while the doors are open is a tree the widget door has not watched
 -- yet, and a root the session column has not learnt. It follows the DOORS and not the window, which is

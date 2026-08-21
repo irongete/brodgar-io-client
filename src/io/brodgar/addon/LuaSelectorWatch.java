@@ -53,8 +53,9 @@ import java.util.Map;
  * {@code synchronized(ui)} block (on a Loader thread, under the monitor the tick and draw hold), so its Lua never
  * races other Lua — the same discipline the observers had. The re-check and {@code disappear} run in the tick, on
  * the UI thread. Both go through {@link AddonManager#callLua} (watchdog-armed, error-isolated, CPU-accounted).
- * The addon only ever sees an opaque {@code :remove()} handle; the bridge owns the subscription and drops it on
- * reload/disable (principle P2), and {@link #alive} makes a dispatch that races teardown a no-op.
+ * The addon only ever sees the {@link LuaSub} its registration handed back — this object hangs off that sub's
+ * {@link LuaSub#tag} (086.1), and {@code sub:off()} is what ends it; the bridge owns the subscription and drops
+ * it on reload/disable (principle P2), and {@link #alive} makes a dispatch that races teardown a no-op.
  */
 final class LuaSelectorWatch {
     /** The two events; a subscription carries exactly one (subscribe twice to watch both). */

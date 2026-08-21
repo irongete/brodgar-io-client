@@ -676,7 +676,7 @@ hafen.event():on("SessionEnteredWorld", function()
 end)
 
 -- :widgetstack -- toggle the window (WoW /framestack on/off).
-hafen.slash():register("widgetstack", function(args)
+hafen.slash():on("widgetstack", function(args)
   if not win then hafen.log():write(":widgetstack -> not up yet (enter the world first)"); return end
   local show = not win:visible()
   if show then win:visible(true) else win:visible(false) end
@@ -685,7 +685,7 @@ end)
 
 -- :selector -- log the hovered widget's full selector report. The window shows it too, but a logged line is
 -- SELECTABLE, which is how the string actually gets out of the client and into your addon.
-hafen.slash():register("selector", function(args)
+hafen.slash():on("selector", function(args)
   if not insp then hafen.log():write(":selector -> nothing hovered yet (move the mouse over the UI)"); return end
   hafen.log():write((":selector -> class=%s role=%s [%s=] %s res=%s anchor=%s")
     :format(insp.cls or "?", insp.role or "nil", insp.ownKey,
@@ -702,10 +702,10 @@ hafen.slash():register("selector", function(args)
 end)
 
 -- "freeze" -- freeze/unfreeze the stack so you can move the mouse INTO the window to read + click it without
--- the stack changing under you. Declared through hafen.client():options():keybindings():register(name, fn); it
+-- the stack changing under you. Declared through hafen.client():options():keybindings():on(name, fn); it
 -- starts UNBOUND (D-047) -- assign it in Options > Keybindings > Widgetstack (suggested: Ctrl+Shift+F), where
 -- the choice is persisted exactly like a built-in binding.
-hafen.client():options():keybindings():register("freeze", function()
+hafen.client():options():keybindings():on("freeze", function()
   frozen = not frozen
   hafen.log():write((":widgetstack freeze %s"):format(frozen and "ON" or "OFF"))
 end)

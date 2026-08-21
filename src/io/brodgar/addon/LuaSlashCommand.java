@@ -5,7 +5,7 @@ import org.luaj.vm2.LuaValue;
 
 /**
  * An addon <b>slash command</b> (gap subsystem A11, spec {@code api-reference.md} &rarr; "hafen.slash") — the Java
- * half of {@code hafen.slash():register(name, fn)}. It routes the console command {@code :name} to a Lua handler,
+ * half of {@code hafen.slash():on(name, fn)}. It routes the console command {@code :name} to a Lua handler,
  * the WoW {@code SlashCmdList} pattern at Haven's {@link haven.Console}.
  *
  * <p><b>Reload-safety (coverage-gaps C1).</b> {@link haven.Console#setscmd} has <b>no unregister</b>, so
@@ -20,8 +20,9 @@ import org.luaj.vm2.LuaValue;
  * <p>The handler {@code fn(args)} receives {@code args} = a 1-based Lua table of the whitespace-split arguments
  * after the command name ({@link haven.Utils#splitwords}, so {@code "quoted words"} group and {@code \\} escapes),
  * the command name itself excluded. The call goes through {@link AddonManager#callLua} — watchdog-armed (D-018),
- * error-isolated, CPU-accounted. The addon only ever sees an opaque {@code :remove()} handle; the bridge owns the
- * command and drops it on reload/disable (principle P2). The {@link #alive} flag makes a dispatch that races
+ * error-isolated, CPU-accounted. The addon only ever sees the {@link LuaSub} its registration handed back — this
+ * object hangs off that sub's {@link LuaSub#tag} (086.1) — and the bridge owns the command and drops it on
+ * reload/disable (principle P2). The {@link #alive} flag makes a dispatch that races
  * teardown a no-op.
  *
  * <p><b>Threading.</b> The in-game {@code ":"} console dispatches on the UI thread (input handling), the same

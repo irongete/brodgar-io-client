@@ -135,9 +135,9 @@ local function cycle()
   end
 end
 
-hafen.client():options():keybindings():register("next", cycle)
+hafen.client():options():keybindings():on("next", cycle)
 
-hafen.slash():register("sessions", function()
+hafen.slash():on("sessions", function()
   if win and win:exists() then
     win:destroy()
     win, rows = nil, {}

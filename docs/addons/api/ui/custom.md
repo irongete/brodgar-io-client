@@ -191,17 +191,6 @@ instead of on the screen.
 The bundled **`widgetstack`** addon is all three at once: a window it builds and toggles, an inspector
 window per widget you click, and a HUD overlay that outlines whatever the cursor is over.
 
-## Observer handles
-
-[`s:ui():on`](replace.md#watching-for-a-widget) returns a handle with a single method:
-
-| Method | Description |
-|---|---|
-| `:remove()` | stop watching; also done automatically on reload or disable |
-
-This is neither a [Widget](widget.md) nor an overlay — a Widget's own removal verb is `:destroy()`, and so
-is an overlay's.
-
 ## See also
 
 - [drawing](drawing.md) — what `g` can do, and why text is nearly free to redraw

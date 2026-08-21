@@ -72,6 +72,18 @@ public final class Subs {
     }
 
     /**
+     * Notified when <b>ONE</b> subscription ends — from {@link #off} and from {@link #clear} — so the emitter
+     * can release whatever it registered engine-side <i>alongside that one sub</i> (086.1). The per-SUB
+     * sibling of {@link Idle}, and the three registries that came in with 086 need exactly this and not that:
+     * several selector watches share the key {@code "appear"}, so a per-key hook fires when the last of them
+     * goes, which is not when one of them is removed. {@code null} where nothing engine-side hangs off an
+     * individual sub — the bus, the two message streams, a widget's own keys.
+     */
+    interface Ended {
+        void ended(LuaSub s);
+    }
+
+    /**
      * The shared cancel flag of one fire — {@code ev:preventDefault()} sets it, and it is read once the last
      * handler has run. OR accumulation: any handler cancels, and every handler still runs.
      */
@@ -95,6 +107,8 @@ public final class Subs {
     private final Cats cats;
     /** Notified when a key empties out, or {@code null} — see {@link Idle}. */
     private final Idle idle;
+    /** Notified when one subscription ends, or {@code null} — see {@link Ended}. */
+    private final Ended ended;
     /** {@code key → the handlers on it}, in registration order. */
     private final Map<String, CopyOnWriteArrayList<LuaSub>> byKey =
         new ConcurrentHashMap<String, CopyOnWriteArrayList<LuaSub>>();
@@ -112,28 +126,44 @@ public final class Subs {
 
     /** An emitter whose every key costs the same category (the bus: {@code events}). */
     Subs(Addon owner, final int cat) {
-        this(owner, cat, null);
+        this(owner, flat(cat), null, null);
     }
 
     /** As above, plus a widget's {@link Idle} hook. */
     Subs(Addon owner, final int cat, Idle idle) {
-        this(owner, new Cats() {
-            public int cat(String key) {
-                return cat;
-            }
-        }, idle);
+        this(owner, flat(cat), idle, null);
+    }
+
+    /** As above, plus a registry's {@link Ended} hook (a slash command, a hotkey, a selector watch). */
+    Subs(Addon owner, final int cat, Ended ended) {
+        this(owner, flat(cat), null, ended);
     }
 
     /** An emitter whose keys cost different categories (a widget: {@code draw} and {@code widgets}). */
     Subs(Addon owner, Cats cats) {
-        this(owner, cats, null);
+        this(owner, cats, null, null);
     }
 
     /** As above, plus a widget's {@link Idle} hook (released once a key's last live handler is gone). */
     Subs(Addon owner, Cats cats, Idle idle) {
+        this(owner, cats, idle, null);
+    }
+
+    /** The one constructor the five above reach: what a key costs, and the two optional release hooks. */
+    Subs(Addon owner, Cats cats, Idle idle, Ended ended) {
         this.owner = owner;
         this.cats = cats;
         this.idle = idle;
+        this.ended = ended;
+    }
+
+    /** The {@link Cats} of an emitter whose every key costs the same. */
+    private static Cats flat(final int cat) {
+        return new Cats() {
+            public int cat(String key) {
+                return cat;
+            }
+        };
     }
 
     /**
@@ -143,11 +173,21 @@ public final class Subs {
      * emitter and not on the mechanism.
      */
     LuaValue on(String key, LuaValue fn) {
+        return add(key, fn).handle();
+    }
+
+    /**
+     * {@link #on} with the {@link LuaSub} itself in hand rather than its Lua value — what an emitter with an
+     * {@link Ended} hook registers through, so it can hang what it registered engine-side on {@link LuaSub#tag}
+     * before anything can fire. Order matters at exactly one site: {@code s:ui():on} scans the live tree from
+     * inside its own registration, so the sub has to exist first (086.1).
+     */
+    LuaSub add(String key, LuaValue fn) {
         LuaSub s = new LuaSub(this, key, fn);
         list(key).add(s);
         if(WILD.equals(key))
             wild = true;
-        return s.handle();
+        return s;
     }
 
     /**
@@ -217,14 +257,20 @@ public final class Subs {
 
     /**
      * End one subscription ({@code sub:off()}) — by identity, and idempotent: a second call finds nothing.
-     * Notifies {@link #idle} once the key it was on has no live handler left, so a widget's {@link Subs} can
-     * deafen the engine listener nobody needs any more.
+     * Notifies {@link #ended} for the subscription that went, so a registry can release what it registered
+     * beside it, and {@link #idle} once the key it was on has no live handler left, so a widget's
+     * {@link Subs} can deafen the engine listener nobody needs any more. Both fire only on a sub that was
+     * actually there, which is what keeps a second {@code off()} from releasing anything twice.
      */
     void off(LuaSub s) {
         CopyOnWriteArrayList<LuaSub> l = byKey.get(s.key);
         boolean gone = (l != null) && l.remove(s);
         if(WILD.equals(s.key))
             wild = has(WILD);         // recomputed, never decremented: two wildcards, one ended, still one
+        // The per-SUB hook first — it releases what THIS subscription registered engine-side (086.1) — then
+        // the per-KEY one, which is a different question: whether anybody addresses the key at all any more.
+        if(gone && (ended != null))
+            ended.ended(s);
         if(gone && (idle != null) && l.isEmpty())
             idle.idle(s.key);
     }
@@ -236,8 +282,11 @@ public final class Subs {
      */
     public void clear() {
         for(CopyOnWriteArrayList<LuaSub> l : byKey.values()) {
-            for(LuaSub s : l)
+            for(LuaSub s : l) {
                 s.alive = false;
+                if(ended != null)
+                    ended.ended(s);   // 086.1: teardown releases each sub's own engine-side registration,
+            }                         //   which is what makes clear() the WHOLE teardown of a registry
         }
         byKey.clear();
         wild = false;

@@ -124,7 +124,7 @@ An addon hotkey is declared by name and starts **unbound**: you name the action,
 Add this at the end of the file:
 
 ```lua
-hafen.client():options():keybindings():register("toggle", function()
+hafen.client():options():keybindings():on("toggle", function()
   if not window then return end
   if window:visible() then window:visible(false) else window:visible(true) end
 end)
@@ -205,7 +205,7 @@ hafen.timer():every(1, function()
   trees = s and s:world():gob():count("terobjs/tree") or 0
 end)
 
-hafen.client():options():keybindings():register("toggle", function()
+hafen.client():options():keybindings():on("toggle", function()
   if not window then return end
   if window:visible() then window:visible(false) else window:visible(true) end
   settings.open = window:visible()

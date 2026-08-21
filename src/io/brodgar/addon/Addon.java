@@ -195,13 +195,54 @@ public final class Addon {
      */
     public final Subs messageSubs = new Subs(this, Addon.C_EVENT);
     /**
-     * Live global hotkeys owned by this addon ({@code keybindings:register}, Phase 2e-2): each pairs a client
+     * This addon's <b>selector subscriptions</b> as subscriptions ({@code s:ui():on(sel, "appear", fn)},
+     * 086.1) — the emitter that mints what that verb hands back, so it is a {@link LuaSub} like every other
+     * {@code :on} in the API rather than a one-verb table. The key is the <b>event</b>, {@code "appear"} or
+     * {@code "disappear"}, because that is what a person would name and the selector already lives on the
+     * {@link LuaSelectorWatch} — which hangs off {@link LuaSub#tag}, and is what the {@link Subs.Ended} hook
+     * releases. It charges {@link #C_WIDGET}, which is what a watch handler costs today.
+     *
+     * <p>The dispatch is unchanged and does not run through {@link Subs#fire}: a watch is fired from the
+     * placement and removal seams against {@link #selectorWatches}, which is still the list those seams walk.
+     * This emitter owns the <i>handle</i> and the <i>ending</i>, and {@link Subs#clear} is the whole teardown.
+     */
+    public final Subs watchSubs = new Subs(this, Addon.C_WIDGET, new Subs.Ended() {
+        public void ended(LuaSub s) {
+            UiApi.removeSelectorWatch(Addon.this, (LuaSelectorWatch)s.tag);
+        }
+    });
+    /**
+     * This addon's <b>slash commands</b> as subscriptions ({@code hafen.slash():on(name, fn)}, 086.1), keyed
+     * by the command name, with the {@link LuaSlashCommand} on {@link LuaSub#tag}. Its {@link Subs.Ended}
+     * clears the live handler and nothing else: a {@link haven.Console} command is <b>register only, no
+     * unregister</b>, so the one engine-lifetime dispatcher stays installed and reports "no addon handles
+     * :name" (coverage-gaps C1).
+     */
+    public final Subs slashSubs = new Subs(this, Addon.C_HOOK, new Subs.Ended() {
+        public void ended(LuaSub s) {
+            HookApi.endSlashCommand(Addon.this, (LuaSlashCommand)s.tag);
+        }
+    });
+    /**
+     * This addon's <b>global hotkeys</b> as subscriptions ({@code keybindings:on(name, fn)}, 086.1), keyed by
+     * the addon-local binding name, with the {@link LuaKeyBind} on {@link LuaSub#tag}. Its {@link Subs.Ended}
+     * drops the handler from the {@code GlobKeyEvent} dispatch list; the {@link haven.KeyBinding} registry
+     * entry is process-global and persistent and is deliberately left standing, which is how the client
+     * remembers a re-mapped addon key across reloads.
+     */
+    public final Subs keySubs = new Subs(this, Addon.C_HOOK, new Subs.Ended() {
+        public void ended(LuaSub s) {
+            HookApi.removeKeyBindsNamed(Addon.this, s.key);
+        }
+    });
+    /**
+     * Live global hotkeys owned by this addon ({@code keybindings:on}, Phase 2e-2): each pairs a client
      * {@link haven.KeyBinding} with a Lua handler, dispatched from {@link AddonRoot#globtype} via the engine's
      * {@code GlobKeyEvent} seam. Teardown marks each dead and drops it from {@link AddonManager}'s global
      * dispatch list (principle P2) — like an action/message hook there is no widget to deafen. The
      * {@code KeyBinding} itself is process-global + persistent and is deliberately <b>not</b> removed (that is how
      * the client remembers a re-mapped key across reloads/sessions). Copy-on-write: a firing hotkey may
-     * {@code :remove()} itself while the dispatcher iterates.
+     * {@code sub:off()} itself while the dispatcher iterates.
      */
     public final List<LuaKeyBind> keybinds = new CopyOnWriteArrayList<LuaKeyBind>();
     /**
@@ -212,7 +253,7 @@ public final class Addon {
      * not one keyed target); teardown ({@link UiApi#teardownSelectorWatches}) marks each dead and drops both
      * copies <b>without firing</b> — a {@code :reload}/disable is not a destroy, exactly as for a
      * {@link WidgetSubs}'s watch-list registration.
-     * Copy-on-write: a firing handler may subscribe or {@code :remove()} itself mid-dispatch.
+     * Copy-on-write: a firing handler may subscribe or {@code sub:off()} itself mid-dispatch.
      */
     public final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();
     /**
@@ -278,13 +319,14 @@ public final class Addon {
     /** The last placement JSON written for this addon, so an unchanged file is not rewritten. */
     public String lastPlacementJson;
     /**
-     * Live addon slash commands owned by this addon ({@code hafen.slash():register}, gap subsystem A11): each routes
+     * Live addon slash commands owned by this addon ({@code hafen.slash():on}, gap subsystem A11): each routes
      * a console command {@code :name} to a Lua handler. Unlike the hook lists, the engine's {@link haven.Console}
      * dispatcher for a name is <b>engine-lifetime</b> and is deliberately <b>not</b> removed on teardown (coverage-
      * gaps C1: {@code Console.setscmd} has no unregister, so a single dispatcher per name routes to the current live
      * handler and is never re-registered). Teardown only marks each dead and drops it from {@link AddonManager}'s
      * {@code slashHandlers} registry (principle P2) — after which the dispatcher reports "no addon handles :name".
-     * Copy-on-write: a firing command may {@code :remove()} itself.
+     * Since 086.1 the ending runs through {@link #slashSubs}, whose {@link Subs.Ended} hook this list is kept in
+     * step by. Copy-on-write: a firing command may {@code sub:off()} itself.
      */
     public final List<LuaSlashCommand> slashCommands = new CopyOnWriteArrayList<LuaSlashCommand>();
     /**

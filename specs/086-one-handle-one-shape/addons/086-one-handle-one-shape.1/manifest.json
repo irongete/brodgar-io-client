@@ -1,0 +1,9 @@
+{
+  "name": "086.1 — every :on hands back a Sub",
+  "id": "086-one-handle-one-shape.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 086.1: a slash command, a hotkey and a selector watch each hand back the same Sub — userdata that prints Sub(<key>), answers :key() and ends with an idempotent :off() — sub:remove() raises naming :off(), the three retired spellings each name their replacement, and the registry's own name refusal still fires.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

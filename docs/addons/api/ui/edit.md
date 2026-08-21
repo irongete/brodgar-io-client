@@ -313,7 +313,7 @@ Unprotected, like every undo of an unprotected write, and it chains.
 local keys = hafen.client():options():keybindings()
 local armed = false
 
-keys:register("edit", function()               -- the user assigns the key in Options > Keybindings
+keys:on("edit", function()               -- the user assigns the key in Options > Keybindings
   local win = hafen.session():current():ui():find("window[title=Options]")
   if not win then return end
   if armed then win:revert() else win:title("Options, edited") end

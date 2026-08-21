@@ -711,14 +711,14 @@ end
 -- Both hotkeys start UNBOUND (D-047): assign them under Options > Keybindings > Brodgar.io Profiler.
 -- Suggested keys: Ctrl+Shift+P (toggle) and Ctrl+Shift+O (pause).
 local keys = hafen.client():options():keybindings()
-keys:register("toggle", toggle)
-keys:register("pause", function()
+keys:on("toggle", toggle)
+keys:on("pause", function()
   pause(not paused)
   hafen.log():write(("profiler: %s"):format(paused and "PAUSED -- click a bar in the FRAME graph to inspect it" or "live"))
 end)
 
 -- :profiler [on|off|pause|live|clear|<tab>]
-hafen.slash():register("profiler", function(args)
+hafen.slash():on("profiler", function(args)
   local a = (args and args[1] or ""):lower()
   if a == "" then
     toggle()

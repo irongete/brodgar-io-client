@@ -165,7 +165,7 @@ hafen.event():on("Load", function()
   h = hafen.asset():get("fonts/Inter.ttf"):derive():size(11)   -- or a built-in face, derived
 end)
 
-hafen.slash():register("bigserif", function()
+hafen.slash():on("bigserif", function()
   hafen.ui():sheet():rule("*"):font(h):sheet():install()   -- most UI text becomes serif, live
 end)
 -- reverted automatically when the addon is reloaded or disabled, or explicitly with sheet:drop()

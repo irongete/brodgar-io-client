@@ -20,7 +20,6 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -717,8 +716,9 @@ final class UiApi {
         // fires at once; addressed at a background session that is that session's tree, which exists whether or
         // not it is drawn. Both events are about the TREE, not visibility: a window the client merely hides
         // (the inventory's Tab toggle) never left, so it fires neither. One event per call — subscribe twice to
-        // watch both. Returns a handle with :remove(); auto-removed on reload/disable (P2), which fires
-        // nothing — a reload is not a destroy.
+        // watch both. Returns a Sub, like every other :on in the API: sub:key() is the event it carries and
+        // sub:off() ends it; auto-removed on reload/disable (P2), which fires nothing — a reload is not a
+        // destroy.
         m.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "ui", "on", UIS);
@@ -1137,8 +1137,9 @@ final class UiApi {
      * Register a selector subscription ({@code s:ui():on(selector, "appear"|"disappear", fn)}): parse the selector
      * ONCE, install the {@link LuaSelectorWatch} in the global list (consulted at the placement seam and the removal
      * seam, event-driven since 042.9 — no per-tick sweep) and in the addon's owned-resource registry (dropped on
-     * reload/disable, P2), then SCAN the live tree once so an already-open target is not missed. Returns the Lua
-     * handle ({@code :remove()}).
+     * reload/disable, P2), then SCAN the live tree once so an already-open target is not missed. Returns the
+     * {@link LuaSub} — this is a subscription like every other {@code :on} in the API (086.1), keyed by the
+     * <b>event</b> it carries, with the {@link LuaSelectorWatch} on {@link LuaSub#tag}.
      */
     private static LuaValue newSelectorWatch(final Addon owner, UI wu, LuaValue selv, LuaValue eventv,
                                              LuaValue fn) {
@@ -1163,14 +1164,14 @@ final class UiApi {
         if(wst != null)                        // no session behind it (the login screen's console): owned,
             wst.selectorWatches.add(w);        //   removable, and it never fires — exactly as before
         owner.selectorWatches.add(w);
+        // 086.1: the Sub is minted BEFORE the scan, because scanForWatch calls an `appear` handler back inside
+        // this very registration — so the handler must never be able to run before the value this call is
+        // about to hand back exists. The key is the event, which is what a person would name; the selector
+        // lives on the watch record, where it already lived.
+        LuaSub sub = owner.watchSubs.add(eventv.tojstring(), fn);
+        sub.tag = w;
+        LuaValue handle = sub.handle();
         scanForWatch(w);                       // catch what is ALREADY open (the :reload / subscribe-in-world case)
-        LuaTable handle = new LuaTable();
-        handle.set("remove", new ZeroArgFunction() {
-            public LuaValue call() {
-                removeSelectorWatch(owner, w);
-                return LuaValue.NIL;
-            }
-        });
         return handle;
     }
 
@@ -1376,8 +1377,15 @@ final class UiApi {
         return (id >= 0) ? (u.getwidget(id) == w) : w.hasparent(u.root);
     }
 
-    /** Remove one selector subscription: stop it firing + drop it from both lists (the handle's {@code :remove()}). */
-    private static void removeSelectorWatch(Addon owner, LuaSelectorWatch w) {
+    /**
+     * Remove one selector subscription: stop it firing + drop it from both lists. Since 086.1 this is the
+     * {@link Subs.Ended} hook of {@link Addon#watchSubs} — {@code sub:off()} and the teardown below both reach
+     * it through there, and nothing else calls it. Per-SUB and not per-key: several watches share the key
+     * {@code "appear"}, so removing one must remove one record.
+     */
+    static void removeSelectorWatch(Addon owner, LuaSelectorWatch w) {
+        if(w == null)
+            return;
         w.alive = false;
         w.matched.clear();
         owner.selectorWatches.remove(w);
@@ -1397,8 +1405,9 @@ final class UiApi {
      * cease to exist with its env). Same rule as {@link #teardownWatches}.
      */
     static void teardownSelectorWatches(Addon a) {
+        a.watchSubs.clear();          // 086.1: one drop, and each sub's Ended runs removeSelectorWatch above
         if(a.selectorWatches.isEmpty())
-            return;
+            return;                   // which is every one of them — the sweep below is the belt
         // 073.2: each one is dropped from the tree IT recorded, not from the tree on screen. An addon may have
         // subscribed in several sessions and the screen is on one of them, so screen() here would leave every
         // subscription made in any other standing in its list, still matching, and still calling an addon that

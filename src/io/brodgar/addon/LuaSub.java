@@ -17,7 +17,12 @@ import org.luaj.vm2.lib.VarArgFunction;
  *
  * <p><b>One verb, and one spelling of it.</b> Before 041 an addon ended a subscription three ways
  * ({@code sub:off()}, {@code handle:remove()}, or by overwriting a single callback slot); {@code :off()} is
- * the one left, wherever the subscription came from.
+ * the one left, wherever the subscription came from. Since 086.1 that is <i>every</i> {@code :on} in the API:
+ * a slash command, a hotkey and a selector watch are subscriptions too, and each hands one of these back.
+ *
+ * <p><b>{@code :key()} says what it was registered under</b> — a bus event, a message name, a widget key, a
+ * command name, a hotkey's name, {@code "appear"}. It is the {@link #key} field a {@link Subs} already
+ * addressed this sub by, and it is what makes a set of subscriptions filterable.
  *
  * <p><b>The handle IS the entry.</b> This object is both what Lua holds and what {@link Subs} stores in its
  * handler list, so removal is by identity from a copy-on-write list — which makes {@code :off()} idempotent
@@ -41,6 +46,13 @@ public final class LuaSub {
      * still contains a sub that has just ended (a handler unsubscribing another one, or itself).
      */
     volatile boolean alive = true;
+    /**
+     * What the emitter registered <b>alongside</b> this subscription — a {@link LuaSelectorWatch}, a
+     * {@link LuaSlashCommand}, a {@link LuaKeyBind} — or {@code null} on the bus and the two streams, where a
+     * subscription is the whole of what was registered (086.1). Opaque here: only the {@link Subs} that made
+     * it reads it back, from its {@link Subs.Ended} hook.
+     */
+    Object tag;
     /** This object as Lua holds it — minted once, handed back by identity. */
     private LuaValue self;
 
@@ -96,9 +108,18 @@ public final class LuaSub {
                 return LuaValue.NIL;
             }
         });
+        // key() — what this subscription was registered UNDER: a bus event name, a message name, a widget
+        // key, and since 086.1 a slash command's name, a hotkey's name and a selector watch's event. One
+        // question with one answer, wherever the subscription came from — and what a collection of
+        // subscriptions filters on.
+        m.set("key", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf(self(a.arg1(), "key").key);
+            }
+        });
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("sub", m,
-            "a subscription's one verb is :off(), and it is idempotent"));
+            "a subscription answers :off() (idempotent) and :key() (what it was registered under)"));
         mt.set("__name", LuaValue.valueOf("Sub"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue v) {

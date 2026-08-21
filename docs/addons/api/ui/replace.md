@@ -6,16 +6,17 @@ when your addon goes away.
 
 ```lua
 local s = hafen.session():current()                    -- the character on screen
-s:ui():on("window[title=Inventory] inventory", "appear", function(inv)
+local sub = s:ui():on("window[title=Inventory] inventory", "appear", function(inv)
   local view = hafen.ui():window():title("Bags"):size(200, 120)
   view:on("Draw", function(ev) ev:g():text(#inv:items() .. " items", 6, 6) end)
   inv:replace(view)
 end)
+-- later:  sub:off()
 ```
 
 | Call | Returns | Description |
 |---|---|---|
-| `s:ui():on(selector, event, fn)` | [handle](custom.md#observer-handles) | `fn(widget)` when a widget matching a [selector](selectors.md) appears or disappears in that character's tree |
+| `s:ui():on(selector, event, fn)` | a [subscription](../event/README.md#subscribe) | `fn(widget)` when a widget matching a [selector](selectors.md) appears or disappears in that character's tree |
 | `widget:replace(view)` | the widget, chains | put your own window in place of the native one around it |
 
 ## Watching for a widget
@@ -61,8 +62,10 @@ rather than on the widget you asked for, so the widgets under that window are of
 widget already handed to you is never handed over twice. `[res=]` has no such moment, because a resource
 resolves on its own schedule, so a `[res=]` candidate is re-checked for a short while after placement.
 
-These are widget subscriptions rather than bus events: there is no `WidgetCreated` on
-[`hafen.event()`](../event/README.md), because you say *which* widget you care about.
+What you get back is a `Sub`, like every other `:on` in the API: `sub:key()` is the event it carries and
+`sub:off()` stops it, which is also done for you on reload or disable. These are widget subscriptions
+rather than bus events: there is no `WidgetCreated` on [`hafen.event()`](../event/README.md), because you
+say *which* widget you care about.
 
 ## Replacing a native window (unprotected)
 

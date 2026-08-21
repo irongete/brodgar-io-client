@@ -1,53 +1,50 @@
 # hafen.slash: console commands
 
-Register a `:name`-style console command, so the user can drive your addon by typing at it. This is
+Subscribe to a `:name`-style console command, so the user can drive your addon by typing at it. This is
 WoW's `SlashCmdList` pattern: the addon names a command, the engine routes it, and your function gets
 the words that followed. `hafen.slash()` is **unprotected** — it adds a way to call your own code.
 
 ```lua
-hafen.slash():register("greet", function(args)
+local cmd = hafen.slash():on("greet", function(args)
   hafen.log():write("hello, " .. (args[1] or "world"))
 end)
 -- in the console:  :greet Alice
+-- later:           cmd:off()
 ```
 
-## Register
+## Subscribe
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.slash():register(name, fn)` | [handle](#the-command-handle) | route the console command `:name args…` to `fn(args)` |
+| `hafen.slash():on(name, fn)` | a [subscription](event/README.md#subscribe) | route the console command `:name args…` to `fn(args)` |
 
 `name` is a single word: no spaces, and not empty. `fn(args)` receives `args`, a 1-based table of the
 whitespace-split words *after* the command name — `"quoted words"` group into one, and `\` escapes the
 next character. The command name itself is not in the table.
 
-Register any time; the file body is fine, and there is nothing to wait for. It is reload-safe: editing
+A command is a subscription like every other `:on` in the API. What you get back is a `Sub`: `cmd:key()`
+is the command name and `cmd:off()` stops it, after which typing `:name` reports that no addon handles
+it. Ending it is idempotent, and it is done for you on reload or disable.
+
+Subscribe any time; the file body is fine, and there is nothing to wait for. It is reload-safe: editing
 your file and running `:reload` swaps the handler with no duplicate and no leaked command.
 
-**When registration fails.** The engine's own commands — `lua`, `addons` and `reload` — are reserved,
-and a name an existing client command already owns is refused; both raise an error naming the command.
-If another *addon* holds the name, the newest registration wins and takes it over, and the console
-records the reassignment — so two addons claiming `:sort` is a first-come, last-served race rather than
-an error.
+**When it fails.** The engine's own commands — `lua`, `addons` and `reload` — are reserved, and a name
+an existing client command already owns is refused; both raise an error naming the command. If another
+*addon* holds the name, the newest subscription wins and takes it over, and the console records the
+reassignment — so two addons claiming `:sort` is a first-come, last-served race rather than an error.
 
-**A command you register answers from every character.** The name is routed once, for the client rather
-than for a login, so with several characters up it runs from whichever one's console you type it into
-and goes on running as you tab between them. There is nothing to re-register on a switch.
+**A command you subscribe to answers from every character.** The name is routed once, for the client
+rather than for a login, so with several characters up it runs from whichever one's console you type it
+into and goes on running as you tab between them. There is nothing to re-subscribe on a switch.
 
 **Where it runs.** The console dispatches on the UI thread, the same thread as everything else your
 addon does, so a command never races your own handlers. It runs under the same watchdog and error
 isolation: an error in it is logged, not propagated.
 
-## The command handle
-
-| Method | Description |
-|---|---|
-| `:remove()` | unregister; also done for you on reload or disable |
-
-After the last handler for a name is gone, typing `:name` reports that no addon handles it.
-
 ## See also
 
+- [`hafen.event`](event/README.md) — the `Sub` this hands back, and every other subscription in the API
 - [`hafen.log`](log.md) — printing back to the console the command was typed into
 - [`hafen.client():options():keybindings()`](client/keybindings.md) — a hotkey, the other way a user
   invokes an addon by hand

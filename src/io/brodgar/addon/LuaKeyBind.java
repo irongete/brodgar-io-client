@@ -8,7 +8,7 @@ import org.luaj.vm2.LuaValue;
 
 /**
  * A <b>global hotkey</b> binding (spec {@code 07-ui-and-drawing.md} "Input") — the Java half of
- * {@code hafen.client:options():keybindings():register(name, fn)}, Phase 2e-2. It pairs a client
+ * {@code hafen.client():options():keybindings():on(name, fn)}, Phase 2e-2. It pairs a client
  * {@link KeyBinding} (remappable + persisted in the client prefs under {@code keybind/addon/<id>/<name>}) with
  * the addon's Lua handler.
  *
@@ -21,8 +21,9 @@ import org.luaj.vm2.LuaValue;
  * (watchdog-armed, error-isolated, CPU-accounted). Being an early child of {@code ui.root}, the addon-root is
  * walked <b>last</b>, so a client binding on the same key wins — an addon hotkey is the fallback, never a hijack.
  *
- * <p>The addon never sees this object: it names the action and reads/drops it by that name
- * ({@code keybindings:get/set/unregister}), and the bridge owns the bind for teardown ({@link Addon#keybinds}, principle P2). The {@link #alive} flag makes a
+ * <p>The addon never sees this object: it names the action, holds the {@link LuaSub} that
+ * {@code keybindings:on} handed back — this object hangs off that sub's {@link LuaSub#tag} (086.1) — and ends
+ * it with {@code sub:off()}; the bridge owns the bind for teardown ({@link Addon#keybinds}, principle P2). The {@link #alive} flag makes a
  * dispatch that races teardown a no-op. The {@link KeyBinding} itself is process-global and persistent (that is
  * how the client remembers a re-mapped key) — teardown drops only this handler wrapper, never the KeyBinding.
  */

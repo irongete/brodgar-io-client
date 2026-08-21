@@ -19,14 +19,13 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
  * The interception subsystem. Owns the two ways an addon reaches into client behaviour beyond the read API
  * that are not a widget's own {@code :on(key, fn)} or the bus's (everything else moved off, see below):
  * <ul>
  *   <li><b>slash commands</b> ({@code hafen.slash}) — WoW-style {@code :name} console commands (A11);</li>
- *   <li><b>global hotkeys</b> ({@code hafen.client:options():keybindings()}) — remappable keys over the
+ *   <li><b>global hotkeys</b> ({@code hafen.client():options():keybindings()}) — remappable keys over the
  *       {@link KeyBinding} registry ({@link #dispatchKey}); the Lua surface is {@link KeybindingsOptions}.</li>
  * </ul>
  *
@@ -96,10 +95,12 @@ final class HookApi {
      */
     static void install(LuaTable hafen, final Addon owner) {
         LuaTable slash = new LuaTable();
-        // register(name, fn) — route the console command :name to fn(args).
-        slash.set("register", new VarArgFunction() {
+        // on(name, fn) — route the console command :name to fn(args). It is a SUBSCRIPTION like every other
+        // :on in the API (086.1): the Sub it hands back answers :key() (the command name) and :off(), and
+        // :off() drops the handler while the engine's own dispatcher stays installed forever (C1).
+        slash.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "slash", "register");
+                Section.self(a.arg1(), "slash", "on");
                 return newSlashCommand(owner, a);
             }
         });
@@ -118,16 +119,16 @@ final class HookApi {
     private static LuaValue newSlashCommand(final Addon owner, Varargs a) {
         // Args first, and one argument at a time: "expects (string, function)" named neither which of the
         // two was missing nor which was the wrong kind, and a missing one is the commoner mistake.
-        final String cmd = Args.str(a, 2, "hafen.slash():register", "name",
+        final String cmd = Args.str(a, 2, "hafen.slash():on", "name",
                                     "the word typed after the colon").tojstring();
-        LuaValue fn = Args.required(a, 3, "hafen.slash():register", "fn");
+        LuaValue fn = Args.required(a, 3, "hafen.slash():on", "fn");
         if(!fn.isfunction())
-            throw new LuaError("hafen.slash():register: fn must be a function — it is called with the rest"
+            throw new LuaError("hafen.slash():on: fn must be a function — it is called with the rest"
                 + " of the line, got " + fn.typename());
         if((cmd.length() == 0) || hasWhitespace(cmd))
-            throw new LuaError("hafen.slash():register: name must be a non-empty word with no spaces (got '" + cmd + "')");
+            throw new LuaError("hafen.slash():on: name must be a non-empty word with no spaces (got '" + cmd + "')");
         if(isReservedSlash(cmd))
-            throw new LuaError("hafen.slash():register: ':" + cmd + "' is a reserved engine command");
+            throw new LuaError("hafen.slash():on: ':" + cmd + "' is a reserved engine command");
         final LuaSlashCommand h = new LuaSlashCommand(owner, cmd, fn);
         synchronized(slashDispatched) {
             if(!slashDispatched.contains(cmd)) {
@@ -142,7 +143,7 @@ final class HookApi {
                     /* best-effort collision check — proceed if the console can't be queried right now */
                 }
                 if(exists)
-                    throw new LuaError("hafen.slash():register: ':" + cmd + "' is already a client command");
+                    throw new LuaError("hafen.slash():on: ':" + cmd + "' is already a client command");
                 Console.setscmd(cmd, new Console.Command() {
                     public void run(Console cons, String[] args) {
                         dispatchSlash(cmd, args);
@@ -161,14 +162,12 @@ final class HookApi {
             slashHandlers.put(cmd, h);   // last registration wins (the current live handler the dispatcher routes to)
         }
         owner.slashCommands.add(h);
-        LuaTable handle = new LuaTable();
-        handle.set("remove", new ZeroArgFunction() {
-            public LuaValue call() {
-                removeSlashCommand(owner, h);
-                return LuaValue.NIL;
-            }
-        });
-        return handle;
+        // 086.1: the command IS a subscription — the Sub is the handle, its key is the command name, and its
+        // Ended hook (Addon.slashSubs) is what endSlashCommand below runs. Built last, so nothing can end a
+        // registration the registry has not finished making.
+        LuaSub sub = owner.slashSubs.add(cmd, fn);
+        sub.tag = h;
+        return sub.handle();
     }
 
     /**
@@ -186,8 +185,15 @@ final class HookApi {
         h.invoke(words);
     }
 
-    /** Remove one slash command: drop the live handler + drop it from the owner (the engine dispatcher stays, C1). */
-    private static void removeSlashCommand(Addon owner, LuaSlashCommand h) {
+    /**
+     * End one slash command — the {@link Subs.Ended} hook of {@link Addon#slashSubs} (086.1), run by
+     * {@code sub:off()} and by the teardown below alike. It drops the live handler and drops the command from
+     * the owner; the engine's {@link Console} dispatcher for that name <b>stays installed</b> (C1:
+     * {@link Console#setscmd} has no unregister), after which it reports "no addon handles :name".
+     */
+    static void endSlashCommand(Addon owner, LuaSlashCommand h) {
+        if(h == null)
+            return;
         h.alive = false;
         slashHandlers.remove(h.name, h);   // only if h is STILL the current handler (a later addon may own it now)
         owner.slashCommands.remove(h);
@@ -195,11 +201,8 @@ final class HookApi {
 
     /** Drop every slash command this addon owns (teardown on reload/disable, P2). Console dispatchers stay (C1). */
     static void teardownSlashCommands(Addon a) {
-        for(LuaSlashCommand h : a.slashCommands) {
-            h.alive = false;
-            slashHandlers.remove(h.name, h);
-        }
-        a.slashCommands.clear();
+        a.slashSubs.clear();          // 086.1: one drop, and each sub's Ended clears its own live handler
+        a.slashCommands.clear();      //   (belt: a command with no sub behind it cannot exist)
     }
 
     /** Is {@code name} one of the addon engine's own console commands (which live in the same static map)? */
@@ -219,16 +222,17 @@ final class HookApi {
     // ============================================ global hotkeys (hafen.client:options():keybindings(), 2e-2)
 
     /**
-     * Declare one addon hotkey — the body of {@code keybindings:register(name, fn)}. The binding starts
+     * Declare one addon hotkey — the body of {@code keybindings:on(name, fn)}. The binding starts
      * <b>unbound</b> (D-047): the addon names an action, the user assigns the key in Options ▸ Keybindings.
      */
-    static void newKeyBind(final Addon owner, String name, LuaValue fn) {
+    static LuaKeyBind newKeyBind(final Addon owner, String name, LuaValue fn) {
         // KeyBinding.get() is a process-global registry: it returns the SAME binding across reloads/sessions, so
         // a user's assignment (persisted in the client prefs) survives; KeyMatch.nil applies only on first create.
         KeyBinding kbnd = KeyBinding.get("addon/" + owner.manifest.id + "/" + name, KeyMatch.nil);
         LuaKeyBind h = new LuaKeyBind(owner, name, kbnd, fn);
         keyBinds.add(h);
         owner.keybinds.add(h);
+        return h;
     }
 
     /**
@@ -277,8 +281,8 @@ final class HookApi {
 
     /**
      * Drop every hotkey {@code owner} registered under {@code name} (the body of
-     * {@code keybindings:unregister(name)}). Silent when the addon has no such hotkey — unregistering twice, or
-     * naming a client binding the addon does not own, is a no-op rather than an error.
+     * the {@link Subs.Ended} hook of {@link Addon#keySubs}). Silent when the addon has no such hotkey — ending
+     * a subscription twice, or naming a binding the addon does not own, is a no-op rather than an error.
      */
     static void removeKeyBindsNamed(Addon owner, String name) {
         for(LuaKeyBind h : owner.keybinds) {          // copy-on-write: safe to remove while iterating
@@ -293,8 +297,9 @@ final class HookApi {
      * remembers a re-mapped addon key across reloads) — teardown drops only the Lua-handler wrapper.
      */
     static void teardownKeyBinds(Addon a) {
-        for(LuaKeyBind h : a.keybinds) {
-            h.alive = false;
+        a.keySubs.clear();            // 086.1: one drop, and each sub's Ended unregisters its own hotkey
+        for(LuaKeyBind h : a.keybinds) {          // belt: a hotkey left firing into a torn-down env is the
+            h.alive = false;                      //   one failure this sweep must not have
             keyBinds.remove(h);
         }
         a.keybinds.clear();
@@ -303,7 +308,7 @@ final class HookApi {
     /**
      * The global-hotkey dispatch (spec 07 "Input" / Phase 2e-2) — the body behind {@link AddonManager#onGlobKey},
      * called from {@link AddonRoot#globtype}. Runs the handler of the first addon hotkey
-     * ({@code keybindings:register}) whose current key matches and returns whether the key was <b>consumed</b>. The addon-root is walked last,
+     * ({@code keybindings:on}) whose current key matches and returns whether the key was <b>consumed</b>. The addon-root is walked last,
      * so a client binding on the same key wins — an addon hotkey is the fallback, never a hijack.
      */
     static boolean dispatchKey(Widget.GlobKeyEvent ev) {
