@@ -1,0 +1,9 @@
+{
+  "name": "086.4 — a timer answers for itself",
+  "id": "086-one-handle-one-shape.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 086.4: hafen.timer()'s documented filter means something, because the handle it is called with answers :interval(), :repeats(), :due(), :alive() and :info(); the handle is userdata, so a write to it and a typo on it both raise; and hafen.timer():every(0, fn) repeats instead of firing once.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

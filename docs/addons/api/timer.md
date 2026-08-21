@@ -25,16 +25,31 @@ the function on the next tick. Timing is tick-resolution, not exact: a callback 
 at or after its due time, so treat the interval as a floor rather than a promise. A repeating timer's
 next run is due one interval after the *previous due time*, not after the callback finished, so a slow
 callback does not push the schedule out; it also fires at most once per tick, so a stall is not made up
-for afterwards. It keeps running until you cancel it or the addon goes away.
+for afterwards. An interval of `0` is due again the moment it has run, so it fires once a tick — the
+most often anything can, and you pay for its body every frame. It keeps running until you cancel it or
+the addon goes away.
 
 An error inside `fn` is logged and isolated, and it does not cancel the timer — a repeating timer whose
 body throws will throw again on every tick, so cancel it yourself when the failure is permanent.
 
 ## The timer handle
 
+What `:after` and `:every` hand back: the timer itself, which answers for its own schedule, so a
+`:list()` predicate can ask any of these.
+
 | Method | Description |
 |---|---|
+| `:interval()` | the seconds between runs, and `0` for a one-shot, which has none |
+| `:repeats()` | `true` for one made with `:every`, `false` for one made with `:after` |
+| `:due()` | seconds until it next runs, `0` when it is due on this tick, `nil` once it is dead |
+| `:alive()` | still scheduled: `false` once cancelled, and once a one-shot has run |
 | `:cancel()` | stop the timer; safe to call more than once, and on one that has already fired |
+| `:info()` | a snapshot table carrying `interval`, `repeats`, `due` and `alive` |
+
+`tostring(t)` reads `Timer(every 5s)`, `Timer(after 2s, fired)` or `Timer(after 2s, cancelled)`, so a
+log line of your own timers says which is which. A verb the timer has not got raises naming the ones it
+has, and writing to the handle — `t.cancel = nil` — is refused: the verb that stops your timer cannot be
+taken off it.
 
 ## Read what is scheduled
 
@@ -48,14 +63,17 @@ one you kept.
 | `hafen.timer():count(filter)` | number | how many are still scheduled |
 | `hafen.timer():find(filter)` | handle \| nil | the first one that matches |
 
-`filter` is omitted for all of them, or a **function** called with each handle. A timer has no name, so
-the string form of the [filter](conventions.md#the-filter-argument) is refused here rather than
-matching nothing. A collection is an object, not an array: `#` and `[n]` on it are refused, and
-`:list()` is the array you index.
+`filter` is omitted for all of them, or a **function** called with each handle — which answers the
+[reads above](#the-timer-handle), so a predicate can ask about the schedule and not only about
+identity. A timer has no name, so the string form of the
+[filter](conventions.md#the-filter-argument) is refused here rather than matching nothing. A
+collection is an object, not an array: `#` and `[n]` on it are refused, and `:list()` is the array you
+index.
 
 ```lua
 hafen.timer():every(1, tick)
-hafen.log():write(hafen.timer():count() .. " timer(s) running")
+hafen.log():write(hafen.timer():count() .. " timer(s) running, "
+                  .. hafen.timer():count(function(t) return t:repeats() end) .. " of them repeating")
 for _, t in ipairs(hafen.timer():list()) do t:cancel() end
 ```
 

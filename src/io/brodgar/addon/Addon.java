@@ -515,6 +515,14 @@ public final class Addon {
     LuaValue grabMeta;
 
     /**
+     * This addon's <b>Timer metatable</b> ({@link AddonManager.Timer}) — the vocabulary
+     * {@code hafen.timer():after}/{@code :every} hands back, built once on the first timer scheduled. Per
+     * addon for the same reason every metatable here is (D-017). The handle holds the {@link
+     * AddonManager.Timer} itself, which is torn down through {@link #timers}, not here.
+     */
+    LuaValue timerMeta;
+
+    /**
      * This addon's <b>client handles</b> ({@link OptionsHandle}) — {@code hafen.client():options()}, its six
      * subsystem handles ({@code interface} {@code video} {@code audio} {@code camera} {@code client}
      * {@code keybindings}) and {@code hafen.client():profiling()} — each built on first use and handed back

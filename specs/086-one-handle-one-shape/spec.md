@@ -258,12 +258,12 @@ Under `src/io/brodgar/addon/`, tagged with the tasks that need each:
   `haven/KeyMatch` (`nil`, `name`, `reduce`, `restore`) — 3, 6
 - `LuaCollection` (`Source`, `named()`, `needle()`, `noGet()`, `missing()`, `create`, `receiver`) —
   2, 3
-- `AddonManager` (`newTimer`, `Timer`, `runTimers`, `clock`, and the `hafen.timer()` mount with its
-  `timerVerbs` and `Source`) — 4
+- `AddonManager` (`newTimer`, `Timer`, `runTimers`, `clock`, `timerMeta`, and the `hafen.timer()` mount
+  with its `timerVerbs` and `Source`), `Addon` (`timerMeta`) — 4
 - `AssetApi` (`imageHandle`, `meshHandle`, `dataHandle`, `addAssetVerbs`, `Disposer`, `imageFor`,
   `Entry`, `teardownAssets`), `LuaImage` (`KEY`, `resolve`, `handle`, `dead`), `LuaMesh` (`KEY`,
   `resolve`), `FontApi` (`mint`, `fontHandle`, `handleFor`, `property`), `FontHandle` (`KEY`,
-  `handle`, `draft`, `used`), `MapImages` (`handleFor`, its `size`/`info` verbs) — 5
+  `handle`, `draft`, `used`), `MapImages` (`handleFor`, its `size`/`info` verbs), `Retired` (`closedIndex`) — 5
 - `OptionsHandle` (`install`, `create`), `AudioOptions`, `CameraOptions`, `ClientOptions`,
   `InterfaceOptions`, `VideoOptions`, `KeybindingsOptions`, `ProfHandle`, `ProfScope`, `HttpApi`
   (`newHttpRequest`), `LuaHttp`, `VrApi` (`entityHandle`), `Retired` (`closedIndex`, `moved`,

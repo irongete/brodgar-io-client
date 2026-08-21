@@ -98,7 +98,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       striking that line is the maintainer's.
       <!-- extra context: src/haven/KeyBinding.java (defkey, key, set, set(), key(), all — and the comment on set about reverting vs disabling), src/haven/KeyMatch.java (nil, name, reduce), docs/client/multi-session.md (KeyBinding.get runs no exclusivity pass) -->
 
-- [ ] **086.4 — A timer answers for itself.** `timer.md` documents a filter — *"a function called
+- [x] **086.4 — A timer answers for itself.** `timer.md` documents a filter — *"a function called
       with each handle"* — over a handle whose only verb is `cancel`, so a predicate can test identity
       and nothing else, which `==` already does. `AddonManager.Timer` gains `final boolean repeats`,
       set from `newTimer`'s own argument rather than inferred from `interval > 0`, and `runTimers`

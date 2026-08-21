@@ -75,7 +75,6 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.ThreeArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -1321,10 +1320,11 @@ public final class AddonManager {
             }
             if(clock >= t.due) {
                 callLua(a, Addon.C_TIMER, t.fn);
-                if(t.interval > 0) {
-                    t.due += t.interval;                     // repeating: reschedule (fires once/tick)
+                if(t.repeats) {
+                    t.due += t.secs;                         // repeating: reschedule (fires once/tick)
                 } else {
-                    t.alive = false;                         // one-shot
+                    t.fired = true;                          // one-shot: it ran, which tostring says
+                    t.alive = false;
                     a.timers.remove(t);
                 }
             }
@@ -3504,18 +3504,102 @@ public final class AddonManager {
         double s = sec.todouble();
         if(s < 0)
             s = 0;
-        final Timer t = new Timer(owner, clock + s, repeat ? s : 0, fn);
+        Timer t = new Timer(owner, clock + s, s, repeat, fn);
+        t.handle = LuaValue.userdataOf(t, timerMeta(owner));  // set BEFORE the timer is live: list() reads it
         owner.timers.add(t);
-        LuaTable h = new LuaTable();
-        h.set("cancel", new ZeroArgFunction() {
-            public LuaValue call() {
+        return t.handle;    // so hafen.timer():list() hands back the SAME handle the caller holds
+    }
+
+    /**
+     * The per-addon <b>Timer metatable</b> (086.4) — the vocabulary a scheduled timer answers, shared by every
+     * handle this addon is handed rather than a table of closures minted per timer, so scheduling one costs a
+     * userdata and nothing else.
+     *
+     * <p><b>Why the handle reads at all.</b> {@code hafen.timer()} is a collection and its {@code :list}
+     * {@code :count} {@code :find} take a predicate called with each handle — which, over a handle carrying
+     * {@code cancel} alone, could test identity and nothing else, a question {@code ==} already answers. With
+     * {@code :interval()} {@code :repeats()} {@code :due()} and {@code :alive()} the documented filter means
+     * something: {@code hafen.timer():count(function(t) return t:repeats() end)}.
+     *
+     * <p>Userdata rather than a table for the two things a table cannot do: {@code t.cancel = nil} is refused
+     * (an addon cannot break its own teardown), and a typo throws naming the vocabulary instead of reading
+     * {@code nil} and failing one call later as <i>attempt to call a nil value</i>. Per addon for the reason
+     * every metatable in the bridge is: no Lua value crosses a sandbox boundary (D-017).
+     */
+    private static LuaValue timerMeta(Addon owner) {
+        if(owner.timerMeta != null)
+            return owner.timerMeta;
+        LuaTable m = new LuaTable();
+        // cancel() — stop it. Idempotent, and legal on one that has already fired: the flag is what the fire
+        // loop reads, and the list drops it on its next pass whichever path got there first.
+        m.set("cancel", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Timer t = timer(self, "cancel");
                 t.alive = false;
-                owner.timers.remove(t);
+                t.owner.timers.remove(t);
                 return LuaValue.NIL;
             }
         });
-        t.handle = h;    // so hafen.timer():list() hands back the SAME handle the caller holds
-        return h;
+        // interval() — the seconds between runs, and 0 for a one-shot, which has none. The delay a :after
+        // was scheduled with is over once it has run; :due() is the live half of that question.
+        m.set("interval", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Timer t = timer(self, "interval");
+                return LuaValue.valueOf(t.repeats ? t.secs : 0);
+            }
+        });
+        // repeats() — :every or :after. The one property a predicate over this collection most wants.
+        m.set("repeats", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(timer(self, "repeats").repeats);
+            }
+        });
+        // due() — seconds until it next runs, 0 when it is due on this tick, and nil once it is dead, where
+        // "when does it next run" has no answer.
+        m.set("due", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Timer t = timer(self, "due");
+                return t.alive ? LuaValue.valueOf(Math.max(0.0, t.due - clock)) : LuaValue.NIL;
+            }
+        });
+        // alive() — still scheduled? False once cancelled, and once a one-shot has run.
+        m.set("alive", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(timer(self, "alive").alive);
+            }
+        });
+        // info() — the one snapshot escape hatch, the same four reads in a plain table.
+        m.set("info", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Timer t = timer(self, "info");
+                LuaTable out = new LuaTable();
+                out.set("interval", LuaValue.valueOf(t.repeats ? t.secs : 0));
+                out.set("repeats", LuaValue.valueOf(t.repeats));
+                out.set("due", t.alive ? LuaValue.valueOf(Math.max(0.0, t.due - clock)) : LuaValue.NIL);
+                out.set("alive", LuaValue.valueOf(t.alive));
+                return out;
+            }
+        });
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Retired.closedIndex("timer", m,
+            "a timer answers :cancel() :interval() :repeats() :due() :alive() and :info()"));
+        mt.set("__name", LuaValue.valueOf("Timer"));
+        mt.set("__tostring", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(timer(self, "tostring").toString());
+            }
+        });
+        owner.timerMeta = mt;
+        return mt;
+    }
+
+    /** The receiver of a colon call on a timer handle, or the error that says a dot call passed the wrong self. */
+    private static Timer timer(LuaValue self, String method) {
+        Object o = self.isuserdata() ? self.touserdata() : null;
+        if(!(o instanceof Timer))
+            throw new LuaError("t:" + method + "() — use a COLON call on the timer hafen.timer():after(s, fn)"
+                + " or :every(s, fn) handed back (t:" + method + "())");
+        return (Timer)o;
     }
 
     // ------------------------------------------------------------- logging (hafen.log():write + console output)
@@ -4398,22 +4482,44 @@ public final class AddonManager {
      * same package for a later reader to confuse.
      */
 
-    /** A live timer: {@code due} is engine-clock seconds; {@code interval<=0} means one-shot. */
+    /** A live timer: {@code due} is engine-clock seconds, {@code secs} is what was asked for. */
     public static final class Timer {
         final Addon owner;
         double due;
-        final double interval;
+        /** The seconds asked for: a one-shot's delay, a repeating timer's period. */
+        final double secs;
+        /**
+         * Whether it reschedules after each run — {@code :every} rather than {@code :after} (086.4). Its own
+         * field rather than {@code secs > 0}, because {@code :every(0, fn)} is a repeating timer with a zero
+         * period: it is due again the moment it has run, which is once a tick, and that is what
+         * {@code timer.md} has always said a repeating timer does.
+         */
+        final boolean repeats;
         final LuaValue fn;
         boolean alive = true;
+        /** Set when a one-shot has run, so {@code tostring} tells a fired timer from a cancelled one. */
+        boolean fired;
         /** The Lua handle this timer was handed out as, so {@code hafen.timer():list()} answers by identity. */
         LuaValue handle;
 
-        Timer(Addon owner, double due, double interval, LuaValue fn) {
+        Timer(Addon owner, double due, double secs, boolean repeats, LuaValue fn) {
             this.owner = owner;
             this.due = due;
-            this.interval = interval;
+            this.secs = secs;
+            this.repeats = repeats;
             this.fn = fn;
         }
+
+        /** {@code tostring(t)}: {@code Timer(every 5s)}, {@code Timer(after 2s, fired)}. */
+        public String toString() {
+            return "Timer(" + (repeats ? "every " : "after ") + fmtSecs(secs) + "s"
+                + (alive ? "" : (fired ? ", fired" : ", cancelled")) + ")";
+        }
+    }
+
+    /** Seconds as a person writes them: {@code 5}, {@code 0.25}. */
+    private static String fmtSecs(double s) {
+        return (s == Math.rint(s)) ? Long.toString((long)s) : Double.toString(s);
     }
 
 

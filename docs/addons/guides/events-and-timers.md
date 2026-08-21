@@ -61,13 +61,13 @@ Ask for the cheapest thing that answers the question.
 | to do something *per frame* | `Update`, and nothing that scans |
 
 ```lua
-hafen.timer():every(2, function()                  -- polling, twice as slow as it feels
+local poll = hafen.timer():every(2, function()     -- polling, twice as slow as it feels
   local s = hafen.session():current()
   if s then hafen.log():write("trees: " .. s:world():gob():count("terobjs/tree")) end
 end)
 
-local handle = hafen.timer():after(5, function() end)
-handle:cancel()
+hafen.log():write("next poll in " .. poll:due() .. "s")   -- the handle answers for its own schedule
+poll:cancel()
 ```
 
 `Update` runs on the client's UI thread, in the middle of the frame it is drawing, so what it does you
