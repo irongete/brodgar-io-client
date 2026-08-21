@@ -658,11 +658,20 @@ final class Retired {
         put("hafen.client.options", "hafen.client:options() is now hafen.client():options()");
         put("hafen.client.profiling", "hafen.client:profiling() is now hafen.client():profiling()");
 
-        // ---- the keybinding registry: the LAST get/set pair in the whole API ------------------------------
-        put("keybindings:get", "kb:get(name) is now kb:key(name) — one name reads a binding's key and writes"
-            + " it, like every other property in the API");
-        put("keybindings:set", "kb:set(name, key) is now kb:key(name, key) — one name reads a binding's key"
-            + " and writes it, like every other property in the API");
+        // ---- the keybinding registry: the address-plus-value form, and the one :list() that was a MAP ----
+        // ---- (086.3). A binding is an OBJECT now, reached through the collection, so the four spellings
+        // ---- that addressed one by name all name the same replacement.
+        put("keybindings:get", "kb:get(name) is now kb:binding():get(id):key() — a binding is an object,"
+            + " and the one name on it reads its key and writes it");
+        put("keybindings:set", "kb:set(name, key) is now kb:binding():get(id):key(key) — a binding is"
+            + " an object, and the one name on it reads its key and writes it");
+        put("keybindings:key", "kb:key(name) and kb:key(name, key) are now kb:binding():get(id):key() and"
+            + " :key(key) — the binding IS the address, so there is no name-plus-value form. It also"
+            + " answers :default() and :assigned(), and :key(nil) puts it back on the client's own default,"
+            + " which the pair could not do");
+        put("keybindings:list", "kb:list() is now kb:binding():list(filter) — a plain ARRAY of Binding"
+            + " objects, so ipairs walks it, where the old table was keyed by id and ipairs walked nothing."
+            + " b:id() is what the key was and b:key() what the value was");
 
         // ---- the character sheet: four flat readers become four collections, and one of them a sub-list ----
         put("hafen.char.attr", "hafen.char.attr(name) is now s:char():attr():get(name), and what it"

@@ -1,0 +1,9 @@
+{
+  "name": "086.3 — a binding is an object",
+  "id": "086-one-handle-one-shape.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 086.3: keybindings():binding() is a collection whose :list() ipairs actually walks, whose :get(id) addresses one Binding and mints for an id nothing has declared yet, and whose members carry the registry's three states — assign, \"None\" to unbind, and nil to put the binding back on the client's own default — with :default(), :assigned() and :info() reading them back, while the two spellings that addressed a binding by name are retired.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

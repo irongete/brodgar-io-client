@@ -24,10 +24,19 @@ So say what you would have claimed, in your addon's own README:
 Suggested key: Ctrl+H — assign it in Options > Keybindings > My Addon.
 ```
 
-The assignment is the client's, and it survives `:reload` and restarts. Names are scoped to your addon, so
-`on("toggle", …)` and `key("toggle")` mean yours, while a name that is not one of yours reaches the
-client's own registry — which is how you read or remap a built-in binding. The
-[reference](../api/client/keybindings.md) has the verbs, the key-string grammar and what `list()` reports.
+The assignment is the client's, and it survives `:reload` and restarts. To read it, or to write one, go
+through the binding itself:
+
+```lua
+local b = keys:binding():get("toggle")     -- your own names resolve; anything else is a registry id
+hafen.log():write("bound to: " .. tostring(b:key()))
+```
+
+`keys:binding()` is every binding the client knows, yours and its own, so that is also how you read or
+remap a built-in one. A binding is three-valued — on the client's default, assigned by the user, or
+unbound by the user — and `b:key(nil)` is the one that puts it back on the default, which is what makes
+saving and restoring a key safe. The [reference](../api/client/keybindings.md) has the rest of the object,
+the collection verbs and the key-string grammar.
 
 > A hotkey runs **after** the client's own bindings, through the same registry. To intercept a mouse event
 > *before* the widget under it sees it, that is [`widget:on(key, fn)`](../api/ui/widget.md#subscribing)

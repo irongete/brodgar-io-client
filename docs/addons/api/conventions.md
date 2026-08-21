@@ -87,7 +87,7 @@ collection and is declared by it:
 | A miss gives you | Which collections |
 |---|---|
 | `nil` | every collection not named below |
-| an object, so [`:exists()`](#objects-and-the-snapshot-hatch) is the question | `hafen.session()`, `hafen.sound()`, `s:world():gob()`, `s:kin():get(id)`, `s:actionbar()` |
+| an object, so [`:exists()`](#objects-and-the-snapshot-hatch) is the question | `hafen.session()`, `hafen.sound()`, `s:world():gob()`, `s:kin():get(id)`, `s:actionbar()`, `keybindings():binding()` |
 | an error naming the keys there are | `hafen.asset()`, `hafen.font()`, `s:char():attr()`, `hafen.map():overlay()` |
 
 **A collection whose members have no key has no `:get`, and says what to reach for instead.** Two buffs

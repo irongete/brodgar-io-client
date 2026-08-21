@@ -252,9 +252,10 @@ Under `src/io/brodgar/addon/`, tagged with the tasks that need each:
 - `HookApi` (`newSlashCommand`, `dispatchSlash`, `teardownSlashCommands`, `slashDispatched`,
   `slashHandlers`, `isReservedSlash`, `hasWhitespace`, `removeKeyBindsNamed`, `teardownKeyBinds`,
   `parseKeyMatch`), `LuaSlashCommand`, `LuaKeyBind` — 1, 2, 3
-- `KeybindingsOptions` (`create`, `methods`, `register`, `key`, `unregister`, `list`, `resolve`,
-  `scoped`), `haven/KeyBinding` (`defkey`, `key`, `set`, `set()`, `key()`, `get`, `all`, and the
-  existing `// addon:` unbind), `haven/KeyMatch` (`nil`, `name`, `reduce`, `restore`) — 3
+- `KeybindingsOptions` (`create`, `methods`, `on`, `binding`), `LuaBinding` (`COLL`, `id`, `of`,
+  `resolve`, `binding()`, `keyName`, `collection`, `Cache`, `methods`), `haven/KeyBinding` (`defkey`,
+  `key`, `set`, `set()`, `key()`, `get`, `all`, and the existing `// addon:` unbind),
+  `haven/KeyMatch` (`nil`, `name`, `reduce`, `restore`) — 3, 6
 - `LuaCollection` (`Source`, `named()`, `needle()`, `noGet()`, `missing()`, `create`, `receiver`) —
   2, 3
 - `AddonManager` (`newTimer`, `Timer`, `runTimers`, `clock`, and the `hafen.timer()` mount with its

@@ -1,7 +1,6 @@
 package io.brodgar.addon;
 
 import haven.KeyBinding;
-import haven.KeyMatch;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -21,10 +20,16 @@ import org.luaj.vm2.lib.VarArgFunction;
  * binding matches first ({@link AddonRoot} is walked last) and the addon's hotkey silently never fires.
  *
  * <p><b>Name resolution.</b> An addon's own hotkeys live under {@code addon/<addonid>/<name>}, so
- * {@code on("test", ...)} then {@code key("test")} refer to the same binding without the addon ever
+ * {@code on("test", ...)} then {@code binding():get("test")} refer to the same binding without the addon ever
  * spelling its own id. A name that has no addon-scoped binding falls back to the raw registry id, which is how
- * a built-in client hotkey is reached ({@code key("inv")}, {@code key("inv", "Ctrl+I")}). The addon scope is
- * tried first so an addon can never be shadowed by a client binding that happens to share its name.
+ * a built-in client hotkey is reached ({@code binding():get("inv")}). The addon scope is tried first so an
+ * addon can never be shadowed by a client binding that happens to share its name. That resolution lives on
+ * the collection ({@link LuaBinding#collection}), which is what addresses a binding now.
+ *
+ * <p><b>Two verbs, and each is a whole surface.</b> {@code on} declares a hotkey and hands back a
+ * {@link LuaSub}; {@code binding()} is the collection of every {@link KeyBinding} the client knows, whose
+ * members carry the read and the write. There is no address-plus-value form beside it — {@code key(name, k)}
+ * was one, and a collection plus an object says the same thing with one way to write it.
  */
 public final class KeybindingsOptions {
     private KeybindingsOptions() {}
@@ -35,24 +40,14 @@ public final class KeybindingsOptions {
         LuaTable mt = new LuaTable();
         // Retired.closedIndex, not the methods table itself: kb:get / kb:set would otherwise read as plain nil
         // and fail one call later as "attempt to call a nil value", saying nothing about what replaced them.
-        mt.set(LuaValue.INDEX, Retired.closedIndex("keybindings", methods(owner, kb),
-            "the keybindings handle answers :on() :key() and :list()"));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("keybindings", methods(owner),
+            "the keybindings handle answers :on() and :binding()"));
         kb.setmetatable(mt);
         return kb;
     }
 
-    /** This addon's namespaced registry id for {@code name}. */
-    private static String scoped(Addon owner, String name) {
-        return "addon/" + owner.manifest.id + "/" + name;
-    }
-
-    /** The binding {@code name} refers to: this addon's own first, else the raw registry id; null if neither. */
-    private static KeyBinding resolve(Addon owner, String name) {
-        KeyBinding own = KeyBinding.get(scoped(owner, name));
-        return (own != null) ? own : KeyBinding.get(name);
-    }
-
-    private static LuaTable methods(final Addon owner, final LuaValue handle) {
+    private static LuaTable methods(final Addon owner) {
+        final LuaValue bindings = LuaBinding.collection(owner);
         LuaTable m = new LuaTable();
 
         // on(name, fn) — declare a hotkey owned by this addon. It starts UNBOUND: an addon names an
@@ -79,45 +74,16 @@ public final class KeybindingsOptions {
             }
         });
 
-        // key(name) / key(name, key) — read a binding's current key as a display string ("Ctrl+M"), or remap it
-        // exactly as the keybind panel does (persisted; "None" unbinds). This was the API's LAST get/set pair
-        // and it collapses onto one name like every other property: arity is the verb, and the first argument
-        // is the ADDRESS of the binding rather than a value being written. A read misses to nil (an unknown or
-        // unbound name is a real answer); a WRITE to an unknown name throws, because there is nothing to remap.
-        m.set("key", new VarArgFunction() {
+        // binding() — the collection of every KeyBinding the client knows: this addon's hotkeys, other
+        // addons' and the client's own, ordered by id. It IS the address (b:key() reads, b:key(k) writes,
+        // b:key(nil) reverts), so there is no address-plus-value verb beside it: one collection and one
+        // object where a get/set pair and a map-shaped list used to be.
+        m.set("binding", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaValue name = Args.str(a, 2, "keybindings:key", "name", "the binding's own name");
-                LuaValue key = Args.written(a, 3, "keybindings:key", "key");
-                KeyBinding b = resolve(owner, name.tojstring());
-                if(key == null) {                          // the read arity
-                    if(b == null)
-                        return LuaValue.NIL;
-                    KeyMatch km = b.key();
-                    return ((km == null) || (km == KeyMatch.nil)) ? LuaValue.NIL : LuaValue.valueOf(km.name());
-                }
-                Args.str(key, "keybindings:key", "key", "\"F5\", \"Ctrl+M\", \"None\" to unbind");
-                if(b == null)
-                    throw new LuaError("keybindings:key: no binding named '" + name.tojstring() + "'");
-                KeyMatch km = HookApi.parseKeyMatch(key.tojstring());
-                if(km == null)
-                    throw new LuaError("keybindings:key: cannot parse key '" + key.tojstring()
-                                       + "' (examples: \"F5\", \"Ctrl+M\", \"Shift+Alt+Left\", \"None\")");
-                b.set(km);
-                return handle;
-            }
-        });
-
-        // list() — { [id] = key } over the whole registry: this addon's hotkeys, other addons', and the
-        // client's own. Unbound entries read "None" (KeyMatch.nil.name()) rather than being omitted, so the
-        // table doubles as the set of bindable actions.
-        m.set("list", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaTable t = new LuaTable();
-                for(KeyBinding b : KeyBinding.all()) {
-                    KeyMatch km = b.key();
-                    t.set(b.id, LuaValue.valueOf((km == null) ? KeyMatch.nil.name() : km.name()));
-                }
-                return t;
+                if(Args.passed(a, 2))
+                    throw new LuaError("keybindings:binding() takes no arguments — it IS the collection:"
+                        + " :get(id) addresses one binding and :list(filter) / :find(filter) search them");
+                return bindings;
             }
         });
         return m;

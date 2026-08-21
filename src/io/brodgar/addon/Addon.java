@@ -532,6 +532,16 @@ public final class Addon {
              clientKeybindings, clientProfiling;
 
     /**
+     * This addon's <b>Binding interning cache</b> ({@code keybindings():binding():get(id)}, 086.3): the
+     * weak-valued {@code registry id -> Binding object} map, its {@link java.lang.ref.ReferenceQueue} and the
+     * per-addon metatable. Same contract as {@link #kins} — per-addon so no Lua value crosses a sandbox
+     * boundary (D-017), and the whole cache dies with this {@link Addon} on {@code :reload}/disable. Nothing
+     * to tear down: a handle holds a String id, and the {@link haven.KeyBinding} it addresses is
+     * process-global and deliberately outlives the addon, which is how the user's assignment survives.
+     */
+    final LuaBinding.Cache bindings = new LuaBinding.Cache(this);
+
+    /**
      * This addon's <b>event-object metatables</b> ({@link LuaEvent}), one per shape, each built on the first
      * {@code ev} of that shape. Per addon for the reason every metatable here is (D-017), and indexed by
      * {@link LuaEvent.Shape#ordinal()} rather than kept in a map: the shapes are a closed enum known at

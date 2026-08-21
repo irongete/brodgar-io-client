@@ -67,7 +67,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       reason: the member is the `Sub` itself, so `cmd:name()` shipped as `sub:key()`.
       <!-- extra context: src/io/brodgar/addon/LuaCollection.java (Source.named/needle/noGet/missing, create, receiver), AddonManager.java (the hafen.timer() mount, as the model) -->
 
-- [ ] **086.3 — A binding is an object.** `keybindings:list()` returns `{ [id] = key }`, so
+- [x] **086.3 — A binding is an object.** `keybindings:list()` returns `{ [id] = key }`, so
       `ipairs` over it walks **nothing** and raises nothing — the one `:list()` in the API that is not
       an array. New `LuaBinding` over `haven.KeyBinding`, interned per addon by binding id on the
       `LuaFightSummary.Cache` pattern, and `keybindings:binding()` hands back a `LuaCollection` over
