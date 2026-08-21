@@ -596,7 +596,7 @@ final class Sheet {
         /** The winning {@code font} property, or {@code null}. */
         final FontHandle font;
         /**
-         * The addon whose sheet won {@code font}. A {@link FontHandle}'s Lua handle table belongs to the addon that
+         * The addon whose sheet won {@code font}. A {@link FontHandle}'s Lua handle belongs to the addon that
          * made it, and <b>no Lua value crosses a sandbox boundary</b> (D-017) — so a reader that is not this addon
          * is handed its own interned view instead ({@link FontApi#handleFor}).
          */

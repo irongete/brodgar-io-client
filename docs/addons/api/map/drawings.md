@@ -62,6 +62,16 @@ picture alive.
 > description, not a file you could load. An asset is a file your addon shipped; this is a picture the
 > client drew of the database.
 
+It is an [object like every other handle](../asset.md#every-asset) — you cannot write to it, and a name it
+does not answer raises naming the ones it does. `tostring` gives you `Asset(image, map:<gridId>@<level>)`
+for a drawing of the ground and `Asset(image, overlay:<tag>@<gridId>)` for a mask, so a log line says which
+picture it is holding. Beside `:size()`, `:type()`, `:path()` and `:dispose()` it answers one verb an
+asset does not:
+
+| Method | Description |
+|---|---|
+| `img:info()` | `{source = "map", what, size = {w=, h=}, disposed}` — what was drawn, and whether it is still alive |
+
 A minimap panel is these pages end to end: its picture comes from `grid:image`, its pins from
 `seg:markers()`, and handing the handle to the stylesheet as `bg = { image = … }` makes the **engine**
 paint it — `0` draw callbacks of your own while a map is on the screen.

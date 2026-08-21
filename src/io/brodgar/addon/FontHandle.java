@@ -9,7 +9,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.luaj.vm2.LuaError;
-import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /**
@@ -21,13 +20,14 @@ import org.luaj.vm2.LuaValue;
  * (D-043): another addon cannot look it up, so there are no name collisions and no coupling.
  *
  * <p><b>Handle, not a ref.</b> Like {@link LuaImage}, a font has no server identity, so it is addressed by a
- * bridge-owned handle ({@link FontApi#fontHandle}) exposing {@code :derive(opts)} &rarr; a cheap variant,
- * {@code :family()} &rarr; the AWT family name (feed it to a {@code $font[…]} rich-text tag, F2), and
- * {@code :size()} &rarr; the handle's logical px size. The handle table carries this object as an <b>opaque
- * userdata</b> (the {@link #KEY} field) so {@code hafen.font.setFont}, a widget's {@code font=} option (F2), and
- * the {@code g:text} draw wrapper (F2) can {@link #resolve} it back — <b>facade-safe</b> (no AWT {@code Font}
- * crosses into Lua, D-017): the userdata has no metatable, so no Java method is reachable, and it cannot be
- * forged (the sandbox omits {@code luajava}).
+ * bridge-owned handle ({@link FontApi#fontHandle}): this object itself, crossing into Lua as
+ * {@code LuaValue.userdataOf(this, mt)} with one of two per-addon metatables — a face, and a face that is
+ * also a file this addon loaded, which additionally answers the asset verbs. The vocabulary is
+ * {@code :derive()} &rarr; a cheap variant, {@code :family()} &rarr; the AWT family name (feed it to a
+ * {@code $font[…]} rich-text tag, F2), and the five properties. A widget's {@code font=} option (F2) and the
+ * {@code g:text} draw wrapper (F2) {@link #resolve} the value back — <b>facade-safe</b> (no AWT {@code Font}
+ * crosses into Lua, D-017): no Java method is reachable through the vocabulary, and it cannot be forged (the
+ * sandbox omits {@code luajava}).
  *
  * <p><b>Immutable once it is USED.</b> {@code :derive()} hands back a draft whose five properties are chained
  * setters; the moment {@link #resolve} gives the object to a consumer it is sealed, and every other handle (a
@@ -36,15 +36,19 @@ import org.luaj.vm2.LuaValue;
  * {@code .ttf} also registers its family into AWT (see {@link FontApi}) so {@link #family()} resolves in a
  * {@code $font} tag with zero {@code RichText} edit.
  */
-public final class FontHandle {
-    /** The handle-table field carrying this object as an opaque userdata (read by {@link #resolve}). */
-    static final LuaValue KEY = LuaValue.valueOf("__font");
-
+public final class FontHandle implements AssetApi.Loaded {
     Font    font;          // the AWT font with bold/italic baked in (size applied per-site by the provider)
     Integer size;          // logical px, or null = "use the stock size of whatever surface this is applied to"
     Boolean aa;            // or null = inherit the surface's stock antialias flag
     Color   color;         // or null = inherit the surface's stock default colour
-    LuaValue handle;       // the Lua handle table (set by FontApi.fontHandle)
+    LuaValue handle;       // the Lua handle (set by FontApi.fontHandle)
+    /**
+     * What the shared asset verbs answer for this face, and how it frees itself — <b>null on every handle
+     * that was not loaded from a file</b>, which is a built-in, a {@code :derive()}d variant and this addon's
+     * view of another addon's face. Those wear the metatable that carries none of those verbs, so the field
+     * and the vocabulary say the same thing from the two sides.
+     */
+    AssetApi.Asset asset;
 
     // The two flags that make the four fields above safe to be non-final. A handle is WRITABLE only while it is
     // a draft that nothing has used yet: `draft` is set for what :derive() hands back and for nothing else (a
@@ -137,26 +141,33 @@ public final class FontHandle {
         return f;
     }
 
+    public AssetApi.Asset asset() {
+        return asset;
+    }
+
     /**
-     * Resolve a Lua value (a font handle table — {@code hafen.asset}/{@code hafen.font} — or the raw backing userdata) back to its
-     * {@link FontHandle}; {@code null} for anything else (a nil/typo/foreign value). Mirrors {@link LuaImage#resolve}.
+     * The handle behind a font value — {@code hafen.font():get(name)}, {@code hafen.asset():get(path)}, a
+     * variant, another addon's face read off a rule — <b>without</b> sealing it; {@code null} for anything
+     * else (a nil, a typo, a foreign value). This is the resolution a font's <b>own</b> verbs use: reading
+     * {@code d:size()} or writing {@code d:size(12)} is the addon configuring its own draft, not a consumer
+     * taking the face, so it must not end the draft's writable life. Every consumer wants {@link #resolve}.
+     */
+    static FontHandle of(LuaValue v) {
+        if((v == null) || !v.isuserdata())
+            return null;
+        Object o = v.touserdata();
+        return (o instanceof FontHandle) ? (FontHandle)o : null;
+    }
+
+    /**
+     * The same resolution for a <b>consumer</b> — a rule, a widget, a draw call — which reads the face at
+     * that moment, so the handle is sealed here: a setter afterwards would take and change nothing.
+     * Mirrors {@link LuaImage#resolve}, with that one extra job.
      */
     static FontHandle resolve(LuaValue v) {
-        if(v == null)
-            return null;
-        // rawget, never get: since 084.1 an entity handle is a CLOSED vocabulary, and two of them (a VR
-        // entity, the keybindings handle) are tables — so a get() probe on the wrong argument would fire
-        // that type's "has no verb" refusal instead of the one this verb owes its caller. A private marker
-        // key is a raw lookup by nature: nothing but the wrapper this class built ever carries it.
-        LuaValue u = v.istable() ? ((LuaTable)v).rawget(KEY) : v;
-        if(u.isuserdata()) {
-            Object o = u.touserdata();
-            if(o instanceof FontHandle) {
-                FontHandle fh = (FontHandle)o;
-                synchronized(fh) { fh.used = true; }   // a consumer read it HERE: a later setter would be silent
-                return fh;
-            }
-        }
-        return null;
+        FontHandle fh = of(v);
+        if(fh != null)
+            synchronized(fh) { fh.used = true; }   // a consumer read it HERE: a later setter would be silent
+        return fh;
     }
 }

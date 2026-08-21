@@ -10,7 +10,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
+import org.luaj.vm2.lib.OneArgFunction;
 
 import java.awt.Color;
 import java.awt.Font;
@@ -128,7 +128,7 @@ final class FontApi {
         if(base == null)
             throw new LuaError("hafen.font():get(\"" + name + "\"): not a built-in font — the built-ins are "
                 + BUILTINS + "; a font FILE this addon ships is an asset: hafen.asset():get(\"fonts/Inter.ttf\")");
-        h = fontHandle(new FontHandle(base, null, null, null));
+        h = fontHandle(owner, new FontHandle(base, null, null, null), AssetApi.Kind.FONT);
         owner.assets.putBuiltinFont(name, h);
         return h;
     }
@@ -272,15 +272,16 @@ final class FontApi {
     }
 
     /**
-     * The Lua handle for a {@link FontHandle}: the opaque backing userdata ({@link FontHandle#KEY}) plus
-     * {@code :derive(opts)} / {@code :family()} / {@code :size()}. Facade-safe (no AWT {@code Font} reaches Lua).
-     * A font <b>asset</b> ({@link AssetApi}) is this table plus the shared {@code :type()}/{@code :path()}/
-     * {@code :dispose()}; a built-in or a {@code :derive}d variant is this table alone — it was never loaded from
-     * a file, so it has no path and no lifetime.
+     * The Lua handle for a {@link FontHandle}: <b>userdata over the handle itself</b>, wearing one of this
+     * addon's two font metatables. Facade-safe (no AWT {@code Font} reaches Lua). A font <b>asset</b>
+     * ({@link AssetApi}) wears {@link AssetApi.Kind#FONT_ASSET}, which adds the shared
+     * {@code :type()}/{@code :path()}/{@code :dispose()}; a built-in, a {@code :derive}d variant and a view of
+     * another addon's face wear {@link AssetApi.Kind#FONT} — never loaded from a file, so no path and no
+     * lifetime.
      */
-    static LuaTable fontHandle(final FontHandle fh) {
-        LuaTable h = mint(fh);
-        fh.handle = h;                                    // the table its OWN addon holds (read by handleFor)
+    static LuaValue fontHandle(Addon owner, FontHandle fh, AssetApi.Kind kind) {
+        LuaValue h = LuaValue.userdataOf(fh, AssetApi.meta(owner, kind));
+        fh.handle = h;                                    // the value its OWN addon holds (read by handleFor)
         return h;
     }
 
@@ -296,27 +297,39 @@ final class FontApi {
             return fh.handle;
         LuaValue v = reader.assets.fontView(fh);
         if(v == null)
-            reader.assets.putFontView(fh, v = mint(fh));
+            reader.assets.putFontView(fh, v = LuaValue.userdataOf(fh, AssetApi.meta(reader, AssetApi.Kind.FONT)));
         return v;
     }
 
-    /** One handle table over {@code fh} — {@link #fontHandle} plus every per-addon view of the same font. */
-    private static LuaTable mint(final FontHandle fh) {
-        LuaTable h = new LuaTable();
-        h.set(FontHandle.KEY, LuaValue.userdataOf(fh));   // opaque backing ref for a rule's font / a widget's / g:text
+    /**
+     * One of this addon's two <b>font metatables</b> — a face, and a face that is also a file it loaded. The
+     * methods are built once per addon and shared by every handle of that kind, so a variant costs a userdata
+     * and a {@link FontHandle} rather than a table of seven closures, and a typo raises naming the vocabulary
+     * instead of reading {@code nil}.
+     *
+     * <p><b>{@code __tostring} says which of the two it is</b>: a loaded face prints
+     * {@code Asset(font, fonts/Inter.ttf)}, like every other file, and one with no file behind it prints
+     * {@code Font(Inter)} — its family, which is the only thing that names a built-in or a variant.
+     */
+    static LuaValue fontMeta(final Addon owner, AssetApi.Kind kind) {
+        LuaTable m = new LuaTable();
         // derive() -- a DRAFT variant of this font, configured by the setters below. It takes no ARGUMENT: the
         // options table is gone, and { size = 12 } would be the last config table left in this section.
-        h.set("derive", new VarArgFunction() {
+        //   A variant is a face and never a file, whatever it was derived FROM: it wears the plain metatable,
+        // so a :dispose() on it raises naming what a file is, rather than freeing the original twice.
+        m.set("derive", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                FontHandle fh = font(a.arg1(), "derive");
                 if(Args.passed(a, 2))
                     throw new LuaError("font:derive() takes no arguments — the variant is chained setters on"
                         + " what it hands back: h:derive():size(12):bold(true):color({255, 200, 200}), and a"
                         + " read of each is the same name with none: d:size(), d:bold(), d:color()");
-                return fontHandle(fh.draft());
+                return fontHandle(owner, fh.draft(), AssetApi.Kind.FONT);
             }
         });
-        h.set("family", new VarArgFunction() {
+        m.set("family", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                FontHandle fh = font(a.arg1(), "family");
                 if(Args.passed(a, 2))
                     throw new LuaError("font:family() reads the AWT family name and does not write it — another"
                         + " family is another font: hafen.font():get(name), or hafen.asset():get(path) for one"
@@ -324,12 +337,40 @@ final class FontApi {
                 return LuaValue.valueOf(fh.family());
             }
         });
-        h.set("size", property(fh, "size"));
-        h.set("color", property(fh, "color"));
-        h.set("aa", property(fh, "aa"));
-        h.set("bold", property(fh, "bold"));
-        h.set("italic", property(fh, "italic"));
-        return h;
+        m.set("size", property("size"));
+        m.set("color", property("color"));
+        m.set("aa", property("aa"));
+        m.set("bold", property("bold"));
+        m.set("italic", property("italic"));
+        if(kind == AssetApi.Kind.FONT_ASSET) {
+            AssetApi.addAssetVerbs(m, "font", true);
+            return AssetApi.fileMeta("font", "font", m, "a font asset answers :type() :path() :dispose()"
+                + " :derive() :family() :size() :color() :aa() :bold() and :italic()");
+        }
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Retired.closedIndex("font", m, "a font answers :derive() :family() :size()"
+            + " :color() :aa() :bold() and :italic() — :type(), :path() and :dispose() belong to the file a"
+            + " face was loaded from, and a built-in or a variant is not one"));
+        mt.set("__name", LuaValue.valueOf("Font"));
+        mt.set("__tostring", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                FontHandle fh = FontHandle.of(self);
+                return LuaValue.valueOf("Font(" + ((fh == null) ? "?" : fh.family()) + ")");
+            }
+        });
+        return mt;
+    }
+
+    /**
+     * The receiver of a font verb. {@link FontHandle#of} and never {@code resolve}: a handle's own verb is the
+     * addon configuring its own draft, not a consumer taking the face, so resolving it here must not seal it.
+     */
+    private static FontHandle font(LuaValue self, String method) {
+        FontHandle fh = FontHandle.of(self);
+        if(fh == null)
+            throw new LuaError("h:" + method + "() — use a COLON call on a font handle"
+                + " (hafen.font():get(\"serif\"), hafen.asset():get(\"fonts/Inter.ttf\"), or a :derive() of one)");
+        return fh;
     }
 
     /**
@@ -350,13 +391,14 @@ final class FontApi {
      * {@code italic} are baked into the AWT face and have no such state; a {@code nil} at either is the
      * accident {@link Args#nilRefused} names.
      */
-    private static LuaValue property(final FontHandle fh, final String prop) {
+    private static LuaValue property(final String prop) {
         // `prop`, never `name`: LuaJ's LibFunction declares a `protected String name`, and an inherited field
         // shadows an enclosing method's parameter of the same name inside an anonymous subclass (019.4/029.1).
         // It compiles, it runs, and every read silently answers the LAST branch of the dispatch below.
         return new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                FontHandle fh = font(self, prop);
                 if(!Args.passed(a, 2))
                     return read(fh, prop);
                 LuaValue v = a.arg(2);

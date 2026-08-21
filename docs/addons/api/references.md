@@ -5,6 +5,11 @@ every call. This page is the catalogue: one entry per kind of thing the API hand
 pass back when a verb asks for it. The grammar those verbs are spelled in is
 [conventions](conventions.md).
 
+**Every reference below is an object**, whatever it names — a game object, a roster entry, a widget, a file
+you loaded. You call its verbs with a colon, you cannot write to it, `tostring` names it, and a name it does
+not answer raises where you wrote it instead of reading `nil`. A table you build to look like one is not
+one, and the verb you pass it to refuses it.
+
 ```lua
 local s = hafen.session():current()                        -- the character on screen
 local tree = s:world():gob():nearest("terobjs/tree")       -- a Gob, never an id

@@ -67,7 +67,14 @@ name — bare it reads, with a value it writes and hands the handle back, so a v
 | `h:color()` / `h:color(c)` | [colour](shapes.md#colours) \| nil | text colour — **for your own drawing only**, see below |
 
 A derived handle is a **variant of a font, not a file**: like a built-in it carries no `:type`, `:path` or
-`:dispose`, even when the handle it came from was an asset.
+`:dispose`, even when the handle it came from was an asset. Reaching for one of the three says which of the
+two you are holding, rather than reading `nil` — and so does a mistyped property. A face is an
+[object, not a table](asset.md#every-asset), and it prints as what it is:
+
+```lua
+tostring(hafen.font():get("serif"))                 --> Font(Serif)
+tostring(hafen.asset():get("fonts/Inter.ttf"))      --> Asset(font, fonts/Inter.ttf)
+```
 
 > **Only a fresh variant is writable, and only until you use it.** A built-in and a loaded `.ttf` are shared
 > values, so writing one would restyle every surface already using it: they refuse a setter, naming

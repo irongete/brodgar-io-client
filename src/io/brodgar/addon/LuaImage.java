@@ -4,7 +4,6 @@ import haven.Coord;
 import haven.ScaledTex;
 import haven.TexI;
 
-import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /**
@@ -16,13 +15,14 @@ import org.luaj.vm2.LuaValue;
  * advantage, it is <b>SAFE-tier, NOT protected</b> (D-034) — like a HUD overlay or a world ghost.
  *
  * <p><b>Handle, not a ref.</b> An image has no server identity, so it is addressed by a bridge-owned
- * <b>handle</b> (built by {@link AssetApi}) exposing the shared asset verbs, {@code :size()} &rarr; {@code {w,h}} and
- * {@code :dispose()}. The handle table carries this {@code LuaImage} as an <b>opaque userdata</b> (the
- * {@link #KEY} field) so the {@code g} draw wrapper ({@link LuaGOut}'s {@code g:image}/{@code g:aimage}) can
- * {@link #resolve} it back to its {@link #tex}. This is the same facade-safe opaque round-trip
- * {@link LuaMarshal} uses for hook arguments (principle P1): the userdata has no metatable, so <b>no Java
- * method is reachable from Lua</b>, and it cannot be forged (the sandbox omits {@code luajava}) — the only
- * such userdata in existence are the ones the bridge created.
+ * <b>handle</b>: this object itself, crossing into Lua as {@code LuaValue.userdataOf(this, mt)} with one of
+ * {@link AssetApi.Kind}'s per-addon metatables ({@code __index} = the shared methods table, so the handle
+ * costs a userdata and no closures), exposing the shared asset verbs and {@code :size()} &rarr;
+ * {@code {w,h}}. The {@code g} draw wrapper ({@link LuaGOut}'s {@code g:image}/{@code g:aimage}) and
+ * {@code hafen.vr():sprite()} {@link #resolve} the value straight back to its {@link #tex}. It is
+ * facade-safe (principle P1): no Java method is reachable through the vocabulary, the value cannot be
+ * written to from Lua, and it cannot be forged — the sandbox omits {@code luajava}, so the only such
+ * userdata in existence are the ones the bridge created.
  *
  * <p><b>Ownership (P2).</b> Bridge-owned: it lives only in the addon's owned-resource registry
  * ({@link Addon#images}). {@code :dispose()} / {@code Disable} / {@code :reload} / relogin teardown
@@ -36,10 +36,7 @@ import org.luaj.vm2.LuaValue;
  * itself draw-thread-safe (its GL upload is lazy + synchronized); {@link #dead} is {@code volatile}; the
  * {@link Addon#images} list is copy-on-write — so no extra locking is needed.
  */
-public final class LuaImage {
-    /** The handle-table field carrying this object as an opaque userdata (read by {@link #resolve}). */
-    static final LuaValue KEY = LuaValue.valueOf("__image");
-
+public final class LuaImage implements AssetApi.Loaded {
     final Addon  owner;
     final String name;      // the addon-relative path — for load-dedup, the error text, and a future filter
     final TexI   tex;       // the GPU texture (lazy upload in TexI.st()); freed by :dispose()/teardown
@@ -58,7 +55,13 @@ public final class LuaImage {
      */
     final ScaledTex<TexI> stex;
     volatile boolean dead;  // disposed/torn down → g:image becomes a no-op (no TexI.st() re-upload)
-    LuaValue handle;        // the stable Lua handle table (so a re-load of the same path returns the same one)
+    LuaValue handle;        // the stable Lua handle (so a re-load of the same path returns the same one)
+    /**
+     * What the shared asset verbs answer for this picture, and how it frees itself — the addon-relative path
+     * for a loaded file, the description of the ground for a {@link MapImages rendered map image}. On the
+     * record because the metatable that reads it is shared by every image this addon holds.
+     */
+    AssetApi.Asset asset;
 
     LuaImage(Addon owner, String name, TexI tex) {
         this.owner = owner;
@@ -68,24 +71,20 @@ public final class LuaImage {
         this.stex = Px.in(tex);
     }
 
+    public AssetApi.Asset asset() {
+        return asset;
+    }
+
     /**
-     * Resolve a Lua value passed to {@code g:image}/{@code g:aimage} back to its {@link LuaImage}: the
-     * {@code hafen.asset} image handle table (via its {@link #KEY} userdata field) or the raw backing userdata
-     * itself; returns {@code null} for anything else (a nil/typo/foreign value &rarr; the draw verb no-ops).
+     * Resolve a Lua value passed to {@code g:image}/{@code g:aimage} back to its {@link LuaImage}: an image
+     * handle, whether the one its owner holds or the reduced view another addon reads off a rule. {@code null}
+     * for anything else (a nil, a typo, a foreign value &rarr; the draw verb no-ops) — including a
+     * hand-built table, which is what stops a look-alike lying about its size wherever it is passed.
      */
     static LuaImage resolve(LuaValue v) {
-        if(v == null)
+        if((v == null) || !v.isuserdata())
             return null;
-        // rawget, never get: since 084.1 an entity handle is a CLOSED vocabulary, and two of them (a VR
-        // entity, the keybindings handle) are tables — so a get() probe on the wrong argument would fire
-        // that type's "has no verb" refusal instead of the one this verb owes its caller. A private marker
-        // key is a raw lookup by nature: nothing but the wrapper this class built ever carries it.
-        LuaValue u = v.istable() ? ((LuaTable)v).rawget(KEY) : v;
-        if(u.isuserdata()) {
-            Object o = u.touserdata();
-            if(o instanceof LuaImage)
-                return (LuaImage)o;
-        }
-        return null;
+        Object o = v.touserdata();
+        return (o instanceof LuaImage) ? (LuaImage)o : null;
     }
 }

@@ -90,6 +90,24 @@ the **first** load, since the resolved path is the key rather than the answer.
 You rarely need `:dispose()`: every asset is **bridge-owned** and freed for you, so nothing leaks a GPU
 texture. Use it only to release a large asset early.
 
+A handle is an **object, not a table**. You call its verbs with `:`, you cannot write to it, and a name it
+does not answer raises where you wrote it rather than reading `nil` and failing a call later:
+
+```lua
+local icon = hafen.asset():get("icon.png")
+tostring(icon)      --> Asset(image, icon.png)   -- the type and the path, for every type
+icon:sizes()        -- an error naming :type, :path, :size and :dispose
+icon.dispose = nil  -- an error: your own cleanup is not yours to delete
+```
+
+Nothing but a handle resolves to a file, either. A table you build to look like one is not one: the verbs
+that take a picture refuse it naming this loader, and the [draw verbs](ui/drawing.md), which never throw,
+draw nothing for it.
+
+An image you did **not** load — one from another addon's [rule](ui/style/README.md), read back through
+`widget:style()` — answers `:type()`, `:path()` and `:size()` and carries no `:dispose()`. Freeing a file
+is the job of the addon that loaded it, and asking says so.
+
 ### Image
 
 | Method | Description |

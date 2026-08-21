@@ -260,10 +260,11 @@ Under `src/io/brodgar/addon/`, tagged with the tasks that need each:
   2, 3
 - `AddonManager` (`newTimer`, `Timer`, `runTimers`, `clock`, `timerMeta`, and the `hafen.timer()` mount
   with its `timerVerbs` and `Source`), `Addon` (`timerMeta`) — 4
-- `AssetApi` (`imageHandle`, `meshHandle`, `dataHandle`, `addAssetVerbs`, `Disposer`, `imageFor`,
-  `Entry`, `teardownAssets`), `LuaImage` (`KEY`, `resolve`, `handle`, `dead`), `LuaMesh` (`KEY`,
-  `resolve`), `FontApi` (`mint`, `fontHandle`, `handleFor`, `property`), `FontHandle` (`KEY`,
-  `handle`, `draft`, `used`), `MapImages` (`handleFor`, its `size`/`info` verbs), `Retired` (`closedIndex`) — 5
+- `AssetApi` (`Kind`, `Loaded`, `Asset`, `meta`, `fileMeta`, `addAssetVerbs`, `imageFor`, `Data`,
+  `typeOf`, `Entry`, `teardownAssets`), `LuaImage` (`resolve`, `handle`, `asset`, `dead`), `LuaMesh`
+  (`resolve`, `asset`), `FontApi` (`fontMeta`, `fontHandle`, `handleFor`, `property`), `FontHandle`
+  (`of`, `resolve`, `asset`, `handle`, `draft`, `used`), `MapImages` (`imageMeta`, `answer`),
+  `Addon` (`assetMeta`), `Retired` (`closedIndex`) — 5, and the metatable-per-kind shape 6 follows
 - `OptionsHandle` (`install`, `create`), `AudioOptions`, `CameraOptions`, `ClientOptions`,
   `InterfaceOptions`, `VideoOptions`, `KeybindingsOptions`, `ProfHandle`, `ProfScope`, `HttpApi`
   (`newHttpRequest`), `LuaHttp`, `VrApi` (`entityHandle`), `Retired` (`closedIndex`, `moved`,

@@ -13,9 +13,6 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
-import org.luaj.vm2.Varargs;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -284,43 +281,40 @@ final class MapImages {
             e.failed = true;
             return LuaValue.NIL;
         }
-        LuaImage li = new LuaImage(owner, e.label, tex);
+        final LuaImage li = new LuaImage(owner, e.label, tex);
+        li.asset = new AssetApi.Asset(e.label) {
+            void dispose() {
+                owner.mapImages.remove(key);   // drop the entry FIRST: a re-read renders anew
+            }
+        };
         owner.images.add(li);                  // the teardown unit every other image already rides
         e.image = li;
-        e.handle = handleFor(owner, key, li);
+        e.handle = LuaValue.userdataOf(li, AssetApi.meta(owner, AssetApi.Kind.MAP_IMAGE));
         li.handle = e.handle;
         return e.handle;
     }
 
     /**
-     * The Lua handle for a rendered map image. It is an <b>image handle</b> — it carries the same opaque
-     * {@link LuaImage#KEY} userdata {@code g:image}, {@code hafen.vr():sprite()} and the stylesheet's
-     * {@code bg = {image = …}} resolve — plus {@code :size()}, {@code :type()}, {@code :path()},
-     * {@code :info()} and {@code :dispose()}.
+     * This addon's metatable for a rendered map image. It is an <b>image handle</b> — userdata over the same
+     * {@link LuaImage} {@code g:image}, {@code hafen.vr():sprite()} and the stylesheet's
+     * {@code bg = {image = …}} resolve — answering {@code :size()}, {@code :type()}, {@code :path()},
+     * {@code :info()} and {@code :dispose()}. It is its own {@link AssetApi.Kind} rather than a loaded image's,
+     * for the one verb the two do not share: a picture of the database can say what ground it is of.
      *
      * <p>It is deliberately <b>not</b> an {@code hafen.asset} entry: an asset is a file this addon shipped,
      * and this is a picture the client drew of the database. It never appears in {@code hafen.asset()}'s list
      * and its {@code :path()} is a description ({@code "map:<gridId>@<lvl>"}), not something a loader accepts.
      */
-    private static LuaValue handleFor(final Addon owner, final String key, final LuaImage li) {
-        LuaTable h = new LuaTable();
-        h.set(LuaImage.KEY, LuaValue.userdataOf(li));      // the opaque backing ref every draw verb resolves
-        h.set("size", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable t = new LuaTable();
-                t.set("w", LuaValue.valueOf(li.sz.x));
-                t.set("h", LuaValue.valueOf(li.sz.y));
-                return t;
+    static LuaValue imageMeta() {
+        LuaTable m = new LuaTable();
+        m.set("size", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaWidget.whTable(AssetApi.image(self, "size").sz);
             }
         });
-        h.set("type", new ZeroArgFunction() {
-            public LuaValue call() {return LuaValue.valueOf("image");}
-        });
-        h.set("path", new ZeroArgFunction() {
-            public LuaValue call() {return LuaValue.valueOf(li.name);}
-        });
-        h.set("info", new ZeroArgFunction() {
-            public LuaValue call() {
+        m.set("info", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaImage li = AssetApi.image(self, "info");
                 LuaTable t = new LuaTable();
                 t.set("source", LuaValue.valueOf("map"));
                 t.set("what", LuaValue.valueOf(li.name));
@@ -329,13 +323,12 @@ final class MapImages {
                 return t;
             }
         });
-        h.set("dispose", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                owner.mapImages.remove(key);               // drop the entry FIRST: a re-read renders anew
-                return a.arg1();                           // chains, like every asset verb
-            }
-        });
-        return h;
+        AssetApi.addAssetVerbs(m, "image", true);
+        // The entity name is its OWN, not the image asset's: the two vocabularies differ (a drawing answers
+        // :info(), an asset does not) and they have different lifetimes, so a retirement row keyed on one
+        // must not fire on the other. The type it reports is still "image" -- what it IS, to a draw verb.
+        return AssetApi.fileMeta("mapimage", "image", m,
+            "a map drawing answers :type() :path() :size() :info() and :dispose()");
     }
 
     // ---- argument parsing --------------------------------------------------------------------------

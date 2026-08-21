@@ -475,9 +475,7 @@ public final class LuaPagina {
             throw new LuaError("pagina:icon(image): \"" + v.tojstring() + "\" is a path, and an icon is the"
                 + " HANDLE the loader hands back — hafen.asset():get(\"" + v.tojstring() + "\"). A menu entry"
                 + " draws a file your addon ships, not one of the client's own resources.");
-        String type = assetType(v);
-        if((type == null) && (FontHandle.resolve(v) != null))
-            type = "font";                    // a BUILT-IN font is a font handle that was never an asset
+        String type = AssetApi.typeOf(v);   // a built-in font answers "font": a face that was never a file
         if(type != null)
             throw new LuaError("pagina:icon(image): that is a \"" + type + "\" handle, and an icon is an image"
                 + " — load a .png with hafen.asset():get(\"dig.png\") and pass that one");
@@ -514,21 +512,6 @@ public final class LuaPagina {
                 + " only hang under one that is there (check :exists()), since a screen nothing reaches draws"
                 + " nothing");
         return p;
-    }
-
-    /** The {@code :type()} of an asset handle that is not an image ({@code null} when it is not one at all). */
-    private static String assetType(LuaValue v) {
-        if(!v.istable())
-            return null;
-        try {
-            LuaValue t = v.get("type");
-            if(!t.isfunction())
-                return null;
-            LuaValue r = t.call(v);
-            return r.isstring() ? r.tojstring() : null;
-        } catch(RuntimeException e) {   // a foreign table with a "type" of its own — not an asset at all
-            return null;
-        }
     }
 
     // ---- self resolution ---------------------------------------------------------------------------

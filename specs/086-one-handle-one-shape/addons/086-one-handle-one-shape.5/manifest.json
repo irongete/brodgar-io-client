@@ -1,0 +1,9 @@
+{
+  "name": "086.5 — a file you loaded is an object",
+  "id": "086-one-handle-one-shape.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 086.5: an image, a mesh, a data file, a font and a map drawing are userdata with a closed vocabulary and a __tostring that names the file — so a write to one and a typo on one both raise, a forged look-alike is refused, and identity through the stylesheet survives.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

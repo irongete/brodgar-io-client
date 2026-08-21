@@ -559,6 +559,19 @@ public final class Addon {
     final LuaValue[] eventMeta = new LuaValue[LuaEvent.Shape.values().length];
 
     /**
+     * This addon's <b>loaded-file metatables</b> ({@link AssetApi.Kind}) — the vocabulary an image, a mesh, a
+     * data file, a font and a rendered map image answer, each built on the first handle of its kind. Indexed
+     * by ordinal for the reason {@link #eventMeta} is: the kinds are a closed enum known at compile time.
+     *
+     * <p>Two of them are the <b>same file seen from two sides</b>: the handle its owner holds carries
+     * {@code :dispose()} and the view another addon reads off a rule does not, because freeing an asset is
+     * the owner's to do. The record behind the handle is what is shared across that boundary, never a Lua
+     * value (D-017), which is why the metatables are per addon like every other one here. The records are
+     * torn down through {@link #images}/{@link #meshes} and {@link #assets}, not here.
+     */
+    final LuaValue[] assetMeta = new LuaValue[AssetApi.Kind.values().length];
+
+    /**
      * This addon's <b>Kin interning cache</b> ({@code hafen.kin():get(idOrName)}, spec {@code 020-kin-oop}): the
      * weak-valued {@code buddy id → Kin object} map, its {@link java.lang.ref.ReferenceQueue}, and the two
      * per-addon metatable. Same contract as {@link #gobs} — per-addon so no

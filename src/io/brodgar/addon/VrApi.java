@@ -1290,8 +1290,8 @@ final class VrApi {
     }
 
     /**
-     * Resolve the object {@code model=} option to a live {@link LuaMesh}: a {@code hafen.asset} mesh handle, or
-     * its raw backing userdata. <b>Handle-only</b> (028.2 — one flow, D-012): a <b>path string</b> is refused
+     * Resolve the object {@code model=} option to a live {@link LuaMesh}: a {@code hafen.asset} mesh handle.
+     * <b>Handle-only</b> (028.2 — one flow, D-012): a <b>path string</b> is refused
      * with an error naming {@code hafen.asset} as the way in, because interning makes repeating the load free,
      * so a shortcut here would only buy a second way to say the same thing. The three failures are
      * distinguishable: a path string, a disposed mesh, anything else.
@@ -1301,7 +1301,7 @@ final class VrApi {
             throw new LuaError("hafen.vr():object():add(model): the argument is a hafen.asset mesh HANDLE, not a path string — load it"
                 + " once with hafen.asset():get(\"" + modelv.tojstring() + "\") and pass the handle (it is interned, so"
                 + " repeating the load is free)");
-        LuaMesh lm = LuaMesh.resolve(modelv);          // a handle or its raw userdata
+        LuaMesh lm = LuaMesh.resolve(modelv);          // the handle, and nothing shaped like one
         if(lm == null)
             throw new LuaError("hafen.vr():object():add(model): the argument must be a hafen.asset mesh handle"
                 + " (hafen.asset():get(\"chair.glb\")), got " + modelv.typename());
@@ -1464,8 +1464,8 @@ final class VrApi {
     }
 
     /**
-     * Resolve the sprite {@code image=} option to a live {@link LuaImage}: a {@code hafen.asset} image handle, or
-     * its raw backing userdata. <b>Handle-only</b> (028.2 — one flow, D-012), exactly like
+     * Resolve the sprite {@code image=} option to a live {@link LuaImage}: a {@code hafen.asset} image handle.
+     * <b>Handle-only</b> (028.2 — one flow, D-012), exactly like
      * {@link #resolveObjectMesh}: a <b>path string</b> is refused with an error naming {@code hafen.asset} as the
      * way in. The three failures are distinguishable: a path string, a disposed image, anything else.
      */
@@ -1474,7 +1474,7 @@ final class VrApi {
             throw new LuaError("hafen.vr():sprite():add(image): the argument is a hafen.asset image HANDLE, not a path string — load it"
                 + " once with hafen.asset():get(\"" + imgv.tojstring() + "\") and pass the handle (it is interned, so"
                 + " repeating the load is free)");
-        LuaImage li = LuaImage.resolve(imgv);          // a handle or its raw userdata
+        LuaImage li = LuaImage.resolve(imgv);          // the handle, and nothing shaped like one
         if(li == null)
             throw new LuaError("hafen.vr():sprite():add(image): the argument must be a hafen.asset image handle"
                 + " (hafen.asset():get(\"icon.png\")), got " + imgv.typename());

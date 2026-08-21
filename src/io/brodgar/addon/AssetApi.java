@@ -5,9 +5,7 @@ import haven.TexI;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
+import org.luaj.vm2.lib.OneArgFunction;
 
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
@@ -233,7 +231,7 @@ final class AssetApi {
     static final class Entry {
         final String type;        // "image" | "font" | "mesh" | "data"
         final String path;        // the addon-relative path the FIRST load spelled — what :path() answers
-        final LuaValue handle;    // the Lua handle table (interned: the same object on every re-load)
+        final LuaValue handle;    // the Lua handle (interned: the same object on every re-load)
 
         Entry(String type, String path, LuaValue handle) {
             this.type = type;
@@ -331,6 +329,11 @@ final class AssetApi {
      * Load an image asset: {@code ImageIO} &rarr; {@link TexI}, the very substrate the engine's {@code .res}
      * images already run on. Registered in the addon's owned-resource list ({@link Addon#images}, which
      * teardown walks) and in the intern cache (which makes the next load of the same path the same handle).
+     *
+     * <p>The handle is <b>userdata over the {@link LuaImage} itself</b>, wearing this addon's {@link Kind#IMAGE}
+     * metatable — so {@code g:image}, {@code hafen.vr():sprite()} and a rule's {@code bg} resolve the record
+     * straight off the value ({@link LuaImage#resolve}), and there is no table around it to scribble on, to
+     * delete {@code dispose} from, or to copy into a look-alike that lies about its size.
      */
     private static LuaValue newImage(Addon owner, String name, String key, Path p) {
         BufferedImage img;
@@ -341,36 +344,18 @@ final class AssetApi {
         }
         if(img == null)
             throw new LuaError("hafen.asset: '" + name + "' is not a decodable image (PNG/JPG/GIF/BMP)");
-        LuaImage li = new LuaImage(owner, name, new TexI(img));
+        final LuaImage li = new LuaImage(owner, name, new TexI(img));
+        li.asset = new Asset(name) {
+            void dispose() {
+                owner.assets.remove(key);  // a re-load after this is a NEW asset, never the disposed one
+                disposeImage(li);
+            }
+        };
         owner.images.add(li);
-        LuaValue handle = imageHandle(owner, key, name, li);
+        LuaValue handle = LuaValue.userdataOf(li, meta(owner, Kind.IMAGE));
         li.handle = handle;
         owner.assets.put(key, new Entry("image", name, handle));
         return handle;
-    }
-
-    /**
-     * The Lua handle for a {@link LuaImage}: the shared asset verbs plus {@code :size()} &rarr; {@code {w,h}}.
-     * The table also carries the {@link LuaImage} as an <b>opaque userdata</b> (its {@link LuaImage#KEY} field)
-     * so {@code g:image}/{@code g:aimage} and {@code hafen.vr():sprite()} can {@link LuaImage#resolve} it back
-     * to the texture — facade-safe (no Java method is reachable from Lua; the userdata has no metatable and
-     * cannot be forged without {@code luajava}).
-     */
-    private static LuaValue imageHandle(Addon owner, String key, String path, final LuaImage li) {
-        LuaTable h = new LuaTable();
-        h.set(LuaImage.KEY, LuaValue.userdataOf(li));  // opaque backing ref for g:image / render.sprite
-        h.set("size", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable t = new LuaTable();
-                t.set("w", LuaValue.valueOf(li.sz.x));
-                t.set("h", LuaValue.valueOf(li.sz.y));
-                return t;
-            }
-        });
-        addAssetVerbs(h, "image", path, owner, key, new Disposer() {
-            public void dispose() {disposeImage(li);}
-        });
-        return h;
     }
 
     /**
@@ -381,31 +366,16 @@ final class AssetApi {
      *
      * <p>The view is deliberately <b>reduced</b>: it reads and it draws, but it carries no {@code :dispose()} —
      * freeing an asset is the owner's to do, and an addon that could dispose a file it never loaded would be able
-     * to blank another addon's UI.
+     * to blank another addon's UI. That reduction is now a whole {@link Kind}: the view is minted with a
+     * metatable that has no such verb, so reaching for one raises saying whose job it is, where a table simply
+     * had the closure left off it.
      */
     static LuaValue imageFor(Addon reader, final LuaImage li) {
         if((li.owner == reader) && (li.handle != null))
             return li.handle;
         LuaValue v = reader.assets.imageView(li);
-        if(v == null) {
-            LuaTable h = new LuaTable();
-            h.set(LuaImage.KEY, LuaValue.userdataOf(li));   // the same opaque backing ref g:image resolves
-            h.set("type", new ZeroArgFunction() {
-                public LuaValue call() {return LuaValue.valueOf("image");}
-            });
-            h.set("path", new ZeroArgFunction() {
-                public LuaValue call() {return LuaValue.valueOf(li.name);}
-            });
-            h.set("size", new ZeroArgFunction() {
-                public LuaValue call() {
-                    LuaTable t = new LuaTable();
-                    t.set("w", LuaValue.valueOf(li.sz.x));
-                    t.set("h", LuaValue.valueOf(li.sz.y));
-                    return t;
-                }
-            });
-            reader.assets.putImageView(li, v = h);
-        }
+        if(v == null)
+            reader.assets.putImageView(li, v = LuaValue.userdataOf(li, meta(reader, Kind.IMAGE_VIEW)));
         return v;
     }
 
@@ -456,10 +426,13 @@ final class AssetApi {
         try {
             GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(f);   // so h:family() resolves in $font (F2)
         } catch(RuntimeException e) { /* best-effort: even if registration fails the handle still draws via its Font */ }
-        LuaTable handle = FontApi.fontHandle(new FontHandle(f, null, null, null));
-        addAssetVerbs(handle, "font", name, owner, key, new Disposer() {
-            public void dispose() { /* a font owns nothing releasable — dropping the cache entry IS the dispose */ }
-        });
+        FontHandle fh = new FontHandle(f, null, null, null);
+        fh.asset = new Asset(name) {
+            void dispose() {
+                owner.assets.remove(key);  // a font owns nothing releasable — dropping the entry IS the dispose
+            }
+        };
+        LuaValue handle = FontApi.fontHandle(owner, fh, Kind.FONT_ASSET);
         owner.assets.put(key, new Entry("font", name, handle));
         return handle;
     }
@@ -497,9 +470,15 @@ final class AssetApi {
             throw new LuaError("hafen.asset: " + e.getMessage());
         }
         TexI[] textures = buildMeshTextures(mesh, name);   // R3b: the shared base-colour textures (owned by the mesh)
-        LuaMesh lm = new LuaMesh(owner, name, mesh, textures);
+        final LuaMesh lm = new LuaMesh(owner, name, mesh, textures);
+        lm.asset = new Asset(name) {
+            void dispose() {
+                owner.assets.remove(key);  // a re-load after this is a NEW asset, never the disposed one
+                disposeMesh(lm);
+            }
+        };
         owner.meshes.add(lm);
-        LuaValue handle = meshHandle(owner, key, name, lm);
+        LuaValue handle = LuaValue.userdataOf(lm, meta(owner, Kind.MESH));
         lm.handle = handle;
         owner.assets.put(key, new Entry("mesh", name, handle));
         return handle;
@@ -533,51 +512,39 @@ final class AssetApi {
     }
 
     /**
-     * The Lua handle for a {@link LuaMesh}: the shared asset verbs plus {@code :bounds()} &rarr; {@code
-     * {min={x,y,z}, max={x,y,z}, extent={x,y,z}}} (world units) and {@code :info()} (what the parser produced).
-     * The table also carries the {@link LuaMesh} as an <b>opaque userdata</b> ({@link LuaMesh#KEY}) so
-     * {@code hafen.vr():object():add(asset, p)} can {@link LuaMesh#resolve} it back to the parsed geometry —
-     * facade-safe, like the image handle.
+     * {@code mdl:bounds()} &rarr; {@code {min={x,y,z}, max={x,y,z}, extent={x,y,z}}}, the parsed geometry's
+     * axis-aligned bounds in world units.
      */
-    private static LuaValue meshHandle(Addon owner, String key, String path, final LuaMesh lm) {
-        LuaTable h = new LuaTable();
-        h.set(LuaMesh.KEY, LuaValue.userdataOf(lm));   // opaque backing ref for hafen.vr():object()
-        h.set("bounds", new ZeroArgFunction() {
-            public LuaValue call() {
-                LuaTable t = new LuaTable();
-                t.set("min", vec3Table(lm.mesh.min));
-                t.set("max", vec3Table(lm.mesh.max));
-                // 085.3: the span is `extent`, because `size` is the two-number shape everywhere else in the
-                // API and a three-number span wearing that word is the same collision a {x=,y=} size was.
-                t.set("extent", vec3Table(new float[] {
-                    lm.mesh.max[0] - lm.mesh.min[0], lm.mesh.max[1] - lm.mesh.min[1], lm.mesh.max[2] - lm.mesh.min[2] }));
-                t.setmetatable(BOUNDS_META);
-                return t;
-            }
-        });
-        // :info() → a small summary of what the parser produced (R3b): primitive/texture/triangle counts. Useful for
-        // an addon to confirm a model loaded textured, and for logging.
-        h.set("info", new ZeroArgFunction() {
-            public LuaValue call() {
-                int textured = 0, lit = 0;
-                for(Gltf.Prim p : lm.mesh.prims) {
-                    if(p.textured()) textured++;
-                    if(p.nrm != null) lit++;                         // R3c: primitives shaded by the world lights
-                }
-                LuaTable t = new LuaTable();
-                t.set("prims", LuaValue.valueOf(lm.mesh.prims.size()));
-                t.set("textured", LuaValue.valueOf(textured));       // primitives with a base-colour texture
-                t.set("lit", LuaValue.valueOf(lit));                 // primitives with normals → Phong-lit (R3c)
-                t.set("textures", LuaValue.valueOf(lm.textures.length));   // distinct decoded texture images
-                t.set("verts", LuaValue.valueOf((double)lm.mesh.nvert));
-                t.set("tris", LuaValue.valueOf((double)lm.mesh.ntri));
-                return t;
-            }
-        });
-        addAssetVerbs(h, "mesh", path, owner, key, new Disposer() {
-            public void dispose() {disposeMesh(lm);}
-        });
-        return h;
+    private static LuaValue bounds(LuaMesh lm) {
+        LuaTable t = new LuaTable();
+        t.set("min", vec3Table(lm.mesh.min));
+        t.set("max", vec3Table(lm.mesh.max));
+        // 085.3: the span is `extent`, because `size` is the two-number shape everywhere else in the
+        // API and a three-number span wearing that word is the same collision a {x=,y=} size was.
+        t.set("extent", vec3Table(new float[] {
+            lm.mesh.max[0] - lm.mesh.min[0], lm.mesh.max[1] - lm.mesh.min[1], lm.mesh.max[2] - lm.mesh.min[2] }));
+        t.setmetatable(BOUNDS_META);
+        return t;
+    }
+
+    /**
+     * {@code mdl:info()} &rarr; a small summary of what the parser produced (R3b): primitive/texture/triangle
+     * counts. Useful for an addon to confirm a model loaded textured, and for logging.
+     */
+    private static LuaValue meshInfo(LuaMesh lm) {
+        int textured = 0, lit = 0;
+        for(Gltf.Prim p : lm.mesh.prims) {
+            if(p.textured()) textured++;
+            if(p.nrm != null) lit++;                             // R3c: primitives shaded by the world lights
+        }
+        LuaTable t = new LuaTable();
+        t.set("prims", LuaValue.valueOf(lm.mesh.prims.size()));
+        t.set("textured", LuaValue.valueOf(textured));           // primitives with a base-colour texture
+        t.set("lit", LuaValue.valueOf(lit));                     // primitives with normals → Phong-lit (R3c)
+        t.set("textures", LuaValue.valueOf(lm.textures.length)); // distinct decoded texture images
+        t.set("verts", LuaValue.valueOf((double)lm.mesh.nvert));
+        t.set("tris", LuaValue.valueOf((double)lm.mesh.ntri));
+        return t;
     }
 
     /**
@@ -650,49 +617,250 @@ final class AssetApi {
         }
         if(text.startsWith("\uFEFF"))
             text = text.substring(1);      // a UTF-8 BOM is not JSON: it would fail parse() on the very first char
-        final LuaValue s = LuaValue.valueOf(text);
-        LuaTable h = new LuaTable();
-        h.set("text", new ZeroArgFunction() {
-            public LuaValue call() {return s;}
-        });
-        addAssetVerbs(h, "data", name, owner, key, new Disposer() {
-            public void dispose() { /* data owns nothing releasable — dropping the cache entry IS the dispose */ }
-        });
+        Data d = new Data(LuaValue.valueOf(text));
+        d.asset = new Asset(name) {
+            void dispose() {
+                owner.assets.remove(key);  // data owns nothing releasable — dropping the entry IS the dispose
+            }
+        };
+        LuaValue h = LuaValue.userdataOf(d, meta(owner, Kind.DATA));
         owner.assets.put(key, new Entry("data", name, h));
         return h;
     }
 
+    /**
+     * The record behind a data asset's handle: the file's text, read once, and the asset facet the shared verbs
+     * read off it. It exists for the same reason {@link LuaImage} and {@link LuaMesh} do — a handle is userdata
+     * over a record, and the record is what a shared metatable resolves. It owns nothing releasable.
+     */
+    static final class Data implements Loaded {
+        /** The file's contents as an immutable Lua string, which is the whole of what {@code d:text()} is. */
+        final LuaValue text;
+        private Asset asset;
+
+        Data(LuaValue text) {
+            this.text = text;
+        }
+
+        public Asset asset() {
+            return asset;
+        }
+    }
+
     // ---- the shared handle surface -------------------------------------------------------------------
 
-    /** What one asset type does when its handle is disposed (the type-specific half of {@code :dispose()}). */
-    private interface Disposer {
-        void dispose();
+    /**
+     * The <b>shape</b> a loaded file's handle wears, and therefore which of this addon's metatables it is
+     * minted with ({@link Addon#assetMeta}). A kind is a vocabulary, not a file type: the two image kinds are
+     * one picture seen from two sides — the handle its <b>owner</b> holds, and the reduced <b>view</b> another
+     * addon reads off a rule ({@link #imageFor}, {@link FontApi#handleFor}), which carries no
+     * {@code :dispose()} because freeing an asset is the owner's to do. That distinction was "which verbs were
+     * set on this table" and is now "which metatable it was minted with".
+     */
+    enum Kind {IMAGE, IMAGE_VIEW, MAP_IMAGE, MESH, DATA, FONT, FONT_ASSET}
+
+    /**
+     * A <b>record</b> a handle is minted over — {@link LuaImage}, {@link LuaMesh}, {@link FontHandle},
+     * {@link Data} — asked for the asset facet the shared verbs read. {@code null} where the record is not a
+     * loaded file at all (a built-in font, a {@code :derive()}d variant), which is exactly the set of handles
+     * whose kind carries none of those verbs.
+     */
+    interface Loaded {
+        Asset asset();
     }
 
     /**
-     * Install the verbs <b>every</b> asset carries, whatever its type: {@code :type()} (the dispatch result —
-     * {@code "image"}/{@code "font"}/{@code "mesh"}/{@code "data"}), {@code :path()} (the addon-relative path it was loaded
-     * from), and {@code :dispose()} (free it now — also automatic on {@code :reload}/disable/relogin, P2).
+     * <b>What the shared asset verbs answer for one loaded file, and how it frees itself.</b> It hangs off the
+     * RECORD rather than off the handle, because the metatable that reads it is shared by every asset of its
+     * kind — where a per-handle table could close over the path and the disposer, a shared one has to find
+     * them on {@code self}.
      *
-     * <p>{@code :dispose()} drops the intern entry <b>first</b>, which is what makes "identity is stable while
-     * alive" honest: a later {@code hafen.asset(path)} re-loads the file into a <i>new</i> object rather than
-     * handing back a corpse. It returns the handle, so it chains like every other verb here.
+     * <p>{@link #dispose()} drops the intern entry <b>first</b>, which is what makes "identity is stable while
+     * alive" honest: a later {@code hafen.asset():get(path)} re-loads the file into a <i>new</i> object rather
+     * than handing back a corpse.
      */
-    private static void addAssetVerbs(LuaTable h, final String type, final String path, final Addon owner,
-                                      final String key, final Disposer d) {
-        h.set("type", new ZeroArgFunction() {
-            public LuaValue call() {return LuaValue.valueOf(type);}
-        });
-        h.set("path", new ZeroArgFunction() {
-            public LuaValue call() {return LuaValue.valueOf(path);}
-        });
-        h.set("dispose", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                owner.assets.remove(key);   // a re-load after this is a NEW asset, never the disposed one
-                d.dispose();
-                return a.arg1();
+    static abstract class Asset {
+        /** The addon-relative path of the FIRST load — what {@code a:path()} answers. */
+        final String path;
+
+        Asset(String path) {
+            this.path = path;
+        }
+
+        abstract void dispose();
+    }
+
+    /**
+     * The verbs <b>every</b> loaded file answers, contributed to one kind's methods table: {@code :type()} (the
+     * dispatch result — {@code "image"}/{@code "font"}/{@code "mesh"}/{@code "data"}), {@code :path()} (the
+     * addon-relative path it was loaded from) and, on the handle its owner holds, {@code :dispose()} (free it
+     * now — also automatic on {@code :reload}/disable/relogin, P2), which returns the handle so it chains like
+     * every other verb here.
+     */
+    static void addAssetVerbs(LuaTable m, final String type, boolean owned) {
+        m.set("type", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                asset(self, "type");
+                return LuaValue.valueOf(type);
             }
         });
+        m.set("path", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(asset(self, "path").path);
+            }
+        });
+        if(owned) {
+            m.set("dispose", new OneArgFunction() {
+                public LuaValue call(LuaValue self) {
+                    asset(self, "dispose").dispose();
+                    return self;
+                }
+            });
+        }
+    }
+
+    /** The asset facet behind a shared verb's {@code self}, or the error that says what a colon call needs. */
+    static Asset asset(LuaValue self, String method) {
+        Object o = self.isuserdata() ? self.touserdata() : null;
+        Asset a = (o instanceof Loaded) ? ((Loaded)o).asset() : null;
+        if(a == null)
+            throw new LuaError("a:" + method + "() — use a COLON call on a file this addon loaded"
+                + " (hafen.asset():get(\"icon.png\"))");
+        return a;
+    }
+
+    /**
+     * The per-addon metatable one {@link Kind} of handle wears, built on the first handle of that kind. Per
+     * addon for the reason every metatable in the bridge is: no Lua value crosses a sandbox boundary (D-017).
+     * Unlocked, like every other lazy metatable here — two threads racing build two equal ones and one wins.
+     */
+    static LuaValue meta(Addon owner, Kind k) {
+        LuaValue mt = owner.assetMeta[k.ordinal()];
+        if(mt != null)
+            return mt;
+        switch(k) {
+        case FONT:
+        case FONT_ASSET:
+            mt = FontApi.fontMeta(owner, k);
+            break;
+        case MAP_IMAGE:
+            mt = MapImages.imageMeta();
+            break;
+        default:
+            mt = buildMeta(k);
+            break;
+        }
+        owner.assetMeta[k.ordinal()] = mt;
+        return mt;
+    }
+
+    /** The metatables this file owns: an image, the reduced view of one, a mesh and a data file. */
+    private static LuaValue buildMeta(Kind k) {
+        LuaTable m = new LuaTable();
+        switch(k) {
+        case IMAGE:
+        case IMAGE_VIEW:
+            m.set("size", new OneArgFunction() {
+                public LuaValue call(LuaValue self) {
+                    return LuaWidget.whTable(image(self, "size").sz);
+                }
+            });
+            addAssetVerbs(m, "image", k == Kind.IMAGE);
+            return fileMeta("image", "image", m, (k == Kind.IMAGE)
+                ? "an image asset answers :type() :path() :size() and :dispose()"
+                : "an image another addon loaded answers :type() :path() and :size() — freeing a file is"
+                  + " the job of the addon that loaded it");
+        case MESH:
+            m.set("bounds", new OneArgFunction() {
+                public LuaValue call(LuaValue self) {
+                    return bounds(mesh(self, "bounds"));
+                }
+            });
+            m.set("info", new OneArgFunction() {
+                public LuaValue call(LuaValue self) {
+                    return meshInfo(mesh(self, "info"));
+                }
+            });
+            addAssetVerbs(m, "mesh", true);
+            return fileMeta("mesh", "mesh", m,
+                "a mesh asset answers :type() :path() :bounds() :info() and :dispose()");
+        default:
+            m.set("text", new OneArgFunction() {
+                public LuaValue call(LuaValue self) {
+                    return data(self, "text").text;
+                }
+            });
+            addAssetVerbs(m, "data", true);
+            return fileMeta("data", "data", m,
+                "a data asset answers :type() :path() :text() and :dispose()");
+        }
+    }
+
+    /**
+     * The metatable a loaded file's handle wears: its closed vocabulary ({@link Retired#closedIndex}, so a
+     * typo raises naming what this kind does answer) and a {@code __tostring} of {@code Asset(image,
+     * icon.png)} — which is the whole reason a log line of an addon's own handles says anything.
+     */
+    static LuaValue fileMeta(String entity, final String type, LuaTable methods, String hint) {
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Retired.closedIndex(entity, methods, hint));
+        mt.set("__name", LuaValue.valueOf("Asset"));
+        mt.set("__tostring", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Object o = self.isuserdata() ? self.touserdata() : null;
+                Asset a = (o instanceof Loaded) ? ((Loaded)o).asset() : null;
+                return LuaValue.valueOf("Asset(" + type + ", " + ((a == null) ? "?" : a.path) + ")");
+            }
+        });
+        return mt;
+    }
+
+    /**
+     * <b>Which kind of loaded file a value is</b> — {@code "image"} / {@code "font"} / {@code "mesh"} /
+     * {@code "data"} — or {@code null} for anything that is not one. It reads the RECORD behind the handle
+     * rather than calling its {@code :type()}, because {@code type} is a verb four unrelated objects answer
+     * (a marker's kind, a widget's class) and a probe would report one of those as an asset kind. A built-in
+     * font answers {@code "font"}: it is a face that was never a file, which is exactly what a verb refusing
+     * the wrong kind of handle wants to say.
+     */
+    static String typeOf(LuaValue v) {
+        Object o = ((v == null) || !v.isuserdata()) ? null : v.touserdata();
+        if(o instanceof LuaImage)
+            return "image";
+        if(o instanceof LuaMesh)
+            return "mesh";
+        if(o instanceof FontHandle)
+            return "font";
+        if(o instanceof Data)
+            return "data";
+        return null;
+    }
+
+    /** The receiver of an image verb, or the error that says a colon call on an image handle is what it takes. */
+    static LuaImage image(LuaValue self, String method) {
+        Object o = self.isuserdata() ? self.touserdata() : null;
+        if(!(o instanceof LuaImage))
+            throw new LuaError("img:" + method + "() — use a COLON call on an image handle"
+                + " (hafen.asset():get(\"icon.png\"))");
+        return (LuaImage)o;
+    }
+
+    /** The receiver of a mesh verb. */
+    private static LuaMesh mesh(LuaValue self, String method) {
+        Object o = self.isuserdata() ? self.touserdata() : null;
+        if(!(o instanceof LuaMesh))
+            throw new LuaError("mdl:" + method + "() — use a COLON call on a mesh handle"
+                + " (hafen.asset():get(\"chair.glb\"))");
+        return (LuaMesh)o;
+    }
+
+    /** The receiver of a data verb. */
+    private static Data data(LuaValue self, String method) {
+        Object o = self.isuserdata() ? self.touserdata() : null;
+        if(!(o instanceof Data))
+            throw new LuaError("d:" + method + "() — use a COLON call on a data handle"
+                + " (hafen.asset():get(\"theme.json\"))");
+        return (Data)o;
     }
 
     // ---- teardown ------------------------------------------------------------------------------------

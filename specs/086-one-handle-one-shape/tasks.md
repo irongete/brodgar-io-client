@@ -126,7 +126,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       ticked with 086.6, which is the task that finishes it.
       <!-- extra context: src/io/brodgar/addon/AddonManager.java (newTimer, Timer, runTimers, clock, the hafen.timer() mount and its Source) -->
 
-- [ ] **086.5 — A file you loaded is an object.** Five handle kinds — image, mesh, data, font and map
+- [x] **086.5 — A file you loaded is an object.** Five handle kinds — image, mesh, data, font and map
       image — stop being tables of per-instance closures and become
       `LuaValue.userdataOf(record, meta(owner))` with a **shared per-addon** metatable whose methods
       resolve the record off `self`, the `LuaGob`/`LuaItem` pattern. Two metatables per kind per
