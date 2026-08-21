@@ -1196,8 +1196,9 @@ final class CharApi {
     /**
      * Build the study section object for {@code (owner, user)} — <b>one character's study window</b>,
      * reached as {@code s:study()} (077.1). Its contents become the {@link LuaStudySlot} collection
-     * {@code :slot()} (§4.2); {@code :summary()} stays a scalar read, because the three totals are one
-     * value and there is nothing to address into.     *
+     * {@code :slot()} (§4.2); {@code :summary()} is a {@link LuaStudySummary}, the live object
+     * {@code s:fight():summary()} already is, so one word answers one kind of thing (085.4).
+     *
      * <p><b>077.1: it is built per {@code (addon, session)}</b> and hung on the interned Session handle, the
      * shape {@link WorldApi#world} established — so {@code s:study() == s:study()} and every collection under it
      * is minted once for that pair. Every read resolves through that character's own sheet, so a session
@@ -1208,11 +1209,15 @@ final class CharApi {
         final LuaValue slots = LuaStudySlot.collection(owner, user);
         LuaTable study = new LuaTable();
         study.set("slot", collection("study", ST, "slot", slots));
-        // summary() — the live totals {lp, attention, cost} across the slots, nil before the window is up.
+        // summary() — that character's learning-point, attention and experience totals, nil before the tab
+        // is built. A StudySummary object, the same kind of answer s:fight():summary() gives.
         study.set("summary", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "study", "summary", ST);
-                return studySummary(user);
+                if(Args.passed(a, 2))
+                    throw new LuaError(ST + ":summary() takes no arguments — the three totals are its own"
+                        + " verbs, and sum:info() is the whole table at once");
+                return LuaStudySummary.of(owner, studyInfo(user));
             }
         });
         return Section.object("study", study, ST);
@@ -1560,23 +1565,6 @@ final class CharApi {
         return luaFieldEq(a, b, "res") && luaFieldEq(a, b, "name") && luaFieldEq(a, b, "lp")
             && luaFieldEq(a, b, "attention") && luaFieldEq(a, b, "cost") && luaFieldEq(a, b, "time")
             && luaFieldEq(a, b, "progress");
-    }
-
-    /**
-     * Study totals from {@link SAttrWnd.StudyInfo} (recomputed live each tick): {@code lp} (total
-     * learning points across the curiosities), {@code attention} (total mental weight used — compare
-     * with {@code hafen.char.attr("int").comp}, the cap), {@code cost} (total experience cost). nil
-     * until the study window exists.
-     */
-    private static LuaValue studySummary(String user) {
-        SAttrWnd.StudyInfo si = studyInfo(user);
-        if(si == null)
-            return LuaValue.NIL;
-        LuaTable t = new LuaTable();
-        t.set("lp", LuaValue.valueOf(si.texp));
-        t.set("attention", LuaValue.valueOf(si.tw));
-        t.set("cost", LuaValue.valueOf(si.tenc));
-        return t;
     }
 
     /** That character's "Lore &amp; Skills" widget ({@link SkillWnd}), or {@code null}. */

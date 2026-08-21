@@ -593,6 +593,15 @@ public final class Addon {
     final LuaOpponent.Cache opponents = new LuaOpponent.Cache(this);
 
     /**
+     * This addon's <b>study-totals cache</b> ({@code s:study():summary()}), keyed by the study-report
+     * <b>window</b> — the same key and the same reason as {@link #fightSummaries}, which is the point of the
+     * two answering the same kind of thing: the tab is one character's, it is what has a lifetime behind the
+     * numbers, and a character whose sheet has not built has no window and so no summary. Weak-valued, dead
+     * with this {@link Addon} on {@code :reload}/disable.
+     */
+    final LuaStudySummary.Cache studySummaries = new LuaStudySummary.Cache(this);
+
+    /**
      * This addon's <b>quest, wound and crafting interning caches</b> (spec {@code 039-uniform-api}
      * §4.4/§4.5/§4.7): {@code hafen.quest()} and {@code hafen.wound()} keyed by the server's own id — both
      * windows look their record up by it and mutate it in place, so a quest completing and a wound worsening

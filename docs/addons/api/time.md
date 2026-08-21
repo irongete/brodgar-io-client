@@ -14,7 +14,7 @@ if hafen.time():isNight() then hafen.log():write("it's dark out") end
 | `hafen.time():clock()` | number \| nil | interpolated game-time seconds |
 | `hafen.time():dayFraction()` | number \| nil | time of day, `0..1` |
 | `hafen.time():isNight()` | bool \| nil | whether it is night |
-| `hafen.time():season()` | number \| nil | season index |
+| `hafen.time():season()` | string \| nil | one of `"spring"`, `"summer"`, `"autumn"`, `"winter"` |
 | `hafen.time():moon()` | number \| nil | moon phase, `0..1` |
 | `hafen.time():yearFraction()` | number \| nil | position in the year, `0..1` |
 
@@ -25,6 +25,9 @@ They answer `nil` when the client holds no session at all, which is the login sc
 
 `clock()` answers as soon as a session is up. The astronomy readers answer `nil` until the first
 astronomy update arrives from the server, which is a beat after entering the world.
+
+`season()` names the season rather than numbering it, so `== "winter"` reads exactly as it looks. The
+server publishes one of the four above and nothing else; anything outside them answers `nil` too.
 
 Nothing here is protected, and **every verb is a read: passing one an argument raises**. Arity is the
 verb across the API, so a call written like a setter must not quietly read instead — there is nothing

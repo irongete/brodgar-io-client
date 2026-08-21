@@ -9,7 +9,7 @@ local s = hafen.session():current()                    -- the character on scree
 if s and s:wound():find("Infection") then hafen.log():write("infected!") end
 
 for _, w in ipairs(s and s:wound():list() or {}) do
-  hafen.log():write(("  "):rep(w:level()) .. (w:name() or w:res()) .. "  " .. (w:severity() or ""))
+  hafen.log():write(("  "):rep(w:level()) .. (w:name() or w:res()) .. "  " .. (w:label() or ""))
 end
 ```
 
@@ -51,15 +51,17 @@ reads exactly as it looks, and what it hands back on a hit is the wound itself.
 | `w:id()` | number | the wound's id — always answers |
 | `w:name()` | string \| nil | its display name |
 | `w:res()` | string \| nil | its resource name |
-| `w:severity()` | string \| nil | the magnitude the client shows beside it |
+| `w:severity()` | number \| nil | the magnitude beside it, as a number |
+| `w:label()` | string \| nil | that magnitude spelled the way the client paints it |
 | `w:parent()` | `Wound` \| nil | the wound this one complicates; `nil` at a root |
 | `w:level()` | number \| nil | how deep the tree draws it; `0` at a root |
 | `w:exists()` | boolean | whether it is still on the character — always answers |
 | `w:info()` | [`Wound`](types.md#wound) \| nil | a plain-table **snapshot** |
 
-> A wound's `severity` is the magnitude string the client paints beside it — usually a number, and
-> content-defined rather than any [unit](shapes.md#units) of the client's. It arrives a beat after the wound
-> itself, so it is `nil` for that beat.
+> **A wound's magnitude has two reads.** `w:label()` is the string the client paints beside the wound and
+> `w:severity()` is that string read as a number. The content chooses the string, so nothing guarantees
+> it is one: where it is not, `:label()` answers it and `:severity()` is `nil`. Neither is any
+> [unit](shapes.md#units) of the client's, and both arrive a beat after the wound itself.
 
 A wound is interned on its session and its id, so `s:wound():list()[1] == s:wound():get(<that id>)` and
 `seen[w] = true` work, while the same id on two characters is two objects. The client

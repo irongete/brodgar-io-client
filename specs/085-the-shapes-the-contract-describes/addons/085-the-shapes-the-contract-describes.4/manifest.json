@@ -1,0 +1,9 @@
+{
+  "name": "085.4 — the answer is the thing",
+  "id": "085-the-shapes-the-contract-describes.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 085.4: hafen.time():season() is one of four season names, s:study():summary() is a live interned object whose field reads refuse and whose absence is nil rather than an error, and a wound's magnitude is a number from w:severity() beside the string the client paints from w:label().",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

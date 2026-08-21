@@ -572,6 +572,16 @@ final class WorldApi {
     }
 
     /**
+     * The four seasons {@link Astronomy#is} indexes, in its own order. <b>The engine names none of them</b>:
+     * {@link haven.Cal} is the only reader and it uses the index to pick one of four
+     * {@code gfx/hud/calendar/dayscape-N} textures, and {@link Glob}'s {@code "astro"} branch defaults the
+     * field to {@code 1} when the server omits it. So the domain is {@code 0..3}, the names are read off the
+     * client's own calendar, and an index outside the four answers {@code nil} — the same answer the whole
+     * verb gives before the first astronomy update lands.
+     */
+    private static final String[] SEASONS = {"spring", "summer", "autumn", "winter"};
+
+    /**
      * Build {@code hafen.time} for {@code owner}. From installHafen. A plain section object: {@code
      * hafen.time()} is the per-addon singleton and every reader is a colon call on it. {@code clock()} always
      * answers; the astronomy readers are nil until the first "astro" update lands.
@@ -608,12 +618,15 @@ final class WorldApi {
                 return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t.night);
             }
         });
-        // season() — the season index the server publishes.
+        // season() — which of the four seasons it is, by name.
         m.set("season", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 timeRead(a, "season");
                 Astronomy t = astro();
-                return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t.is);
+                if(t == null)
+                    return LuaValue.NIL;
+                return ((t.is < 0) || (t.is >= SEASONS.length)) ? LuaValue.NIL
+                    : LuaValue.valueOf(SEASONS[t.is]);
             }
         });
         // moon() — the moon phase, 0..1.

@@ -231,9 +231,9 @@ Under `src/io/brodgar/addon/`, tagged with the tasks that need each:
 - `Retired` — `closedIndex`, `put`, `message`, `NAMES` — 3
 - `WorldApi` (`installTime`'s `season`), `haven/Astronomy`, `haven/Glob` (the `"astro"` branch),
   `haven/Cal` (`dlnd`) — 4
-- `CharApi` (`studySummary`, `studyInfo`, the `study` section), `LuaFightSummary` (the pattern to
-  copy: `of(owner, wnd)`, its `number(...)` helper, `exists`, `info`), `LuaWound` (`severity`,
-  `severityOf`) — 4
+- `CharApi` (`studyInfo`, the `study` section), `LuaStudySummary` (what `s:study():summary()` hands
+  back, on `LuaFightSummary`'s shape: `of(owner, si)`, its `number(...)` helper, `exists`, `info`),
+  `LuaWound` (`severity`, `label`, `severityOf`) — 4
 - `OptionsHandle` (`install`, `create`), `ProfHandle`, `AudioOptions`, `CameraOptions`,
   `ClientOptions`, `InterfaceOptions`, `VideoOptions`, `KeybindingsOptions` (their `create`),
   `Addon` (the lazy-field pattern at `subMeta` / `grabMeta`), `Section` (`install`, and its identity

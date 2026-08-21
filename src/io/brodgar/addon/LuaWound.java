@@ -141,7 +141,8 @@ public final class LuaWound {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("wound", methods(owner),
-            "a wound answers :id() :name() :res() :severity() :parent() :level() :exists() and :info()"));
+            "a wound answers :id() :name() :res() :severity() :label() :parent() :level() :exists()"
+            + " and :info()"));
         mt.set("__name", LuaValue.valueOf("Wound"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -178,10 +179,19 @@ public final class LuaWound {
                 return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
             }
         });
-        // severity() — the magnitude the client shows beside the wound. A string, and NOT seconds.
+        // severity() — the magnitude as a number, nil where the label is not one. NOT seconds.
         m.set("severity", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaWound h = handle(self, "severity");
+                WoundWnd.Wound w = wound(h.user, h.id);
+                String s = (w == null) ? null : severityOf(w);
+                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s).tonumber();
+            }
+        });
+        // label() — the very string the client paints beside the wound, whether or not it is a number.
+        m.set("label", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaWound h = handle(self, "label");
                 WoundWnd.Wound w = wound(h.user, h.id);
                 String s = (w == null) ? null : severityOf(w);
                 return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
@@ -275,6 +285,12 @@ public final class LuaWound {
      * The severity indicator the client shows beside a wound — its highest-priority {@link
      * WoundWnd.QuickInfo}'s {@code qstr()} (a content-defined string, usually the wound's magnitude number;
      * <b>not</b> seconds), or {@code null} while it is still Loading. Mirrors the client's own pick.
+     *
+     * <p><b>Two verbs read it</b> (085.4), because there are two facts here and one string was standing for
+     * both: {@code w:label()} is this string unchanged, and {@code w:severity()} is Lua's own parse of it —
+     * a number, or {@code nil} where the content chose a word. The pair is what {@code food:label()} and its
+     * numbers already do; one verb answering "usually a number" made {@code (tonumber(...) or 0)} the only
+     * correct thing to write.
      */
     static String severityOf(WoundWnd.Wound w) {
         try {

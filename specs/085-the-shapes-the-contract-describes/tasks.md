@@ -118,7 +118,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       is finished here; it is ticked with 085.1.
       <!-- extra context: src/io/brodgar/addon/Layout.java (parseCoord), Sheet.java (its two size snapshot keys), addons/eventstack/main.lua -->
 
-- [ ] **085.4 — The answer is the thing.** Three reads stop standing for a thing and start being it.
+- [x] **085.4 — The answer is the thing.** Three reads stop standing for a thing and start being it.
       **`hafen.time():season()`** returns one of four strings. `WorldApi.installTime`'s `season`
       hands back `Astronomy.is` raw; upstream names the seasons nowhere — `haven.Cal` is the only
       reader and uses `is` to index four textures (`Tex[4] dlnd`,

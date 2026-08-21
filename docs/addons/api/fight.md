@@ -101,6 +101,9 @@ when the hotkey is emptied, while the maneuver half goes `nil` and `:exists()` g
 `sum:used()` is the same total the window paints beside the cap, and it is the sum of `man:used()` over
 every maneuver that character knows.
 
+[`s:study():summary()`](study.md#the-summary) is a summary of the same kind — a live object with its own
+`:exists()` and `:info()`, interned on its window, `nil` while that window is not up.
+
 ## The target
 
 | Method | Returns | Description |

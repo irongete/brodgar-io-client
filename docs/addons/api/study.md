@@ -33,10 +33,11 @@ A session the client no longer holds answers an empty array and a `nil` summary 
 | `s:study():slot():list(filter)` | `StudySlot[]` | the curiosities currently in the window |
 | `s:study():slot():count(filter)` | number | how many match |
 | `s:study():slot():find(filter)` | `StudySlot` \| nil | the first that matches |
-| `s:study():summary()` | `{lp, attention, cost}` \| nil | live totals across the slots |
+| `s:study():summary()` | `StudySummary` \| nil | the totals across the curiosities in the window |
 
 A string [filter](conventions.md#the-filter-argument) matches the resource name **and** the display name.
-`:summary()` answers `nil` until the window has built. Neither throws and neither is protected.
+`:summary()` answers `nil` until that character's study tab has built, and takes no arguments: the three
+totals are verbs on what it hands back. Nothing here is protected, and nothing else here throws.
 
 **There is no `:get`, and that is the shape rather than an omission.** A study slot has no key: the same
 curiosity can sit in two slots at once, and the window has no index the server addresses. So a string is
@@ -61,7 +62,7 @@ s:study():slot():get("bar")
 | `slot:time()` | number \| nil | study time in seconds |
 | `slot:progress()` | number \| nil | `0..1` study progress; best-effort |
 | `slot:exists()` | boolean | whether it is still in a study window — always answers |
-| `slot:info()` | [`StudySlot`](types.md#studyslot) \| nil | a plain-table **snapshot** |
+| `slot:info()` | [`StudySlot`](types.md#studyslot-and-studysummary) \| nil | a plain-table **snapshot** |
 
 > A slot's `time` is the total study time for that curiosity in seconds, not what is left and not a
 > [fraction](shapes.md#units). The client is not sent a per-item countdown, so there is none to read.
@@ -83,8 +84,28 @@ hafen.event():on("StudyChanged", function(slots)
 end)
 ```
 
+## The summary
+
+| Method | Returns | Description |
+|---|---|---|
+| `sum:lp()` | number \| nil | learning points the curiosities in the window will yield |
+| `sum:attention()` | number \| nil | the mental weight they spend |
+| `sum:cost()` | number \| nil | what they cost in experience |
+| `sum:exists()` | boolean | whether that character's study tab is still up |
+| `sum:info()` | [`StudySummary`](types.md#studyslot-and-studysummary) \| nil | a plain-table **snapshot** |
+
+`sum:attention()` is the numerator the window draws; the cap it is drawn against is that character's
+Intelligence, [`s:char():attr():get("int"):composite()`](char.md#attributes) — a game fact rather than an
+API one, and one namespace away. The three totals are read together, so they always add up against the
+same set of curiosities.
+
+The summary is interned on that character's study tab, so `s:study():summary() == s:study():summary()` and
+`seen[sum] = true` work, and one you keep goes on reading the live totals as curiosities go in and out. It
+is the same kind of thing [`s:fight():summary()`](fight.md#the-summary) is, down to answering `nil` rather
+than an empty object while there is no tab.
+
 ## See also
 
 - [`session:char`](char.md) — attributes, learning points and skills
-- [`StudySlot`](types.md#studyslot) — the snapshot shape `slot:info()` returns
+- [`StudySlot`](types.md#studyslot-and-studysummary) — the snapshot shape `slot:info()` returns
 - [events](event/bus.md#character-and-status) — `StudyChanged`

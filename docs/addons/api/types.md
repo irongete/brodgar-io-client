@@ -120,7 +120,7 @@ until its meter arrives.
 }
 ```
 
-## StudySlot
+## StudySlot and StudySummary
 
 From [`slot:info()`](study.md#a-slot), the one snapshot escape hatch. `s:study():slot()` and the
 `StudyChanged` event hand you live [`StudySlot` objects](study.md#a-slot), not this table.
@@ -135,7 +135,9 @@ From [`slot:info()`](study.md#a-slot), the one snapshot escape hatch. `s:study()
 | `time` | number | **total** study time in seconds; there is no per-item countdown; optional |
 | `progress` | number | 0..1 study progress; best-effort, optional |
 
-`s:study():summary()` returns the live totals `{ lp, attention, cost }`.
+**StudySummary** — `{ lp, attention, cost }`, the totals across the whole window, from
+[`sum:info()`](study.md#the-summary). `s:study():summary()` itself hands you the live
+[`StudySummary` object](study.md#the-summary), not this table.
 
 ## Skill, Credo, Experience
 
@@ -233,7 +235,7 @@ What `w:info()` hands back on [`session:wound`](wound.md)'s objects. Wounds form
 |---|---|---|
 | `id` | number | wound id |
 | `name`, `res` | string | wound type; optional |
-| `severity` | string | the magnitude the client shows, usually a number and **not** seconds; optional |
+| `severity` | string | the magnitude as the client spells it, `w:label()`; **not** seconds; optional |
 | `parentid` | number | parent wound id, or `-1` for a root wound |
 | `level` | number | tree depth (indent) |
 

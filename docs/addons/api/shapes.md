@@ -106,7 +106,7 @@ A name ending **`Fraction`** says so in the name. The rest do not, which is why 
 
 Two reads that sound like time carry no unit of time at all, and each is stated where you read it:
 [`slot:time()`](study.md#a-slot) is a total rather than a countdown, and
-[`w:severity()`](wound.md#a-wound) is a magnitude the content chose.
+[`w:label()`](wound.md#a-wound) is a magnitude the content chose.
 
 ## See also
 
