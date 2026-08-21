@@ -1,8 +1,8 @@
 # 085 — The shapes the contract describes: tasks
 
-Six tasks. Task 1 first — it makes the room the others write into. 2, 3, 4 and 5 are independent of each
-other and of everything outside this feature; 6 is the only one that waits on another, because the helper
-it points two more readers at is the one task 3 builds.
+Seven tasks. Task 1 first — it makes the room the others write into. 2, 3, 4 and 5 are independent of each
+other and of everything outside this feature; 6 waits on the helper task 3 builds, and 7 waits on 2, 3 and 4,
+because what it sweeps is the text those three left behind.
 
 Every suite keeps to **≤ 15 output lines**, so group: one verdict line per claim, scored
 (`3/3 reached`) rather than one line per handle.
@@ -191,7 +191,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       *Inventory*: A-029, A-035 — `/end` ticks and strikes them in `audit/INVENTORY.md`.
       <!-- extra context: src/io/brodgar/addon/Addon.java (subMeta and grabMeta, the lazy-field pattern), Section.java (its identity javadoc), FontHandle.java (size, aa, draft, used) -->
 
-- [ ] **085.6 — The last two sizes.** Two `size` keys still answer `{x=, y=}` after 085.3, and neither is
+- [x] **085.6 — The last two sizes.** Two `size` keys still answer `{x=, y=}` after 085.3, and neither is
       in the four that task enumerated: `LuaMapGrid`'s `grid:info()` (a grid's span in tiles, from
       `MCache.cmaps`) and `MapImages`' `mapImg:info()` — the second contradicting `mapImg:size()`, which is
       `{w=, h=}`, on the **same handle**. Both build their table with `AddonManager.xy`; both take
@@ -212,6 +212,43 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       *Inventory*: none of its own. A-023 and A-024 are ticked with 085.3; this is the half of their claim
       the audit rows did not enumerate, found by 085.3 while writing `shapes.md`.
       <!-- extra context: src/io/brodgar/addon/LuaMapGrid.java (the info snapshot), MapImages.java (handleFor's size verb and its info snapshot), AddonManager.java (xy) -->
+
+- [ ] **085.7 — A refusal names a fix that works.** This feature cut three spellings and added one verb, and
+      the bridge's own strings still teach what it cut. `Retired` cannot catch it — it keys on a **name**, and
+      an argument shape has no name — so the sweep is the fix and the suite is what stops it coming back.
+      **Three refusal messages name a spelling that raises.** `FontApi`'s `font:derive()` refusal teaches the
+      chain as `h:derive():size(12):bold(true):color(255, 200, 200)`, and `Retired`'s `hafen.ui.skin` and
+      `widget:skin` rows both list a rule's properties as `:font(h) :color(r,g,b) :bg{…}`. The chain keeps a
+      literal and takes `{255, 200, 200}`; the two property lists take **`:color(c)`**, which names the verb and
+      commits to no argument shape — the spelling a refusal uses when the argument is not its subject. Nothing
+      else in those three is stale: `rule:padding(n)` is live, and it was `rule:pad` that moved.
+      **Two retirement rows re-list a member's whole vocabulary** — `hafen.quests` and `hafen.wounds` — and the
+      Wound one has drifted, missing the `:label()` 085.4 added, while the Quest one still matches
+      `LuaQuest`'s hint word for word. **The re-list goes, not the drift.** A row's job is the address
+      (`hafen.wounds` is `s:wound()`); the member's verbs are one refusal away on the object, and `closedIndex`
+      is the one place a type's vocabulary is written. Patching the copy leaves the copy.
+      **Five javadoc examples teach the same cut spellings**: `LuaRule`, `LuaSheet` and `Sheet`'s
+      `:color(200, 210, 200)`, `LuaWidget`'s `r:color(r,g,b)`, and `LuaMesh`'s `:bounds()` →
+      `{min={x,y,z}, max={x,y,z}, size={x,y,z}}`, whose `size` 085.3 renamed `extent`. None is reachable from
+      Lua, so none is a suite check: they are `grep`ed at hand-over, with the counts reported.
+      `CLAUDE.md`'s hard-cut rule gains the sentence this task is the evidence for — a **rename** is free and a
+      **reshape** is not: `Retired` carries a name, so a changed argument, return or payload shape needs a
+      refusal written inside the verb and a page line, and neither of those is a row anything sweeps.
+      *Its suite* asserts the **absence**, not the correctness, which is the only form that keeps the copy from
+      growing back. Reading `hafen.ui.skin`, a built window's `w:skin{}` and `hafen.font():get("sans"):derive({})`
+      each raise, and no message among the three carries `:color(` before a digit or an `r,` — one scored line
+      over the three. Reading `hafen.wounds` and `hafen.quests` each raise naming `s:wound()` and `s:quest()`,
+      and neither message carries `:exists()`, the tail both rows re-listed — one scored line over the two.
+      Then that the sweep took nothing live with it: `w:rule():color({200, 210, 220})` is still taken and reads
+      back keyed, and a wound still answers `:label()` where the deleted list used to say so. Its refusal:
+      `w:skin{}` must still raise naming `widget:rule()`, so deleting a vocabulary from a row did not delete
+      the row.
+      `[manual]`: none.
+      *Inventory*: none of its own, and none is possible. `07-errors-and-refusals.md` grades this **Grade B** —
+      "names the fix, but at the wrong moment or in the wrong words" — and its **R2** says why no id can carry
+      it: an argument-shape change has no name to key on, so it never became a row. The three messages and the
+      Wound drift are this feature's own, made by 085.2 and 085.4 after the audit was written.
+      <!-- extra context: src/io/brodgar/addon/FontApi.java (the derive refusal), Retired.java (the hafen.ui.skin, widget:skin, hafen.quests and hafen.wounds rows, and section()/index() — how a dotted read is consulted), LuaRule.java, LuaSheet.java, Sheet.java, LuaWidget.java, LuaMesh.java (the javadoc examples), CLAUDE.md (the hard-cut rule) -->
 
 ## When the feature closes
 

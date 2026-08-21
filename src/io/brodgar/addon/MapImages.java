@@ -324,7 +324,7 @@ final class MapImages {
                 LuaTable t = new LuaTable();
                 t.set("source", LuaValue.valueOf("map"));
                 t.set("what", LuaValue.valueOf(li.name));
-                t.set("size", AddonManager.xy(li.sz.x, li.sz.y));
+                t.set("size", LuaWidget.whTable(li.sz));          // the same two keys :size() answers
                 t.set("disposed", LuaValue.valueOf(li.dead));
                 return t;
             }

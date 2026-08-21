@@ -1,0 +1,9 @@
+{
+  "name": "085.6 — the last two sizes",
+  "id": "085-the-shapes-the-contract-describes.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 085.6: the two size keys that still answered {x, y} — a grid's span on grid:info() and mapImg:info().size — read back .w and .h, raise on .x and .y naming their replacement, and agree with mapImg:size() on the same handle.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

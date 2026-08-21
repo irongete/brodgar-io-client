@@ -305,7 +305,7 @@ public final class LuaMapGrid {
                 t.set("loaded", LuaValue.valueOf(g != null));
                 if(g != null)
                     t.set("mtime", LuaValue.valueOf((double)g.mtime));
-                t.set("size", AddonManager.xy(MCache.cmaps.x, MCache.cmaps.y));
+                t.set("size", LuaWidget.whTable(MCache.cmaps));   // a span in TILES, and a size is {w=, h=}
                 return t;
             }
         });

@@ -80,7 +80,7 @@ end
 | `grid:overlay()` | [mask collection](overlays.md#the-recorded-masks) | which claims and provinces covered it |
 | `grid:image(level)` | image \| nil | its [minimap drawing](drawings.md) at zoom `level` (default `0`) |
 | `grid:overlayImage(tag)` | image \| nil | one recorded [overlay mask](drawings.md) drawn in its own colour |
-| `grid:info()` | table | `{ id, seg, sc, pos?, live, mtime?, loaded, size }` — the snapshot escape hatch |
+| `grid:info()` | table | `{ id, seg, sc, pos?, live, mtime?, loaded, size }` — the snapshot escape hatch; `size` is the grid's span in tiles, `{w, h}` |
 
 `grid:tile` gives you the tileset **resource name**, not a tile id: the live
 [`s:world():tile`](../world.md#terrain-and-coordinates) `id` is a number one session made up, so the name is
