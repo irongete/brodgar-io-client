@@ -91,7 +91,10 @@ not. Each needs its own permission key declared in your manifest — or the grou
 both — and called from an addon that did not declare it, each raises an error naming that key; see
 [the permission model](conventions.md#the-permission-model). One key covers every character: see
 [a key names the action, not the target](../guides/permissions.md#a-key-names-the-action-not-the-target).
-`mods` is the optional modifier bitfield — Shift = 1, Ctrl = 2, Alt = 4.
+`mods` is the optional modifier bitfield — Shift = 1, Ctrl = 2, Alt = 4. Optional is not unchecked: a value
+that is not a number raises naming the verb and the parameter, one that merely scans as a number is
+[still a string](conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number), and the
+refusal comes before the slot is looked at.
 
 `use` raises an error on an empty slot, so check `:empty()` first. A ground-targeted ability enters
 targeting mode when used, just as clicking the button would; supply the target with

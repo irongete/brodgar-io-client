@@ -35,6 +35,12 @@ import org.luaj.vm2.Varargs;
  * through as a name and the defensive one refuses a perfectly ordinary string. Stating the rule once is what
  * keeps the twelve hand-rolled variants of it from disagreeing.
  *
+ * <p><b>And the optional twin, {@link #optint}, is part of that discipline rather than a convenience.</b> An
+ * argument a verb can do without is still an argument whose type is checked: LuaJ's {@code optint} and
+ * {@code optdouble} coerce a numeric string and fall through to a raw <i>bad argument</i> on anything else,
+ * so a verb that reaches for them hands both mistakes back at once. Where a helper here does not cover a
+ * shape, that is the thing to fix — an optional argument left to LuaJ is how a swept file stays unswept.
+ *
  * <p>Index conventions: on a colon call the receiver is argument 1, so a verb's first real argument is 2; on
  * a {@code __call} metamethod the callable table itself is argument 1, so the same holds.
  */
@@ -111,6 +117,28 @@ final class Args {
             throw new LuaError(verb + ": " + param + " must be a number" + hint(hint) + ", got " + v.typename()
                 + ((v.type() == LuaValue.TSTRING) ? STRING_IS_NOT : ""));
         return v;
+    }
+
+    /**
+     * An <b>optional number</b> argument: the caller's number, or {@code def} when they passed nothing at
+     * all. The twin of {@link #num} for the argument a verb can do without — a modifier bitfield, a button,
+     * a count.
+     *
+     * <p><b>Why an optional argument needs a helper of its own.</b> LuaJ's {@code optint}/{@code optdouble}
+     * do two wrong things in one call. A value of the wrong kind falls through to {@code checkint()} and
+     * surfaces as LuaJ's own <i>bad argument: number expected, got table</i>, which names neither the verb
+     * nor the parameter — the message a caller reads at the worst moment. And a numeric <b>string</b> scans
+     * as a number, so {@code place(p, 0, "1", "0")} is taken and <b>sent</b>. Those are the two mistakes
+     * {@link #num} exists to refuse, and an argument being optional changes neither of them.
+     *
+     * <p><b>Omitted and explicitly {@code nil} are not the same thing</b>, here as everywhere else: an
+     * absent argument is the default, and a {@code nil} in a slot the caller passed is refused by
+     * {@link #written} like any other. {@code place(p, ang, nil, 0)} passes a fourth argument and so passes
+     * a third, which is exactly the accident this refuses.
+     */
+    static int optint(Varargs a, int i, String verb, String param, String hint, int def) {
+        LuaValue v = written(a, i, verb, param);
+        return (v == null) ? def : num(v, verb, param, hint).toint();
     }
 
     /** What the call site knows and the parameter name does not, in parentheses, or nothing. */

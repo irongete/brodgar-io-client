@@ -149,7 +149,7 @@ final class LuaHand {
                         + " \"use the held item on nothing\", and this is not how you activate what you"
                         + " hold — that is session:player():hand():item():use().");
                 LuaValue target = a.arg(2);
-                int mods = a.arg(3).optint(0);
+                int mods = Args.optint(a, 3, USE, "mods", null, 0);
                 if(held(user) == null)
                     throw new LuaError(USE + ": nothing is on the cursor — session:player():hand() is nil while"
                         + " it is empty, so read it again rather than holding a Hand across a drop."

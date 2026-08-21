@@ -515,14 +515,17 @@ final class VrApi {
     /**
      * The point one of the {@code make*} bodies is to stand its entity at, or <b>null</b> when the place it was
      * given cannot be located this session (045.2) — {@link Anchor#spec()} leaves the two keys absent for
-     * exactly that case. Not {@code optdouble(0.0)}: the map origin is a real place, and defaulting to it would
+     * exactly that case. Never a defaulted zero: the map origin is a real place, and defaulting to it would
      * put a thing that is merely waiting into the middle of the world.
      */
     private static Coord2d optPlace(LuaValue opts) {
-        LuaValue x = opts.get("x");
-        if(!x.isnumber())
+        // The two keys are written together by Anchor#spec() or not at all, so they are read together, and
+        // by TYPE — never isnumber()/optdouble(), which coerce a string that merely scans as a number
+        // (Args states that rule once, for the whole bridge).
+        LuaValue x = opts.get("x"), y = opts.get("y");
+        if((x.type() != LuaValue.TNUMBER) || (y.type() != LuaValue.TNUMBER))
             return null;
-        return new Coord2d(x.todouble(), opts.get("y").optdouble(0.0));
+        return new Coord2d(x.todouble(), y.todouble());
     }
 
     /** The point a fresh gob is built at — its place, or the origin as a placeholder it never stands at (045.2). */

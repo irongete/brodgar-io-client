@@ -333,6 +333,9 @@ public final class LuaSlot {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.ACTIONBAR_USE);
+                // The modifiers are read before the bar is looked up: an argument the caller got wrong is
+                // the caller's to hear about whether or not that slot happens to be empty right now.
+                int mods = Args.optint(a, 2, "slot:use", "mods", null, 0);
                 LuaSlot h = handle(self, "use");
                 int n = h.index;
                 // That character's own action-bar widget presses it, so the press lands on the bar it was
@@ -346,7 +349,7 @@ public final class LuaSlot {
                     throw new LuaError("slot:use(): slot " + n + " is empty (check slot:empty() first)");
                 if(g.beltwdg == null)
                     throw new LuaError("slot:use(): no action-bar widget yet");
-                g.beltwdg.act(n, new MenuGrid.Interaction(1, a.arg(2).optint(0)));
+                g.beltwdg.act(n, new MenuGrid.Interaction(1, mods));
                 return self;
             }
         });

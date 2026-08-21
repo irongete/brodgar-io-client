@@ -216,7 +216,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: src/io/brodgar/addon/OptionsHandle.java, AudioOptions.java, CameraOptions.java, ClientOptions.java, InterfaceOptions.java, VideoOptions.java, KeybindingsOptions.java, ProfHandle.java, ProfScope.java, HttpApi.java, LuaHttp.java, VrApi.java (entityHandle), StoreApi.java (carriable) -->
 
-- [ ] **086.7 — The optional arguments the sweep did not reach.** 084's own claim — *no LuaJ `bad
+- [x] **086.7 — The optional arguments the sweep did not reach.** 084's own claim — *no LuaJ `bad
       argument` reaches an author*, and *a numeric string fails a number check* — is still false at
       **six sites, eight calls**, all of them the **optional** arguments of action verbs:
       `WorldApi`'s `place` (`button`, `mods`), `click` (`button`, `mods`) and `select` (`mods`),

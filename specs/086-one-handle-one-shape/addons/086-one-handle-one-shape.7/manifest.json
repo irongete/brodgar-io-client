@@ -1,0 +1,10 @@
+{
+  "name": "086.7 — the optional arguments the sweep did not reach",
+  "id": "086-one-handle-one-shape.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 086.7: the optional arguments of the action verbs go through the house helper, so a wrong type raises naming the verb and the parameter instead of LuaJ's bare \"bad argument\", a numeric string is refused instead of being coerced and sent, and an explicit nil in a slot the caller passed is refused.",
+  "api_version": 1,
+  "permissions": ["world.place", "world.select", "gob.click", "item.use", "actionbar.use", "player.hand.use"],
+  "files": ["main.lua"]
+}

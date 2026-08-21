@@ -263,8 +263,14 @@ final class WorldApi {
                 Section.self(self, "world", "place", W);
                 Coord2d rc = LuaPosition.worldArg(a, 2, W + ":place", "p", user);
                 double ang = number(a, 3, W + ":place", "angle");
+                // The two optional ones are read HERE, beside the required pair and before the view is
+                // looked up: an argument the caller got wrong is the caller's to hear about, whatever
+                // state the world is in. Args.optint and not LuaJ's optint — a numeric string coerces
+                // through that one and would be SENT, and anything else surfaces as a bare "bad argument".
+                int button = Args.optint(a, 4, W + ":place", "button", null, 1);
+                int mods = Args.optint(a, 5, W + ":place", "mods", null, 0);
                 MapView mv = sendView(user, W + ":place");
-                mv.wdgmsg("place", placeArgs(rc, ang, a.arg(4).optint(1), a.arg(5).optint(0)));
+                mv.wdgmsg("place", placeArgs(rc, ang, button, mods));
                 return self;
             }
         });
@@ -292,6 +298,8 @@ final class WorldApi {
                 if(h == null)
                     throw new LuaError(W + ":click(gob, button, mods): gob must be a Gob object"
                         + " (s:world():gob():get(id), s:world():gob():nearest(...)), got " + gv.typename());
+                int button = Args.optint(a, 3, W + ":click", "button", null, 1);   // before the view, as place
+                int mods = Args.optint(a, 4, W + ":click", "mods", null, 0);
                 MapView mv = sendView(user, W + ":click");
                 Gob g = getgob(user, h.id);
                 if(g == null)
@@ -303,8 +311,7 @@ final class WorldApi {
                 if(rc == null)
                     throw new LuaError(W + ":click: the gob has no position yet");
                 Coord pc = (mv.ui != null) ? mv.ui.mc : Coord.z;   // dummy screen coord, like MiniMap.mvclick
-                mv.wdgmsg("click", clickGobArgs(pc, a.arg(3).optint(1), a.arg(4).optint(0),
-                                                (int)g.id, rc.floor(OCache.posres)));
+                mv.wdgmsg("click", clickGobArgs(pc, button, mods, (int)g.id, rc.floor(OCache.posres)));
                 // 047.3: the same token the real click records in MapView.Click.hit — and here the gob is not
                 // correlated but KNOWN, this being addon code that named it. lcc is untouched by a programmatic
                 // click, so a menu the server opens in reply matches on the press point exactly as it does for a
@@ -324,8 +331,9 @@ final class WorldApi {
                 Section.self(self, "world", "select", W);
                 Coord2d p1 = LuaPosition.worldArg(a, 2, W + ":select", "p1", user);
                 Coord2d p2 = LuaPosition.worldArg(a, 3, W + ":select", "p2", user);
+                int mods = Args.optint(a, 4, W + ":select", "mods", null, 0);   // before the view, as place does
                 MapView mv = sendView(user, W + ":select");
-                mv.wdgmsg("sel", selArgs(p1, p2, a.arg(4).optint(0)));
+                mv.wdgmsg("sel", selArgs(p1, p2, mods));
                 return self;
             }
         });

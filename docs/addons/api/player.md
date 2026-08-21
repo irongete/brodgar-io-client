@@ -161,7 +161,10 @@ the three the client itself has:
 | a [Position](position.md) | apply it to the ground there |
 | a [Gob](gob.md) | apply it to that object — the waterskin onto the plant, not onto the dirt beside it |
 
-`mods` is optional and defaults to `0`: a bitfield, Shift = 1, Ctrl = 2, Alt = 4, added together. It
+`mods` is optional and defaults to `0`: a bitfield, Shift = 1, Ctrl = 2, Alt = 4, added together — and
+optional is not unchecked, so a value that is not a number raises naming the verb and the parameter, and one
+that merely scans as a number is
+[still a string](conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number). It
 returns the Hand, so a run of uses chains.
 
 > **`use()` with no target raises**, naming the three types, and it is not how you activate what you are

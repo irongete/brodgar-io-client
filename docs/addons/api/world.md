@@ -173,6 +173,13 @@ gesture sends. Each hands the section back, so a run of writes chains. Each also
 declared. Each is the **drawn** character's: clicking and placing need the pointer and selecting is a drag
 with it, so each raises for a session that is not on screen, naming `hafen.session():current()`.
 
+`button` and `mods` below are optional, and optional is not unchecked: a value that is not a number raises
+naming the verb and the parameter, and one that merely scans as a number is
+[still a string](conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number) rather than the
+button it looks like. Leaving one out takes its default; writing `nil` in a slot you did pass
+[raises](conventions.md#nil-is-an-error-unless-it-means-something). Every one of these fires before anything
+goes out.
+
 ### `s:world():click(gob, button, mods)`
 
 Click a game object — exactly the click a left- or right-click on it sends, so the server sees what it would

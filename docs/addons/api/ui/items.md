@@ -211,8 +211,10 @@ if first then first:take() end
 ```
 
 `n` is how many of a stack to move; it is optional and defaults to `-1`, meaning all of it. `mods` is
-optional and defaults to `0`: Shift = 1, Ctrl = 2, Alt = 4, added together. `take` takes **no arguments**
-at all, and an argument to it raises.
+optional and defaults to `0`: Shift = 1, Ctrl = 2, Alt = 4, added together. Optional is not unchecked: a
+value that is not a number raises naming the verb and the parameter, and one that merely scans as a number
+is [still a string](../conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number).
+`take` takes **no arguments** at all, and an argument to it raises.
 
 **Only `use` carries modifiers, and that is the wire rather than a style.** `take`, `drop` and `transfer`
 have no modifier field in them: on a real click the modifier keys select the *count* — shift transfers

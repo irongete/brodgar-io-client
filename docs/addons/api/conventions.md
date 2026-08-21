@@ -126,6 +126,10 @@ directly, a table field included: `w:size(cfg.width, cfg.height)` with a missing
 is inherent to it: `f(g())` where `g` returns *nothing* arrives as no argument at all and is read as
 `f()`. A `g` that returns an explicit `nil` is refused like any other value.
 
+An **optional** argument is the same rule from the other side: leaving it out takes the default, and writing
+`nil` in a slot you did pass raises, because `s:world():place(p, angle, nil, 0)` passes a fourth argument and
+so passes a third. Not passing it and passing nothing in it are two different calls.
+
 ### A number is not a string, and a numeric string is not a number
 
 What is checked is an argument's **type**, never what Lua would convert it to: `s:kin():add(1234)` is refused

@@ -304,7 +304,7 @@ public final class LuaItem {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.ITEM_USE);
-                int mods = count(a, 2, "item:use", "mods", 0);
+                int mods = Args.optint(a, 2, "item:use", "mods", null, 0);
                 target(self, "use").wdgmsg("iact", iactArgs(mods));
                 return self;
             }
@@ -325,7 +325,7 @@ public final class LuaItem {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.ITEM_DROP);
-                int n = count(a, 2, "item:drop", "n", -1);
+                int n = Args.optint(a, 2, "item:drop", "n", null, -1);
                 target(self, "drop").wdgmsg("drop", countArgs(n));
                 return self;
             }
@@ -336,7 +336,7 @@ public final class LuaItem {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.ITEM_TRANSFER);
-                int n = count(a, 2, "item:transfer", "n", -1);
+                int n = Args.optint(a, 2, "item:transfer", "n", null, -1);
                 target(self, "transfer").wdgmsg("transfer", countArgs(n));
                 return self;
             }
@@ -360,14 +360,6 @@ public final class LuaItem {
                 + " you are not in the world (item:exists() is false). Nothing was sent: an item that has"
                 + " left is not the item that took its place. Re-read the container and retry.");
         return g;
-    }
-
-    /** An optional whole-number argument ({@code n}, {@code mods}), or {@code def} when none was passed. */
-    private static int count(Varargs a, int i, String verb, String param, int def) {
-        LuaValue v = Args.written(a, i, verb, param);
-        if(v == null)
-            return def;
-        return Args.num(v, verb, param, null).toint();
     }
 
     /** Refuse an argument to a verb that has none, naming what the caller probably meant instead. */
