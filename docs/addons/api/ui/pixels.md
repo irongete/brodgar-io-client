@@ -6,7 +6,7 @@ art is drawn in, and the one this API measures in. Reach for this page once, to 
 
 ```lua
 local w = hafen.ui():widget():size(100, 40):position(30, 20)
-w:size()                      -- {x = 100, y = 40}, on every client
+w:size()                      -- {w = 100, h = 40}, on every client
 hafen.ui():scale()            -- 1.5 on a client the user scaled up; you never multiply by it
 ```
 
@@ -17,8 +17,9 @@ larger: its windows, its buttons, its art and its text. A design pixel is one pi
 enlargement, so the numbers your addon writes are the numbers the client's own layout is written in, and a
 window you place at `30, 20` sits where the client would have placed its own.
 
-**What you write is what you read back.** `w:size(100, 40)` reads back `{x = 100, y = 40}` at any scale, and
-so does `:position`, `:rootPos`, `:info().pos` and `:info().size`. The conversion happens once, at the edge,
+**What you write is what you read back.** `w:size(100, 40)` reads back `{w = 100, h = 40}` at any scale, and
+so does `:position`, `:rootPos`, `:info().pos` and `:info().size` — [a size in `w`/`h`, a place in
+`x`/`y`](../shapes.md#the-anonymous-shapes). The conversion happens once, at the edge,
 and it is exact in that direction — which is what lets an addon compute with the pair it just read.
 
 > The inverse is not exact. A widget the *client* placed does not generally sit on a whole design pixel, so

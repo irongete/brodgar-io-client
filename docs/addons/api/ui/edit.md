@@ -72,7 +72,7 @@ close button on every window is three pictures and has no caption to write.
 
 ```lua
 local win = hafen.session():current():ui():find("window[title=Options]")
-hafen.ui():button():text("Reload"):parent(win):position(0, win:size().y)
+hafen.ui():button():text("Reload"):parent(win):position(0, win:size().h)
 win:pack()
 ```
 
@@ -290,7 +290,7 @@ hafen.session():current():ui():on("window[title=Options]", "appear", function(wi
   local go = hafen.ui():button()                  -- ...a control of yours, inside the client's frame
     :text("Reload addons")
     :parent(win)
-    :position(0, win:size().y)                    -- below everything it is showing
+    :position(0, win:size().h)                    -- below everything it is showing
   go:on("Pressed", function() hafen.log():write("pressed") end)
   win:pack()                                      -- ...and the frame comes down around it
   win:find("@IButton"):on("Pressed", function(ev)

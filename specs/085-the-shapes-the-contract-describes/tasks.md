@@ -1,7 +1,8 @@
 # 085 — The shapes the contract describes: tasks
 
-Five tasks. Task 1 first — it makes the room the other four write into. 2, 3, 4 and 5 are independent
-of each other and of everything outside this feature.
+Six tasks. Task 1 first — it makes the room the others write into. 2, 3, 4 and 5 are independent of each
+other and of everything outside this feature; 6 is the only one that waits on another, because the helper
+it points two more readers at is the one task 3 builds.
 
 Every suite keeps to **≤ 15 output lines**, so group: one verdict line per claim, scored
 (`3/3 reached`) rather than one line per handle.
@@ -80,7 +81,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       *Inventory*: A-020, A-021, A-022 — `/end` ticks and strikes them in `audit/INVENTORY.md`.
       <!-- extra context: src/io/brodgar/addon/LuaGOut.java (g:color, and g:text's forgiving contract), Chrome.java (seqShape, parsePalette), addons/profiler/main.lua and addons/clickpath/main.lua (thirty loose g:color calls that must go on working) -->
 
-- [ ] **085.3 — A size is a size.** Add `LuaWidget.whTable(Coord)`, the `{w=, h=}` twin of `xyTable`,
+- [x] **085.3 — A size is a size.** Add `LuaWidget.whTable(Coord)`, the `{w=, h=}` twin of `xyTable`,
       and point the **four** size readers at it: `LuaWidget`'s `size` verb, the `size` key of
       `LuaWidget`'s `:info()` snapshot, `LuaRule`'s `size` read, and `Sheet`'s two `size` snapshot
       keys. `xyTable` keeps every position, offset, anchor and `rootPos` — it is the pixel-and-place
@@ -189,6 +190,28 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       must still be a window onto the live store rather than a copy of it.
       *Inventory*: A-029, A-035 — `/end` ticks and strikes them in `audit/INVENTORY.md`.
       <!-- extra context: src/io/brodgar/addon/Addon.java (subMeta and grabMeta, the lazy-field pattern), Section.java (its identity javadoc), FontHandle.java (size, aa, draft, used) -->
+
+- [ ] **085.6 — The last two sizes.** Two `size` keys still answer `{x=, y=}` after 085.3, and neither is
+      in the four that task enumerated: `LuaMapGrid`'s `grid:info()` (a grid's span in tiles, from
+      `MCache.cmaps`) and `MapImages`' `mapImg:info()` — the second contradicting `mapImg:size()`, which is
+      `{w=, h=}`, on the **same handle**. Both build their table with `AddonManager.xy`; both take
+      `LuaWidget.whTable` instead, so the shared metatable and the refusal come with the helper and
+      `Retired` registers nothing new — `size.x` and `size.y` already carry the message. Nothing else under
+      `docs/` or `addons/` reads either key. Pages: `map/grids.md`'s `grid:info()` row says the shape its
+      `size` key carries, and `shapes.md`'s `{w=, h=}` row gains `mapImg:info().size` beside
+      `mapImg:size()`. `map/drawings.md` states no shape for `mapImg:info()` and is **discharged** unless
+      that stops being true.
+      *Its suite* asserts `hafen.map():grid():get(p:info().gridId):info().size` carries `.w` and `.h` as
+      numbers while `.x` raises naming `.w`; the same pair on the `size` of a `mapImg:info()`, off a
+      `grid:image(0)`; and that `mapImg:size()` and `mapImg:info().size` answer the **same** two numbers
+      under the same two keys, which is the contradiction the row exists for. Both halves need the map
+      database, and `grid:image(0)` answers `nil` until the render lands, so it scores what it reaches over
+      a bounded `hafen.timer()` window. Its refusal: `grid:info().size.y` must raise naming `.h`, so the
+      shared metatable reached the map's own tables and not only the widget's.
+      `[manual]`: none.
+      *Inventory*: none of its own. A-023 and A-024 are ticked with 085.3; this is the half of their claim
+      the audit rows did not enumerate, found by 085.3 while writing `shapes.md`.
+      <!-- extra context: src/io/brodgar/addon/LuaMapGrid.java (the info snapshot), MapImages.java (handleFor's size verb and its info snapshot), AddonManager.java (xy) -->
 
 ## When the feature closes
 

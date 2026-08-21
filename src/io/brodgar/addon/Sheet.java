@@ -193,7 +193,7 @@ final class Sheet {
             if(pos != null)
                 pos.toLua(reader, t);
             if(size != null)
-                t.set("size", LuaWidget.xyTable(size));
+                t.set("size", LuaWidget.whTable(size));
         }
     }
 
@@ -1345,7 +1345,7 @@ final class Sheet {
         if(r.pos != null)                             // 036.2: what the SHEET says this widget's layout is — the
             r.pos.toLua(reader, t);                   //   verb above it is read with widget:position(), which answers
         if(r.size != null)                            //   where the widget actually IS. 036.3: `position` or
-            t.set("size", LuaWidget.xyTable(r.size)); //   `anchor`, whichever the rule was written with
+            t.set("size", LuaWidget.whTable(r.size)); //   `anchor`, whichever the rule was written with
         return t;
     }
 }

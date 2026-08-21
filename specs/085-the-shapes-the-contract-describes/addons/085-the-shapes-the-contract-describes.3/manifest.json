@@ -1,0 +1,9 @@
+{
+  "name": "085.3 — a size is a size",
+  "id": "085-the-shapes-the-contract-describes.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 085.3: every size the API hands back is {w=, h=}, the keys it retired raise naming their replacement, a place and a pixel are unmoved, a size read passes straight back into a write while an {x=, y=} under size is refused, and a mesh names its span extent. Ships its own image and model, so it asks nothing of the world.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -77,7 +77,7 @@ local function refresh()
     r.go:text((s == cur) and ("* " .. name) or name)    -- the row on screen is the marked one
     r.go:position(PAD, y)
     r.close:position(PAD + NAME_W + GAP, y)
-    y = y + r.go:size().y + GAP
+    y = y + r.go:size().h + GAP
   end
 
   for user, r in pairs(rows) do                         -- the logins that have gone

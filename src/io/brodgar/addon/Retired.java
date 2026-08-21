@@ -717,6 +717,18 @@ final class Retired {
         // ---- the HUD overlay: a two-line handle table became a builder, so it ends the way the other two do --
         put("uioverlay:remove", "hafen.ui():overlay() hands back something you created and hold, so it ends with"
             + " ov:destroy() — :remove() is the collection verb, and a HUD painter is in no collection");
+
+        // ---- 085.3: a SIZE is {w=, h=} wherever it is a size, and a span is named. These are the first rows ----
+        // ---- keyed on an anonymous SHAPE rather than a namespace or an entity: nothing here has verbs, so
+        // ---- the field a caller wrote is the whole of what can be caught.
+        field("size", "x", "a size is {w=, h=}: widget:size(), widget:info().size, rule:size() and a"
+            + " stylesheet snapshot all read back .w and .h, the same two keys widget:cell(), img:size()"
+            + " and mapImg:size() have always answered. A place and a pixel keep {x=, y=}");
+        field("size", "y", "a size is {w=, h=}: widget:size(), widget:info().size, rule:size() and a"
+            + " stylesheet snapshot all read back .w and .h, the same two keys widget:cell(), img:size()"
+            + " and mapImg:size() have always answered. A place and a pixel keep {x=, y=}");
+        field("bounds", "size", "mdl:bounds() names its span extent — .extent.x/.y/.z, the reach of the"
+            + " box in world units. .min and .max are the corners, unchanged");
     }
 
     /**
@@ -800,6 +812,15 @@ final class Retired {
         }
     }
 
+    /**
+     * Register one retired <b>field of an anonymous shape</b> (085.3): {@code size.x} &rarr; the message naming
+     * {@code .w}. Keyed {@code "<shape>.<field>"}, which collides with neither a section's dotted spelling nor
+     * an entity's colon one — a shape has no verbs, so the field is the whole of what a caller wrote.
+     */
+    private static void field(String shape, String old, String message) {
+        put(shape + "." + old, message);
+    }
+
     private static void put(String name, String message) {
         NAMES.put(name, message);
     }
@@ -861,6 +882,30 @@ final class Retired {
                         throw new LuaError(msg);
                 }
                 throw new LuaError(entity + " has no verb '" + key.tojstring() + "' — " + hint);
+            }
+        };
+    }
+
+    /**
+     * The {@code __index} of an anonymous <b>shape</b> table (085.3) — the data-table sibling of
+     * {@link #closedIndex}. LuaJ consults {@code __index} only for a key the table does <b>not</b> carry, so a
+     * real field costs nothing and every other key raises: one this API retired by name ({@code size.x} &rarr;
+     * "a size is {w=, h=}") with that name, and any other with the {@code hint} listing what the shape carries.
+     *
+     * <p>Hang it off <b>one</b> metatable per shape, built once as a static and shared by every table of that
+     * shape: a per-call metatable would double the allocation on a path ({@code w:size()} inside a draw
+     * callback) whose whole cost is meant to be two field writes. {@code pairs}, {@code next} and
+     * {@link Json#write} walk the raw fields and never reach here.
+     */
+    static LuaValue closedFields(final String shape, final String hint) {
+        return new TwoArgFunction() {
+            public LuaValue call(LuaValue self, LuaValue key) {
+                if(key.isstring()) {
+                    String msg = NAMES.get(shape + "." + key.tojstring());
+                    if(msg != null)
+                        throw new LuaError(msg);
+                }
+                throw new LuaError("a " + shape + " table has no field '" + key.tojstring() + "' — " + hint);
             }
         };
     }

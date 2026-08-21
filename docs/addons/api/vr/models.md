@@ -33,7 +33,7 @@ The handle answers [`mdl:bounds()`](../asset.md#mesh) with a world-unit box and
 what the parser produced.
 
 > **Sizing.** glTF authored units vary wildly — a model may be one unit tall or a hundred. Read
-> `mdl:bounds().size.z` and pick a `:scale` that stands it the height you want.
+> `mdl:bounds().extent.z` and pick a `:scale` that stands it the height you want.
 
 **Coordinate system.** glTF is right-handed, +Y up, in metres; the client's world is Z up with a
 tile-based scale. The loader bakes a fixed conversion once, so glTF's up becomes world up and **one glTF

@@ -534,7 +534,7 @@ final class AssetApi {
 
     /**
      * The Lua handle for a {@link LuaMesh}: the shared asset verbs plus {@code :bounds()} &rarr; {@code
-     * {min={x,y,z}, max={x,y,z}, size={x,y,z}}} (world units) and {@code :info()} (what the parser produced).
+     * {min={x,y,z}, max={x,y,z}, extent={x,y,z}}} (world units) and {@code :info()} (what the parser produced).
      * The table also carries the {@link LuaMesh} as an <b>opaque userdata</b> ({@link LuaMesh#KEY}) so
      * {@code hafen.vr():object():add(asset, p)} can {@link LuaMesh#resolve} it back to the parsed geometry —
      * facade-safe, like the image handle.
@@ -547,8 +547,11 @@ final class AssetApi {
                 LuaTable t = new LuaTable();
                 t.set("min", vec3Table(lm.mesh.min));
                 t.set("max", vec3Table(lm.mesh.max));
-                t.set("size", vec3Table(new float[] {
+                // 085.3: the span is `extent`, because `size` is the two-number shape everywhere else in the
+                // API and a three-number span wearing that word is the same collision a {x=,y=} size was.
+                t.set("extent", vec3Table(new float[] {
                     lm.mesh.max[0] - lm.mesh.min[0], lm.mesh.max[1] - lm.mesh.min[1], lm.mesh.max[2] - lm.mesh.min[2] }));
+                t.setmetatable(BOUNDS_META);
                 return t;
             }
         });
@@ -576,6 +579,13 @@ final class AssetApi {
         });
         return h;
     }
+
+    /**
+     * The metatable {@code mdl:bounds()} wears (085.3), built once and shared: {@code .size} raises naming
+     * {@code .extent} rather than reading {@code nil} under code that was already written.
+     */
+    private static final LuaTable BOUNDS_META =
+        LuaWidget.shapeMeta("bounds", "mdl:bounds() carries .min, .max and .extent");
 
     /** A {@code {x,y,z}} Lua table from a 3-float array (mesh bounds). */
     private static LuaTable vec3Table(float[] v) {

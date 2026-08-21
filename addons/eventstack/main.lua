@@ -727,7 +727,7 @@ local close
 -- read back off the control rather than written down here.
 local function tall(w)
   local sz = w:size()
-  return (sz and sz.y and (sz.y > 0)) and sz.y or ROW_H
+  return (sz and sz.h and (sz.h > 0)) and sz.h or ROW_H
 end
 
 -- An axis, written on to its dropdown. :rows(t) clears the pick, so the pick goes straight back on: the
@@ -794,7 +794,7 @@ local function build()
   local function field(name, wdt, fx, fy)
     local l = hafen.ui():label():parent(w):text(name)
     local d = hafen.ui():dropdown():parent(w):size(wdt)
-    local dh, lw = tall(d), l:size().x
+    local dh, lw = tall(d), l:size().w
     l:position(fx, fy + math.max(0, math.floor((dh - tall(l)) / 2)))
     d:position(fx + lw + GAP, fy)
     return d, fx + lw + GAP + wdt + WIDE, dh
@@ -815,12 +815,12 @@ local function build()
   local ent = hafen.ui():entry():parent(w):size(220)
   local eh = tall(ent)
   le:position(nx, y2 + math.max(0, math.floor((eh - tall(le)) / 2)))
-  ent:position(nx + le:size().x + GAP, y2)
+  ent:position(nx + le:size().w + GAP, y2)
 
   -- What the filters answered, of what the ring is holding.
   local cnt = hafen.ui():label():parent(w):text("0 of 0")
     :tooltip("rows the filters matched, of the records kept")
-  cnt:position(nx + le:size().x + GAP + 220 + WIDE, y2 + math.max(0, math.floor((eh - tall(cnt)) / 2)))
+  cnt:position(nx + le:size().w + GAP + 220 + WIDE, y2 + math.max(0, math.floor((eh - tall(cnt)) / 2)))
 
   refill(ds, srcOrder, pickSrc)
   refill(dv, sessOrder, pickSess)

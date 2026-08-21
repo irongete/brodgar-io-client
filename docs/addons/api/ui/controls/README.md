@@ -89,7 +89,7 @@ instead that means the same thing on every client.
 
 ```lua
 local go = hafen.ui():button():size(80):text("Go")
-go:size()                                          -- {x = 80, y = 24}, at any interface scale
+go:size()                                          -- {w = 80, h = 24}, at any interface scale
 ```
 
 The controls whose art fixes a height answer it: the button, the text entry, the checkbox, the dropdown, the

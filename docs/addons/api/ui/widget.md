@@ -66,7 +66,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:children()` | array | child Widgets in tree order; empty for a leaf |
 | `:parent()` | Widget \| nil | the enclosing widget, or `nil` at the root |
 | `:position()` | `{x=, y=}` | position within the parent, in widget-local [design pixels](pixels.md) — [`:position(x, y)` moves it](native.md) |
-| `:size()` | `{x=, y=}` | size, in [design pixels](pixels.md); for a window its **outer** box |
+| `:size()` | `{w=, h=}` | size, in [design pixels](pixels.md); for a window its **outer** box. `.x` on one [raises](../shapes.md#the-anonymous-shapes) |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
 | `:draggable()` | Widget \| nil | the handle **your** addon armed for the user to drag it by, or `nil` — [`:draggable(h)` arms it](native.md#letting-the-user-drag-it-unprotected) |
 | `:resizable()` | Widget \| nil | the handle **your** addon armed for the user to resize it by, or `nil` — [`:resizable(h)` arms it](native.md#letting-the-user-resize-it-unprotected) |
@@ -87,7 +87,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
 | `:walk(fn)` | self | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |
 | `:at(coord)` | Widget \| nil | the deepest widget under a `{x=, y=}` **root-coord** point within this subtree |
-| `:rootPos()` | `{x=, y=}` \| nil | its top-left in **root coords**, the same [unit](pixels.md) as `:size()`; the two together are the rectangle that outlines it |
+| `:rootPos()` | `{x=, y=}` \| nil | its top-left in **root coords**, the same [unit](pixels.md) as `:size()`; a place keeps `x`/`y` where a size reads `w`/`h`, and the two together are the rectangle that outlines it |
 | `:replacement()` | Widget \| nil | the view **you** put in place of this widget's window, or `nil` — see [replace](replace.md) |
 | `:chrome()` | table \| nil | on a **window**, where its decoration drew its [ornaments](style/chrome.md#ornaments) — `{caption = {x=, y=}, plate = {x=, y=, w=, h=, styled=}, sizer = {x=, y=}, close = {x=, y=, w=, h=}}`, each present only once it has been drawn; `nil` on anything else |
 | `:style()` | table \| nil | the style this widget [resolves to](style/README.md#the-cascade), or `nil` when nothing names it |
@@ -216,13 +216,13 @@ One of these writes is protected, and it is the one that is not client-side stat
 [key](../../guides/permissions.md) — like [`:send`](#send-a-message-protected) below. Every other write
 here changes only your own client, and every one of them restores.
 
-**Arity is the verb.** `w:position()` reads, `w:position(x, y)` writes and `w:position(nil)` drops your
-write; `w:size()`, `w:visible()`, `w:draggable()`, `w:resizable()` and `w:remember()` are the same shape —
-with `w:size(w)` as the arity a [control](controls/README.md#sizing)'s own art earns it — and so is every
-setter on `w:rule()`. That is why there is no `:move()`, no `:show()` and no `:hide()`: a value belongs in
-the argument, not the verb's name. It is also why nothing stands beside
-[`w:remember(name)`](native.md#remembering-where-the-user-put-it-unprotected) to *apply* what it kept —
-the only moment that would be correct is the moment you name it, which is a step rather than a verb.
+**Arity is the verb.** `w:position()` reads, `w:position(x, y)` writes and `w:position(nil)` drops your write;
+`w:size()` (`{w=, h=}`), `w:visible()`, `w:draggable()`, `w:resizable()` and `w:remember()` are the same shape
+— with `w:size(w)` as the arity a [control](controls/README.md#sizing)'s own art earns it — and so is every
+setter on `w:rule()`. That is why there is no `:move()`, no `:show()` and no `:hide()`: a value belongs in the
+argument, not the verb's name. It is also why nothing stands beside
+[`w:remember(name)`](native.md#remembering-where-the-user-put-it-unprotected) to *apply* what it kept — the
+only moment that would be correct is the moment you name it, which is a step rather than a verb.
 
 **Replacement is the one place where the read has a name of its own.** `w:replace(view)` is an *act* and
 the thing standing in is a *replacement*, so the two do not share a spelling: `w:replacement()` reads,

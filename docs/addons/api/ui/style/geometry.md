@@ -26,6 +26,10 @@ s:install()
 - **[Design pixels](../pixels.md)**, like `padding`, a border's slice and the verb beside them: the pair a rule says
   is the pair `:position()` reads back, on every client. A position is within the **parent**; `size` on a window
   is its **content** size, exactly as [the verb](../native.md) takes it.
+- **A place is `x`/`y` and a size is `w`/`h`**, written and read back — `position = {40, 200}` or
+  `{x = 40, y = 200}`, `size = {300, 220}` or `{w = 300, h = 220}`, and an `{x=, y=}` under `size` is an
+  **error** naming the two keys. That is the [shape a size has](../../shapes.md#the-anonymous-shapes)
+  everywhere, so `rule:size()` and `widget:style().size` read back `.w` and `.h`.
 - **Applied when the sheet is, and when a widget appears** — including a window whose caption arrives a
   moment after it opens. Never per frame, and never at the draw.
 - **Dropping the rule restores the exact numbers it found**, the same discipline `padding` follows, and the
@@ -46,7 +50,7 @@ sheet:drop()            --                        -- ...and now nothing is: the 
 
 `size` carries [the same caveat as the verb](../native.md): a client window that packs itself around its
 contents, the main inventory among them, is honoured and then re-packs before the call returns. That is
-inert, never an error; read `:size()` back if you need to know which kind you are holding.
+inert, never an error; read `:size()` back — `{w=, h=}` — if you need to know which kind you are holding.
 
 ## anchor
 

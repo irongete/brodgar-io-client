@@ -23,10 +23,14 @@ space they are in.
 | Shape | What it is | Read from |
 |---|---|---|
 | `{x=, y=}` | a place in a lattice: a tile, a grid, a segment cell | `p:tileCoord()`, `item:cell()`, `grid:segmentCoord()`, `marker:segmentTile()` |
-| `{x=, y=}` | a screen point, in [design pixels](ui/pixels.md) | `widget:position()`, `widget:rootPos()`, `widget:size()`, `s:player():worldToScreen(p)`, `ev:pixel(i)` |
-| `{w=, h=}` | a size, in design pixels | `widget:cell()`, `img:size()`, `mapImg:size()` |
+| `{x=, y=}` | a screen point, in [design pixels](ui/pixels.md) | `widget:position()`, `widget:rootPos()`, `s:player():worldToScreen(p)`, `ev:pixel(i)` |
+| `{w=, h=}` | a size, in design pixels | `widget:size()`, `widget:cell()`, `img:size()`, `mapImg:size()`, `rule:size()` |
 | `{cur=, max=}` | a pair of counts | `item:durability()`, `contents:level()` |
-| `{x=, y=, z=}` | a point or a span in world units | the `min`, `max` and `size` of `mdl:bounds()` |
+| `{x=, y=, z=}` | a point or a span in world units | the `min`, `max` and `extent` of `mdl:bounds()` |
+
+**A size is `{w=, h=}` and a place is `{x=, y=}`**, and neither answers the other's keys: `w:size().x`
+raises naming `.w`, and so do `w:info().size` and a [stylesheet](ui/style/geometry.md) snapshot. A span keeps
+three numbers and a name of its own, `mdl:bounds().extent`, so one word never stands for both.
 
 A **[Position](position.md)** is not on this list and is not a pair of numbers at all. Neither is a
 [colour](#colours) or a [Grid](map/grids.md#the-grid-object): a value with verbs on it is an object, and

@@ -790,6 +790,12 @@ final class Layout {
      * a hand-written rule and a {@code theme.json} say, the keyed form is what {@code widget:position()} and
      * {@code widget:style()} hand back, so a read round-trips into a write unchanged.
      *
+     * <p><b>Which two keys is the property's</b> (085.3): {@code size} reads {@code w}/{@code h} and everything
+     * else reads {@code x}/{@code y}, matching the readers exactly — and an {@code {x=, y=}} written under
+     * {@code size} raises naming {@code w}/{@code h} rather than being taken, because it is the one mistake the
+     * positional fallback would otherwise swallow. This is the <b>document</b> parser as well as the Lua one, so
+     * a {@code theme.json} and a {@code rule:size(t)} say a size the same way.
+     *
      * <p><b>Design pixels</b> (058.3), like every other number {@code hafen.ui} takes: the pair is kept exactly as
      * the rule said it, and converts once at the edge where it is applied — {@link #applyHalf} for a size,
      * {@link Anchor#resolve} for a place. Which is also what makes the read round-trip: {@code rule:size()} and
@@ -797,20 +803,27 @@ final class Layout {
      */
     static Coord parseCoord(String ctx, String prop, LuaValue v) {
         boolean size = "size".equals(prop);
+        // 085.3: a SIZE reads w/h and a place reads x/y — the same split the readers make, so the keyed form a
+        // rule says is the keyed form rule:size()/widget:size() hands back. This is the DOCUMENT parser too, so
+        // the JSON and the Lua spellings moved together.
+        String ka = size ? "w" : "x", kb = size ? "h" : "y";
         String shape = size ? "{width, height}" : "{x, y}";
+        String keyed = size ? "{ w = 300, h = 200 }" : "{ x = 40, y = 200 }";
         if(!v.istable())
             throw new LuaError(ctx + "." + prop + ": expected " + shape + " — " + prop + " = "
-                + (size ? "{300, 200}" : "{40, 200}") + " or " + prop + " = "
-                + (size ? "{ x = 300, y = 200 }" : "{ x = 40, y = 200 }") + ", got " + v.typename());
+                + (size ? "{300, 200}" : "{40, 200}") + " or " + prop + " = " + keyed
+                + ", got " + v.typename());
         // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (the 028
         // asset lesson) — position = {"40", "200"} is a typo, not a position.
-        LuaValue x = v.get("x"), y = v.get("y");
+        LuaValue x = v.get(ka), y = v.get(kb);
         if((x.type() != LuaValue.TNUMBER) || (y.type() != LuaValue.TNUMBER)) {
+            if(size && (((LuaTable)v).rawget("x").type() == LuaValue.TNUMBER) && (((LuaTable)v).rawget("y").type() == LuaValue.TNUMBER))
+                throw new LuaError(ctx + ".size: a size is spelled w and h — size = { w = 300, h = 200 } or"
+                    + " size = {300, 200}. x and y are a place, which is what position says");
             x = v.get(1);
             y = v.get(2);
             if((x.type() != LuaValue.TNUMBER) || (y.type() != LuaValue.TNUMBER))
-                throw new LuaError(ctx + "." + prop + ": expected two numbers — " + shape + " or "
-                    + (size ? "{ x = …, y = … }" : "{ x = …, y = … }"));
+                throw new LuaError(ctx + "." + prop + ": expected two numbers — " + shape + " or " + keyed);
         }
         if(size && ((x.toint() < 0) || (y.toint() < 0)))
             throw new LuaError(ctx + ".size: a size cannot be negative (got " + x.toint() + "x" + y.toint() + ")");

@@ -94,7 +94,7 @@ texture. Use it only to release a large asset early.
 
 | Method | Description |
 |---|---|
-| `img:size()` | `{w, h}` — the file's own dimensions, in [design pixels](ui/pixels.md) |
+| `img:size()` | `{w=, h=}` — the file's own dimensions, in [design pixels](ui/pixels.md) |
 
 The file's pixels **are** design pixels: a 32×32 PNG answers `32, 32` and covers 32×32 wherever it is
 drawn, so it stands beside the client's own art at the same size at every interface scale.
@@ -120,7 +120,7 @@ under the same [path exception](conventions.md#a-table-is-a-value-never-named-ar
 
 | Method | Description |
 |---|---|
-| `mdl:bounds()` | `{min={x,y,z}, max={x,y,z}, size={x,y,z}}` — axis-aligned bounds in **world units** |
+| `mdl:bounds()` | `{min={x=,y=,z=}, max={x=,y=,z=}, extent={x=,y=,z=}}` — axis-aligned bounds in **world units**; the span is `extent`, because a [size](shapes.md#the-anonymous-shapes) is two numbers |
 | `mdl:info()` | `{prims, textured, lit, textures, verts, tris}` — what the parser produced |
 
 The supported glTF subset is documented in [`hafen.vr`](vr/models.md#the-gltf-subset). A malformed
@@ -224,7 +224,7 @@ hafen.event():on("Load", function()
   face  = hafen.asset():get("fonts/Inter.ttf"):derive():size(12)
   chair = hafen.asset():get("props/chair.glb")
   local s, b = icon:size(), chair:bounds()
-  hafen.log():write(("icon %dx%d, chair %.1f tiles tall"):format(s.w, s.h, b.size.z / 11))
+  hafen.log():write(("icon %dx%d, chair %.1f tiles tall"):format(s.w, s.h, b.extent.z / 11))
 end)
 
 local win = hafen.ui():window():title("My addon"):size(160, 80):font(face)

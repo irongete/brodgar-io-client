@@ -454,7 +454,7 @@ public final class LuaWidget {
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "size"));
                 if(a.narg() < 2)
-                    return ((w == null) || (w.sz == null)) ? LuaValue.NIL : xyTable(Px.out(w.sz));
+                    return ((w == null) || (w.sz == null)) ? LuaValue.NIL : whTable(Px.out(w.sz));
                 if(a.narg() < 3) {
                     if(a.arg(2).isnil()) {                // w:size(nil) — undo OUR resize, back to the stock value
                         if(w != null)
@@ -2735,7 +2735,7 @@ public final class LuaWidget {
         if(w.c != null)
             t.set("pos", xyTable(Px.out(w.c)));      // the same design pixels :position()/:size() answer (058.1)
         if(w.sz != null)
-            t.set("size", xyTable(Px.out(w.sz)));
+            t.set("size", whTable(Px.out(w.sz)));
         t.set("visible", LuaValue.valueOf(w.visible()));
         String tx = text(w);
         if(tx != null)
@@ -2810,6 +2810,38 @@ public final class LuaWidget {
         t.set("x", LuaValue.valueOf(c.x));
         t.set("y", LuaValue.valueOf(c.y));
         return t;
+    }
+
+    /**
+     * The metatable every {@code {w=,h=}} size table shares (085.3): built once, hung off each table with one
+     * {@code setmetatable}, so a size costs two field writes and no allocation of its own. {@code .w} and
+     * {@code .h} never reach it; {@code .x} and {@code .y} do, and say what a size is spelled now.
+     */
+    private static final LuaTable SIZE_META = shapeMeta("size", "a size carries .w and .h");
+
+    /**
+     * A {@code {w=,h=}} table from a {@link Coord} that is a <b>size</b> — {@code widget:size()},
+     * {@code widget:info().size}, {@code rule:size()} and the stylesheet snapshots — the twin of
+     * {@link #xyTable}, which keeps every position, offset, anchor and {@code :rootPos()}. It converts
+     * <b>nothing</b>, for the same reason {@link #xyTable} does not.
+     *
+     * <p>{@code .x} and {@code .y} on one of these <b>raise</b> naming {@code .w}/{@code .h} rather than
+     * reading {@code nil}: the keys moved under code that was already written, and {@link Retired} is what
+     * turns a silent {@code nil} into a line saying what to write.
+     */
+    static LuaValue whTable(Coord c) {
+        LuaTable t = new LuaTable();
+        t.set("w", LuaValue.valueOf(c.x));
+        t.set("h", LuaValue.valueOf(c.y));
+        t.setmetatable(SIZE_META);
+        return t;
+    }
+
+    /** One shared metatable for an anonymous shape: {@link Retired#closedFields} under {@code __index}. */
+    static LuaTable shapeMeta(String shape, String hint) {
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Retired.closedFields(shape, hint));
+        return mt;
     }
 
     /** A {@code {x=,y=,w=,h=}} table from a device-pixel box, converted on the way out — see {@link #xyTable}. */

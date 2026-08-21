@@ -137,7 +137,8 @@ them. The split by subject is clean: `conventions.md` is **how you call and what
 `guides/theming.md` · `api/ui/widget.md` · `api/ui/pixels.md` · `api/ui/style/geometry.md` ·
 `api/asset.md` · `api/time.md` · `api/study.md` · `api/fight.md` · `api/wound.md` ·
 `api/client/README.md` · `api/store.md` · `api/map/README.md` · `api/ui/style/chat.md` ·
-`api/ui/style/keys.md` · `api/vr/ghosts.md` · `guides/custom-ui.md` · `docs/client/state.md`.
+`api/ui/style/keys.md` · `api/vr/ghosts.md` · `guides/custom-ui.md` · `api/ui/controls/README.md` ·
+`api/ui/edit.md` · `api/map/grids.md` · `docs/client/state.md`.
 
 **Derived impact set.** The prose names of this surface, greped across the whole of `docs/`:
 
@@ -166,6 +167,8 @@ grep -rnE "r, g, b|\{r=|\{r,|positional|season index|gridId|bounds\(\)|severity|
 | `vr/README.md` `e:tint()` row | **revise** |
 | `ui/widget.md` `:size()` row, the `:rootPos()` cross-reference, the arity paragraph | **revise** — `{w=, h=}` |
 | `ui/pixels.md` the two `{x = 100, y = 40}` literals | **revise** |
+| `ui/controls/README.md` the `go:size()` literal; `ui/edit.md` the two `win:size().y` examples | **revise** — the grep names both and the rows below missed them: each writes a widget's size in `x`/`y` |
+| `map/grids.md` the `grid:info()` row | **revise** — its `size` key is a size, and reads back `{w=, h=}` |
 | `ui/style/geometry.md` the `size` caveat | **revise** — it reads back `{w=, h=}` |
 | `asset.md` `img:size()` row, `mdl:bounds()` row, the `icon:size(), chair:bounds()` example | **revise** — keyed notation, and `size` → `extent` |
 | `vr/models.md` the `mdl:bounds().size.z` blockquote | **revise** — `.extent.z` |
@@ -222,7 +225,9 @@ Under `src/io/brodgar/addon/`, tagged with the tasks that need each:
   `Chrome` (`seqShape`'s `positional` flag, `parsePalette`) — 2
 - `LuaWidget` — `xyTable`, `boxTable`, the `size` verb, the `:info()` snapshot's `size` key — 3
 - `LuaRule` (the `size` read), `Sheet` (its two `size` snapshot keys), `AssetApi` (`meshHandle`'s
-  `bounds`, `vec3Table`) — 3
+  `bounds`, `vec3Table`), `Layout` (`parseCoord`, the write side of a rule's `size`) — 3
+- `LuaMapGrid` (the `info` snapshot), `MapImages` (`handleFor`'s `size` verb and its `info` snapshot),
+  `AddonManager` (`xy`) — 6
 - `Retired` — `closedIndex`, `put`, `message`, `NAMES` — 3
 - `WorldApi` (`installTime`'s `season`), `haven/Astronomy`, `haven/Glob` (the `"astro"` branch),
   `haven/Cal` (`dlnd`) — 4
@@ -247,6 +252,8 @@ Pages, by task:
   `guides/theming.md`, `api/shapes.md`
 - **3** — `api/ui/widget.md`, `api/ui/pixels.md`, `api/ui/style/geometry.md`, `api/asset.md`,
   `api/vr/models.md`, `api/shapes.md`
+- **3** — also `api/ui/controls/README.md` and `api/ui/edit.md`, which the verdict table above missed
+- **6** — `api/map/grids.md`, `api/shapes.md`
 - **4** — `api/time.md`, `api/study.md`, `api/fight.md`, `api/wound.md`, `api/types.md`,
   `api/README.md`, `api/shapes.md` (its §Units names `w:severity()`), `docs/client/state.md`
 - **5** — `api/client/README.md`, `api/font.md`, `api/conventions.md`

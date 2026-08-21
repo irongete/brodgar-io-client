@@ -69,7 +69,7 @@ local rows = {}           -- the current stack, LEAF-FIRST: { {node,type,id,text
 local insp                -- the selector report for the hovered leaf (see selectorsFor)
 local reads = {}          -- 063.4: the read block for the hovered leaf (see describe)
 local hoverPos            -- { x=, y= } the hovered leaf's top-left in root coords (highlight box)
-local hoverSize           -- { x=, y= } its size
+local hoverSize           -- { w=, h= } its size
 local rebuilds = 0        -- how many times we rebuilt the stack (proves the `==` guard: it should NOT
                           -- climb while the cursor sits still)
 local walks = 0           -- how many s:ui():all() walks the last rebuild cost (the honest price of the panel)
@@ -377,7 +377,7 @@ local I_READ_HEAD    = 260        -- 063.4: the read block, on a band of its own
 local I_READ_Y0      = 276        -- is the same arithmetic it always was
 
 local function fmtCoord(c) return c and ("(" .. c.x .. "," .. c.y .. ")") or "-" end
-local function fmtSize(c)  return c and (c.x .. "x" .. c.y) or "-" end
+local function fmtSize(c)  return c and (c.w .. "x" .. c.h) or "-" end
 
 openInspector = function(node)
   if not node then return end
@@ -479,8 +479,8 @@ local function rebuild()
       type = n:type() or "?",
       id   = n:id(),                 -- server id, or nil for a client-only widget
       text = n:text(),               -- best-effort, or nil
-      w    = sz and sz.x or 0,
-      h    = sz and sz.y or 0,
+      w    = sz and sz.w or 0,
+      h    = sz and sz.h or 0,
     }
     n = n:parent()
   end
@@ -654,7 +654,7 @@ end
 -- The HUD overlay draws the green highlight box over the hovered widget, in root coords (like WoW's outline).
 local function drawOutline(g, w, h)
   if hoverPos and hoverSize then
-    g:color(80, 230, 90); g:rect(hoverPos.x, hoverPos.y, hoverSize.x, hoverSize.y); g:color()
+    g:color(80, 230, 90); g:rect(hoverPos.x, hoverPos.y, hoverSize.w, hoverSize.h); g:color()
   end
 end
 

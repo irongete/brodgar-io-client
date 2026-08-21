@@ -481,7 +481,7 @@ public final class LuaRule {
                 Sheet.Props cur = r.read(owner);
                 if(!Args.passed(a, 2))
                     return ((cur == null) || (cur.size == null)) ? LuaValue.NIL
-                        : LuaWidget.xyTable(cur.size);
+                        : LuaWidget.whTable(cur.size);
                 if(a.arg(2).isnil())
                     throw Args.nilRefused(r.where() + ":size", "size");
                 r.layoutable("size");
