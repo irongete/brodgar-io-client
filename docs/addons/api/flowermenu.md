@@ -106,7 +106,7 @@ answer for the first one that character's tree is holding.
 |---|---|---|
 | `s:flowermenu():select(label)` | `flowermenu.select` | pick the petal captioned `label`, matched whole and case-insensitively |
 | `s:flowermenu():select(n)` | `flowermenu.select` | pick the petal at position `n` on the ring, counting from `1` |
-| `s:flowermenu():cancel()` | `flowermenu.cancel` | close the menu with nothing chosen, exactly as Esc does |
+| `s:flowermenu():cancel()` | `flowermenu.cancel` | close the menu with nothing chosen, exactly as Esc does, and hand the section back |
 
 Picking and dismissing are separate keys, so an addon may declare one without the other; the group
 `flowermenu.*` covers both. Called from an addon that did not declare the key it needs, each raises an error

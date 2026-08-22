@@ -857,7 +857,7 @@ public final class LuaWidget {
                     UiApi.dropPending(content);   // 039.6: one built and ended in the same statement is never placed
                     owner.widgets.remove(content);
                 }
-                return LuaValue.NIL;
+                return self;              // the receiver: every ending chains
             }
         });
         // send(msg, ...) — 048.6: send an arbitrary wdgmsg FROM this widget. The escape hatch that used to be

@@ -238,7 +238,7 @@ sub:off()
 | Method | Returns | Description |
 |---|---|---|
 | `pag:on("use", fn)` | a subscription | run `fn(pag)` when this entry is pressed |
-| `sub:off()` | nothing | unsubscribe; idempotent, and also done for you on reload or disable |
+| `sub:off()` | the subscription | unsubscribe; idempotent, and also done for you on reload or disable |
 
 `use` is the **only** key an entry has, so any other name throws at the line that wrote it rather than
 reading as a handler that never fires. **Two handlers on one entry both fire**, in the order they registered,

@@ -1,0 +1,13 @@
+{
+  "name": "087.2 — every ending returns the receiver",
+  "id": "087-one-way-to-undo-it.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 087.2: sub:off(), timer:cancel(), widget:destroy(), rule:release(), grab:release(), request:cancel() and flowermenu:cancel() each answer the receiver they were called on, each still ends what it ended, the two idempotent ones answer the receiver a second time, and ov:destroy() still answers nil.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["flowermenu.cancel"],
+  "network": {
+    "hosts": ["example.invalid"]
+  }
+}

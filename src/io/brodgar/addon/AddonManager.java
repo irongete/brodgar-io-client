@@ -3537,7 +3537,7 @@ public final class AddonManager {
                 Timer t = timer(self, "cancel");
                 t.alive = false;
                 t.owner.timers.remove(t);
-                return LuaValue.NIL;
+                return self;              // the receiver: every ending chains
             }
         });
         // interval() — the seconds between runs, and 0 for a one-shot, which has none. The delay a :after

@@ -53,7 +53,7 @@ g:release()                           -- hand it back early
 `:grab()` takes no arguments and hands back an emitter with the same `:on(key, fn)`/`sub:off()` shape as
 everything else, closed to `Move` and `Up`. The instant you take it: every move reaches you wherever the
 cursor goes, even off-window; the map stops panning; clicks stop reaching the game; and no other widget
-sees the pointer. `g:release()` ends it early, and `Up` ends it automatically. A grab still open when your
+sees the pointer. `g:release()` ends it early and hands the grab back, and `Up` ends it automatically. A grab still open when your
 addon reloads is released by teardown.
 
 ```lua

@@ -95,7 +95,7 @@ hafen.http():post("https://api.example.com/ingest", "a,b,c\n1,2,3")
 | `req:header(name, value)` | the request | set a request header; setting it again replaces it, whatever the spelling |
 | `req:timeout()` | number | the milliseconds this request will wait |
 | `req:timeout(ms)` | the request | set the timeout; **10000** by default, capped at **60000** |
-| `req:cancel()` | nothing | stop it; the callback never fires |
+| `req:cancel()` | the request | stop it; the callback never fires |
 
 Transport-owned headers (`Host`, `Content-Length`, `Connection`, `User-Agent`, …) are ignored. A
 setter refuses an explicit `nil`: the read is the same name with no argument, so `req:timeout(t)` with

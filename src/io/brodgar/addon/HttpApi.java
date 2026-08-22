@@ -205,7 +205,7 @@ final class HttpApi {
                     owner.requests.remove(req);
                     queueStart(owner);   // freeing a slot may let a queued request start
                 }
-                return LuaValue.NIL;
+                return h;                 // the receiver: every ending chains
             }
         });
         LuaTable mt = new LuaTable();

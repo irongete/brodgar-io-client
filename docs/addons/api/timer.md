@@ -43,7 +43,7 @@ What `:after` and `:every` hand back: the timer itself, which answers for its ow
 | `:repeats()` | `true` for one made with `:every`, `false` for one made with `:after` |
 | `:due()` | seconds until it next runs, `0` when it is due on this tick, `nil` once it is dead |
 | `:alive()` | still scheduled: `false` once cancelled, and once a one-shot has run |
-| `:cancel()` | stop the timer; safe to call more than once, and on one that has already fired |
+| `:cancel()` | stop the timer and hand it back; safe to call more than once, and on one that has already fired |
 | `:info()` | a snapshot table carrying `interval`, `repeats`, `due` and `alive` |
 
 `tostring(t)` reads `Timer(every 5s)`, `Timer(after 2s, fired)` or `Timer(after 2s, cancelled)`, so a

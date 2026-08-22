@@ -7,7 +7,7 @@ pressed, a window draws. This guide is about picking the right one of those.
 ## One door, wherever you subscribe
 
 Every reactive surface in the API is the same shape: `X:on(key, fn)` hands back a subscription, and
-`sub:off()` ends it — idempotent, so a second call is harmless.
+`sub:off()` ends it and hands the subscription back — idempotent, so a second call is harmless.
 
 ```lua
 local sub = X:on(key, fn)

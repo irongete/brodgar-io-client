@@ -41,7 +41,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       touched.
       <!-- extra context: src/io/brodgar/addon/AssetApi.java (addAssetVerbs, Disposer, imageFor and its javadoc on why a view carries no dispose, teardownAssets), MapImages.java (its own disposal), docs/addons/api/references.md (you pass the handle, never a path) -->
 
-- [ ] **087.2 — Every ending returns the receiver.** `conventions.md` teaches that a write hands the
+- [x] **087.2 — Every ending returns the receiver.** `conventions.md` teaches that a write hands the
       object back so writes chain, and the family where a user chains most is the one where the rule
       is a coin flip: **eight endings return `nil` and eight return the receiver**. Seven of the eight
       are fixed here — `sub:off()` (`LuaSub`), `timer:cancel()` (`AddonManager`'s timer methods),

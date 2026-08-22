@@ -178,7 +178,7 @@ n:rule():release()                      -- give the level back
 |---|---|---|
 | `widget:rule()` | Rule | **your** level on that widget, carrying the same properties a sheet rule does |
 | `widget:rule():info()` | table \| nil | read **your own** level back, exactly as you wrote it; `nil` if you have none |
-| `widget:rule():release()` | nothing | give **your** level back; another addon's on the same widget is untouched |
+| `widget:rule():release()` | the rule | give **your** level back; another addon's on the same widget is untouched |
 | `widget:style()` | table \| nil | what the widget **resolves to**; `nil` when nothing names it |
 
 - **It covers the whole subtree.** The client draws parents before children, so a style on a window reaches

@@ -105,7 +105,7 @@ public final class LuaSub {
                 LuaSub s = self(a.arg1(), "off");
                 s.alive = false;
                 s.subs.off(s);
-                return LuaValue.NIL;
+                return a.arg1();          // the receiver: every ending chains
             }
         });
         // key() — what this subscription was registered UNDER: a bus event name, a message name, a widget

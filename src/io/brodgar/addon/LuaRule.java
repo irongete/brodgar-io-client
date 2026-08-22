@@ -519,7 +519,7 @@ public final class LuaRule {
                 } else {
                     Sheet.setWidgetProps(owner, LuaWidget.live(r.wdg), null);
                 }
-                return LuaValue.NIL;
+                return self;              // the receiver: every ending chains
             }
         });
         // info() — the snapshot hatch: every property this rule sets, plus its selector, or nil when it says

@@ -175,7 +175,7 @@ final class FlowerMenuApi {
                         + " menu and cancelling it chooses nothing — to pick a petal, use "
                         + FM + ":select(label|n)");
                 required(user, FM + ":cancel").choose(null);   // the very call Esc makes
-                return LuaValue.NIL;
+                return a.arg1();          // the section: every ending chains
             }
         });
         return Section.object("flowermenu", menu, FM);

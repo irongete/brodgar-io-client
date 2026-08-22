@@ -121,7 +121,7 @@ public final class LuaGrab {
         m.set("release", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 self(a.arg1(), "release").widget.release();
-                return LuaValue.NIL;
+                return a.arg1();          // the receiver: every ending chains
             }
         });
         LuaTable mt = new LuaTable();
