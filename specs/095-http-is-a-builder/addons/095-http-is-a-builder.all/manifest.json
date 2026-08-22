@@ -1,0 +1,11 @@
+{
+  "name": "095 — http is a builder",
+  "id": "095-http-is-a-builder.all",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for the whole of feature 095: hafen.http():request(url) built bare and dispatched by :send(), the completion handler as req:on(\"done\", fn) rather than a positional callback, the result as an object with :ok() :status() :body() :header(name) :error(), and hafen.http() as the collection of this addon's live requests with req:url() and :method(). It declares http.get and a network block, so it can drive the whole round trip against one allowlisted host.",
+  "api_version": 1,
+  "permissions": ["http.get"],
+  "network": { "hosts": ["example.com"] },
+  "files": ["main.lua"]
+}

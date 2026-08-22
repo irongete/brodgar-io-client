@@ -520,6 +520,8 @@ public final class Addon {
     LuaValue petalMeta;
     /** {@link LuaRole}'s metatable, and its intern cache: a closed set of names that never dies (094). */
     LuaValue roleMeta;
+    /** {@link LuaHttpResult}'s metatable — the result is a value, so only the metatable is held (095). */
+    LuaValue httpResMeta;
     final java.util.Map<String, LuaValue> roles = new java.util.HashMap<String, LuaValue>();
 
     LuaValue subMeta;

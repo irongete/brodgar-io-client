@@ -1,6 +1,8 @@
 package io.brodgar.addon;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -12,6 +14,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
@@ -68,40 +71,115 @@ final class HttpApi {
      * everything chained onto it is applied first. A cancelled request is never sent at all.
      */
     static void install(LuaTable hafen, final Addon owner) {
-        LuaTable http = new LuaTable();
-        // get(url, cb) — async GET. cb(res) is optional (the result is discarded without one).
-        http.set("get", new VarArgFunction() {
+        // 095 (A-118): the section IS the collection of this addon's live requests. The set is bounded and
+        // hard-capped -- 6 in flight, 64 pending, past which the call raises -- and it was the one bounded
+        // set in the API you could not look at: hafen.timer(), hafen.sound(), hafen.asset() and
+        // hafen.vr():ghost() all answer "what of mine is live", so an addon that hit the cap got a raise it
+        // could not have seen coming and no way to cancel its own backlog but to have kept every handle.
+        LuaTable extra = new LuaTable();
+        // request(url) -- 095 (A-115): a BARE request. Nothing is sent, so every setter is legal until
+        // :send(), and the next-tick rule that used to make configuration a same-statement obligation is
+        // gone with the call that scheduled it.
+        extra.set("request", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "http", "get");
-                String url = Args.str(a, 2, "hafen.http():get", "url", null).tojstring();
-                LuaValue cb = a.arg(3);
-                if(!cb.isnil() && !cb.isfunction())
-                    throw new LuaError("hafen.http():get: callback must be a function");
-                String host = httpHost(url, "hafen.http():get");
-                requireNetwork(owner, Permission.HTTP_GET, host, "hafen.http():get");
-                return newHttpRequest(owner, "GET", url, null,
-                                      new LinkedHashMap<String, String>(), LuaHttp.DEFAULT_TIMEOUT, cb);
+                LuaCollection.receiver(a.arg1(), "request");
+                return newHttpRequest(owner, "GET", urlArg(a, 2, "hafen.http():request"));
             }
         });
-        // post(url, body, cb) — send + read (N2b). body = a string (verbatim) or a table (→ JSON, tagged
-        // application/json unless the addon sets its own Content-Type). Same gate/limits/res table as get;
-        // both verbs follow up to 5 redirects, re-validating the allowlist + private-IP block per hop.
-        http.set("post", new VarArgFunction() {
+        // get(url) / post(url, body) -- the one-line conveniences, and they take NO CALLBACK: the handler
+        // has exactly one spelling, req:on("done", fn), which is the API's one notification verb.
+        extra.set("get", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "http", "post");
-                String url = Args.str(a, 2, "hafen.http():post", "url", null).tojstring();
-                LuaValue body = a.arg(3);
-                LuaValue cb = a.arg(4);
-                if(!cb.isnil() && !cb.isfunction())
-                    throw new LuaError("hafen.http():post: callback must be a function");
-                String host = httpHost(url, "hafen.http():post");
-                requireNetwork(owner, Permission.HTTP_POST, host, "hafen.http():post");
-                Map<String, String> headers = new LinkedHashMap<String, String>();
-                byte[] bytes = httpBody(body, headers, "hafen.http():post");
-                return newHttpRequest(owner, "POST", url, bytes, headers, LuaHttp.DEFAULT_TIMEOUT, cb);
+                LuaCollection.receiver(a.arg1(), "get");
+                String url = urlArg(a, 2, "hafen.http():get");
+                refuseCallback(a, 3, "hafen.http():get(url)");
+                return newHttpRequest(owner, "GET", url);
             }
         });
-        Section.install(hafen, "http", http);
+        extra.set("post", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "post");
+                String url = urlArg(a, 2, "hafen.http():post");
+                refuseCallback(a, 4, "hafen.http():post(url, body)");
+                LuaValue h = newHttpRequest(owner, "POST", url);
+                LuaHttpRequest req = resolve(h);
+                req.method = "POST";
+                if(Args.passed(a, 3))
+                    req.body = httpBody(a.arg(3), req.headers, "hafen.http():post");
+                return h;
+            }
+        });
+        LuaValue coll = LuaCollection.create("hafen.http()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                for(LuaHttpRequest r : owner.requests) {
+                    if(!r.dead && (r.handle != null))
+                        out.add(r.handle);
+                }
+                return out;
+            }
+
+            /** A request has a URL, so a string filter is a substring test over it. */
+            public String needle(LuaValue member) {
+                LuaHttpRequest r = resolve(member);
+                return (r == null) ? "" : r.url;
+            }
+
+            public boolean named() {
+                return true;
+            }
+
+            /**
+             * A request has no key. Note that {@code :get} is SHADOWED here by the section's own
+             * convenience above -- {@code hafen.http():get(url)} builds one -- so this message is the
+             * fallback if that verb ever moves, and {@code :find(url)} is the search either way. The
+             * collision is catalogued: {@code audit/02-naming.md} C26 already has {@code :get} meaning an
+             * HTTP GET, a collection member and a saved-variable table.
+             */
+            public String noGet() {
+                return "a request has no key of its own -- it is the handle :request(url) handed you."
+                    + " hafen.http():find(\"<url substring>\") searches, and :list() is all of them";
+            }
+        }, extra);
+        Section.mount(hafen, "http", coll, null);
+    }
+
+    /**
+     * A URL argument, through the house door so an explicit nil is refused like everywhere else — and
+     * <b>validated here</b>, where it was written. {@link #httpHost} raises on anything that is not an
+     * {@code http}/{@code https} address, so a typo is a refusal at {@code :request(url)} rather than
+     * something the pool thread discovers with nobody left to tell.
+     *
+     * <p>The <b>permission</b> is not checked here: nothing has left the client yet. It is checked in
+     * {@code :send()}, which is the call that reaches the network (095).
+     */
+    private static String urlArg(Varargs a, int i, String verb) {
+        String url = Args.str(a, i, verb, "url", "an http:// or https:// address").tojstring();
+        httpHost(url, verb);
+        return url;
+    }
+
+    /**
+     * <b>The one hard cut {@code Retired} cannot carry</b> (095, A-116). It keys on a NAME, and what changed
+     * here is an ARGUMENT COUNT: {@code hafen.http():get(url, cb)} still spells {@code get}. So the refusal
+     * is written inside the verb, which is what {@code CLAUDE.md} asks for when a reshape has nothing to key
+     * on — and it names the whole new shape rather than the argument.
+     */
+    private static void refuseCallback(Varargs a, int i, String verb) {
+        if(!Args.passed(a, i))
+            return;
+        throw new LuaError(verb + " takes no callback. The handler is req:on(\"done\", fn), the one"
+            + " notification verb, and the request does not leave until you call :send():\n"
+            + "  hafen.http():get(url):on(\"done\", function(res) end):send()\n"
+            + "res is an object now too: res:ok() res:status() res:body() res:header(name) res:error().");
+    }
+
+    /** The request behind a handle, or {@code null} — the userdata is the record itself. */
+    static LuaHttpRequest resolve(LuaValue v) {
+        if((v == null) || !v.isuserdata())
+            return null;
+        Object o = v.touserdata();
+        return (o instanceof LuaHttpRequest) ? (LuaHttpRequest)o : null;
     }
 
     /**
@@ -162,25 +240,54 @@ final class HttpApi {
      * inside this method would race a {@code :timeout(5000)} written one character later against a pool
      * thread already reading the field.
      */
-    private static LuaValue newHttpRequest(final Addon owner, String method, String url, byte[] body,
-                                           Map<String, String> headers, int timeout, LuaValue cb) {
-        // Per-addon hard queue cap (D-018 spirit): count this addon's still-live requests (NEW + RUNNING).
-        int pending = 0;
-        for(LuaHttpRequest r : owner.requests)
-            if(!r.dead) pending++;
-        if(pending >= LuaHttp.QUEUE_CAP)
-            throw new LuaError("hafen.http: too many pending requests for this addon (" + pending
-                + " >= " + LuaHttp.QUEUE_CAP + "); cancel some or wait.");
-
-        final LuaHttpRequest req = new LuaHttpRequest(owner, method, url, body, headers, timeout, cb);
-        owner.requests.add(req);
-        queueStart(owner);
-
+    private static LuaValue newHttpRequest(final Addon owner, String method, String url) {
+        final LuaHttpRequest req = new LuaHttpRequest(owner, method, url, null,
+                                                      new LinkedHashMap<String, String>(),
+                                                      LuaHttp.DEFAULT_TIMEOUT);
+        req.host = httpHost(url, "hafen.http():request");
         // The request handle is userdata over the record, the one shape every handle in the API has:
         // req.cancel = nil is refused where a table let an addon delete its own way of stopping a request,
-        // a typo raises naming the three verbs, and tostring(req) names the method and the URL.
+        // a typo raises naming the vocabulary, and tostring(req) names the method and the URL.
         final LuaValue h = LuaValue.userdataOf(req);
+        req.handle = h;
         LuaTable m = new LuaTable();
+        // url() / method() -- 095 (A-118): what the collection's filter matches on, and what an addon
+        // looking at its own backlog needs to tell one request from another. Reads only: they are what the
+        // request IS, and :request(url) is where a different one comes from.
+        m.set("url", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(req.url);
+            }
+        });
+        m.set("method", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue v = Args.written(a, 2, "request:method", "name");
+                if(v == null)
+                    return LuaValue.valueOf(req.method);
+                requireUnsent(req, "method");
+                String nm = Args.str(v, "request:method", "name", "\"GET\" or \"POST\"")
+                                .tojstring().toUpperCase();
+                if(!"GET".equals(nm) && !"POST".equals(nm))
+                    throw new LuaError("request:method(name): the client speaks GET and POST, got \""
+                        + nm + "\"");
+                req.method = nm;
+                return h;
+            }
+        });
+        // body(v) -- a string sent verbatim, or a table encoded as JSON and tagged application/json unless
+        // this addon set its own Content-Type. The same door hafen.http():post's second argument went
+        // through, which is now this setter and nothing else.
+        m.set("body", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue v = Args.written(a, 2, "request:body", "body");
+                if(v == null)
+                    return (req.body == null) ? LuaValue.NIL
+                        : LuaValue.valueOf(new String(req.body, java.nio.charset.StandardCharsets.UTF_8));
+                requireUnsent(req, "body");
+                req.body = httpBody(v, req.headers, "request:body");
+                return h;
+            }
+        });
         // header(name) reads, header(name, value) writes and returns SELF so it chains. Case-insensitive:
         // one header has one value however it is spelled, which is also what the wire means by it.
         m.set("header", new VarArgFunction() {
@@ -208,7 +315,55 @@ final class HttpApi {
                 return h;
             }
         });
-        // cancel() — never sent if it has not gone yet, and its callback never fires if it has.
+        // on(key, fn) -- 095 (A-116): THE HANDLER, and it is the API's one notification verb rather than a
+        // positional argument. It hands back a Sub, so it ends with sub:off() like every other subscription,
+        // and "progress" costs nothing to add beside it later. Legal after :send() too: a request in flight
+        // has not come back yet, so arming a second listener is a moment rather than a mistake.
+        m.set("on", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue keyArg = Args.required(a, 2, "request:on", "key");
+                LuaValue fnArg = Args.required(a, 3, "request:on", "fn");
+                if(keyArg.isnumber() || !keyArg.isstring() || !fnArg.isfunction())
+                    throw new LuaError("request:on(key, fn) expects (string, function)");
+                String key = keyArg.tojstring();
+                if(!LuaHttpRequest.DONE.equals(key))
+                    throw new LuaError("request:on(key, fn): a request has no event '" + key + "' -- it has:"
+                        + " done, which fires once with the result (res:ok() says whether the exchange"
+                        + " completed at all)");
+                return req.subs.on(key, fnArg);
+            }
+        });
+        // send() -- 095 (A-115): DISPATCH, said out loud. Everything above is legal until this call and
+        // nothing above is legal after it, which is a rule with no timing in it -- where the old shape sent
+        // on the next tick and every setter had to be chained in the statement that created the request.
+        //   The per-addon queue cap is charged HERE, not at construction: a request that is never sent costs
+        //   the wire nothing, so it should not hold a slot against the cap either.
+        m.set("send", new ZeroArgFunction() {
+            public LuaValue call() {
+                // The GATE, and this is the call it belongs to (D-213 for a builder): nothing has left the
+                // client until :send(), and the method it leaves as is not known until then either. Both
+                // halves in one door, the key before the allowlist, exactly as 093 wrote it.
+                requireNetwork(owner, "POST".equals(req.method) ? Permission.HTTP_POST : Permission.HTTP_GET,
+                               req.host, "request:send");
+                if(req.dead)
+                    throw new LuaError("request:send(): this request was cancelled");
+                if(req.sent)
+                    throw new LuaError("request:send(): this request has already been sent -- build another"
+                        + " with hafen.http():request(url)");
+                int pending = 0;
+                for(LuaHttpRequest r : owner.requests)
+                    if(!r.dead) pending++;
+                if(pending >= LuaHttp.QUEUE_CAP)
+                    throw new LuaError("request:send(): too many pending requests for this addon (" + pending
+                        + " >= " + LuaHttp.QUEUE_CAP + "); hafen.http():count() is how many, and"
+                        + " hafen.http():list() is which -- cancel some or wait.");
+                req.sent = true;
+                owner.requests.add(req);
+                queueStart(owner);
+                return h;
+            }
+        });
+        // cancel() -- never sent if it has not gone yet, and its handler never fires if it has.
         m.set("cancel", new ZeroArgFunction() {
             public LuaValue call() {
                 if(!req.dead) {
@@ -221,11 +376,12 @@ final class HttpApi {
         });
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("request", m,
-            "a request answers :header(name) :header(name, value) :timeout() :timeout(ms) and :cancel()"));
+            "a request answers :url() :method() :body() :header(name) :timeout() and :on(\"done\", fn),"
+            + " and is dispatched by :send() -- every setter is legal until then and none after"));
         mt.set("__name", LuaValue.valueOf("Request"));
         mt.set("__tostring", new ZeroArgFunction() {
             public LuaValue call() {
-                String state = req.dead ? ", cancelled" : (req.started ? ", sent" : "");
+                String state = req.dead ? ", cancelled" : (req.started ? ", sent" : (req.sent ? ", queued" : ""));
                 return LuaValue.valueOf("Request(" + req.method + " " + req.url + state + ")");
             }
         });
@@ -233,11 +389,13 @@ final class HttpApi {
         return h;
     }
 
-    /** A setter refuses once the request has gone out: the wire has it, so writing the field would lie. */
+    /** A setter refuses once the request has been SENT: the wire has it, so writing the field would lie. */
     private static void requireUnsent(LuaHttpRequest req, String verb) {
-        if(req.started || req.dead)
-            throw new LuaError("request:" + verb + ": this request has already been sent — configure it in"
-                + " the same call that created it (the request goes out on the next tick)");
+        if(req.dead)
+            throw new LuaError("request:" + verb + ": this request was cancelled");
+        if(req.sent)
+            throw new LuaError("request:" + verb + ": this request has already been sent -- configure it"
+                + " before :send(), which is the whole of the rule");
     }
 
     /**
@@ -320,27 +478,10 @@ final class HttpApi {
             }
             req.dead = true;                      // one-shot: completed
             owner.requests.remove(req);
-            if(!req.cb.isnil())
-                AddonManager.callLua(owner, Addon.C_EVENT, req.cb, httpResTable(hc.result));   // armed + isolated in callLua
+            // 095 (A-116/A-117): the handler is a subscription and the payload is an object.
+            req.subs.fire(LuaHttpRequest.DONE, LuaHttpResult.of(owner, hc.result));
             maybeStartHttp(owner);                // a slot freed → launch any queued request
         }
-    }
-
-    /** Build the Lua {@code res} table an addon's callback receives (D-037 §4.2). */
-    private static LuaValue httpResTable(LuaHttp.Result r) {
-        LuaTable t = new LuaTable();
-        t.set("ok", LuaValue.valueOf(r.ok));
-        if(r.ok) {
-            t.set("status", LuaValue.valueOf(r.status));
-            t.set("body", LuaValue.valueOf(r.body));
-            LuaTable hd = new LuaTable();
-            for(Map.Entry<String, String> e : r.headers.entrySet())
-                hd.set(e.getKey(), LuaValue.valueOf(e.getValue()));
-            t.set("headers", hd);
-        } else {
-            t.set("error", LuaValue.valueOf(r.error));
-        }
-        return t;
     }
 
     /** Teardown (N2a): cancel every in-flight request so a reload/disable/relog leaks nothing + never calls back. */

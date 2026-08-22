@@ -162,13 +162,16 @@ final class Retired {
         put("hafen.hook", "hafen.hook is gone — the drag capture is now hafen.ui():mouse():grab(), slash"
             + " commands are hafen.slash(), and hotkeys are hafen.client():options():keybindings()");
 
-        // http keeps its verb names but loses its options table, so the message says both halves.
-        put("hafen.http.get", "hafen.http.get(url, opts, cb) is now hafen.http():get(url, cb) — opts.headers"
-            + " and opts.timeout are setters on the request it hands back: req:header(name, value),"
-            + " req:timeout(ms)");
-        put("hafen.http.post", "hafen.http.post(url, body, opts, cb) is now hafen.http():post(url, body, cb)"
-            + " — opts.headers and opts.timeout are setters on the request it hands back:"
-            + " req:header(name, value), req:timeout(ms)");
+        // http keeps its verb names and lost first its options table and then, in 095, its callback: a
+        // request is BUILT and then SENT, so the handler is a subscription like every other in the API.
+        String httpNew = " is now hafen.http():request(url), built bare and dispatched by :send() \u2014"
+            + " hafen.http():request(url):header(\"Accept\", \"application/json\"):on(\"done\","
+            + " function(res) end):send(). Every setter is legal until :send() and none after, the handler"
+            + " is the one notification verb req:on(\"done\", fn), and res is an object: res:ok()"
+            + " res:status() res:body() res:header(name) res:error(). hafen.http():get(url) and"
+            + " :post(url, body) are the same thing with the method set, and take no callback.";
+        put("hafen.http.get", "hafen.http.get(url, opts, cb)" + httpNew);
+        put("hafen.http.post", "hafen.http.post(url, body, opts, cb)" + httpNew);
 
         // ---- 076.3: hafen.world and hafen.player are GONE onto the session. Sixteen namespaces name one --
         // ---- character's state and every one of them was spelled as though the client had one login; these

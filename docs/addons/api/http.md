@@ -1,16 +1,19 @@
 # hafen.http: external HTTP requests
 
-Fetch data from a URL outside the game. `hafen.http()` is **protected by your manifest**: an addon reaches the
-network only if it declares a `network` block, and only the hosts that block lists — the declaration
-*is* the allowlist. Pair it with [`hafen.json`](json.md) to read a JSON API.
+Fetch data from a URL outside the game. It is **protected twice over**: the `http.get` / `http.post`
+[permission key](../guides/permissions.md) says whether your addon may use the network at all, and the
+manifest's `network` block says which hosts — the declaration *is* the allowlist. Pair it with
+[`hafen.json`](json.md) to read a JSON API.
 
 ```lua
-hafen.http():get("https://api.example.com/prices", function(res)
-  if not res.ok then hafen.log():write("request failed: " .. res.error); return end
-  if res.status ~= 200 then hafen.log():write("HTTP " .. res.status); return end
-  local data = hafen.json():parse(res.body)
-  hafen.log():write("iron = " .. tostring(data.iron))
-end)
+hafen.http():get("https://api.example.com/prices")
+  :on("done", function(res)
+      if not res:ok() then hafen.log():write("request failed: " .. res:error()); return end
+      if res:status() ~= 200 then hafen.log():write("HTTP " .. res:status()); return end
+      local data = hafen.json():parse(res:body())
+      hafen.log():write("iron = " .. tostring(data.iron))
+    end)
+  :send()
 ```
 
 ## Declaring network access
@@ -43,94 +46,108 @@ take** — the key says *whether*, the hosts say *where*:
 
 ## Request
 
-Both verbs are **asynchronous**: the call returns immediately, and the callback runs on the UI thread a
-frame or more later. There is no blocking form — a request on the UI thread would freeze the client —
-so do your work inside the callback.
-
-Each returns the **request object**, which you configure with chained setters. A request goes out on
-the next tick, not inside the call that created it, so everything you chain onto it is applied before
-it leaves; a request you cancel in the same call is never sent at all. Once it has gone, a setter
-raises rather than pretending to change what is already on the wire.
-
-### `hafen.http():get(url, cb)`
-
-| Argument | Type | Meaning |
-|---|---|---|
-| `url` | string | scheme must be `http` or `https`, and the host must be in your allowlist |
-| `cb` | function | `function(res)`, called with the [result table](#the-res-table). Omit it to fire and forget; a transport error is still logged |
+**A request is built bare and sent on purpose.** `hafen.http():request(url)` hands you one that has not
+left, you configure it with chained setters, and `:send()` is what puts it on the wire. Every setter is
+legal until `:send()` and none after — a rule with no timing in it.
 
 ```lua
-local req = hafen.http():get("https://api.example.com/slow",
-                             function(res) hafen.log():write(res.status) end)
-req:header("Authorization", "Bearer " .. hafen.store():get("cfg").token):timeout(5000)
-
-req:cancel()      -- the callback will NOT fire
+hafen.http():request("https://api.example.com/report")
+  :method("POST")
+  :body({ char = hafen.session():current():character() })
+  :header("Authorization", "Bearer " .. hafen.store():get("cfg").token)
+  :timeout(5000)
+  :on("done", function(res)
+      if res:ok() and (res:status() == 200) then
+        hafen.log():write(hafen.json():parse(res:body()).message)
+      end
+    end)
+  :send()
 ```
 
-### `hafen.http():post(url, body, cb)`
+`hafen.http():get(url)` and `hafen.http():post(url, body)` are the same thing with the method set, and
+**neither takes a callback**: the handler has exactly one spelling. Passing one raises and says so.
 
-`get` plus a request **body**; `cb` behaves exactly as above.
-
-`body` is either a **string**, sent verbatim, or a **table**, encoded to JSON with the same serializer
-as [`hafen.json():encode`](json.md) and sent as `Content-Type: application/json` unless you set your own
-with `:header`. A table that cannot be serialized — a function or userdata value, a cycle — raises a
-Lua error at call time. `nil` sends an empty POST.
-
-```lua
--- POST a Lua table as JSON, read JSON back
-hafen.http():post("https://api.example.com/report",
-  { char = hafen.session():current():character(), lp = hafen.session():current():char():lp() },
-  function(res)
-    if res.ok and res.status == 200 then
-      local reply = hafen.json():parse(res.body)
-      hafen.log():write(reply.message)
-    end
-  end):header("Authorization", "Bearer " .. hafen.store():get("cfg").token)
-
--- or a raw string body with your own content type
-hafen.http():post("https://api.example.com/ingest", "a,b,c\n1,2,3")
-  :header("Content-Type", "text/csv")
-```
+Everything is **asynchronous**: `:send()` returns immediately and the handler runs on the UI thread a frame
+or more later. There is no blocking form — a request on the UI thread would freeze the client.
 
 ## The request object
 
 | Method | Returns | Description |
 |---|---|---|
+| `req:url()` | string | the address it was built for |
+| `req:method()` / `req:method(name)` | string / the request | `"GET"` or `"POST"` |
+| `req:body()` / `req:body(v)` | string \| nil / the request | a **string** sent verbatim, or a **table** encoded as JSON |
 | `req:header(name)` | string \| nil | the value this request carries for `name`, matched case-insensitively |
 | `req:header(name, value)` | the request | set a request header; setting it again replaces it, whatever the spelling |
-| `req:timeout()` | number | the milliseconds this request will wait |
-| `req:timeout(ms)` | the request | set the timeout; **10000** by default, capped at **60000** |
-| `req:cancel()` | the request | stop it; the callback never fires |
+| `req:timeout()` / `req:timeout(ms)` | number / the request | the milliseconds it will wait; **10000** by default, capped at **60000** |
+| `req:on("done", fn)` | [`Sub`](event/README.md#the-sub) | the handler, called once with the [result](#the-result-object) |
+| `req:send()` | the request | **put it on the wire.** Every setter above is refused from here on |
+| `req:cancel()` | the request | stop it; the handler never fires |
 
-Transport-owned headers (`Host`, `Content-Length`, `Connection`, `User-Agent`, …) are ignored. A
-setter refuses an explicit `nil`: the read is the same name with no argument, so `req:timeout(t)` with
-a `t` you forgot to set would otherwise read the timeout and change nothing.
+A table body is encoded with the same serializer as [`hafen.json():encode`](json.md) and sent as
+`Content-Type: application/json` unless you set your own with `:header`. One that cannot be
+serialized — a function, userdata, a cycle — raises at the call.
+
+Transport-owned headers (`Host`, `Content-Length`, `Connection`, `User-Agent`, …) are ignored. A setter
+refuses an explicit `nil`: the read is the same name with no argument, so `req:timeout(t)` with a `t` you
+forgot to set would otherwise read the timeout and change nothing.
 
 The request is a [handle in the API's one shape](conventions.md#snapshots-vs-handles): a name it does not
-answer raises naming these three, nothing can be written onto it, and `tostring(req)` names the method, the
-URL and whether it has gone — `Request(GET https://api.example.com/prices, sent)`.
+answer raises naming the vocabulary, nothing can be written onto it, and `tostring(req)` names the method,
+the URL and where it is — `Request(GET https://api.example.com/prices, sent)`.
 
-## The res table
+> **The [permission](../guides/permissions.md) is checked by `:send()`**, not by `:request(url)`: nothing
+> leaves the client until then, and which of `http.get` / `http.post` you need is not settled until the
+> method is. The URL's *syntax* is checked where you wrote it.
 
-| Field | When | Meaning |
+## What is in flight
+
+`hafen.http()` is the [collection](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many)
+of **your own** requests that have been sent and have not come back — the set the caps below are about.
+
+| Call | Returns |
+|---|---|
+| `hafen.http():list(filter)` | every live request of yours |
+| `hafen.http():count(filter)` | how many, which is what the pending cap counts |
+| `hafen.http():find(filter)` | the first whose URL matches |
+| `hafen.http():request(url)` / `:get(url)` / `:post(url, body)` | a new one, unsent |
+
+A string filter is a substring test over `req:url()`. A request has **no key** — it *is* the handle
+`:request(url)` gave you — so `:find(url)` is the search, and `:get(url)` here is the convenience above
+rather than the collection's addressing.
+
+```lua
+if hafen.http():count() > 4 then return end            -- see the cap coming
+for _, r in ipairs(hafen.http():list("example.com")) do r:cancel() end
+```
+
+## The result object
+
+| Method | Returns | Description |
 |---|---|---|
-| `res.ok` | always | `true` if an HTTP response arrived, whatever its status, including 4xx and 5xx; `false` only on a **transport** failure |
-| `res.status` | `ok` | HTTP status code |
-| `res.body` | `ok` | response body as a string, decoded with the response charset, UTF-8 by default |
-| `res.headers` | `ok` | response headers, keys **lower-cased**, so `res.headers["content-type"]` |
-| `res.error` | not `ok` | human-readable transport-error string |
+| `res:ok()` | boolean | `true` if an HTTP response arrived, whatever its status, including 4xx and 5xx; `false` only on a **transport** failure |
+| `res:status()` | number \| nil | HTTP status code |
+| `res:body()` | string \| nil | response body as a string, decoded with the response charset, UTF-8 by default |
+| `res:header(name)` | string \| nil | one response header, matched **case-insensitively** |
+| `res:error()` | string \| nil | human-readable transport-error string, `nil` when `:ok()` |
 
-`res.ok` separates *did we get a reply* from *what did it say*: a `404` is `ok = true, status = 404`,
-because the server answered, while a DNS, connect or timeout failure is `ok = false` with `res.error`
-set. So check `ok` first and branch on `status` after.
+`res:ok()` separates *did we get a reply* from *what did it say*: a `404` is `ok` with `status` 404,
+because the server answered, while a DNS, connect or timeout failure is not `ok` and `res:error()` is set.
+So check `:ok()` first and branch on `:status()` after.
+
+> **It is an object, like every other payload the API hands a handler.** It used to be a plain table, and
+> it was the one that taught the dot habit — which is a trap everywhere else, because a field read on any
+> object here answers the **method**: `if gob.name then` is always true. `res:header("content-type")` also
+> does the matching the old `res.headers` table asked you to remember it had lower-cased.
 
 ## Cancellation and lifecycle
 
-`req:cancel()` marks the request dead and its callback **never fires** — there is no "cancelled"
-callback. Reloading or disabling the addon, and relogging, cancel every request the addon has in
-flight: an in-flight response is discarded and no callback runs, so nothing leaks across a reload.
+`req:cancel()` marks the request dead and its handler **never fires** — there is no "cancelled" event.
+A request you build and never `:send()` costs nothing and holds no slot. Reloading or disabling the addon,
+and relogging, cancel every request the addon has in flight: an in-flight response is discarded and no
+handler runs, so nothing leaks across a reload.
 
-The callback runs under the same watchdog and error isolation as every other addon callback: an error
+The handler runs under the same watchdog and error isolation as every other addon callback: an error
 inside it is logged, never propagated.
 
 ## Security and limits
@@ -140,18 +157,18 @@ inside it is logged, never propagated.
 
 - **Private, loopback and link-local addresses are refused**, even for an allowlisted host: if it
   resolves into `127.0.0.0/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `::1`, `fc00::/7` or
-  `fe80::/10`, the request fails with `ok = false` and a blocked-address error. That closes LAN
+  `fe80::/10`, the request fails, `res:ok()` false, with a blocked-address error. That closes LAN
   scanning and internal-service access from addon code.
 - **TLS is verified** against the JDK trust store, and certificate verification is never disabled.
 - **Redirects are followed**, up to **5** hops. A `3xx` whose `Location` points at a host you did not
-  declare, or at a private address, aborts with `ok = false`. A `303`, and a `301` or `302` on a POST,
+  declare, or at a private address, aborts with `res:ok()` false. A `303`, and a `301` or `302` on a POST,
   is followed as a `GET` with the body dropped, per HTTP convention.
 - **A generic `User-Agent`, `brodgar-addon/1`, is sent**, and nothing identifies your character or your
   account. There are no cookies and no shared session: every request stands alone, and any token is one
   you keep yourself, in [`hafen.store`](store.md).
 - **Resource caps**: response size **8 MB**, above which the request fails with a too-large error;
   timeout **10 s**, raisable to **60 s**; **6** requests in flight per addon, with the excess queued and
-  a hard cap of **64** pending, past which the call raises; and a pool of **8** threads shared by all
+  a hard cap of **64** pending, past which `:send()` raises — `hafen.http():count()` sees it coming; and a pool of **8** threads shared by all
   addons.
 
 ## See also
