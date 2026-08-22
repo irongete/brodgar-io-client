@@ -121,9 +121,9 @@ end
 ```
 
 The size is written on the **object**, so every character that can see the boar sees the same boar: tab
-between two standing together and it is the size you set on both. [`gob:sessions()`](#gobsessions)
-is the list the write goes to — a character that loads the object later draws it the size the game draws it
-at, the same way a gob that unloads and comes back is unscaled.
+between two standing together and it is the size you set on both, **and so does one that walks up to it
+afterwards**. The write is not a list of who is looking now — it is recorded against the object, and a
+character that loads it later draws it the size you asked for.
 
 It is **client-local and purely visual**, on the same footing as an [overlay](overlay.md): only you see
 it, the size is applied in place so the object's feet stay where they were, and it still turns, moves
@@ -136,10 +136,12 @@ and those ignore scale too.
 turns it inside out, so both raise naming the rule; `gob:scale(1)` is the original size and leaves nothing
 behind. Once the gob is gone the read answers `nil` and a write does nothing.
 
-> **The size ends with the loaded object.** Walk far enough away for it to unload and it comes back the
-> size the game draws it at. Re-apply it from [`GobAdded`](event/bus.md#world) if you want it kept — and a
-> `:reload` or a disable puts back everything you resized, in every character's view, so nothing is left
-> distorted behind you anywhere.
+> **The size ends with the object, not with a copy of it.** It is dropped when the object leaves its
+> **last** character's view — the moment [`GobRemoved`](event/bus.md#world) fires — so walking far enough
+> away for it to unload and coming back gives the size the game draws it at, while another character still
+> having it in view keeps it. Re-apply it from [`GobAdded`](event/bus.md#world) if you want it kept across
+> the unload — and a `:reload` or a disable puts back everything you resized, in every character's view,
+> so nothing is left distorted behind you anywhere.
 
 ## Overlays
 

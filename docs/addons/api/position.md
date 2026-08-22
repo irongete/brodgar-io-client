@@ -101,12 +101,24 @@ that shape.
 A **lattice cell** is an index, not a place, and keeps its own name: `grid:segmentCoord()` counts grids,
 `marker:segmentTile()` counts tiles, and the argument of `grid:tile(c)` is a within-grid tile coord `0..99`.
 **Screen pixels are not Positions** either: a widget's `:position()`, `:rootPos()` and
-[`worldToScreen`](player.md) answer a plain `{x, y}` of [design pixels](ui/pixels.md), and handing one to
-`s:player():move()` raises rather than walking a character somewhere wrong.
+[`worldToScreen`](world.md#the-screen-and-the-world) answer a plain `{x, y}` of
+[design pixels](ui/pixels.md), and handing one to `s:player():move()` raises rather than walking a character
+somewhere wrong.
+
+## The verbs here answer for the screen; `s:world()` has the addressed three
+
+A Position carries no session, so the verbs *on* one were asked without an address and resolve in the
+**drawn** character's frame: `p:x()`, `p:y()`, `p:tileCoord()` and a bare `p:distance()`. With one login
+that is the only frame there is. With two, the same three questions asked *about* a named character are
+[`s:world():components(p)`](world.md#terrain-and-coordinates), `s:world():tileCoord(p)` and
+`s:world():distance(p [, other])` — the section holds the address, so those resolve in its frame.
+
+`p:offset(dx, dy)` needs no twin: it is arithmetic in world units and hands back a Position.
 
 ## See also
 
-- [`session:world`](world.md) — where a Position is built, and the terrain reads that take one
+- [`session:world`](world.md) — where a Position is built, the terrain reads that take one, and the three
+  addressed twins of the verbs here
 - [Gob](gob.md) — `gob:position()`, the commonest way to get one
 - [`session:player`](player.md#write-protected) — walking a character to one
 - [`hafen.store`](store.md) — saving one, as-is

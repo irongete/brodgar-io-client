@@ -42,15 +42,14 @@ so the pointer, the point `hafen.ui():hit(x, y)` tests and the scale below are t
 any character's — none of the three is reached through a [Session](../session.md).
 
 **A point in the world enters and leaves through the same space.**
-[`s:player():worldToScreen(p)`](../player.md) answers a root pair in this unit, and
-[`s:world():screenToWorld(sx, sy, fn)`](../world.md#screen-to-world-and-placement-snapping) takes one,
-so a projected point is hit-tested, drawn and fed back to the ground with nothing in between — and the
-pointer drives either of them directly:
+[`s:world():worldToScreen(p)`](../world.md#the-screen-and-the-world) answers a root pair in this unit, and
+`s:world():screenToWorld(pt, fn)` takes **that same table** back, so a projected point is hit-tested, drawn
+and fed to the ground with nothing in between — and the pointer drives either of them directly:
 
 ```lua
 local m = hafen.ui():mouse()
 local w = hafen.session():current():world()      -- a pixel is the screen's
-w:screenToWorld(m:x(), m:y(), function(p)        -- the ground under the cursor, a frame later
+w:screenToWorld({x = m:x(), y = m:y()}, function(p)   -- the ground under the cursor, a frame later
   if p then hafen.log():write("standing spot: " .. tostring(p:tileCoord().x)) end
 end)
 ```

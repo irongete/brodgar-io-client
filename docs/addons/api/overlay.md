@@ -16,9 +16,10 @@ nothing the server, the client or another addon owns — the same footing as
 [a HUD overlay](ui/custom.md#overlays).
 
 **An overlay hangs on the object, not on a character.** Attach one and every character of yours that can
-see the gob draws it — [`gob:sessions()`](gob.md#gobsessions) is who that was at the moment you attached it
-— so the label is there whichever of them you tab to, and one `:remove(key)` takes it off all of them. A
-character that loads the object later draws it bare, the same way a gob that unloads and comes back is.
+see the gob draws it, **including one that loads the object afterwards** — so the label is there whichever
+of them you tab to, and one `:remove(key)` takes it off all of them. It ends with the object rather than
+with a copy of it: when the last character loses sight of it the record goes, which is the moment
+[`GobRemoved`](event/bus.md#world) fires.
 
 ## The collection
 

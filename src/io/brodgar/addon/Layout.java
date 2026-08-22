@@ -608,18 +608,30 @@ final class Layout {
      * {@code ui} monitor (the order the draw pass established), so a sweep that already held {@code Sheet.class}
      * would be the one path able to invert it.
      *
-     * <p><b>The tree on screen</b> ({@link AddonManager#screen()}), and that is a limit rather than an address: a
-     * sheet is the addon's own declaration and matches in every session, but the re-derivation of what is ALREADY
-     * placed runs here alone, while {@link #placed} carries a new widget in any session. A window a background
-     * character already had open takes a rule installed now on its next placement, not on this sweep.
+     * <p><b>EVERY tree</b> (092.5, A-090). A sheet is the addon's own declaration and matches in every session,
+     * so the re-derivation of what is already placed has to reach every session too — until 092 it reached
+     * {@link AddonManager#screen()} alone, and a window a background character already had open kept the
+     * numbers a dropped sheet had given it until something placed it again. The addon layer's own tree is in
+     * the walk for the same reason: a rule names widgets by what they are, and the layer holds widgets.
+     *
+     * <p>One tree at a time under its own monitor, never all of them under one: the tick order between two
+     * sessions is not this method's to fix, and holding two {@code ui} monitors at once is the shape a
+     * deadlock is made of.
      */
     static void sweep() {
         if(!active())
             return;                                   // no rule, nothing held: a stock client sweeps nothing
-        UI u = AddonManager.screen();
+        for(AddonManager.SessionState st : AddonManager.allStates())
+            sweep(st.ui);
+    }
+
+    /** One tree's half of {@link #sweep()}. */
+    private static void sweep(UI u) {
         if((u == null) || (u.root == null))
             return;
         synchronized(u) {
+            if(u.root == null)
+                return;                               // it went between the check and the monitor
             List<Widget> all = new ArrayList<Widget>();
             collect(u.root, all);                     // collected first: applying writes c/sz, never the tree, but
             for(int i = 0; i < all.size(); i++)       //   a snapshot is what makes that a guarantee rather than a hope
@@ -653,13 +665,20 @@ final class Layout {
     // markCaptionChanged), exactly like UiApi's own selector re-check (030.2/042.9) does for the same tap. That
     // tap runs off the UI thread (UI.java:730-732 closes synchronized(ui) before calling AddonManager.onUimsg),
     // so it may only set a flag — the actual widget reads happen on the tick, under synchronized(ui).
-    // 073.2: the FLAG stays one for the client (census.md: it says some caption changed and gates the
-    // re-check, never says whose or decides what it finds) — the list it gates is the per-session one above.
-    private static volatile boolean capDirty;
+    // 092.5 (A-090): the FLAG IS PER SESSION, because the list it gates is. One flag for the client meant the
+    // first session to drain it cleared it for every other, so the late [title=]/[res=] re-check of a window
+    // in any OTHER tree never ran — and its only symptom is a window that quietly does not lay out. The seam
+    // that raises it carries the widget, so it always knew which tree it was about.
 
-    /** Mark that some window's caption changed (from {@code CharApi.dispatchUimsg}, window "cap" message). */
-    static void markCaptionChanged() {
-        capDirty = true;
+    /** Mark that {@code w}'s caption changed (from {@link AddonManager#onCaptionChanged}, the caption seam).
+     *  Records one flag on the tree the renamed window stands in — no widget read, no tree walk, no Lua, so
+     *  it is safe on the Loader thread the seam runs on. */
+    static void markCaptionChanged(Widget w) {
+        if(w == null)
+            return;
+        AddonManager.SessionState st = AddonManager.state(w.ui);
+        if(st != null)
+            st.layoutCapDirty = true;
     }
 
     /**
@@ -670,9 +689,9 @@ final class Layout {
      * layout rule at all — pays only the flag check and one {@code isEmpty()}.
      */
     static void drainPendingCaption(AddonManager.SessionState st) {
-        if(!capDirty)
+        if(!st.layoutCapDirty)
             return;
-        capDirty = false;
+        st.layoutCapDirty = false;
         if(st.layoutPending.isEmpty())
             return;
         UI u = st.ui;                             // 073.2: the tree whose tick this is

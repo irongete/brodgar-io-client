@@ -86,11 +86,12 @@ end)
 -- therefore drawn over the HUD from the projected world points, which is what worldToScreen is for.
 -- It draws on top of the scene: a line does not disappear behind a hill the way a sprite does.
 
--- The two spaces line up on their own: player:worldToScreen answers ROOT DESIGN pixels, which
+-- The two spaces line up on their own: world:worldToScreen answers ROOT DESIGN pixels, which
 -- is the space a HUD overlay's g draws in, so a projected point goes straight into g:line.
 hafen.ui():overlay():add("path"):draw(function(g, w, h)
   if current == nil then return end
-  local pl = me()
+  local s = hafen.session():current()
+  local pl = s and s:player()
   local mine = pl and pl:gob()
   local from = mine and mine:position()
   if not from then return end
@@ -101,7 +102,7 @@ hafen.ui():overlay():add("path"):draw(function(g, w, h)
 
   local scr = {}
   for i, p in ipairs(pts) do
-    scr[i] = pl:worldToScreen(p)
+    scr[i] = s:world():worldToScreen(p)
   end
 
   for i = 1, #pts - 1 do          -- over pts, not scr: an unprojectable point leaves a hole

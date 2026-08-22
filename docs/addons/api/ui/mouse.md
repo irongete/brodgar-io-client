@@ -62,7 +62,7 @@ local g = hafen.ui():mouse():grab()
 g:on("Move", function(ev)
   local fine = ev:shift()                                  -- SHIFT picks the fine grid
   local w = hafen.session():current():world()              -- the pointer is the screen's
-  w:screenToWorld(ev:x(), ev:y(), function(p)              -- p is a Position, a frame later
+  w:screenToWorld({x = ev:x(), y = ev:y()}, function(p)    -- p is a Position, a frame later
     if p then ghost:position(w:snapPlace(p, fine)) end
   end)
 end)
@@ -70,12 +70,12 @@ end)
 g:on("Up", function(ev) hafen.log():write("dropped with button " .. ev:button()) end)
 ```
 
-Pair it with [`s:world():screenToWorld`](../world.md#screen-to-world-and-placement-snapping) and
+Pair it with [`s:world():screenToWorld`](../world.md#the-screen-and-the-world) and
 `snapPlace` to drag something along the ground.
 
 **`ev:x()`/`ev:y()` go into `screenToWorld` as they come** — a grab reports the pointer in root
 [design pixels](pixels.md), which is the space that door takes, so there is nothing to convert and nothing
-to add for where the map view happens to sit. Coalesce the raycasts, though: `screenToWorld` answers a
+to add for where the map view happens to sit; `{x = ev:x(), y = ev:y()}` is the whole of the plumbing. Coalesce the raycasts, though: `screenToWorld` answers a
 frame later, and a move fires every frame.
 
 ## See also

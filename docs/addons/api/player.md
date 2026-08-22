@@ -27,38 +27,21 @@ second spelling of one fact whose only difference was which door you came throug
 
 Every read below answers for the session named, and so does the walk — `move` reaches a character nobody
 is looking at. What does not is what belongs to the **screen**, and each of those says so where it is
-described: `worldToScreen` answers a point on it, and there is one screen however many characters are
-logged in, while [`hand:use`](#the-hand) is a gesture with the pointer.
+described: [`hand:use`](#the-hand) is a gesture with the pointer.
+
+**Projecting a place onto the screen is [`s:world():worldToScreen(p)`](world.md#the-screen-and-the-world)**,
+not a verb here. It is a conversion between that character's world and the screen rather than anything about
+the player, and it lives beside its inverse.
 
 ## Read
 
 | Method | Returns | Description |
 |---|---|---|
 | `s:player():gob()` | [Gob](gob.md) \| nil | that character's own game object; `nil` before that session is in the world |
-| `s:player():worldToScreen(p)` | `{x, y}` \| nil | project a [Position](position.md) to a screen point, in root [design pixels](ui/pixels.md); `nil` unless that session is on screen |
 
 `s:player():gob()` is the same object as `s:world():gob():get(<that character's id>)` — so
 `gob == s:player():gob()` is how you tell "is this that character?" from any other gob read through the same
-session, with no id comparison. Neither read is protected.
-
-`worldToScreen` takes a place in the world and answers a **root** screen point, in
-[design pixels](ui/pixels.md) — the one space [the mouse](ui/mouse.md), `hafen.ui():hit(x, y)`,
-[`widget:rootPos()`](ui/widget.md#read) and a [HUD overlay's](ui/custom.md#overlays) painter already share.
-So the pair goes straight into a [`g:` verb](ui/drawing.md) or a hit test with nothing in between, at any
-interface scale.
-
-What comes back is not a Position: a pixel is not a place in the world, and only the direction that has an
-answer will type-check. It answers `nil` before the map view exists, for a point the view cannot project, and
-for a session that is not on screen — a projection through a scene nobody is drawing would name a pixel you
-cannot use and cannot tell apart from one you can. Anything that is not a Position going in is an error, and
-so is a Position **that** character cannot reach. The inverse is
-[`s:world():screenToWorld`](world.md#screen-to-world-and-placement-snapping), which takes that same space
-back.
-
-> **It projects at that character's height, not at the ground under `p`.** A Position names two axes, and
-> the third comes from where the character is standing — so for a spot up a hillside the point you get is
-> where that spot would be at *its* altitude, and a raycast back down does not return to it. It is exact on
-> ground level with that character's own feet, which is what a marker above a gob or a label beside one wants.
+session, with no id comparison. It is not protected.
 
 > There is no `exists()` and no `id()` on Player: `s:player():gob()`, `nil` or not, and `gob:id()`
 > answer both questions.
@@ -182,4 +165,5 @@ cases.
 - [items](ui/items.md) — the Item the hand carries, and the verbs on one in a container
 - [`session:meter`](meter.md) — the HUD bars
 - [`session:char`](char.md) — attributes, skills and food
-- [`session:world`](world.md#screen-to-world-and-placement-snapping) — `screenToWorld`, the inverse projection
+- [`session:world`](world.md#the-screen-and-the-world) — `worldToScreen` and `screenToWorld`, the two
+  directions of one conversion

@@ -15,6 +15,17 @@ import org.luaj.vm2.LuaValue;
  * <p>Framerate limits are {@code Float.POSITIVE_INFINITY} for "no limit" on both sides of the facade, so
  * {@code math.huge} round-trips verbatim. Lighting mode crosses as the lowercase enum name
  * ({@code "simple"} / {@code "zoned"}).
+ *
+ * <p><b>A write reaches EVERY tree</b> (092.6, A-091). {@code hafen.client()} is the client, not a character:
+ * there is no session in this address to be right or wrong about. But {@link UI#gprefs} is per {@code UI},
+ * and until 092 a write moved the drawn one alone — so with two sessions up a graphics setting changed one
+ * scene and left the other at whatever it loaded, and since both persist to the one {@code gconf/*} store,
+ * which value survived the next client start was whichever tree published last. Now the write walks every
+ * live tree, so the setting is one setting and the read answers it whoever holds the screen.
+ *
+ * <p>The <b>read</b> stays on the drawn tree, and that is not an asymmetry: after a write the trees agree,
+ * and before any write they were loaded from the same store. Reading the one being drawn is reading the one
+ * the user can see the effect of.
  */
 public final class VideoOptions {
     private VideoOptions() {}
@@ -33,10 +44,28 @@ public final class VideoOptions {
         return (u == null) ? null : u.gprefs;
     }
 
-    /** Apply one setting: rebuild the GSettings and hand it to the UI (which validates + persists it). */
+    /**
+     * Apply one setting to <b>every live tree</b>: rebuild each one's {@link GSettings} and hand it to that
+     * {@link UI}, which validates and persists it (092.6).
+     *
+     * <p>The drawn tree goes first, so a value the setting refuses is refused before anything has moved —
+     * every tree holds the same setting object and validates identically, so the first answer is the answer.
+     * A tree that goes between the walk and the write is skipped rather than aborting the others: the write
+     * is one setting reaching every scene, and a scene that has ended has nothing to be wrong about.
+     */
     private static <T> void apply(GSettings.Setting<T> setting, T val, String method) {
-        UI u = AddonManager.screen();
-        if(u == null)
+        UI drawn = AddonManager.screen();
+        if(drawn != null)
+            set(drawn, setting, val, method);
+        for(AddonManager.SessionState st : AddonManager.allStates()) {
+            if(st.ui != drawn)
+                set(st.ui, setting, val, method);
+        }
+    }
+
+    /** One tree's half of {@link #apply}. */
+    private static <T> void set(UI u, GSettings.Setting<T> setting, T val, String method) {
+        if((u == null) || u.destroyed)
             return;
         try {
             u.setgprefs(u.gprefs.update(null, setting, val));

@@ -91,6 +91,12 @@ opts:interface():angGran(15)                       -- 24 steps per full turn
 and writing it removes the cap. A value the renderer refuses raises a Lua error carrying the client's own
 message.
 
+**A write reaches every session up.** The renderer keeps its settings per tree, so before this a graphics
+change moved the scene you were looking at and left the others at whatever they loaded — and since all of
+them persist to one file, which value survived a restart was whichever tree wrote last. `hafen.client()` is
+the client rather than a character, so there is one answer here and every scene now holds it. The read is
+the drawn tree's, which after a write is the same as any other's.
+
 ```lua
 local v = opts:video()
 hafen.log():write("shadows: " .. tostring(v:shadows()) .. ", lighting: " .. v:lightingMode())

@@ -38,7 +38,7 @@ draw callback that reads them at 60 fps allocates nothing. A session the client 
 [`s:exists()`](session.md#read) tells the two apart.
 
 > **What belongs to the screen says so** rather than aiming at a scene nobody is looking at:
-> [`screenToWorld`](#screen-to-world-and-placement-snapping) reads a pixel, and
+> [`worldToScreen` and `screenToWorld`](#the-screen-and-the-world) name a pixel on it, and
 > [`click`](#write-protected), `place` and `select` are gestures with the pointer. Asked of a session that is
 > not on screen, each raises naming `hafen.session():current()`. Walking is the whole of what a character you
 > are not looking at will take — see [`move`](player.md#write-protected).
@@ -110,45 +110,81 @@ if t then hafen.log():write("standing on " .. (t.name or t.id)) end
 | `s:world():position(saved)` | Position | a place rebuilt from a `{gridId, x, y}` table |
 | `s:world():tile(p)` | [`Tile`](types.md#tile) \| nil | tileset id and resource name at a Position |
 | `s:world():height(p)` | number \| nil | terrain height there |
+| `s:world():components(p)` | `{x, y}` \| nil | where `p` is, **in this character's frame** |
+| `s:world():tileCoord(p)` | `{x, y}` \| nil | the tile `p` sits in, on this character's lattice |
+| `s:world():distance(p [, other])` | number \| nil | how far `p` is from `other`, or from **this** character |
 | `s:world():grid():at(p)` | [`Grid`](map/grids.md#the-grid-object) \| nil | the map grid covering a Position |
 | `s:world():grid():get(id)` | [`Grid`](map/grids.md#the-grid-object) \| nil | that same grid by the server's id, if it is streamed in |
 | `s:world():grid():list()` | `Grid[]` | every grid that character has streamed in right now |
 | `s:world():tileToWorld(tx, ty)` | `{x, y}` | tile coord to world, at its upper-left corner |
 | `s:world():tileToGrid(tx, ty)` | `{x, y}` | tile coord to grid coord |
-| `s:world():screenToWorld(sx, sy, fn)` | nothing, calls `fn` | raycast the ground under a root [design pixel](ui/pixels.md); asynchronous, and the drawn session's only |
+| `s:world():worldToScreen(p)` | `{x, y}` \| nil | project a Position to a root [design pixel](ui/pixels.md); the drawn session's only |
+| `s:world():screenToWorld(pt, fn)` | nothing, calls `fn` | raycast the ground under a root design pixel; asynchronous, and the drawn session's only |
 | `s:world():snapPlace(p, fine)` | Position | snap a Position to the client's placement grid |
 | `s:world():snapAngle(a, fine)` | number | snap a facing in radians to the client's placement-angle grid |
 
 The two placement *settings* — how many sub-tile divisions, how many rotation steps — are read and written
 through [`hafen.client():options():interface()`](client/README.md#interface): `posGran()` and `angGran()`.
 
-## Screen to world, and placement snapping
-
-These are the inverse of [`s:player():worldToScreen`](player.md) plus the client's own placement snapper —
-the primitives any drag-on-the-ground tool is built from.
-
-**`screenToWorld` is asynchronous.** It reads the true terrain point from the GPU, the same pass the
-client uses to place a building, so the answer cannot come back inline: it arrives a frame later
-through `fn`, as a Position.
+**The last three answer for the character `s` names, where a Position's own verbs answer for the screen.**
+A [Position](position.md) carries no session — a place is answerable in whichever session you ask — so
+`p:x()`, `p:tileCoord()` and a bare `p:distance()` were asked without one and resolve in the drawn
+character's frame. These are the same three questions with the address kept:
 
 ```lua
-hafen.session():current():world():screenToWorld(sx, sy, function(p)
+local alt  = hafen.session():get("alt")
+local tree = alt:world():gob():nearest("terobjs/tree")
+alt:world():distance(tree:position())     -- how far the ALT is from it
+tree:position():distance()                -- how far the character ON SCREEN is
+```
+
+With one login the two agree. With two they do not, and nothing raises, which is why the addressed half
+exists. Each answers `nil` for a place that character cannot locate — recorded in another part of the world,
+or anywhere at all while it is in a cave — the same `nil` `p:x()` gives.
+
+## The screen and the world
+
+`worldToScreen` and `screenToWorld` are the two directions of one conversion, and they take and answer the
+same shape, so a round trip composes with nothing in between. Beside them sits the client's own placement
+snapper — together, the primitives any drag-on-the-ground tool is built from.
+
+**`worldToScreen(p)`** answers a **root** screen point, in [design pixels](ui/pixels.md) — the one space
+[the mouse](ui/mouse.md), `hafen.ui():hit(x, y)`, [`widget:rootPos()`](ui/widget.md#read) and a
+[HUD overlay's](ui/custom.md#overlays) painter already share. So the pair goes straight into a
+[`g:` verb](ui/drawing.md) or a hit test, at any interface scale. What comes back is not a Position: a pixel
+is not a place in the world, and only the direction that has an answer will type-check.
+
+It projects **at the ground under `p`**, so a point up a hillside answers where that point actually is and a
+raycast back down returns to it. It answers `nil` before the map view exists, for a point the view cannot
+project, for ground that character has not streamed in — there is no height to project at — and for a session
+that is not on screen.
+
+**`screenToWorld(pt, fn)` is asynchronous.** It reads the true terrain point from the GPU, the same pass the
+client uses to place a building, so the answer cannot come back inline: it arrives a frame later
+through `fn`, as a Position. Leaving `fn` out raises and says so.
+
+```lua
+local w = hafen.session():current():world()
+w:screenToWorld({x = sx, y = sy}, function(p)
   if p then hafen.log():write(("ground under cursor: %.1f, %.1f"):format(p:x(), p:y())) end
   -- p is nil if the pixel hit no terrain (sky, or off-map)
 end)
+
+w:screenToWorld(w:worldToScreen(p), function(back) end)   -- the round trip, and it closes
 ```
 
-`(sx, sy)` are **root [design pixels](ui/pixels.md)** — the space `worldToScreen` answers, the space
-[`m:x()`/`m:y()`](ui/mouse.md#read) reports, and the space a grab's `ev:x()`/`ev:y()` carries, so the cursor
-feeds this door with no arithmetic in between. During a drag, hand it the coords from
+`pt` is `{x = , y = }` in **root [design pixels](ui/pixels.md)** — the shape `worldToScreen` hands back, the
+space [`m:x()`/`m:y()`](ui/mouse.md#read) reports, and the space a grab's `ev:x()`/`ev:y()` carries, so the
+cursor feeds this door with no arithmetic in between. During a drag, hand it the coords from
 [the mouse's grab](ui/mouse.md#the-grab) as they arrive and coalesce — issue the next raycast only after the
 previous `fn` fired — so at most one is in flight per frame.
 
-It is the **drawn** session's verb: a pixel is a point on the screen, and there is one screen however many
-characters are logged in, so asked of any other it raises naming `hafen.session():current()`. Before that
-session is in the world there is no scene to read and `fn` is never called.
+Both are the **drawn** session's: a pixel is a point on the screen, and there is one screen however many
+characters are logged in. `screenToWorld` raises for any other, naming `hafen.session():current()`;
+`worldToScreen` answers `nil`, because it has a value shape to say it in. Before that session is in the world
+there is no scene to read and `fn` is never called.
 
-**`snapPlace(p, fine)`** snaps a Position exactly as placing a building does, honouring the live
+**`snapPlace(p, fine)` snaps a Position exactly as placing a building does, honouring the live
 placement-grid setting: without `fine`, the tile centre; with `fine = true`, the sub-tile grid
 (`posGran()` divisions, or free when that is `0`). It is the engine's own snapper, so a ghost dropped
 through it lands where a real building would.

@@ -1,0 +1,9 @@
+{
+  "name": "092 — The address reaches the end",
+  "id": "092-the-address-reaches-the-end.all",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for the whole of feature 092: the addressed twins of a Position's own verbs, worldToScreen moved beside its inverse and projecting at the point's own height, screenToWorld taking the shape the other half hands back, the layout sweep reaching every tree, a remembered placement filed under the tree its widget stands in, a visual write on a gob re-applying when another session loads it, the change-detection adapters reading their own session, and a graphics setting reaching every scene.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

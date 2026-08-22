@@ -308,16 +308,23 @@ public final class Addon {
      */
     public final Map<String, Widget> remembered = new ConcurrentHashMap<String, Widget>();
     /**
-     * What is saved under each of those names for the character on screen (062) — a place, a box, or both,
-     * in design pixels. Loaded from {@code savedata/<genus>_<char>/<id>.layout.json} by
-     * {@link StoreApi#rescope} when that character comes on screen, and written back by every flush and
-     * when they leave it, so a remembered placement needs no {@code saved_variables} declaration and no
-     * handler of the addon's own. A window an addon builds stands in the layer over whichever session is
-     * drawn, which is why this one set follows the screen where a saved variable follows its session.
+     * What is saved under each of those names, <b>by scope</b> (062, re-keyed by 092.8) — a place, a box, or
+     * both, in design pixels. The key is the folder the set belongs to: a character's
+     * {@code <genus>_<char>} for a widget standing in that session's own tree, and {@code "account"} for one
+     * standing in the addon's layer.
+     *
+     * <p><b>Which is the whole of A-087's fix.</b> There used to be one set here, holding the character on
+     * SCREEN — so a widget of a background session's own tree ({@code s:ui():find("@ChatUI")}, the case
+     * {@code native.md} documents) had where the user dragged it written into another character's folder and
+     * read back out of it, silently and in both directions. Every saved variable beside it was addressed by
+     * the session it belonged to; this one set was addressed by the screen.
+     *
+     * <p>A scope's set is loaded from disk the first time something in it is touched, and every loaded set is
+     * written by each flush — so a remembered placement still needs no {@code saved_variables} declaration and
+     * no handler of the addon's own.
      */
-    public final Map<String, StoreApi.Placement> placements = new ConcurrentHashMap<String, StoreApi.Placement>();
-    /** The last placement JSON written for this addon, so an unchanged file is not rewritten. */
-    public String lastPlacementJson;
+    public final Map<String, StoreApi.PlaceSet> placeSets =
+        new ConcurrentHashMap<String, StoreApi.PlaceSet>();
     /**
      * Live addon slash commands owned by this addon ({@code hafen.slash():on}, gap subsystem A11): each routes
      * a console command {@code :name} to a Lua handler. Unlike the hook lists, the engine's {@link haven.Console}

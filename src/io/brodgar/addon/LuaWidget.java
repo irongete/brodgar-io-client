@@ -1982,15 +1982,18 @@ public final class LuaWidget {
      * dragged does not pin a box they never chose.
      */
     private static void rememberApply(Addon owner, Widget w, String name) {
-        if(!StoreApi.placementScope()) {
+        if(!StoreApi.placementScope(w)) {
             // Criterion 9: it has nothing to apply, and saying so beats applying an empty record — the addon
             // called it too early, and the answer is a moment rather than a different verb.
-            AddonManager.log(owner, "widget:remember(\"" + name + "\"): a saved place is per CHARACTER and no"
-                + " character is in world yet, so there is nothing to put back. Call it from SessionEnteredWorld"
-                + " onwards; what happens to the widget from here is saved under that name all the same.");
+            // 092.8: "no character is in world yet" is now about THIS widget's own session. A window the addon
+            // built itself is in the layer and is filed under the account, so it never reaches this branch.
+            AddonManager.log(owner, "widget:remember(\"" + name + "\"): a saved place is per CHARACTER and the"
+                + " session this widget stands in has no character in world yet, so there is nothing to put"
+                + " back. Call it from that session's SessionEnteredWorld onwards; what happens to the widget"
+                + " from here is saved under that name all the same.");
             return;
         }
-        StoreApi.Placement p = StoreApi.placement(owner, name);
+        StoreApi.Placement p = StoreApi.placement(owner, w, name);
         if(p == null)
             return;                                   // nothing saved under it yet: the name is where it will go
         synchronized(monitor(w)) {
@@ -2013,7 +2016,7 @@ public final class LuaWidget {
         if(nm == null)
             return;
         owner.remembered.remove(nm);
-        StoreApi.forget(owner, nm);
+        StoreApi.forget(owner, w, nm);
     }
 
     /**
@@ -2041,7 +2044,7 @@ public final class LuaWidget {
     static void rememberLanded(Addon owner, Widget w, boolean pos) {
         String nm = rememberedName(owner, w);
         if(nm != null)
-            StoreApi.land(owner, nm, pos ? Px.out(w.c) : null, pos ? null : Px.out(sizeArg(w)));
+            StoreApi.land(owner, w, nm, pos ? Px.out(w.c) : null, pos ? null : Px.out(sizeArg(w)));
     }
 
     /**
@@ -2054,6 +2057,9 @@ public final class LuaWidget {
      * relog tears every addon down with the <i>new</i> {@code UI} already installed, so the last session's
      * windows answer "not in this tree" while still carrying the coordinate the user dropped them at. Reading
      * a stale widget's last geometry is exactly right here — where it was when it went is where it was.
+     *
+     * <p>092.8: each lands in the scope of <b>its own</b> tree, so one capture over an addon's remembered
+     * widgets fills as many folders as the addon has trees with a window in them.
      */
     static void rememberCapture(Addon a) {
         if((a == null) || a.remembered.isEmpty())
@@ -2065,7 +2071,7 @@ public final class LuaWidget {
                 continue;                             // nothing of ours is standing on it: nothing to record
             Coord pos = ((rec.wantPos == null) || (w.c == null)) ? null : Px.out(w.c);
             Coord size = ((rec.wantSize == null) || (w.sz == null)) ? null : Px.out(sizeArg(w));
-            StoreApi.land(a, e.getKey(), pos, size);
+            StoreApi.land(a, w, e.getKey(), pos, size);
         }
     }
 

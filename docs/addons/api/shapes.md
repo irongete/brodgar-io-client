@@ -9,7 +9,7 @@ local s = hafen.session():current()
 local p = s:player():gob():position()
 
 p:tileCoord()                             -- {x = …, y = …}: a place in the tile lattice
-s:player():worldToScreen(p)               -- {x = …, y = …}: a screen point, the same two keys
+s:world():worldToScreen(p)                -- {x = …, y = …}: a screen point, the same two keys
 p:info().gridId                           -- a 64-bit grid id, as a decimal STRING
 hafen.map():grid():get(p:info().gridId)   -- which is what the recorded map is keyed on
 ```
@@ -23,7 +23,7 @@ space they are in.
 | Shape | What it is | Read from |
 |---|---|---|
 | `{x=, y=}` | a place in a lattice: a tile, a grid, a segment cell | `p:tileCoord()`, `item:cell()`, `grid:segmentCoord()`, `marker:segmentTile()` |
-| `{x=, y=}` | a screen point, in [design pixels](ui/pixels.md) | `widget:position()`, `widget:rootPos()`, `s:player():worldToScreen(p)`, `ev:pixel(i)` |
+| `{x=, y=}` | a screen point, in [design pixels](ui/pixels.md) | `widget:position()`, `widget:rootPos()`, `s:world():worldToScreen(p)`, `ev:pixel(i)` |
 | `{w=, h=}` | a size, in design pixels | `widget:size()`, `widget:cellSize()`, `img:size()`, `mapImg:size()` and `mapImg:info().size`, `rule:size()` |
 | `{cur=, max=}` | a pair of counts | `item:durability()`, `contents:fill()` |
 | `{x=, y=, z=}` | a point or a span in world units | the `min`, `max` and `extent` of `mdl:bounds()` |

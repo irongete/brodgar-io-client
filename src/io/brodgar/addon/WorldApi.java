@@ -4,6 +4,7 @@ import haven.AddonWidgets;
 import haven.Astronomy;
 import haven.Coord;
 import haven.Coord2d;
+import haven.Coord3f;
 import haven.Glob;
 import haven.Gob;
 import haven.MapFile;
@@ -153,8 +154,51 @@ final class WorldApi {
                 }
             }
         });
+        // ---- the ADDRESSED twins of a Position's own verbs (092.1, A-085) ---------------------------
+        // A Position carries no session -- that is the type's own rule -- so its verbs were asked without one
+        // and answer for the character on SCREEN. position.md has always said so, and said the other half too:
+        // "a verb reached through a session resolves the place in ITS frame". These are that other half. They
+        // are READS, so an unreachable place is nil here exactly as p:x() is nil, rather than the refusal the
+        // act verbs raise: asking where a place is for a character that cannot locate it is a question with an
+        // answer, and the answer is "nowhere it can see".
+        //   components(p) -- what p:x()/p:y() answer, in THIS character's frame, as one {x=, y=} pair.
+        m.set("components", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "components", W);
+                Coord2d rc = here(a, 2, W + ":components", user);
+                return (rc == null) ? LuaValue.NIL : xy(rc.x, rc.y);
+            }
+        });
+        // tileCoord(p) -- the tile p sits in on THIS character's lattice. A session coordinate is re-based
+        // whenever the server drops the map, so two characters name one patch of ground by two tile pairs.
+        m.set("tileCoord", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "tileCoord", W);
+                Coord2d rc = here(a, 2, W + ":tileCoord", user);
+                if(rc == null)
+                    return LuaValue.NIL;
+                Coord tc = rc.floor(MCache.tilesz);
+                return xy(tc.x, tc.y);
+            }
+        });
+        // distance(p [, other]) -- how far p is from `other`, or from THIS character when `other` is left out.
+        // The bare form is the one the gap was about: p:distance() measures from whoever holds the screen, so
+        // "how far is my alt from that tree" had no spelling at all until this one.
+        m.set("distance", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "distance", W);
+                Coord2d from = here(a, 2, W + ":distance", user);
+                Coord2d to;
+                if(!Args.passed(a, 3)) {
+                    to = playerPos(user);           // THIS character, not the drawn one: that is the whole row
+                } else {
+                    to = here(a, 3, W + ":distance", "other", user);
+                }
+                return ((from == null) || (to == null)) ? LuaValue.NIL : LuaValue.valueOf(from.dist(to));
+            }
+        });
         // Pure coordinate conversions between the two lattice spaces (no map data needed). The world<->tile
-        // direction lives on the Position itself (p:tileCoord()), because that one is about a place.
+        // direction ALSO lives on the Position itself (p:tileCoord()), which answers for the screen.
         m.set("tileToWorld", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "world", "tileToWorld", W);
@@ -172,32 +216,93 @@ final class WorldApi {
                 return xy(gc.x, gc.y);
             }
         });
-        // screenToWorld(sx, sy, fn) — the RAYCAST INVERSE of s:player():worldToScreen: fn(p) is called with
-        // a Position on the ground under ROOT DESIGN pixel (sx,sy), or fn(nil) if the pixel hit no terrain
-        // (sky/off-map). ASYNCHRONOUS by necessity — the engine reads the true terrain point from the GPU
+        // ---- the two halves of ONE conversion (092.3, A-093 / 092.2, A-092) --------------------------
+        // worldToScreen(p) -> {x=, y=}; screenToWorld(pt, fn) -> fn({x=, y=} in, Position out). They live
+        // together, they speak one shape, and the round trip closes:
+        //   s:world():screenToWorld(s:world():worldToScreen(p), function(back) ... end)
+        // with nothing in between. Before 092 one sat on s:player() and answered a table, the other took two
+        // loose numbers, and the page said "the inverse is" over three differences a reader had to learn one
+        // at a time.
+
+        // worldToScreen(p) -- project a PLACE IN THE WORLD to a SCREEN POINT. It takes a Position (SS2.7) and
+        // answers a plain {x, y} in px, which is deliberately NOT one: the two spaces have the same shape and
+        // used to be the same type, so a widget's pixel position walked the character somewhere wrong instead
+        // of failing. Now only the direction that has an answer type-checks.
+        //   067.1: it answers ROOT DESIGN pixels -- the space hafen.ui():hit(), the mouse, widget:rootPos() and a
+        // HUD overlay's painter already share, and the space Px exists to name. MapView.screenxf answers
+        // VIEW-LOCAL DEVICE pixels (it ends in HomoCoord4f.toview over Area.sized(this.sz)), so two things are
+        // undone here rather than by every caller: the view's own corner is added, and the pair goes through
+        // Px.out. Unrounded, because a projected point has no pixel to round to. The same conversion
+        // UiApi.paintGobOverlays already does for a gob overlay's projected point (058.2).
+        //   076.3: there is ONE screen however many sessions are live, so this answers nil for a session that
+        // is not the drawn one. A projection through a dormant view would name a pixel in a scene nobody is
+        // looking at, which is a number the caller cannot use and cannot tell apart from one it can.
+        //   092.2: AT THE POINT'S OWN HEIGHT. MapView.screenxf(Coord2d) fills the z in from getcc(), which is
+        // the PLAYER's altitude -- so a place on a hillside answered where it would be if it were level with
+        // the player, wrong by an amount that grows with the slope and silently. The Coord3f overload beside
+        // it takes the height, and MCache.getzp is the same read s:world():height(p) already exposes. Off-
+        // stream ground has no height to project at, so it is nil rather than a number measured from
+        // somewhere else -- the same nil this verb already answers for a scene nobody is drawing.
+        m.set("worldToScreen", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "world", "worldToScreen", W);
+                Coord2d rc = LuaPosition.worldArg(a, 2, W + ":worldToScreen", "p", user);
+                MapView mv = drawn(user) ? screenView() : null;
+                MCache mc = mcache(user);
+                if((mv == null) || (mc == null))
+                    return LuaValue.NIL;
+                try {
+                    Coord3f sc = mv.screenxf(mc.getzp(rc));
+                    if(sc == null)
+                        return LuaValue.NIL;
+                    Coord rp = mv.rootpos();         // view-local -> root, in the view's own device pixels
+                    return xy(Px.out(sc.x + rp.x), Px.out(sc.y + rp.y));
+                } catch(RuntimeException e) {
+                    return LuaValue.NIL;             // Loading (off-stream ground) and an unattached view alike
+                }
+            }
+        });
+        // screenToWorld(pt, fn) -- the RAYCAST INVERSE of :worldToScreen: fn(p) is called with a Position on
+        // the ground under ROOT DESIGN pixel pt = {x=, y=}, or fn(nil) if the pixel hit no terrain (sky/off-
+        // map). ASYNCHRONOUS by necessity -- the engine reads the true terrain point from the GPU
         // (MapView.Maptest, the pass the client's own building placement uses), so a synchronous return would
         // stall the UI thread on a GPU fence; the answer arrives a frame later, exactly the lag a placement
         // ghost has. Requires being in the world.
-        //   067.1: (sx,sy) is the same space worldToScreen ANSWERS and the same one ev:x()/ev:y() speak, so the
+        //   067.1: pt is the same space :worldToScreen ANSWERS and the same one ev:x()/ev:y() speak, so the
         // mouse feeds this door with no arithmetic in between. MapView.Maptest takes VIEW-LOCAL DEVICE pixels,
         // so the trip in is the exact mirror of the trip out: Px.in, then subtract the view's own corner. The
         // pair is rounded only here, at the end, because a readback names one device pixel and nothing finer.
-        //   What comes BACK out of Maptest.hit is a Coord2d in world units already — posres is not in this
+        //   What comes BACK out of Maptest.hit is a Coord2d in world units already -- posres is not in this
         // path, and nothing is converted on that side.
+        //   092.3: ONE ARGUMENT, and it is the {x, y} the other half hands back. Two loose numbers made the
+        // round trip a rewrite rather than a composition; a mouse event's x and y still go in as {x = ev:x(),
+        // y = ev:y()}, which is one table literal and says which is which.
         m.set("screenToWorld", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "world", "screenToWorld", W);
-                double sx = number(a, 2, W + ":screenToWorld", "sx");
-                double sy = number(a, 3, W + ":screenToWorld", "sy");
-                LuaValue fn = Args.required(a, 4, W + ":screenToWorld", "fn");
+                LuaValue pt = Args.required(a, 2, W + ":screenToWorld", "pt");
+                if(!pt.istable())
+                    throw new LuaError(W + ":screenToWorld(pt, fn): pt must be a {x = , y = } table of ROOT"
+                        + " DESIGN pixels -- the shape s:world():worldToScreen(p) hands back, so the round"
+                        + " trip composes; got " + pt.typename());
+                double sx = Args.num(pt.get("x"), W + ":screenToWorld", "pt.x", "a root design pixel").todouble();
+                double sy = Args.num(pt.get("y"), W + ":screenToWorld", "pt.y", "a root design pixel").todouble();
+                // ASYNC is what the missing argument is about, so BOTH branches say so: a caller who left fn
+                // out is exactly the caller who wrote this as if it returned a Position, and the generic
+                // "fn is required" told them the one thing they already knew (ROADMAP, filed 072).
+                LuaValue fn = a.arg(3);
+                if(fn.isnil())
+                    throw new LuaError(W + ":screenToWorld(pt, fn): fn is required -- the answer comes back a"
+                        + " frame later, through fn(p), because the engine reads the terrain point off the"
+                        + " GPU. There is nothing to return here, so a Position cannot be assigned from it.");
                 if(!fn.isfunction())
-                    throw new LuaError(W + ":screenToWorld(sx, sy, fn): fn must be a function — the"
+                    throw new LuaError(W + ":screenToWorld(pt, fn): fn must be a function -- the"
                         + " answer comes back a frame later, so there is nothing to return here");
                 // The pixel is on the SCREEN, and there is one screen: reading it off a session the client
                 // is not drawing is a mistake at the call site rather than a timing case, so it is refused
                 // rather than answered with a callback that never comes.
                 if(!drawn(user))
-                    throw new LuaError(W + ":screenToWorld: that session is not on screen, and (sx, sy) is a"
+                    throw new LuaError(W + ":screenToWorld: that session is not on screen, and pt is a"
                         + " point on the screen. hafen.session():current():world() is the one to raycast in.");
                 MapView mv = screenView();
                 if(mv != null) {
@@ -210,7 +315,7 @@ final class WorldApi {
                     screenToWorld(owner, mv, (int)Math.round(Px.in(sx)) - rp.x,
                                   (int)Math.round(Px.in(sy)) - rp.y, fn);
                 }
-                return LuaValue.NIL;   // async — the answer arrives through fn
+                return LuaValue.NIL;   // async -- the answer arrives through fn
             }
         });
         // snapPlace(p [, fine]) — snap a Position to the client's PLACEMENT grid, IDENTICALLY to placing a
@@ -520,7 +625,12 @@ final class WorldApi {
      * {@link LuaPosition#worldArg} instead and refuse, because there is no acting on a place that is not here.
      */
     private static Coord2d here(Varargs a, int i, String verb, String user) {
-        return LuaPosition.posArg(a, i, verb, "p").world(user);
+        return here(a, i, verb, "p", user);
+    }
+
+    /** {@link #here(Varargs, int, String, String)} for a read whose Position argument is not called {@code p}. */
+    private static Coord2d here(Varargs a, int i, String verb, String param, String user) {
+        return LuaPosition.posArg(a, i, verb, param).world(user);
     }
 
     // ---- the two wire shapes, pure so they are testable without a session --------------------------

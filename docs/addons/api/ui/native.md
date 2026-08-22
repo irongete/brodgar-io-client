@@ -227,10 +227,11 @@ so a `w:position(x, y)` written *after* it wins, being the later write, and `w:p
 the stock place back.
 
 **What is saved is where your levels stand**, at every write to disk: after a gesture, on the save timer, and
-when that character leaves the screen — a place the user dragged it to and one you wrote yourself being the
-same thing to it. The slot is **per character** like a [per-character saved variable](../store.md), and that
-character is the one **on screen**, because a window stands over whichever session you are looking at. Calling
-it before you are in the world has nothing to put back — it says so in the log and remembers the name anyway.
+when the screen moves. **The slot belongs to the tree the widget stands in**: a session's own window — the
+`@ChatUI` above — is filed under **that** character like a [per-character saved variable](../store.md),
+looked at or not, while one you built stands in your layer and is filed under your
+[account](../store.md#the-one-thing-saved-without-being-declared). Called before that session is in the
+world it has nothing to put back, says so in the log, and remembers the name anyway.
 
 | Call | Does |
 |---|---|

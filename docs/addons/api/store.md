@@ -117,12 +117,18 @@ and how big it is, and it needs no declaration and no code of yours. That is del
 saved by the *user* moving something, not by your addon deciding to write it down, so making them declare
 a variable to allow it would be asking permission for a gesture they made themselves.
 
-It lands in a file of its own beside the one above, `savedata/<genus>_<char>/<addon>.layout.json`, and is
-therefore **per character** — the character **on screen**, because a window stands over whichever session
-you are looking at. So there is nothing to put back before a character is in world, and tabbing hands the
-records over to the character you tabbed to. Every write here writes them too, and `s:store():flush()` does
-when the session you call it on is the one on screen, so an addon that only remembers places still saves on
-the timer and when the screen moves though it declares nothing at all.
+**It is filed under the tree the widget stands in**, in a file of its own beside the one above:
+
+| The widget | Its file | Because |
+|---|---|---|
+| one of a session's own, `s:ui():match("@ChatUI")` | `savedata/<genus>_<char>/<addon>.layout.json` | where the user dragged **that character's** chat window is a fact about that character |
+| one you built, `hafen.ui():window()` | `savedata/account/<addon>.layout.json` | it stands in your layer, which belongs to no character and outlives all of them |
+
+So a session's own window has nothing to put back until **that** session is in world, and tabbing moves
+nothing: each record was already under the character it belongs to. The two `flush()` verbs each write the
+file they name — `hafen.store():flush()` the account's placements, `s:store():flush()` that character's —
+and the timer, a tab and the close write every one of them, so an addon that only remembers places still
+saves though it declares nothing at all.
 
 ## See also
 

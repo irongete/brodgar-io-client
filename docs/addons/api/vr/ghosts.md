@@ -126,7 +126,7 @@ You can drag a ghost along the terrain, snapping exactly as placing a real build
 primitives and then `g:position(p)`:
 
 1. [the mouse's grab](../ui/mouse.md#the-grab) captures the pointer, so the camera stays put.
-2. [`s:world():screenToWorld`](../world.md#screen-to-world-and-placement-snapping) turns the cursor
+2. [`s:world():screenToWorld`](../world.md#the-screen-and-the-world) turns the cursor
    pixel into a ground Position. It reads a pixel, so it is the drawn character's:
    `s` is [`hafen.session():current()`](../session.md).
 3. [`s:world():snapPlace`](../world.md#screen-to-world-and-placement-snapping) snaps it to the placement

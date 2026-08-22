@@ -192,8 +192,11 @@ public final class LuaOverlay {
                 // 080.1: onto EVERY live session's copy of the object, so what is attached to the object is
                 // drawn whichever character is looking at it. One record, shared by the copies — the setters
                 // that say what it draws act on the one thing, and the event is fired once, off this copy.
-                LuaGobOverlay.Attach old =
-                    LuaGobOverlay.attach(g, gobId, new LuaGobOverlay.Attach(owner, k));
+                LuaGobOverlay.Attach rec = new LuaGobOverlay.Attach(owner, k);
+                LuaGobOverlay.Attach old = LuaGobOverlay.attach(g, gobId, rec);
+                // 092.7: ...and onto the copy of a character that loads the object afterwards. The record is
+                // the one every copy shares, so a later ov:text(...) relabels what that session is handed too.
+                GobIntent.overlay(gobId, rec);
                 if(old != null)
                     AddonManager.queueGobOverlay(false, g, k, owner);
                 AddonManager.queueGobOverlay(true, g, k, owner);
@@ -232,7 +235,9 @@ public final class LuaOverlay {
                         + "() standing at this gob, listed here read-only -- the collection placed it, so the"
                         + " collection ends it: hafen.vr():" + vr.kind() + "():remove(x), with the handle :add"
                         + " gave you (or one out of hafen.vr():" + vr.kind() + "():list())");
-                // ...and off every copy, the twin of the walk :add takes — one removal, reported once.
+                // ...and off every copy, the twin of the walk :add takes — one removal, reported once. AFTER
+                // the two refusals above, so a key this addon never attached takes neither half (092.7).
+                GobIntent.dropOverlay(gobId, owner, k);   // ...and a session loading it later is not handed it
                 if(LuaGobOverlay.detach(g, gobId, owner, k) != null)
                     AddonManager.queueGobOverlay(false, g, k, owner);
             }

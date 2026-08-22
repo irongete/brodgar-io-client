@@ -63,7 +63,7 @@ local c = hafen.vr():sprite():add(icon, prey):facing("camera"):offset(0, 0, 14)
 > camera tilted.
 
 A `"screen"` sprite is the ergonomic, world-anchored version of drawing an image at
-[`s:player():worldToScreen`](../player.md) inside a [HUD overlay](../ui/custom.md#overlays). It is drawn
+[`s:world():worldToScreen`](../world.md#the-screen-and-the-world) inside a [HUD overlay](../ui/custom.md#overlays). It is drawn
 at the image's own size in [design pixels](../ui/pixels.md), times the scale, and bottom-centred on its world
 point so it "stands" there — and it draws **on top** of the 3D scene, with no depth occlusion. Because it is
 a flat 2D image, `:rotate` is stored but has no visible effect and `:scale` acts as a screen-size

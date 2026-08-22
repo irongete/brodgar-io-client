@@ -432,6 +432,11 @@ public final class AddonManager {
         final List<Owned> unarmed = new ArrayList<Owned>();
         /** Widgets of this tree whose layout rule may still start matching ({@link Layout}, 036.2). */
         final List<Layout.Pending> layoutPending = new CopyOnWriteArrayList<Layout.Pending>();
+        /** Has a caption changed in THIS tree since its last tick ({@link Layout}, 092.5)? Volatile: the
+         *  caption seam runs on the Loader thread that applied the message, and the drain is this tree's own
+         *  tick. Per session because {@link SessionState#layoutPending} is: one flag for the client meant the
+         *  first tree to drain it cleared it for every other. */
+        volatile boolean layoutCapDirty;
         /** Windows of this tree whose caption invalidated a cached style ({@link Sheet}, 049.3). */
         final Queue<Widget> styleCapChanged = new ConcurrentLinkedQueue<Widget>();
         /** Popups of this tree to re-raise before the next draw ({@link CDropdown}, 040.10). */
@@ -449,8 +454,10 @@ public final class AddonManager {
 
         /** The nine change-detection adapters reading THIS session's HUD ({@link CharApi}). Built with the
          *  state and never rebuilt: a session's HUD does not become another HUD because the player tabbed,
-         *  and the widgets these cache are still standing in the tree they were found in. */
-        final List<CharApi.TreeAdapter> treeAdapters = CharApi.newAdapters();
+         *  and the widgets these cache are still standing in the tree they were found in.
+         *  092.4: and each is handed the state, so the seven that read a HUD by ACCOUNT read this one's --
+         *  before, they were held per session and every one of them read the DRAWN session's widgets. */
+        final List<CharApi.TreeAdapter> treeAdapters;
         /** Which of those an inbound {@code uimsg} marked. Concurrent: the tap that marks is off-thread,
          *  and the tick that drains is this session's own. */
         final Set<CharApi.TreeAdapter> treeDirty = ConcurrentHashMap.newKeySet();
@@ -535,6 +542,7 @@ public final class AddonManager {
 
         SessionState(UI ui) {
             this.ui = ui;
+            this.treeAdapters = CharApi.newAdapters(this);   // after ui: the adapters read it (092.4)
         }
     }
 
@@ -2187,6 +2195,12 @@ public final class AddonManager {
                     LuaGobOverlay.gobGone(ge.gob);
                     VrApi.anchorGone(ge.gob.id);   // 075.3: the client's one index, and only if no session still sees it
                 }
+                // 092.7 (A-087): a copy of the object just arrived in THIS session, and a visual write made
+                // before it did landed only on the copies that existed then. The per-session edge the ROADMAP
+                // said did not exist is this queue entry — the settle below throws the per-session half away
+                // to fire one client-wide event, which is right for the event and is why nothing re-applied.
+                if(ge.added)
+                    GobIntent.applyTo(ge.gob);
                 // 075.3: ...and either way, which characters can see that object just changed — so a thing
                 // standing on it that survived because ANOTHER character has it in view is re-asked whether
                 // the one on screen does. A flag, and only for the ids something is actually standing on.
@@ -2233,6 +2247,7 @@ public final class AddonManager {
     /** The object left its last session: forget the game's overlays that hung on it, then report it gone. */
     private static void gobLeft(long id) {
         heldNative.remove(Long.valueOf(id));   // the client drops a departing gob whole, decorations and all
+        GobIntent.forget(id);                  // 092.7: ...and what was ASKED for at it goes with the object
         fireGob("GobRemoved", id);
     }
 
@@ -2362,7 +2377,7 @@ public final class AddonManager {
      */
     public static void onCaptionChanged(Widget w) {
         UiApi.markCaptionChanged(w);      // 030.2/049.3: an appear subscription's chain may now resolve below w
-        Layout.markCaptionChanged();      // 036.2: ...and so may a late layout rule's [title=] refiner
+        Layout.markCaptionChanged(w);     // 036.2: ...and so may a late layout rule's [title=] refiner
         Sheet.markCaptionChanged(w);      // 049.3: ...and w's subtree's cached styles are answers to a stale question
     }
 
@@ -2704,6 +2719,19 @@ public final class AddonManager {
      */
     static String userOf(Widget w) {
         return (w == null) ? null : Sessions.nameof(w.ui);
+    }
+
+    /**
+     * <b>The account of the session a state belongs to</b> (092.4) — what a HUD reader built with that state
+     * is about. Re-read rather than held: a state is minted with its {@link UI} and a {@code UI} picks up its
+     * {@code Session} afterwards, and a session that changes character keeps the tree it had.
+     *
+     * <p>{@code null} for the addon layer's own state, which has no session and whose HUD readers therefore
+     * find nothing — the same {@code null} the login screen answers, and the same one every one of those
+     * readers already had to handle.
+     */
+    static String userOf(SessionState st) {
+        return (st == null) ? null : Sessions.nameof(st.ui);
     }
 
     /**

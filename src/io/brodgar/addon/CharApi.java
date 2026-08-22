@@ -7,8 +7,6 @@ import haven.Bufflist;
 import haven.CharWnd;
 import haven.Coord;
 import haven.Coord2d;
-import haven.Coord3f;
-import haven.Coord3f;
 import haven.Equipory;
 import haven.FightWnd;
 import haven.GameUI;
@@ -19,7 +17,6 @@ import haven.Indir;
 import haven.Inventory;
 import haven.ItemInfo;
 import haven.Loading;
-import haven.MapView;
 import haven.MenuGrid;
 import haven.Party;
 import haven.QuestWnd;
@@ -137,18 +134,44 @@ final class CharApi {
      * {@code CopyOnWriteArrayList} it used to be was carrying the rebuild {@code resetSession} did on every
      * {@code init}, and that rebuild is gone.
      */
-    static List<TreeAdapter> newAdapters() {
+    static List<TreeAdapter> newAdapters(SessionState st) {
         List<TreeAdapter> l = new ArrayList<TreeAdapter>(9);
         l.add(new MeterAdapter());
         l.add(new BuffsAdapter());
-        l.add(new FepAdapter());
-        l.add(new StudyAdapter());
-        l.add(new ActionbarAdapter());
-        l.add(new EquipAdapter());
-        l.add(new KinAdapter());
-        l.add(new QuestAdapter());
-        l.add(new WoundAdapter());
+        l.add(new FepAdapter(st));
+        l.add(new StudyAdapter(st));
+        l.add(new ActionbarAdapter(st));
+        l.add(new EquipAdapter(st));
+        l.add(new KinAdapter(st));
+        l.add(new QuestAdapter(st));
+        l.add(new WoundAdapter(st));
         return Collections.unmodifiableList(l);
+    }
+
+    /**
+     * <b>The seven readers that reach a HUD by ACCOUNT</b> (092.4, A-089) — the base the state travels on.
+     *
+     * <p>The other two ({@code MeterAdapter}, {@code BuffsAdapter}) cache the widgets themselves and read
+     * through them, so they were addressed already. These seven look their subject up: the character sheet,
+     * the belt, the equipory, the roster, the quest log, the wound list. Each of those lookups took
+     * {@link AddonManager#drawnUser()} — the character on SCREEN — while the adapter itself was held by one
+     * session's state and fed that session's widgets. So eating on a background character marked its own
+     * adapter dirty and fired {@code FepChanged} carrying <i>the drawn character's</i> Food, under the drawn
+     * character's account: not an unlabelled payload but the wrong body's, on eight bus keys.
+     *
+     * <p>The state is the whole of the fix, and it is what the adapter was built with all along.
+     */
+    private abstract static class SessionAdapter implements TreeAdapter {
+        private final SessionState st;
+
+        SessionAdapter(SessionState st) {
+            this.st = st;
+        }
+
+        /** The account this adapter reads for. {@code null} for the layer's own state, which has no HUD. */
+        final String user() {
+            return AddonManager.userOf(st);
+        }
     }
 
     /**
@@ -469,13 +492,17 @@ final class CharApi {
      * the same verbs as {@code s:char():food()} and a stashed payload goes on tracking the meal after
      * it. The reads themselves live on {@link LuaFood}; only firing is this adapter's business.
      */
-    private static final class FepAdapter implements TreeAdapter {
+    private static final class FepAdapter extends SessionAdapter {
+        FepAdapter(SessionState st) {
+            super(st);
+        }
+
         public boolean interested(Widget w, String msg) {
             return (w instanceof BAttrWnd) && ("food".equals(msg) || "glut".equals(msg));
         }
 
         public void refresh() {
-            BAttrWnd w = battrwnd(drawnUser());
+            BAttrWnd w = battrwnd(user());
             if(w != null)
                 fireFood(w);
         }
@@ -505,7 +532,11 @@ final class CharApi {
      * AddonManager#fireStudy}), the same items {@code s:study():slot():list()} hands back, so a
      * handler reads it with the {@link LuaStudySlot} verbs.
      */
-    private static final class StudyAdapter implements TreeAdapter {
+    private static final class StudyAdapter extends SessionAdapter {
+        StudyAdapter(SessionState st) {
+            super(st);
+        }
+
         // Study-slot GItem -> its last snapshot (the change-detection key, NOT a payload). UI-thread-only
         // (placed/removed/resolveInfo); built with its session's state (073.3).
         // IdentityHashMap: GItem widgets are keyed by object identity, like the buffs/meters/equip.
@@ -521,7 +552,7 @@ final class CharApi {
             if(!(w instanceof GItem))
                 return;
             GItem it = (GItem)w;
-            String user = drawnUser();
+            String user = user();
             Widget study = studyWidget(user);
             if((study == null) || (it.parent != study) || cache.containsKey(it))
                 return;
@@ -536,7 +567,7 @@ final class CharApi {
             GItem it = (GItem)w;
             if(cache.remove(it) == null)
                 return;
-            String user = drawnUser();
+            String user = user();
             fireStudy(user, LuaStudySlot.items(user));
         }
 
@@ -556,7 +587,7 @@ final class CharApi {
                         LuaValue snap = LuaStudySlot.snapshot(it);
                         if(cache.containsKey(it) && !studySlotEqual(snap, cache.get(it))) {
                             cache.put(it, snap);
-                            String user = drawnUser();
+                            String user = user();
                             fireStudy(user, LuaStudySlot.items(user));
                         }
                     }
@@ -586,7 +617,11 @@ final class CharApi {
      * the changed slot ({@link AddonManager#fireSlot}, 021.2), so a handler reads the payload with the same
      * methods as {@code s:actionbar():get(n)} and can key a table by it.
      */
-    private static final class ActionbarAdapter implements TreeAdapter {
+    private static final class ActionbarAdapter extends SessionAdapter {
+        ActionbarAdapter(SessionState st) {
+            super(st);
+        }
+
         // slot index -> last snapshot, occupied slots only. UI-thread-only; built with its
         // session's state (073.3). Keyed by Integer (value identity), not widget identity.
         private final Map<Integer, LuaValue> cache = new HashMap<Integer, LuaValue>();
@@ -600,7 +635,7 @@ final class CharApi {
             if((g == null) || (g.belt == null))
                 return;           // HUD not up yet — keep the cache, fire nothing
             GameUI.BeltSlot[] belt = g.belt;
-            String user = drawnUser();
+            String user = user();
             for(int n = 0; n < belt.length; n++)
                 checkSlot(user, belt, n);
         }
@@ -615,7 +650,7 @@ final class CharApi {
             GameUI g = gui();
             if((g == null) || (g.belt == null) || (n < 0) || (n >= g.belt.length))
                 return;
-            checkSlot(drawnUser(), g.belt, n);
+            checkSlot(user(), g.belt, n);
         }
 
         /**
@@ -667,7 +702,11 @@ final class CharApi {
      * {@code s:ui():equipment():items()} hands back, so a handler reads it with the item verbs and a
      * stashed payload goes on answering after the gear comes off.
      */
-    private static final class EquipAdapter implements TreeAdapter {
+    private static final class EquipAdapter extends SessionAdapter {
+        EquipAdapter(SessionState st) {
+            super(st);
+        }
+
         // Worn GItem -> its last equip-key (the change-detection key, NOT a payload). UI-thread-only
         // (placed/removed/refresh); built with its session's state (073.3). IdentityHashMap:
         // GItem widgets are keyed by object identity, like the meters/buffs.
@@ -690,7 +729,7 @@ final class CharApi {
                 }
             }
             if(changed) {
-                String user = drawnUser();
+                String user = user();
                 fireEquip(user, LuaItem.items(equipory(user)));
             }
         }
@@ -699,7 +738,7 @@ final class CharApi {
             if(!(w instanceof GItem))
                 return;
             GItem it = (GItem)w;
-            String user = drawnUser();
+            String user = user();
             Equipory eq = equipory(user);
             if((eq == null) || (it.parent != eq) || cache.containsKey(it))
                 return;
@@ -717,7 +756,7 @@ final class CharApi {
             // The widget is unlinked, not cleared: the payload still answers :res()/:name()/… (025.2's
             // rule, mirrored here). Equipory's own child list no longer has it, so items() below already
             // reads the post-removal set.
-            String user = drawnUser();
+            String user = user();
             fireEquip(user, LuaItem.items(equipory(user)));
         }
 
@@ -737,7 +776,7 @@ final class CharApi {
                         String key = LuaItem.equipKey(it);
                         if(cache.containsKey(it) && !key.equals(cache.get(it))) {
                             cache.put(it, key);
-                            String user = drawnUser();
+                            String user = user();
                             fireEquip(user, LuaItem.items(equipory(user)));
                         }
                     }
@@ -761,7 +800,11 @@ final class CharApi {
      * objects</b> ({@link AddonManager#fireKin}, 020.3), so a handler reads the payload with the same
      * methods as {@code s:kin():list()} and can key a table by an entry.
      */
-    private static final class KinAdapter implements TreeAdapter {
+    private static final class KinAdapter extends SessionAdapter {
+        KinAdapter(SessionState st) {
+            super(st);
+        }
+
         private LuaValue cache = LuaValue.NIL;   // last kin snapshot list (UI thread; change-detect)
 
         public boolean interested(Widget w, String msg) {
@@ -770,7 +813,7 @@ final class CharApi {
         }
 
         public void refresh() {
-            String user = drawnUser();
+            String user = user();
             LuaValue snap = kinSnapshotList(user);
             if(!kinListEqual(snap, cache)) {
                 cache = snap;
@@ -798,7 +841,11 @@ final class CharApi {
      * stays, purely as the diff KEY: an interned object compares by identity and so cannot detect a status
      * advancing, which is the whole of what this adapter exists to notice.
      */
-    private static final class QuestAdapter implements TreeAdapter {
+    private static final class QuestAdapter extends SessionAdapter {
+        QuestAdapter(SessionState st) {
+            super(st);
+        }
+
         // quest id -> its last-seen status int. UI-thread-only (refresh); built with its
         // session's state (073.3).
         private final Map<Integer, Integer> cache = new HashMap<Integer, Integer>();
@@ -808,7 +855,7 @@ final class CharApi {
         }
 
         public void refresh() {
-            String user = drawnUser();
+            String user = user();
             QuestWnd qw = questwnd(user);
             if(qw == null)
                 return;
@@ -887,7 +934,11 @@ final class CharApi {
      * wound worsening is precisely the change identity cannot see. Read the initial state with
      * {@code s:wound():list()}; listen for deltas after.
      */
-    private static final class WoundAdapter implements TreeAdapter {
+    private static final class WoundAdapter extends SessionAdapter {
+        WoundAdapter(SessionState st) {
+            super(st);
+        }
+
         private LuaValue cache;   // last wound snapshot list (UI thread; change-detect)
 
         public boolean interested(Widget w, String msg) {
@@ -900,7 +951,7 @@ final class CharApi {
         }
 
         private void diff() {
-            String user = drawnUser();
+            String user = user();
             LuaValue snap = LuaWound.snapshotList(user);
             if(!woundListEqual(snap, cache)) {
                 cache = snap;
@@ -915,14 +966,14 @@ final class CharApi {
          * on the list and its severity actually changed.
          */
         private void resolveSeverities() {
-            for(final WoundWnd.Wound w : LuaWound.all(drawnUser())) {
+            for(final WoundWnd.Wound w : LuaWound.all(user())) {
                 try {
                     w.info();
                 } catch(Loading l) {
                     final int wid = w.id;
                     Resolve.on(l, null, new Resolve.Retry() {
                         public void run() throws Loading {
-                            WoundWnd.Wound cur = LuaWound.wound(drawnUser(), wid);
+                            WoundWnd.Wound cur = LuaWound.wound(user(), wid);
                             if(cur == null)
                                 return;   // healed before the resource landed
                             cur.info();
@@ -972,7 +1023,7 @@ final class CharApi {
      * <p>The section contains exactly one thing, so the <b>section object IS that thing</b> (§2.1):
      * {@code s:player():gob()} is the composition anchor for every per-gob read of that character
      * (position/health/moving/facing/…), plus {@code :move(p)}, which walks it and is the Player's first write
-     * (048.1), {@code :hand()}, its cursor (048.2, {@link LuaHand}), and {@code :worldToScreen(p)}. Player
+     * (048.1) and {@code :hand()}, its cursor (048.2, {@link LuaHand}). Player
      * forwards <b>nothing</b> — a {@code player:pos()} living beside {@code player:gob():position()} is exactly
      * the dual style D-013 forbids — and {@code exists}/{@code id} are dropped: {@code player:gob()} (nil
      * before that session is in the world) and {@code gob:id()} already answer both.
@@ -982,10 +1033,13 @@ final class CharApi {
      * would be a second spelling of one fact whose only difference was which door you came through. It is
      * userdata with a per-addon metatable, immutable from Lua, like a {@link LuaGob}.
      *
-     * <p><b>Every verb reads the session it hangs on.</b> The one exception is {@code :worldToScreen}, which
-     * answers a point on the screen — there is one screen however many sessions are live — so it answers
-     * {@code nil} for a session that is not the drawn one, and {@code :move} sends, so until a background
+     * <p><b>Every verb reads the session it hangs on</b>, and {@code :move} sends, so until a background
      * session can be ordered it goes through the same door {@code s:world():click} does.
+     *
+     * <p><b>{@code :worldToScreen(p)} left for {@code s:world()}</b> (092.3, A-093). It is not about the
+     * player: it is a conversion between that character's world and the screen, and its inverse
+     * {@code s:world():screenToWorld} was already there. Two halves of one conversion on two sections, with
+     * three differences between them and none derivable, is what the move deletes.
      */
     static LuaValue player(final Addon owner, final String user) {
         LuaTable methods = new LuaTable();
@@ -1002,36 +1056,6 @@ final class CharApi {
         });
         /* vitals() is GONE (027-meters-oop's hard cut): the HUD bars are s:meter():list(), which is every meter
          * the server puts in the slot rather than a hard-coded hp/stamina/energy triple read by position. */
-        // worldToScreen(p) — project a PLACE IN THE WORLD to a SCREEN POINT. It takes a Position (§2.7) and
-        // answers a plain {x, y} in px, which is deliberately NOT one: the two spaces have the same shape and
-        // used to be the same type, so a widget's pixel position walked the character somewhere wrong instead
-        // of failing. Now only the direction that has an answer type-checks.
-        //   067.1: it answers ROOT DESIGN pixels — the space hafen.ui():hit(), the mouse, widget:rootPos() and a
-        // HUD overlay's painter already share, and the space Px exists to name. MapView.screenxf answers
-        // VIEW-LOCAL DEVICE pixels (it ends in HomoCoord4f.toview over Area.sized(this.sz)), so two things are
-        // undone here rather than by every caller: the view's own corner is added, and the pair goes through
-        // Px.out. Unrounded, because a projected point has no pixel to round to. The same conversion
-        // UiApi.paintGobOverlays already does for a gob overlay's projected point (058.2).
-        //   076.3: there is ONE screen however many sessions are live, so this answers nil for a session that
-        // is not the drawn one. A projection through a dormant view would name a pixel in a scene nobody is
-        // looking at, which is a number the caller cannot use and cannot tell apart from one it can.
-        methods.set("worldToScreen", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Coord2d rc = LuaPosition.worldArg(a, 2, P + ":worldToScreen", "p", user);
-                MapView m = drawn(user) ? screenView() : null;
-                if(m == null)
-                    return LuaValue.NIL;
-                try {
-                    Coord3f sc = m.screenxf(rc);
-                    if(sc == null)
-                        return LuaValue.NIL;
-                    Coord rp = m.rootpos();          // view-local -> root, in the view's own device pixels
-                    return xy(Px.out(sc.x + rp.x), Px.out(sc.y + rp.y));
-                } catch(RuntimeException e) {
-                    return LuaValue.NIL;             // an unattached view (rootpos walks to ui.root) included
-                }
-            }
-        });
         // move(p) — walk the character to a Position, and the Player's FIRST write (048.1). It is the MapView
         // "click" a left-click on that patch of ground sends; the screen coord the message carries is a DUMMY
         // (the recipient's own view centre; MiniMap.mvclick passes the mouse for the same reason when you click
@@ -1074,8 +1098,9 @@ final class CharApi {
         // to call a nil value" — the failure the whole grammar exists to delete, and the one Player would have
         // been alone in keeping, since the section object here IS the one thing the section contains (§2.1).
         pmt.set(LuaValue.INDEX, Retired.closedIndex(P, methods,
-            "the section object is the character itself: :gob() :move(p) :hand() :worldToScreen(p). The"
-            + " character it is PLAYING is s:character(), on the Session"));
+            "the section object is the character itself: :gob() :move(p) and :hand(). The character it is"
+            + " PLAYING is s:character(), on the Session; where a place falls on the screen is"
+            + " s:world():worldToScreen(p), which is a projection rather than anything about the player"));
         pmt.set("__name", LuaValue.valueOf("Player"));
         pmt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

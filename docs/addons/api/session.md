@@ -71,8 +71,7 @@ folder; an account's are your addon's single file and are reached without an add
 
 **A read answers for the session you named, whichever one is drawn.** What does not is what belongs to the
 **screen** — there is one screen however many characters are logged in — and each of those says so where
-it is described: [`screenToWorld`](world.md#screen-to-world-and-placement-snapping) and
-[`worldToScreen`](player.md#read) read and answer a pixel, and
+it is described: [`worldToScreen` and `screenToWorld`](world.md#the-screen-and-the-world) name a pixel, and
 [`click`](world.md#write-protected), `place`/`select` and
 [`hand:use`](player.md#the-hand) are gestures with the pointer.
 

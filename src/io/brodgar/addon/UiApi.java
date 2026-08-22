@@ -2304,7 +2304,8 @@ final class UiApi {
      * because teardown may run off the UI thread (session bind) while {@code ctick} rebuilds the state.
      */
     static void teardownGobScales(Addon a) {
-        for(String user : users()) {
+        GobIntent.dropOwner(a);   // 092.7: ...including at objects no session holds yet — nothing this addon
+        for(String user : users()) {   //   asked for is re-applied to a copy that arrives after it is gone
             UI u = sessionui(user);
             if(u == null)
                 continue;

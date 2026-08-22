@@ -184,7 +184,17 @@ final class Retired {
         put("hafen.player", "hafen.player() is now session:player()" + addr + ".");
         sectionObj("world", "gob", "grid", "position", "tile", "height", "tileToWorld", "tileToGrid",
                    "screenToWorld", "snapPlace", "snapAngle", "place", "select");
-        sectionObj("player", "gob", "move", "hand", "worldToScreen");
+        sectionObj("player", "gob", "move", "hand");
+        // 092.3 (A-093): worldToScreen went further than onto the address -- it changed SECTION, so its
+        // three older spellings cannot be answered by the "it is now s:player():..." row above. Both
+        // halves of one conversion live on s:world() now, and the message says the whole new call.
+        String w2s = "worldToScreen(p) is now s:world():worldToScreen(p), where s is a Session"
+            + " (hafen.session():current() for the character on screen). It is a conversion between that"
+            + " character's world and the screen rather than anything about the player, so it lives beside"
+            + " its inverse s:world():screenToWorld(pt, fn) -- which now takes the very {x, y} it hands"
+            + " back, so the round trip composes.";
+        moved("player", "worldToScreen", w2s);
+        put("session:player():worldToScreen", w2s);
 
         // ---- 077.1: the character sheet's six READ-ONLY sections follow them. Each names one character's ---
         // ---- own state and nothing else, so each is a Session verb: one row per section on the hafen

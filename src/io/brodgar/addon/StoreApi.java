@@ -2,6 +2,8 @@ package io.brodgar.addon;
 
 import haven.Coord;
 import haven.GameUI;
+import haven.UI;
+import haven.Widget;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaNumber;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 
@@ -65,10 +68,12 @@ import static io.brodgar.addon.AddonManager.*;
  * being written to disk. A session that changes character writes the outgoing one's variables back and reads
  * the incoming one's into the very same tables.
  *
- * <p><b>What still follows the SCREEN is the remembered placements</b> ({@code widget:remember(name)}, 062).
- * A placement is where a window sits, the windows an addon builds stand in the layer above every session, and
- * the layer is drawn wherever the player is looking — so there is one set of them, holding the character on
- * screen, moved by {@link #rescope}.
+ * <p><b>The remembered placements are addressed too</b> ({@code widget:remember(name)}, 062; 092.8, A-088).
+ * A placement is filed under the scope of <b>the tree the widget stands in</b>: a session's own window
+ * ({@code s:ui():find("@ChatUI")}) under that character's folder, and a window the addon built itself under
+ * the <b>account</b> — the layer is the addon's and outlives every character, so its windows belong to nobody
+ * in particular. Until 092 there was one set for the client, holding whoever was on screen, which wrote a
+ * background character's window into the drawn character's folder and read it back out of it.
  */
 final class StoreApi {
     private StoreApi() {}
@@ -96,15 +101,16 @@ final class StoreApi {
     }
 
     /**
-     * <b>The character folder the remembered placements are holding right now</b> — {@code <genus>_<char>} of
-     * the session on screen, or {@code null} when no character is being looked at (the login screen, a session
-     * that has not reached the world yet, or the beat between one ending and the next being drawn). A
-     * placement is where a window stands, and the windows an addon builds stand in the layer over whichever
-     * session is drawn, so there is one answer to <i>whose screen is this</i>.
+     * <b>The character last seen on screen</b> — {@code <genus>_<char>}, or {@code null} for the login screen
+     * and the beat between one session ending and the next being drawn.
+     *
+     * <p>092.8: it no longer says which folder the placements hold, because they hold as many as there are
+     * trees with a remembered widget in them. All it does now is let {@link #rescope} notice that the screen
+     * changed, which is a good moment to put what is owed on disk: a tab is often followed by the session
+     * being closed, and the auto-save runs every 30 seconds.
      *
      * <p>Written by {@link #rescope} and {@link #detach} alone, both on the UI thread, which is also the only
-     * thread that reads it — a placement is written on a tick, on a teardown or in a Lua verb, and Lua runs
-     * there and nowhere else (P5).
+     * thread that reads it (P5).
      */
     private static String placeScope;
 
@@ -174,10 +180,20 @@ final class StoreApi {
         // file (the same rule Json.writePos states for a position with no anchor) -- and since 084.5 they LOG
         // the first value they degrade, which is the half that was missing: not refusing is not a reason to
         // say nothing, and an addon that never calls flush() was otherwise never told at all.
+        //   092.8: ...and the ACCOUNT's remembered placements, which are the windows the addon built ITSELF:
+        // those stand in the layer, which belongs to no character, so this is the call that names their file.
+        // A session's own widget files under that character and is written by that session's flush -- one
+        // call, one file, which is the rule this pair already followed for the variables.
         store.set("flush", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "flush");
                 carriable(owner, owner.store, true, ACC);
+                try {
+                    LuaWidget.rememberCapture(owner);
+                    writePlacements(owner, ACCOUNT);
+                } catch(RuntimeException e) {
+                    log(owner, "store: could not save remembered placements: " + e);
+                }
                 try {
                     writeAccount(owner);
                 } catch(RuntimeException e) {
@@ -238,22 +254,21 @@ final class StoreApi {
         // :flush() — write THIS character's saved variables now. The account half is hafen.store():flush().
         // Refuses an uncarriable value first, exactly as that one does.
         //
-        // It writes the places this addon remembers for widget:remember(name) as well WHEN this session is
-        // the one on screen, because that is whose character those places are: a remembered window stands in
-        // the layer, drawn over whichever session that is.
+        // It writes the places this addon remembers for widget:remember(name) in THIS character's folder as
+        // well (092.8) -- the widgets of this session's own tree. Before, only the session on screen wrote
+        // them anywhere, because there was one set of them and it was the screen's. The windows the addon
+        // built itself stand in the layer and are hafen.store():flush()'s: one call, one file.
         m.set("flush", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "flush", SS);
                 AddonManager.SessionState st = session(user, "flush()");
                 CharStore cs = charStore(st, owner);
                 carriable(owner, cs.vars, false, SS);
-                if(st == AddonManager.state(AddonManager.screen())) {
-                    try {
-                        LuaWidget.rememberCapture(owner);   // 062: where every remembered widget stands now
-                        writePlacements(owner);
-                    } catch(RuntimeException e) {
-                        log(owner, "store: could not save remembered placements: " + e);
-                    }
+                try {
+                    LuaWidget.rememberCapture(owner);   // 062: where every remembered widget stands now
+                    writePlacements(owner, st.charScope);
+                } catch(RuntimeException e) {
+                    log(owner, "store: could not save remembered placements: " + e);
                 }
                 try {
                     writeChar(owner, cs);
@@ -372,13 +387,6 @@ final class StoreApi {
         };
     }
 
-    private static void forgetPlacements(Addon a) {
-        if(a == null)
-            return;
-        a.placements.clear();
-        a.lastPlacementJson = null;
-    }
-
     /**
      * Throttled auto-save from this session's tick: every addon's account file, the places the screen's
      * character has its windows in, and <b>this session's own</b> per-character variables. The write skips
@@ -437,43 +445,36 @@ final class StoreApi {
     }
 
     /**
-     * <b>Bring the remembered placements into step with the session on screen</b> — the one door, run from
-     * the layer's own tick and from {@link #enterWorld}. When the screen already holds what they hold this is
-     * one map read and one string compare; otherwise the outgoing character's placements are written back
-     * where they came from and the incoming character's are read in.
+     * <b>The screen changed</b> — put what the remembered widgets are owed on disk (092.8). Run from the
+     * layer's own tick and from {@link #enterWorld}. When the screen still holds what it held last tick this
+     * is one map read and one string compare.
      *
-     * <p><b>Derived, not notified</b>, and that is deliberate: the screen changes for four different reasons
-     * — a tab, a session reaching the world, a session ending, a relogin replacing a {@code UI} under the same
-     * slot — and three of them happen on threads that are not this one. A seam per reason is three chances to
-     * miss one and no way to tell; a comparison on the tick cannot be missed, and answers all four the same.
+     * <p><b>It used to be a swap</b>, and that was the defect: one set of placements followed the screen, so
+     * a tab wrote the outgoing character's set back and read the incoming character's in — over widgets that
+     * might be standing in neither of their trees. Now every set is filed under its own tree's folder and
+     * nothing has to move when the player tabs; what is left is that a tab is a <i>good moment to write</i>,
+     * since it is often followed by that session being closed and the auto-save runs every 30 seconds.
      *
-     * <p><b>A session that ends is one of those four.</b> Its {@code UI} is destroyed from its own thread, so
-     * by the time this runs there is nothing left to ask — which is why the folder is held in
-     * {@link #placeScope} rather than looked up: the write below lands in the folder of the character whose
-     * placements are actually loaded, whether that session was tabbed away from or ended outright.
+     * <p><b>Derived, not notified</b>, and that is still deliberate: the screen changes for four different
+     * reasons — a tab, a session reaching the world, a session ending, a relogin replacing a {@code UI} under
+     * the same slot — and three of them happen on threads that are not this one. A seam per reason is three
+     * chances to miss one and no way to tell; a comparison on the tick cannot be missed.
      */
     static void rescope() {
         AddonManager.SessionState st = AddonManager.state(AddonManager.screen());
         String want = (st == null) ? null : st.charScope;
         if((want == null) ? (placeScope == null) : want.equals(placeScope))
             return;
-        for(Addon a : addons) {
-            if(placeScope != null) {
-                try {
-                    LuaWidget.rememberCapture(a);   // 062: where every remembered widget stands as this
-                    writePlacements(a);             //   character goes off screen — the save timer's capture
-                } catch(RuntimeException e) {
-                    log(a, "store: could not save remembered placements: " + e);
-                }
-            }
-            forgetPlacements(a);
-        }
         placeScope = want;
-        if(placeScope == null)
-            return;                        // nobody on screen: nothing to put back, and nothing held for it
-        for(Addon a : addons)
-            loadPlacements(a);             // 062: where this character last left what each addon remembers,
-    }                                      //   so widget:remember(name) has it to put back
+        for(Addon a : addons) {
+            try {
+                LuaWidget.rememberCapture(a);   // 062: where every remembered widget stands right now...
+                writePlacements(a);             //   ...each into the folder of the tree it stands in
+            } catch(RuntimeException e) {
+                log(a, "store: could not save remembered placements: " + e);
+            }
+        }
+    }
 
     /**
      * <b>A session's {@code UI} died with its per-character tables still in it</b> (079.1) — from
@@ -803,18 +804,76 @@ final class StoreApi {
     }
 
     /**
-     * Is there a character to remember a placement <b>for</b>? A placement is per character, like a
-     * per-character saved variable, and the character is the one on SCREEN — a remembered window stands in
-     * the layer, drawn over whichever session that is. So before any character is in world there is nothing
-     * to put back, and {@code widget:remember(name)} says so rather than applying an empty record.
+     * <b>One scope's remembered placements for one addon</b> (092.8) — the names, and the last JSON written
+     * for them so an unchanged file is not rewritten. One of these per folder the addon has a remembered
+     * widget in: a character's, or the account's.
      */
-    static boolean placementScope() {
-        return placeScope != null;
+    static final class PlaceSet {
+        final Map<String, Placement> byName = new ConcurrentHashMap<String, Placement>();
+        String lastJson;
     }
 
-    /** What is saved under {@code name} for this character, or {@code null} (no character, or nothing saved). */
-    static Placement placement(Addon a, String name) {
-        return (placeScope == null) ? null : a.placements.get(name);
+    /**
+     * <b>The scope of the addon's own layer</b> — the folder {@link #accountFile} already writes into, so a
+     * remembered window of the layer sits beside the account variables it belongs with. It is the literal
+     * folder name rather than a sentinel, because that is what it is.
+     */
+    static final String ACCOUNT = "account";
+
+    /**
+     * <b>The scope a widget's placement is filed under</b> (092.8, A-088) — the whole of the fix, and the one
+     * question the old code never asked.
+     *
+     * <ul>
+     *   <li><b>A widget standing in a session's own tree</b> — {@code s:ui():find("@ChatUI")}, the case
+     *       {@code native.md} documents — is filed under <b>that character's</b> folder. Where the user
+     *       dragged that character's chat window is a fact about that character.</li>
+     *   <li><b>A widget the addon built itself</b> stands in the layer, which belongs to no session and
+     *       outlives every character, so it is filed under the <b>account</b>: the layer is drawn over
+     *       whichever session is up, and its windows are the addon's rather than anybody's.</li>
+     * </ul>
+     *
+     * <p>{@code null} when there is nothing to file under yet — a tree that is not a session and not the
+     * layer, or a session that has not reached the world, which is the case {@code widget:remember} logs.
+     */
+    static String scopeOf(Widget w) {
+        if(w == null)
+            return null;
+        UI u = w.ui;
+        if(u == null)
+            return null;
+        if(u == AddonManager.layer())
+            return ACCOUNT;
+        AddonManager.SessionState st = AddonManager.state(u);
+        return (st == null) ? null : st.charScope;
+    }
+
+    /** Is there anywhere to remember {@code w}'s placement? False before its character is in world. */
+    static boolean placementScope(Widget w) {
+        return scopeOf(w) != null;
+    }
+
+    /**
+     * <b>One scope's placements for one addon</b>, minted on the first ask and <b>read off disk then</b>. The
+     * lazy load is what lets a set exist per tree with nothing having to notice a tree appearing: the first
+     * {@code widget:remember(name)} in that tree is the notice.
+     */
+    private static PlaceSet set(Addon a, String scope) {
+        PlaceSet have = a.placeSets.get(scope);
+        if(have != null)
+            return have;
+        PlaceSet mk = new PlaceSet();
+        PlaceSet prev = a.placeSets.putIfAbsent(scope, mk);
+        if(prev != null)
+            return prev;
+        loadPlacements(a, scope, mk);
+        return mk;
+    }
+
+    /** What is saved under {@code name} for {@code w}'s own tree, or {@code null} (no scope, or nothing saved). */
+    static Placement placement(Addon a, Widget w, String name) {
+        String scope = scopeOf(w);
+        return (scope == null) ? null : set(a, scope).byName.get(name);
     }
 
     /**
@@ -823,12 +882,14 @@ final class StoreApi {
      * half that is not written is not erased — an addon that stops resizing a window has not decided the user
      * never sized it.
      */
-    static void land(Addon a, String name, Coord pos, Coord size) {
-        if((placeScope == null) || ((pos == null) && (size == null)))
+    static void land(Addon a, Widget w, String name, Coord pos, Coord size) {
+        String scope = scopeOf(w);
+        if((scope == null) || ((pos == null) && (size == null)))
             return;
-        Placement p = a.placements.get(name);
+        Map<String, Placement> m = set(a, scope).byName;
+        Placement p = m.get(name);
         if(p == null)
-            a.placements.put(name, p = new Placement());
+            m.put(name, p = new Placement());
         if(pos != null)
             p.pos = pos;
         if(size != null)
@@ -836,22 +897,23 @@ final class StoreApi {
     }
 
     /** {@code widget:remember(nil)}: the record is <b>deleted</b>, on disk in the same call. */
-    static void forget(Addon a, String name) {
-        if(a.placements.remove(name) != null)
-            writePlacements(a);
-    }
-
-    /** The per-character placement file, beside the addon's own {@code <id>.json}. */
-    private static File placementFile(Addon a) {
-        return new File(new File(saveDir(), placeScope), a.manifest.id + ".layout.json");
-    }
-
-    /** Load this character's placements for one addon, replacing whatever the last character left. */
-    private static void loadPlacements(Addon a) {
-        forgetPlacements(a);
-        if(placeScope == null)
+    static void forget(Addon a, Widget w, String name) {
+        String scope = scopeOf(w);
+        if(scope == null)
             return;
-        String text = readFile(placementFile(a));
+        PlaceSet ps = set(a, scope);
+        if(ps.byName.remove(name) != null)
+            writePlacements(a, scope, ps);
+    }
+
+    /** The per-scope placement file, beside the addon's own {@code <id>.json} in that same folder. */
+    private static File placementFile(Addon a, String scope) {
+        return new File(new File(saveDir(), scope), a.manifest.id + ".layout.json");
+    }
+
+    /** Read one scope's placements off disk into a freshly minted set. */
+    private static void loadPlacements(Addon a, String scope, PlaceSet ps) {
+        String text = readFile(placementFile(a, scope));
         if(text != null) {
             try {
                 Object root = Json.parse(text);
@@ -863,14 +925,14 @@ final class StoreApi {
                         p.pos = readCoord(e.getValue(), "pos");
                         p.size = readCoord(e.getValue(), "size");
                         if((p.pos != null) || (p.size != null))
-                            a.placements.put(e.getKey(), p);
+                            ps.byName.put(e.getKey(), p);
                     }
                 }
             } catch(RuntimeException e) {
-                log(a, "store: could not read " + placementFile(a).getName() + ": " + e);
+                log(a, "store: could not read " + placementFile(a, scope).getName() + ": " + e);
             }
         }
-        a.lastPlacementJson = placementsJson(a);   // prime the write-skip cache, as a scope load does
+        ps.lastJson = placementsJson(ps);   // prime the write-skip cache, as a scope load does
     }
 
     /** One {@code {"x": …, "y": …}} half of a parsed record, or {@code null} if it is absent or malformed. */
@@ -886,27 +948,48 @@ final class StoreApi {
         return Coord.of((int)Math.round((Double)x), (int)Math.round((Double)y));
     }
 
-    /** Write one addon's placements, if they changed and there is a character to write them for. */
+    /**
+     * <b>Write every scope this addon has placements loaded for</b> (092.8), each into its own folder. A set is
+     * only ever minted for a tree something was actually remembered in, so this walks nothing on a client
+     * whose addons build no windows.
+     */
     private static void writePlacements(Addon a) {
-        if((placeScope == null) || (a.placements.isEmpty() && (a.lastPlacementJson == null)))
-            return;                                     // this addon remembers nothing and never did
-        String out = placementsJson(a);
-        if(out.equals(a.lastPlacementJson))
+        for(Map.Entry<String, PlaceSet> e : a.placeSets.entrySet())
+            writePlacements(a, e.getKey(), e.getValue());
+    }
+
+    /**
+     * <b>One named scope's placements</b> (092.8) — what an asked-for {@code flush()} writes, each verb
+     * naming the file it is about: {@code hafen.store():flush()} the account's, {@code s:store():flush()}
+     * that character's. Nothing at all when this addon has remembered nothing in that scope.
+     */
+    private static void writePlacements(Addon a, String scope) {
+        PlaceSet ps = a.placeSets.get(scope);
+        if(ps != null)
+            writePlacements(a, scope, ps);
+    }
+
+    /** One scope's half of {@link #writePlacements(Addon)}, skipped when the file would not change. */
+    private static void writePlacements(Addon a, String scope, PlaceSet ps) {
+        if(ps.byName.isEmpty() && (ps.lastJson == null))
+            return;                                     // this addon remembers nothing here and never did
+        String out = placementsJson(ps);
+        if(out.equals(ps.lastJson))
             return;
-        if(writeFile(placementFile(a), out))
-            a.lastPlacementJson = out;
+        if(writeFile(placementFile(a, scope), out))
+            ps.lastJson = out;
     }
 
     /**
      * {@code {"<name>": {"pos": {x, y}, "size": {x, y}}, …}}, names in order — the order is what makes the
      * write-skip comparison above answer on the content rather than on a hash walk.
      */
-    private static String placementsJson(Addon a) {
-        List<String> names = new ArrayList<String>(a.placements.keySet());
+    private static String placementsJson(PlaceSet ps) {
+        List<String> names = new ArrayList<String>(ps.byName.keySet());
         Collections.sort(names);
         StringBuilder b = new StringBuilder("{");
         for(String nm : names) {
-            Placement p = a.placements.get(nm);
+            Placement p = ps.byName.get(nm);
             if(b.length() > 1)
                 b.append(',');
             b.append(Json.write(LuaValue.valueOf(nm))).append(":{");

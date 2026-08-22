@@ -377,6 +377,10 @@ public final class LuaGob {
         // object is skipped -- a state, not a fault, like every other answer about who can see a thing. The
         // READ still resolves through one copy, like every reader here (the character on screen when it can
         // see the object, and otherwise whichever of yours can), because they all now agree.
+        //   092.7 (A-087): and it REACHES A SESSION THAT LOADS THE OBJECT LATER. The walk above is who holds it
+        // at the moment of the write; GobIntent is the same write recorded against the object, applied to each
+        // copy as it arrives. The size still ends with the object -- when it leaves its LAST session, which is
+        // when GobRemoved fires -- so walking out of range and back is still the original size.
         m.set("scale", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -392,6 +396,10 @@ public final class LuaGob {
                 // holds it, so the walk is empty and that IS doing nothing with it.
                 for(Gob g : AddonManager.gobCopies(h.id))
                     GobScale.apply(g, owner, k);
+                // 092.7: ...and a character that loads the object AFTERWARDS draws it the same. gobCopies is
+                // who holds it now, which is a snapshot; the intent is recorded against the object's id and
+                // re-applied by the gob drain when another session's copy arrives (GobIntent).
+                GobIntent.scale(h.id, owner, k);
                 return self;
             }
         });
