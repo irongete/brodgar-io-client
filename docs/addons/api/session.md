@@ -17,6 +17,7 @@ end
 | `hafen.session():current(s)` | hand the screen to that session |
 | `hafen.session():get(user)` | the `Session` for that **account** — always an object, even for an account nobody is logged in as |
 | `hafen.session():list(filter)` | the sessions the client holds, in the order they joined |
+| `hafen.session():remove(s)` | end that login — the same act as `s:close()`, and protected by the same key |
 
 Every session the client holds is whole: connected, ticked, answering the server, with a character and
 a world of its own. One of them is drawn and the rest are not, and which one that is changes when the
@@ -159,6 +160,25 @@ else: the server is never told, and nothing about any character is altered. Ther
 own, and this API manages the sessions that exist.
 
 ## Write (protected)
+
+Two spellings, one act and one key: `hafen.session():remove(s)` ends a login from the collection, which is
+where every other collection in this API keeps the verb that destroys a member, and `s:close()` ends it
+from the login itself. Both need the `session.close` permission, and the permission is checked before
+either looks at what you handed it.
+
+### `hafen.session():remove(s)`
+
+End the login `s` names, and hand the **collection** back, so removals chain. A reader who has written
+`hafen.map():marker():remove(m)` or `gob:overlay():remove(key)` writes this one without being told.
+
+```lua
+local live = hafen.session()
+live:remove(live:get("alt1")):remove(live:get("alt2"))    -- the collection comes back, so this chains
+```
+
+You pass the `Session`, never an account name: `hafen.session():remove("alice")` raises naming the object,
+and `:get(user)` is what hands you one. Everything else about it is `s:close()`'s, below: the same refusal
+for a session the client does not hold, in the same words, and the same asynchrony.
 
 ### `s:close()`
 

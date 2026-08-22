@@ -39,6 +39,12 @@ import java.util.List;
  * <p><b>It is unprotected.</b> The protected tier is for an action whose effect leaves the client; taking the
  * screen changes which widget tree is drawn and nothing else, and the server is never told. A consent line
  * for a redraw would make the word mean nothing.
+ *
+ * <p><b>{@code :remove(s)} ends a login</b> (087.3, <b>D2</b>): where a collection exists, the verb that
+ * destroys a member is the collection's, and this one was the exception. It is the same act
+ * {@link LuaSession}'s {@code :close()} performs and carries the same {@code session.close} key, gated as
+ * the first statement of {@code removeMember} (D-213) and giving the same refusal for an account the client
+ * holds no session for. {@code :close()} stays beside it: ending one login reads best on the login.
  */
 public final class SessionApi {
     private SessionApi() {
@@ -141,6 +147,46 @@ public final class SessionApi {
             /** Any account name is addressable, logged in or not: s:exists() is the question. */
             public LuaCollection.Missing missing() {
                 return LuaCollection.Missing.MINT;
+            }
+
+            /**
+             * The collection holds the logins, so ending one is <b>its</b> verb (087.3, D2) — the rule every
+             * other collection that can destroy a member already keeps.
+             */
+            public boolean destroyable() {
+                return true;
+            }
+
+            /*
+             * remove(s) -- END that login, which is the same act s:close() performs on the member and is
+             * gated by the same key. Both doors stay: the collection's is where a reader of any other
+             * collection looks for it, and the member's is where ending ONE login reads best.
+             *
+             * The gate is the FIRST statement (D-213), before the argument is even looked at: a refusal that
+             * ran the resolution first would tell an addon which accounts this client holds, and a caller
+             * who forgot the key has one thing to fix rather than two reported one at a time.
+             *
+             * A STRING is refused rather than taken as the key. hafen.session():get(user) mints a Session
+             * for any name, so a string here would be an ending whose receiver was never checked against
+             * anything -- and every other use site of a session takes the object.
+             *
+             * ASYNCHRONOUS, exactly as s:close() is: drop() returns before the member leaves the list, so
+             * :exists() and SessionDestroyed are what answer, a tick or more later. LuaCollection hands the
+             * COLLECTION back, so removals chain.
+             */
+            public void removeMember(LuaValue x) {
+                AddonManager.requirePermission(owner, Permission.SESSION_CLOSE,
+                                              "hafen.session():remove(s)");
+                LuaSession h = LuaSession.resolve(x);
+                if(h == null)
+                    throw new LuaError("hafen.session():remove(s): s must be a Session object — what"
+                        + " hafen.session():get(user), :find(filter) and :list() hand back. An account name"
+                        + " is not the key here: hafen.session():remove(hafen.session():get(\"alice\")) is"
+                        + " the call (got a " + x.typename() + ")");
+                Sessions.Member m = Sessions.byuser(h.user);
+                if(m == null)
+                    throw new LuaError("hafen.session():remove(s): " + LuaSession.noSession(h.user));
+                m.drop();
             }
         }, extra), null);
     }

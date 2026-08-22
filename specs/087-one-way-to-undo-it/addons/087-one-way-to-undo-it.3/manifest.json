@@ -1,0 +1,10 @@
+{
+  "name": "087.3 — a collection destroys its member",
+  "id": "087-one-way-to-undo-it.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 087.3: hafen.session():remove(s) ends a login and hands the collection back, session.close opens it and s:close() alike, both refuse an account nobody holds in the same words, a string is refused naming a Session, a key this addon did not declare still refuses before its receiver is resolved, no refusal drops anything, and the endings conventions.md now names each answer their receiver.",
+  "api_version": 1,
+  "permissions": ["session.close"],
+  "files": ["main.lua"]
+}

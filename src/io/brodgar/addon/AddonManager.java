@@ -217,8 +217,21 @@ public final class AddonManager {
      * separate runtime switch. Always the FIRST statement of the verb it guards (D-213).
      */
     static void requirePermission(Addon owner, Permission perm) {
+        requirePermission(owner, perm, perm.lua);
+    }
+
+    /**
+     * The same gate, for a verb that is <b>not</b> the one the catalogue names. A key covers an
+     * <i>action</i>, and an action can have more than one door: {@code session.close} gates
+     * {@code s:close()} and {@code hafen.session():remove(s)} alike (087.3). The catalogue still owns the
+     * key and the consent line — only the spelling the refusal <b>opens</b> with is the caller's own, because
+     * a refusal that names a verb the author did not write sends them to fix the wrong line.
+     *
+     * @param lua the verb as the caller wrote it ({@code "hafen.session():remove(s)"})
+     */
+    static void requirePermission(Addon owner, Permission perm, String lua) {
         if((owner == null) || !owner.manifest.permissions.has(perm))
-            throw new LuaError(perm.lua + ": this addon did not declare the \"" + perm.key + "\" permission —"
+            throw new LuaError(lua + ": this addon did not declare the \"" + perm.key + "\" permission —"
                 + " add \"permissions\": [\"" + perm.key + "\"] to its manifest.json (or the group \""
                 + perm.group() + ".*\"). A protected verb is granted per key, and the user approves the list"
                 + " when they enable the addon.");

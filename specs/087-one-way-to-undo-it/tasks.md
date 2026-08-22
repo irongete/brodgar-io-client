@@ -73,7 +73,7 @@ Every suite keeps to **≤ 15 output lines**, so group: one verdict line per cla
       **Read those `audit/` pages before starting.** `/end` ticks and strikes this id.
       <!-- extra context: src/io/brodgar/addon/ProfScope.java (finish returns a.arg1() — the model), and note that AddonManager's timer cancel and LuaGrab's release are ZeroArgFunctions, which cannot see their receiver and must be widened -->
 
-- [ ] **087.3 — A collection destroys its member, and the rule is written down.** `hafen.session()`
+- [x] **087.3 — A collection destroys its member, and the rule is written down.** `hafen.session()`
       is already a `LuaCollection` — mounted in `SessionApi` with `current` as its only extra verb —
       and `LuaCollection` already carries the whole mechanism: `if(coll.src.destroyable())` installs a
       `:remove(keyOrMember)` that calls `src.removeMember(…)` and **returns the collection**, so

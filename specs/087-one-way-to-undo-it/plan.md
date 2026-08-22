@@ -159,3 +159,12 @@ table imply it is in the family.
 - **Writing the rule first and the renames after** — a page that describes a vocabulary the bridge
   does not have yet is false at the commit that lands it, and every task boundary is meant to leave
   the tree true.
+- **Fixing `ov:destroy()`'s return so the ending rule is true the day it is written** — `conventions.md`
+  now says every ending hands the receiver back, and that one verb answers `nil`. **A-048 says to skip
+  it** and **D2** records that the verb moves under **A-120**, which **088.4** owns and which already
+  carries `conventions.md` in its own impact set: when the HUD painter becomes a keyed collection its
+  ending is `:remove(key)`, which returns the collection, so the rule becomes true with no further page
+  edit. One line of bridge here would contradict an explicit inventory row and an assertion 087.2's
+  archived suite makes, to buy one feature of a claim no page contradicts — `ui/custom.md` documents
+  `:destroy()` with no return at all. The interval is **owned**, which is what separates it from the
+  entries `audit/13-contract-drift.md` lists.

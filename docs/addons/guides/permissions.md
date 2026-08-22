@@ -1,16 +1,17 @@
 # Permissions
 
 Reading the game needs no permission. **Acting** on it — walking, clicking an object, using an item, picking
-a menu entry — is **protected**: one permission key per verb, declared in your manifest and approved by the
-user when they enable your addon. This guide is the catalogue of those keys, how to ask for them, and what
-is on the near side of the gate.
+a menu entry — is **protected**: one permission key per action, declared in your manifest and approved by
+the user when they enable your addon. This guide is the catalogue of those keys, how to ask for them, and
+what is on the near side of the gate.
 
 ## The catalogue
 
-One key per protected verb, and the table below is all of them. A key is named `<section>.<verb>` after the
-section the verb lives on, because a verb lives with the thing it changes rather than in a section of its
-own — so `pag:use()` is `menugrid.use` and `slot:use()` is `actionbar.use`. The third column is what the
-consent dialog tells the user, word for word.
+One key per protected action, and the table below is all of them. A key is named `<section>.<verb>` after
+the section the verb lives on, because a verb lives with the thing it changes rather than in a section of
+its own — so `pag:use()` is `menugrid.use` and `slot:use()` is `actionbar.use`. Where one action has two
+doors — ending a login reads on the login and on the collection of them alike — both are behind the one
+key. The third column is what the consent dialog tells the user, word for word.
 
 | Key | Verb | What it lets an addon do |
 |---|---|---|
@@ -35,7 +36,7 @@ consent dialog tells the user, word for word.
 | `kin.endKin` | [`kin:endKin`](../api/kin.md#write-protected) | end kinship with someone, on any of your characters |
 | `kin.forget` | [`kin:forget`](../api/kin.md#write-protected) | forget someone from any of your characters' kin lists |
 | `speed.set` | [`session:speed():set`](../api/speed.md#write-protected) | change the movement speed of any of your characters |
-| `session.close` | [`session:close`](../api/session.md#write-protected) | log out any of your characters |
+| `session.close` | [`session:close`](../api/session.md#write-protected) and [`hafen.session():remove`](../api/session.md#write-protected) | log out any of your characters |
 | `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected) | send any message the client itself could send |
 | `widget.value` | [`widget:value`](../api/ui/edit.md#driving-one-protected) | flip the client's own controls — a box it ticks, a field it types into — which the server sees |
 
@@ -96,7 +97,7 @@ same way.
 
 Two steps, and the second one is not yours:
 
-1. Your manifest declares a key, or a group, per verb you call.
+1. Your manifest declares a key, or a group, for every protected verb you call.
 
    ```json
    "permissions": ["player.move", "gob.click", "item.*"]

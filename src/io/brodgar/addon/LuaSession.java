@@ -59,7 +59,9 @@ import java.util.Map;
  * <p><b>The one verb here that is not a namespace and not a read</b> (081.2): {@code :close()} ends this
  * login, behind the {@code session.close} permission. It is the only write a Session carries — the screen is
  * the collection's ({@code hafen.session():current(s)}), because there is one screen however many logins
- * there are, while ending a login is about the one it names.
+ * there are, while ending a login is about the one it names. {@code hafen.session():remove(s)} ends the same
+ * login from the collection (087.3, D2), behind the same key; the two doors share {@link #noSession} so one
+ * mistake reads as one problem however it was reached.
  *
  * <p><b>Threading.</b> Every read runs on the UI thread. {@code Sessions.members()} copies the membership
  * list, and a member's {@code ui} is null in the gaps ({@code Sessions.Member.run} clears it while the UI is
@@ -107,6 +109,18 @@ public final class LuaSession {
     /** An interned Session object for {@code user} in {@code owner}'s env — the one way one reaches Lua. */
     static LuaValue of(Addon owner, String user) {
         return owner.sessions.of(user);
+    }
+
+    /**
+     * The refusal <b>both</b> doors onto a logout give for an account the client holds no session for —
+     * {@code s:close()} and {@code hafen.session():remove(s)} alike (087.3). One sentence, because one
+     * mistake reading as two different problems depending on which verb found it is exactly the asymmetry
+     * that putting the ending on the collection was meant to remove. Each caller prepends its own spelling;
+     * everything after the colon is this.
+     */
+    static String noSession(String user) {
+        return "the client holds no session for the account '" + user + "' — s:exists() is the test, and a"
+            + " session that has already ended has nothing left to close";
     }
 
     /** The {@code LuaSession} behind a Lua value, or {@code null} for anything that is not a Session. */
@@ -437,9 +451,7 @@ public final class LuaSession {
                 LuaSession h = handle(self, "close");
                 Sessions.Member mem = Sessions.byuser(h.user);
                 if(mem == null)
-                    throw new LuaError("session:close(): the client holds no session for the account '"
-                        + h.user + "' — s:exists() is the test, and a session that has already ended has"
-                        + " nothing left to close");
+                    throw new LuaError("session:close(): " + noSession(h.user));
                 mem.drop();
                 return self;
             }

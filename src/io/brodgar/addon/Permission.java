@@ -77,7 +77,12 @@ public enum Permission {
 
     /** The manifest key an addon declares to be granted this verb ({@code item.transfer}). */
     public final String key;
-    /** The verb as it is written in Lua ({@code item:transfer}) — the refusal opens with it. */
+    /**
+     * The verb as it is written in Lua ({@code item:transfer}) — the refusal opens with it, and the
+     * permissions guide lists it. Where one key gates <b>several</b> doors onto one action, this names the
+     * canonical one and each other site passes its own spelling to
+     * {@link AddonManager#requirePermission(Addon, Permission, String)}.
+     */
     public final String lua;
     /** What this key lets the addon do, in the user's words — the consent dialog's line. */
     public final String line;

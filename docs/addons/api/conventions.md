@@ -101,6 +101,32 @@ hafen.timer():get(1)
 -- one of yours
 ```
 
+### Endings: the receiver's kind picks the word
+
+Nothing here has to be ended: what your addon takes is given back for you on reload or disable. An ending
+is what you write when you want it *now*, and which of the verbs below spells it follows from what you hold.
+
+| Verb | Ends | Called on |
+|---|---|---|
+| `:off()` | a subscription | the `Sub` any [`:on`](event/README.md#subscribe) handed you — the bus, a widget, a hotkey, a console command |
+| `:remove(keyOrMember)` | a member of a collection | the [collection](#collections-the-noun-is-the-kind-the-verb-is-how-many), never the member |
+| `:release()` | a layer or a hold you took over what the client owns | a [rule](ui/style/README.md#restyle-one-widget), a [sheet](ui/style/README.md), a [grab](ui/mouse.md), a [map-overlay hold](map/overlays.md) |
+| `:destroy()` | a thing your addon built | a [widget](ui/widget.md), a [HUD overlay](ui/custom.md) |
+| `:cancel()` | something in flight that had not finished | a [timer](timer.md), a [request](http.md), the open [radial menu](flowermenu.md) |
+| `:stop()` | a [sound](sound.md) still in the air | the sound |
+| `:finish()` | a [profiling scope](client/profiling/attribution.md) | the scope |
+
+**Where a collection exists, the ending is the collection's**, because the collection owns its members:
+`hafen.asset():remove(a)` frees a file and `hafen.session():remove(s)` ends a login. What is a member of
+nothing ends on itself. **Every ending hands the receiver back**, as every other write does, so endings
+chain; and where a page says one is idempotent, a second call answers the receiver again and raises nothing.
+
+**Some acts read like an ending and are not.** [`item:drop(n)`](ui/items.md#write-protected) puts an item
+on the ground, a game action the server sees; [`s:close()`](session.md#write-protected) ends a login, its own
+act rather than the removal of a member; and [`w:revert()`](ui/edit.md#taking-the-whole-edit-back) gives back
+your edits on a widget, as [`w:replace(nil)`](ui/replace.md) and `w:size(nil)` give back one — an undo of
+your own layer, with nothing ended at all.
+
 ### Objects, and the snapshot hatch
 
 A read hands back a **live object** rather than a copy. It re-resolves on every call, answers `nil`
@@ -173,32 +199,13 @@ asks — `if hafen.something then` keeps working.
 
 ## Several logins, one screen
 
-The client can hold more than one account logged in at once, and draws one of them. Each is whole —
-connected, ticked, answering the server, with a character and a world of its own — and which one is on
-screen changes whenever the player tabs between them, and whenever an addon writes it with
-[`hafen.session():current(s)`](session.md#write-unprotected).
-
-[`hafen.session()`](session.md) is the collection of those logins, and a **Session** is the object you
-name one by. It wraps the **account**, which is what survives a character switch, a relogin and the
-session ending: `s:user()` answers for a session that is over, and `s:exists()` is the liveness test.
-`hafen.session():current()` is the session on screen, `nil` on the login screen, and a different object
-after the screen moves — so take it inside your handler rather than keeping one.
-
-**A Session is also the address.** What is one character's is reached through it — [`s:world()`](world.md),
-[`s:player()`](player.md), [`s:kin()`](kin.md) — so a read says which character it is about instead of
-meaning whichever is drawn. What belongs to the **screen** rather than to a character stays where it was:
-there is one pointer and one scene however many logins are live.
-
-**A namespace can be on both sides.** [`ui`](ui/README.md) is: the client's widgets stand in the tree of the
-character they were put up for, so `s:ui():find(selector)` is addressed — while the windows your addon
-*builds* are yours, live in a layer above every session, and stay `hafen.ui():window()`. Your window and the
-client's window are two different things, and the door you come through says which you mean.
-[`store`](store.md) is the other: a character's saved variables are that character's own folder, so
-`s:store():get(name)` is addressed, while an account's are your addon's single file and are reached without
-naming anyone.
-
-Your own addon is the client's, not a login's: it is loaded once, runs beside every session the client
-holds, and nothing of yours is torn down or rebuilt when the screen moves.
+The client can hold more than one account logged in at once and draws one of them, so what belongs to one
+character is reached through the [Session](session.md) that names it — [`s:world()`](world.md),
+[`s:player()`](player.md), [`s:kin()`](kin.md) — and a read says which character it is about rather than
+meaning whichever is drawn. What belongs to the **screen** stays where it was: there is one pointer and one
+scene however many logins are live. What a Session wraps, and which namespaces are addressed and which are
+not, is on [session](session.md). Your own addon is the client's, not a login's: it is loaded once, runs
+beside every session the client holds, and nothing of yours is torn down or rebuilt when the screen moves.
 
 ## Snapshots vs handles
 
