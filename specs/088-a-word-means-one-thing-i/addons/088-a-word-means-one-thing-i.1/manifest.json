@@ -1,0 +1,9 @@
+{
+  "name": "088.1 — :list() enumerates, and nothing else",
+  "id": "088-a-word-means-one-thing-i.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 088.1: hafen.ui():list() raises naming :listbox() and builds nothing, hafen.ui():listbox() builds a real one that answers :rowHeight(20) and :rows{...} and still refuses an argument, hafen.vr():entity() is a collection whose :count() equals the sum of the four per-kind counts and whose :remove(x) ends a ghost, hafen.vr():click(...) answers a boolean, and hafen.vr():list() and hafen.vr():pointer(...) each raise naming their replacement.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

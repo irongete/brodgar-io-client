@@ -56,7 +56,7 @@ it moves by `:position(x, y)`. A row-source control has its own page: [lists](..
 | `:image(up, down [, hover])` | `:image()` | the pictures the control shows instead of a caption |
 | `:value(v)` | `:value()` | what the control **holds** |
 | `:source(h)` | `:source()` | the picture a [picture control](display.md#picture) shows |
-| `:rows(t)` | `:rows()` | the row source a [radio](interactive.md#radio) or a [list, dropdown, menu or grid](../lists.md) takes |
+| `:rows(t)` | `:rows()` | the row source a [radio](interactive.md#radio) or a [listbox, dropdown, menu or grid](../lists.md) takes |
 | `:range(min, max)` | `:range()` | the value bounds of a [slider or scrollbar](interactive.md#slider) |
 
 Every setter returns the Widget, so a control is one expression, and each has a matching bare read: `:text()`
@@ -104,7 +104,7 @@ hafen.ui():button():size(80, 4)
 -- widget:size(w, h) — a Button is 24 design px tall, which is its own ART's box: 4 clips it. …
 ```
 
-A control the client stretches to whatever box it is given — a [list](../lists.md#list), a
+A control the client stretches to whatever box it is given — a [listbox](../lists.md#listbox), a
 [grid](../lists.md#grid), a [table](../lists.md#table), a [picture](display.md#picture) — has no art to ask,
 so it takes `:size(w, h)` and refuses `:size(w)`, exactly as a [surface](../custom.md) does. A caption wider
 than its box is drawn clipped, not wrapped.
@@ -121,7 +121,7 @@ it is a Widget first — plus exactly **one** capability key, the one thing that
 | Builder | Key | handler receives |
 |---|---|---|
 | `:button()` | `Pressed` | — |
-| `:check()` / `:radio()` / `:slider()` / `:scrollbar()` / `:scroll()` / `:list()` / `:dropdown()` | `Changed` | varies — see [interactive](interactive.md) and [lists](../lists.md) |
+| `:check()` / `:radio()` / `:slider()` / `:scrollbar()` / `:scroll()` / `:listbox()` / `:dropdown()` | `Changed` | varies — see [interactive](interactive.md) and [lists](../lists.md) |
 | `:entry()` | `Changed` and `Submitted` | the text |
 | `:menu()` | `Selected` | the picked row |
 | `:grid()` | `Cell` | `ev` — see [grid](../lists.md#grid) |

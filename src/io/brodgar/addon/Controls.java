@@ -345,25 +345,26 @@ final class Controls {
     }
 
     /**
-     * {@code hafen.ui():list()} — a real {@link haven.SListBox}, the client's own scrolling row list (task
+     * {@code hafen.ui():listbox()} — a real {@link haven.SListBox}, the client's own scrolling row list (task
      * 040.9), the first of the model-backed five. Its row source is {@code :rows(t)} — the Lua-array bridge
      * {@link LuaRows} every later model-backed control reuses (D-108) — its selection
      * {@code :value()}/{@code :value(v)}, and {@code :onChange(fn)} fires on a real pick only, exactly the same
      * spine every other value-bearing control in this feature already answers.
      */
-    static LuaValue list(Addon owner, Varargs a) {
+    static LuaValue listbox(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
-            throw new LuaError("hafen.ui():list() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():list():rowHeight(20):rows{\"A\", \"B\"}:onChange(fn)");
-        UI u = UiApi.requireUi("list");
+            throw new LuaError("hafen.ui():listbox() takes no arguments — it is built bare and configured by"
+                + " chained setters: hafen.ui():listbox():rowHeight(20):rows{\"A\", \"B\"}:onChange(fn)");
+        UI u = UiApi.requireUi("listbox");
         return UiApi.attach(u, owner, new CList(owner, Px.in(CList.DEF_SZ), CList.defaultItemHeight()));
     }
 
     /**
      * {@code hafen.ui():dropdown()} — a real {@link haven.SDropBox}, the client's own closed-until-clicked row
-     * list (task 040.10), the second of the model-backed five: the same {@link LuaRows} bridge {@code :list()}
-     * uses (D-108). Its row source is {@code :rows(t)}, its pick {@code :value()}/{@code :value(v)}, and
-     * {@code :onChange(fn)} fires on a real pick only — the same spine {@code :list()} answers.
+     * list (task 040.10), the second of the model-backed five: the same {@link LuaRows} bridge
+     * {@code :listbox()} uses (D-108). Its row source is {@code :rows(t)}, its pick
+     * {@code :value()}/{@code :value(v)}, and {@code :onChange(fn)} fires on a real pick only — the same spine
+     * {@code :listbox()} answers.
      */
     static LuaValue dropdown(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
@@ -907,7 +908,7 @@ final class Controls {
         return new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
             + " holds nothing — a checkbox, a radio button, a slider, a scrollbar, a text entry, a list and"
             + " a dropdown are what hold one, whether the client built it or you did (hafen.ui():check(),"
-            + " :radio(), :slider(), :scrollbar(), :entry(), :list(), :dropdown() — and :progress(), which"
+            + " :radio(), :slider(), :scrollbar(), :entry(), :listbox(), :dropdown() — and :progress(), which"
             + " holds one on a bar you built).");
     }
 
@@ -1137,9 +1138,9 @@ final class Controls {
             WidgetSurface.touch(w);   // 044.1: ...and neither is a row list
             return;
         }
-        throw new LuaError("widget:rows(t) sets a control's ROW SOURCE, and hafen.ui():radio(), hafen.ui():list(),"
-            + " hafen.ui():dropdown(), hafen.ui():menu(), hafen.ui():grid() and hafen.ui():table() are the"
-            + " builders that take one — " + LuaWidget.typeName(w) + " has no rows.");
+        throw new LuaError("widget:rows(t) sets a control's ROW SOURCE, and hafen.ui():radio(),"
+            + " hafen.ui():listbox(), hafen.ui():dropdown(), hafen.ui():menu(), hafen.ui():grid() and"
+            + " hafen.ui():table() are the builders that take one — " + LuaWidget.typeName(w) + " has no rows.");
     }
 
     // ------------------------------------------------------------------ the range verb (040.6)
@@ -1201,7 +1202,7 @@ final class Controls {
      */
     static void rowHeight(Addon owner, Widget w, Owned c, LuaValue v) {
         if(!(c instanceof RowHeight))
-            throw new LuaError("widget:rowHeight(n) sets a list's ROW HEIGHT, and hafen.ui():list(),"
+            throw new LuaError("widget:rowHeight(n) sets a list's ROW HEIGHT, and hafen.ui():listbox(),"
                 + " hafen.ui():dropdown(), hafen.ui():menu() and hafen.ui():table() are the builders that take"
                 + " one — " + LuaWidget.typeName(w) + " has none.");
         // DESIGN px, as written: checked, reported and only then converted

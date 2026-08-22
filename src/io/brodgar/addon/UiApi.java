@@ -502,23 +502,25 @@ final class UiApi {
                 return Controls.scroll(owner, a);
             }
         });
-        // :list() — 040.9, the first of the MODEL-BACKED five: a real haven.SListBox. :rows(t) is a plain Lua
-        // array -- a string becomes a text row, {icon=, text=} an icon+text row, and a table may mix both
-        // freely -- built through LuaRows, the bridge the later model-backed controls (040.10's dropdown/menu,
-        // 040.12's table) reuse rather than re-deriving. :value()/:value(v) is the selected row -- the SAME
-        // Lua value :rows(t) was given, so it can be handed straight back to :value(v) or compared with == --
-        // :onChange(fn) fires on a real pick only, and :rowHeight(n) -- defaulting to the client's own label
-        // height -- is building-only like a face setter, since the engine fixes a row-list's item height at
-        // construction.
-        m.set("list", new VarArgFunction() {
+        // :listbox() — 040.9, the first of the MODEL-BACKED five: a real haven.SListBox, and NAMED for it. Every
+        // other :list() in the API enumerates a set, and this one builds a control and attaches it -- so the verb
+        // is the client's own class name, sitting beside :dropdown() and :menu(), and `list` is left to mean one
+        // thing. :rows(t) is a plain Lua array -- a string becomes a text row, {icon=, text=} an icon+text row,
+        // and a table may mix both freely -- built through LuaRows, the bridge the later model-backed controls
+        // (040.10's dropdown/menu, 040.12's table) reuse rather than re-deriving. :value()/:value(v) is the
+        // selected row -- the SAME Lua value :rows(t) was given, so it can be handed straight back to :value(v)
+        // or compared with == -- :onChange(fn) fires on a real pick only, and :rowHeight(n) -- defaulting to the
+        // client's own label height -- is building-only like a face setter, since the engine fixes a row-list's
+        // item height at construction.
+        m.set("listbox", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "ui", "list");
-                return Controls.list(owner, a);
+                Section.self(a.arg1(), "ui", "listbox");
+                return Controls.listbox(owner, a);
             }
         });
         // :dropdown() — 040.10, the second of the MODEL-BACKED five: a real haven.SDropBox, closed until
-        // clicked, over the same LuaRows bridge :list() uses. :rows(t)/:value()/:value(v)/:onChange(fn) answer
-        // exactly as they do on :list() -- the same spine, a different engine class underneath.
+        // clicked, over the same LuaRows bridge :listbox() uses. :rows(t)/:value()/:value(v)/:onChange(fn) answer
+        // exactly as they do on :listbox() -- the same spine, a different engine class underneath.
         m.set("dropdown", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "ui", "dropdown");

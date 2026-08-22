@@ -123,11 +123,11 @@ is my button on screen* and *what did the player click* can never disagree:
 | Call | Returns | Description |
 |---|---|---|
 | `panel:screen(wx, wy)` | `x, y` \| `nil` | where widget-local pixel `wx, wy` is drawn, in screen coordinates |
-| `hafen.vr():pointer(key, x, y [, a])` | boolean | put the pointer on whatever is standing at screen point `x, y` |
+| `hafen.vr():click(key, x, y [, a])` | boolean | put the pointer on whatever is standing at screen point `x, y` |
 
 Both pairs are [design pixels](../ui/pixels.md): the widget-local one is what `:size()` and `ev:x()` speak,
 the screen one what [`hafen.ui():mouse()`](../ui/mouse.md) reports. So the two calls compose — feed
-`panel:screen(wx, wy)` to `hafen.vr():pointer` and the panel's own `MouseDown` lands back on `wx, wy`.
+`panel:screen(wx, wy)` to `hafen.vr():click` and the panel's own `MouseDown` lands back on `wx, wy`.
 
 `key` is one of `"MouseDown"`, `"MouseUp"`, `"MouseMove"` or `"Wheel"` — the same four keys
 [`widget:on`](../ui/widget.md#subscribing) answers to, so there is one input vocabulary and not two. `a` is

@@ -489,7 +489,7 @@ final class Retired {
         uiKept("tipAt", "asks who would speak for a point on the SCREEN");
         uiKept("scale", "is the device factor the client is running at");
         for(String c : new String[] {"button", "label", "entry", "check", "radio", "slider", "scroll",
-                                     "scrollbar", "dropdown", "menu", "list", "table", "grid", "image",
+                                     "scrollbar", "dropdown", "menu", "listbox", "table", "grid", "image",
                                      "progress", "separator"})
             uiKept(c, "mints a control of YOURS, in the addon layer" + twoTrees);
 
@@ -773,6 +773,21 @@ final class Retired {
             + " :derive()d variant and a file another addon loaded are not members of yours, and each says so"
             + " when you try. A map drawing keeps img:dispose(): grid:image(lvl) hands it back and no"
             + " collection lists it");
+
+        // ---- 088.1: :list() ENUMERATES, everywhere. Two spellings meant something else, and one of them had a
+        // ---- side effect on the screen: hafen.ui():list() built a control and attached it, so a reader who had
+        // ---- learned four enumerating :list()s wrote the fifth and got an empty listbox drawn. This row hangs
+        // ---- off the SECTION's own index, so it fires on the field read -- before any builder runs and before
+        // ---- anything is in the tree, which is the whole of what the refusal is worth here.
+        moved("ui", "list", "hafen.ui():list() is now hafen.ui():listbox() — it BUILDS a control, and every"
+            + " other :list() in the API enumerates a set. It is built bare and configured by chained setters:"
+            + " hafen.ui():listbox():rowHeight(20):rows{\"A\", \"B\"}:on(\"Changed\", fn)");
+        moved("vr", "list", "hafen.vr():list(filter) is now hafen.vr():entity():list(filter) — the cross-kind"
+            + " set is a COLLECTION like the four under it, so hafen.vr():entity() also answers :count(filter),"
+            + " :find(filter) and :remove(x) over everything this addon has standing, in the order you stood it");
+        moved("vr", "pointer", "hafen.vr():pointer(key, x, y [, a]) is now hafen.vr():click(key, x, y [, a]) —"
+            + " a verb rather than a noun, so it does not read as \"where is the pointer\", which is"
+            + " hafen.ui():mouse(). It still hands back whether a standing panel took the point");
     }
 
     /**

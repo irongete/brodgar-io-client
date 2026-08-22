@@ -76,10 +76,13 @@ final class VrApi {
      * <p>The kinds are <b>registered</b> rather than branched on, so 044's {@code :widget()} is one more
      * {@link #collection} line and nothing here has to be re-opened to admit it.
      *
-     * <p><b>Two verbs read and write the section as a whole</b> (043.4), and both are the answer to a question a
-     * per-kind collection cannot be asked: {@code :list(filter)} is <i>everything you have stood in the world</i>,
-     * across the kinds and in the order you stood it, and {@code :visible(b)} takes the lot off screen and puts it
-     * back. They span the registered kinds through {@link #allEntities}, so the fourth joins them for free.
+     * <p><b>A fifth collection and a switch read the section as a whole</b> (043.4), and both are the answer to
+     * a question a per-kind collection cannot be asked: {@code :entity()} is <i>everything you have stood in the
+     * world</i>, across the kinds and in the order you stood it, carrying the collection quartet and
+     * {@code :remove(x)} over the lot — so {@code hafen.vr():entity():count()} answers, where the section itself
+     * cannot be a collection: it holds the kinds and its own switch besides. {@code :visible(b)} takes the lot
+     * off screen and puts it back. Both span the registered kinds through {@link #allEntities}, so a further
+     * kind joins them for free.
      */
     static void installVr(LuaTable hafen, final Addon owner) {
         LuaTable m = new LuaTable();
@@ -87,22 +90,8 @@ final class VrApi {
         collection(m, "sprite", spriteCollection(owner));
         collection(m, "object", objectCollection(owner));
         collection(m, "widget", widgetCollection(owner));
-        // list(filter) — every entity this addon has standing, all three kinds at once, as the plain 1-based
-        // array a collection's own :list() hands back. The filter is the canonical one (§2.3, and the very
-        // function the per-kind lists use), so it means here exactly what it means one verb down.
-        m.set("list", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "vr", "list");
-                LuaValue filter = a.arg(2);
-                LuaTable t = new LuaTable();
-                int n = 0;
-                for(LuaWorldEntity e : allEntities(owner)) {
-                    if(LuaCollection.keeps(filter, e.handle, true, e.visualName(), "hafen.vr()", "list"))
-                        t.set(++n, e.handle);
-                }
-                return t;
-            }
-        });
+        collection(m, "entity", entityCollection(owner),
+                   "hafen.vr():entity():list(filter) is everything you have standing");
         // visible() / visible(b) — the section switch, a property like every other: arity is the verb, and the
         // write hands back the section so it chains. It is this ADDON's section; nobody else's entities move.
         m.set("visible", new VarArgFunction() {
@@ -116,21 +105,23 @@ final class VrApi {
                 return self;
             }
         });
-        // pointer(key, x, y [, a]) — put the pointer on whatever is STANDING at a screen point (044.4). The key
-        // is one of the four a widget already answers to, so there is one input vocabulary and not two; x, y are
-        // screen pixels in DESIGN space (058.2), the very numbers hafen.ui():mouse() and x:screen(wx, wy) report
-        // — this verb is that one's inverse, so the two must read the same pair; a is the button (MouseDown/MouseUp,
-        // default 1) or the wheel's amount. It hands back whether a panel took it — false meaning the point was
-        // on none, which is the moment the client's own world click goes on exactly as it always did. This is
-        // the client's path from the map view INWARD and stops there: it cannot move the character and it never
-        // reaches the server, so it is unprotected like the rest of the section.
-        m.set("pointer", new VarArgFunction() {
+        // click(key, x, y [, a]) — put the pointer on whatever is STANDING at a screen point (044.4). A VERB,
+        // so it does not read as "where is the pointer", which is hafen.ui():mouse(). The key is one of the four
+        // a widget already answers to, so there is one input vocabulary and not two; x, y are screen pixels in
+        // DESIGN space (058.2), the very numbers hafen.ui():mouse() and x:screen(wx, wy) report — this verb is
+        // that one's inverse, so the two must read the same pair; a is the button (MouseDown/MouseUp, default 1)
+        // or the wheel's amount. It hands back whether a panel took it — false meaning the point was on none,
+        // which is the moment the client's own world click goes on exactly as it always did, and is why this one
+        // write does not chain: the boolean is what the caller needs. This is the client's path from the map
+        // view INWARD and stops there: it cannot move the character and it never reaches the server, so it is
+        // unprotected like the rest of the section.
+        m.set("click", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "vr", "pointer");
-                String key = pointerKey(Args.required(a, 2, "hafen.vr():pointer", "key"));
-                int x = (int)Math.round(number(a, 3, "hafen.vr():pointer", "x"));
-                int y = (int)Math.round(number(a, 4, "hafen.vr():pointer", "y"));
-                int arg = Args.passed(a, 5) ? (int)Math.round(number(a, 5, "hafen.vr():pointer", "a")) : 1;
+                Section.self(a.arg1(), "vr", "click");
+                String key = pointerKey(Args.required(a, 2, "hafen.vr():click", "key"));
+                int x = (int)Math.round(number(a, 3, "hafen.vr():click", "x"));
+                int y = (int)Math.round(number(a, 4, "hafen.vr():click", "y"));
+                int arg = Args.passed(a, 5) ? (int)Math.round(number(a, 5, "hafen.vr():click", "a")) : 1;
                 Coord p = Px.in(Coord.of(x, y));       // design → device, at the edge (058.2)
                 return LuaValue.valueOf(SurfaceInput.pointer(key, p.x, p.y, arg));
             }
@@ -140,7 +131,7 @@ final class VrApi {
 
     /**
      * <b>Everything this addon has standing in the world</b>, whatever kind — the one walk behind
-     * {@code hafen.vr():list()} and {@code hafen.vr():visible(b)}. It reads the registered kinds' registries and
+     * {@code hafen.vr():entity()} and {@code hafen.vr():visible(b)}. It reads the registered kinds' registries and
      * nothing else, so 044's fourth collection is covered by both verbs the moment its registry is added here.
      *
      * <p><b>In creation order</b>, by {@link LuaWorldEntity#eid} — the serial every entity already carries for its
@@ -253,12 +244,22 @@ final class VrApi {
      * allocates nothing. Every kind goes through here, which is what keeps the section open to a fourth.
      */
     private static void collection(LuaTable m, final String nm, final LuaValue coll) {
+        collection(m, nm, coll, "hafen.vr():" + nm + "():add(what, p) stands one in the world");
+    }
+
+    /**
+     * As {@link #collection(LuaTable, String, LuaValue)}, naming something other than {@code :add} in the
+     * takes-no-arguments refusal — for a collection that <b>creates</b> nothing ({@code :entity()}, the
+     * cross-kind set), where pointing the caller at an {@code :add} it has not got would send them one verb
+     * further from the answer than they started.
+     */
+    private static void collection(LuaTable m, final String nm, final LuaValue coll, final String reach) {
         m.set(nm, new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "vr", nm);
                 if(Args.passed(a, 2))
                     throw new LuaError("hafen.vr():" + nm + "() takes no arguments — it IS the collection,"
-                        + " and hafen.vr():" + nm + "():add(what, p) stands one in the world");
+                        + " and " + reach);
                 return coll;
             }
         });
@@ -400,6 +401,74 @@ final class VrApi {
                     + " and hafen.vr():widget():find(filter) finds one you already put up";
             }
         }, null);
+    }
+
+    /**
+     * {@code hafen.vr():entity()} — <b>everything this addon has standing, whatever kind</b>: the answer to a
+     * question no per-kind collection can be asked, and a {@link LuaCollection} rather than a bare array so that
+     * {@code :count()} and {@code :find()} mean here exactly what they mean one verb down. The section itself
+     * cannot be the collection — it holds four kinds and its own visibility switch — which is why the cross-kind
+     * set carries a name of its own.
+     *
+     * <p><b>It creates nothing and destroys anything.</b> A thing is stood by the collection of its kind, which
+     * is what decides what {@code :add} even takes; ending one needs no kind at all, so {@code :remove(x)} takes
+     * any entity this addon placed. The members are {@link #allEntities}, in creation order.
+     */
+    private static LuaValue entityCollection(final Addon owner) {
+        return LuaCollection.create("hafen.vr():entity()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return entityMembers(allEntities(owner));
+            }
+
+            public String needle(LuaValue member) {
+                return visualNameOf(anyRegistry(owner, member), member);
+            }
+
+            /** Every kind has a visual name, so a string filter is a substring test over it. */
+            public boolean named() {
+                return true;
+            }
+
+            public boolean destroyable() {
+                return true;
+            }
+
+            public void removeMember(LuaValue x) {
+                destroyEntity(memberArg(anyRegistry(owner, x), x, "hafen.vr():entity():remove", "thing"));
+            }
+
+            public String noGet() {
+                return "nothing standing in the world has a key: hafen.vr():entity():find(filter) searches"
+                    + " everything this addon has standing, and hafen.vr():entity():list()[n] takes a"
+                    + " position in the order you stood them";
+            }
+        }, null);
+    }
+
+    /**
+     * The registry {@code member} belongs to, for the cross-kind collection's two per-member reads — so neither
+     * of them re-walks and re-sorts {@link #allEntities} once per member. An empty list where nothing owns it,
+     * which is what turns a foreign handle into {@link #memberArg}'s refusal rather than a silent miss.
+     */
+    private static List<? extends LuaWorldEntity> anyRegistry(Addon owner, LuaValue member) {
+        if(owns(owner.ghosts, member))
+            return owner.ghosts;
+        if(owns(owner.sprites, member))
+            return owner.sprites;
+        if(owns(owner.objects, member))
+            return owner.objects;
+        if(owns(owner.surfaces, member))
+            return owner.surfaces;
+        return java.util.Collections.<LuaWorldEntity>emptyList();
+    }
+
+    /** Is {@code member} one of {@code reg}'s handles? The one test {@link #anyRegistry} is four of. */
+    private static boolean owns(List<? extends LuaWorldEntity> reg, LuaValue member) {
+        for(LuaWorldEntity e : reg) {
+            if(e.handle == member)
+                return true;
+        }
+        return false;
     }
 
     /**
@@ -1043,15 +1112,15 @@ final class VrApi {
     /** The four input keys, in the one spelling {@code widget:on(key, fn)} already uses (044.4). */
     private static final String POINTER_KEYS = "\"MouseDown\", \"MouseUp\", \"MouseMove\" or \"Wheel\"";
 
-    /** The {@code key} of {@code hafen.vr():pointer(key, x, y)}, refused by name rather than ignored. */
+    /** The {@code key} of {@code hafen.vr():click(key, x, y)}, refused by name rather than ignored. */
     private static String pointerKey(LuaValue kv) {
         if(!kv.isstring())
-            throw new LuaError("hafen.vr():pointer(key, x, y): key is one of " + POINTER_KEYS + ", got "
+            throw new LuaError("hafen.vr():click(key, x, y): key is one of " + POINTER_KEYS + ", got "
                 + kv.typename());
         String s = kv.tojstring();
         if(s.equals("MouseDown") || s.equals("MouseUp") || s.equals("MouseMove") || s.equals("Wheel"))
             return s;
-        throw new LuaError("hafen.vr():pointer(\"" + s + "\", x, y): the pointer says one of " + POINTER_KEYS
+        throw new LuaError("hafen.vr():click(\"" + s + "\", x, y): the pointer says one of " + POINTER_KEYS
             + " — the same four keys widget:on(key, fn) answers to");
     }
 
@@ -1607,7 +1676,7 @@ final class VrApi {
         // "where is my OK button on screen" and "what did the player click" can never disagree. Two numbers,
         // like every screen point in this API; nil when the panel is not being drawn or is behind the camera.
         // Both pairs are DESIGN pixels (058.2) — the widget-local one is what widget:size() and ev:x() speak,
-        // the screen one what hafen.ui():mouse() and hafen.vr():pointer() do — and the map between them stays
+        // the screen one what hafen.ui():mouse() and hafen.vr():click() do — and the map between them stays
         // device, so the conversion is the two edges of this verb and nothing in between.
         x.set("screen", new VarArgFunction() {
             public Varargs invoke(Varargs a) {

@@ -77,9 +77,9 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:image()` | table \| nil | the faces of a [control](controls/interactive.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |
 | `:value()` | varies \| nil | what a [control](controls/README.md#setters) holds — the client's own included, a checkbox's boolean through a text field's string — or `nil` where it holds nothing; `:value(v)` writes it on [one you built](controls/README.md#setters) and, protected, on [one of the client's](edit.md#driving-one-protected) |
 | `:source()` | string \| userdata \| nil | the picture a [picture control](controls/display.md#picture) shows, or `nil` before one is set — [`:source(h)` writes it](controls/display.md#picture) |
-| `:rows()` | array \| nil | the row source a [radio](controls/interactive.md#radio) or a [list, dropdown, menu, grid or table](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows-list-dropdown-menu) |
+| `:rows()` | array \| nil | the row source a [radio](controls/interactive.md#radio) or a [listbox, dropdown, menu, grid or table](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows-listbox-dropdown-menu) |
 | `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls/interactive.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls/interactive.md#slider) |
-| `:rowHeight()` | int \| nil | the height of a row in a [list, dropdown, menu or table](lists.md), in [design pixels](pixels.md), or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md) |
+| `:rowHeight()` | int \| nil | the height of a row in a [listbox, dropdown, menu or table](lists.md), in [design pixels](pixels.md), or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md) |
 | `:cell()` | `{w=, h=}` \| nil | the cell box of a [grid](lists.md#grid), in [design pixels](pixels.md), or `nil` where a control has no cells — [`:cell(w, h)` writes it](lists.md#grid) |
 | `:columns()` | array \| nil | the column descriptors of a [table](lists.md#table), or `nil` where a control has no columns — [`:columns(t)` writes it](lists.md#table) |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
@@ -199,9 +199,9 @@ provoke the error.
 | `:image(up, down [, hover])` | give a [control](controls/interactive.md#a-caption-or-a-picture) you are building its pictures | **error**, same reason |
 | `:value(v)` | write what a [control](controls/README.md#setters) holds | **works, and it is the one PROTECTED write here** — [driving the client's own control](edit.md#driving-one-protected) is what the user would have done, and the server sees it |
 | `:source(h)` | give a [picture control](controls/display.md#picture) its content | **error**, same reason |
-| `:rows(t)` | give a [radio](controls/interactive.md#radio) or a [list, dropdown, menu, grid or table](lists.md#rows-list-dropdown-menu) its rows | **error**, same reason |
+| `:rows(t)` | give a [radio](controls/interactive.md#radio) or a [listbox, dropdown, menu, grid or table](lists.md#rows-listbox-dropdown-menu) its rows | **error**, same reason |
 | `:range(min, max)` | set the bounds of a [slider or scrollbar](controls/interactive.md#slider) you built | **error**, same reason |
-| `:rowHeight(n)` | set a [list, dropdown, menu or table](lists.md)'s row height while it is being built | **error**, same reason |
+| `:rowHeight(n)` | set a [listbox, dropdown, menu or table](lists.md)'s row height while it is being built | **error**, same reason |
 | `:cell(w, h)` | set a [grid](lists.md#grid)'s cell box while it is being built | **error**, same reason |
 | `:columns(t)` | name a [table](lists.md#table)'s columns while it is being built | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
@@ -295,7 +295,7 @@ way to do what clicking already does.
 - [the pixel](pixels.md) — the unit every coordinate and size here is measured in
 - [the mouse](mouse.md) — the pointer, what is under it, and the grab that makes a drag yours
 - [controls](controls/README.md) — the client's own controls, built and owned by your addon
-- [lists](lists.md) — the row-source controls, a scrolling list among them
+- [lists](lists.md) — the row-source controls, a scrolling listbox among them
 - [custom](custom.md) — a surface you paint, and its four extra subscription keys
 - [selectors](selectors.md) — how to name the widget you want in the first place
 - [native](native.md) — what moving, hiding and handing over a borrowed widget actually does

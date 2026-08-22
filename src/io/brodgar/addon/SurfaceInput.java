@@ -335,7 +335,7 @@ final class SurfaceInput {
     }
 
     /**
-     * {@code hafen.vr():pointer(key, x, y [, a])} — the same four entries, entered from Lua at a SCREEN point.
+     * {@code hafen.vr():click(key, x, y [, a])} — the same four entries, entered from Lua at a SCREEN point.
      * This is the client's own path from the map view inward and nothing more: it never falls through to the
      * world, so it can neither move the character nor reach the server, and a point on no panel is answered by
      * {@code false} — which is precisely the moment {@code MapView} goes on to do what it always did.

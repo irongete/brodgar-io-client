@@ -113,7 +113,7 @@ A [control](controls/README.md)'s capability key answers on a **borrowed** contr
 |---|---|---|
 | `Pressed` | a button of the client's own — from a click, and from its keybinding | `:preventDefault()` `:resend()` |
 | `Changed` | a checkbox or a radio button of the client's own — from a click, and from its keybinding | `:value()` `:preventDefault()` `:resend()` |
-| `Changed` | a [list or dropdown](lists.md) of the client's own — a row picked, or the selection cleared by a click on empty space | `:value()` `:preventDefault()` `:resend()` |
+| `Changed` | a [listbox or dropdown](lists.md) of the client's own — a row picked, or the selection cleared by a click on empty space | `:value()` `:preventDefault()` `:resend()` |
 | `Selected` | a [menu](lists.md#menu) of the client's own | `:value()` `:preventDefault()` `:resend()` |
 | `Cell` | a [grid](lists.md#grid) of the client's own, **for the selecting button only** | `:value()` `:preventDefault()` `:resend()` |
 | `Submitted` | a [text entry](controls/interactive.md#text-entry) of the client's own, when Enter is pressed in it | `:value()` `:preventDefault()` `:resend()` |

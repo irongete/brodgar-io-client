@@ -57,7 +57,8 @@ so a window is shown with `w:visible(true)` rather than a second verb.
 ### Collections: the noun is the kind, the verb is how many
 
 A set you can address into is reached by the **singular** kind name and hands back a collection
-object, never a bare array. The plural belongs to the verb.
+object, never a bare array. The plural belongs to the verb, and **`:list()` is that verb wherever it
+appears** — it enumerates and never builds, so the control named for a list is `hafen.ui():listbox()`.
 
 | Verb | Gives you |
 |---|---|

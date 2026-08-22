@@ -13,7 +13,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * The adapter behind {@code hafen.ui():list()} — a real {@link SListBox}, the client's own scrolling row list
+ * The adapter behind {@code hafen.ui():listbox()} — a real {@link SListBox}, the client's own scrolling row list
  * (spec {@code 040-ui-controls}, task 040.9): the first of the model-backed five, and the one {@link LuaRows}
  * ships alongside (D-108). {@code :rows(t)} is the row source, {@code :value()}/{@code :value(v)} the
  * selection, {@code :onChange(fn)} fires on a real pick only, and {@code :rowHeight(n)} — defaulting to the
@@ -51,7 +51,7 @@ final class CList extends SListBox<LuaRows.Row, Widget> implements Owned.Control
         this.own = new Owned.State(owner, this);
     }
 
-    /** The client's own label height — what a bare {@code hafen.ui():list()} rows at until {@code :rowHeight(n)}. */
+    /** The client's own label height — what a bare {@code hafen.ui():listbox()} rows at until {@code :rowHeight(n)}. */
     static int defaultItemHeight() {
         return CharWnd.attrfont().height();
     }

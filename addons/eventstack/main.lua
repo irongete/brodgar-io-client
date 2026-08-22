@@ -840,14 +840,14 @@ local function build()
   hd:rule():font(mono)
 
   local logY = y3 + LINE_H + 2
-  local l = hafen.ui():list():parent(w):position(PAD, logY):size(LIST_W, LOG_H):rowHeight(LINE_H)
+  local l = hafen.ui():listbox():parent(w):position(PAD, logY):size(LIST_W, LOG_H):rowHeight(LINE_H)
   l:rule():font(mono)
 
   local sepY = logY + LOG_H + GAP
   local sp = hafen.ui():separator():parent(w):position(PAD, sepY):size(LIST_W)
 
   local detY = sepY + tall(sp) + GAP
-  local d = hafen.ui():list():parent(w):position(PAD, detY):size(LIST_W, DET_H):rowHeight(LINE_H)
+  local d = hafen.ui():listbox():parent(w):position(PAD, detY):size(LIST_W, DET_H):rowHeight(LINE_H)
   d:rule():font(mono)
 
   w:size(WIN_W, detY + DET_H + PAD)

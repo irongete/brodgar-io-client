@@ -44,7 +44,7 @@ Four tracks, each self-contained. Start wherever your task is.
 
 **Draw your own UI** — [custom](custom.md) builds the window or overlay, [drawing](drawing.md) paints
 inside it, [controls](controls/README.md) puts the client's own buttons in it instead of painting them, and
-[lists](lists.md) does the same for a list, a dropdown or a menu of rows.
+[lists](lists.md) does the same for a listbox, a dropdown or a menu of rows.
 
 **Point at the client's UI** — [selectors](selectors.md) names a widget in one character's tree,
 [widget](widget.md) reads it, [items](items.md) reads what is inside a container, [mouse](mouse.md) says
@@ -65,7 +65,7 @@ and layout.
 |---|---|
 | [custom](custom.md) | your own windows, widgets and overlays, and their callbacks |
 | [controls](controls/README.md) | the client's own controls, built and owned by your addon |
-| [lists](lists.md) | a list, dropdown or menu of rows, and the row source they share with a radio |
+| [lists](lists.md) | a listbox, dropdown or menu of rows, and the row source they share with a radio |
 | [widget](widget.md) | the Widget object: every read, and which writes answer on a widget you do not own |
 | [selectors](selectors.md) | naming a widget: the grammar, the roles, the inspector, hit-testing |
 | [items](items.md) | the items inside a container, and the three subscriptions on it |
