@@ -77,7 +77,7 @@ public final class Subs {
      * Notified when <b>ONE</b> subscription ends — from {@link #off} and from {@link #clear} — so the emitter
      * can release whatever it registered engine-side <i>alongside that one sub</i> (086.1). The per-SUB
      * sibling of {@link Idle}, and the three registries that came in with 086 need exactly this and not that:
-     * several selector watches share the key {@code "appear"}, so a per-key hook fires when the last of them
+     * several selector watches share the key {@code "Added"}, so a per-key hook fires when the last of them
      * goes, which is not when one of them is removed. {@code null} where nothing engine-side hangs off an
      * individual sub — the bus, the two message streams, a widget's own keys.
      */

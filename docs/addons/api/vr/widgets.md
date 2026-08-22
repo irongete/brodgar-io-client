@@ -15,8 +15,8 @@ hafen.vr():widget():add(win, cupboard):facing("camera"):offset(0, 0, 12)
 ```
 
 The shape that pays for itself is entirely event-driven:
-[`s:ui():on(sel, "appear", …)`](../ui/replace.md#watching-for-a-widget) is the window opening,
-`w:on("Destroy", …)` is the server closing it, and a panel of your own stands in the same place between the
+[`s:ui():on(sel, "Added", …)`](../ui/replace.md#watching-for-a-widget) is the window opening,
+`w:on("Removed", …)` is the server closing it, and a panel of your own stands in the same place between the
 two. No timer, and no distance check.
 
 ## The rule: if it works on screen, it works in the world
@@ -216,7 +216,7 @@ proportional to what is actually being looked at.
 
 - **It redraws when it changes, not every frame.** A panel nothing changes costs one offscreen pass; changing
   a label costs exactly one more.
-- **A panel outside the view is not drawn at all** — no `Draw` handler, no offscreen pass. `Tick` keeps
+- **A panel outside the view is not drawn at all** — no `Draw` handler, no offscreen pass. `Update` keeps
   firing, because ticking is logic and it happens in the widget tree a culled panel never leaves, so nothing
   inside it drifts out of date while you are facing the other way and the picture is correct the instant it
   comes back into view.
@@ -233,7 +233,7 @@ uploads-against-frames pair that says whether one is repainting.
 
 - [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [the Widget object](../ui/widget.md) — everything a standing widget still answers, unchanged
-- [custom](../ui/custom.md) — building the window you stand, and its `Draw` and `Tick` callbacks
+- [custom](../ui/custom.md) — building the window you stand, and its `Draw` and `Update` callbacks
 - [controls](../ui/controls/README.md) — the client's own controls, which work on a panel in the world
 - [replace](../ui/replace.md) — the verb this one composes with, and the toggle it takes
 - [native widgets](../ui/native.md) — the other layer-that-restores writes on a borrowed widget

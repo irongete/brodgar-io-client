@@ -92,7 +92,7 @@ it is [`hafen.vr`](../api/vr/README.md).
 
 Mouse input is five more [`:on(key, fn)`](../api/ui/widget.md#subscribing) keys, the same door `Draw` is —
 and they answer on **any** widget, not only one you painted: `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`
-and `Destroy`. Coordinates are widget-local, and `ev:preventDefault()` is the one way to consume the
+and `Removed`. Coordinates are widget-local, and `ev:preventDefault()` is the one way to consume the
 input; no handler's return value is ever read.
 
 ```lua
@@ -106,7 +106,7 @@ end)
 Reading a modifier key is `hafen.ui():mouse():shift()`/`:ctrl()`/`:alt()`, live, from inside the handler —
 an input `ev` carries none of its own, since the pointer already answers them at any time.
 
-A window built with [`:window()`/`:widget()`](../api/ui/custom.md) answers four more of its own: `Tick`
+A window built with [`:window()`/`:widget()`](../api/ui/custom.md) answers four more of its own: `Update`
 every frame, `Drop` when the client's drag gesture drops something on it (`ev:thing()` is the neutral
 descriptor, drawable with `g:resource` and persistable with [`hafen.store`](../api/store.md)), and `Close`
 on the window's close button. Keyboard input is not a widget option — a

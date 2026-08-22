@@ -312,7 +312,7 @@ as something else. That is the same rule that makes the restore reliable, seen f
 Watch for the widget rather than holding it, and you decide what happens each time it appears:
 
 ```lua
-hafen.session():current():ui():on("window", "appear", function(win)
+hafen.session():current():ui():on("window", "Added", function(win)
   win:title(nil)          -- whatever this frame was last used for, it is not that any more
 end)
 ```

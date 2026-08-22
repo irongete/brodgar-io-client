@@ -793,6 +793,12 @@ public final class LuaWidget {
                 // fault and is what the message has to say; the key is only unknown BECAUSE of it.
                 if(w == null)
                     throw new LuaError("widget:on(key, fn) — this widget is no longer in the tree");
+                // 097: a retired key is caught before the key SET, for the same reason the bus catches its
+                // own there — "a Button has no event 'Destroy'" is true and useless, while the row says
+                // where the spelling went. It comes after the staleness check above, which outranks it.
+                String retired = Retired.eventKey("widget", key);
+                if(retired != null)
+                    throw new LuaError(retired);
                 List<String> keys = widgetKeys(owner, w);
                 if(!keys.contains(key)) {
                     throw new LuaError("widget:on(key, fn): a " + typeName(w)
@@ -820,9 +826,9 @@ public final class LuaWidget {
         // custom window left standing over a container that is gone is worse than no window. One window has one
         // view: installing a different one ends the previous substitution (and destroys that view).
         //
-        // WAITING IS NOT PART OF IT: s:ui():on(selector, "appear", fn) already waits, and already fires for what
+        // WAITING IS NOT PART OF IT: s:ui():on(selector, "Added", fn) already waits, and already fires for what
         // is ALREADY open (D-068) — so the whole pattern is
-        //     s:ui():on("inventory[title=Inventory]", "appear", function(w) w:replace(buildMyView(w)) end)
+        //     s:ui():on("inventory[title=Inventory]", "Added", function(w) w:replace(buildMyView(w)) end)
         m.set("replacement", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Widget w = live(handle(self, "replacement"));
@@ -1368,7 +1374,7 @@ public final class LuaWidget {
         // find(selector) / all(selector) — 049.2: THE SAME SEARCH the section does, from THIS widget instead of the
         // root. The scope decides which widgets are CANDIDATES (this one and everything under it); the selector is
         // still matched against the whole tree, so an ancestor step may name a widget ABOVE the scope — exactly
-        // what element.querySelector does in CSS. Inside an :on(sel, "appear", fn) callback this is the only
+        // what element.querySelector does in CSS. Inside an :on(sel, "Added", fn) callback this is the only
         // correct lookup: the root-anchored form asks "the Cupboard's grid" of a client that may have two open,
         // and the one you were handed is not necessarily the one it meets first.
         //   :match is STRICT, like s:ui():match — nil for no match, the widget for exactly one, and a REFUSAL
@@ -1473,9 +1479,9 @@ public final class LuaWidget {
      * <i>place</i> and its <i>box</i>, and every widget has both.
      */
     private static final String[] UNIVERSAL_KEYS =
-        { "MouseDown", "MouseUp", "MouseMove", "Wheel", "Destroy", "Dragged", "Resized" };
+        { "MouseDown", "MouseUp", "MouseMove", "Wheel", "Removed", "Dragged", "Resized" };
     /** The four keys ONLY an addon's own surface answers ({@code hafen.ui():widget()}/{@code :window()}). */
-    private static final String[] SURFACE_KEYS = { "Draw", "Tick", "Drop", "Close" };
+    private static final String[] SURFACE_KEYS = { "Draw", "Update", "Drop", "Close" };
 
     /**
      * The keys {@code w} answers, in the order a refusal lists them — computed fresh each call, since it
@@ -1945,7 +1951,7 @@ public final class LuaWidget {
      * <p>{@code Widget.remove()} is the client's <b>death notice</b>: it fires the removal seam, and it clears
      * {@code canfocus} (through {@code setcanfocus(false)}), which {@code add0} never puts back. Both are wrong
      * for {@code widget:parent(w)}, and each is wrong in a way an addon would meet immediately: a control built
-     * into one of the client's windows would have its own {@code widget:on("Destroy", fn)} fire on the next
+     * into one of the client's windows would have its own {@code widget:on("Removed", fn)} fire on the next
      * tick — while it is alive, drawn and clickable, and with every other subscription on it dropped with it —
      * and a text entry built into one could never be typed into again.
      *

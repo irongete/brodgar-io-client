@@ -22,7 +22,7 @@ import java.util.Map;
  * <p><b>It wraps the account name and nothing else</b>, exactly as {@link LuaGob} wraps only the gob id:
  * every verb re-resolves through {@link Sessions#byuser} on the call, so a handle kept across a character
  * switch, a relogin or the session ending stays meaningful. That is what makes the ref a
- * {@code SessionDestroyed} handler is given still answer {@code :user()} while {@code :exists()} is
+ * {@code SessionRemoved} handler is given still answer {@code :user()} while {@code :exists()} is
  * {@code false} — the name IS the ref, so there is nothing left to resolve and nothing to go stale.
  *
  * <p><b>The account, and not the character.</b> {@code Sessions.Member.chr} is the name {@code :session add}
@@ -442,7 +442,7 @@ public final class LuaSession {
         // unwinds through its own cleanup instead of being torn out from under itself — which is exactly what
         // `:session drop` does, and is why this is protected while taking the screen is not: a logout leaves
         // the client. It is ASYNCHRONOUS: drop() returns before the member leaves the list, so :exists() and
-        // SessionDestroyed are what answer, a tick or more later. Closing the session ON SCREEN is allowed —
+        // SessionRemoved are what answer, a tick or more later. Closing the session ON SCREEN is allowed —
         // relinquish/reclaim hand the screen to another live session, or to the login screen when there is
         // none left. Returns self, so writes chain.
         m.set("close", new OneArgFunction() {

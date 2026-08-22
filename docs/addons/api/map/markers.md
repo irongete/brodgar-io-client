@@ -84,12 +84,12 @@ A pin goes into [the client's one map](README.md#one-map-for-the-client), not in
 dropped it: your other characters in that world see it on their own maps, and it stays there when the
 session that added it ends.
 
-The [`MarkersChanged`](../event/bus.md#roster-quests-markers) event, payload the marker collection, fires on any
+The [`MarkerChanged`](../event/bus.md#roster-quests-markers) event, payload the marker collection, fires on any
 add, remove or edit, including ones the player makes.
 
 ## See also
 
 - [segments and grids](grids.md) — `seg:markers()`, and why a Position is what you store
 - [`Marker`](../types.md#marker) — the snapshot `marker:info()` hands back
-- [events](../event/bus.md#roster-quests-markers) — `MarkersChanged`
+- [events](../event/bus.md#roster-quests-markers) — `MarkerChanged`
 - [Position](../position.md) — the place type, and rebuilding one from a stored form

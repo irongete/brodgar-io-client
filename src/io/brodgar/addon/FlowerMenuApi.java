@@ -72,7 +72,7 @@ final class FlowerMenuApi {
     /**
      * The menus this layer has announced and not yet closed, each mapped to the label {@code choose(Petal)}
      * recorded for it ({@code null} until a petal is picked). <b>Key presence is the whole state</b>: it says
-     * {@code FlowerMenuOpened} fired and {@code FlowerMenuClosed} has not, which is what makes the three
+     * {@code FlowerMenuAdded} fired and {@code FlowerMenuRemoved} has not, which is what makes the three
      * closing seams collapse to exactly one event however the menu ended.
      *
      * <p>Weak-keyed so a session that ends without destroying its widgets leaves nothing behind; identity
@@ -298,7 +298,7 @@ final class FlowerMenuApi {
         FlowerMenu fm = open(user);
         if(fm == null)
             throw new LuaError(verb + ": no radial menu is open on " + user + " (" + FM + ":count() is 0). A"
-                + " menu is put up by a right-click and lives about a second, so pick from a FlowerMenuOpened"
+                + " menu is put up by a right-click and lives about a second, so pick from a FlowerMenuAdded"
                 + " handler or a timer armed from one — nothing you type can reach the client while one is"
                 + " up.");
         return fm;
@@ -364,7 +364,7 @@ final class FlowerMenuApi {
 
     /**
      * A menu finished opening — the end of {@code FlowerMenu.added()}, the only point where the petal set is
-     * complete. Fires {@code FlowerMenuOpened} with the captions, once per menu.
+     * complete. Fires {@code FlowerMenuAdded} with the captions, once per menu.
      */
     static void opened(FlowerMenu fm) {
         if((fm == null) || live.containsKey(fm))
@@ -377,7 +377,7 @@ final class FlowerMenuApi {
             clicked.put(fm, Long.valueOf(g));
         // 079.4: whose ring it is, as the two events' last argument — the tree the menu went up in and
         // not the one on screen, because a ring stays up, and readable, when the player tabs away from it.
-        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuOpened", names(fm), null);
+        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuAdded", names(fm), null);
     }
 
     /**
@@ -394,7 +394,7 @@ final class FlowerMenuApi {
 
     /**
      * A menu ended — either {@code uimsg} branch or the {@code destroy()} fallback. Fires
-     * {@code FlowerMenuClosed} <b>exactly once</b> per {@code FlowerMenuOpened}: whichever seam gets here
+     * {@code FlowerMenuRemoved} <b>exactly once</b> per {@code FlowerMenuAdded}: whichever seam gets here
      * first takes the key out, and the later ones find nothing.
      *
      * @param label the label the server committed ({@code uimsg("act")}), or {@code null} to fall back to
@@ -405,7 +405,7 @@ final class FlowerMenuApi {
         if((fm == null) || !live.containsKey(fm))
             return;
         String chosen = live.remove(fm);
-        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuClosed", null,
+        AddonManager.fireFlowerMenu(AddonManager.userOf(fm), "FlowerMenuRemoved", null,
                                     (label != null) ? label : chosen);
     }
 }

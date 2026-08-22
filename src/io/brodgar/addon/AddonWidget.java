@@ -15,7 +15,7 @@ import org.luaj.vm2.LuaValue;
  * A <b>client-side</b> {@link Widget} whose lifecycle notifications forward to an addon's Lua functions —
  * the Java half of {@code hafen.ui():widget()} / {@code hafen.ui():window()} (spec
  * {@code 07-ui-and-drawing.md}, Phase 2a). It is a leaf widget: {@link #draw} and {@link #tick} fire
- * {@code "Draw"}/{@code "Tick"} on this widget's own {@link WidgetSubs} (041.4) — the SAME address every
+ * {@code "Draw"}/{@code "Update"} on this widget's own {@link WidgetSubs} (041.4) — the SAME address every
  * OTHER key answers, {@code widget:on(key, fn)}, over {@link AddonManager#callLua} underneath, so every
  * forward is <b>watchdog-armed</b> (D-018 layer 1), <b>error-isolated</b> (a Lua error is logged, never
  * thrown into the render/tick loop), CPU-accounted, and — unlike the single slot this used to be — answers
@@ -24,7 +24,7 @@ import org.luaj.vm2.LuaValue;
  * reach any other widget, through the {@link Widget#listen} pre-hook {@link WidgetSubs} installs — one door
  * for a widget you built and one you merely found, which a fixed callback slot could never be.
  *
- * <p><b>Nothing is stored on this class any more</b> (041.4). Every one of {@code "Draw"}/{@code "Tick"}/
+ * <p><b>Nothing is stored on this class any more</b> (041.4). Every one of {@code "Draw"}/{@code "Update"}/
  * {@code "Drop"}/{@code "Close"} used to be a chained-setter slot in a copy-on-write array; now each fire
  * looks its {@link WidgetSubs} up WITHOUT minting one ({@link Addon#widgetSubsOrNull}), so a widget nobody
  * subscribed to costs one map lookup a tick/draw and nothing else — the same {@code hasSub} gate every other
@@ -160,7 +160,7 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
     // ---------------------------------------------------------------- lifecycle forwards
 
     /**
-     * {@code widget:on("Tick"/"Draw"/"Drop"/"Close", fn)} — a surface's own four notifications (041.4, re-spelled
+     * {@code widget:on("Update"/"Draw"/"Drop"/"Close", fn)} — a surface's own four notifications (041.4, re-spelled
      * off the single {@code onTick(fn)}/{@code onDraw(fn)}/{@code onDrop(fn)}/{@code onClose(fn)} slots this
      * widget used to carry): each looks up its {@link WidgetSubs} WITHOUT minting one
      * ({@link Addon#widgetSubsOrNull}), so an unlistened surface costs one map lookup a tick/draw and nothing
@@ -177,8 +177,8 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
         if(dead)
             return;
         WidgetSubs s = owner.widgetSubsOrNull(rootw());
-        if((s != null) && s.subs.has("Tick"))
-            s.subs.fire("Tick", LuaValue.valueOf(dt));
+        if((s != null) && s.subs.has("Update"))
+            s.subs.fire("Update", LuaValue.valueOf(dt));
     }
 
     public void draw(GOut g) {

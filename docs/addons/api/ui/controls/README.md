@@ -163,11 +163,11 @@ there too.
 
 ## What a control does not take
 
-The four extra subscription keys of [custom](../custom.md) — `Draw`, `Tick`, `Drop`, `Close` — and
+The four extra subscription keys of [custom](../custom.md) — `Draw`, `Update`, `Drop`, `Close` — and
 `:font(h)` belong to a **surface you paint yourself**. A control is drawn and driven by the client, so it
 has nowhere to put them and refuses rather than accepting one silently: how you learn a button fired is
 `:on("Pressed", fn)`, and its look comes from the [stylesheet](../style/README.md), not a font handle you
-hand the widget. The five universal input keys — `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`, `Destroy`
+hand the widget. The five universal input keys — `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`, `Removed`
 — are not among these: a control answers those too, being a Widget like any other.
 
 ## Owned and borrowed

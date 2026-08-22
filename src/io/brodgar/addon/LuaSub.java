@@ -21,7 +21,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * a slash command, a hotkey and a selector watch are subscriptions too, and each hands one of these back.
  *
  * <p><b>{@code :key()} says what it was registered under</b> — a bus event, a message name, a widget key, a
- * command name, a hotkey's name, {@code "appear"}. It is the {@link #key} field a {@link Subs} already
+ * command name, a hotkey's name, {@code "Added"}. It is the {@link #key} field a {@link Subs} already
  * addressed this sub by, and it is what makes a set of subscriptions filterable.
  *
  * <p><b>The handle IS the entry.</b> This object is both what Lua holds and what {@link Subs} stores in its

@@ -7,13 +7,13 @@ open — what it offers, how many petals that is, and which one to pick. You rea
 [permissions](../guides/permissions.md).
 
 ```lua
-hafen.event():on("FlowerMenuOpened", function(petals, s)
+hafen.event():on("FlowerMenuAdded", function(petals, s)
   local names = {}
   for i, p in ipairs(petals) do names[i] = p:label() end
   hafen.log():write(s:user() .. " menu: " .. table.concat(names, ", "))   -- Chop, Pick branch, …
 end)
 
-hafen.event():on("FlowerMenuClosed", function(label)
+hafen.event():on("FlowerMenuRemoved", function(label)
   hafen.log():write(label and ("picked " .. label) or "cancelled")
 end)
 ```
@@ -64,11 +64,11 @@ Everything else answers `nil`:
 - a menu that was not opened by the click it would have been matched to — you clicked something else in
   between, or the menu arrived long after the click that asked for it.
 
-Read it from inside a `FlowerMenuOpened` handler, which is where you need it. Like the other two reads it
+Read it from inside a `FlowerMenuAdded` handler, which is where you need it. Like the other two reads it
 keeps answering while the ring fades, and it is `nil` once the ring is gone.
 
 ```lua
-hafen.event():on("FlowerMenuOpened", function(petals)
+hafen.event():on("FlowerMenuAdded", function(petals)
   local gob = hafen.session():current():flowermenu():gob()
   local name = gob and gob:name()
   if name and name:find("tree") then
@@ -100,7 +100,7 @@ worth reading rather than keeping — but it is a handle, so keeping one is safe
 
 > **The menu answers while it is on screen, closing animation included.** A pick or an Esc starts a
 > quarter-to-three-quarter-second fade, and the ring is still there for it — so a `:count()` read from
-> inside a `FlowerMenuClosed` handler is not yet `0`. Read what you need from the event's own payload.
+> inside a `FlowerMenuRemoved` handler is not yet `0`. Read what you need from the event's own payload.
 
 **Two menus at once on one character** should not happen — an open menu grabs the mouse and the keyboard,
 which is what makes "the open menu" a well-defined thing for that character. If it ever does, these verbs
@@ -134,7 +134,7 @@ when the key is neither a string nor a number; `:cancel()` raises when no menu i
 errors names the character asked about and lists the ring that **is** open, numbered, so the spelling you
 missed is in the message.
 
-You can pick from inside a `FlowerMenuOpened` handler, and that is the usual place. The ring is still
+You can pick from inside a `FlowerMenuAdded` handler, and that is the usual place. The ring is still
 animating open at that moment — the one window a real click cannot use, because the menu swallows mouse
 input until the animation finishes.
 
@@ -142,14 +142,14 @@ input until the animation finishes.
 
 | Event | Payload | Fires |
 |---|---|---|
-| `FlowerMenuOpened` | `string[]` — the petal captions, in ring order | a radial menu appears |
-| `FlowerMenuClosed` | `string` \| nil — the label picked | that menu goes away |
+| `FlowerMenuAdded` | `string[]` — the petal captions, in ring order | a radial menu appears |
+| `FlowerMenuRemoved` | `string` \| nil — the label picked | that menu goes away |
 
-**Every `FlowerMenuOpened` is followed by exactly one `FlowerMenuClosed`.** That holds however the menu
+**Every `FlowerMenuAdded` is followed by exactly one `FlowerMenuRemoved`.** That holds however the menu
 ended: you picked a petal, you pressed Esc, you clicked away, or it simply died under you when the
 connection dropped. The payload is the label on a pick and `nil` on everything else.
 
-`FlowerMenuOpened` fires at the one moment the petal set is complete, so the array it carries is the whole
+`FlowerMenuAdded` fires at the one moment the petal set is complete, so the array it carries is the whole
 ring — the same Petals `s:flowermenu():list()` answers with inside the handler, where `s` is the
 [session the event carries](event/bus.md#whose-character-it-was).
 
@@ -158,10 +158,10 @@ menu is one of those: it never reaches the server at all, and it still opens and
 
 ```lua
 local pending
-hafen.event():on("FlowerMenuOpened", function(petals)
+hafen.event():on("FlowerMenuAdded", function(petals)
   pending = petals
 end)
-hafen.event():on("FlowerMenuClosed", function(label)
+hafen.event():on("FlowerMenuRemoved", function(label)
   if not label and pending then
     hafen.log():write("walked away from: " .. table.concat(pending, ", "))
   end

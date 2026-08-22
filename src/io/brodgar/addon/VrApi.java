@@ -1079,6 +1079,59 @@ final class VrApi {
                 synchronized(e) { return LuaValue.valueOf(!e.dead && (e.slot != null)); }
             }
         });
+        // info() -- THE ONE SNAPSHOT ESCAPE HATCH (098). Every other live object in the API answers it and
+        // conventions.md states the rule universally; the vr entities were the one family that did not, so
+        // logging what an addon has standing cost ten calls per entity and the profiler paid it.
+        //
+        // Every key here is spelled the way the verb that reads it is, and carries the same value, so the
+        // snapshot and the vocabulary cannot drift into naming one thing twice. It is a SNAPSHOT: the place
+        // comes out flat -- position is the {gridId, x, y} form p:info() answers, read through that very verb
+        // rather than rebuilt beside it -- because a live object inside a snapshot is not a snapshot.
+        //
+        // A key is absent when the thing it names is (no tint, no anchor), which is the shape every other
+        // info() in the API has: present means set.
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError(kind + ":info() takes no arguments -- it IS the whole snapshot, and"
+                        + " every field in it has a verb of its own beside it to read one at a time");
+                LuaTable t = new LuaTable();
+                t.set("kind", LuaValue.valueOf(kind));
+                LuaValue pos = entityPosition(e.owner, e);
+                if(!pos.isnil()) {
+                    LuaValue pi = pos.get("info").call(pos);
+                    if(!pi.isnil())
+                        t.set("position", pi);
+                }
+                synchronized(e) {
+                    t.set("rotate", LuaValue.valueOf(e.a));
+                    t.set("scale", LuaValue.valueOf((double)e.scale));
+                    t.set("alpha", LuaValue.valueOf((double)e.alpha));
+                    t.set("visible", LuaValue.valueOf(!e.hidden && !e.dead));
+                    t.set("clickable", LuaValue.valueOf(e.clickable));
+                    t.set("exists", LuaValue.valueOf(!e.dead));
+                    t.set("drawn", LuaValue.valueOf(!e.dead && (e.slot != null)));
+                    if(e.tint != null) {
+                        LuaValue tint = AddonManager.color(e.tint);
+                        if(!tint.isnil())
+                            t.set("tint", tint);
+                    }
+                    // The anchor and its offset travel together: :offset() is refused on a free entity, so
+                    // the key it reads is absent for one exactly as the verb is.
+                    if(e.followTgt != 0) {
+                        t.set("anchor", LuaValue.valueOf((double)e.followTgt));
+                        Coord3f off = e.followOff;
+                        LuaTable o = new LuaTable();
+                        o.set("x", LuaValue.valueOf((off == null) ? 0.0 : (double)off.x));
+                        o.set("y", LuaValue.valueOf((off == null) ? 0.0 : (double)off.y));
+                        o.set("z", LuaValue.valueOf((off == null) ? 0.0 : (double)off.z));
+                        t.set("offset", o);
+                    }
+                }
+                e.infoInto(t);      // the one or two verbs only this kind answers
+                return t;
+            }
+        });
         if(extra != null) {
             LuaValue k = LuaValue.NIL;
             while(true) {
@@ -1096,7 +1149,7 @@ final class VrApi {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex(kind, m,
             "a " + kind + " in the world answers :position() :offset() :rotate() :scale() :alpha() :tint() "
-            + ":visible() :clickable() :onClick() :exists() :drawn()" + extraVocab));
+            + ":visible() :clickable() :onClick() :exists() :drawn() :info()" + extraVocab));
         final String printed = Character.toUpperCase(kind.charAt(0)) + kind.substring(1);
         mt.set("__name", LuaValue.valueOf(printed));
         mt.set("__tostring", new VarArgFunction() {
@@ -1804,7 +1857,7 @@ final class VrApi {
      * <p>The two are not the same moment, and the gap between them is where a real fault lived. A
      * {@link haven.Window} announces its removal as its fade begins — the path {@code UI.destroy} takes, so
      * every container the server closes — and only unlinks when that fade ends. Re-clicking an open cupboard
-     * makes the server close and immediately reopen it, so the NEW window's {@code appear} reaches the addon
+     * makes the server close and immediately reopen it, so the NEW window's {@code "Added"} reaches the addon
      * inside that gap: the addon takes its panel down, {@code :remove} runs the ordinary put-back, and a dead,
      * emptied window is dropped onto the flat UI, owned by nobody and collected by no teardown. Ten clicks,
      * ten windows. Flagging at the tap makes <i>it is on its way out</i> true for every door at once —

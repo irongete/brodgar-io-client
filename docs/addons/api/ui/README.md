@@ -5,7 +5,7 @@ stylesheet that says what all of it looks like. Reach for it to add a HUD, to re
 window, or to restyle the client.
 
 **There is one type.** A window you create, a native window you find, the deepest widget under the
-cursor and the container an [`appear` subscription](replace.md#watching-for-a-widget) hands your
+cursor and the container an [`Added` subscription](replace.md#watching-for-a-widget) hands your
 callback are all the same [Widget object](widget.md). What you create and what you find are not
 different things.
 

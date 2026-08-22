@@ -21,9 +21,9 @@ The rest carry no session, and each group has its own reason:
 | Events | Why they carry none |
 |---|---|
 | `GobAdded`, `GobRemoved`, `GobOverlayAdded`, `GobOverlayRemoved` | a game object is the world's rather than a character's, and each of these fires **once** for it — see [World](#world) |
-| `SessionAdded`, `SessionEnteredWorld`, `SessionSelected`, `SessionDestroyed` | the session **is** the payload |
+| `SessionAdded`, `SessionEnteredWorld`, `SessionSelected`, `SessionRemoved` | the session **is** the payload |
 | `Load`, `Update`, `Disable` | your addon's own, and there is one of it however many characters are up |
-| `MarkersChanged` | the recorded map is one database for the client |
+| `MarkerChanged` | the recorded map is one database for the client |
 | `GhostClicked`, `SpriteClicked`, `ObjectClicked` | a thing you stood in the world stands in it once, for whichever character looks at it |
 
 ## Lifecycle
@@ -52,7 +52,7 @@ moment was about.
 | `SessionAdded` | [`Session`](../session.md) | a session connects, before it has a character or a world |
 | `SessionEnteredWorld` | [`Session`](../session.md) | ...and its HUD is up, so that character can be read |
 | `SessionSelected` | [`Session`](../session.md) | the screen changed to this session |
-| `SessionDestroyed` | [`Session`](../session.md) | this session ended, however it ended |
+| `SessionRemoved` | [`Session`](../session.md) | this session ended, however it ended |
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function(s)
@@ -60,7 +60,7 @@ hafen.event():on("SessionEnteredWorld", function(s)
 end)
 ```
 
-**A `SessionDestroyed` names a session that is already gone.** `s:user()` answers there — the account name
+**A `SessionRemoved` names a session that is already gone.** `s:user()` answers there — the account name
 is the whole of a `Session`, so there is nothing left to resolve — while `s:exists()` is `false` and
 everything else about that login reads `nil`. That is what makes the payload usable as the key you drop
 your own tables by, on the one event where the login it names has already gone.
@@ -76,9 +76,9 @@ brings theirs to the tables when you tab to them, which is a `SessionSelected`.
 fires `SessionSelected` and nothing else, once per change — whether the player tabbed or an addon
 wrote the screen with [`hafen.session():current(s)`](../session.md#write-unprotected) — and only on a
 change, so naming the session already drawn fires nothing at all. Ending the session **on screen** hands
-the screen to another one, so that session's `SessionDestroyed` comes first and a `SessionSelected` for
+the screen to another one, so that session's `SessionRemoved` comes first and a `SessionSelected` for
 the one taking over follows it. Going to the login screen — which is where dropping your last session
-leaves you — selects nothing, so it fires nothing, and the `SessionDestroyed` before it is what says the
+leaves you — selects nothing, so it fires nothing, and the `SessionRemoved` before it is what says the
 screen emptied.
 
 **Nor is entering the world being looked at.** A session that reaches the world while another holds the
@@ -90,7 +90,7 @@ not be the one the event was about.
 
 **A session is the account, and one account plays one character at a time.** Picking another character on
 the same account keeps that session alive — the server hands it a new world rather than ending it — so
-`SessionEnteredWorld` fires a second time for the same `Session`, with no `SessionDestroyed` between. Key
+`SessionEnteredWorld` fires a second time for the same `Session`, with no `SessionRemoved` between. Key
 your own tables by `s:user()` if what you are tracking is the account, and rebuild whatever was that
 character's on every `SessionEnteredWorld` for it.
 
@@ -101,7 +101,7 @@ variables were just put back, and says nothing about the others.
 
 > **Your state survives a character switch.** Nothing of yours is torn down or rebuilt when the screen
 > moves, so a widget handle, a Gob or an [item](../ui/items.md) you kept from one character is still in
-> your table under the next one — and still belongs to the character it came from. `SessionDestroyed` is
+> your table under the next one — and still belongs to the character it came from. `SessionRemoved` is
 > where you drop what belonged to that session, and its payload is the key to drop it by.
 
 ## World
@@ -187,7 +187,7 @@ These come from the HUD's own widgets, so they start once the HUD is up.
 
 Items entering or leaving a **container** are not on this bus: a chest is not a global fact, so you
 subscribe to the container itself with
-[`widget:on("ItemAdded"/"ItemRemoved"/"Destroy", fn)`](../ui/items.md#the-container-lifecycle).
+[`widget:on("ItemAdded"/"ItemRemoved"/"Removed", fn)`](../ui/items.md#the-container-lifecycle).
 `EquipChanged` stays global because your worn gear is one fixed surface.
 
 `ActionbarChanged` hands you the **changed slot** as a live [`Slot` object](../actionbar.md) — the same
@@ -211,8 +211,9 @@ The payload is the same `Slot`, and while the hold is on it `slot:res()` is the 
 |---|---|---|
 | `KinChanged` | [`Kin`](../kin.md)`[]` | a kin is added, removed or edited, or flips online or offline |
 | `QuestAdded` | [`Quest`](../quest.md#a-quest) | a new active quest appears |
-| `QuestDone` | [`Quest`](../quest.md#a-quest) | an active quest is completed or failed |
-| `MarkersChanged` | the [marker collection](../map/markers.md) | a map marker is added or removed |
+| `QuestCompleted` | [`Quest`](../quest.md#a-quest) | an active quest is completed |
+| `QuestFailed` | [`Quest`](../quest.md#a-quest) | an active quest is failed |
+| `MarkerChanged` | the [marker collection](../map/markers.md) | a map marker is added or removed |
 
 `KinChanged` hands you the **whole roster** as live [`Kin` objects](../kin.md), in Kin-window sort order —
 the same interned objects `s:kin():list()` returns, so `payload[1]` and
@@ -222,9 +223,14 @@ online, and key it **by the `Kin` itself** rather than by `:name()`, so a rename
 leaving and another arriving.
 [`kin:info()`](../types.md#kinentry) is there when you want a plain table instead.
 
-The two quest events hand you the [`Quest`](../quest.md#a-quest) itself, which matters most on `QuestDone`:
-it fires *because* the status changed, so a handler that keeps the object goes on reading it — including
-`q:status()`, which is the field the event is about.
+**The outcome is the key, not a field to check.** `QuestCompleted` fires when the quest is done and
+`QuestFailed` when it is failed, so a handler that only cares about success is one subscription and no
+`if`. Subscribe to both when you want either. A finished status the client does not recognise fires
+neither — it does not guess.
+
+The three quest events hand you the [`Quest`](../quest.md#a-quest) itself, which matters most on a
+completion: it fires *because* the status changed, so a handler that keeps the object goes on reading it —
+including `q:status()`, which is the field the event is about.
 
 ## Widgets appearing and disappearing
 
@@ -232,24 +238,24 @@ A widget is not a global fact either, so there is no `WidgetCreated` event. You 
 care about, with the same [selector](../ui/selectors.md) a lookup uses:
 
 ```lua
-hafen.session():current():ui():on("window[title=Cupboard]", "appear", function(w)
+hafen.session():current():ui():on("window[title=Cupboard]", "Added", function(w)
   hafen.log():write(w:items():count() .. " items")
 end)
 ```
 
-`fn` receives the [Widget](../ui/widget.md) itself, and **`appear` also covers what is already open**,
+`fn` receives the [Widget](../ui/widget.md) itself, and **`Added` also covers what is already open**,
 because registering scans the live tree — so an addon reloaded with the window up still sees it. See
 [watching for a widget](../ui/replace.md#watching-for-a-widget) for the two rules that matter: neither
-event is about *visibility*, and at `disappear` the widget is a key to match, not something to read.
+event is about *visibility*, and at `Removed` the widget is a key to match, not something to read.
 
 ## The radial menu
 
 | Event | Payload | Fires |
 |---|---|---|
-| `FlowerMenuOpened` | [`Petal`](../flowermenu.md#a-petal)`[]` — in ring order | a right-click puts up a radial menu |
-| `FlowerMenuClosed` | `string` \| nil — the label picked | that menu goes away |
+| `FlowerMenuAdded` | [`Petal`](../flowermenu.md#a-petal)`[]` — in ring order | a right-click puts up a radial menu |
+| `FlowerMenuRemoved` | `string` \| nil — the label picked | that menu goes away |
 
-**Every `FlowerMenuOpened` is followed by exactly one `FlowerMenuClosed`**, whether you picked a petal,
+**Every `FlowerMenuAdded` is followed by exactly one `FlowerMenuRemoved`**, whether you picked a petal,
 pressed Esc, clicked away, or the menu died under you; the payload is `nil` for everything but a pick. Both
 cover the menus the client puts up itself, such as the Kin window's, as well as the server's. Read the ring
 from the payload or from [`s:flowermenu()`](../flowermenu.md), which is the menu one character has open and

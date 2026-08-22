@@ -300,7 +300,7 @@ public final class LuaMarker {
                 }
                 MapFile.PMarker pm = player(mk, "color");
                 pm.color = colorArg(a);
-                pm.update(true);                 // persists (defersave) and bumps markerseq -> MarkersChanged
+                pm.update(true);                 // persists (defersave) and bumps markerseq -> MarkerChanged
                 return self;
             }
         });

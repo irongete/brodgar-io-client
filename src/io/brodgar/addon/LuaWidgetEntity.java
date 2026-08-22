@@ -109,6 +109,15 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
     }
 
     /**
+     * A panel's own contribution to {@code e:info()} (098) — {@code :facing()} and nothing else.
+     * {@code panel:screen(x, y)} is the other verb only this kind answers, and it takes a point to project,
+     * so there is no value of it to snapshot.
+     */
+    void infoInto(org.luaj.vm2.LuaTable t) {
+        synchronized(this) { t.set("facing", org.luaj.vm2.LuaValue.valueOf(facing)); }
+    }
+
+    /**
      * The entity ended: put the widget back where it stood from, <b>then</b> free the surface. The order is the
      * whole of it — a surface destroyed with the widget still inside it would take the widget's own subtree
      * down with it ({@code Widget.destroy} disposes recursively), which is the one outcome "removing it puts it

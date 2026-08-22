@@ -192,7 +192,7 @@ end
 
 **It is asynchronous.** The verb asks the session to close and returns; that login is still in
 `hafen.session():list()` on the next line and leaves a tick or more later, on its own thread. `s:exists()`
-is the read that answers and [`SessionDestroyed`](event/bus.md#sessions) is the edge, so poll the one or
+is the read that answers and [`SessionRemoved`](event/bus.md#sessions) is the edge, so poll the one or
 subscribe to the other rather than reading the list again on the line below.
 
 Closing the session **on screen** is allowed: the screen goes to another live session, or to the login

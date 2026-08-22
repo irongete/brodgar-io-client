@@ -44,13 +44,13 @@ grammar, same errors, same strictness. The scope decides which widgets are *cand
 may still name a widget above it, exactly as in CSS.
 
 ```lua
-s:ui():on("window[title=Cupboard]", "appear", function(w)
+s:ui():on("window[title=Cupboard]", "Added", function(w)
   local grid = w:match("inventory")       -- THIS cupboard's grid, whatever else is open
   ...
 end)
 ```
 
-That is the right lookup inside an [`appear` callback](replace.md#watching-for-a-widget), and the reason the
+That is the right lookup inside an [`Added` callback](replace.md#watching-for-a-widget), and the reason the
 pair exists: `s:ui():match("window[title=Cupboard] inventory")` asks a whole tree a question that has no
 single answer while two cupboards are open, while the widget your callback was handed does.
 

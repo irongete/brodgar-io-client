@@ -126,7 +126,7 @@ tile indices and a `float[]` of heights — so the record is rasterizable by the
   `View.fin`'s topological tile sort ordering by the grid's own array order. `ZoomGrid.from` mints its own from
   the merged name index, so a zoom level's prios are not 0 and are not the server's either.
 - `markerseq` does **not** bump for markers loaded from disk at startup, so the initial load never calls
-  `onMarkersChanged`. Every call into it is therefore already a **real** change — `MapApi.fireMarkersChanged`
+  `onMarkersChanged`. Every call into it is therefore already a **real** change — `MapApi.fireMarkerChanged`
   fires on the first call too (it primes `lastMarkerSeq` and fires in the same call), unlike the old poll's
   prime-then-skip: there is no "first tick after login" to distinguish from a real one anymore.
 - `new MapFile(null, "")` does no I/O, but a read NPEs *inside a `Defer` task* and surfaces wrapped rather

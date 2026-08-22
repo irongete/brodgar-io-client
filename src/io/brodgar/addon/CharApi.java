@@ -829,14 +829,15 @@ final class CharApi {
      * status advanced, or removed) — so, like the {@link KinAdapter}, this is <b>uimsg-driven</b>:
      * {@link #interested} flags that message and {@link #refresh} re-reads the full quest set and diffs
      * it against a per-id status cache via the pure {@link #questDiff}. Fires {@code QuestAdded} when a
-     * new <i>active</i> quest (pending/disabled) appears and {@code QuestDone} when a previously-active
+     * new <i>active</i> quest (pending/disabled) appears, and {@code QuestCompleted} or
+     * {@code QuestFailed} — the outcome picks which (097) — when a previously-active
      * quest becomes <i>finished</i> (done/failed) — mirroring {@code QuestWnd}'s own completion trigger.
      * Completed quests already present at login are recorded silently (no {@code QuestAdded}), so the
      * quest history doesn't spam events.
      *
      * <p>The payload is the <b>Quest object</b> ({@link AddonManager#fireQuest}), so a handler reads it with
      * the same verbs as {@code s:quest():get(id)}. That matters more here than anywhere else in the API:
-     * {@code QuestDone} fires <i>as</i> the status changes, and a snapshot froze the very field the event is
+     * a completion fires <i>as</i> the status changes, and a snapshot froze the very field the event is
      * about — a stashed Quest goes on answering {@code :status()} afterwards. The {@code id -> done} cache
      * stays, purely as the diff KEY: an interned object compares by identity and so cannot detect a status
      * advancing, which is the whole of what this adapter exists to notice.
@@ -882,8 +883,10 @@ final class CharApi {
      *   <li><b>QuestAdded</b> — an id not previously cached whose status is <i>active</i>
      *       (pending/disabled). A quest already finished when first seen (e.g. the completed history that
      *       streams in at login) is recorded silently — no event.</li>
-     *   <li><b>QuestDone</b> — a previously-<i>active</i> id that is now <i>finished</i> (done/failed),
-     *       mirroring {@code QuestWnd}'s own completion trigger.</li>
+     *   <li><b>QuestCompleted</b> — a previously-<i>active</i> id whose status is now {@code done}, and
+     *       <b>QuestFailed</b> — one whose status is now {@code failed} (097). Both mirror
+     *       {@code QuestWnd}'s own completion trigger; a finished status the client does not recognise
+     *       fires neither.</li>
      * </ul>
      * An id absent from {@code fresh} (server-removed) is pruned with no event, so a later re-add re-fires
      * {@code QuestAdded}.
@@ -898,7 +901,15 @@ final class CharApi {
                 if(questActive(done))
                     events.add(new Object[]{"QuestAdded", id});
             } else if(questActive(prev.intValue()) && !questActive(done)) {
-                events.add(new Object[]{"QuestDone", id});
+                // 097: the OUTCOME picks the key. One key for both outcomes was the only silent wrong
+                // answer left in the bus -- a handler that read the name congratulated the player for a
+                // failure -- and q:status() was the only thing that told them apart. A status the client
+                // does not know is neither: it fires nothing rather than guess, which is the same call
+                // LuaQuest.status() makes when it declines to name one.
+                if(done == QuestWnd.Quest.QST_DONE)
+                    events.add(new Object[]{"QuestCompleted", id});
+                else if(done == QuestWnd.Quest.QST_FAIL)
+                    events.add(new Object[]{"QuestFailed", id});
             }
         }
         cache.keySet().retainAll(fresh.keySet());    // prune ids the server dropped

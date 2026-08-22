@@ -1,0 +1,9 @@
+{
+  "name": "098 — the vr snapshot",
+  "id": "098-the-vr-snapshot.all",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for the whole of feature 098: e:info() on the vr entities, the one family of live objects in the API that had no snapshot. It stands a ghost and a panel, checks every shared field against the very verb that reads it, that the place comes out as the flat {gridId, x, y} form rather than a live Position, that a key is absent when the thing it names is (no tint before one is laid over it, no anchor for one that stands still), that each kind contributes its own verbs and only those, that an argument is refused, that the table does not go on updating, and that a destroyed entity still reads and says it is gone.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -6,7 +6,7 @@ when your addon goes away.
 
 ```lua
 local s = hafen.session():current()                    -- the character on screen
-local sub = s:ui():on("window[title=Inventory] inventory", "appear", function(inv)
+local sub = s:ui():on("window[title=Inventory] inventory", "Added", function(inv)
   local view = hafen.ui():window():title("Bags"):size(200, 120)
   view:on("Draw", function(ev) ev:g():text(inv:items():count() .. " items", 6, 6) end)
   inv:replace(view)
@@ -28,11 +28,11 @@ both:
 
 | Event | Fires when |
 |---|---|
-| `"appear"` | a matching widget is placed into the tree, **or is already in it when you subscribe** |
-| `"disappear"` | a widget that had matched is destroyed |
+| `"Added"` | a matching widget is placed into the tree, **or is already in it when you subscribe** |
+| `"Removed"` | a widget that had matched is destroyed |
 
 ```lua
-s:ui():on("window[title=Cupboard]", "appear", function(w)
+s:ui():on("window[title=Cupboard]", "Added", function(w)
   hafen.log():write(("cupboard open: %d item(s)"):format(w:items():count()))
 end)
 ```
@@ -41,7 +41,7 @@ What is worth knowing:
 
 - **The subscription watches one character's tree**, the one `s` names — so watching two characters is two
   subscriptions, and each callback knows whose window it was handed.
-- **`appear` covers what is already open.** Registering scans that character's live tree once, so an addon
+- **`Added` covers what is already open.** Registering scans that character's live tree once, so an addon
   reloaded with a window open still sees it, and a subscription made on a character nobody is looking at
   fires at once for what that character has open. You never have to handle "was it there before me?"
   yourself.
@@ -49,9 +49,9 @@ What is worth knowing:
   not from the root. Two cupboards can be open at once, and only the callback knows which one this is.
 - **Neither event is about visibility.** They track the *tree*: a window the client merely hides — the
   inventory's Tab toggle — never left, so it fires neither.
-- **At `disappear`, treat the widget as a key, not as something to read.** It fires when the widget stops
+- **At `Removed`, treat the widget as a key, not as something to read.** It fires when the widget stops
   being *real*, which is not when it stops being *drawn*: a window plays a fade-out on close, so it lingers
-  in the tree, readable, for the length of that animation. Match it against what you kept at `appear`, and
+  in the tree, readable, for the length of that animation. Match it against what you kept at `Added`, and
   keep the data you need from there.
 
 **A caption that arrives late fires, and so does one that changes.** `[title=]` matches a window whose
@@ -84,7 +84,7 @@ frame left standing around a hole is not a replacement. This is exactly where it
 [`w:visible(false)`](native.md#hiding-a-native-widget-carries-a-restore), which hides precisely what you
 point at and nothing more. Two operations, two rules; pick by what you want left on screen.
 
-**Waiting is not part of it.** `s:ui():on(sel, "appear", fn)` already waits for anything and already
+**Waiting is not part of it.** `s:ui():on(sel, "Added", fn)` already waits for anything and already
 fires for what is open, so the whole pattern is the two together — the example at the top of this page is
 the complete shape.
 

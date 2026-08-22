@@ -195,10 +195,10 @@ public final class Addon {
      */
     public final Subs messageSubs = new Subs(this, Addon.C_EVENT);
     /**
-     * This addon's <b>selector subscriptions</b> as subscriptions ({@code s:ui():on(sel, "appear", fn)},
+     * This addon's <b>selector subscriptions</b> as subscriptions ({@code s:ui():on(sel, "Added", fn)},
      * 086.1) — the emitter that mints what that verb hands back, so it is a {@link LuaSub} like every other
-     * {@code :on} in the API rather than a one-verb table. The key is the <b>event</b>, {@code "appear"} or
-     * {@code "disappear"}, because that is what a person would name and the selector already lives on the
+     * {@code :on} in the API rather than a one-verb table. The key is the <b>event</b>, {@code "Added"} or
+     * {@code "Removed"}, because that is what a person would name and the selector already lives on the
      * {@link LuaSelectorWatch} — which hangs off {@link LuaSub#tag}, and is what the {@link Subs.Ended} hook
      * releases. It charges {@link #C_WIDGET}, which is what a watch handler costs today.
      *
@@ -246,7 +246,7 @@ public final class Addon {
      */
     public final List<LuaKeyBind> keybinds = new CopyOnWriteArrayList<LuaKeyBind>();
     /**
-     * Live selector subscriptions owned by this addon ({@code s:ui():on(sel, "appear"|"disappear", fn)}, 030.2 —
+     * Live selector subscriptions owned by this addon ({@code s:ui():on(sel, "Added"|"Removed", fn)}, 030.2 —
      * what replaced {@code hafen.ui.onWidgetCreate} and its descriptor): each watches the whole tree for widgets
      * matching one {@link Selector}, fired from the placement seam and the removal seam (event-driven since
      * 042.9). They live in a flat global dispatch list in {@link UiApi} (a subscription watches the whole tree,

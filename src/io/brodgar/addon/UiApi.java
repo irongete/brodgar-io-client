@@ -42,7 +42,7 @@ import static io.brodgar.addon.AddonManager.*;
  * ({@link #dispatchWidgetSubsPlaced}/{@link #dispatchWidgetSubsRemoved}, 042.7), so has the {@code
  * widget:replace(view)} substitution's own death test ({@link #dispatchReplacedRemoved}, 042.8), and so has the
  * selector subscriptions' late-refiner re-check ({@link #markCaptionChanged}/{@link #drainSelectorCaptionCheck},
- * 042.9) and its {@code disappear} firing ({@link #dispatchSelectorRemoved}, 042.9); the per-gob overlay attrib
+ * 042.9) and its {@code "Removed"} firing ({@link #dispatchSelectorRemoved}, 042.9); the per-gob overlay attrib
  * {@code LuaGobOverlay.draw} calls {@link #paintGobOverlays}. Shared gob-read/engine helpers stay in
  * {@link AddonManager}. Not instantiable.
  */
@@ -62,7 +62,7 @@ final class UiApi {
         public void draw(GOut g) { paintHudOverlays(g); }
     };
 
-    // -- selector subscriptions (030.2): s:ui():on(sel, "appear"|"disappear", fn) — the discovery primitive that
+    // -- selector subscriptions (030.2): s:ui():on(sel, "Added"|"Removed", fn) — the discovery primitive that
     // replaced onWidgetCreate. A FLAT global list (a subscription watches the whole tree, not one keyed target),
     // consulted at the placement seam and at the removal seam (dispatchSelectorRemoved, 042.9, event-driven —
     // no more per-tick poll); globally empty = a near-zero fast path, so a client with no subscription pays one
@@ -108,7 +108,7 @@ final class UiApi {
     }
 
     // -- WidgetSubs interest registrations (041.4, event-driven since 042.7): widget:on("ItemAdded"/
-    // "ItemRemoved"/"Destroy", fn) can only be SEEN at the moment/removal/placement seams (an item is a Widget
+    // "ItemRemoved"/"Removed", fn) can only be SEEN at the moment/removal/placement seams (an item is a Widget
     // create/cdestroy, not a uimsg; a widget's death has no engine event of its own), so every WidgetSubs
     // currently subscribed to one of the three lives in this FLAT list — offered every placement and removal
     // (dispatchWidgetSubsPlaced/Removed) instead of diffed every tick — hasSub-GATED by construction (WidgetSubs
@@ -265,9 +265,9 @@ final class UiApi {
         // place that named a window a different way: its {id,type,place,caption,parentType} descriptor (D-024) was
         // a second vocabulary for "which window", and it was PRIVILEGED — only it could bind a view to a hidden
         // native window, so an addon doing the same by hand got a swallowed toggle and nothing driving it. Both
-        // halves are ordinary API now: s:ui():on(sel, "appear", fn) does the WAITING (and fires for what is
+        // halves are ordinary API now: s:ui():on(sel, "Added", fn) does the WAITING (and fires for what is
         // already open, D-068), and widget:replace(view) does the REPLACING. The whole pattern is
-        //     s:ui():on("inventory[title=Inventory]", "appear", function(w) w:replace(buildMyView(w)) end)
+        //     s:ui():on("inventory[title=Inventory]", "Added", function(w) w:replace(buildMyView(w)) end)
         // THE WIDGET ENTITY (spec 20 W1/W2, rebuilt on the ONE entity by 029-widget-oop) — what every door of
         // this section hands back, whether the widget is one the game placed or one you built. The doors onto
         // the CLIENT's own widgets are the session's, 078.2: s:ui():match(sel), :matchAll(sel), :root(), :node(id),
@@ -296,7 +296,7 @@ final class UiApi {
         //   :info()          -- the snapshot escape hatch {type,role,res,id,pos,size,visible,text,owned}
         //   :walk(fn)        -- depth-first: fn(widget, depth); return false to PRUNE the subtree
         //   :match(selector) -- 049.2: the same search, scoped to THIS widget's subtree (inclusive) — the only
-        //                       correct lookup inside an :on(sel, "appear", fn) callback, where the root-anchored
+        //                       correct lookup inside an :on(sel, "Added", fn) callback, where the root-anchored
         //                       form would re-match whichever matching window it met first. Strict, like the
         //                       section's own :match. :matchAll(selector) is its array form (empty, never nil).
         //   :hit(coord)      -- W2: the DEEPEST Widget object under a {x=,y=} root-coord point WITHIN this subtree
@@ -311,7 +311,7 @@ final class UiApi {
         //                       the widget you point at, so replacing the inventory GRID takes the whole stock
         //                       window with it; the view is destroyed when the substitution ends (undo, teardown,
         //                       or the server destroying the window). Wait for the target with
-        //                       s:ui():on(sel, "appear", fn) — that half is not part of the verb.
+        //                       s:ui():on(sel, "Added", fn) — that half is not part of the verb.
         //   :items()         -- 029.3: the Item snapshots inside this container (a relation, like :children()) —
         //                       an Inventory, an Equipory (each entry also carrying its `slot`), or any widget with
         //                       WItems under it. Read it with the window VISIBLE and interactive: nothing is hidden.
@@ -706,7 +706,7 @@ final class UiApi {
      * (connecting, on the character list, gone), answers {@code nil}-shaped rather than throwing, exactly as
      * the sections 076 and 077 put on the Session do.
      *
-     * <p><b>{@code :on(sel, "appear", fn)} scans the live tree at registration</b>, and here it scans the tree
+     * <p><b>{@code :on(sel, "Added", fn)} scans the live tree at registration</b>, and here it scans the tree
      * of the session it was addressed at — so subscribing on a background session fires at once for what that
      * character already has open. The watch records that tree ({@link LuaSelectorWatch#ui}), which is what lets
      * its {@code :remove()}, the addon's teardown and the prune following that tree's death all name it rather
@@ -764,7 +764,7 @@ final class UiApi {
                 return nodeById(owner, sessionui(user), Args.required(a, 2, UIS + ":node", "id"));
             }
         });
-        // :on(selector, "appear"|"disappear", fn) — WATCH THAT session's own tree for a part of it, named with
+        // :on(selector, "Added"|"Removed", fn) — WATCH THAT session's own tree for a part of it, named with
         // the same selector a lookup uses. fn(widget) receives the Widget entity, interned — so `==` and your
         // own tables work across the two events. Registration SCANS the live tree, so an already-open target
         // fires at once; addressed at a background session that is that session's tree, which exists whether or
@@ -1177,7 +1177,7 @@ final class UiApi {
     // ------------------------------------------------- selector subscriptions (s:ui():on, 030.2)
 
     /**
-     * Register a selector subscription ({@code s:ui():on(selector, "appear"|"disappear", fn)}): parse the selector
+     * Register a selector subscription ({@code s:ui():on(selector, "Added"|"Removed", fn)}): parse the selector
      * ONCE, install the {@link LuaSelectorWatch} in the global list (consulted at the placement seam and the removal
      * seam, event-driven since 042.9 — no per-tick sweep) and in the addon's owned-resource registry (dropped on
      * reload/disable, P2), then SCAN the live tree once so an already-open target is not missed. Returns the
@@ -1189,11 +1189,16 @@ final class UiApi {
         final String where = UIS + ":on(selector, event, fn)";
         Selector sel = selArg(selv, where);
         if(!eventv.isstring())
-            throw new LuaError(where + ": event must be \"appear\" or \"disappear\", got " + eventv.typename());
+            throw new LuaError(where + ": event must be \"Added\" or \"Removed\", got " + eventv.typename());
+        // 097: the retired lower-case pair is caught HERE, before the event is decoded, so an addon written
+        // against `appear` dies naming `Added` rather than being told its own spelling is not an event.
+        String retired = Retired.eventKey(UIS, eventv.tojstring());
+        if(retired != null)
+            throw new LuaError(retired);
         int ev = LuaSelectorWatch.eventCode(eventv.tojstring());
         if(ev < 0)
             throw new LuaError(where + ": \"" + eventv.tojstring() + "\" is not an event — the events are"
-                + " \"appear\" (a matching widget entered the tree, or was already in it) and \"disappear\""
+                + " \"Added\" (a matching widget entered the tree, or was already in it) and \"Removed\""
                 + " (one that had matched left it)");
         if(!fn.isfunction())
             throw new LuaError(where + " expects a handler function fn(widget)");
@@ -1207,7 +1212,7 @@ final class UiApi {
         if(wst != null)                        // no session behind it (the login screen's console): owned,
             wst.selectorWatches.add(w);        //   removable, and it never fires — exactly as before
         owner.selectorWatches.add(w);
-        // 086.1: the Sub is minted BEFORE the scan, because scanForWatch calls an `appear` handler back inside
+        // 086.1: the Sub is minted BEFORE the scan, because scanForWatch calls an `Added` handler back inside
         // this very registration — so the handler must never be able to run before the value this call is
         // about to hand back exists. The key is the event, which is what a person would name; the selector
         // lives on the watch record, where it already lived.
@@ -1222,9 +1227,9 @@ final class UiApi {
      * Sweep the live tree once for widgets this subscription already matches — the {@code :reload} case, and the
      * ordinary one of subscribing while the game is running. This is the difference between a discovery primitive
      * and a creation feed: {@code onWidgetCreate} could never fire for a widget that already existed, so an addon
-     * that only watched creations lost every window open at the moment it was edited. An {@code appear}
+     * that only watched creations lost every window open at the moment it was edited. An {@code "Added"}
      * subscription is called back here, inside its own registration (the {@code replace} precedent); a
-     * {@code disappear} one records silently, which is what lets a later close still fire.
+     * {@code "Removed"} one records silently, which is what lets a later close still fire.
      */
     private static void scanForWatch(LuaSelectorWatch w) {
         UI u = w.ui;                           // 073.2: the tree it was registered against, and no other
@@ -1244,7 +1249,7 @@ final class UiApi {
 
     /**
      * Offer one newly-placed widget to every selector subscription (from {@link #onWidgetPlaced}, inside
-     * {@code AddWidget.run}'s {@code synchronized(ui)} block). A full match fires {@code appear} at once. A widget
+     * {@code AddWidget.run}'s {@code synchronized(ui)} block). A full match fires {@code "Added"} at once. A widget
      * that matches only the STRUCTURE of a selector carrying a {@code [title=]}/{@code [res=]} refiner is queued for
      * the bounded re-check instead: role and class are fixed for a widget's life, but a caption arrives by
      * {@code uimsg} and can land a tick or two after placement, and a {@code .res} window would otherwise be
@@ -1265,20 +1270,20 @@ final class UiApi {
     }
 
     /**
-     * Record a match on one subscription and, for an {@code appear} one, fire it. The tracked set is what keeps the
-     * bounded re-check from firing twice for the same widget, and what a {@code disappear} subscription later reads
+     * Record a match on one subscription and, for an {@code "Added"} one, fire it. The tracked set is what keeps the
+     * bounded re-check from firing twice for the same widget, and what a {@code "Removed"} subscription later reads
      * — so both events record, only one calls Lua. The payload is the interned Widget entity, the same value every
      * other {@code hafen.ui} door hands back (029.1), so {@code ==} identifies it across the two events.
      */
     private static void record(LuaSelectorWatch w, Widget wdg, int id) {
         w.matched.put(wdg, Integer.valueOf(id));
-        if(w.event == LuaSelectorWatch.APPEAR)
+        if(w.event == LuaSelectorWatch.ADDED)
             callLua(w.owner, Addon.C_WIDGET, w.fn, LuaWidget.of(w.owner, wdg));
     }
 
     /**
      * Offer a removed widget to every selector subscription (from {@link AddonManager#drainRemovedWidgets}, M1 seam
-     * 042.9). Check whether it was matched and, for {@code disappear} subscriptions, fire the event. Also remove it
+     * 042.9). Check whether it was matched and, for {@code "Removed"} subscriptions, fire the event. Also remove it
      * from pending if it's there (042.9: a widget that dies before its caption arrives is dropped from the bounded
      * re-check). Deaths are processed immediately as widgets are removed, not batched and polled — cost scales with
      * widget REMOVAL, not with frames, and a removed widget fires exactly once per subscription that matched it (no
@@ -1291,7 +1296,7 @@ final class UiApi {
             if(!watch.alive)
                 continue;
             Integer id = watch.matched.remove(w);            // was this widget matched by this subscription?
-            if((id == null) || (watch.event != LuaSelectorWatch.DISAPPEAR))
+            if((id == null) || (watch.event != LuaSelectorWatch.REMOVED))
                 continue;
             callLua(watch.owner, Addon.C_WIDGET, watch.fn, LuaWidget.of(watch.owner, w));
         }
@@ -1338,7 +1343,7 @@ final class UiApi {
     }
 
     /**
-     * Tick-side drain (UI thread, {@link AddonManager#tick}) — the caption half of the {@code appear} event, in
+     * Tick-side drain (UI thread, {@link AddonManager#tick}) — the caption half of the {@code "Added"} event, in
      * two parts, both of which end in the same {@link #offer} and so dedup against the same {@code matched} map:
      *
      * <ul>
@@ -1424,7 +1429,7 @@ final class UiApi {
      * Remove one selector subscription: stop it firing + drop it from both lists. Since 086.1 this is the
      * {@link Subs.Ended} hook of {@link Addon#watchSubs} — {@code sub:off()} and the teardown below both reach
      * it through there, and nothing else calls it. Per-SUB and not per-key: several watches share the key
-     * {@code "appear"}, so removing one must remove one record.
+     * {@code "Added"}, so removing one must remove one record.
      */
     static void removeSelectorWatch(Addon owner, LuaSelectorWatch w) {
         if(w == null)
@@ -1923,7 +1928,7 @@ final class UiApi {
      * so a hide record carrying a view is left standing for {@code widget:replace(nil)} to end.
      *
      * <p><b>An adopted widget keeps the death it would have had</b>: it is destroyed through the same
-     * {@link Owned#kill()} {@code widget:destroy()} runs, so its own {@code widget:on("Destroy", fn)} fires
+     * {@link Owned#kill()} {@code widget:destroy()} runs, so its own {@code widget:on("Removed", fn)} fires
      * from the removal seam exactly as it would have when the window closed. Which is why this addon's
      * subscriptions are dropped on every OTHER widget of the subtree and not on that one — dropping them
      * there would silence the one notification a revert owes it.

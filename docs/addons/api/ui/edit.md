@@ -9,7 +9,7 @@ Nothing here is a new section, a new object or a new verb. Every name below is o
 widget your addon built; what this page says is where the same name also answers on a widget you did not.
 
 ```lua
-hafen.session():current():ui():on("window[title=Options]", "appear", function(win)
+hafen.session():current():ui():on("window[title=Options]", "Added", function(win)
   win:match("@IButton"):on("Pressed", function(ev)
     ev:preventDefault()                  -- the X on this window does nothing while your addon is loaded
   end)
@@ -100,7 +100,7 @@ and undoes it before it returns: **inert, never an error**, the same rule `:size
 Anything of the client's that is **not** a window refuses it, naming `:size(w, h)`: what box a widget the
 client laid out is drawn in is the client's to choose, and the window around it is what refits.
 
-**A control of yours dies with the window you built it into.** Its `Destroy` fires when that window is
+**A control of yours dies with the window you built it into.** Its `Removed` fires when that window is
 destroyed and `:exists()` is `false` from that moment, with nothing to clean up — while a window the client
 merely hides has not gone anywhere, so nothing fires and your control comes back with it.
 
@@ -285,7 +285,7 @@ Everything above, on one of the client's windows, in one subscription: what it s
 inside it, the frame refitted around that control, and its close button doing what you say instead.
 
 ```lua
-hafen.session():current():ui():on("window[title=Options]", "appear", function(win)
+hafen.session():current():ui():on("window[title=Options]", "Added", function(win)
   win:title("Options, edited")                    -- what the window says
   local go = hafen.ui():button()                  -- ...a control of yours, inside the client's frame
     :text("Reload addons")
@@ -328,7 +328,7 @@ addon that edited two windows gives one of them back and keeps the other — and
 on it does nothing and raises nothing, which is what lets a toggle like the one above keep no record of what
 it wrote.
 
-**A control you adopted is destroyed rather than dropped**, so its `Destroy` fires exactly as it would have
+**A control you adopted is destroyed rather than dropped**, so its `Removed` fires exactly as it would have
 when the window closed; a widget you had hidden comes back under
 [the hide's own rule](native.md#hiding-a-native-widget-carries-a-restore) — as the user was seeing it.
 

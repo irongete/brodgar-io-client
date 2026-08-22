@@ -119,13 +119,13 @@ local CTL_KEYS = {"Pressed", "Changed", "Submitted", "Selected", "Cell"}
 -- Every key on the bus but Update, which fires once a frame and says only that a frame happened.
 local BUS_KEYS = {
   "Load", "Disable",
-  "SessionAdded", "SessionEnteredWorld", "SessionSelected", "SessionDestroyed",
+  "SessionAdded", "SessionEnteredWorld", "SessionSelected", "SessionRemoved",
   "GobAdded", "GobRemoved", "GobOverlayAdded", "GobOverlayRemoved",
   "MeterAdded", "MeterRemoved", "MeterChanged",
   "BuffAdded", "BuffRemoved", "BuffChanged",
   "FepChanged", "StudyChanged", "EquipChanged", "ActionbarChanged", "WoundChanged",
-  "KinChanged", "QuestAdded", "QuestDone", "MarkersChanged",
-  "FlowerMenuOpened", "FlowerMenuClosed",
+  "KinChanged", "QuestAdded", "QuestCompleted", "QuestFailed", "MarkerChanged",
+  "FlowerMenuAdded", "FlowerMenuRemoved",
   "GhostClicked", "SpriteClicked", "ObjectClicked",
 }
 
@@ -133,12 +133,12 @@ local BUS_KEYS = {
 -- Session they were about as their LAST argument; four ARE a session; the rest are the world's, the
 -- client's or the addon's own and carry none. That is the whole of the session column for the bus.
 local SESS_AT = {
-  SessionAdded = 1, SessionEnteredWorld = 1, SessionSelected = 1, SessionDestroyed = 1,
+  SessionAdded = 1, SessionEnteredWorld = 1, SessionSelected = 1, SessionRemoved = 1,
   MeterAdded = 2, MeterRemoved = 2, MeterChanged = 2,
   BuffAdded = 2, BuffRemoved = 2, BuffChanged = 2,
   FepChanged = 2, StudyChanged = 2, EquipChanged = 2, ActionbarChanged = 2, WoundChanged = 2,
-  KinChanged = 2, QuestAdded = 2, QuestDone = 2,
-  FlowerMenuOpened = 2, FlowerMenuClosed = 2,
+  KinChanged = 2, QuestAdded = 2, QuestCompleted = 2, QuestFailed = 2,
+  FlowerMenuAdded = 2, FlowerMenuRemoved = 2,
 }
 
 local st = hafen.store():get("settings")          -- the account's own table; filled before this file runs
@@ -376,7 +376,7 @@ local ABOUT = {
   SessionAdded        = function(s) return s:user() end,
   SessionEnteredWorld = function(s) return s:character() or "?" end,
   SessionSelected     = function(s) return s:user() end,
-  SessionDestroyed    = function(s) return s:user() end,
+  SessionRemoved    = function(s) return s:user() end,
 
   -- At GobRemoved the gob is already gone, and :id() is the one read that answers there.
   GobAdded          = function(g)  return g:name() or ("#" .. num(g:id())) end,
@@ -400,11 +400,12 @@ local ABOUT = {
 
   KinChanged     = function(l) return num(#l) .. " kin" end,
   QuestAdded     = function(q) return q:title() or "quest" end,
-  QuestDone      = function(q) return (q:title() or "quest") .. " -> " .. (q:status() or "?") end,
-  MarkersChanged = function(c) return num(c:count()) .. " marker(s)" end,  -- 091: the collection, not a count
+  QuestCompleted = function(q) return q:title() or "quest" end,
+  QuestFailed    = function(q) return q:title() or "quest" end,
+  MarkerChanged = function(c) return num(c:count()) .. " marker(s)" end,  -- 091: the collection, not a count
 
-  FlowerMenuOpened = function(p) return num(#p) .. " petal(s)" end,
-  FlowerMenuClosed = function(p) return p or "(dismissed)" end,
+  FlowerMenuAdded = function(p) return num(#p) .. " petal(s)" end,
+  FlowerMenuRemoved = function(p) return p or "(dismissed)" end,
 
   GhostClicked  = function(ev) return "button " .. num(ev:button()) end,
   SpriteClicked = function(ev) return "button " .. num(ev:button()) end,
@@ -564,16 +565,16 @@ end
 local function armWidget(s)
   if watches[s] then return end
   local user = s:user()
-  local a = s:ui():on("*", "appear", function(w)
+  local a = s:ui():on("*", "Added", function(w)
     local class = w:type()
     classOf[w] = class
     local id = w:id()          -- the server's own name for it, where it has one: what a uimsg is addressed to
-    push{src = "widget", name = "appear", who = user, wclass = class,
+    push{src = "widget", name = "Added", who = user, wclass = class,
          about = id and ("#" .. num(id)) or "", w = w}
   end)
   -- At disappear the widget is a key to match, not something to read: the class comes from appear.
-  local d = s:ui():on("*", "disappear", function(w)
-    push{src = "widget", name = "disappear", who = user, wclass = classOf[w] or "?", about = "", w = w}
+  local d = s:ui():on("*", "Removed", function(w)
+    push{src = "widget", name = "Removed", who = user, wclass = classOf[w] or "?", about = "", w = w}
     classOf[w] = nil
   end)
   watches[s] = {a, d}
@@ -622,10 +623,10 @@ local function armUi(s)
   uiSubs[s] = {}
   local root = s:ui():root()
   if root then root:walk(function(n) watchCtl(s, n, who) end) end
-  local a = s:ui():on("*", "appear", function(w) watchCtl(s, w, who) end)
+  local a = s:ui():on("*", "Added", function(w) watchCtl(s, w, who) end)
   -- A destroyed widget's subscription has nothing left to fire, but it is still an entry in a table this
   -- addon holds -- so it goes when the widget does, rather than piling up a login at a time.
-  local d = s:ui():on("*", "disappear", function(w)
+  local d = s:ui():on("*", "Removed", function(w)
     local held = uiSubs[s]
     local sub = held and held[w]
     if sub then
@@ -913,7 +914,7 @@ local function build()
   -- while nothing has arrived, nothing is on screen to read it, or the user has said pause. The filters
   -- ride the same beat, because a repopulation is a :rows(t) of its own -- and the pick is written back
   -- after the rows, since :rows(t) is what cleared it.
-  w:on("Tick", function()
+  w:on("Update", function()
     if dirty and (not paused) and w:visible() then
       if filtersDirty then
         refill(ds, srcOrder, pickSrc)
@@ -985,7 +986,7 @@ hafen.event():on("SessionEnteredWorld", function(s)
   if st.sources.ui then armUi(s) end
 end)
 
-hafen.event():on("SessionDestroyed", function(s)
+hafen.event():on("SessionRemoved", function(s)
   disarmWidget(s)
   disarmUi(s)
   if armed then mapRoots() end

@@ -114,7 +114,7 @@ Three properties make it a convention rather than a lookup helper:
 
 - **One string, three uses.** The same selector names a widget for a lookup, `s:ui():match(sel)`, for a
   listing, `s:ui():matchAll(sel)`, and for one that does not exist yet,
-  [`s:ui():on(sel, "appear", fn)`](ui/replace.md#watching-for-a-widget) — so waiting for a window and
+  [`s:ui():on(sel, "Added", fn)`](ui/replace.md#watching-for-a-widget) — so waiting for a window and
   then reading it are one vocabulary.
 - **One string, two resolutions.** The same selector is also the key of a
   [stylesheet](ui/style/README.md): a bare role the client *draws at* names a

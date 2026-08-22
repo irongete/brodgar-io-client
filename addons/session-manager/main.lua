@@ -110,7 +110,7 @@ end
 
 -- The four session events are the whole of what changes a row: one connects, one reaches the world and
 -- gains a character name, the screen moves, one ends.
-for _, key in ipairs({"SessionAdded", "SessionEnteredWorld", "SessionSelected", "SessionDestroyed"}) do
+for _, key in ipairs({"SessionAdded", "SessionEnteredWorld", "SessionSelected", "SessionRemoved"}) do
   hafen.event():on(key, refresh)
 end
 

@@ -213,6 +213,16 @@ public abstract class LuaWorldEntity {
     abstract String kind();
 
     /**
+     * <b>This kind's own contribution to {@code e:info()}</b> (098). The ten readers every entity shares are
+     * written by {@code VrApi.entityHandle}; each subclass adds the one or two verbs only it answers, under
+     * the key its verb is spelled with, so the snapshot and the vocabulary can never name a thing differently.
+     *
+     * <p>Only READERS belong here. {@code panel:screen(x, y)} is a projection that takes a point, so it has
+     * nothing to put in a snapshot; {@code :onClick(fn)} is a callback slot rather than a fact.
+     */
+    abstract void infoInto(org.luaj.vm2.LuaTable t);
+
+    /**
      * The {@code ev} field name under which the clicked entity's handle is delivered in its {@link #clickEvent()} —
      * a ghost is a ghost, a sprite is a sprite: the field is named for the kind, so there is one word, not two.
      */

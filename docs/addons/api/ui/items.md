@@ -231,24 +231,24 @@ whatever happens to be on the cursor rather than the receiver, which is why it l
 ## The container lifecycle
 
 Two keys on the container itself, through the same [`:on(key, fn)`](widget.md#subscribing) every widget
-answers — plus `Destroy`, universal to any widget, worth re-stating here because a container closing is
+answers — plus `Removed`, universal to any widget, worth re-stating here because a container closing is
 usually the reason to hold one.
 
 | Key | handler receives | Fires |
 |---|---|---|
 | `ItemAdded` | [`Item`](#the-item-object) | an item enters this container |
 | `ItemRemoved` | [`Item`](#the-item-object) | one leaves |
-| `Destroy` | — | this widget leaves the tree |
+| `Removed` | — | this widget leaves the tree |
 
 Two chests can be open at once, so take each one as it opens rather than naming it from the root:
 
 ```lua
 local function label(item) return item:name() or item:res() or "?" end
 
-hafen.session():current():ui():on("window[title=Chest]", "appear", function(chest)
+hafen.session():current():ui():on("window[title=Chest]", "Added", function(chest)
   chest:on("ItemAdded",   function(item) hafen.log():write("in:  " .. label(item)) end)
   chest:on("ItemRemoved", function(item) hafen.log():write("out: " .. label(item)) end)
-  chest:on("Destroy",     function() hafen.log():write("chest closed") end)
+  chest:on("Removed",     function() hafen.log():write("chest closed") end)
 end)
 ```
 
@@ -261,7 +261,7 @@ at the moment the client puts that widget into the tree or takes it out. Three c
 knowing: the items **already** inside a container fire `ItemAdded` while you subscribe, before `:on`
 returns, so the state arrives as events the way [`BuffAdded`](../event/bus.md#character-and-status) does; a
 container that is hidden still fires them, which is why you can [hide a grid](native.md) and keep reading
-it; and subscribing to any of the three on a widget that has already left the tree fires `Destroy` there
+it; and subscribing to any of the three on a widget that has already left the tree fires `Removed` there
 and then, and drops every subscription on it. The item handed to `ItemRemoved` is the same object the add
 reported, so it is worth keeping — it answers after it has left. Worn equipment additionally has the
 global [`EquipChanged`](../event/bus.md#character-and-status) event, which carries the whole new list.

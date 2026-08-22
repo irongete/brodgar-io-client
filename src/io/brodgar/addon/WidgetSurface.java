@@ -499,7 +499,7 @@ final class WidgetSurface extends Widget {
      * Move {@code w} from wherever it is into {@code np} at {@code at}, <b>without</b> going through
      * {@link Widget#remove()}. The engine's removal is the right call for a widget that is going away, and the
      * wrong one for a widget that is only changing address: it runs the {@code onWidgetRemoved} seam, which
-     * would fire {@code widget:on("Destroy")}, a selector's {@code disappear}, and the end of a
+     * would fire {@code widget:on("Removed")}, a selector's {@code "Removed"}, and the end of a
      * {@code widget:replace()} substitution — three notifications about a death that is not happening. So this
      * does the two things a re-home genuinely is: unlink from the old sibling chain (telling the old parent its
      * children changed, and dropping the focusable if it held one) and add to the new one.

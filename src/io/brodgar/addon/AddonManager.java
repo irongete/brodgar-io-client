@@ -426,7 +426,7 @@ public final class AddonManager {
         /** Windows of this tree whose caption changed, for that re-check (042.9/049.3). Appended off the
          *  UI thread by the caption seam, drained on this session's own tick. */
         final Queue<Widget> selectorCapChanged = new ConcurrentLinkedQueue<Widget>();
-        /** {@code widget:on("ItemAdded"/"ItemRemoved"/"Destroy", fn)} records on widgets of this tree (041.4). */
+        /** {@code widget:on("ItemAdded"/"ItemRemoved"/"Removed", fn)} records on widgets of this tree (041.4). */
         final List<WidgetSubs> widgetSubsWatching = new CopyOnWriteArrayList<WidgetSubs>();
         /** Surfaces built into this tree since its last tick and not yet painting (039.6's arming tick). */
         final List<Owned> unarmed = new ArrayList<Owned>();
@@ -1140,11 +1140,11 @@ public final class AddonManager {
             //     here.
 
             // 1c'. WidgetSubs tree keys (041.4, event-driven since 042.7): widget:on("ItemAdded"/"ItemRemoved", fn)
-            //      and widget:on("Destroy", fn) no longer poll — they are offered every placement (above, via
+            //      and widget:on("Removed", fn) no longer poll — they are offered every placement (above, via
             //      onWidgetPlaced -> UiApi.dispatchWidgetSubsPlaced) and every removal (drainRemovedWidgets, via
             //      UiApi.dispatchWidgetSubsRemoved), so there is nothing left for the tick to drive here.
 
-            // 1c''. Selector subscriptions (030.2, event-driven since 042.9): `disappear` is fully driven by the
+            // 1c''. Selector subscriptions (030.2, event-driven since 042.9): `Removed` is fully driven by the
             //       removal seam above (drainRemovedWidgets, via UiApi.dispatchSelectorRemoved) — nothing to do
             //       here for it. The [title=]/[res=] refiner's re-check is woken by the caption seam
             //       (Window.chcap -> onCaptionChanged -> UiApi.markCaptionChanged), but that seam runs OFF the UI
@@ -1171,7 +1171,7 @@ public final class AddonManager {
             //        inputs' own events now, never on a fold.
             Layout.drainPendingCaption(st);
 
-            // 1d. Map markers (A1, 042.11, event-driven): fire MarkersChanged when the on-disk map DB's
+            // 1d. Map markers (A1, 042.11, event-driven): fire MarkerChanged when the on-disk map DB's
             //     markerseq changes (a marker add/remove is not a uimsg — the server pushes SMarkers via
             //     markobj, the player/addon adds PMarkers, and segment merges re-key them; all bump markerseq).
             //     The bump is caught at its source and marshalled onto the tick to avoid deadlock with the
@@ -1601,7 +1601,7 @@ public final class AddonManager {
 
     /**
      * The <b>radial-menu seams</b> (047.1) — the four {@code // addon:} lines in {@link FlowerMenu} that turn
-     * the client's own context menu into {@code FlowerMenuOpened}/{@code FlowerMenuClosed} and feed
+     * the client's own context menu into {@code FlowerMenuAdded}/{@code FlowerMenuRemoved} and feed
      * {@code s:flowermenu()}. {@link FlowerMenuApi} holds the rules; these are the door haven calls
      * through.
      *
@@ -1666,13 +1666,13 @@ public final class AddonManager {
      */
     static final String[] BUS_KEYS = {
         "Load", "Update", "Disable",
-        "SessionAdded", "SessionEnteredWorld", "SessionSelected", "SessionDestroyed",
+        "SessionAdded", "SessionEnteredWorld", "SessionSelected", "SessionRemoved",
         "GobAdded", "GobRemoved", "GobOverlayAdded", "GobOverlayRemoved",
         "MeterAdded", "MeterRemoved", "MeterChanged",
         "BuffAdded", "BuffRemoved", "BuffChanged",
         "FepChanged", "StudyChanged", "EquipChanged", "ActionbarChanged", "WoundChanged",
-        "KinChanged", "QuestAdded", "QuestDone", "MarkersChanged",
-        "FlowerMenuOpened", "FlowerMenuClosed",
+        "KinChanged", "QuestAdded", "QuestCompleted", "QuestFailed", "MarkerChanged",
+        "FlowerMenuAdded", "FlowerMenuRemoved",
         "GhostClicked", "SpriteClicked", "ObjectClicked",
     };
 
@@ -1696,7 +1696,7 @@ public final class AddonManager {
                 + " hafen.event():action():on(\"*\", fn) and hafen.event():message():on(\"*\", fn)";
         else if(key.toLowerCase().startsWith("session"))
             hint = " — the session family is SessionAdded, SessionEnteredWorld, SessionSelected and"
-                + " SessionDestroyed";
+                + " SessionRemoved";
         else
             hint = "";
         return "hafen.event():on(key, fn): unknown event '" + key + "'" + hint
@@ -1927,7 +1927,7 @@ public final class AddonManager {
     public static void sessionSelected(String user) { queueSession("SessionSelected", user); }
 
     /** Call site — {@code Sessions.Member.run}'s {@code finally}: this session ended, however it ended. */
-    public static void sessionDestroyed(String user) { queueSession("SessionDestroyed", user); }
+    public static void sessionDestroyed(String user) { queueSession("SessionRemoved", user); }
 
     /** Enqueue one session event. A nameless session is not one of these — nothing could act on it. */
     private static void queueSession(String key, String user) {
@@ -1953,22 +1953,22 @@ public final class AddonManager {
      * so the payload cannot be shared — one object handed to every owner would cross a sandbox boundary — and
      * it is minted only for an owner that actually subscribes, so the addons that do not listen pay nothing.
      *
-     * <p>A {@code SessionDestroyed} payload names a session that is <b>already gone</b>: the account name is
+     * <p>A {@code SessionRemoved} payload names a session that is <b>already gone</b>: the account name is
      * the whole of the ref, so {@code :user()} answers there while {@code :exists()} is {@code false}, which
      * is what lets a handler drop its own tables by the very key it was handed.
      */
     /**
-     * {@code MarkersChanged} — the marker COLLECTION, per owner (091, A-083). It was a bare count, which
+     * {@code MarkerChanged} — the marker COLLECTION, per owner (091, A-083). It was a bare count, which
      * answered a question nobody asked ({@code :count()} is one call away) and not the one they did.
      */
     static void fireMarkers() {
         for(Addon a : addons) {
-            if(hasSub(a, "MarkersChanged"))
-                fireTo(a, "MarkersChanged", MapApi.markers(a));
+            if(hasSub(a, "MarkerChanged"))
+                fireTo(a, "MarkerChanged", MapApi.markers(a));
         }
         Addon c = consoleOwner;
-        if((c != null) && hasSub(c, "MarkersChanged"))
-            fireTo(c, "MarkersChanged", MapApi.markers(c));
+        if((c != null) && hasSub(c, "MarkerChanged"))
+            fireTo(c, "MarkerChanged", MapApi.markers(c));
     }
 
     static void fireSession(String event, String user) {
@@ -2335,7 +2335,7 @@ public final class AddonManager {
      * a destroy the removal seam above cannot see. {@code Widget.destroy()} is {@code remove()} on the widget
      * itself plus {@code rdispose()}, which recurses {@code dispose()} <b>only</b>: everything below the widget
      * being destroyed stays linked to its parent and never runs {@code remove()}, so a control an addon built
-     * into one of the client's windows would leave the tree with its {@code widget:on("Destroy", fn)} silent —
+     * into one of the client's windows would leave the tree with its {@code widget:on("Removed", fn)} silent —
      * while every read on it correctly goes stale, since {@code hasparent(ui.root)} is false the moment the
      * widget above it unlinks.
      *
@@ -2487,7 +2487,7 @@ public final class AddonManager {
      * removals must not spin this tick forever.
      *
      * <p><b>Second consumer since 042.7</b>: {@link UiApi#dispatchWidgetSubsRemoved}, for {@code widget:on(
-     * "Destroy"/"ItemAdded"/"ItemRemoved", fn)} — same drain, same thread, so firing those here is exactly as
+     * "Removed"/"ItemAdded"/"ItemRemoved", fn)} — same drain, same thread, so firing those here is exactly as
      * safe as the tree-adapter dispatch above. <b>Third since 042.8</b>: {@link UiApi#dispatchReplacedRemoved},
      * for the {@code widget:replace(view)} substitution's own death test — the server destroying a window an
      * addon replaced is a removal like any other. <b>Fifth since 044.6</b>:
@@ -2584,7 +2584,7 @@ public final class AddonManager {
 
     /**
      * Map marker count changed — the on-disk map DB's {@link haven.MapFile#markerseq} bumped on add/remove/
-     * update (UI or processor thread) or segment merge (loader thread). Fire MarkersChanged with the new count
+     * update (UI or processor thread) or segment merge (loader thread). Fire MarkerChanged with the new count
      * payload. This only enqueues; {@link #tick(UI, double)} drains it on the UI thread, same shape as the other
      * marshalled queues (D-106, to avoid deadlock with the map DB's RW lock).
      *
@@ -2592,7 +2592,7 @@ public final class AddonManager {
      * a {@code MapFile} is a map database some HUD holds, and the session holding that HUD claims it on its own
      * tick ({@link SessionState#mapFile}). A notify no session claims is <b>dropped</b>. Where two sessions
      * share the database (075.2 — two characters on one server), the <b>first</b> claimant queues it and the
-     * rest do not: one change to one database is one {@code MarkersChanged}, not one per login.
+     * rest do not: one change to one database is one {@code MarkerChanged}, not one per login.
      *
      * <p><b>Must not touch Lua.</b>
      */
@@ -2609,7 +2609,7 @@ public final class AddonManager {
 
     /**
      * Deliver the marker-count changes captured since this session's last tick, one frame's worth (D-106) —
-     * fire MarkersChanged with each count.
+     * fire MarkerChanged with each count.
      *
      * <p>The claim is refreshed first, and by the drawn session's own map read (073.4): a session learns which
      * {@code MapFile} is its own through the {@code GameUI} that holds it, so it is never told about another
@@ -2623,7 +2623,7 @@ public final class AddonManager {
             if(count == null)
                 break;
             try {
-                MapApi.fireMarkersChanged(st, count);
+                MapApi.fireMarkerChanged(st, count);
             } catch(RuntimeException e) {
                 log("marker-change dispatch error: " + e);
             }
@@ -2700,7 +2700,7 @@ public final class AddonManager {
     // as it did and one that cares writes `function(m, s) … end`.
     //
     // The world events grow none of this: a gob is one object and there is no character it belongs to. Nor do
-    // Load, Update, Disable, MarkersChanged or the three vr click events, which are the client's or the
+    // Load, Update, Disable, MarkerChanged or the three vr click events, which are the client's or the
     // addon's own — see BUS_KEYS.
 
     /**
@@ -2897,11 +2897,12 @@ public final class AddonManager {
     }
 
     /**
-     * Fire a quest event ({@code QuestAdded}/{@code QuestDone}) whose payload is the <b>Quest object</b>
+     * Fire a quest event ({@code QuestAdded}/{@code QuestCompleted}/{@code QuestFailed}) whose payload is
+     * the <b>Quest object</b>
      * (039.13). Same shape as {@link #fireGob}: interning is per-addon (D-045), so each owner gets <i>its</i>
      * handle for the id, minted only for an owner that actually subscribes.
      *
-     * <p>The object matters more here than in most events: {@code QuestDone} fires <i>because</i> the status
+     * <p>The object matters more here than in most events: a completion fires <i>because</i> the status
      * changed, and a snapshot would freeze the very field the handler is being told about. A stashed Quest
      * goes on reading — including through the completion that fired this.
      */
@@ -2942,8 +2943,8 @@ public final class AddonManager {
     }
 
     /**
-     * Fire a radial-menu event (047.1) — {@code FlowerMenuOpened}, whose payload is the petal captions as an
-     * array of strings in ring order, or {@code FlowerMenuClosed}, whose payload is the label picked or
+     * Fire a radial-menu event (047.1) — {@code FlowerMenuAdded}, whose payload is the petal captions as an
+     * array of strings in ring order, or {@code FlowerMenuRemoved}, whose payload is the label picked or
      * {@code nil}. Same {@code hasSub} shape as {@link #fireGob}: the payload is built only for an owner that
      * actually subscribes, and it is built <i>per owner</i> even though nothing here is interned — a table
      * handed to Lua is mutable, and one addon must not be able to edit another's petal list.
@@ -3098,7 +3099,7 @@ public final class AddonManager {
         // opened it, since the server sends no such thing, and nil wherever that correlation cannot vouch
         // for an answer; the id resolves in the tree the menu stands in. The two PROTECTED verbs,
         // :select(label|n) and :cancel(), keep the one key each has addressed at any character. The two
-        // events, FlowerMenuOpened and FlowerMenuClosed, are where an automation addon actually reacts.
+        // events, FlowerMenuAdded and FlowerMenuRemoved, are where an automation addon actually reacts.
 
         // hafen.map():* — the RECORDED map (037): the client's on-disk map database (MapFile), the map the
         // player has EXPLORED, as opposed to the live terrain above. Five collections, re-shaped in 039.4:
@@ -3111,7 +3112,7 @@ public final class AddonManager {
         //     colour) and SYSTEM markers (server/quest pins: a name + icon). :add(name, p) takes a Position
         //     and hands back a bare pin whose colour and on-map flag are setters; :remove(m) takes it out.
         //     Both writes are unprotected — they edit the user's own on-disk database. The DB streams in a beat
-        //     after enter-world (empty until then); MarkersChanged fires on any change, ours or the user's.
+        //     after enter-world (empty until then); MarkerChanged fires on any change, ours or the user's.
         //   :icon() — the minimap icon registry (the old hafen.radar; the engine has no "radar", it has
         //     GobIcon.Settings — D-061). :get(res) is one category by its icon RESOURCE NAME (the identity),
         //     :list/:find search by the display name, and the flags are arity-as-the-verb on the entity:
@@ -3391,9 +3392,10 @@ public final class AddonManager {
         HttpApi.install(hafen, owner);
 
         // hafen.event():on(key, fn) -> a Sub; sub:off() ends it. The bus is the door for a notification with
-        // no object to hang off (041 R2: ¿tienes el objeto? obj:on(...); ¿no? hafen.event()), and it is the
-        // same one verb every emitter answers. The section is singular like every other one: an event NAME
-        // keeps its plural (MarkersChanged is a sentence), the section does not.
+        // no object to hang off (041 R2: have you got the object? obj:on(...); no? hafen.event()), and it is
+        // the same one verb every emitter answers. 097: the SUBJECT of a key is singular too -- MarkersChanged
+        // was the one plural in the set, and it named the collection its handler is given rather than the
+        // change that happened, which is one marker's.
         //
         // The key set is CLOSED (D-129): the client fires every one of BUS_KEYS and knows them at load, so an
         // unknown one throws rather than being accepted and never firing. The four lifecycle keys dropped their On prefix

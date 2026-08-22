@@ -118,6 +118,7 @@ Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the
 | `e:clickable()` / `e:clickable(b)` | the pick surface — opt-in, and client-side only |
 | `e:onClick()` / `e:onClick(fn)` | `fn(e, button, x, y)` fired on click |
 | `e:exists()` | is it still in the world? `false` once the collection removed it |
+| `e:info()` | the whole state as a plain table — the [one snapshot](../../conventions.md) |
 
 **`:position` and `:offset` are the two halves of "where", one for each anchor.** A thing that follows a gob
 has the gob's place, so writing `:position(p)` on it would be undone on the next frame — it raises instead,
@@ -128,6 +129,33 @@ point, and for one that stands still it is
 coordinate.
 
 `:tint(nil)` stays legal: "no tint" is a real value, not an accident.
+
+### The snapshot
+
+`e:info()` is the one escape hatch every live object in this API carries: the whole state at once, as a
+plain table, for logging or serialising. Every key is spelled the way the verb that reads it is, so there
+is nothing to translate:
+
+```lua
+local e = hafen.vr():sprite():list()[1]
+local i = e:info()
+hafen.log():write(i.kind .. " alpha=" .. i.alpha .. " drawn=" .. tostring(i.drawn))
+
+for k, v in pairs(e:info()) do            -- the whole dump, in one call
+  hafen.log():write(k .. " = " .. tostring(v))
+end
+```
+
+`kind`, `rotate`, `scale`, `alpha`, `visible`, `clickable`, `exists` and `drawn` are always there;
+`position` is the `{gridId, x, y}` table [`p:info()`](../position.md) answers, and `tint` is a
+[colour](../shapes.md#colours). **A key is absent when the thing it names is** — no `tint` when none is
+laid over it, and no `anchor`/`offset` for one that stands still, exactly as `:offset()` itself raises
+there. Each kind adds its own: `res` for a ghost, `mesh` for an object, `image` and `facing` for a sprite,
+`facing` for a panel.
+
+It is a **snapshot**, so nothing in it goes on updating and nothing in it is a live object — that is what
+the verbs beside it are for. `panel:screen(x, y)` has no entry: it projects a point you pass in, so there
+is no value of it to photograph.
 
 **A look value outside its range is brought into it.** `:scale` holds to `0.01..100` and `:alpha` to `0..1`,
 so `:scale(0)` gives the smallest size these take rather than an error. Resizing a **game** object is

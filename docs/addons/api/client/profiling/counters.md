@@ -92,7 +92,7 @@ addon's, not only your own — a panel is a texture and a widget subtree whereve
 
 `live` and `culled` are instantaneous counts, never totals. A surface is culled when the camera is pointing
 elsewhere, when the entity is hidden, or when the game object it stands on has left the scene — and being
-culled is not being gone: the collection still holds it, its `Tick` still fires, and it draws again the
+culled is not being gone: the collection still holds it, its `Update` still fires, and it draws again the
 first frame it is looked at.
 
 `uploads` and `frames` mean something as a **delta between two reads**: take one, wait, take another. That

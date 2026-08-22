@@ -129,6 +129,36 @@ act rather than the removal of a member; and [`w:revert()`](ui/edit.md#taking-th
 your edits on a widget, as [`w:replace(nil)`](ui/replace.md) and `w:size(nil)` give back one — an undo of
 your own layer, with nothing ended at all.
 
+### Events: three edges, three words
+
+An event key is a **subject and an edge**, and there are only three edges. Something appears, something
+goes, something changes — `Added`, `Removed`, `Changed`, whatever the subject in front of them.
+
+| Edge | Word | Examples |
+|---|---|---|
+| it appeared | `Added` | `GobAdded`, `BuffAdded`, `SessionAdded`, `FlowerMenuAdded`, and `Added` on a [selector watch](ui/replace.md#watching-for-a-widget) |
+| it went | `Removed` | `GobRemoved`, `MeterRemoved`, `SessionRemoved`, and `Removed` on a [widget](ui/widget.md#subscribing) |
+| it changed | `Changed` | `MeterChanged`, `KinChanged`, `MarkerChanged` |
+
+**The subject is singular.** One change is one marker's, so the key is `MarkerChanged` even though what
+your handler is given is the whole collection the change happened in.
+
+**Where an outcome differs, the key differs.** A quest that is completed and a quest that is failed are
+two events — `QuestCompleted` and `QuestFailed` — not one event and a field to check afterwards. A key
+that covers two outcomes makes the handler that reads its name wrong half the time, silently, which is the
+one failure this whole convention exists to prevent.
+
+**One word per edge, at every level.** A frame passing is `Update` on
+[the bus](event/bus.md#the-addons-own-life) and `Update` on [a surface of yours](ui/custom.md#subscribing),
+and both hand your handler the same `dt` — the same edge one object apart is not two words.
+
+The keys of an emitter whose set is **open** are not this: a
+[slash command](slash.md), a [hotkey](client/keybindings.md), a
+[`wdgmsg` or `uimsg` name](event/streams.md) is a name you or the protocol chose, and those are written
+lower case. Every key the client itself fires is PascalCase, and its set is closed — an unknown one
+[raises](#a-retired-name-says-what-replaced-it-and-an-unknown-one-says-what-exists) rather than being
+accepted and never firing.
+
 ### Objects, and the snapshot hatch
 
 A read hands back a **live object** rather than a copy. It re-resolves on every call, answers `nil`

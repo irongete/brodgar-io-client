@@ -1,0 +1,9 @@
+{
+  "name": "097 — three edges, three words",
+  "id": "097-three-edges-three-words.all",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for the whole of feature 097: the event vocabulary collapses onto three edges — Added, Removed and Changed — with a singular subject in front of each. It asserts the six new bus keys are live, that every spelling they replaced raises naming its replacement, that QuestDone raises naming BOTH QuestCompleted and QuestFailed and says why it had to be split, that a widget answers Update and Removed while Tick and Destroy raise, that the selector watch answers Added and Removed while the lower-case pair raises, and that both frame edges really fire and hand the same dt.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

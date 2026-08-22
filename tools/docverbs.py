@@ -32,6 +32,10 @@ WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
   * A receiver spelled ambiguously. `p` is a Position and a profiling handle; `sp` is a Speed and a
     scrollport. Those are mapped per file where a page is unambiguous and skipped otherwise, and
     --verbose lists what was skipped so the map's coverage is visible instead of assumed.
+  * An event key on an OPEN emitter -- a slash command, a hotkey, a wdgmsg, an action, req:on("done").
+    Those key sets are protocol or user-chosen, so there is nothing to check against; the key pass reads
+    upper-case keys only, which is the convention that separates the two. Its other blind spots are
+    written above `event_keys` itself.
   * A claim with no call in it. "This is a plain array and not a collection" is prose; a javadoc that
     contradicts the method beneath it needs a reader, not a regex.
 """
@@ -286,6 +290,66 @@ def java_mentions(vocab):
                         bad.append(("src/io/brodgar/addon/" + f, i, recv, verb, ent, t[:104]))
     return checked, bad
 
+# ---------------------------------------------------------------------------------------------------
+# EVENT KEYS -- the other half of the contract, and the half a verb check cannot see.
+#
+# A subscription names its key with a STRING, so a page that still writes a key the bridge stopped
+# firing reads perfectly and fails only when someone runs it. 097 moved eleven of them, which is
+# exactly the move that leaves that kind of rot behind.
+#
+# The rule that makes this checkable: every CLOSED key set in the API is PascalCase, and every OPEN
+# emitter's key is a name the addon author chose -- a slash command, a hotkey, a wdgmsg, an action --
+# which every page writes in lower case. So an upper-case key must be one the bridge fires, and a
+# lower-case one is skipped.
+#
+# BLIND SPOTS, stated rather than implied:
+#   - open emitters (hafen.slash(), keybindings(), action(), message(), pag:on("use"), req:on("done"))
+#     are not checked at all. Their key sets are PROTOCOL or user-chosen; there is nothing to check
+#     against, and a typo there is the author's own.
+#   - a key built from a variable rather than written as a literal is invisible here.
+#   - suites under addons/<NNN>-*/ are skipped: they call retired spellings ON PURPOSE, to prove the
+#     retirement raises. A suite is re-run every round, which is its own guard.
+def event_keys():
+    """Every key a CLOSED emitter fires, read out of the bridge's own key sets."""
+    def arr(text, name):
+        m = re.search(r'String\[\]\s+' + name + r'\s*=\s*\{(.*?)\}', text, re.S)
+        return set(re.findall(r'"([A-Za-z]+)"', m.group(1))) if m else set()
+    am = io.open(os.path.join(BRIDGE, "AddonManager.java"), encoding="utf-8", errors="replace").read()
+    lw = io.open(os.path.join(BRIDGE, "LuaWidget.java"), encoding="utf-8", errors="replace").read()
+    live = arr(am, "BUS_KEYS") | arr(lw, "UNIVERSAL_KEYS") | arr(lw, "SURFACE_KEYS")
+    # widgetKeys() adds these by interface rather than from an array, so they are named here.
+    live |= {"Pressed", "Changed", "Submitted", "Selected", "Cell", "ItemAdded", "ItemRemoved"}
+    live |= {"Added", "Removed"}     # the selector watch, s:ui():on(sel, event, fn)
+    live |= {"Move", "Up"}           # the pointer grab, closed to exactly these two
+    return live
+
+ON_KEY = re.compile(r':on\(\s*(?:[^,()]*,\s*)?"([A-Za-z][A-Za-z]*)"')
+
+def key_mentions(live):
+    """Every upper-case :on( key written in docs/ or in one of the five tools."""
+    checked, bad = 0, []
+    roots = [(DOCS, None), (os.path.join(ROOT, "addons"), "suite")]
+    for base, mode in roots:
+        for dirpath, dirnames, files in os.walk(base):
+            rel_dir = os.path.relpath(dirpath, ROOT).replace("\\", "/")
+            # a suite folder is <NNN>-<feature>.<X> -- it calls dead spellings on purpose
+            if mode == "suite" and re.search(r'/\d{3}-[^/]+$', rel_dir):
+                continue
+            for f in files:
+                if not f.endswith((".md", ".lua")):
+                    continue
+                p = os.path.join(dirpath, f)
+                rel = os.path.relpath(p, ROOT).replace("\\", "/")
+                for i, line in enumerate(io.open(p, encoding="utf-8", errors="replace"), 1):
+                    for k in ON_KEY.findall(line):
+                        if not k[0].isupper():
+                            continue          # an open emitter's own name -- see the blind spots
+                        checked += 1
+                        if k not in live:
+                            bad.append((rel, i, k, line.strip()[:100]))
+    return checked, bad
+
+
 def main():
     verbose = "--verbose" in sys.argv
     vocab = bridge_vocabularies()
@@ -330,11 +394,21 @@ def main():
     else:
         print("no collection is used as an array")
 
+    live = event_keys()
+    kchecked, kbad = key_mentions(live)
+    print("\nchecked %d upper-case event keys against %d the bridge fires" % (kchecked, len(live)))
+    if kbad:
+        print("== %d place(s) subscribing to a key the bridge does not fire ==" % len(kbad))
+        for rel, i, k, text in kbad:
+            print("  %s:%d  \"%s\"\n      %s" % (rel, i, k, text))
+    else:
+        print("every event key written outside a suite is one the bridge fires")
+
     if verbose and skipped:
         print("\n== receivers not mapped (add to RECEIVERS to widen coverage) ==")
         for r, n in skipped.most_common(30):
             print("  %-16s %d" % (r, n))
-    return 1 if (bad or arrayish or jbad) else 0
+    return 1 if (bad or arrayish or jbad or kbad) else 0
 
 if __name__ == "__main__":
     sys.exit(main())

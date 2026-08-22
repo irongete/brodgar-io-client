@@ -69,9 +69,10 @@ final class Retired {
     static {
         // ---- the bus: the lifecycle keys drop the On prefix (:on already says it). Every other key is ------
         // ---- unchanged, so it carries no row here -- PascalCase was already the bus's own spelling.
-        eventKey("hafen.event()", "OnLoad", "Load");
-        eventKey("hafen.event()", "OnUpdate", "Update");
-        eventKey("hafen.event()", "OnDisable", "Disable");
+        String onSays = ":on already says \"on\"";
+        eventKey("hafen.event()", "OnLoad", "Load", onSays);
+        eventKey("hafen.event()", "OnUpdate", "Update", onSays);
+        eventKey("hafen.event()", "OnDisable", "Disable", onSays);
 
         // ---- 074.3: an addon does not enter the world -- a SESSION does, and it says which. The addon --
         // ---- layer outlives a character switch now, so "you entered the world" had no subject left: one
@@ -82,12 +83,57 @@ final class Retired {
             + " session, while your addon is loaded once for the client";
         eventKeyWhy("hafen.event()", "EnterWorld", why);
         eventKeyWhy("hafen.event()", "OnEnterWorld", why);
+
+        // ---- 097: THREE EDGES, THREE WORDS. Something appears (Added), something goes (Removed), --------
+        // ---- something changes (Changed) -- and the subject in front of the word is singular. The bus
+        // ---- had five word-pairs for those three edges, so every key below is the same edge under a word
+        // ---- that only that one key used. Each is a pure rename: the payload, the timing and the
+        // ---- handler's own body are untouched, which is why they are `eventKey` rows and not refusals.
+        String edges = "Added, Removed and Changed are the three edges of the whole API, whatever the"
+            + " subject in front of them";
+        eventKey("hafen.event()", "SessionDestroyed", "SessionRemoved", edges
+            + ", and this was the one Destroyed among ten Removed");
+        eventKey("hafen.event()", "FlowerMenuOpened", "FlowerMenuAdded", edges
+            + ", and a menu coming up is a thing appearing like any other");
+        eventKey("hafen.event()", "FlowerMenuClosed", "FlowerMenuRemoved", edges
+            + " -- the payload is unchanged: the label picked, or nil when the menu was dismissed");
+        eventKey("hafen.event()", "MarkersChanged", "MarkerChanged", "the subject of a key is SINGULAR"
+            + " -- this was the only plural in the bus. What the handler is given is unchanged: the marker"
+            + " collection, which is the set the change happened in");
+
+        // QuestDone is the one key here that is not a rename. It fired for a quest that FAILED as well as
+        // one completed -- the only SILENT wrong answer left in the bus -- so the word had to go rather
+        // than narrow under the caller's feet: a handler registered under a spelling that still resolves
+        // would simply stop running for half its firings, which is the outcome a hard cut exists to prevent.
+        eventKeyWhy("hafen.event()", "QuestDone", "it fired for a quest that FAILED as well as one"
+            + " completed, and only q:status() told the two apart -- so a handler that read the name and"
+            + " congratulated the player ran on failure too. It is now two keys, and neither needs a status"
+            + " check: hafen.event():on(\"QuestCompleted\", fn) fires when the quest is done and"
+            + " hafen.event():on(\"QuestFailed\", fn) when it is failed. Both hand your handler the same"
+            + " Quest object; subscribe to both to keep what QuestDone did");
+
+        // ---- 097: the two keys a WIDGET answers under a word of their own ------------------------------
+        eventKey("widget", "Tick", "Update", "an addon's frame and one of its surfaces' frames are the same"
+            + " edge one object apart, and hafen.event():on(\"Update\", fn) had the word first -- both hand"
+            + " your handler the same dt, the seconds since the last frame");
+        eventKey("widget", "Destroy", "Removed", edges
+            + ", and a widget leaving the tree is the same edge as anything else leaving");
+
+        // ---- 097: the selector watch, which is a THREE-argument door and writes its own opening --------
+        String watch = "session:ui():on(selector, event, fn): ";
+        String lower = " -- " + edges + ", and this door carried the last lower-case pair in the API";
+        eventKeyRaw("session:ui()", "appear", watch + "'appear' is now 'Added'" + lower);
+        eventKeyRaw("session:ui()", "disappear", watch + "'disappear' is now 'Removed'" + lower);
     }
 
-    /** Register one retired event key: {@code emitter:on(old, fn)} is now {@code emitter:on(now, fn)}. */
-    private static void eventKey(String emitter, String old, String now) {
-        KEYS.put(emitter + "|" + old, emitter + ":on(key, fn): '" + old + "' is now '" + now
-            + "' — :on already says \"on\"");
+    /**
+     * Register one retired event key: {@code emitter:on(old, fn)} is now {@code emitter:on(now, fn)}. The
+     * {@code why} is the row's own, because 097 retires keys for three different reasons and a reader who
+     * hit one is owed the one that applies — the {@code On} prefix going, the three edges being three
+     * words, or one word having named two levels.
+     */
+    private static void eventKey(String emitter, String old, String now, String why) {
+        eventKeyRaw(emitter, old, emitter + ":on(key, fn): '" + old + "' is now '" + now + "' — " + why);
     }
 
     /**
@@ -96,7 +142,16 @@ final class Retired {
      * string it is registered under.
      */
     private static void eventKeyWhy(String emitter, String old, String why) {
-        KEYS.put(emitter + "|" + old, emitter + ":on(key, fn): '" + old + "' is retired — " + why);
+        eventKeyRaw(emitter, old, emitter + ":on(key, fn): '" + old + "' is retired — " + why);
+    }
+
+    /**
+     * The storage behind both — and the door for a row whose CALL is not {@code :on(key, fn)}. The
+     * selector watch is {@code s:ui():on(selector, event, fn)}, so its rows write their own opening rather
+     * than borrow an arity they do not have.
+     */
+    private static void eventKeyRaw(String emitter, String old, String msg) {
+        KEYS.put(emitter + "|" + old, msg);
     }
 
     /**

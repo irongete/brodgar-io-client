@@ -316,6 +316,33 @@ From [`cat:info()`](map/icons.md#the-iconcat-object), the snapshot escape hatch 
 icon tooltip, and `show` and `notify` the minimap-draw and spawn-notify flags. The live reads are
 `cat:res()`, `:name()`, `:show()` and `:notify()`.
 
+## WorldEntity
+
+From [`e:info()`](vr/README.md#the-snapshot), the snapshot escape hatch for a ghost, sprite, object or
+panel you have standing in the world. The live reads are `e:position()`, `:alpha()`, `:drawn()` and the
+rest, each spelled the way its field here is.
+
+| Field | Type | Notes |
+|---|---|---|
+| `kind` | string | `"ghost"`, `"sprite"`, `"object"` or `"panel"` |
+| `position` | `{gridId, x, y}` | the [Position snapshot](#position) — the place to store |
+| `rotate` | number | its own facing, radians |
+| `scale` | number | uniform scale, `1` being original size |
+| `alpha` | number | opacity `0..1` |
+| `visible` | bool | whether you have this one showing |
+| `clickable` | bool | opted into the client-side pick |
+| `exists` | bool | still in the world |
+| `drawn` | bool | in the 3D scene right now |
+| `tint` | [colour](shapes.md#colours) | optional — absent when nothing is laid over it |
+| `anchor` | number | the gob id it follows; absent for one that stands still |
+| `offset` | `{x, y, z}` | where it sits relative to that gob, world units; present with `anchor` |
+| `res` | string | ghosts only — the resource it is a picture of |
+| `mesh` | string | objects only |
+| `image` | string | sprites only |
+| `facing` | string | sprites and panels — `"fixed"`, `"camera"` or `"screen"` |
+
+`panel:screen(x, y)` has no field: it projects a point you pass in, so there is no value of it to snapshot.
+
 ## See also
 
 - [conventions](conventions.md#snapshots-vs-handles) — why some readers hand back an object instead

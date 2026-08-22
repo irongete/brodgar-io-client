@@ -123,7 +123,7 @@ about, with a [selector](../api/ui/selectors.md), and
 open when you subscribe.
 
 ```lua
-hafen.session():current():ui():on("window[title=Cupboard]", "appear", function(w)
+hafen.session():current():ui():on("window[title=Cupboard]", "Added", function(w)
   hafen.log():write(w:items():count() .. " items")
 end)
 ```

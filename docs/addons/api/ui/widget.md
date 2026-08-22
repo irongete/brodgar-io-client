@@ -146,7 +146,7 @@ sub:off()
 | `MouseUp` | `:x()` `:y()` `:button()` `:preventDefault()` | yes | a mouse button is released over it |
 | `MouseMove` | `:x()` `:y()` `:preventDefault()` | yes | the mouse moves over it |
 | `Wheel` | `:x()` `:y()` `:amount()` `:preventDefault()` | yes | the wheel turns over it |
-| `Destroy` | — | no | it leaves the tree |
+| `Removed` | — | no | it leaves the tree |
 | `Dragged` | `:x()` `:y()` | no | the user finished [dragging it](native.md#knowing-when-one-was-dragged) by a handle you armed |
 | `Resized` | `:x()` `:y()` | no | the user finished [resizing it](native.md#knowing-when-one-was-resized) by a handle you armed |
 

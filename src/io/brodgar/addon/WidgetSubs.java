@@ -50,7 +50,7 @@ final class WidgetSubs {
     private static final String[] INPUT_KEYS = { "MouseDown", "MouseUp", "MouseMove", "Wheel" };
     /** The three keys seen at the placement/removal seams (041.4) — §1.1/§1.2's Destroy and the container pair. */
     private static final Set<String> TREE_KEYS = new java.util.HashSet<String>(
-        java.util.Arrays.asList("ItemAdded", "ItemRemoved", "Destroy"));
+        java.util.Arrays.asList("ItemAdded", "ItemRemoved", "Removed"));
 
     /** Is {@code key} one of the four input keys? */
     private static boolean isInputKey(String key) {
@@ -162,7 +162,7 @@ final class WidgetSubs {
     }
 
     private boolean anyTreeKeyLive() {
-        return subs.has("ItemAdded") || subs.has("ItemRemoved") || subs.has("Destroy");
+        return subs.has("ItemAdded") || subs.has("ItemRemoved") || subs.has("Removed");
     }
 
     // ---- the four input keys (041.3) ----------------------------------------------------------------
@@ -246,7 +246,7 @@ final class WidgetSubs {
         UI u = ui();     // 078.4: the widget's own tree — its id counts there, and so does its liveness
         this.boundId = (u == null) ? -1 : u.widgetid(wdg);
         if((u != null) && !live(u)) {
-            subs.fire("Destroy");
+            subs.fire("Removed");
             subs.clear();
             return;
         }
@@ -336,7 +336,7 @@ final class WidgetSubs {
      */
     void offerRemoved(Widget w) {
         if(w == wdg) {
-            subs.fire("Destroy");
+            subs.fire("Removed");
             subs.clear();
             listening = false;
             items.clear();

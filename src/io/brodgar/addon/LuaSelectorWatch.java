@@ -9,25 +9,25 @@ import java.util.Map;
 
 /**
  * A <b>selector subscription</b> (spec {@code 030-ui-selectors}, task 030.2) — the Java half of
- * {@code s:ui():on(selector, "appear"|"disappear", fn)}, the client's <b>discovery primitive</b>. It replaces
+ * {@code s:ui():on(selector, "Added"|"Removed", fn)}, the client's <b>discovery primitive</b>. It replaces
  * {@code hafen.ui.onWidgetCreate} and its {@code desc} descriptor, both hard cut: an addon no longer describes the
  * widget it is waiting for in a second vocabulary (a server type string, a placement string, a parent class name)
  * — it names it with the same {@link Selector} it would use for a lookup, and the callback receives the same
  * interned Widget entity {@code hafen.ui(sel)} would hand back.
  *
  * <p><b>One subscription carries exactly one event.</b> Both are about the widget's presence in the TREE, not its
- * visibility: {@code appear} fires when a matching widget is placed (or is already there — see the scan below),
- * {@code disappear} when one that had matched leaves the tree. A window the client merely hides (the inventory's
+ * visibility: {@code "Added"} fires when a matching widget is placed (or is already there — see the scan below),
+ * {@code "Removed"} when one that had matched leaves the tree. A window the client merely hides (the inventory's
  * Tab toggle) never left, so it fires neither; that is a property of the tree, and the honest answer.
  *
  * <p><b>Every subscription tracks what it matched</b> ({@link #matched}), whichever event it carries. For
- * {@code disappear} that set IS the question. For {@code appear} it is the dedup: a candidate carrying a
+ * {@code "Removed"} that set IS the question. For {@code "Added"} it is the dedup: a candidate carrying a
  * {@code [title=]}/{@code [res=]} refiner is re-checked after placement (a {@code .res} window can receive its
  * caption a tick late), from two triggers since 049.3 — the placement-scoped list and the caption seam's walk of
  * the renamed window's subtree — and the tracked set is what keeps a widget both reach from firing twice. The
  * subtree walk is what a <b>chain</b> needs: {@code window[title=Cupboard] inventory} names the grid, so the
  * caption that decides it lands on the grid's <i>ancestor</i>. The set is pruned at the same removal seam that fires
- * {@code disappear} (event-driven since 042.9), so it holds only live widgets — a dead one is dropped the moment
+ * {@code "Removed"} (event-driven since 042.9), so it holds only live widgets — a dead one is dropped the moment
  * it is removed, never held as a pin.
  *
  * <p>The recorded value is the server widget id captured when the widget matched ({@code -1} for a client-only
@@ -36,7 +36,7 @@ import java.util.Map;
  * {@link haven.Window} the id branch is not merely an optimisation but the only <i>prompt</i> answer:
  * {@code UI.destroy} unbinds the id and then calls {@code reqdestroy()}, which {@code Window} overrides to start a
  * <b>fade-out</b> rather than to leave the tree — so a closing window stays reachable, and readable, for the whole
- * animation. {@code disappear} therefore fires when the widget stops being <i>real</i>, not when it stops being
+ * animation. {@code "Removed"} therefore fires when the widget stops being <i>real</i>, not when it stops being
  * <i>drawn</i>, and the entity it hands over may still answer its reads. Match it, do not rely on reading it.
  *
  * <p><b>Registration SCANS the live tree once</b> (in {@link UiApi}), so a subscription made while the target is
@@ -49,9 +49,9 @@ import java.util.Map;
  * make the whole selector worth re-checking), and both events remain about the widget the LAST step names. What did
  * change is which widget the deciding attribute sits on; see the dedup paragraph above.
  *
- * <p><b>Threading.</b> The {@code appear} raised at placement runs inside {@code AddWidget.run}'s
+ * <p><b>Threading.</b> The {@code "Added"} raised at placement runs inside {@code AddWidget.run}'s
  * {@code synchronized(ui)} block (on a Loader thread, under the monitor the tick and draw hold), so its Lua never
- * races other Lua — the same discipline the observers had. The re-check and {@code disappear} run in the tick, on
+ * races other Lua — the same discipline the observers had. The re-check and {@code "Removed"} run in the tick, on
  * the UI thread. Both go through {@link AddonManager#callLua} (watchdog-armed, error-isolated, CPU-accounted).
  * The addon only ever sees the {@link LuaSub} its registration handed back — this object hangs off that sub's
  * {@link LuaSub#tag} (086.1), and {@code sub:off()} is what ends it; the bridge owns the subscription and drops
@@ -59,7 +59,7 @@ import java.util.Map;
  */
 final class LuaSelectorWatch {
     /** The two events; a subscription carries exactly one (subscribe twice to watch both). */
-    static final int APPEAR = 0, DISAPPEAR = 1;
+    static final int ADDED = 0, REMOVED = 1;
 
     final Addon owner;
     /**
@@ -75,7 +75,7 @@ final class LuaSelectorWatch {
     final haven.UI ui;
     /** The selector, parsed ONCE at subscription time — never per widget, never per tick. */
     final Selector sel;
-    /** {@link #APPEAR} or {@link #DISAPPEAR}. */
+    /** {@link #ADDED} or {@link #REMOVED}. */
     final int event;
     /** The Lua handler {@code fn(widget)}. */
     final LuaValue fn;
@@ -83,7 +83,7 @@ final class LuaSelectorWatch {
     /**
      * The widgets currently matching this selector &rarr; the server widget id captured when they matched
      * ({@code -1} = client-only). Identity-keyed ({@link Widget} does not override {@code equals}) and insertion-
-     * ordered, so events fire in tree order. See the class comment for why an {@code appear} subscription keeps it
+     * ordered, so events fire in tree order. See the class comment for why an {@code "Added"} subscription keeps it
      * too.
      */
     final Map<Widget, Integer> matched = new LinkedHashMap<Widget, Integer>();
@@ -96,12 +96,12 @@ final class LuaSelectorWatch {
         this.fn = fn;
     }
 
-    /** {@code "appear"}/{@code "disappear"} &rarr; {@link #APPEAR}/{@link #DISAPPEAR}, or {@code -1}. */
+    /** {@code "Added"}/{@code "Removed"} &rarr; {@link #ADDED}/{@link #REMOVED}, or {@code -1}. */
     static int eventCode(String s) {
-        if("appear".equals(s))
-            return APPEAR;
-        if("disappear".equals(s))
-            return DISAPPEAR;
+        if("Added".equals(s))
+            return ADDED;
+        if("Removed".equals(s))
+            return REMOVED;
         return -1;
     }
 }

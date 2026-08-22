@@ -88,7 +88,7 @@ still in progress, and its timers keep counting. `Load` fired once and `Disable`
 
 What does change is underneath you, and the [session events](api/event/bus.md#sessions) are how you hear
 it: `SessionAdded` when one connects, `SessionEnteredWorld` when its character can be read,
-`SessionSelected` when the screen moves to it, `SessionDestroyed` when it ends. Each hands you that
+`SessionSelected` when the screen moves to it, `SessionRemoved` when it ends. Each hands you that
 session's account name. Tabbing between two characters already in the world fires `SessionSelected` and
 nothing else — tabbing is not entering.
 

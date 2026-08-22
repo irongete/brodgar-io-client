@@ -50,7 +50,7 @@ import static io.brodgar.addon.AddonManager.*;
  *       door and {@code s:world():grid()} hand back the <b>same interned object</b>: one Grid entity, two
  *       doors, each answering {@code nil} for what its own half does not have.</li>
  *   <li>{@code :marker()} — the pins ({@link LuaMarker}), the old {@code hafen.markers}, with the two unprotected
- *       writes and the {@code MarkersChanged} notify (event-driven since 042.11) that reports them.</li>
+ *       writes and the {@code MarkerChanged} notify (event-driven since 042.11) that reports them.</li>
  *   <li>{@code :icon()} — the minimap icon registry ({@link LuaIconCat}; the engine has no "radar", it has
  *       {@link GobIcon.Settings} — D-061). {@code :get(res)} beside {@code :list(filter)} <b>deletes</b> the
  *       old split-the-argument-by-shape heuristic: the verb says which you meant, so nothing has to.</li>
@@ -203,7 +203,7 @@ final class MapApi {
      * player, and the two writes. There is no {@code :get}: a marker's only id is a per-session ref this
      * bridge mints, which is not a key anything outside the session could hold.
      */
-    /** The marker collection for {@code owner} — what {@code MarkersChanged} hands its handler. */
+    /** The marker collection for {@code owner} — what {@code MarkerChanged} hands its handler. */
     static LuaValue markers(Addon owner) {
         return markerCollection(owner);
     }
@@ -346,7 +346,7 @@ final class MapApi {
     // SESSION-LOCAL conveniences, present only when the marker is in the player's current segment. Reads
     // copy the marker list under the MapFile read lock (it is mutated on loader threads — server markobj
     // adds, segment merges), then build snapshots outside the lock (the OCache gob-read discipline). Adds/
-    // removes go straight to the shared DB and persist. MarkersChanged is fired by a notify at the
+    // removes go straight to the shared DB and persist. MarkerChanged is fired by a notify at the
     // MapFile.markerseq bump itself (042.11, event-driven — a marker add/remove is not a uimsg, so the
     // bump is caught at its source and marshalled onto the tick rather than diffed every frame).
 
@@ -400,7 +400,7 @@ final class MapApi {
      * <b>A session claims the file its own HUD holds</b>, from the tick (073.4) —
      * {@link AddonManager#onMarkersChanged} matches a bump against {@code SessionState.mapFile} and has nothing
      * else to go on, so the claim cannot wait for an addon to call a map verb: an addon that only
-     * <i>subscribes</i> to {@code MarkersChanged} would then never hear one.
+     * <i>subscribes</i> to {@code MarkerChanged} would then never hear one.
      *
      * <p><b>Two characters on one server claim the same file</b> (075.2), because there is one database per
      * {@code (store, filename)} and that pair is the same for both. That is what the notify wants: one change
@@ -559,7 +559,7 @@ final class MapApi {
     }
 
     /**
-     * Fire MarkersChanged when the DB's markerseq changes — called from the marshalling queue when a marker
+     * Fire MarkerChanged when the DB's markerseq changes — called from the marshalling queue when a marker
      * add/remove/update bump seq happens (042.11, event-driven). The initial set that is loaded from disk
      * does not cause seqchanges and does not arrive as an event; only user/server-initiated changes do.
      * On the first notify after session init, prime to capture the post-change state, and fire to report
@@ -569,7 +569,7 @@ final class MapApi {
      * this session in the first place — rather than re-asking which map is drawn, and the prime state is that
      * session's own, because "has this one been told its count once" is a question about one login.
      */
-    static void fireMarkersChanged(SessionState st, int seq) {
+    static void fireMarkerChanged(SessionState st, int seq) {
         MapFile file = (st == null) ? null : st.mapFile;
         if(file == null)
             return;

@@ -29,7 +29,7 @@ holds, drawn over whichever one is on screen and over the login screen when none
 tree: nothing about it is a window of the client's, and a logout leaves it exactly where it was.
 
 That is why the [search verbs](widget.md#getting-a-widget) are addressed at a character —
-`s:ui():match`, `:matchAll`, `:root` and an [`"appear"` subscription](replace.md#watching-for-a-widget) all
+`s:ui():match`, `:matchAll`, `:root` and an [`"Added"` subscription](replace.md#watching-for-a-widget) all
 search one session's tree, never the layer — while a hit test, which asks about a point on the screen,
 is not addressed at all. None of them reaches a window of yours. Hold the handle the builder gave you: it
 is the widget, `==` is its identity, and `w:match(selector)` searches **inside** it.
@@ -78,13 +78,13 @@ win:pack()                                       -- the window is now exactly th
 ## Subscribing
 
 A window or a bare widget answers the five universal [`:on(key, fn)`](widget.md#subscribing) keys every
-widget does — `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`, `Destroy` — plus four more of its own, since
+widget does — `MouseDown`, `MouseUp`, `MouseMove`, `Wheel`, `Removed` — plus four more of its own, since
 it is a surface with content to paint and a lifetime to report:
 
 | Key | handler receives | Cancelable | Fires |
 |---|---|---|---|
 | `Draw` | `ev` — `:g()` `:w()` `:h()` | no | every frame; `:w()`/`:h()` is the box you sized, in [design pixels](pixels.md) — see [the `g` wrapper](drawing.md) |
-| `Tick` | `dt` | no | every frame, before `Draw` |
+| `Update` | `dt` | no | every frame, before `Draw` |
 | `Drop` | `ev` — `:x()` `:y()` `:thing()` `:preventDefault()` | yes | the client's drag gesture drops something on it |
 | `Close` | — | no | the window's close button; a bare widget has none, so it never fires |
 

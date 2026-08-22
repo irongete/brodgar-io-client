@@ -171,7 +171,7 @@ public final class SessionApi {
              * anything -- and every other use site of a session takes the object.
              *
              * ASYNCHRONOUS, exactly as s:close() is: drop() returns before the member leaves the list, so
-             * :exists() and SessionDestroyed are what answer, a tick or more later. LuaCollection hands the
+             * :exists() and SessionRemoved are what answer, a tick or more later. LuaCollection hands the
              * COLLECTION back, so removals chain.
              */
             public void removeMember(LuaValue x) {
