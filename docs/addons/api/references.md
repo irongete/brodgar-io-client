@@ -76,10 +76,10 @@ replacement. One you keep therefore answers *the same item* or *gone*, and the
 ## Widget: a piece of the UI
 
 A widget is an object, and there is only one kind. A window you create with `hafen.ui():window()`, a
-native one you name with `s:ui():find(selector)`, `:node(id)` or `:inventory()` on the
+native one you name with `s:ui():match(selector)`, `:node(id)` or `:inventory()` on the
 [session](session.md) whose tree it stands in, the deepest one under a screen point, and
 the one [`s:ui():on`](ui/replace.md#watching-for-a-widget) hands your callback are all the same
-[Widget](ui/widget.md). It is interned per addon, so `hafen.ui():at(x, y) == hafen.ui():at(x, y)` and `==`
+[Widget](ui/widget.md). It is interned per addon, so `hafen.ui():hit(x, y) == hafen.ui():hit(x, y)` and `==`
 is the identity test; it re-reads the tree on every call and answers `nil` or empty, with `:exists()`
 false, once its widget is gone. What you may *write* depends on whether your addon created it — see
 [owned vs borrowed](ui/widget.md#owned-vs-borrowed). A **server widget id**, `:id()`, is what makes one
@@ -99,14 +99,14 @@ Ids and handles address a thing you already have. A **selector** addresses one y
 
 ```lua
 local s = hafen.session():current()
-s:ui():find("window[title=Cupboard]")    -- the one match, or nil (two or more raises)
-s:ui():all("inventory")                  -- every match, in tree order (empty array, never nil)
+s:ui():match("window[title=Cupboard]")    -- the one match, or nil (two or more raises)
+s:ui():matchAll("inventory")                  -- every match, in tree order (empty array, never nil)
 ```
 
 Three properties make it a convention rather than a lookup helper:
 
-- **One string, three uses.** The same selector names a widget for a lookup, `s:ui():find(sel)`, for a
-  listing, `s:ui():all(sel)`, and for one that does not exist yet,
+- **One string, three uses.** The same selector names a widget for a lookup, `s:ui():match(sel)`, for a
+  listing, `s:ui():matchAll(sel)`, and for one that does not exist yet,
   [`s:ui():on(sel, "appear", fn)`](ui/replace.md#watching-for-a-widget) — so waiting for a window and
   then reading it are one vocabulary.
 - **One string, two resolutions.** The same selector is also the key of a
@@ -114,10 +114,10 @@ Three properties make it a convention rather than a lookup helper:
   [render site](ui/style/surfaces.md) and restyles it, while every other selector — a role that names a
   widget rather than a site, and anything carrying a class, a refiner or a second step — resolves against
   the live tree. `w:role()` reports a widget's role, or an honest `nil`.
-- **The verb says how many**: `s:ui():find(sel)` is one widget — and
+- **The verb says how many**: `s:ui():match(sel)` is one widget — and
   [refuses where the selector names several](ui/selectors.md#one-or-all-of-them), rather than picking one —
-  `s:ui():all(sel)` is all of them, and `s:ui():root()` is the root of that character's tree. Both verbs are
-  also methods on a widget, searching inside it ([`w:find`](ui/widget.md#searching-inside-one-widget)).
+  `s:ui():matchAll(sel)` is all of them, and `s:ui():root()` is the root of that character's tree. Both
+  verbs are also methods on a widget ([`w:match`](ui/widget.md#searching-inside-one-widget)).
 
 - **A selector resolves in one character's tree.** The lookups hang off a [Session](session.md) because
   that is the tree they search, and the windows your addon built stand in none of them.

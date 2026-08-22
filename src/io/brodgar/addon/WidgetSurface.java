@@ -34,7 +34,7 @@ import haven.render.VectorFormat;
  * widget's place in the tree — liveness, ticking, focus, hover, popups — goes on resolving unchanged, while
  * the two things that must NOT happen on the flat UI stop by construction. An invisible widget is skipped by
  * the flat draw traversal ({@code Widget.draw} steps over {@code !visible} children) and by every hit test
- * (the mouse dispatch and {@code hafen.ui():at()} skip it the same way) — but it is still <b>ticked</b>
+ * (the mouse dispatch and {@code hafen.ui():hit()} skip it the same way) — but it is still <b>ticked</b>
  * ({@code TickEvent} carries visibility as a flag rather than a filter), and it is still under
  * {@code ui.root}, so {@code widget:exists()} stays true and no handle goes stale.
  *

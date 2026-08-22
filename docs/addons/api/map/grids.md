@@ -77,9 +77,9 @@ end
 | `grid:tile(c)` | `{name, prio}` \| nil | the recorded tile at within-grid tile coord `{x, y}`, `0..99` |
 | `grid:height(c)` | number \| nil | the recorded height there |
 | `grid:modified()` | number \| nil | when the client last recorded this grid, in milliseconds |
-| `grid:overlay()` | [mask collection](overlays.md#the-recorded-masks) | which claims and provinces covered it |
+| `grid:mask()` | [mask collection](overlays.md#the-recorded-masks) | which claims and provinces covered it |
 | `grid:image(level)` | image \| nil | its [minimap drawing](drawings.md) at zoom `level` (default `0`) |
-| `grid:overlayImage(tag)` | image \| nil | one recorded [overlay mask](drawings.md) drawn in its own colour |
+| `grid:overlayImage(tag)` | image \| nil | one recorded [mask](drawings.md) drawn in the overlay's own colour |
 | `grid:info()` | table | `{ id, seg, sc, pos?, live, mtime?, loaded, size }` — the snapshot escape hatch; `size` is the grid's span in tiles, `{w, h}` |
 
 `grid:tile` gives you the tileset **resource name**, not a tile id: the live
@@ -123,5 +123,5 @@ and [`s:world():position(saved)`](../position.md) brings it back.
 - [the map database](README.md) — the `nil`-until-loaded rule these reads follow, and interning
 - [`session:world`](../world.md) — the live half, and the other door onto this same Grid
 - [drawings](drawings.md) — what `grid:image` hands back
-- [overlays](overlays.md) — what `grid:overlay()` hands back
+- [overlays](overlays.md) — what `grid:mask()` hands back
 - [coordinates](../shapes.md#coordinates) — the coordinate spaces, and which one you may store

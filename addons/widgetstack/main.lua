@@ -7,7 +7,7 @@
 -- W2 adds the two reads that find *what is under the cursor* -- the only pieces missing from W1's tree:
 --   hafen.ui():mouse()   -> the pointer entity: :x()/:y() the cursor in root coords (public UI.mc), polled
 --                         each frame; also :over()/:shift()/:ctrl()/:alt()/:grab() (unused here)
---   hafen.ui():at(x, y)  -> the DEEPEST Widget object under that point, or nil. It mirrors the engine's own
+--   hafen.ui():hit(x, y) -> the DEEPEST Widget object under that point, or nil. It mirrors the engine's own
 --                         pointer dispatch, so it resolves EXACTLY the widget a real click would hit --
 --                         correct under SCROLL offsets and non-rectangular hit areas (a naive rect test
 --                         is wrong there). Walk :parent() up from the hit for the full stack.
@@ -27,11 +27,11 @@
 --     [res*=<last path segment>] beside it -- that is the migration form. And where a value has a stable stem
 --     before its first digit ("Hunger: 87%"), it offers [text^=Hunger:], the form that keeps matching when the
 --     tail moves; the walk below decides which of the two is actually true.
---   * The list is SELF-VALIDATING: each candidate is resolved with s:ui():all() and kept only if the hovered
+--   * The list is SELF-VALIDATING: each candidate is resolved with s:ui():matchAll() and kept only if the hovered
 --     widget is in the result. So nothing is ever offered that does not resolve -- which is exactly the claim
 --     the offered line makes. A candidate that does not even PARSE is dropped by the same pcall.
---   * `s:ui():find("sel")` is offered only where the candidate matches this widget and NOTHING else;
---     otherwise the line is `s:ui():all("sel")[i]`, because find() refuses an ambiguous answer rather than
+--   * `s:ui():match("sel")` is offered only where the candidate matches this widget and NOTHING else;
+--     otherwise the line is `s:ui():matchAll("sel")[i]`, because match() refuses an ambiguous answer rather than
 --     handing back whichever widget the walk met first. The offered line is the most specific candidate that
 --     names it ALONE, falling back to the most specific of all -- a chain usually IS the one that names it alone.
 --   * "*" is deliberately omitted: it matches every widget, so it says nothing and it is the one walk that
@@ -72,7 +72,7 @@ local hoverPos            -- { x=, y= } the hovered leaf's top-left in root coor
 local hoverSize           -- { w=, h= } its size
 local rebuilds = 0        -- how many times we rebuilt the stack (proves the `==` guard: it should NOT
                           -- climb while the cursor sits still)
-local walks = 0           -- how many s:ui():all() walks the last rebuild cost (the honest price of the panel)
+local walks = 0           -- how many s:ui():matchAll() walks the last rebuild cost (the honest price of the panel)
 local frozen = false      -- the "freeze" hotkey: hold the stack still so you can mouse into the window to read it
 
 local LINE = 14                     -- row height, shared by every list here
@@ -80,7 +80,7 @@ local STACK_Y0 = 22                 -- first stack row y (shared by draw + click
 local STACK_MAXROWS = 11            -- stack rows that fit above the selector panel
 
 -- ============================================================== the selector inspector (030.3), shared by
--- the hover panel and each Inspector window. Pure Lua over w:role()/:type()/:res() + s:ui():all().
+-- the hover panel and each Inspector window. Pure Lua over w:role()/:type()/:res() + s:ui():matchAll().
 --
 -- A LOOKUP IS ADDRESSED AT A CHARACTER: the client's widgets stand in the tree of the session that put them
 -- up, so every walk and every offered line goes through hafen.session():current() -- the one the pointer is
@@ -177,12 +177,12 @@ local function stepCands(keys)
   return out
 end
 
--- The ready-to-paste line for one candidate. :find(sel) answers only where there IS one answer, so it is
+-- The ready-to-paste line for one candidate. :match(sel) answers only where there IS one answer, so it is
 -- offered only when this candidate matches this widget and NOTHING else; otherwise the index form is what actually
 -- hands back this widget. Offering it for the first of several would hand the user a line that raises.
 local function pasteLine(c)
-  if c.count == 1 then return ('%s:find("%s")'):format(SPELL, c.sel) end
-  return ('%s:all("%s")[%d]'):format(SPELL, c.sel, c.idx)
+  if c.count == 1 then return ('%s:match("%s")'):format(SPELL, c.sel) end
+  return ('%s:matchAll("%s")[%d]'):format(SPELL, c.sel, c.idx)
 end
 
 -- The walk budget. Candidates are RANKED before a single walk is paid for, so what the cap drops is always the
@@ -191,7 +191,7 @@ end
 local MAXWALKS = 36
 
 -- Build the selector report for `w`: its parts, its anchor, every candidate built from those that really matches
--- it (verified by resolving it), most-specific-first, and the one to offer. Costs one s:ui():all() walk per
+-- it (verified by resolving it), most-specific-first, and the one to offer. Costs one s:ui():matchAll() walk per
 -- candidate walked -- which is why it runs on a hover CHANGE, never per frame, and why the count is reported.
 local function selectorsFor(w)
   local rep = { role = w:role(), cls = w:type(), res = w:res(), walks = 0, chains = 0, cands = {} }
@@ -236,7 +236,7 @@ local function selectorsFor(w)
     if c.chain then rep.chains = rep.chains + 1 end
     -- ...in the tree of the session on screen, which is where the hovered widget stands. pcall covers both
     -- a candidate that will not parse and the login screen, where there is no session to ask.
-    local ok, hits = pcall(function() return clientUi():all(c.s) end)
+    local ok, hits = pcall(function() return clientUi():matchAll(c.s) end)
     if ok and hits then
       local idx
       for k = 1, #hits do
@@ -266,7 +266,7 @@ end
 --     line. That is the whole gate. nil is silence, an empty collection is silence, and a plain `false` is
 --     silence -- the block lists what the widget HAS, and a column of "nil" would say nothing at all about
 --     the thing under the cursor while burying the two lines that do.
--- Seven of them -- :range() :rows() :rowHeight() :cell() :columns() :source() :image() -- read a control's
+-- Seven of them -- :range() :rows() :rowHeight() :cellSize() :columns() :source() :image() -- read a control's
 -- own adapter, which belongs to the addon that BUILT the control. They speak over a control of your own and
 -- stay silent over the client's, which is the honest answer rather than a guess at one.
 -- `owned` is w:info().owned: the provenance is a field of the snapshot, not a verb of its own.
@@ -311,7 +311,7 @@ local READS = {
   { "range",     function(w) return w:range() end,     function(v) return ("%s..%s"):format(v.min, v.max) end },
   { "rows",      function(w) return w:rows() end,      function(v) return ("%d -- %s"):format(#v, join(v, 4)) end },
   { "rowHeight", function(w) return w:rowHeight() end, tostring },
-  { "cell",      function(w) return w:cell() end,      function(v) return ("%dx%d"):format(v.w, v.h) end },
+  { "cellSize",  function(w) return w:cellSize() end,  function(v) return ("%dx%d"):format(v.w, v.h) end },
   { "columns",   function(w) return w:columns() end,   function(v) return ("%d -- %s"):format(#v, join(v, 4)) end },
   { "source",    function(w) return w:source() end,    faceName },
   { "image",     function(w) return w:image() end,
@@ -503,7 +503,7 @@ hafen.event():on("Update", function(dt)
   local m = hafen.ui():mouse()
   local mx, my = m:x(), m:y()
   if not mx then return end                          -- no UI yet
-  local leaf = hafen.ui():at(mx, my)                  -- deepest widget under the cursor (or nil)
+  local leaf = hafen.ui():hit(mx, my)                 -- deepest widget under the cursor (or nil)
 
   -- GUARD: same widget as last frame? -> bail (skip the rebuild entirely). This is the whole point, and it
   -- is what keeps the selector panel affordable: without it every frame would cost a fistful of tree walks.
@@ -671,7 +671,7 @@ hafen.event():on("SessionEnteredWorld", function()
     hafen.log():write("widgetstack: window up -- hover the UI; click a row to inspect; :selector logs the hovered widget's selector; :widgetstack toggles it, the freeze hotkey holds it")
   end
   if not overlay then
-    overlay = hafen.ui():overlay():onDraw(drawOutline)
+    overlay = hafen.ui():overlay():add("outline"):draw(drawOutline)
   end
 end)
 

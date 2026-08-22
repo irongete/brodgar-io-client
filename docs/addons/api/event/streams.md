@@ -23,7 +23,7 @@ reaches the server, which an event on [the bus](bus.md) would arrive too late to
 | `ev` on `action` | Description |
 |---|---|
 | `ev:msg()` | the message name |
-| `ev:sender()` | the sending [Widget](../ui/widget.md) |
+| `ev:widget()` | the [Widget](../ui/widget.md) sending it |
 | `ev:args()` | a 1-based array snapshot of the raw protocol arguments, in the units the wire carries; a coordinate is `{x=, y=}` |
 | `ev:position(i)` | argument `i` as a [Position](../position.md); throws when that argument is not a coordinate |
 | `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the sending widget's own space; throws when that argument is not a coordinate |
@@ -38,7 +38,7 @@ because `resend` and `send` round-trip through it to the server.
 
 **`click` is not the map's alone.** A message name is protocol, and several widgets send that one — a
 portrait, an item box, a party member's tile — carrying arguments of their own, at other indices and
-often not coordinates at all. Check `ev:sender()` before reading an index, as the example below does; a
+often not coordinates at all. Check `ev:widget()` before reading an index, as the example below does; a
 handler that assumes the map reads argument 2 of a message that never had one.
 
 Writing one back takes those two spaces just as seriously. **A Position is accepted wherever a coordinate
@@ -50,7 +50,7 @@ rather than sending a number that would walk you somewhere else.
 ```lua
 -- snap every walk to the centre of the tile you clicked:
 hafen.event():action():on("click", function(ev)
-  if ev:sender():type() ~= "MapView" then return end
+  if ev:widget():type() ~= "MapView" then return end
   local a = ev:args()
   a[2] = hafen.session():current():world():snapPlace(ev:position(2))
   ev:send(a)
@@ -67,12 +67,14 @@ hafen.event():action():on("click", function(ev)
 end)
 ```
 
-`ev:sender()` is a live handle, so `ev:sender():type()` reads the class and `ev:sender():parent()`
-navigates from it. Common `msg` names: `click` · `itemact` · `drop` · `place` · `sel` · `act` · `use` ·
-`take` · `transfer`. An `action` key is **not** in [the closed set](bus.md): any string is accepted,
-because a message name is protocol the server can introduce, and refusing an unknown one would refuse a
-legitimate one tomorrow — and `*` reaches [all of them at once](#the-whole-stream). Two handlers on one
-`msg` both run; either one calling `preventDefault` cancels the send.
+`ev:widget()` is a live handle, so `ev:widget():type()` reads the class and `ev:widget():parent()`
+navigates from it. It is one verb on both streams — the widget is the same object either way, and the
+direction is already said by the stream you subscribed on. Common `msg` names: `click` · `itemact` ·
+`drop` · `place` · `sel` · `act` · `use` · `take` · `transfer`. An `action` key is **not** in
+[the closed set](bus.md): any string is accepted, because a message name is protocol the server can
+introduce, and refusing an unknown one would refuse a legitimate one tomorrow — and `*` reaches
+[all of them at once](#the-whole-stream). Two handlers on one `msg` both run; either one calling
+`preventDefault` cancels the send.
 
 ## Filtering an inbound update
 
@@ -82,7 +84,7 @@ to be applied to a widget.
 | `ev` on `message` | Description |
 |---|---|
 | `ev:msg()` | the message name |
-| `ev:target()` | the receiving [Widget](../ui/widget.md) |
+| `ev:widget()` | the [Widget](../ui/widget.md) about to receive it |
 | `ev:args()` | a 1-based array snapshot of the raw protocol arguments, in the units the wire carries |
 | `ev:position(i)` | argument `i` as a [Position](../position.md), as on `action` above |
 | `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the receiving widget's own space |
@@ -94,7 +96,7 @@ to be applied to a widget.
 ```lua
 -- freeze the HUD meter bars by swallowing their updates:
 hafen.event():message():on("set", function(ev)
-  if frozen and ev:target():type() == "IMeter" then ev:preventDefault() end
+  if frozen and ev:widget():type() == "IMeter" then ev:preventDefault() end
 end)
 ```
 
@@ -118,11 +120,11 @@ line of it.
 ```lua
 -- every action the client sends, as it goes out:
 hafen.event():action():on("*", function(ev)
-  hafen.log():write(ev:sender():type() .. " -> " .. ev:msg() .. " (" .. #ev:args() .. " args)")
+  hafen.log():write(ev:widget():type() .. " -> " .. ev:msg() .. " (" .. #ev:args() .. " args)")
 end)
 ```
 
-The `ev` is the one a named key is handed, whole: `ev:msg()` says which message fired, and `ev:sender()`,
+The `ev` is the one a named key is handed, whole: `ev:msg()` says which message fired, and `ev:widget()`,
 `ev:args()`, `ev:position(i)`, `ev:pixel(i)`, `ev:preventDefault()`, `ev:resend()` and `ev:send(t)` behave
 exactly as they do above.
 
@@ -157,11 +159,11 @@ then subscribe to it by name.
 ```lua
 -- every update the server sends, before the widget applies it:
 hafen.event():message():on("*", function(ev)
-  hafen.log():write(ev:target():type() .. " <- " .. ev:msg() .. " (" .. #ev:args() .. " args)")
+  hafen.log():write(ev:widget():type() .. " <- " .. ev:msg() .. " (" .. #ev:args() .. " args)")
 end)
 ```
 
-The `ev` is the one a named key is handed, whole: `ev:msg()` says which update fired, and `ev:target()`,
+The `ev` is the one a named key is handed, whole: `ev:msg()` says which update fired, and `ev:widget()`,
 `ev:args()`, `ev:position(i)`, `ev:pixel(i)`, `ev:preventDefault()` and `ev:rewrite(t)` behave exactly as
 they do above. Holding a name **and** `*` behaves here as it does on the way out: both handlers run for
 that name, the named one first, over one `ev`, and `sub:off()` on the wildcard leaves a named
@@ -186,6 +188,6 @@ disables an addon that sustains the overrun rather than letting the client stutt
 
 - [`hafen.event()`](README.md) — subscribing, and the handle that ends one
 - [the catalogue](bus.md) — the closed set of client-wide facts, for what a message is not
-- [the Widget object](../ui/widget.md) — what `ev:sender()` and `ev:target()` hand you
+- [the Widget object](../ui/widget.md) — what `ev:widget()` hands you
 - [Position](../position.md) — the place type both streams take and answer with
 - [conventions](../conventions.md#threading) — why a handler must not block

@@ -19,7 +19,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * object</i>). One axis, mechanical: {@code chk:on("Changed", function(v) end)} receives the value itself
  * and {@code hafen.event():action():on("click", function(ev) end)} receives one of these.
  *
- * <p><b>Every member is a colon verb.</b> {@code ev:msg()}, {@code ev:args()}, {@code ev:sender()} — never
+ * <p><b>Every member is a colon verb.</b> {@code ev:msg()}, {@code ev:args()}, {@code ev:widget()} — never
  * {@code ev.msg}. Before 041 this was a plain {@link LuaTable} with fields, built by {@code LuaActionHook}
  * before 039 existed and never reached by it, which would have left {@code ev} the one object in the API
  * mixing {@code .} and {@code :} — the single most common Lua footgun. (A live verb answers the dotted read
@@ -40,10 +40,10 @@ import org.luaj.vm2.lib.VarArgFunction;
  * addon of one fire</b> — so any handler cancels, every handler still runs, and the outcome never depends on
  * registration order (spec §R3).
  *
- * <p><b>{@code ev:sender()} / {@code ev:target()} are Widget handles</b> (spec §R6), interned lazily through
+ * <p><b>{@code ev:widget()} is a Widget handle</b> (spec §R6), interned lazily through
  * the existing per-addon weak cache ({@link LuaWidget#of}, D-064): {@code UI.wdgmsg} is hot and most handlers
  * never ask. Before 041 they were the widget's class-name STRING, so a handler could not navigate to the
- * thing the event was about; the string is still one token away as {@code ev:sender():type()}.
+ * thing the event was about; the string is still one token away as {@code ev:widget():type()}.
  */
 public final class LuaEvent {
     /**
@@ -56,16 +56,17 @@ public final class LuaEvent {
 
     /**
      * What an event object can say — and therefore which methods table answers on it. One shape per payload
-     * kind, not per emitter: the two message streams differ only in the noun for the widget ({@code sender}
-     * for what sent an action, {@code target} for what is about to receive a message) and in what may be done
-     * about it ({@code resend}/{@code send} outbound, {@code rewrite} inbound).
+     * kind, not per emitter: the two message streams differ only in what may be done about the widget
+     * ({@code resend}/{@code send} outbound, {@code rewrite} inbound). The widget itself is {@code ev:widget()}
+     * on both — it is the same widget either way, and the DIRECTION is already named by which stream you
+     * subscribed on.
      */
     public enum Shape {
         /** {@code hafen.event():action():on(msg, fn)} — an outbound {@code wdgmsg}, before the server sees it. */
-        ACTION("action", "an action event answers :msg() :sender() :args() :position(i) :pixel(i)"
+        ACTION("action", "an action event answers :msg() :widget() :args() :position(i) :pixel(i)"
                + " :preventDefault() :resend() :send(t)"),
         /** {@code hafen.event():message():on(msg, fn)} — an inbound {@code uimsg}, before the widget applies it. */
-        MESSAGE("message", "a message event answers :msg() :target() :args() :position(i) :pixel(i)"
+        MESSAGE("message", "a message event answers :msg() :widget() :args() :position(i) :pixel(i)"
                 + " :preventDefault() :rewrite(t)"),
         /**
          * {@code w:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)} — the four universal widget input keys
@@ -162,12 +163,12 @@ public final class LuaEvent {
     /** SLIDER: whether this step ended the drag ({@code ev:final()}). Otherwise unused. */
     private final boolean flag;
 
-    /** The interned Widget handle, minted on the first {@code ev:sender()}/{@code ev:target()}. */
+    /** The interned Widget handle, minted on the first {@code ev:widget()}. */
     private LuaValue wdgObj;
     /** The 1-based argument table, built on the first {@code ev:args()} and handed back by identity after. */
     private LuaValue argsObj;
 
-    /** OVERLAY: the gob's id — minted into a handle lazily on first {@code :gob()}, like {@code :sender()}. */
+    /** OVERLAY: the gob's id — minted into a handle lazily on first {@code :gob()}, like {@code :widget()}. */
     private final long gobId;
     /** OVERLAY: the overlay's key. CLICKED: which noun answers — {@code "ghost"}/{@code "sprite"}/{@code "object"}
      * ({@link LuaWorldEntity#clickKey()}). */
@@ -177,7 +178,7 @@ public final class LuaEvent {
     /** CLICKED: the world coordinate the click resolved to — a double, unlike {@code Shape.INPUT}'s widget-local
      * pixel ints, so it does not reuse the {@code x}/{@code y} fields above. */
     private final double wx, wy;
-    /** OVERLAY: the interned Gob handle, minted lazily on first {@code :gob()} (D-064-style, like {@code :sender()}). */
+    /** OVERLAY: the interned Gob handle, minted lazily on first {@code :gob()} (D-064-style, like {@code :widget()}). */
     private LuaValue gobObj;
     /** CONTROL: the value the control is ABOUT to take, as the client holds it — {@code null} for a key that
      * carries none ({@code Pressed} is an activation and holds nothing). Set by {@link #control} rather than by
@@ -249,19 +250,19 @@ public final class LuaEvent {
         this(owner, shape, cancel, msg, wdg, args, ui, rewritten, 0, 0, null, null, null, null, false, 0);
     }
 
-    /** INPUT shape: no sender/target/args, just the pointer coordinates and (maybe) a button or wheel amount. */
+    /** INPUT shape: no widget/args, just the pointer coordinates and (maybe) a button or wheel amount. */
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, String key, int x, int y, Integer button,
                      Integer amount) {
         this(owner, shape, cancel, key, null, null, null, null, x, y, button, amount, null, null, false, 0);
     }
 
-    /** DRAW/CELL/DROP/SLIDER (041.4): no message, no sender/args — a small, shape-specific payload instead. */
+    /** DRAW/CELL/DROP/SLIDER (041.4): no message, no widget/args — a small, shape-specific payload instead. */
     private LuaEvent(Addon owner, Shape shape, Subs.Cancel cancel, int x, int y, LuaValue g, LuaValue extra,
                      boolean flag) {
         this(owner, shape, cancel, null, null, null, null, null, x, y, null, null, g, extra, flag, 0);
     }
 
-    /** GRAB_MOVE/GRAB_UP (041.5): no message/sender/args/cancel — the pointer, the live modifiers, and (UP
+    /** GRAB_MOVE/GRAB_UP (041.5): no message/widget/args/cancel — the pointer, the live modifiers, and (UP
      * only) which button ended the drag. Not cancelable, like DRAW/CELL/TICK. */
     private LuaEvent(Addon owner, Shape shape, int x, int y, int mods, Integer button) {
         this(owner, shape, null, null, null, null, null, null, x, y, button, null, null, null, false, mods);
@@ -459,7 +460,7 @@ public final class LuaEvent {
         return e;
     }
 
-    /** {@code ev:sender()} / {@code ev:target()} — the interned handle, minted on the first ask (D-064). */
+    /** {@code ev:widget()} — the interned handle, minted on the first ask (D-064). */
     private LuaValue widget() {
         if(wdgObj == null)
             wdgObj = LuaWidget.of(owner, wdg);
@@ -519,7 +520,7 @@ public final class LuaEvent {
         return "a " + o.getClass().getSimpleName();
     }
 
-    /** {@code ev:gob()} (OVERLAY) — the interned Gob handle, minted on the first ask (like {@code :sender()}). */
+    /** {@code ev:gob()} (OVERLAY) — the interned Gob handle, minted on the first ask (like {@code :widget()}). */
     private LuaValue gob() {
         if(gobObj == null)
             // A Gob is the object, so this is the same handle s:world():gob():get(id) hands back (079.3).
@@ -590,12 +591,12 @@ public final class LuaEvent {
                 return LuaValue.valueOf(self(a.arg1(), shape, "msg").msg);
             }
         });
-        // sender (what sent the action) / target (what is about to receive the message): the same widget,
-        // named for the direction it is on. Both are HANDLES now — ev:sender():type() is the old string.
-        final String noun = (shape == Shape.ACTION) ? "sender" : "target";
-        m.set(noun, new VarArgFunction() {
+        // widget() — what sent the action, or what is about to receive the message: the SAME widget either
+        // way, so it wears one word. The direction is already named by which stream you subscribed on, and a
+        // handler copied from one to the other goes on working.
+        m.set("widget", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                return self(a.arg1(), shape, noun).widget();
+                return self(a.arg1(), shape, "widget").widget();
             }
         });
         m.set("args", new VarArgFunction() {
@@ -897,7 +898,7 @@ public final class LuaEvent {
 
     /**
      * {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)} (041.7): three things to say —
-     * {@code :gob()} the owner's own interned handle (minted lazily, like {@code :sender()}), {@code :key()}
+     * {@code :gob()} the owner's own interned handle (minted lazily, like {@code :widget()}), {@code :key()}
      * the overlay's key, {@code :native()} whether the game put it there. Uncancelable, like every other bus
      * payload: an unlisted verb (including {@code :preventDefault()}) throws naming the vocabulary.
      */

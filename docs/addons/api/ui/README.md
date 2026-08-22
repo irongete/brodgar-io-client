@@ -12,8 +12,9 @@ different things.
 **Two trees, and the door says which.** What you build is **yours**: `hafen.ui():window()` puts it in the
 addon layer, above every session and above the login screen, where it stays when the player tabs. The
 client's own widgets stand in the tree of the character the game put them up for, so they are reached
-through that character's [session](../session.md) — `s:ui():find("window[title=Cupboard]")` is the one
-matching widget of the character `s` names, `s:ui():all("inventory")` is every one, and `s:ui():root()` is
+through that character's [session](../session.md) — `s:ui():match("window[title=Cupboard]")` is the one
+matching widget of the character `s` names, `s:ui():matchAll("inventory")` is every one, and `s:ui():root()`
+is
 the top of that character's tree. Nothing you built is findable through that door, and nothing the client
 put up is findable without it.
 
@@ -48,7 +49,7 @@ inside it, [controls](controls/README.md) puts the client's own buttons in it in
 
 **Point at the client's UI** — [selectors](selectors.md) names a widget in one character's tree,
 [widget](widget.md) reads it, [items](items.md) reads what is inside a container, [mouse](mouse.md) says
-where the pointer is. At a screen point, `hafen.ui():at(x, y)` is what is under it and
+where the pointer is. At a screen point, `hafen.ui():hit(x, y)` is what is under it and
 [`hafen.ui():tipAt(x, y)`](widget.md#tooltips-and-focus) is whose tooltip would speak for it. All of them,
 and every box below, are measured in [design pixels](pixels.md).
 

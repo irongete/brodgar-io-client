@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * An <b>OverlayToggle object</b> — one of the client's own display switches for claims, village claims and
- * provinces ({@code hafen.map():overlay():get(tag)}). Spec {@code 039-uniform-api} §2.2, task 039.4.
+ * provinces ({@code hafen.map():display():get(tag)}). Spec {@code 039-uniform-api} §2.2, task 039.4.
  *
  * <p><b>It exists because a hold is not a boolean, and the old shape said it was.</b> {@code
  * hafen.map.overlay(tag, on)} read as a property write — arity is the verb, so {@code (tag)} looked like the
@@ -209,7 +209,7 @@ public final class LuaOverlayToggle {
         LuaOverlayToggle h = resolve(self);
         if(h == null)
             throw new LuaError("toggle:" + method + "() — use a COLON call on an overlay toggle"
-                + " (hafen.map():overlay():get(tag), hafen.map():overlay():list()[n])");
+                + " (hafen.map():display():get(tag), hafen.map():display():list()[n])");
         return h;
     }
 }

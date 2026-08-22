@@ -42,7 +42,7 @@ logged in, while [`hand:use`](#the-hand) is a gesture with the pointer.
 session, with no id comparison. Neither read is protected.
 
 `worldToScreen` takes a place in the world and answers a **root** screen point, in
-[design pixels](ui/pixels.md) — the one space [the mouse](ui/mouse.md), `hafen.ui():at(x, y)`,
+[design pixels](ui/pixels.md) — the one space [the mouse](ui/mouse.md), `hafen.ui():hit(x, y)`,
 [`widget:rootPos()`](ui/widget.md#read) and a [HUD overlay's](ui/custom.md#overlays) painter already share.
 So the pair goes straight into a [`g:` verb](ui/drawing.md) or a hit test with nothing in between, at any
 interface scale.

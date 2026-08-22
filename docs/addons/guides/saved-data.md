@@ -100,7 +100,7 @@ every time the user moves the thing:
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function()
-  local chat = hafen.session():current():ui():find("@ChatUI")
+  local chat = hafen.session():current():ui():match("@ChatUI")
   chat:draggable(hafen.ui():image():source(hafen.asset():get("grip.png")):parent(chat))
   chat:remember("chat")
 end)

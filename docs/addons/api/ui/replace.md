@@ -45,7 +45,7 @@ What is worth knowing:
   reloaded with a window open still sees it, and a subscription made on a character nobody is looking at
   fires at once for what that character has open. You never have to handle "was it there before me?"
   yourself.
-- **Search inside the widget you were handed**, with [`w:find(sel)`](widget.md#searching-inside-one-widget),
+- **Search inside the widget you were handed**, with [`w:match(sel)`](widget.md#searching-inside-one-widget),
   not from the root. Two cupboards can be open at once, and only the callback knows which one this is.
 - **Neither event is about visibility.** They track the *tree*: a window the client merely hides — the
   inventory's Tab toggle — never left, so it fires neither.

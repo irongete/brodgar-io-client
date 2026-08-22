@@ -37,7 +37,7 @@ s:install()
 
 ```lua
 local sheet = hafen.ui():sheet()
-local w = hafen.session():current():ui():find("window[title=Equipment]")
+local w = hafen.session():current():ui():match("window[title=Equipment]")
 sheet:rule("window[title=Equipment]"):position(40, 200)
 sheet:install()
 w:position()            --> {x = 40,  y = 200}    -- the rule
@@ -62,7 +62,7 @@ that packed itself around new contents:
 local s   = hafen.ui():sheet()
 local cur = hafen.session():current()
 s:rule("window[title=Inventory]"):anchor{ to = "screen", at = "bottomright", offset = {-8, -8} }
-s:rule("window[title=Equipment]"):anchor{ to = cur:ui():find("window[title=Inventory]"),
+s:rule("window[title=Equipment]"):anchor{ to = cur:ui():match("window[title=Inventory]"),
                                           at = "topright" }
 s:rule("window[title=Cupboard]"):anchor{ at = "center" }        -- every field has a default
 s:install()
@@ -97,7 +97,7 @@ position costs nothing at rest.
 
 **Off-screen is clamped, by the client's own rule.** A window the HUD or the root holds directly is handed
 to the same clamp the client uses when it places or toggles one, so at least a corner of it stays inside
-and a bad offset can never make a window unreachable. [`hafen.ui():at()`](../selectors.md#hit-testing) still
+and a bad offset can never make a window unreachable. [`hafen.ui():hit()`](../selectors.md#hit-testing) still
 finds it where it is drawn; read `:position()` back if you need the number that survived. A widget *inside* a
 window is laid out by that window and is not the client's to clamp — there you get the pixels you asked for.
 

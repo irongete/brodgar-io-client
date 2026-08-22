@@ -95,7 +95,7 @@ nothing else — tabbing is not entering.
 > you took under one character means nothing under another: it names a widget of that character's own
 > tree, which dies with them. Nothing tears your addon down between the two, so nothing clears what you
 > cached — read the widget you want when you want it, which is what
-> [`s:ui():find`](api/ui/README.md) costs and no more.
+> [`s:ui():match`](api/ui/README.md) costs and no more.
 
 ## The sandbox
 
@@ -184,7 +184,7 @@ instruction watchdog still applies, so a stray infinite loop aborts instead of f
 
 ```text
 :lua hafen.session():current():world():gob():count("terobjs/tree")
-:lua hafen.session():current():ui():find("window[title=Inventory]"):size()
+:lua hafen.session():current():ui():match("window[title=Inventory]"):size()
 ```
 
 Addons add commands of their own with [`hafen.slash`](api/slash.md); `lua`, `addons` and `reload` are

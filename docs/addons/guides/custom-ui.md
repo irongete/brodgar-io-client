@@ -60,13 +60,15 @@ its *text* changes, and round anything you do not need to the digit you do.
 ## Overlays
 
 An overlay paints without being in the tree: nothing to place, nothing to size, nothing for the user to
-drag. On the **HUD** it is a painter you build and end with `:destroy()`:
+drag. It is the same vocabulary on the **HUD** and on a **game object** — keyed decorations you add, read
+back and remove. On the HUD you name the screen:
 
 ```lua
-hafen.ui():overlay():onDraw(function(g, w, h)            -- over the whole HUD; w, h is the screen
+hafen.ui():overlay():add("clock"):draw(function(g, w, h)  -- over the whole HUD; w, h is the screen
   g:color(255, 255, 255)
-  g:atext(os.date("%H:%M"), w - 8, 8, 1, 0)              -- anchored to the top-right corner
+  g:atext(os.date("%H:%M"), w - 8, 8, 1, 0)               -- anchored to the top-right corner
 end)
+-- ...and hafen.ui():overlay():remove("clock") takes it off again
 ```
 
 Over a **game object** the verb is on the object — [`gob:overlay()`](../api/overlay.md) — and you

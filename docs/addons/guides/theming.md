@@ -53,7 +53,7 @@ properties a given key honours — a site that draws text has no background of i
 | `:emboss(v)`, `:glow(t)` | [what a carved caption is filled with, and the halo behind it](../api/ui/style/text.md#emboss) |
 | `:bg(t)`, `:border(t)`, `:padding(n)` | [the surface it is painted on](../api/ui/style/chrome.md) |
 | `:picture(t)` | [the whole plate a surface **is**](../api/ui/style/chrome.md#picture) |
-| `:caption(t)`, `:close(t)`, `:sizer(t)` | [a window's ornaments](../api/ui/style/chrome.md#ornaments) |
+| `:caption(t)`, `:closeButton(t)`, `:sizer(t)` | [a window's ornaments](../api/ui/style/chrome.md#ornaments) |
 | `:position(x, y)`, `:size(w, h)`, `:anchor(t)` | [where the widget is, and how big](../api/ui/style/geometry.md) |
 
 Each setter returns the rule, so a level is one expression, and each reads back with no argument.

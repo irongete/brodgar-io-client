@@ -24,7 +24,7 @@ space they are in.
 |---|---|---|
 | `{x=, y=}` | a place in a lattice: a tile, a grid, a segment cell | `p:tileCoord()`, `item:cell()`, `grid:segmentCoord()`, `marker:segmentTile()` |
 | `{x=, y=}` | a screen point, in [design pixels](ui/pixels.md) | `widget:position()`, `widget:rootPos()`, `s:player():worldToScreen(p)`, `ev:pixel(i)` |
-| `{w=, h=}` | a size, in design pixels | `widget:size()`, `widget:cell()`, `img:size()`, `mapImg:size()` and `mapImg:info().size`, `rule:size()` |
+| `{w=, h=}` | a size, in design pixels | `widget:size()`, `widget:cellSize()`, `img:size()`, `mapImg:size()` and `mapImg:info().size`, `rule:size()` |
 | `{cur=, max=}` | a pair of counts | `item:durability()`, `contents:level()` |
 | `{x=, y=, z=}` | a point or a span in world units | the `min`, `max` and `extent` of `mdl:bounds()` |
 

@@ -38,7 +38,7 @@ import java.util.WeakHashMap;
  * setter called a moment later changes nothing until the sheet is applied again.
  *
  * <p><b>A key resolves one of two ways, and C1a ships one of them</b> (D-067 is why there are two). Keys go
- * through the {@link Selector} parser, so the grammar and its errors are exactly {@code s:ui():find(sel)}'s —
+ * through the {@link Selector} parser, so the grammar and its errors are exactly {@code s:ui():match(sel)}'s —
  * there is no second thing to learn and no second thing to keep in sync. The parsed selector is then
  * classified ({@link #siteOf}):
  * <ul>
@@ -83,7 +83,7 @@ final class Sheet {
     /** The style properties a rule may carry — the whole of a rule's vocabulary, in both its shapes. */
     static final String PROPS =
         "\"font\", \"color\", \"emboss\", \"glow\", \"bg\", \"border\", \"padding\", \"picture\","
-        + " \"caption\", \"sizer\", \"close\", \"position\", \"anchor\" and \"size\"";
+        + " \"caption\", \"sizer\", \"closeButton\", \"position\", \"anchor\" and \"size\"";
 
     /**
      * <b>What one rule says</b> — the properties below, each independently optional, and mutable because a
@@ -107,7 +107,7 @@ final class Sheet {
         Chrome.Pic picture;       // the rule's `picture` property (065.12), or null
         Chrome.Spot caption;      // the rule's `caption` property (065.4), or null
         Chrome.Art sizer;         // the rule's `sizer` property (065.4), or null
-        Chrome.Close close;       // the rule's `close` property (065.5), or null
+        Chrome.Close close;       // the rule's `closeButton` property (065.5), or null
         Layout.Anchor pos;        // where the rule puts it — `position` or `anchor` (036.2/036.3): TREE rules only
         Coord size;               // the rule's `size` property (036.2), or null — TREE rules only
 
@@ -189,7 +189,7 @@ final class Sheet {
             if(sizer != null)
                 t.set("sizer", sizer.toLua(reader));
             if(close != null)
-                t.set("close", close.toLua(reader));
+                t.set("closeButton", close.toLua(reader));
             if(pos != null)
                 pos.toLua(reader, t);
             if(size != null)
@@ -217,7 +217,7 @@ final class Sheet {
         final Chrome.Pic picture; // the rule's `picture` property (065.12), or null
         final Chrome.Spot caption;   // the rule's `caption` property (065.4), or null
         final Chrome.Art sizer;   // the rule's `sizer` property (065.4), or null
-        final Chrome.Close close; // the rule's `close` property (065.5), or null
+        final Chrome.Close close; // the rule's `closeButton` property (065.5), or null
         final Layout.Anchor pos;  // where the rule puts it — `position` or `anchor` (036.2/036.3) — TREE only
         final Coord size;         // the rule's `size` property (036.2), or null — TREE rules only
 
@@ -520,8 +520,8 @@ final class Sheet {
                 out.caption = Chrome.parseSpot(ctx, ".caption", pv);
             } else if("sizer".equals(p)) {
                 out.sizer = Chrome.parseArt(owner, ctx, ".sizer", pv);
-            } else if("close".equals(p)) {
-                out.close = Chrome.parseClose(owner, ctx, ".close", pv);
+            } else if("closeButton".equals(p)) {
+                out.close = Chrome.parseClose(owner, ctx, ".closeButton", pv);
             } else if("position".equals(p) || "anchor".equals(p) || "size".equals(p)) {
                 layoutable(ctx, p, site, sel);
                 if("size".equals(p)) {
@@ -621,7 +621,7 @@ final class Sheet {
         final Chrome.Spot caption;
         /** The winning {@code sizer} property (065.4), or {@code null}. */
         final Chrome.Art sizer;
-        /** The winning {@code close} property (065.5), or {@code null}. */
+        /** The winning {@code closeButton} property (065.5), or {@code null}. */
         final Chrome.Close close;
         /**
          * Where the winning rule puts this widget (036.2/036.3) — one {@link Layout.Anchor} whether it was written
@@ -1341,7 +1341,7 @@ final class Sheet {
         if(r.sizer != null)
             t.set("sizer", r.sizer.toLua(reader));
         if(r.close != null)
-            t.set("close", r.close.toLua(reader));
+            t.set("closeButton", r.close.toLua(reader));
         if(r.pos != null)                             // 036.2: what the SHEET says this widget's layout is — the
             r.pos.toLua(reader, t);                   //   verb above it is read with widget:position(), which answers
         if(r.size != null)                            //   where the widget actually IS. 036.3: `position` or

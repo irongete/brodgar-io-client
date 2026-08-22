@@ -47,10 +47,10 @@ import java.util.Map;
  * for the ground under the player that is now (it re-records the 3&times;3 grids around them whenever they
  * change), and for ground explored a year ago it is a year old, which {@code :modified()} reports.
  *
- * <p><b>A grid carries its OVERLAYS</b>: {@code :overlay():list()} is the census of the tags that covered
- * this ground — a personal claim, a village claim, a province — and {@code :overlay():get(tag)} the
- * {@link LuaMask} saying which of its tiles. Those are the <i>recorded</i> masks; the client's own display
- * switches for the same features are {@code hafen.map():overlay()}, and they are a different thing entirely.
+ * <p><b>A grid carries its MASKS</b>: {@code :mask():list()} is the census of the tags that covered this
+ * ground — a personal claim, a village claim, a province — and {@code :mask():get(tag)} the {@link LuaMask}
+ * saying which of its tiles. Those are the <i>recorded</i> masks; the client's own display switches for the
+ * same features are {@code hafen.map():display()}, and they are a different thing entirely.
  *
  * <p><b>And it can be DRAWN</b>: {@code :image(level)} is the recorded minimap drawing of this ground — the
  * very render the corner minimap shows — as an ordinary image handle, and {@code :overlayImage(tag)} the
@@ -149,7 +149,7 @@ public final class LuaMapGrid {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("grid", methods(owner),
             "one map grid answers :id() :exists() :live() :segmentCoord() :position() :segment() :tile() "
-            + ":height() :modified() :overlay() :image() :overlayImage() and :info()"));
+            + ":height() :modified() :mask() :image() :overlayImage() and :info()"));
         mt.set("__name", LuaValue.valueOf("Grid"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -247,19 +247,20 @@ public final class LuaMapGrid {
                 return (g == null) ? LuaValue.NIL : LuaValue.valueOf((double)g.mtime);
             }
         });
-        // overlay() — the recorded overlay MASKS on this grid, as a collection: :list() is the census of
-        // the tags that covered this ground (a personal claim, a village claim, a province) and :get(tag) is
-        // the Mask saying which of its tiles. The tag space belongs to the SERVER's overlay resources, so an
-        // unknown tag is plain nil and the census is what makes that nil readable — deliberately the
-        // opposite of hafen.map():overlay(), whose four display switches the client itself owns and which
-        // refuses a tag it does not have. Both are empty until the grid, and every overlay resource on it,
-        // has resolved.
-        m.set("overlay", new VarArgFunction() {
+        // mask() — the recorded MASKS on this grid, as a collection: :list() is the census of the tags that
+        // covered this ground (a personal claim, a village claim, a province) and :get(tag) is the Mask
+        // saying which of its tiles. It is named for what the members ARE — a Mask, mask:covers(c) — so the
+        // recorded half and the client's DISPLAY switches stop wearing one word. The tag space belongs to
+        // the SERVER's overlay resources, so an unknown tag is plain nil and the census is what makes that
+        // nil readable — deliberately the opposite of hafen.map():display(), whose four switches the client
+        // itself owns and which refuses a tag it does not have. Both are empty until the grid, and every
+        // overlay resource on it, has resolved.
+        m.set("mask", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaMapGrid h = handle(a.arg1(), "overlay");
+                LuaMapGrid h = handle(a.arg1(), "mask");
                 if(Args.passed(a, 2))
-                    throw new LuaError("grid:overlay(tag) is now a COLLECTION: grid:overlay():get(tag) is the"
-                        + " Mask for one tag and grid:overlay():list() is every tag this grid carries");
+                    throw new LuaError("grid:mask(tag) is a COLLECTION: grid:mask():get(tag) is the Mask for"
+                        + " one tag and grid:mask():list() is every tag this grid carries");
                 return maskCollection(owner, h.id);
             }
         });
@@ -273,15 +274,15 @@ public final class LuaMapGrid {
                 return MapImages.gridImage(owner, h.id, MapImages.levelArg(lvl, "grid:image"));
             }
         });
-        // overlayImage(tag) — the same for one recorded overlay mask, drawn in the overlay's own colour
+        // overlayImage(tag) — the same for one recorded mask, drawn in the overlay resource's own colour
         // (DataGrid.olrender, the image the map window composites over the ground). Nil for a tag this grid
-        // does not carry — grid:overlay():list() is the census — and nil while it renders.
+        // does not carry — grid:mask():list() is the census — and nil while it renders.
         m.set("overlayImage", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue tag) {
                 LuaMapGrid h = handle(self, "overlayImage");
                 if(tag.type() != LuaValue.TSTRING)      // in LuaJ a NUMBER also answers isstring()
                     throw new LuaError("grid:overlayImage(tag): tag is an overlay tag string (\"cplot\","
-                        + " \"vlg\", \"realm\") — grid:overlay():list() is the census of the ones this"
+                        + " \"vlg\", \"realm\") — grid:mask():list() is the census of the ones this"
                         + " grid carries");
                 return MapImages.gridOverlayImage(owner, h.id, tag.tojstring());
             }
@@ -328,12 +329,12 @@ public final class LuaMapGrid {
     }
 
     /**
-     * {@code grid:overlay()} — the recorded masks on one grid, as a collection of {@link LuaMask}. A VIEW,
+     * {@code grid:mask()} — the recorded masks on one grid, as a collection of {@link LuaMask}. A VIEW,
      * like every collection owned by an entity: it re-derives from the grid id on every call and holds
      * nothing between them, so it cannot outlive the grid and needs no pruning of its own.
      */
     private static LuaValue maskCollection(final Addon owner, final long id) {
-        return LuaCollection.create("grid:overlay()", new LuaCollection.Source() {
+        return LuaCollection.create("grid:mask()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
                 List<String> tags = MapApi.gridTags(MapApi.mapfile(), id);
@@ -360,8 +361,8 @@ public final class LuaMapGrid {
 
             public LuaValue getMember(LuaValue key) {
                 if(key.type() != LuaValue.TSTRING)      // in LuaJ a NUMBER also answers isstring()
-                    throw new LuaError("grid:overlay():get(tag): tag is an overlay tag string (\"cplot\","
-                        + " \"vlg\", \"realm\") \u2014 grid:overlay():list() is the census of the ones this"
+                    throw new LuaError("grid:mask():get(tag): tag is an overlay tag string (\"cplot\","
+                        + " \"vlg\", \"realm\") \u2014 grid:mask():list() is the census of the ones this"
                         + " grid carries");
                 String t = key.tojstring();
                 return (MapApi.maskIn(MapApi.mapfile(), id, t) == null)

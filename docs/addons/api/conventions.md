@@ -89,7 +89,7 @@ collection and is declared by it:
 |---|---|
 | `nil` | every collection not named below |
 | an object, so [`:exists()`](#objects-and-the-snapshot-hatch) is the question | `hafen.session()`, `hafen.sound()`, `s:world():gob()`, `s:kin():get(id)`, `s:actionbar()`, `keybindings():binding()` |
-| an error naming the keys there are | `hafen.asset()`, `hafen.font()`, `s:char():attr()`, `hafen.map():overlay()` |
+| an error naming the keys there are | `hafen.asset()`, `hafen.font()`, `s:char():attr()`, `hafen.map():display()` |
 
 **A collection whose members have no key has no `:get`, and says what to reach for instead.** Two buffs
 can share a resource; a marker's only id is one this client mints; a timer is only ever the one you were
@@ -112,7 +112,7 @@ is what you write when you want it *now*, and which of the verbs below spells it
 | `:off()` | a subscription | the `Sub` any [`:on`](event/README.md#subscribe) handed you — the bus, a widget, a hotkey, a console command |
 | `:remove(keyOrMember)` | a member of a collection | the [collection](#collections-the-noun-is-the-kind-the-verb-is-how-many), never the member |
 | `:release()` | a layer or a hold you took over what the client owns | a [rule](ui/style/README.md#restyle-one-widget), a [sheet](ui/style/README.md), a [grab](ui/mouse.md), a [map-overlay hold](map/overlays.md) |
-| `:destroy()` | a thing your addon built | a [widget](ui/widget.md), a [HUD overlay](ui/custom.md) |
+| `:destroy()` | a thing your addon built | a [widget](ui/widget.md) |
 | `:cancel()` | something in flight that had not finished | a [timer](timer.md), a [request](http.md), the open [radial menu](flowermenu.md) |
 | `:stop()` | a [sound](sound.md) still in the air | the sound |
 | `:finish()` | a [profiling scope](client/profiling/attribution.md) | the scope |

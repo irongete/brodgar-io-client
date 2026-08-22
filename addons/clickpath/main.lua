@@ -88,7 +88,7 @@ end)
 
 -- The two spaces line up on their own: player:worldToScreen answers ROOT DESIGN pixels, which
 -- is the space a HUD overlay's g draws in, so a projected point goes straight into g:line.
-hafen.ui():overlay():onDraw(function(g, w, h)
+hafen.ui():overlay():add("path"):draw(function(g, w, h)
   if current == nil then return end
   local pl = me()
   local mine = pl and pl:gob()
@@ -131,7 +131,7 @@ hafen.event():action():on("click", function(ev)
 
   -- "click" is not the map's alone: Avaview sends wdgmsg("click", button), ISBox sends it bare.
   -- Only the MapView's carries a destination, so everything else must fall straight through.
-  local sender = ev:sender()
+  local sender = ev:widget()
   if not sender or sender:type() ~= "MapView" then return end
 
   local a = ev:args()

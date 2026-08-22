@@ -52,7 +52,7 @@ import java.util.WeakHashMap;
  * userdata + a per-addon metatable + a per-addon intern cache, with {@code :info()} as the one snapshot hatch.
  *
  * <p><b>Interned, so {@code ==} is the identity test.</b> Two lookups of the same live widget are the same Lua
- * value ({@code hafen.ui():at(m.x,m.y) == hafen.ui():at(m.x,m.y)}), and a widget kept across frames stays {@code ==}.
+ * value ({@code hafen.ui():hit(m.x,m.y) == hafen.ui():hit(m.x,m.y)}), and a widget kept across frames stays {@code ==}.
  * That is what let {@code node:same(other)} be <b>hard cut</b> (D-012/D-013): it only ever existed because nothing
  * was interned.
  *
@@ -225,9 +225,9 @@ public final class LuaWidget {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("widget", methods(owner),
             "a widget answers :type() :role() :res() :picture() :id() :exists() :info() :parent() "
-            + ":children() :position() :size() :rootPos() :walk() :find() :all() and :at(); its content is "
-            + ":title() :text() :tooltip() :image() :value() :source() :rows() :range() :rowHeight() "
-            + ":cell() :columns() :items() :font() and :focused(); its frame is :draggable() :resizable() "
+            + ":children() :position() :size() :rootPos() :walk() :match() :matchAll() and :hit(); its content "
+            + "is :title() :text() :tooltip() :image() :value() :source() :rows() :range() :rowHeight() "
+            + ":cellSize() :columns() :items() :font() and :focused(); its frame is :draggable() :resizable() "
             + ":remember() :visible() :pack() :chrome() :style() and :rule(); and it acts with :on() "
             + ":send() :replace() :replacement() :revert() and :destroy()"));
         mt.set("__name", LuaValue.valueOf("Widget"));
@@ -331,7 +331,7 @@ public final class LuaWidget {
         // and it is what replaced the old `parent = "gameui"` string — a widget is named by a Widget, not by a
         // word, which is the second vocabulary 032.2 deleted from this section for exactly the same reason.
         // 074.1: THE ADDON LAYER is the default — a surface of yours is built into the tree above the
-        // sessions — and s:ui():find("@GameUI") is the HUD, which is one session's.
+        // sessions — and s:ui():match("@GameUI") is the HUD, which is one session's.
         //
         // Legal only while the surface is still being BUILT (before its arming tick). Re-homing one the user is
         // already looking at is a capability this API never had, and the honest place to refuse it is here: the
@@ -355,7 +355,7 @@ public final class LuaWidget {
                 Widget p = (h == null) ? null : live(h);
                 if(p == null)
                     throw new LuaError("widget:parent(w) expects a Widget that is in the tree — a surface of"
-                        + " yours is in the addon layer unless you name one, and s:ui():find(\"@GameUI\")"
+                        + " yours is in the addon layer unless you name one, and s:ui():match(\"@GameUI\")"
                         + " is the HUD");
                 if(p == w.parent)
                     return self;
@@ -864,8 +864,8 @@ public final class LuaWidget {
         // hafen.act():raw(target, msg, ...), and the move deletes an address space rather than relocating it: the
         // RECEIVER is the target now, so `raw`'s private target vocabulary — a numeric server widget id, or the
         // tokens "mapview" / "gameui" / "root" — has nothing left to address. Every one of them is an ordinary
-        // handle already: s:ui():node(id) for an id, s:ui():find("@MapView") for the map view and
-        // s:ui():find("@GameUI") for the HUD (@Class resolves through typeName, and MapView is not
+        // handle already: s:ui():node(id) for an id, s:ui():match("@MapView") for the map view and
+        // s:ui():match("@GameUI") for the HUD (@Class resolves through typeName, and MapView is not
         // subclassed in this fork). The trailing args marshal exactly as the two message streams do
         // (LuaMarshal.toJava: a {x=,y=} table becomes a Coord; numbers, strings and booleans pass through).
         //   PROTECTED by the per-addon "widget.send" permission, and the gate runs FIRST (D-213) — before the
@@ -893,8 +893,8 @@ public final class LuaWidget {
                 if(w.wdgid() < 0)
                     throw new LuaError("widget:send(msg, ...): this widget is not BOUND — it has no server id"
                         + " (widget:id() is nil), so there is no one to send to. Only a widget the SERVER"
-                        + " placed can be sent from: s:ui():find(\"@MapView\") is the map view and"
-                        + " s:ui():find(\"@GameUI\") is the HUD.");
+                        + " placed can be sent from: s:ui():match(\"@MapView\") is the map view and"
+                        + " s:ui():match(\"@GameUI\") is the HUD.");
                 int n = a.narg();
                 Object[] args = new Object[Math.max(0, n - 2)];
                 for(int i = 3; i <= n; i++)
@@ -1219,25 +1219,28 @@ public final class LuaWidget {
                 return self;
             }
         });
-        // cell(w, h) / cell() — 040.11: a GRID's cell box, in DESIGN pixels. Building-only, like :rowHeight(n)
-        // (spec 040 §5's shape again): the client's own GridList fixes a group's cell box (Group.itemsz) at
-        // construction, so choosing a different one rebuilds the widget under the same Lua handle. The bare
-        // read hands back {w=, h=}; a control with no cells reads nil on this and a write there throws naming
-        // what does.
-        m.set("cell", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:cell() → narg 1 · w:cell(w, h) → narg 3
+        // cellSize(w, h) / cellSize() — 040.11: a GRID's cell box, in DESIGN pixels. Building-only, like
+        // :rowHeight(n) (spec 040 §5's shape again): the client's own GridList fixes a group's cell box
+        // (Group.itemsz) at construction, so choosing a different one rebuilds the widget under the same Lua
+        // handle. The bare read hands back {w=, h=}; a control with no cells reads nil on this and a write
+        // there throws naming what does.
+        //   It is a SIZE, and the verb says so — item:cell() one type away is a PLACE, the inventory cell an
+        // item sits in, and both are two-number tables. One word over the two made grid:cell(c.w, c.h) fed
+        // from item:cell() read nil, nil and be TAKEN, leaving the grid its default box.
+        m.set("cellSize", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:cellSize() → narg 1 · w:cellSize(w, h) → narg 3
                 LuaValue self = a.arg1();
-                Widget w = live(handle(self, "cell"));
+                Widget w = live(handle(self, "cellSize"));
                 if(!Args.passed(a, 2))
-                    return Controls.cell((w == null) ? null : ownedContent(owner, w));
+                    return Controls.cellSize((w == null) ? null : ownedContent(owner, w));
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
-                Controls.cell(owner, w, owned(owner, w, "cell(w, h)"), a);
+                Controls.cellSize(owner, w, owned(owner, w, "cellSize(w, h)"), a);
                 return self;
             }
         });
         // columns(t) / columns() — 040.12: a TABLE's column descriptors ({title=, width=, of=} per column).
-        // Building-only, like :cell(w, h)/:rowHeight(n): the client's own TableBox fixes its columns (cols,
+        // Building-only, like :cellSize(w, h)/:rowHeight(n): the client's own TableBox fixes its columns (cols,
         // main) at construction, so choosing a different set rebuilds the widget under the same Lua handle,
         // re-resolving the current rows against the new columns. The bare read hands back exactly the table
         // last given; a control with no columns reads nil on this and a write there throws naming what does.
@@ -1288,33 +1291,38 @@ public final class LuaWidget {
         // what element.querySelector does in CSS. Inside an :on(sel, "appear", fn) callback this is the only
         // correct lookup: the root-anchored form asks "the Cupboard's grid" of a client that may have two open,
         // and the one you were handed is not necessarily the one it meets first.
-        //   :find is STRICT, like s:ui():find — nil for no match, the widget for exactly one, and a REFUSAL
-        // naming widget:all(sel)[i] for two or more. :all is the collection form: empty, never nil.
+        //   :match is STRICT, like s:ui():match — nil for no match, the widget for exactly one, and a REFUSAL
+        // naming widget:matchAll(sel)[i] for two or more. :matchAll is the array form: empty, never nil.
         //   A STALE widget REFUSES at both doors, and it is the one read in this section that does not answer
         // nil/empty (029.2). A search inside a subtree that no longer exists has no honest empty answer: "no
         // button in this window" and "this window is gone" are different facts, and telling them apart is the
         // whole reason to hold a widget across the lifetime of the thing you are searching.
-        m.set("find", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:find(sel) → self=arg1, sel=arg2
-                Widget w = live(handle(a.arg1(), "find"));
-                Selector sel = UiApi.selArg(Args.required(a, 2, "widget:find", "selector"), "widget:find(selector)");
-                return UiApi.scopedFind(owner, searched(w, "find"), sel);
+        m.set("match", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:match(sel) → self=arg1, sel=arg2
+                Widget w = live(handle(a.arg1(), "match"));
+                Selector sel = UiApi.selArg(Args.required(a, 2, "widget:match", "selector"),
+                                            "widget:match(selector)");
+                return UiApi.scopedMatch(owner, searched(w, "match"), sel);
             }
         });
-        m.set("all", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:all(sel) → self=arg1, sel=arg2
-                Widget w = live(handle(a.arg1(), "all"));
-                Selector sel = UiApi.selArg(Args.required(a, 2, "widget:all", "selector"), "widget:all(selector)");
-                return UiApi.scopedAll(owner, searched(w, "all"), sel);
+        m.set("matchAll", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:matchAll(sel) → self=arg1, sel=arg2
+                Widget w = live(handle(a.arg1(), "matchAll"));
+                Selector sel = UiApi.selArg(Args.required(a, 2, "widget:matchAll", "selector"),
+                                            "widget:matchAll(selector)");
+                return UiApi.scopedMatchAll(owner, searched(w, "matchAll"), sel);
             }
         });
-        // at(coord) — W2: the DEEPEST Widget object under a {x=,y=} ROOT-coord point within this subtree, or nil.
-        m.set("at", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {            // w:at(coord) → self=arg1, coord=arg2 (root coords)
-                Widget w = live(handle(a.arg1(), "at"));
+        // hit(coord) — W2: the DEEPEST Widget object under a {x=,y=} ROOT-coord point within this subtree, or
+        // nil. A hit test SEARCHES the screen, which is not what :at(x) means anywhere else in the API —
+        // s:world():grid():at(p) ADDRESSES a member by a place — so the two questions get two words, and this
+        // one pairs with the pointer's own m:over().
+        m.set("hit", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:hit(coord) → self=arg1, coord=arg2 (root coords)
+                Widget w = live(handle(a.arg1(), "hit"));
                 if(w == null)
                     return LuaValue.NIL;
-                Coord pt = Px.in(coordArg(a.arg(2), "widget:at(coord)"));   // a point is design px, like a size
+                Coord pt = Px.in(coordArg(a.arg(2), "widget:hit(coord)"));   // a point is design px, like a size
                 Widget hit;
                 synchronized(monitor(w)) { hit = hitTest(w, w.rootxlate(pt)); }
                 return (hit == null) ? LuaValue.NIL : of(owner, hit);
@@ -1466,7 +1474,7 @@ public final class LuaWidget {
         if(h == null)
             throw new LuaError("widget:" + method + "() — use a COLON call on a Widget object"
                 + " (hafen.session():current():ui():root(), :find(selector) or :node(id) on the same s:ui()"
-                + " for the client's own widgets, hafen.ui():at(x, y) for a point on the screen, and the"
+                + " for the client's own widgets, hafen.ui():hit(x, y) for a point on the screen, and the"
                 + " handle hafen.ui():window() gave you for one of yours)");
         return h;
     }
@@ -2283,10 +2291,10 @@ public final class LuaWidget {
     }
 
     /**
-     * The receiver of a scoped search ({@code widget:find}/{@code :all}, 049.2), or the refusal. This is the one
-     * place the section does not fall back on the 029.2 nil/empty answer for a stale widget: a search of a subtree
-     * that has left the tree would report "nothing matched", which is a different fact from "there is nothing
-     * there", and the pair exists precisely to be used on a handle whose widget may have closed meanwhile.
+     * The receiver of a scoped search ({@code widget:match}/{@code :matchAll}, 049.2), or the refusal. This is
+     * the one place the section does not fall back on the 029.2 nil/empty answer for a stale widget: a search
+     * of a subtree that has left the tree would report "nothing matched", which is a different fact from "there
+     * is nothing there", and the pair exists precisely to be used on a handle whose widget may have closed.
      */
     private static Widget searched(Widget w, String verb) {
         if(w == null)
@@ -2764,7 +2772,7 @@ public final class LuaWidget {
     // ---- W2 hit-testing + the small shared helpers --------------------------------------------------
 
     /**
-     * The deepest widget under {@code c} (given in {@code from}'s local coords), for {@code hafen.ui():at} /
+     * The deepest widget under {@code c} (given in {@code from}'s local coords), for {@code hafen.ui():hit} /
      * {@code widget:at} (spec 20, W2). It <b>mirrors the engine's own pointer dispatch</b>
      * ({@link Widget.PointerEvent#propagation}, {@code Widget.java:981}): walk children {@code lchild → prev}
      * (topmost-first — the last child draws on top), skip {@code !visible()}, descend by

@@ -18,8 +18,8 @@ import java.util.List;
  * {@code GridList} does not build row WIDGETS the way {@code SListWidget} does, it DRAWS cells
  * ({@code drawitem(GOut, T)}), so this adapter takes no part in the {@link LuaRows} bridge the other four
  * share. {@code :rows(t)} is a plain array of arbitrary Lua values (item shape is the addon's own, unlike the
- * string/{@code {icon=,text=}} rows the bridge enforces); {@code :cell(w, h)} is the cell box, building-only
- * like {@code :rowHeight(n)} ({@code Group.itemsz} is {@code final}); {@code :onCell(g, item, w, h)} paints one
+ * string/{@code {icon=,text=}} rows the bridge enforces); {@code :cellSize(w, h)} is the cell box,
+ * building-only like {@code :rowHeight(n)} ({@code Group.itemsz} is {@code final}); {@code :onCell(g, item, w, h)} paints one
  * cell through the SAME {@link LuaGOut} wrapper {@code widget:onDraw(fn)} hands a surface (task 040.11,
  * D-163) — bound for the duration of one {@link #drawitem} call and inert otherwise, exactly
  * {@link AddonWidget#draw}'s own shape.
@@ -30,8 +30,8 @@ import java.util.List;
  * ({@code SkillWnd.SkillGrid}/{@code ExpGrid} use the same margin for their icon grids) — and every
  * {@code :rows(t)} feeds it through {@link Group#update}, which is public and live. The cell BOX itself
  * (`itemsz`) is {@code final} on {@code Group}, so — like a list's row height — choosing a different one is
- * not a property write but a different widget under the same Lua handle (D-164): {@link Controls#cell} rebuilds
- * exactly as {@link Controls#rowHeight} does, carrying the current rows and {@code :onCell} handler across.
+ * not a property write but a different widget under the same Lua handle (D-164):
+ * {@link Controls#cellSize} rebuilds exactly as {@link Controls#rowHeight} does, carrying the current rows and {@code :onCell} handler across.
  *
  * <p><b>A handler that throws is isolated PER CELL, not per frame.</b> {@link AddonManager#callLua} already
  * catches every Lua/Java error a callback raises and returns without rethrowing — the same choke point
@@ -39,13 +39,13 @@ import java.util.List;
  * the log and nothing else: {@code GridList.draw}'s own loop keeps calling {@link #drawitem} for every
  * remaining item in the list on the very same frame.
  */
-final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.Rows, Controls.Cell,
+final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.Rows, Controls.CellSize,
         Controls.OnCell {
     /** A default box, in DESIGN pixels; {@code :size(w, h)} overrides it, same as every other control here. */
     static final Coord DEF_SZ = new Coord(200, 200);
     /**
-     * The client's own inventory-slot size, in DESIGN pixels — what a bare {@code hafen.ui():grid()} cells at until
-     * {@code :cell(w, h)}, and the same integer {@code :cell()} reads back at every UI scale.
+     * The client's own inventory-slot size, in DESIGN pixels — what a bare {@code hafen.ui():grid()} cells at
+     * until {@code :cellSize(w, h)}, and the same integer {@code :cellSize()} reads back at every UI scale.
      */
     static final Coord DEF_CELL = new Coord(32, 32);
     /**
@@ -95,8 +95,8 @@ final class CGrid extends GridList<LuaValue> implements Owned.Control, Controls.
         lastRows = t;
     }
 
-    /** {@code g:cell()} — the current cell box, in pixels. */
-    public Coord cell() {
+    /** {@code g:cellSize()} — the current cell box, in pixels. */
+    public Coord cellSize() {
         return cellSz;
     }
 

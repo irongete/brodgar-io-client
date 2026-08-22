@@ -30,7 +30,7 @@ nothing is sandboxed and every protected verb works there.
 
 ```text
 :lua hafen.session():current():world():gob():count("terobjs/tree")
-:lua hafen.session():current():ui():find("window[title=Inventory]"):info()
+:lua hafen.session():current():ui():match("window[title=Inventory]"):info()
 :lua for _, m in ipairs(hafen.session():current():meter():list()) do hafen.log():write(tostring(m:res())) end
 ```
 
@@ -81,11 +81,11 @@ read the name off the console:
 
 ```lua
 hafen.event():message():on("*", function(ev)                 -- updates arriving
-  hafen.log():write(ev:target():type() .. " <- " .. ev:msg() .. " (" .. #ev:args() .. " args)")
+  hafen.log():write(ev:widget():type() .. " <- " .. ev:msg() .. " (" .. #ev:args() .. " args)")
 end)
 
 hafen.event():action():on("*", function(ev)                  -- messages going out
-  hafen.log():write(ev:sender():type() .. " -> " .. ev:msg() .. " (" .. #ev:args() .. " args)")
+  hafen.log():write(ev:widget():type() .. " -> " .. ev:msg() .. " (" .. #ev:args() .. " args)")
 end)
 ```
 

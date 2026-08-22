@@ -331,8 +331,8 @@ final class Retired {
             + " protected in its own right, by the \"menugrid.use\" permission");
         act("raw", "hafen.act():raw(target, msg, ...) is now widget:send(msg, ...) — the RECEIVER is the"
             + " target, so the target vocabulary is gone rather than rehoused: a numeric widget id is the"
-            + " widget it named (hafen.ui():node(id)), \"mapview\" is hafen.ui():find(\"@MapView\"),"
-            + " \"gameui\" is hafen.ui():find(\"@GameUI\") and \"root\" is hafen.ui():root(). Bound widgets"
+            + " widget it named (s:ui():node(id)), \"mapview\" is s:ui():match(\"@MapView\"),"
+            + " \"gameui\" is s:ui():match(\"@GameUI\") and \"root\" is s:ui():root(). Bound widgets"
             + " only, exactly as before — widget:id() is nil on one your addon built — and the arguments"
             + " marshal unchanged");
         act("flower", "hafen.act():flower(label) is now session:flowermenu():select(label|n) — the radial menu"
@@ -439,7 +439,7 @@ final class Retired {
         put("grid:pos", "grid:pos() is now grid:position(), and it hands back a Position rather than an"
             + " {x, y} table: p:x()/p:y() are this session's components, p:info() is what you save");
         put("grid:mtime", "grid:mtime() is now grid:modified()");
-        put("grid:overlays", "grid:overlays() is now grid:overlay():list() — grid:overlay() is the collection"
+        put("grid:overlays", "grid:overlays() is now grid:mask():list() — grid:mask() is the collection"
             + " of the recorded masks on this grid, and the verb says how many");
         put("marker:tc", "marker:tc() is now marker:segmentTile()");
         put("marker:pos", "marker:pos() is now marker:position(), and it hands back a Position rather than an"
@@ -450,7 +450,7 @@ final class Retired {
         put("marker:dist", "marker:dist() is now marker:distance()");
 
         // ---- hafen.ui: the lookups move onto the section, and the ROOT stops being the call itself -------
-        put("hafen.ui.at", "hafen.ui.at(x, y) is now hafen.ui():at(x, y)");
+        put("hafen.ui.at", "hafen.ui.at(x, y) is now hafen.ui():hit(x, y)");
         put("hafen.ui.mouse", "hafen.ui.mouse() is now hafen.ui():mouse()");
         // 048.2: the cursor LEFT hafen.ui() for the character it belongs to, so this row stopped being a
         // re-spelling and became a move — under both field reads (D-216), the dotted pre-039 one and the
@@ -470,8 +470,8 @@ final class Retired {
         // ---- called on is found by rawget and never gets here, which is what keeps one row per verb honest.
         String twoTrees = " — your window and the client's window are not the same thing, and they stand in"
             + " two trees";
-        uiMoved("find", "find(selector)", "THE widget matching a selector in that character's tree");
-        uiMoved("all", "all(selector)", "every widget matching it, in tree order");
+        uiMoved("match", "match(selector)", "THE widget matching a selector in that character's tree");
+        uiMoved("matchAll", "matchAll(selector)", "every widget matching it, in tree order");
         uiMoved("on", "on(selector, event, fn)", "a watch on that character's own tree, which scans it at"
                 + " registration and so fires for what that character already has open");
         uiMoved("root", "root()", "the top of that character's whole tree");
@@ -481,11 +481,11 @@ final class Retired {
         uiMoved("equipment", "equipment()", "what that character is wearing");
         uiKept("window", "builds a window of YOURS, in the addon layer above every session" + twoTrees);
         uiKept("widget", "builds a bare container of YOURS, in the addon layer" + twoTrees);
-        uiKept("overlay", "mints an overlay of YOURS" + twoTrees);
+        uiKept("overlay", "is the collection of the HUD painters YOUR addon installed" + twoTrees);
         uiKept("sheet", "is a declaration of rules owned by your addon, applied live to whatever matches in"
                + " every session at once — a theme is not one character's");
         uiKept("mouse", "is the POINTER, and there is one pointer however many characters are logged in");
-        uiKept("at", "hit-tests a point on the SCREEN, and there is one coordinate space");
+        uiKept("hit", "hit-tests a point on the SCREEN, and there is one coordinate space");
         uiKept("tipAt", "asks who would speak for a point on the SCREEN");
         uiKept("scale", "is the device factor the client is running at");
         for(String c : new String[] {"button", "label", "entry", "check", "radio", "slider", "scroll",
@@ -502,8 +502,9 @@ final class Retired {
             + " :parent(w) :position(x, y) :size(w, h) :font(h) and the notifications"
             + " :on(\"MouseDown\"/\"MouseUp\"/\"MouseMove\"/\"Wheel\", fn) :onDraw(fn) :onTick(fn) :onDrop(fn)."
             + " A bare widget has no caption, so :title(s) is the window builder's");
-        put("hafen.ui.overlay", "hafen.ui.overlay(fn) is now hafen.ui():overlay():onDraw(fn), and the overlay"
-            + " it hands back ends with :destroy() rather than :remove()");
+        put("hafen.ui.overlay", "hafen.ui.overlay(fn) is now hafen.ui():overlay():add(key):draw(fn) — the HUD"
+            + " painters are a keyed COLLECTION, so hafen.ui():overlay():get(key) reads one back and"
+            + " hafen.ui():overlay():remove(key) ends it");
 
         // ---- the stylesheet: a Sheet of Rules, so a selector NAMES a rule and its properties are setters ----
         put("hafen.ui.skin", "hafen.ui.skin{…} is now hafen.ui():sheet(): s:rule(selector) hands back the rule"
@@ -788,6 +789,84 @@ final class Retired {
         moved("vr", "pointer", "hafen.vr():pointer(key, x, y [, a]) is now hafen.vr():click(key, x, y [, a]) —"
             + " a verb rather than a noun, so it does not read as \"where is the pointer\", which is"
             + " hafen.ui():mouse(). It still hands back whether a standing panel took the point");
+
+        // ---- 088.2: the selector language gets its own verb. :find takes a FILTER on a collection -- nil, a
+        // ---- substring, a predicate -- and took a SELECTOR here, which is a grammar: s:kin():find("Bo")
+        // ---- matched by substring while s:ui():find("Cupboard") parsed as a ROLE that does not exist and
+        // ---- answered nil. Two query languages under one verb, and the miss was silent. One key serves both
+        // ---- doors (Section.meta looks a section's retired verb up by the section's NAME, and both halves of
+        // ---- hafen.ui are named "ui"), so the message says the rename AND which half the verb is in.
+        moved("ui", "find", "the ui's :find(selector) is now :match(selector) — the argument is a SELECTOR, a"
+            + " grammar, where a collection's :find(filter) is a substring or a predicate, and the verb now"
+            + " says which language it speaks. It is a verb of the SESSION's half:"
+            + " hafen.session():current():ui():match(selector) is THE widget matching it in that character's"
+            + " tree, and hafen.session():get(user) is any other character. The windows your addon BUILDS stay"
+            + " on hafen.ui() — they are yours, in the layer above every session");
+        moved("ui", "all", "the ui's :all(selector) is now :matchAll(selector) — it runs a SELECTOR, where"
+            + " :list() enumerates a collection, so \"give me all of them\" is one word per language. It is a"
+            + " verb of the SESSION's half: hafen.session():current():ui():matchAll(selector) is every widget"
+            + " matching it in that character's tree, in tree order, and hafen.session():get(user) is any other"
+            + " character. The windows your addon BUILDS stay on hafen.ui()");
+        put("widget:find", "widget:find(selector) is now widget:match(selector) — the argument is a SELECTOR"
+            + " and the verb says so, leaving :find(filter) to mean a collection's substring-or-predicate"
+            + " search. It is the same strict answer: nil for no match, the widget for exactly one, and a"
+            + " refusal naming widget:matchAll(selector)[i] for two or more");
+        put("widget:all", "widget:all(selector) is now widget:matchAll(selector) — every match inside this"
+            + " widget's subtree, in tree order, as a 1-based array (empty, never nil)");
+
+        // ---- 088.3: a size, a place and a hit test are three words. widget:cell() was a SIZE wearing the name
+        // ---- of a place -- item:cell() one type away is the inventory cell an item sits IN -- and both are
+        // ---- two-number tables, so grid:cell(c.w, c.h) fed from an item read nil, nil and was TAKEN. And :at
+        // ---- meant both "address a member by a place" (s:world():grid():at(p)) and "search the screen".
+        put("widget:cell", "widget:cell(w, h) is now widget:cellSize(w, h) — it is a grid control's cell BOX,"
+            + " a size, and it sits beside widget:rowHeight(n). item:cell() keeps the word, because there it is"
+            + " a PLACE: the inventory cell an item sits in, read as {x =, y =}");
+        moved("ui", "at", "hafen.ui():at(x, y) is now hafen.ui():hit(x, y) — it hit-tests the SCREEN for the"
+            + " deepest widget under a point, which is a search, and :at(x) addresses a member by a place"
+            + " (s:world():grid():at(p)). It pairs with hafen.ui():mouse():over(), which is the same test at"
+            + " the pointer");
+        put("widget:at", "widget:at(coord) is now widget:hit(coord) — the deepest widget under a {x =, y =}"
+            + " root-coord point inside this widget's subtree. A hit test SEARCHES; :at(x) addresses a member"
+            + " by a place, which is what s:world():grid():at(p) means");
+
+        // ---- 088.4: :overlay() named four unrelated things, two of which look alike from Lua --
+        // ---- hafen.map():overlay():get("claim") was a display SWITCH and grid:overlay():get("claim") a
+        // ---- recorded MASK, both succeeding and answering objects with different verbs. Each is now named for
+        // ---- what it is, and the HUD painter takes gob:overlay()'s own shape, so the word means ONE thing:
+        // ---- keyed decorations bound to a thing.
+        moved("map", "overlay", "hafen.map():overlay() is now hafen.map():display() — these are the client's"
+            + " own display SWITCHES (claim, province), a closed set, and toggle:hold(true) asks for one to be"
+            + " drawn. The recorded MASKS on one grid are grid:mask(), which is a different set with its own"
+            + " tags");
+        put("grid:overlay", "grid:overlay() is now grid:mask() — the recorded masks on this grid, which is what"
+            + " its members are (mask:covers(c), mask:area()). grid:mask():list() is the census of the tags"
+            + " this ground carries and grid:mask():get(tag) is one of them. The client's display switches are"
+            + " hafen.map():display(), and they are a different set");
+        put("hafen.ui():overlay():onDraw", "hafen.ui():overlay() is a COLLECTION of keyed painters, so the"
+            + " painter is added and then says what it draws: hafen.ui():overlay():add(key):draw(fn), with"
+            + " fn(g, w, h) every frame. :get(key) reads one back, :remove(key) ends it, and :list() is the"
+            + " draw order — the same vocabulary gob:overlay() has");
+        put("uioverlay:onDraw", "overlay:onDraw(fn) is now overlay:draw(fn) — the same fn(g, w, h), on the"
+            + " member hafen.ui():overlay():add(key) hands back, and the same verb an overlay on a gob takes");
+        put("uioverlay:destroy", "overlay:destroy() is now hafen.ui():overlay():remove(key) — the painters are"
+            + " a collection now, and where a collection exists the destroy verb is on it. overlay:key() is"
+            + " the key, and :remove takes the member itself too");
+
+        // ---- 088.5: three words freed. :close() means "end this" exactly once in this API, on a Session;
+        // ---- :path() means a file path; and ev:sender()/ev:target() were the SAME widget under two names,
+        // ---- named for a direction the stream you subscribed on already says.
+        put("rule:close", "rule:close(...) is now rule:closeButton(...) — it is the BUTTON a window's"
+            + " decoration draws in a corner (its art, its hover and pressed faces, and the at/offset that"
+            + " place it), not an ending. In a sheet written as data the key is \"closeButton\" too");
+        put("pagina:path", "pagina:path() is now pagina:categories() — the categories this entry sits under, as"
+            + " an ARRAY of strings, where :path() elsewhere in the API is one string naming a file"
+            + " (asset:path()). Empty for a category and for an entry the server invokes by id");
+        put("ev:sender", "ev:sender() is now ev:widget() — what sent the action and what is about to receive a"
+            + " message are the same widget, and which of the two you are looking at is already said by the"
+            + " stream you subscribed on (hafen.event():action() or hafen.event():message())");
+        put("ev:target", "ev:target() is now ev:widget() — what is about to receive the message and what sent"
+            + " an action are the same widget, and which of the two you are looking at is already said by the"
+            + " stream you subscribed on (hafen.event():action() or hafen.event():message())");
     }
 
     /**
@@ -859,8 +938,8 @@ final class Retired {
     private static void uiKept(String verb, String why) {
         MISPLACED.put("hafen.ui():" + verb, "s:ui():" + verb + "(…) does not exist: hafen.ui():" + verb
             + "(…) " + why
-            + ". The session's half of hafen.ui is the widgets THE CLIENT put up — :find, :all, :on, :root,"
-            + " :node, :inventory and :equipment.");
+            + ". The session's half of hafen.ui is the widgets THE CLIENT put up — :match, :matchAll, :on,"
+            + " :root, :node, :inventory and :equipment.");
     }
 
     /**

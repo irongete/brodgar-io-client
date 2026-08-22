@@ -18,7 +18,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * <pre>
  *   local m = hafen.ui():mouse()
  *   m:x()  m:y()                  -- where the cursor is (was: the {x=, y=} table)
- *   m:over()                      -- the widget under it (was: hafen.ui():at(m.x, m.y))
+ *   m:over()                      -- the widget under it (was: hafen.ui():hit(m.x, m.y))
  *   m:shift() m:ctrl() m:alt()    -- the live modifier keys (NEW — UI.modflags() reached Lua nowhere before)
  *   m:grab()                      -- take the pointer, see {@link LuaGrab}
  * </pre>
@@ -34,9 +34,9 @@ import org.luaj.vm2.lib.VarArgFunction;
  * established for {@link LuaEvent} (041.2): no metamethod can tell a dot read from a colon call, so a live
  * member answers a dot read with the function it always was. What is gone is the table shape, not the name.
  *
- * <p><b>{@code :over()} is not absorbed from {@code hafen.ui():at(x, y)}</b> — that verb takes an arbitrary
+ * <p><b>{@code :over()} is not absorbed from {@code hafen.ui():hit(x, y)}</b> — that verb takes an arbitrary
  * point and stays where it is (spec §2.2); only the cursor case, which every call site used to spell out by
- * hand ({@code hafen.ui():at(m.x, m.y)}), moves onto the pointer that owns it.
+ * hand ({@code hafen.ui():hit(m.x, m.y)}), moves onto the pointer that owns it.
  */
 final class LuaMouse {
     private LuaMouse() {}
@@ -52,7 +52,7 @@ final class LuaMouse {
             return owner.mouseObj;
         LuaTable m = new LuaTable();
         // :x() / :y() — the cursor in root coords, in DESIGN PIXELS (058.1): the same space :position(), :size()
-        // and hafen.ui():at(x, y) speak, so the pointer can be handed straight to the hit test.
+        // and hafen.ui():hit(x, y) speak, so the pointer can be handed straight to the hit test.
         m.set("x", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 UI u = AddonManager.screen();
@@ -111,13 +111,13 @@ final class LuaMouse {
     /**
      * {@code m:over()} — the deepest widget under the cursor, or {@code nil}. It answers for <b>the point this
      * object reports</b> ({@code m:x()}, {@code m:y()}), not for the raw {@code UI.mc} behind it: the design
-     * pixel the API names is put back through {@link Px#in}, exactly as {@code hafen.ui():at(x, y)} does with
+     * pixel the API names is put back through {@link Px#in}, exactly as {@code hafen.ui():hit(x, y)} does with
      * the very same numbers.
      *
      * <p>That round-trip is deliberate, and it is the one place the design-pixel boundary is not the identity —
      * {@code out(in(n)) == n} always, while {@code in(out(d))} may land a device pixel away, since a device
      * position is not generally a whole number of design pixels. Hit-testing the raw cursor instead would make
-     * {@code hafen.ui():at(m:x(), m:y()) == m:over()} true <i>almost</i> always and false on a widget edge,
+     * {@code hafen.ui():hit(m:x(), m:y()) == m:over()} true <i>almost</i> always and false on a widget edge,
      * which is worse than being an identity: the two doors are documented as one question.
      */
     private static LuaValue over(Addon owner) {

@@ -1,6 +1,6 @@
 # hafen.ui: naming a widget
 
-A **selector is a string**, and `s:ui():find` / `:all` are the lookups. Reach for one whenever you
+A **selector is a string**, and `s:ui():match` / `:matchAll` are the lookups. Reach for one whenever you
 need a piece of the client's UI — to read it, to move it, to replace it, or as the key of a
 [stylesheet](style/keys.md) rule.
 
@@ -11,12 +11,12 @@ windows answer the same searches.
 
 ```lua
 local s = hafen.session():current()
-s:ui():find("window[title=Cupboard]")             -- the one match, or nil
-s:ui():all("inventory")                           -- every open container, in tree order
-s:ui():find("window[title=Cupboard] inventory")   -- the grid inside that window
-s:ui():find("window[title=Foo] button[text=Close]")  -- one exact widget, named in one string
-s:ui():find("@Equipory")                          -- by widget class
-s:ui():all("*[res*=gfx/hud/meter]")               -- by resource name, matched as a substring
+s:ui():match("window[title=Cupboard]")             -- the one match, or nil
+s:ui():matchAll("inventory")                           -- every open container, in tree order
+s:ui():match("window[title=Cupboard] inventory")   -- the grid inside that window
+s:ui():match("window[title=Foo] button[text=Close]")  -- one exact widget, named in one string
+s:ui():match("@Equipory")                          -- by widget class
+s:ui():matchAll("*[res*=gfx/hud/meter]")               -- by resource name, matched as a substring
 s:ui():root()                                     -- no selector at all: that character's whole tree
 ```
 
@@ -26,32 +26,32 @@ every session — so no selector reaches one. Hold the handle
 
 ## One, or all of them
 
-`:find` answers only where there **is** one answer. No match is `nil`; exactly one match is that widget;
+`:match` answers only where there **is** one answer. No match is `nil`; exactly one match is that widget;
 **two or more raises an error** saying how many matched and handing you the two spellings that do have an
-answer. `:all` always answers — an array in tree order, empty rather than `nil`.
+answer. `:matchAll` always answers — an array in tree order, empty rather than `nil`.
 
 > A selector that names several widgets today may name one on your screen. "The Cupboard window" is one
 > widget right up to the moment a second cupboard opens, and a lookup that quietly picked whichever came
 > first would then act on the wrong one. That is the error you are being handed instead.
 
-So `:find` is for a selector that identifies **one** widget — a chain down to an exact button, a unique
-caption, a class only one widget has — and `:all` for a question with several answers.
+So `:match` is for a selector that identifies **one** widget — a chain down to an exact button, a unique
+caption, a class only one widget has — and `:matchAll` for a question with several answers.
 
 ### Inside one widget
 
-`w:find(sel)` and `w:all(sel)` run the same search over `w`'s **own subtree**, `w` included. Same grammar,
-same errors, same strictness. The scope decides which widgets are *candidates*; an ancestor step may still
-name a widget above it, exactly as in CSS.
+`w:match(sel)` and `w:matchAll(sel)` run the same search over `w`'s **own subtree**, `w` included. Same
+grammar, same errors, same strictness. The scope decides which widgets are *candidates*; an ancestor step
+may still name a widget above it, exactly as in CSS.
 
 ```lua
 s:ui():on("window[title=Cupboard]", "appear", function(w)
-  local grid = w:find("inventory")        -- THIS cupboard's grid, whatever else is open
+  local grid = w:match("inventory")       -- THIS cupboard's grid, whatever else is open
   ...
 end)
 ```
 
 That is the right lookup inside an [`appear` callback](replace.md#watching-for-a-widget), and the reason the
-pair exists: `s:ui():find("window[title=Cupboard] inventory")` asks a whole tree a question that has no
+pair exists: `s:ui():match("window[title=Cupboard] inventory")` asks a whole tree a question that has no
 single answer while two cupboards are open, while the widget your callback was handed does.
 
 Both **refuse on a widget that has left the tree**, rather than reporting an empty result — "nothing matched"
@@ -148,7 +148,7 @@ Java class showing an ordinary piece of the game's art, and that art has a name 
 
 ```lua
 local w = hafen.ui():window():title("Sample")
-local close = w:find("@IButton")   -- the close box: the client put it in the chrome, not you
+local close = w:match("@IButton")  -- the close box: the client put it in the chrome, not you
 close:picture()                    -- "gfx/hud/wnd/lg/cbtnu"
 close:res()                        -- nil
 ```
@@ -179,8 +179,8 @@ the part of its value before the first digit — `[title^=…]` on a window, `[t
 form that keeps matching when a counter ticks over.
 
 The bottom line is ready to paste into `:lua` — it is
-`hafen.session():current():ui():find("…")` when the selector matches this widget and **nothing else**, and
-`…:all("…")[i]` when it matches more. Every offered selector is
+`hafen.session():current():ui():match("…")` when the selector matches this widget and **nothing else**, and
+`…:matchAll("…")[i]` when it matches more. Every offered selector is
 resolved before it is offered, so it always hands back the widget you were pointing at.
 
 Some widgets cannot be named alone, and the panel says so rather than inventing a key: nine identical
@@ -204,7 +204,7 @@ the widget you are pointing at, in one fixed order, in the hover panel and in an
 A read answering `nil`, an empty collection or a plain `false` prints **no line**, so what you are looking
 at is what the widget *has* — a window's close button is one `picture:` line, a plain label is none at all.
 
-Some of those reads — `:range()`, `:rows()`, `:rowHeight()`, `:cell()`, `:columns()`, `:source()` and
+Some of those reads — `:range()`, `:rows()`, `:rowHeight()`, `:cellSize()`, `:columns()`, `:source()` and
 `:image()` — answer a [control](controls/README.md)'s own configuration, which belongs to the addon that
 **built** it. Over one of the client's own controls they say nothing, which is the honest answer rather
 than a guess at one. `:picture()`, `:tooltip()`, `:value()`, `:items()`, `:focused()` and `:style()` answer
@@ -212,8 +212,8 @@ on any widget in the tree, whoever put it there, so those are the lines you read
 
 ## Hold the result
 
-Every lookup walks its whole scope — one character's tree for `s:ui():find` and `:all`, one widget's
-subtree for [the pair on a widget](#inside-one-widget) — and `:find` walks all of it too, since it cannot
+Every lookup walks its whole scope — one character's tree for `s:ui():match` and `:matchAll`, one widget's
+subtree for [the pair on a widget](#inside-one-widget) — and `:match` walks all of it too, since it cannot
 know a match is the only one until it has looked everywhere. Once per event, or once when the hover changes,
 that is nothing; sixty times a second it is a real slice of your frame budget. Because widgets are
 [interned](widget.md), holding the result costs nothing and the objects stay `==`-comparable — so select
@@ -221,7 +221,7 @@ once, keep it, and use `:exists()` when you need to know it is still there.
 
 ## Hit-testing
 
-[`hafen.ui():mouse():over()`](mouse.md) and `hafen.ui():at(x, y)` answer *what widget is under
+[`hafen.ui():mouse():over()`](mouse.md) and `hafen.ui():hit(x, y)` answer *what widget is under
 a point*. Both **mirror the engine's own pointer dispatch**: they walk children topmost-first, skip
 invisible widgets, follow scroll offsets and honour non-rectangular hit areas, so they return exactly the
 widget a real click would hit. A naive position-plus-size rectangle test is *wrong* inside scrolled lists

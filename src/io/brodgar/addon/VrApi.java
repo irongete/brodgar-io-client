@@ -1727,7 +1727,7 @@ final class VrApi {
         if(w == null)
             throw new LuaError("hafen.vr():widget():add(w, anchor) expects a Widget — one you built"
                 + " (hafen.ui():window(), hafen.ui():widget(), or a control builder), or one of the client's"
-                + " own (s:ui():find(…), s:ui():inventory(), …). Got " + wv.typename());
+                + " own (s:ui():match(…), s:ui():inventory(), …). Got " + wv.typename());
         if(w.parent instanceof WidgetSurface)
             throw new LuaError("hafen.vr():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is already"
                 + " standing in the world, held by the addon \""

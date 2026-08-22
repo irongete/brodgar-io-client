@@ -4582,18 +4582,29 @@ public final class AddonManager {
         return out;
     }
     /**
-     * A HUD overlay ({@code hafen.ui():overlay()}): a draw fn painted on top of the HUD each frame (2b).
-     * Built <b>bare</b> since 039.6 — {@code fn} is installed by {@code :onDraw(fn)} and is {@code volatile}
-     * because the paint pass reads it while Lua writes it. A bare overlay paints nothing, which is the same
+     * A HUD overlay ({@code hafen.ui():overlay():add(key)}): a draw fn painted on top of the HUD each frame
+     * (2b). Built <b>bare</b> — {@code fn} is installed by {@code :draw(fn)} and is {@code volatile} because
+     * the paint pass reads it while Lua writes it. A bare overlay paints nothing, which is the same
      * "incomplete draws nothing" rule the widget builder gets from not yet being in the tree.
+     *
+     * <p>The {@code key} is the addon's own name for it, and the record's <b>place in
+     * {@link Addon#hudOverlays} is the draw order</b> — the very list {@link UiApi#paintHudOverlays} walks,
+     * so the census {@code hafen.ui():overlay():list()} gives and the order things are painted in are one
+     * fact. {@code lua} caches the handle {@link LuaHudOverlay} hands out, which is what makes two lookups of
+     * one painter the same value.
      */
     public static final class HudOverlay {
         final Addon owner;
+        /** This addon's own name for the painter — the key it is addressed by, unique within the list. */
+        final String key;
         volatile LuaValue fn;
         volatile boolean active = true;
+        /** The interned Lua handle, minted on the first hand-out ({@link LuaHudOverlay#of}). */
+        volatile LuaValue lua;
 
-        HudOverlay(Addon owner) {
+        HudOverlay(Addon owner, String key) {
             this.owner = owner;
+            this.key = key;
         }
     }
 

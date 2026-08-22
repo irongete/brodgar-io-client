@@ -52,7 +52,7 @@ a table. Loose numbers are the language of every verb on `g` — `g:line(x1, y1,
 write takes the table and nothing else.
 
 ```lua
-hafen.ui():overlay():onDraw(function(g, w, h)
+hafen.ui():overlay():add("meters"):draw(function(g, w, h)
   local s = hafen.session():current()
   local hp = s and s:meter():find("hp")
   g:color(255, 200, 0)                 -- components, like every other g: call
@@ -82,7 +82,7 @@ hafen.event():on("Load", function()
   icon = hafen.asset():get("icon.png")         -- load once from addons/<me>/icon.png
 end)
 
-hafen.ui():overlay():onDraw(function(g, w, h)
+hafen.ui():overlay():add("icons"):draw(function(g, w, h)
   if icon then
     g:image(icon, 4, 4)                        -- native size
     g:image(icon, 4, 40, 16, 16)               -- the same image scaled to 16x16

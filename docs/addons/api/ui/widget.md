@@ -14,15 +14,15 @@ if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items
 |---|---|
 | `hafen.ui():window()` / `hafen.ui():widget()` | a surface you [painted](custom.md) — owned, and in [the layer](custom.md#your-windows-live-in-the-layer) rather than in the client's tree |
 | one of the [control builders](controls/README.md#builders) (`:button()`, `:label()`, `:image()`, …) | a [control](controls/README.md) you built — owned, and drawn by the client |
-| `s:ui():find(selector)` | the **one** widget matching a [selector](selectors.md) in that character's tree, or `nil` — [two or more raises](selectors.md#one-or-all-of-them) |
-| `s:ui():all(selector)` | **every** match, in tree order — an empty array, never `nil` |
-| `w:find(selector)` / `w:all(selector)` | the same two, searched inside **one widget's** subtree — see [searching inside one widget](#searching-inside-one-widget) |
+| `s:ui():match(selector)` | the **one** widget matching a [selector](selectors.md) in that character's tree, or `nil` — [two or more raises](selectors.md#one-or-all-of-them) |
+| `s:ui():matchAll(selector)` | **every** match, in tree order — an empty array, never `nil` |
+| `w:match(selector)` / `w:matchAll(selector)` | the same two, searched inside **one widget's** subtree — see [searching inside one widget](#searching-inside-one-widget) |
 | `s:ui():root()` | the top of that character's tree; walk down to any window it has open |
 | `s:ui():node(id)` | the widget for a **server widget id** in that character's tree, or `nil` if it does not resolve |
 | `s:ui():inventory()` | that character's main backpack grid, a container like any other |
 | `s:ui():equipment()` | that character's worn-equipment grid |
 | [`s:player():hand()`](../player.md#the-hand) | that character's cursor, and the [`Item`](items.md#the-item-object) on it |
-| `hafen.ui():at(x, y)` | the **deepest** widget under a root-coord point — see [hit-testing](selectors.md#hit-testing) |
+| `hafen.ui():hit(x, y)` | the **deepest** widget under a root-coord point — see [hit-testing](selectors.md#hit-testing) |
 | `hafen.ui():tipAt(x, y)` | the widget whose **tooltip** the client would show at that point, or `nil` — see [tooltips](#tooltips-and-focus) |
 | `hafen.ui():mouse()` | the pointer — not a Widget, see [the mouse](mouse.md) |
 
@@ -37,7 +37,7 @@ A Widget is opaque, facade-safe userdata: no raw widget crosses into Lua and one
 
 ```lua
 local m, s = hafen.ui():mouse(), hafen.session():current()
-hafen.ui():at(m:x(), m:y()) == hafen.ui():at(m:x(), m:y())   -- true
+hafen.ui():hit(m:x(), m:y()) == hafen.ui():hit(m:x(), m:y())   -- true
 s:ui():inventory() == s:ui():node(invId)                     -- true: one widget, one object
 ```
 
@@ -80,13 +80,13 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:rows()` | array \| nil | the row source a [radio](controls/interactive.md#radio) or a [listbox, dropdown, menu, grid or table](lists.md) takes, or `nil` where a control has no rows — [`:rows(t)` writes it](lists.md#rows-listbox-dropdown-menu) |
 | `:range()` | `{min=, max=}` \| nil | the value bounds of a [slider or scrollbar](controls/interactive.md#slider), or `nil` where a control has none — [`:range(min, max)` writes it](controls/interactive.md#slider) |
 | `:rowHeight()` | int \| nil | the height of a row in a [listbox, dropdown, menu or table](lists.md), in [design pixels](pixels.md), or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md) |
-| `:cell()` | `{w=, h=}` \| nil | the cell box of a [grid](lists.md#grid), in [design pixels](pixels.md), or `nil` where a control has no cells — [`:cell(w, h)` writes it](lists.md#grid) |
+| `:cellSize()` | `{w=, h=}` \| nil | the cell box of a [grid](lists.md#grid), in [design pixels](pixels.md), or `nil` where a control has no cells — [`:cellSize(w, h)` writes it](lists.md#grid) |
 | `:columns()` | array \| nil | the column descriptors of a [table](lists.md#table), or `nil` where a control has no columns — [`:columns(t)` writes it](lists.md#table) |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
 | `:walk(fn)` | self | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |
-| `:at(coord)` | Widget \| nil | the deepest widget under a `{x=, y=}` **root-coord** point within this subtree |
+| `:hit(coord)` | Widget \| nil | the deepest widget under a `{x=, y=}` **root-coord** point within this subtree |
 | `:rootPos()` | `{x=, y=}` \| nil | its top-left in **root coords**, the same [unit](pixels.md) as `:size()`; a place keeps `x`/`y` where a size reads `w`/`h`, and the two together are the rectangle that outlines it |
 | `:replacement()` | Widget \| nil | the view **you** put in place of this widget's window, or `nil` — see [replace](replace.md) |
 | `:chrome()` | table \| nil | on a **window**, where its decoration drew its [ornaments](style/chrome.md#ornaments) — `{caption = {x=, y=}, plate = {x=, y=, w=, h=, styled=}, sizer = {x=, y=}, close = {x=, y=, w=, h=}}`, each present only once it has been drawn; `nil` on anything else |
@@ -113,10 +113,10 @@ below turns on, so you send from the nearest server-bound ancestor rather than f
 
 | Method | Returns | Description |
 |---|---|---|
-| `:find(selector)` | Widget \| nil | the **one** match inside this widget's subtree, itself included, or `nil` |
-| `:all(selector)` | array | **every** match inside it, in tree order — an empty array, never `nil` |
+| `:match(selector)` | Widget \| nil | the **one** match inside this widget's subtree, itself included, or `nil` |
+| `:matchAll(selector)` | array | **every** match inside it, in tree order — an empty array, never `nil` |
 
-These are [`s:ui():find` and `:all`](selectors.md#one-or-all-of-them) with a narrower scope, and they
+These are [`s:ui():match` and `:matchAll`](selectors.md#one-or-all-of-them) with a narrower scope, and they
 answer the same way. Their whole contract — the strict `find`, the absence case, what the scope decides and
 the refusal on a widget that has left the tree — is stated once, under
 [inside one widget](selectors.md#inside-one-widget).
@@ -130,7 +130,7 @@ built.
 
 ```lua
 local sub = hafen.session():current():ui()
-  :find("window[title=Cupboard] inventory"):on("MouseDown", function(ev)
+  :match("window[title=Cupboard] inventory"):on("MouseDown", function(ev)
   if ev:button() == 3 then ev:preventDefault() end    -- right-click disabled on this cupboard only
 end)
 sub:off()
@@ -202,7 +202,7 @@ provoke the error.
 | `:rows(t)` | give a [radio](controls/interactive.md#radio) or a [listbox, dropdown, menu, grid or table](lists.md#rows-listbox-dropdown-menu) its rows | **error**, same reason |
 | `:range(min, max)` | set the bounds of a [slider or scrollbar](controls/interactive.md#slider) you built | **error**, same reason |
 | `:rowHeight(n)` | set a [listbox, dropdown, menu or table](lists.md)'s row height while it is being built | **error**, same reason |
-| `:cell(w, h)` | set a [grid](lists.md#grid)'s cell box while it is being built | **error**, same reason |
+| `:cellSize(w, h)` | set a [grid](lists.md#grid)'s cell box while it is being built | **error**, same reason |
 | `:columns(t)` | name a [table](lists.md#table)'s columns while it is being built | **error**, same reason |
 | `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
 | `:draggable(h)` | hand the move to the user, by a handle they press | **works** — [and what a drag writes is your position level](native.md#letting-the-user-drag-it-unprotected) |
@@ -255,7 +255,7 @@ it the call raises an error naming that key. It is the widest key in the catalog
 verbs can send, this can send too — so declare it only where none of them fit.
 
 ```lua
-hafen.session():current():ui():find("@MapView"):send("click", {x = 0, y = 0}, {x = 0, y = 0}, 1, 0)
+hafen.session():current():ui():match("@MapView"):send("click", {x = 0, y = 0}, {x = 0, y = 0}, 1, 0)
 ```
 
 **Bound widgets only.** One your addon built has no server id, so there is nobody to deliver to and the
@@ -280,7 +280,7 @@ local from = hafen.ui():tipAt(m:x(), m:y())        -- who speaks for this point,
 if from then hafen.log():write(from:tooltip()) end
 ```
 
-`hafen.ui():at(x, y)` answers *what is under the point*; `hafen.ui():tipAt(x, y)` answers *who would speak
+`hafen.ui():hit(x, y)` answers *what is under the point*; `hafen.ui():tipAt(x, y)` answers *who would speak
 for it*. Both resolve the way the client itself does, [panels standing in the 3D world](../vr/widgets.md)
 included, so a tooltip over a standing widget is that widget's and not the map's behind it.
 

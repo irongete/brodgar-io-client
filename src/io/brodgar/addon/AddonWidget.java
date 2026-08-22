@@ -32,7 +32,7 @@ import org.luaj.vm2.LuaValue;
  *
  * <p><b>Attached INERT until its arming tick</b> (§2.5, and D-112 applied one level up). A bare widget exists
  * for the length of the statement that builds it, with the client's own defaults and no title. It is in the
- * tree from the first instant — so every lookup, {@code hafen.ui():at(x, y)} included, answers on it exactly
+ * tree from the first instant — so every lookup, {@code hafen.ui():hit(x, y)} included, answers on it exactly
  * as it did when the constructor took a table — but it <b>does not draw</b> until {@link UiApi#armPending()}
  * arms it on the next {@link AddonManager#tick}. Holding it out of the tree instead was tried and is worse:
  * it would make "find the widget I just built" quietly stop working, which is a capability, to buy a

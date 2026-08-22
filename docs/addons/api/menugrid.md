@@ -86,7 +86,7 @@ The first four are called on the collection, the rest on a `Pagina`.
 | `pag:icon()` | image \| nil | the [asset](asset.md) your addon gave this entry; `nil` on the game's own, whose art is not a file of yours |
 | `pag:tooltip()` | string \| nil | the description under the name, when the resource carries one |
 | `pag:hotkey()` | string \| nil | the letter the grid paints over the button while Alt is held |
-| `pag:path()` | string[] \| nil | the action tokens the message carries; **empty** for a category and for an id-only entry |
+| `pag:categories()` | string[] \| nil | the categories above this entry, as the action tokens the message carries; **empty** for a category and for an id-only entry |
 | `pag:parent()` | `Pagina` \| nil | the category this entry sits under; `nil` for a root entry |
 | `pag:children()` | `Pagina[]` \| nil | the entries under this one, exactly what the grid shows after clicking it; empty for a leaf |
 | `pag:isNew()` | boolean | whether the entry is still flagged as a new discovery, the grid's highlight |

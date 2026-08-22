@@ -93,8 +93,8 @@ final class Chrome {
     static final String CAPTION = "caption";
     /** The {@code sizer} property's key (065.4). Its value is an {@link Art}. */
     static final String SIZER = "sizer";
-    /** The {@code close} property's key (065.5). Its value is a {@link Close}. */
-    static final String CLOSE = "close";
+    /** The {@code closeButton} property's key (065.5). Its value is a {@link Close}. */
+    static final String CLOSE = "closeButton";
     /** The {@code picture} property's key (065.12). Its value is a {@link Pic}. */
     static final String PICTURE = "picture";
     /** The {@code emboss} property's key (065.14). Its value is an {@link Emboss}. */
@@ -134,7 +134,7 @@ final class Chrome {
         return (st == null) ? null : (Art)st.prop(SIZER);
     }
 
-    /** The {@code close} button a resolved style carries, or {@code null} — the client's own, at its own place. */
+    /** The close BUTTON a resolved style carries, or {@code null} — the client's own, at its own place. */
     static Close close(Fonts.Style st) {
         return (st == null) ? null : (Close)st.prop(CLOSE);
     }
@@ -949,8 +949,9 @@ final class Chrome {
     // ---- the close button (065.5) ------------------------------------------------------------------
 
     /**
-     * A rule's {@code close}: the <b>button</b> a window's decoration draws in one of its corners — its art, the
-     * two faces that art wears while the pointer is on it and while it is held, and the {@link Spot} it sits at.
+     * A rule's {@code closeButton}: the <b>button</b> a window's decoration draws in one of its corners — its
+     * art, the two faces that art wears while the pointer is on it and while it is held, and the {@link Spot} it
+     * sits at.
      *
      * <p><b>The art and the place are independent</b>, and either alone is a whole value: a theme that wants the
      * client's own X moved says only {@code at}, one that wants its own button where the client puts it says only
@@ -1018,7 +1019,7 @@ final class Chrome {
             return sameFaces(c) && ((at == null) ? (c.at == null) : at.equals(c.at));
         }
 
-        /** {@code rule:close()} — the art's own fields, its two variants and its spot, as the setter takes them. */
+        /** {@code rule:closeButton()} — the art's fields, its variants and its spot, as the setter takes them. */
         LuaValue toLua(Addon reader) {
             LuaTable t = (up == null) ? new LuaTable() : up.toLua(reader);
             if(hover != null)
@@ -2244,8 +2245,8 @@ final class Chrome {
     }
 
     /**
-     * Parse a rule's {@code close} (065.5) — a surface, its {@code hover} and {@code pressed} variants, and the
-     * {@code at}/{@code offset} that pin the button to a corner of the frame.
+     * Parse a rule's {@code closeButton} (065.5) — a surface, its {@code hover} and {@code pressed} variants,
+     * and the {@code at}/{@code offset} that pin the button to a corner of the frame.
      *
      * <p><b>Three groups of key, and the split is what the value means.</b> The art spellings say what the button
      * looks like; {@code hover}/{@code pressed} vary that face and are surfaces themselves; {@code at} and
@@ -2286,9 +2287,10 @@ final class Chrome {
                 art.set(p, pv);
                 named = true;
             } else {
-                throw new LuaError(ctx + what + ": \"" + k.tojstring() + "\" is not a close property — a close"
-                    + " button is a surface (" + ART + ") with an optional \"hover\" and \"pressed\" face of the"
-                    + " same shape, plus the \"at\" and \"offset\" that pin it to a corner of the frame");
+                throw new LuaError(ctx + what + ": \"" + k.tojstring() + "\" is not a closeButton property —"
+                    + " a close button is a surface (" + ART + ") with an optional \"hover\" and \"pressed\""
+                    + " face of the same shape, plus the \"at\" and \"offset\" that pin it to a corner of the"
+                    + " frame");
             }
         }
         Art up = named ? parseArt(owner, ctx, what, art) : null;

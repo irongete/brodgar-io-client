@@ -196,7 +196,7 @@ public final class LuaPagina {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("pagina", methods(owner),
-            "one entry of the action menu answers :res() :exists() :name() :icon() :path() :tooltip() "
+            "one entry of the action menu answers :res() :exists() :name() :icon() :categories() :tooltip() "
             + ":addon() :on() :hotkey() :isNew() :parent() :children() :info(), and :use() runs it"));
         mt.set("__name", LuaValue.valueOf("Pagina"));
         mt.set("__tostring", new OneArgFunction() {
@@ -271,12 +271,15 @@ public final class LuaPagina {
                 return self;
             }
         });
-        // path() — the action tokens the "act" message carries (AButton.ad), as a 1-based array. EMPTY for a
-        // category (nothing to send) and for an id-only pagina (which is invoked by id, not by path) — which
-        // is exactly why :use() must go through the client's own PagButton.use rather than a path message.
-        m.set("path", new OneArgFunction() {
+        // categories() — the action tokens the "act" message carries (AButton.ad), as a 1-based array: the
+        // categories this entry sits under, in the order the menu walks them. EMPTY for a category (nothing to
+        // send) and for an id-only pagina (which is invoked by id, not by a path of tokens) — which is exactly
+        // why :use() must go through the client's own PagButton.use rather than an "act" message.
+        //   It is an ARRAY, and the verb says so: a:path() on an asset is one string, a file path, so
+        // "menu > " .. pag:path() failed as "attempt to concatenate a table value". One word, two shapes.
+        m.set("categories", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                MenuGrid.PagButton b = button(self, "path");
+                MenuGrid.PagButton b = button(self, "categories");
                 if(b == null)
                     return LuaValue.NIL;
                 if(b.pag instanceof AddonPagina)   // a custom entry sends nothing, so it has no tokens (059.1)

@@ -1,0 +1,9 @@
+{
+  "name": "088 — A word means one thing I",
+  "id": "088-a-word-means-one-thing-i.all",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for the whole of feature 088, tasks 1 to 5, under one command: :list() enumerates everywhere and hafen.ui():list() builds nothing, the selector language is :match/:matchAll, a size is :cellSize and a hit test is :hit while item:cell() and grid():at(p) keep their words, :overlay() means keyed decorations bound to a thing on both the HUD and a gob, and rule:closeButton, pag:categories and ev:widget free the three words 088.5 frees. Every retired spelling is asked to raise and to name its replacement.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

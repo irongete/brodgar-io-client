@@ -162,7 +162,7 @@ final class HookApi {
     // It was L1's own until the widget-input door left in 041.3, after which hafen.act():raw was its one
     // remaining caller; 048.6 replaced raw with widget:send(msg, ...), where the receiver IS the target, so the
     // vocabulary had nothing left to address and was DELETED rather than followed to LuaWidget. Each token is an
-    // ordinary handle: s:ui():find("@MapView"), s:ui():find("@GameUI"), s:ui():root().
+    // ordinary handle: s:ui():match("@MapView"), s:ui():match("@GameUI"), s:ui():root().
 
     // ================================================================= slash commands (hafen.slash, A11)
 

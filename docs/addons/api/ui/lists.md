@@ -106,9 +106,10 @@ the cell's box, drawn at `(0,0)`, its own top-left, and `:item()` the row `:rows
 handler that errors costs only that cell's line; the rest of the grid still draws, that frame and every one
 after it.
 
-`:cell(w, h)` is the cell box, in [design pixels](pixels.md), defaulting to the client's own inventory-slot
-size — `32×32`, the same box at every interface scale; like a [listbox's row height](#listbox), it is chosen
-while the control is being built and refuses once the grid is on screen. A grid answers no `:value()` and no
+`:cellSize(w, h)` is the cell box, in [design pixels](pixels.md), defaulting to the client's own
+inventory-slot size — `32×32`, the same box at every interface scale; like a
+[listbox's row height](#listbox), it is chosen while the control is being built and refuses once the grid
+is on screen. A grid answers no `:value()` and no
 `Changed` — it holds nothing, the same as a [menu](#menu) — and an empty `:rows{}` draws nothing rather than
 erroring.
 

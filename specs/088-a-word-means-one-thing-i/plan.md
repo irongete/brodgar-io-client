@@ -169,3 +169,10 @@ task, per `DOCUMENTATION.md` §9.
   snapshot field is `cell`, and A-051 renames only the size.
 - **Renaming `s:world():grid():at(p)`** — addressing a member by a place is what `:at(x)` should mean;
   A-052 frees the word *for* it rather than from it.
+- **Moving `w:chrome()`'s `close` key with the property** — the snapshot reports where a window's
+  decoration DREW its ornaments, whether or not a rule was written, so it is the client's own shape and
+  AC8 keeps its spelling. A-053's blast radius names the closure and the `Sheet`/`Chrome` property key
+  and stops there. The same reading `item:cell` and `Pagina.path` get.
+- **Renaming `grid:overlayImage(tag)`** — A-054 names the two collections and nothing else, and the verb
+  draws one *overlay resource's* recorded mask in that resource's own colour, which is the server's word
+  for it. Its messages name `grid:mask():list()` as the census, so the pair reads as one subject.

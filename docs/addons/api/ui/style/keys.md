@@ -8,7 +8,7 @@ property.
 **Which kind a key is, in one line:** a **bare role** is a site key; a **role with a refiner** — or a role
 with no site behind it (`window`, `inventory`) — is a tree key. Nothing is ambiguous and nothing has to be
 declared: the key's own shape decides. A key that is not valid *grammar* is an error, and exactly the error
-[`s:ui():find(selector)`](../selectors.md) gives.
+[`s:ui():match(selector)`](../selectors.md) gives.
 
 ## Site keys
 
@@ -69,7 +69,7 @@ that matches a widget is folded into one style, and
 ```lua
 hafen.ui():sheet():rule("window[title=Cupboard]"):color{200, 180, 140}:sheet():install()
 local s = hafen.session():current()
-s:ui():find("window[title=Cupboard]"):style()    --> { color = {r=200, g=180, b=140, a=255} }
+s:ui():match("window[title=Cupboard]"):style()    --> { color = {r=200, g=180, b=140, a=255} }
 s:ui():inventory():style()                       --> nil
 ```
 
@@ -193,7 +193,7 @@ worn by the surfaces that *have* that state, and ignored by the rest, exactly as
 And the ones that dress a window's [ornaments](chrome.md#ornaments).
 One surface draws them, so this table is one row.
 
-| Key | `caption` | `sizer` | `close` | Worth knowing |
+| Key | `caption` | `sizer` | `closeButton` | Worth knowing |
 |---|---|---|---|---|
 | `window.frame` | yes | yes | yes | where the decoration puts the caption, and the art and corner of the two ornaments that have one. A window that draws no sizer — which is nearly all of them — ignores that one |
 | every other key, `*` included | **inert** | **inert** | **inert** | nothing else in the client draws a window's ornaments. Readable back through `:style()`, and inert everywhere it lands |

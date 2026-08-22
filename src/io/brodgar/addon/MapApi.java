@@ -54,15 +54,15 @@ import static io.brodgar.addon.AddonManager.*;
  *   <li>{@code :icon()} — the minimap icon registry ({@link LuaIconCat}; the engine has no "radar", it has
  *       {@link GobIcon.Settings} — D-061). {@code :get(res)} beside {@code :list(filter)} <b>deletes</b> the
  *       old split-the-argument-by-shape heuristic: the verb says which you meant, so nothing has to.</li>
- *   <li>{@code :overlay()} — the client's own display switches ({@link LuaOverlayToggle}).</li>
+ *   <li>{@code :display()} — the client's own display switches ({@link LuaOverlayToggle}).</li>
  * </ul>
  *
- * <p><b>"Overlay" names two things that share only a word</b>, and telling them apart is most of what the
- * overlay half is for. The <b>recorded masks</b> hang off a grid — {@code grid:overlay():get(tag)}
- * ({@link LuaMask}) — and their tag space is <b>open</b>, declared by the server's own overlay resources, so
- * an unknown tag is plain {@code nil} and {@code grid:overlay():list()} is the census that makes it readable.
- * The <b>display toggles</b> are {@code hafen.map():overlay()}, and that set is <b>closed</b> (D-072: refuse
- * what can never mean anything) while a write is a <b>HOLD</b> rather than a switch — see {@link #take}.
+ * <p><b>A mask and a switch are two things, and each is named for what it is.</b> The <b>recorded masks</b>
+ * hang off a grid — {@code grid:mask():get(tag)} ({@link LuaMask}) — and their tag space is <b>open</b>,
+ * declared by the server's own overlay resources, so an unknown tag is plain {@code nil} and
+ * {@code grid:mask():list()} is the census that makes it readable. The <b>display toggles</b> are
+ * {@code hafen.map():display()}, and that set is <b>closed</b> (D-072: refuse what can never mean anything)
+ * while a write is a <b>HOLD</b> rather than a switch — see {@link #take}.
  *
  * <p><b>A grid can also draw itself</b> — {@code grid:image(level)} and {@code grid:overlayImage(tag)}, the
  * database's minimap drawings as ordinary image handles, rendered on {@link haven.Defer} and cached per
@@ -92,13 +92,13 @@ final class MapApi {
         final LuaValue grids = gridCollection(owner);
         final LuaValue markers = markerCollection(owner);
         final LuaValue icons = LuaIconCat.collection(owner);
-        final LuaValue toggles = toggleCollection(owner);
+        final LuaValue displays = displayCollection(owner);
         LuaTable m = new LuaTable();
         m.set("segment", section(owner, "segment", segments));
         m.set("grid", section(owner, "grid", grids));
         m.set("marker", section(owner, "marker", markers));
         m.set("icon", section(owner, "icon", icons));
-        m.set("overlay", section(owner, "overlay", toggles));
+        m.set("display", section(owner, "display", displays));
         Section.install(hafen, "map", m);
     }
 
@@ -261,12 +261,12 @@ final class MapApi {
     }
 
     /**
-     * {@code hafen.map():overlay()} — the client's own display switches, as {@link LuaOverlayToggle} objects.
+     * {@code hafen.map():display()} — the client's own display switches, as {@link LuaOverlayToggle} objects.
      * The set is <b>closed</b> and an unknown tag is refused (D-072), deliberately the opposite of the
      * recorded masks a grid carries, whose tags are declared by the server's resources.
      */
-    private static LuaValue toggleCollection(final Addon owner) {
-        return LuaCollection.create("hafen.map():overlay()", new LuaCollection.Source() {
+    private static LuaValue displayCollection(final Addon owner) {
+        return LuaCollection.create("hafen.map():display()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
                 for(String[] t : TOGGLES)
@@ -289,7 +289,7 @@ final class MapApi {
             }
 
             public LuaValue getMember(LuaValue key) {
-                return LuaOverlayToggle.of(owner, toggleArg(key));
+                return LuaOverlayToggle.of(owner, displayArg(key));
             }
 
             /** The client's display switches are a closed set, unlike a grid's recorded tags. */
@@ -782,13 +782,13 @@ final class MapApi {
         return Coord.of(ix, iy);
     }
 
-    // ---- recorded overlay masks (grid:overlays / grid:overlay -> LuaMask) --------------------------
+    // ---- recorded overlay masks (grid:mask() -> LuaMask) ------------------------------------------
     // A recorded grid carries, beside its tiles and heights, a MASK per overlay that covered it when the
     // client wrote it down: MapFile.Overlay = (the overlay's own resource, a boolean[100*100]). What a
     // player calls "claims" is a TAG on that resource (MCache.ResOverlay.tags()), and several resources may
     // share one tag — which is why a read here is the UNION of every overlay carrying the tag, exactly what
     // DataGrid.olrender(off, tag) composites onto one image. The tag space is the RESOURCES', not ours: a
-    // tag a grid does not carry is nil, never an error (grid:overlay():list() is the census that makes it
+    // tag a grid does not carry is nil, never an error (grid:mask():list() is the census that makes it
     // readable). Resolving an overlay resource may throw Loading and must never happen under the map file's
     // lock — gridDataIn hands the grid back outside it, and every read below runs on the UI thread from there.
 
@@ -837,7 +837,7 @@ final class MapApi {
      * The mask for one tag on one recorded grid — the <b>union</b> of every overlay on it whose resource
      * carries that tag — or {@code null} for a tag the grid does not carry, a grid still coming off the
      * disk, or an overlay resource still resolving. All three are the same {@code nil} to Lua by design:
-     * ask again next tick, and {@code grid:overlays()} says which tags are there.
+     * ask again next tick, and {@code grid:mask():list()} says which tags are there.
      */
     static boolean[] maskIn(MapFile file, long id, String tag) {
         return maskOf(gridDataIn(file, id), tag);
@@ -864,7 +864,7 @@ final class MapApi {
         return out;
     }
 
-    // ---- the client's display toggles (hafen.map():overlay()) --------------------------------------
+    // ---- the client's display toggles (hafen.map():display()) --------------------------------------
     // The three switches the client's own map menu owns, and they live on TWO sides with TWO vocabularies:
     // the 3D world draws cplot/vlg/prov through MapView's ref-counted oltags (enol/disol/visol), while the
     // map window draws provinces from the RECORDED masks under the tag "realm" (MapWnd.overlays, a set).
@@ -872,10 +872,10 @@ final class MapApi {
     //
     // D-097: A WRITE IS A HOLD, NOT A SWITCH. MapView.oltags is a MULTISET shared with the client's own
     // checkbox and with the server's flashol, so "off" is not a state an addon can express: it can only
-    // stop asking. hafen.map.overlay(tag, true) takes this addon's hold (idempotent — one per addon per
+    // stop asking. toggle:hold(true) takes this addon's hold (idempotent — one per addon per
     // tag, or a single release would leave the count standing), false releases it, and teardown releases
     // every hold exactly once. The READ is the client's own answer — is this displayed at all — never
-    // "do I hold it"; that is what hafen.map.overlays()'s `held` field is for.
+    // "do I hold it"; that is what toggle:held() is for.
 
     /** The toggles the client itself owns: {tag, side, what it shows}. The set is closed (D-072). */
     static final String[][] TOGGLES = {
@@ -1043,14 +1043,15 @@ final class MapApi {
      * client owns exactly these four switches, and a typo that silently did nothing forever is the one
      * failure here nothing else would ever report.
      */
-    private static String toggleArg(LuaValue tag) {
+    private static String displayArg(LuaValue tag) {
         if(tag.type() != LuaValue.TSTRING)      // in LuaJ a NUMBER also answers isstring()
-            throw new LuaError("hafen.map():overlay():get(tag): tag is one of " + toggleList());
+            throw new LuaError("hafen.map():display():get(tag): tag is one of " + toggleList());
         String t = tag.tojstring();
         if(toggle(t) == null)
-            throw new LuaError("hafen.map():overlay():get(\"" + t + "\"): the client displays no such overlay"
+            throw new LuaError("hafen.map():display():get(\"" + t + "\"): the client displays no such switch"
                 + " — the toggles it owns are " + toggleList() + " (note prov = provinces in the WORLD and"
-                + " realm = provinces on the MAP: same feature, two tags)");
+                + " realm = provinces on the MAP: same feature, two tags). The recorded masks on one grid are"
+                + " grid:mask(), which is a different set with its own tags");
         return t;
     }
 

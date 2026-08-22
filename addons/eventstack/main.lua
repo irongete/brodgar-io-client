@@ -506,7 +506,7 @@ local function subscribeLines(r)
             "end)"}
   end
   if r.src == "ui" then
-    return {'hafen.session():current():ui():find("@' .. r.wclass .. '"):on(' .. q .. ', function(ev)',
+    return {'hafen.session():current():ui():match("@' .. r.wclass .. '"):on(' .. q .. ', function(ev)',
             "end)",
             '-- "@' .. r.wclass .. '" may match several: widgetstack names the one you mean'}
   end
@@ -652,7 +652,7 @@ local function armSrc(k)
   if k == "out" then
     if streams.out then return end
     streams.out = hafen.event():action():on("*", function(ev)
-      local w = ev:sender()
+      local w = ev:widget()
       local a = ev:args()
       push{src = "out", name = ev:msg(), who = sessionOf(w), wclass = (w and w:type()) or "",
            about = argSummary(a), args = a, w = w}
@@ -660,7 +660,7 @@ local function armSrc(k)
   elseif k == "in" then
     if streams["in"] then return end
     streams["in"] = hafen.event():message():on("*", function(ev)
-      local w = ev:target()
+      local w = ev:widget()
       local a = ev:args()
       push{src = "in", name = ev:msg(), who = sessionOf(w), wclass = (w and w:type()) or "",
            about = argSummary(a), args = a, w = w}

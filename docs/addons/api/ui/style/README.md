@@ -77,8 +77,8 @@ offset — as is the place a window's [caption](chrome.md#ornaments) is drawn at
 document is a handle, so a whole client look, windows and typography included, is a file and one command.
 
 Inside a loaded table the properties are the setter names: `font`, `color`, `emboss`, `glow`, `bg`,
-`border`, `padding`, `picture`, `caption`, `sizer`, `close`, `position`, `anchor`, `size`. An unknown one is an **error**
-naming the ones that exist, and so is a rule
+`border`, `padding`, `picture`, `caption`, `sizer`, `closeButton`, `position`, `anchor`, `size`. An
+unknown one is an **error** naming the ones that exist, and so is a rule
 that says both `position` and `anchor` — two spellings of [one property](geometry.md#anchor), and in a table
 there is no *later* to pick the winner.
 
@@ -144,7 +144,7 @@ Each is a setter that returns the rule, and each reads back with no argument.
 | `rule:picture(t)` | one [surface](chrome.md#naming-a-picture), with a face per state | the whole plate a surface **is**, where the client blits a picture — see [`picture`](chrome.md#picture) |
 | `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](chrome.md#ornaments) |
 | `rule:sizer(t)` | a [surface](chrome.md#naming-a-picture) with an `at` | the corner grip a resizable window draws, and where — see [ornaments](chrome.md#ornaments) |
-| `rule:close(t)` | a [surface](chrome.md#naming-a-picture) with `hover`, `pressed`, `at` and `offset` | the button that closes a window, and which corner it sits in — see [ornaments](chrome.md#ornaments) |
+| `rule:closeButton(t)` | a [surface](chrome.md#naming-a-picture) with `hover`, `pressed`, `at` and `offset` | the button that closes a window, and which corner it sits in — see [ornaments](chrome.md#ornaments) |
 | `rule:position(x, y)` | [design px](../pixels.md) | where the widget sits inside its parent — **tree keys only**, see [geometry](geometry.md) |
 | `rule:anchor(t)` | `{to =, at =, offset =}` | the same place said as a relationship — see [`anchor`](geometry.md#anchor) |
 | `rule:size(w, h)` | [design px](../pixels.md) | how big it is; a window's *content* size — **tree keys only**, see [geometry](geometry.md) |
@@ -238,9 +238,10 @@ point at with `widget:rule()`. *What* — the text (`font`, `color`, the `emboss
 the two a carved surface listens to, and the `glow` behind it), the surfaces that paint (`bg`,
 `border`), the room around content (`padding`), the whole plate a surface is where the client blits one
 (`picture`), what a window's decoration draws its ornaments as and where
-it puts them (`caption`, `sizer`, `close`), and where a widget is and how big (`position`, `size`, `anchor`). *How* — resolved [per property](#the-cascade), applied live, owned by your addon and reversible
-to the pixel; and since a rule is only values, a whole look can [come from a **file**](#a-sheet-from-data)
-rather than from code.
+it puts them (`caption`, `sizer`, `closeButton`), and where a widget is and how big (`position`, `size`,
+`anchor`). *How* — resolved [per property](#the-cascade), applied live, owned by your addon and
+reversible to the pixel; and since a rule is only values, a whole look can
+[come from a **file**](#a-sheet-from-data) rather than from code.
 
 **What it does not reach, and why each one is a different chapter:**
 

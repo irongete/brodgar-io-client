@@ -21,7 +21,7 @@ import java.util.WeakHashMap;
  *
  * <pre>
  *   hafen.ui():sheet():rule("chat"):font(mono):color({200, 210, 200})
- *   s:ui():find("window[title=Cupboard]"):rule():padding(6)
+ *   s:ui():match("window[title=Cupboard]"):rule():padding(6)
  * </pre>
  *
  * <p><b>Two bindings, one type.</b> A rule reached through a {@link LuaSheet} is named by a <b>selector</b> and
@@ -412,20 +412,23 @@ public final class LuaRule {
                 return self;
             }
         });
-        // close{<art>, hover=, pressed=, at=, offset=} — the button a window's decoration draws in a corner
-        // (065.5). Its art is a surface like every other, with the two faces a button wears riding INSIDE the
-        // value rather than in the selector; its `at`/`offset` place the button itself. The two halves are
-        // independent, so either alone is a rule, and with neither the client's own button sits where it sits.
-        m.set("close", new VarArgFunction() {
+        // closeButton{<art>, hover=, pressed=, at=, offset=} — the button a window's decoration draws in a
+        // corner (065.5). Its art is a surface like every other, with the two faces a button wears riding
+        // INSIDE the value rather than in the selector; its `at`/`offset` place the button itself. The two
+        // halves are independent, so either alone is a rule, and with neither the client's own button sits
+        // where it sits.
+        //   It is named for the BUTTON, not for the act: :close() means "end this" exactly once in this API,
+        // on a Session, and a property that draws a picture must not spend the word.
+        m.set("closeButton", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                LuaRule r = handle(self, "close");
+                LuaRule r = handle(self, "closeButton");
                 Sheet.Props cur = r.read(owner);
-                LuaValue v = Args.written(a, 2, r.where() + ":close", "close");
+                LuaValue v = Args.written(a, 2, r.where() + ":closeButton", "closeButton");
                 if(v == null)
                     return ((cur == null) || (cur.close == null)) ? LuaValue.NIL : cur.close.toLua(owner);
                 Sheet.Props p = r.edit(owner);
-                p.close = Chrome.parseClose(owner, r.where(), ".close", v);
+                p.close = Chrome.parseClose(owner, r.where(), ".closeButton", v);
                 r.commit(owner, p);
                 return self;
             }

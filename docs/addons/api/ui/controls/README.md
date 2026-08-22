@@ -20,7 +20,7 @@ There is no separate control type. What a builder here hands back is the same
 [Widget object](../widget.md) every lookup gives you, so every read and every write on that page answers on a
 control with nothing added: `:type()`, `:role()`, `:position(x, y)`, `:size(w, h)`, `:parent(w)`,
 `:visible(b)`, `:destroy()`, `:style()`, `:rule()`, `:info()`. A [selector](../selectors.md) finds one too —
-`s:ui():all("button")` finds the client's buttons in that character's tree, and a button you built is
+`s:ui():matchAll("button")` finds the client's buttons in that character's tree, and a button you built is
 found through the handle its builder gave you. `:type()` reports the **engine's** class, so a button you
 built and a button you found read the same `"Button"` — one selector, one role and one stylesheet key
 point at both.
@@ -177,7 +177,7 @@ it, and a `:reload` or a disable removes it for you. The client's own controls a
 answer, and every setter on this page refuses, naming what to do instead (`:info().owned` is how you ask
 rather than provoke the error). Its capability key is not a setter and answers on both:
 [subscribing to a borrowed control](../edit.md) is how you take over what it does. Provenance comes from
-the tree, so a control you find again with `hafen.ui():at(x, y)` or a selector is the same object the
+the tree, so a control you find again with `hafen.ui():hit(x, y)` or a selector is the same object the
 builder returned, writes and all.
 
 ## See also

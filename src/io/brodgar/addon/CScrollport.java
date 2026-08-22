@@ -24,7 +24,7 @@ import org.luaj.vm2.LuaValue;
  * from the pieces {@code Scrollport} already exposes as {@code public} — {@link Scrollbar} itself, and the
  * nested {@link Scrollport.Scrollcont} — with the bar its OWN adapter ({@link Bar}) instead of the engine's
  * plain one, which is what lets the standard {@code :range}/{@code :value}/{@code :onChange} contract (the same
- * one {@link CScrollbar} answers for a bare {@code :scrollbar()}) reach it: {@code s:ui():all("@Scrollbar")}
+ * one {@link CScrollbar} answers for a bare {@code :scrollbar()}) reach it: {@code s:ui():matchAll("@Scrollbar")}
  * (or {@code sp:children()}) finds it exactly as it would the standalone control.
  *
  * <p><b>{@code :type()} reads {@code "Widget"}</b> — the same answer {@link CRadio} gives, and for the same

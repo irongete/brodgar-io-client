@@ -1006,7 +1006,7 @@ final class CharApi {
         // answers a plain {x, y} in px, which is deliberately NOT one: the two spaces have the same shape and
         // used to be the same type, so a widget's pixel position walked the character somewhere wrong instead
         // of failing. Now only the direction that has an answer type-checks.
-        //   067.1: it answers ROOT DESIGN pixels — the space hafen.ui():at(), the mouse, widget:rootPos() and a
+        //   067.1: it answers ROOT DESIGN pixels — the space hafen.ui():hit(), the mouse, widget:rootPos() and a
         // HUD overlay's painter already share, and the space Px exists to name. MapView.screenxf answers
         // VIEW-LOCAL DEVICE pixels (it ends in HomoCoord4f.toview over Area.sized(this.sz)), so two things are
         // undone here rather than by every caller: the view's own corner is added, and the pair goes through

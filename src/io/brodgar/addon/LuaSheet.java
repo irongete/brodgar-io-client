@@ -66,7 +66,7 @@ public final class LuaSheet {
 
     /** One named level: the key as written, what it resolves to, what it says, and its Lua handle. */
     private static final class Rec {
-        final Selector sel;         // the parsed key — a bad one errors exactly as s:ui():find(sel) does
+        final Selector sel;         // the parsed key — a bad one errors exactly as s:ui():match(sel) does
         final String site;          // the Fonts scope this key names, or null when it is a tree key
         final Sheet.Props props = new Sheet.Props();
         LuaValue handle;            // the interned LuaRule for this selector
@@ -170,7 +170,7 @@ public final class LuaSheet {
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // rule(selector) — the level this sheet says about everything that selector matches, interned per
-        // selector so naming it twice is naming it once. The selector is the very string s:ui():find takes
+        // selector so naming it twice is naming it once. The selector is the very string s:ui():match takes
         // (one vocabulary, not two) and a malformed one errors the same way.
         m.set("rule", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -270,7 +270,7 @@ public final class LuaSheet {
     private synchronized LuaValue ruleFor(Addon owner, String selector) {
         Rec r = rules.get(selector);
         if(r == null) {
-            Selector sel = Selector.parse(selector);   // a bad key errors exactly as s:ui():find(sel) does
+            Selector sel = Selector.parse(selector);   // a bad key errors exactly as s:ui():match(sel) does
             r = new Rec(sel, Sheet.siteOf(sel));
             rules.put(selector, r);
         }

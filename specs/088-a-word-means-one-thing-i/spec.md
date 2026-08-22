@@ -217,6 +217,13 @@ Pages, by task: `ui/lists.md`, `ui/README.md`, `ui/controls/README.md`, `vr/READ
 `guides/theming.md`, `menugrid.md`, `event/streams.md` — 5 · `conventions.md`, `types.md` and
 `DOCUMENTATION.md` — every task.
 
+**The list above is where each task's own surface is documented, and it is not the sweep.** A retired
+name may not appear anywhere under `docs/`, so a rename is swept over the whole tree and lands on pages
+no task's list names — `ui/edit.md`, `ui/native.md`, `ui/pixels.md`, `ui/custom.md`, `ui/style/keys.md`,
+`ui/style/geometry.md`, `player.md`, `shapes.md`, `runtime.md`, `guides/debugging.md`,
+`guides/saved-data.md`. Thirty-three pages carried one of these ten spellings; derive the refusal table
+from the engine and grep, rather than working the list.
+
 Consumers: **`addons/widgetstack` and `addons/eventstack` both use the selector verbs**, and
 `addons/clickpath` uses the HUD painter — `audit/16-consumer-evidence.md` names the sites. Grep all
 five for every renamed spelling before landing a task.

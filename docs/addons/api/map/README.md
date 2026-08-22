@@ -41,10 +41,10 @@ The section is called, and everything after it is a collection of one kind of th
 | `hafen.map():grid()` | the 100×100-tile squares, by the **server's** id | [segments and grids](grids.md) |
 | `hafen.map():marker()` | your pins and the server's | [markers](markers.md) |
 | `hafen.map():icon()` | the minimap icon registry | [icons](icons.md) |
-| `hafen.map():overlay()` | the client's display switches for claims and provinces | [overlays](overlays.md) |
+| `hafen.map():display()` | the client's display switches for claims and provinces | [overlays](overlays.md) |
 
 Each is handed back by identity, so calling one every frame costs nothing. A collection owned by an
-**entity** is the other case: `grid:overlay()` is a *view*, re-derived on each call and holding nothing, so
+**entity** is the other case: `grid:mask()` is a *view*, re-derived on each call and holding nothing, so
 it cannot outlive its grid — two calls are two objects on purpose. What is interned either way is the
 **members**, and that is the identity worth testing.
 

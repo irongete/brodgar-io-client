@@ -28,10 +28,10 @@ s:install()
 | `rule:picture(t)` | one [surface](#naming-a-picture), with a [face per state](#a-face-per-state) | the whole plate a surface **is**, where the client blits a picture — see [`picture`](#picture) |
 | `rule:caption(t)` | `{at =, offset =}` | which corner of a window's frame its title is measured from, and how far — see [ornaments](#ornaments) |
 | `rule:sizer(t)` | a [surface](#naming-a-picture) with an `at` | the corner grip a resizable window draws, and where |
-| `rule:close(t)` | a [surface](#naming-a-picture) with `hover`, `pressed`, `at` and `offset` | the button that closes a window: what it looks like, and which corner it sits in |
+| `rule:closeButton(t)` | a [surface](#naming-a-picture) with `hover`, `pressed`, `at` and `offset` | the button that closes a window: what it looks like, and which corner it sits in |
 
 Each reads back bare: `rule:bg()`, `rule:border()`, `rule:padding()`, `rule:picture()`, `rule:caption()`,
-`rule:sizer()`, `rule:close()`.
+`rule:sizer()`, `rule:closeButton()`.
 
 A border's centre is never painted — that is `bg`'s job, so the two compose.
 
@@ -277,8 +277,8 @@ local s = hafen.ui():sheet()
 s:rule("window.frame")
   :caption{ at = "topleft", offset = {6, 3} }
   :sizer{ res = "gfx/hud/wnd/sizer", at = "bottomright", offset = {-2, -2} }
-  :close{ asset = "img/close.png", hover = { asset = "img/closehover.png" },
-          at = "topleft", offset = {4, 4} }
+  :closeButton{ asset = "img/close.png", hover = { asset = "img/closehover.png" },
+                at = "topleft", offset = {4, 4} }
 s:rule("window.title"):bg{ color = {40, 34, 28, 230} }:border{ box = "gfx/hud/bosq" }
 s:install()
 ```
@@ -291,12 +291,12 @@ origin there. A `sizer` is an ordinary [surface](#naming-a-picture), so its art 
 
 - **Name none and the client's own numbers stand, to the pixel.** With no `caption` the title is drawn where
   the stock client draws it; with no `sizer` the client's own grip sits in the client's own corner; with no
-  `close` the client's own button sits at the top right.
+  `closeButton` the client's own button sits at the top right.
 - **The sizer shows only where the client draws one.** Most windows are not resizable; the map is.
-- **The close button's art and its place are independent, and either alone is a rule.** `close{at = …}` moves
-  the client's own X; an art with no `at` re-faces it where the client puts it. **The art is the button's
-  box** — it is resized to the picture's own pixels, so nothing is squeezed or stretched, and a face that is
-  a flat `color` leaves the client's own box alone, having no size of its own to give.
+- **The close button's art and its place are independent.** `closeButton{at = …}` moves the client's own
+  X; an art with no `at` re-faces it where the client puts it, and either alone is a rule. **The art is
+  the button's box** — it is resized to the picture's own pixels, so nothing is squeezed or stretched,
+  and a face that is a flat `color` leaves the client's own box alone, having no size of its own to give.
 - **The button's states ride inside its value**, the same way a [`bg`](#a-face-per-state) carries a face per
   state: `hover` and `pressed` are ordinary [surfaces](#naming-a-picture) of the same shape as the face they
   vary, and each falls back to that face.
@@ -319,7 +319,7 @@ plate's `styled` says whether the last frame painted it from a rule or from the 
 is the client's either way.
 
 ```lua
-local w = hafen.session():current():ui():find("window[title=Inventory]")
+local w = hafen.session():current():ui():match("window[title=Inventory]")
 if w then hafen.log():write("caption at " .. w:chrome().caption.x) end
 ```
 

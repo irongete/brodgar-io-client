@@ -27,7 +27,7 @@ Reading the mouse is unprotected client-side data.
 | `m:shift()` / `m:ctrl()` / `m:alt()` | whether that modifier key is down, right now |
 | `m:grab()` | take the pointer — see [the grab](#the-grab) |
 
-`hafen.ui():at(x, y)` still answers for an arbitrary point; `m:over()` is exactly `hafen.ui():at(m:x(),
+`hafen.ui():hit(x, y)` still answers for an arbitrary point; `m:over()` is exactly `hafen.ui():hit(m:x(),
 m:y())`, kept as one call for the case every addon reaches for. The two are the same widget by
 construction, not by coincidence: `m:over()` answers for the point this object *reports*, so the pair you
 read and the pair you hit-test with are one pair.

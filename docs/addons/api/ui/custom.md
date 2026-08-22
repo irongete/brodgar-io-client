@@ -29,10 +29,10 @@ holds, drawn over whichever one is on screen and over the login screen when none
 tree: nothing about it is a window of the client's, and a logout leaves it exactly where it was.
 
 That is why the [search verbs](widget.md#getting-a-widget) are addressed at a character —
-`s:ui():find`, `:all`, `:root` and an [`"appear"` subscription](replace.md#watching-for-a-widget) all
+`s:ui():match`, `:matchAll`, `:root` and an [`"appear"` subscription](replace.md#watching-for-a-widget) all
 search one session's tree, never the layer — while a hit test, which asks about a point on the screen,
 is not addressed at all. None of them reaches a window of yours. Hold the handle the builder gave you: it
-is the widget, `==` is its identity, and `w:find(selector)` searches **inside** it.
+is the widget, `==` is its identity, and `w:match(selector)` searches **inside** it.
 
 ## Windows and widgets
 
@@ -129,7 +129,7 @@ means the outer box, caption included.
 ### A surface never paints half-configured
 
 A bare `:window()` is in the layer's tree the instant it is built — its `:parent()`, its `:children()` and
-`w:find(selector)` inside it all answer at once — but it **draws nothing until the tick after the statement
+`w:match(selector)` inside it all answer at once — but it **draws nothing until the tick after the statement
 that built it**. So a caption, a size and a place you set across several lines are all in place before the
 first pixel, whatever falls between them, and there is no "commit" verb to forget.
 
@@ -138,7 +138,7 @@ Two things follow. A surface you build and destroy in the same breath never appe
 on screen, where the way to move a widget is `:position(x, y)`.
 
 ```lua
-local hud = hafen.session():current():ui():find("@GameUI")   -- the HUD is just another widget
+local hud = hafen.session():current():ui():match("@GameUI")   -- the HUD is just another widget
 local panel = hafen.ui():widget():parent(hud):size(120, 40)
 ```
 
@@ -159,34 +159,40 @@ nothing to draw for it: read the entry and ask it what it looks like.
 ## Overlays
 
 An overlay paints every frame without being a widget: there is nothing to place, nothing to size and
-nothing in the tree.
+nothing in the tree. `hafen.ui():overlay()` is the **collection** of the ones your addon has installed,
+each under a key of your own.
 
-| Verb | Returns | Description |
+| Call | Returns | Description |
 |---|---|---|
-| `hafen.ui():overlay()` | Overlay | a painter over the whole HUD, built bare |
+| `hafen.ui():overlay():add(key)` | Overlay | attach a painter under `key`, built bare; the same key again replaces it |
+| `hafen.ui():overlay():get(key)` | Overlay \| nil | the one under that key |
+| `hafen.ui():overlay():remove(key)` | self | stop it; the member itself is also accepted |
+| `hafen.ui():overlay():list(filter)` | Overlay[] | every one of yours, **in draw order** |
+| `hafen.ui():overlay():count(filter)` | number | how many |
+| `hafen.ui():overlay():find(filter)` | Overlay \| nil | the first whose key matches |
 
 | Method | Description |
 |---|---|
-| `:onDraw(fn)` / `:onDraw()` | paint `fn(g, w, h)` on top of the HUD each frame; `w, h` is the screen size |
-| `:destroy()` | stop it; also done automatically on reload or disable |
+| `:key()` | the key it answers to; answers even after it is removed |
+| `:draw(fn)` / `:draw()` | paint `fn(g, w, h)` on top of the HUD each frame; `w, h` is the screen size |
 | `:exists()` | is it still painting |
 
 ```lua
-hafen.ui():overlay():onDraw(function(g, w, h)
+hafen.ui():overlay():add("banner"):draw(function(g, w, h)
   g:color(255, 200, 0)
   g:atext("hello", w / 2, 4, 0.5, 0)      -- centred along the top of the screen
 end)
 ```
 
 Until it has a painter it paints nothing, which is the same rule the widget builders get from not drawing
-before their first tick. `hafen.ui():overlay()` **mints** one rather than handing back a collection: a HUD
-painter has no key, so there would be nothing to address into.
+before their first tick. **`:list()` is the draw order**: a painter added later paints over one added
+earlier, and re-adding a key moves it to the end. A reload or a disable removes every one of them.
 
-This is the **HUD**. To paint over a **game object** instead, the verb is on the object:
-[`gob:overlay()`](../overlay.md) — you name the gob it hangs on, so nothing is searched per
-frame. To stand something in the **world** rather than over it, use [`hafen.vr`](../vr/README.md) — your
-own images and models, the game's own props, or [this very window](../vr/widgets.md), drawn out there
-instead of on the screen.
+This is the **HUD**, and it is the same vocabulary a game object's decorations have. To paint over a
+**game object** instead, the verb is on the object: [`gob:overlay()`](../overlay.md) — you name the gob it
+hangs on, so nothing is searched per frame. To stand something in the **world** rather than over it, use
+[`hafen.vr`](../vr/README.md) — your own images and models, the game's own props, or
+[this very window](../vr/widgets.md), drawn out there instead of on the screen.
 
 The bundled **`widgetstack`** addon is all three at once: a window it builds and toggles, an inspector
 window per widget you click, and a HUD overlay that outlines whatever the cursor is over.

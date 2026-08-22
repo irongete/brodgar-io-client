@@ -7,6 +7,11 @@ A-120 is the one reshape.
 Every suite keeps to **≤ 15 output lines**, so group: one verdict line per claim, scored
 (`4/4 reached`) rather than one line per verb.
 
+**Tasks 2 to 5 ship ONE suite between them**, at the maintainer's asking: `088-a-word-means-one-thing-i.all`,
+run as `:t088`, which carries 088.1's assertions too so the whole feature is provable in one command.
+It is five tasks' worth of verdicts — 26 lines, about five per task — and each is one claim scored, with
+a group of refusals naming the first spelling that failed rather than only a count.
+
 **Before landing any task, grep `addons/` for the QUOTED spelling as well as the called one.**
 `widgetstack` builds paste-ready lines with `('%s:find("%s")'):format(…)` and
 `('%s:all("%s")[%d]'):format(…)`, and `eventstack` builds a snippet containing
@@ -46,7 +51,7 @@ and hands the user a line that raises when they paste it.
       ids in `audit/INVENTORY.md`, and nothing else in that file is touched.
       <!-- extra context: src/io/brodgar/addon/Controls.java (list), VrApi.java (allEntities and its javadoc on cross-kind verbs), SurfaceInput.java (pointer), addons/eventstack/main.lua (two hafen.ui():list() builders) -->
 
-- [ ] **088.2 — The selector language has its own verb.** `:find` takes a **filter** on a collection —
+- [x] **088.2 — The selector language has its own verb.** `:find` takes a **filter** on a collection —
       nil, substring, predicate — and a **selector** on the ui, which is a grammar. So
       `s:kin():find("Bo")` matches by substring while `s:ui():find("Cupboard")` parses as a **role**
       that does not exist and answers `nil`; the author meant `window[title=Cupboard]`, and the failure
@@ -80,7 +85,7 @@ and hands the user a line that raises when they paste it.
       strikes this id.
       <!-- extra context: src/io/brodgar/addon/Retired.java (uiMoved, uiKept — the two existing find/all keys), audit/16-consumer-evidence.md (the widgetstack sites) -->
 
-- [ ] **088.3 — A place, a size and a hit test.** `item:cell()` is the inventory grid cell an item sits
+- [x] **088.3 — A place, a size and a hit test.** `item:cell()` is the inventory grid cell an item sits
       in — a **place** — and `widget:cell()` is a grid control's cell **box**, a size. Both are
       two-number keyed tables and neither is labelled, so `grid:cell(c.w, c.h)` fed from `item:cell()`
       reads `nil, nil` and is **taken**, leaving the grid default-sized. `LuaWidget`'s `cell` becomes
@@ -111,7 +116,7 @@ and hands the user a line that raises when they paste it.
       **Read those `audit/` pages before starting.** `/end` ticks and strikes these two ids.
       <!-- extra context: src/io/brodgar/addon/Controls.java (cell), Layout.java / Chrome.java / Stock.java (the "at" DOCUMENT key that must not move), addons/widgetstack/main.lua -->
 
-- [ ] **088.4 — `:overlay()` means one thing.** The word names four unrelated things: the minimap's
+- [x] **088.4 — `:overlay()` means one thing.** The word names four unrelated things: the minimap's
       display switches (`MapApi`'s `section(owner, "overlay", toggles)`), a grid's recorded masks
       (`LuaMapGrid`), a gob's decorations (`LuaOverlay`), and a HUD painter you install (`UiApi`). So
       `hafen.map():overlay():get("claim")` is a switch and `grid:overlay():get("claim")` is a mask —
@@ -151,7 +156,7 @@ and hands the user a line that raises when they paste it.
       one meaning, so the HUD reads like the world. `/end` ticks and strikes these two ids.
       <!-- extra context: src/io/brodgar/addon/LuaOverlay.java and LuaGob.java (the shape being copied), Addon.java (hudOverlays), addons/clickpath/main.lua and addons/widgetstack/main.lua (both call :onDraw) -->
 
-- [ ] **088.5 — Three words freed.** `rule:close(…)` is the close **button**'s art on a window's
+- [x] **088.5 — Three words freed.** `rule:close(…)` is the close **button**'s art on a window's
       chrome, and `:close()` is the word a reader expects to mean "end this" — which in this API it
       means exactly once, on a Session. It becomes **`closeButton(…)`**, and `Sheet`/`Chrome`'s `close`
       **property key** follows, so a document and a call say the same word. `pag:path()` is an array of

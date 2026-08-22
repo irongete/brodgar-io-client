@@ -159,14 +159,14 @@ final class Controls {
     }
 
     /**
-     * <b>{@code :cell(w, h)} — a GRID's cell box, in pixels</b> (task 040.11). {@link CGrid} is its one
+     * <b>{@code :cellSize(w, h)} — a GRID's cell box, in pixels</b> (task 040.11). {@link CGrid} is its one
      * implementor. Read-only as a capability, exactly like {@link RowHeight}: the WRITE is not a plain field
      * assignment — {@code GridList.Group.itemsz} is {@code final}, so choosing a different one is building-only
-     * and goes through a rebuild in {@link Controls#cell}, the same shape {@link #rowHeight} already has.
+     * and goes through a rebuild in {@link Controls#cellSize}, the same shape {@link #rowHeight} already has.
      */
-    interface Cell {
-        /** The cell box as {@code GridList} holds it — DEVICE px; {@link Controls#cell(Owned)} converts. */
-        Coord cell();
+    interface CellSize {
+        /** The cell box as {@code GridList} holds it — DEVICE px; {@link Controls#cellSize(Owned)} converts. */
+        Coord cellSize();
     }
 
     /**
@@ -180,10 +180,10 @@ final class Controls {
 
     /**
      * <b>{@code :columns(t)} — a TABLE's column descriptors</b> (task 040.12). {@link CTable} is its one
-     * implementor. Read-only as a capability, exactly like {@link RowHeight}/{@link Cell}: the WRITE is not a
-     * plain field assignment — {@code TableBox.cols}/{@code main} are {@code public final}, fixed at
+     * implementor. Read-only as a capability, exactly like {@link RowHeight}/{@link CellSize}: the WRITE is not
+     * a plain field assignment — {@code TableBox.cols}/{@code main} are {@code public final}, fixed at
      * construction from {@code spec()}, so a different column set is building-only and goes through a rebuild
-     * in {@link Controls#columns}, the same shape {@link #rowHeight}/{@link #cell} already have.
+     * in {@link Controls#columns}, the same shape {@link #rowHeight}/{@link #cellSize} already have.
      */
     interface Columns {
         /** Exactly the table {@code :columns(t)} was last given, or {@code null} before the first one. */
@@ -333,7 +333,7 @@ final class Controls {
      * {@code hafen.ui():scroll()} — a scrolling container over {@link haven.Scrollport}'s own two pieces (task
      * 040.8): {@code :parent(sp)} on any control puts it INSIDE the scrolling area, never beside the bar, and
      * the bar answers the same {@code :range}/{@code :value}/{@code :onChange} as a bare {@code :scrollbar()}
-     * (found the ordinary way, {@code s:ui():all("@Scrollbar")} or {@code sp:children()}) once content
+     * (found the ordinary way, {@code s:ui():matchAll("@Scrollbar")} or {@code sp:children()}) once content
      * taller than the box makes it live. The container itself has no verb of its own.
      */
     static LuaValue scroll(Addon owner, Varargs a) {
@@ -394,13 +394,13 @@ final class Controls {
      * 040.11), the fourth of the model-backed five and the odd one out: it DRAWS cells rather than building row
      * widgets, so its row source ({@code :rows(t)}, a plain array of arbitrary Lua values) is painted through
      * {@code :onCell(g, item, w, h)} — the same {@code g} wrapper {@code widget:onDraw(fn)} hands a surface —
-     * rather than turned into rows by {@link LuaRows}. {@code :cell(w, h)} is the cell box and, like
+     * rather than turned into rows by {@link LuaRows}. {@code :cellSize(w, h)} is the cell box and, like
      * {@code :rowHeight(n)}, building-only.
      */
     static LuaValue grid(Addon owner, Varargs a) {
         if(Args.passed(a, 2))
             throw new LuaError("hafen.ui():grid() takes no arguments — it is built bare and configured by"
-                + " chained setters: hafen.ui():grid():cell(48, 48):rows(items):onCell(fn)");
+                + " chained setters: hafen.ui():grid():cellSize(48, 48):rows(items):onCell(fn)");
         UI u = UiApi.requireUi("grid");
         return UiApi.attach(u, owner, new CGrid(owner, Px.in(CGrid.DEF_SZ), Px.in(CGrid.DEF_CELL)));
     }
@@ -1249,17 +1249,17 @@ final class Controls {
         UiApi.rebuild(owner, old, nu);
     }
 
-    // ------------------------------------------------------------------ the cell verb (040.11)
+    // ------------------------------------------------------------------ the cellSize verb (040.11)
 
     /**
-     * {@code widget:cell()} — the current cell box {@code {w=, h=}} in design pixels, or {@code nil} on a control
-     * with no cells. Converted out like {@link #rowHeight}: a bare grid's stock box reads {@code 32x32} — the
-     * client's own inventory slot, in the pixels its art was drawn at — on every client.
+     * {@code widget:cellSize()} — the current cell box {@code {w=, h=}} in design pixels, or {@code nil} on a
+     * control with no cells. Converted out like {@link #rowHeight}: a bare grid's stock box reads {@code 32x32}
+     * — the client's own inventory slot, in the pixels its art was drawn at — on every client.
      */
-    static LuaValue cell(Owned c) {
-        if(!(c instanceof Cell))
+    static LuaValue cellSize(Owned c) {
+        if(!(c instanceof CellSize))
             return LuaValue.NIL;
-        Coord sz = Px.out(((Cell)c).cell());
+        Coord sz = Px.out(((CellSize)c).cellSize());
         LuaTable t = new LuaTable();
         t.set("w", LuaValue.valueOf(sz.x));
         t.set("h", LuaValue.valueOf(sz.y));
@@ -1267,23 +1267,25 @@ final class Controls {
     }
 
     /**
-     * {@code widget:cell(w, h)} — building-only, exactly like {@link #rowHeight}: {@code GridList.Group.itemsz}
-     * is {@code final}, so choosing a different cell box is a different widget under the same Lua handle
-     * (D-164). Carries the current rows across the rebuild. {@link CGrid} (040.11) is its one implementor.
+     * {@code widget:cellSize(w, h)} — building-only, exactly like {@link #rowHeight}: {@code
+     * GridList.Group.itemsz} is {@code final}, so choosing a different cell box is a different widget under the
+     * same Lua handle (D-164). Carries the current rows across the rebuild. {@link CGrid} (040.11) is its one
+     * implementor.
      */
-    static void cell(Addon owner, Widget w, Owned c, Varargs a) {
-        if(!(c instanceof Cell))
-            throw new LuaError("widget:cell(w, h) sets a GRID's CELL SIZE, and hafen.ui():grid() is the builder"
-                + " that takes one — " + LuaWidget.typeName(w) + " has none.");
+    static void cellSize(Addon owner, Widget w, Owned c, Varargs a) {
+        if(!(c instanceof CellSize))
+            throw new LuaError("widget:cellSize(w, h) sets a GRID's CELL SIZE, and hafen.ui():grid() is the"
+                + " builder that takes one — " + LuaWidget.typeName(w) + " has none.");
         // DESIGN px, as written: checked and reported in that space
-        int cw = Args.num(a, 2, "widget:cell", "w", "a NUMBER of design pixels").toint();
-        int ch = Args.num(a, 3, "widget:cell", "h", "a NUMBER of design pixels").toint();
+        int cw = Args.num(a, 2, "widget:cellSize", "w", "a NUMBER of design pixels").toint();
+        int ch = Args.num(a, 3, "widget:cellSize", "h", "a NUMBER of design pixels").toint();
         if((cw <= 0) || (ch <= 0))
-            throw new LuaError("widget:cell(w, h) — both must be POSITIVE numbers of pixels, got " + cw + "x" + ch);
+            throw new LuaError("widget:cellSize(w, h) — both must be POSITIVE numbers of pixels, got " + cw + "x"
+                + ch);
         if(!c.pending())
-            throw new LuaError("widget:cell(w, h) chooses a grid's CELL SIZE while the control is being BUILT,"
-                + " and this one is already on screen — the client's own grid widget fixes its cell box at"
-                + " construction, so set it in the same statement that builds the control.");
+            throw new LuaError("widget:cellSize(w, h) chooses a grid's CELL SIZE while the control is being"
+                + " BUILT, and this one is already on screen — the client's own grid widget fixes its cell box"
+                + " at construction, so set it in the same statement that builds the control.");
         CGrid old = (CGrid)c;
         CGrid nu = new CGrid(owner, old.sz, Px.in(new Coord(cw, ch)));   // 058.3: GridList measures in device px
         if(old.rows() != null)
@@ -1302,12 +1304,12 @@ final class Controls {
     }
 
     /**
-     * {@code widget:columns(t)} — building-only, exactly like {@link #cell}/{@link #rowHeight}:
+     * {@code widget:columns(t)} — building-only, exactly like {@link #cellSize}/{@link #rowHeight}:
      * {@code TableBox.cols}/{@code main} are {@code public final}, so choosing a different column set is a
      * different widget under the same Lua handle. Carries the current rows across the rebuild — re-resolved
      * against the NEW columns, since each row's cell text comes from ITS column's {@code of(row)} — the same
-     * shape {@link #cell} carries a grid's rows across a cell-size rebuild. {@link CTable} (040.12) is its one
-     * implementor.
+     * shape {@link #cellSize} carries a grid's rows across a cell-size rebuild. {@link CTable} (040.12) is
+     * its one implementor.
      */
     static void columns(Addon owner, Widget w, Owned c, LuaValue t) {
         if(!(c instanceof Columns))

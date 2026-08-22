@@ -34,7 +34,7 @@ gesture resolve there by themselves.
 
 The widget stays live in every other sense. It is still in the tree, `:exists()` is still true, a
 server-bound one is still bound to its id and still filling with [items](../ui/items.md) — what changes is
-that it is no longer under the flat UI's hit-testing, so [`hafen.ui():at(x, y)`](../ui/widget.md) never
+that it is no longer under the flat UI's hit-testing, so [`hafen.ui():hit(x, y)`](../ui/widget.md) never
 answers with it while it stands.
 
 > **The title bar does not move it.** Dragging a window's caption is a flat-UI gesture and its place is now

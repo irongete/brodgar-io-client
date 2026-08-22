@@ -771,13 +771,13 @@ public final class Addon {
     final LuaMapGrid.Cache mapGrids = new LuaMapGrid.Cache(this);
     final LuaMarker.Cache mapMarkers = new LuaMarker.Cache(this);
     /**
-     * ...and the same for the recorded overlay <b>masks</b> ({@code grid:overlay(tag)}, task 037.3), keyed on
+     * ...and the same for the recorded <b>masks</b> ({@code grid:mask():get(tag)}, task 037.3), keyed on
      * the pair the engine publishes — the grid id and the overlay <i>tag</i> — for the same reason: the mask
      * lives inside a {@code Grid} that the weak {@code CacheMap} rebuilds from disk after an eviction.
      */
     final LuaMask.Cache mapMasks = new LuaMask.Cache(this);
     /**
-     * ...and the same for the client's four <b>display toggles</b> ({@code hafen.map():overlay():get(tag)},
+     * ...and the same for the client's four <b>display toggles</b> ({@code hafen.map():display():get(tag)},
      * task 039.4), keyed on the tag. The hold itself is <b>not</b> here — it lives in {@link #overlayHolds},
      * because a handle is a name for a switch and a hold is a resource that has to be given back.
      */

@@ -24,7 +24,7 @@ import java.util.WeakHashMap;
  *
  * <pre>
  *   hafen.ui():sheet():rule("window[title=Equipment]"):position(40, 200)   -- matched
- *   s:ui():find("window[title=Equipment]"):position(40, 200)            -- named by hand
+ *   s:ui():match("window[title=Equipment]"):position(40, 200)            -- named by hand
  * </pre>
  *
  * <p><b>One fold, two levels</b> (D-077 verbatim, one property along): a tree rule that names a widget carries
@@ -868,7 +868,7 @@ final class Layout {
                     to = Anchor.SCREEN;
                 } else {
                     throw new LuaError(ctx + ".anchor.to: expected \"screen\" or a widget"
-                        + " — s:ui():find(\"window[title=Inventory]\"), got " + pv.typename());
+                        + " — s:ui():match(\"window[title=Inventory]\"), got " + pv.typename());
                 }
             } else if("at".equals(p)) {
                 corner = cornerOf(ctx, pv);

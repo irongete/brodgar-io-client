@@ -8,7 +8,7 @@ when your addon goes away.
 
 ```lua
 local s = hafen.session():current()                    -- the character whose window it is
-local inv = s:ui():find("window[title=Inventory]")
+local inv = s:ui():match("window[title=Inventory]")
 inv:position(40, 200)     -- move it
 inv:size(300, 220)        -- resize its CONTENT; the chrome repacks around it
 inv:position(nil)         -- drop YOUR move: back to where the user had it
@@ -74,7 +74,7 @@ client gives that gesture to one kind of widget only — a window, by its captio
 on screen moves at all: not the chat, not the belt, not the panels down the sides of the HUD.
 
 ```lua
-local chat = hafen.session():current():ui():find("@ChatUI")
+local chat = hafen.session():current():ui():match("@ChatUI")
 local grip = hafen.ui():image():source(hafen.asset():get("grip.png")):parent(chat)
 
 chat:draggable(grip)      -- pressing the grip drags the chat
@@ -148,7 +148,7 @@ client gives that gesture to exactly one window in the game — the map, by the 
 frame — so nothing else on screen can be made bigger or smaller by the person using it.
 
 ```lua
-local win = hafen.session():current():ui():find("window[title=Inventory]")
+local win = hafen.session():current():ui():match("window[title=Inventory]")
 local corner = hafen.ui():image():source(hafen.asset():get("corner.png")):parent(win)
 
 win:resizable(corner)     -- pressing the corner resizes the window
@@ -214,7 +214,7 @@ declared in your manifest.
 
 ```lua
 hafen.event():on("SessionEnteredWorld", function()
-  local chat = hafen.session():current():ui():find("@ChatUI")
+  local chat = hafen.session():current():ui():match("@ChatUI")
   chat:draggable(hafen.ui():image():source(hafen.asset():get("grip.png")):parent(chat))
   chat:remember("chat")     -- back where it was, and saved there again after every drag
 end)
