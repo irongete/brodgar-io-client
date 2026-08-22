@@ -25,6 +25,20 @@ import java.util.Map;
  * enumerates it for the trusted {@code :lua} REPL owner, and the consent dialog renders it. Adding a
  * protected verb is one entry here plus one gate call — nothing else has a list to update.
  *
+ * <p><b>It is the WHOLE catalogue since 093</b> (A-098). {@code hafen.http} used to be gated by a second
+ * mechanism with none of this one's vocabulary — a {@code network.hosts} block in the manifest, no constant,
+ * no {@code <prefix>.*} group, and a consent surface of its own — so a user who had learned that a key is
+ * {@code <section>.<verb>} wrote {@code "http.*"} and the addon failed to load. Now {@code http.get} and
+ * {@code http.post} are keys like any other and the hosts block is the <b>argument</b> of the key, the shape
+ * {@code player.hand.use} already had for a nested one: the allowlist still decides <i>where</i>, and the
+ * catalogue decides <i>whether</i>, and the consent dialog says both in one line.
+ *
+ * <p><b>A key gates what a verb DOES, not only what it tells the server</b> (093, A-096/A-097). Two entries
+ * here reach nothing outside the client and are protected all the same: {@code map.marker} deletes a pin the
+ * player made, which no server can restore, and {@code client.settings} rewrites the configuration and every
+ * hotkey they have. The tier's own definition is <i>an action the player could have performed</i>, and both
+ * are plainly that — every one of them is a control the user has in front of them.
+ *
  * <p>The gate is always the FIRST statement of the verb it guards (D-213), so an addon that declared nothing
  * hears about its manifest even when its arguments were wrong too — which is also what lets a suite prove a
  * grant without acting on the world: reaching the argument refusal IS the grant.
@@ -51,6 +65,8 @@ public enum Permission {
     ITEM_TRANSFER    ("item.transfer",      "item:transfer",                  "move items between containers"),
     WORLD_PLACE      ("world.place",        "session:world():place",          "place buildings and objects"),
     WORLD_SELECT     ("world.select",       "session:world():select",         "select an area of the ground"),
+    MAP_MARKER       ("map.marker",         "hafen.map():marker():add",       "add, rename and delete pins on"
+                                                                              + " your map"),
     MENUGRID_USE     ("menugrid.use",       "pag:use",                        "invoke entries of the action menu,"
                                                                               + " on any of your characters"),
     FLOWERMENU_SELECT("flowermenu.select",  "session:flowermenu():select",    "choose from the radial menu of any"
@@ -61,19 +77,24 @@ public enum Permission {
                                                                               + " your characters"),
     ACTIONBAR_USE    ("actionbar.use",      "slot:use",                       "press the action-bar buttons of any"
                                                                               + " of your characters"),
-    ACTIONBAR_RES    ("actionbar.res",      "slot:res",                       "change what any of your characters'"
-                                                                              + " action-bar buttons hold"),
+    ACTIONBAR_RES    ("actionbar.res",      "slot:res",                       "assign one of the game's own actions"
+                                                                              + " to any of your characters'"
+                                                                              + " action-bar buttons"),
     KIN_ADD          ("kin.add",            "session:kin():add",              "add someone to any of your characters' kin lists"),
     KIN_RENAME       ("kin.rename",         "kin:rename",                     "rename someone on any of your characters' kin lists"),
     KIN_GROUP        ("kin.group",          "kin:group",                      "change someone's kin group, on any of your characters"),
-    KIN_END          ("kin.endKin",         "kin:endKin",                     "end kinship with someone, on any of your characters"),
+    KIN_END          ("kin.end",            "kin:endKin",                     "end kinship with someone, on any of your characters"),
     KIN_FORGET       ("kin.forget",         "kin:forget",                     "forget someone from any of your characters' kin lists"),
     SPEED_SET        ("speed.set",          "session:speed():set",            "change the movement speed of any of"
                                                                               + " your characters"),
     SESSION_CLOSE    ("session.close",      "session:close",                  "log out any of your characters"),
     WIDGET_SEND      ("widget.send",        "widget:send",                    "send any message the client itself could send"),
     WIDGET_VALUE     ("widget.value",       "widget:value",                   "flip the client's own controls — a box it ticks,"
-                                                                              + " a field it types into — which the server sees");
+                                                                              + " a field it types into — which the server sees"),
+    CLIENT_SETTINGS  ("client.settings",    "hafen.client():options()",       "change your client settings and"
+                                                                              + " hotkeys"),
+    HTTP_GET         ("http.get",           "hafen.http():get",               "fetch data from the servers it lists"),
+    HTTP_POST        ("http.post",          "hafen.http():post",              "send data to the servers it lists");
 
     /** The manifest key an addon declares to be granted this verb ({@code item.transfer}). */
     public final String key;

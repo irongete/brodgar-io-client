@@ -130,13 +130,28 @@ public final class PermissionSet {
      * iterates by ordinal), so two addons declaring the same group read identically.
      */
     public static String describe(String entry) {
+        return describe(entry, null);
+    }
+
+    /**
+     * {@link #describe(String)} with <b>the hosts a network key names</b> appended (093.4, A-098). The
+     * {@code http.*} keys carry an argument — the manifest's {@code network.hosts} allowlist — and the
+     * consent dialog is the one place the user decides, so the line they read there has to say <i>where</i>
+     * as well as <i>whether</i>. An entry granting no network key ignores {@code hosts} entirely, so the
+     * ordinary line is unchanged.
+     */
+    public static String describe(String entry, List<String> hosts) {
         List<Permission> ps = new ArrayList<Permission>(grants(entry));
         StringBuilder sb = new StringBuilder();
+        boolean net = false;
         for(int i = 0; i < ps.size(); i++) {
             if(i > 0)
                 sb.append((i == ps.size() - 1) ? " and " : ", ");
             sb.append(ps.get(i).line);
+            net = net || (ps.get(i) == Permission.HTTP_GET) || (ps.get(i) == Permission.HTTP_POST);
         }
+        if(net && (hosts != null) && !hosts.isEmpty())
+            sb.append(": ").append(String.join(", ", hosts));
         return sb.toString();
     }
 

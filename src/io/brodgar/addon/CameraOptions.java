@@ -25,16 +25,16 @@ public final class CameraOptions {
     private CameraOptions() {}
 
     /** Create the camera options subsystem handle. */
-    public static LuaValue create() {
+    public static LuaValue create(final Addon owner) {
         LuaValue camera = OptionsHandle.open("Options(camera)");
-        return OptionsHandle.close(camera, "camera", methods(camera),
+        return OptionsHandle.close(camera, "camera", methods(owner, camera),
             "the camera options answer :mode() :invertHorizontal() and :invertVertical(), each reading with"
             + " no argument and writing with one");
     }
 
-    private static LuaTable methods(final LuaValue handle) {
+    private static LuaTable methods(final Addon owner, final LuaValue handle) {
         LuaTable m = new LuaTable();
-        m.set("invertHorizontal", new OptionsMethod(handle, "camera:invertHorizontal") {
+        m.set("invertHorizontal", new OptionsMethod(owner, handle, "camera:invertHorizontal") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(MapView.invcamx);
             }
@@ -42,7 +42,7 @@ public final class CameraOptions {
                 Utils.setprefb("invcamx", MapView.invcamx = value.toboolean());
             }
         });
-        m.set("invertVertical", new OptionsMethod(handle, "camera:invertVertical") {
+        m.set("invertVertical", new OptionsMethod(owner, handle, "camera:invertVertical") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(MapView.invcamy);
             }
@@ -50,7 +50,7 @@ public final class CameraOptions {
                 Utils.setprefb("invcamy", MapView.invcamy = value.toboolean());
             }
         });
-        m.set("mode", new OptionsMethod(handle, "camera:mode") {
+        m.set("mode", new OptionsMethod(owner, handle, "camera:mode") {
             protected LuaValue onRead() {
                 /* camname() off the live view, and the pref only when there is none -- the mode swaps a
                  * camera in without writing defcam, so before login the pref is all there is and after it

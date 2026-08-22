@@ -22,14 +22,30 @@ import org.luaj.vm2.lib.VarArgFunction;
  * {@code v} that is accidentally {@code nil} does not fail — it becomes a <i>read</i>, and the write nobody
  * made is a bug with no symptom. It is one of the two silent no-ops measured in shipped code, and an option
  * has no undo for the refusal to cost anything against.
+ *
+ * <p><b>Every WRITE is protected, and this is the one place it is gated</b> (093.3, A-096's sibling A-097).
+ * {@code client.settings} covers all of them, because all of them persist to the user's own preference
+ * stores — {@code client/README.md} says so itself: "indistinguishable from the same edit made in the
+ * Options window". The old reading was that these are client-local and so need no key, and the examples
+ * {@code conventions.md} gave for that rule are a map marker, an icon flag and a sound. Halving someone's
+ * render scale, muting their audio and rebinding every hotkey they have is a different order of thing, it
+ * persists, and the consent dialog said nothing about any of it. The reads stay unprotected.
+ *
+ * <p>The gate is the FIRST thing the write branch does (D-213) — before the {@code nil} refusal, before the
+ * type check and before the subsystem is looked up — so an addon that declared nothing is told <i>that</i>
+ * rather than being told its argument is wrong. Which arity was called is what says there is a write to gate
+ * at all, so it cannot be moved above the {@code switch}.
  */
 abstract class OptionsMethod extends VarArgFunction {
+    /** The addon whose write this is — what {@code client.settings} is checked against (093.3). */
+    private final Addon owner;
     /** The subsystem handle a write answers with (the chaining target). */
     private final LuaValue handle;
     /** How this option is spelled at the call site ({@code "interface:scale"}), for the refusals. */
     private final String verb;
 
-    OptionsMethod(LuaValue handle, String verb) {
+    OptionsMethod(Addon owner, LuaValue handle, String verb) {
+        this.owner = owner;
         this.handle = handle;
         this.verb = verb;
     }
@@ -39,6 +55,7 @@ abstract class OptionsMethod extends VarArgFunction {
         case 1:                       // opt:name()   — read
             return onRead();
         case 2:                       // opt:name(v)  — write, then chain
+            AddonManager.requirePermission(owner, Permission.CLIENT_SETTINGS, verb);
             if(a.arg(2).isnil())
                 throw Args.nilRefused(verb, "value");
             onWrite(a.arg(2));

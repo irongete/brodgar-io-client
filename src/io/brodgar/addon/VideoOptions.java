@@ -31,9 +31,9 @@ public final class VideoOptions {
     private VideoOptions() {}
 
     /** Create the video options subsystem handle. */
-    public static LuaValue create() {
+    public static LuaValue create(final Addon owner) {
         LuaValue video = OptionsHandle.open("Options(video)");
-        return OptionsHandle.close(video, "video", methods(video),
+        return OptionsHandle.close(video, "video", methods(owner, video),
             "the video options answer :shadows() :renderScale() :vsync() :fpsLimit() :bgFpsLimit()"
             + " :lightingMode() and :lightLimit(), each reading with no argument and writing with one");
     }
@@ -74,9 +74,9 @@ public final class VideoOptions {
         }
     }
 
-    private static LuaTable methods(final LuaValue handle) {
+    private static LuaTable methods(final Addon owner, final LuaValue handle) {
         LuaTable m = new LuaTable();
-        m.set("shadows", new OptionsMethod(handle, "video:shadows") {
+        m.set("shadows", new OptionsMethod(owner, handle, "video:shadows") {
             protected LuaValue onRead() {
                 GSettings gs = prefs();
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf(gs.lshadow.val);
@@ -87,7 +87,7 @@ public final class VideoOptions {
                     apply(gs.lshadow, value.toboolean(), "shadows");
             }
         });
-        m.set("renderScale", new OptionsMethod(handle, "video:renderScale") {
+        m.set("renderScale", new OptionsMethod(owner, handle, "video:renderScale") {
             protected LuaValue onRead() {
                 GSettings gs = prefs();
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf((double)gs.rscale.val);
@@ -99,7 +99,7 @@ public final class VideoOptions {
                     apply(gs.rscale, (float)v, "renderScale");
             }
         });
-        m.set("vsync", new OptionsMethod(handle, "video:vsync") {
+        m.set("vsync", new OptionsMethod(owner, handle, "video:vsync") {
             protected LuaValue onRead() {
                 GSettings gs = prefs();
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf(gs.vsync.val);
@@ -110,7 +110,7 @@ public final class VideoOptions {
                     apply(gs.vsync, value.toboolean(), "vsync");
             }
         });
-        m.set("fpsLimit", new OptionsMethod(handle, "video:fpsLimit") {
+        m.set("fpsLimit", new OptionsMethod(owner, handle, "video:fpsLimit") {
             protected LuaValue onRead() {
                 GSettings gs = prefs();
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf((double)gs.hz.val);
@@ -122,7 +122,7 @@ public final class VideoOptions {
                     apply(gs.hz, (float)v, "fpsLimit");
             }
         });
-        m.set("bgFpsLimit", new OptionsMethod(handle, "video:bgFpsLimit") {
+        m.set("bgFpsLimit", new OptionsMethod(owner, handle, "video:bgFpsLimit") {
             protected LuaValue onRead() {
                 GSettings gs = prefs();
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf((double)gs.bghz.val);
@@ -134,7 +134,7 @@ public final class VideoOptions {
                     apply(gs.bghz, (float)v, "bgFpsLimit");
             }
         });
-        m.set("lightingMode", new OptionsMethod(handle, "video:lightingMode") {
+        m.set("lightingMode", new OptionsMethod(owner, handle, "video:lightingMode") {
             protected LuaValue onRead() {
                 GSettings gs = prefs();
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf(gs.lightmode.val.name().toLowerCase());
@@ -154,7 +154,7 @@ public final class VideoOptions {
                 apply(gs.lightmode, mode, "lightingMode");
             }
         });
-        m.set("lightLimit", new OptionsMethod(handle, "video:lightLimit") {
+        m.set("lightLimit", new OptionsMethod(owner, handle, "video:lightLimit") {
             protected LuaValue onRead() {
                 GSettings gs = prefs();
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf((double)gs.maxlights.val);

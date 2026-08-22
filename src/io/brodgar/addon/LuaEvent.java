@@ -970,8 +970,17 @@ public final class LuaEvent {
      * handler that re-issues its own action <b>cannot loop</b> — they bypass the stream that called them.
      */
     private static void outbound(LuaTable m) {
+        // 093.1 (A-095): BOTH are PROTECTED, under the existing widget.send -- the same wire, the same key,
+        // and the consent line the user already reads for it ("send any message the client itself could
+        // send") is exactly what these do. Two arguments for it, neither covered by conventions.md's old
+        // half-sentence ("Nor does replacing an action the client is already sending"): ev:send(t) takes an
+        // ARBITRARY argument table, so replacing an itemact's target or a transfer's count is a different
+        // action wearing the same name; and neither verb is once-only, so a handler that loops turns one
+        // user click into N server messages. ev:preventDefault() stays unprotected -- cancelling reaches
+        // nothing. The gate runs FIRST (D-213), before the receiver is even resolved.
         m.set("resend", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                AddonManager.requirePermission(ownerOf(a.arg1()), Permission.WIDGET_SEND, "ev:resend");
                 LuaEvent e = self(a.arg1(), Shape.ACTION, "resend");
                 e.cancel.prevent();
                 e.ui.rawWdgmsg(e.wdg, e.msg, e.args);      // the ORIGINAL args, verbatim and lossless
@@ -980,6 +989,7 @@ public final class LuaEvent {
         });
         m.set("send", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                AddonManager.requirePermission(ownerOf(a.arg1()), Permission.WIDGET_SEND, "ev:send");
                 LuaEvent e = self(a.arg1(), Shape.ACTION, "send");
                 LuaValue t = Args.required(a, 2, "ev:send", "args");
                 e.cancel.prevent();
@@ -987,6 +997,19 @@ public final class LuaEvent {
                 return LuaValue.NIL;
             }
         });
+    }
+
+    /**
+     * The addon whose {@code ev} this is, for a gate that has to run <b>before</b> the receiver is checked
+     * (D-213). {@code null} for anything that is not an event, which {@link AddonManager#requirePermission}
+     * refuses exactly as it refuses an addon that declared nothing — and {@link #self} then raises the shape
+     * refusal a beat later for a caller that passed something else entirely.
+     */
+    private static Addon ownerOf(LuaValue self) {
+        if((self == null) || !self.isuserdata())
+            return null;
+        Object o = self.touserdata();
+        return (o instanceof LuaEvent) ? ((LuaEvent)o).owner : null;
     }
 
     /**

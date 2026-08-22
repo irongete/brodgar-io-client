@@ -1,0 +1,9 @@
+{
+  "name": "093 — The line the user consents to",
+  "id": "093-the-line-the-user-consents-to.all",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for the whole of feature 093: the four permission keys that were missing — widget.send reused for ev:send/ev:resend, map.marker over the marker writes, client.settings over every option write and every hotkey remap, and http.get/http.post folding the network tier into the one catalogue — plus kin.endKin becoming kin.end. It declares NO permissions at all, because what 093 ships is the gates: every check asks a protected verb and asserts it refuses, naming its own key, while its read answers freely.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

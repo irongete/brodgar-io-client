@@ -61,11 +61,13 @@ public class PermissionConsentWnd extends Window {
      * @param consented what the user already approved for this addon; every entry not covered by it is marked
      *                  NEW. Empty on a first prompt, where nothing is marked (it is all new, and saying so on
      *                  every line would say nothing).
+     * @param hosts     the manifest's {@code network.hosts} allowlist, appended to the line of a network
+     *                  key so the user reads WHERE as well as whether (093.4). Ignored by every other entry.
      * @param onConfirm run once, on the UI thread, if the user clicks <b>Enable</b> (record the consent +
      *                  persist-enable the addon + refresh the panel). Never run on Cancel / close.
      */
     public PermissionConsentWnd(String addonName, PermissionSet declared, Set<Permission> consented,
-                                Runnable onConfirm) {
+                                List<String> hosts, Runnable onConfirm) {
         super(Coord.z, "Enable " + addonName + "?", true);
         // Build the lines first: a Label sizes itself in its constructor, so their total height is what decides
         // how tall the list box is — and that has to be known BEFORE anything below it is positioned.
@@ -75,7 +77,7 @@ public class PermissionConsentWnd extends Window {
         for(String entry : declared.entries()) {
             boolean isnew = !consented.isEmpty() && PermissionSet.isNew(entry, consented);
             anyNew = anyNew || isnew;
-            Label l = new Label(BULLET + (isnew ? "NEW: " : "") + PermissionSet.describe(entry)
+            Label l = new Label(BULLET + (isnew ? "NEW: " : "") + PermissionSet.describe(entry, hosts)
                                 + "  (" + entry + ")", WRAP - UI.scale(34));   // room for the indent + the bar
             lines.add(l);
             lh += l.sz.y + UI.scale(3);

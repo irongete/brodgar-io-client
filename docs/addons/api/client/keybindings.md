@@ -1,7 +1,8 @@
 # hafen.client: keybindings
 
 `hafen.client():options():keybindings()` is the client's hotkey registry: declare your addon's hotkeys, and
-read, remap or reset any binding, yours or the client's own. Unprotected.
+read, remap or reset any binding, yours or the client's own. Declaring and reading are unprotected; a
+**remap** needs [`client.settings`](../../guides/permissions.md).
 
 ```lua
 local keys = hafen.client():options():keybindings()
@@ -77,9 +78,11 @@ back as `addon/<your-addon-id>/<name>`.
 | `exists()` | boolean | whether anything has declared this id yet |
 | `info()` | table \| nil | `{id=, key=, default=, assigned=}`, `nil` for an id nothing has declared |
 
-Writing a key is unprotected, like every other setting here, and it persists exactly as the same edit made
-in Options ▸ Keybindings does. A write on a binding nothing has declared is an error; a read of one answers
-`nil`, except `id()`, which is what you addressed it by, and the two booleans, which are `false`.
+Writing a key needs the [`client.settings` permission](../../guides/permissions.md), like every other
+setting here, and it persists exactly as the same edit made in Options ▸ Keybindings does — which is why it
+is keyed: `binding:key("Ctrl+I")` on `inv` takes the **client's own** inventory key, and the user has to undo
+that by hand. A write on a binding nothing has declared is an error; a read of one answers `nil`, except
+`id()`, which is what you addressed it by, and the two booleans, which are `false`.
 
 **A binding has three states, and two of them read as no key.** It is on the client's default, or the user
 has assigned a key, or the user has unbound it — and `key()` collapses the first and the last to `nil`, so

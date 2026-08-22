@@ -271,9 +271,14 @@ public final class LuaMarker {
         // color() / color(c) — a player marker's pin colour. Arity is the verb: no argument reads the keyed
         // {r=,g=,b=,a=} table (nil on a system marker), an argument writes and returns self so it chains off
         // :add(). The write takes the TABLE a colour is, so m:color(other:color()) is one expression.
+        //   093.2 (A-096): the WRITE is protected, under map.marker; the read is not. The gate cannot run
+        // first here, because which arity was called is what says whether there is a write to gate at all --
+        // so it runs the instant that is known, before the marker is touched.
         m.set("color", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                if(Args.passed(a, 2))
+                    AddonManager.requirePermission(owner, Permission.MAP_MARKER, "marker:color");
                 MapFile.Marker mk = marker(self, "color");
                 if(!Args.passed(a, 2)) {
                     if(!(mk instanceof MapFile.PMarker) || (((MapFile.PMarker)mk).color == null))
@@ -290,6 +295,8 @@ public final class LuaMarker {
         m.set("onMap", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                if(Args.passed(a, 2))
+                    AddonManager.requirePermission(owner, Permission.MAP_MARKER, "marker:onMap");
                 MapFile.Marker mk = marker(self, "onMap");
                 LuaValue v = Args.written(a, 2, "marker:onMap", "on");
                 if(v == null) {

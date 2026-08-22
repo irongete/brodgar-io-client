@@ -235,8 +235,15 @@ final class MapApi {
             }
 
             // add(name, p) — drop a PLAYER pin at a Position, and hand it back for its setters (:color,
-            // :onMap). It goes into the user's own on-disk database, so it is a real write with no gate.
+            // :onMap).
+            //   093.2 (A-096): PROTECTED, under map.marker. It goes into the user's own on-disk database, and
+            // the tier's definition is "an action the player could have performed" -- dropping a pin is one,
+            // and its twin :remove(m) DELETES one, which is user data no server can restore. The old reading
+            // ("client-local, so no gate") is the one conventions.md gave a marker as its example of, and it
+            // put "delete pins from your map" outside the sentence the user reads when they enable an addon.
+            // The gate runs FIRST (D-213), before the name and the Position are looked at.
             public LuaValue addMember(Varargs a) {
+                AddonManager.requirePermission(owner, Permission.MAP_MARKER, "hafen.map():marker():add");
                 LuaValue nm = Args.required(a, 2, "hafen.map():marker():add", "name");
                 if(nm.type() != LuaValue.TSTRING)
                     throw new LuaError("hafen.map():marker():add(name, p): name is the label the map shows");
@@ -250,7 +257,10 @@ final class MapApi {
 
             // remove(marker) — take a pin out of the database. Removing one that is already gone is INERT
             // (D-084): it is a moment, not a mistake, and marker:exists() is the question if you want it.
+            //   093.2: PROTECTED, and this is the verb the key exists for -- it permanently deletes a pin the
+            // player made, which took real play to place and which nothing can put back.
             public void removeMember(LuaValue x) {
+                AddonManager.requirePermission(owner, Permission.MAP_MARKER, "hafen.map():marker():remove");
                 if(LuaMarker.resolve(x) == null)
                     throw new LuaError("hafen.map():marker():remove(m): m is a Marker object — the one"
                         + " :list(), :find(), :nearest() or :add() handed you");

@@ -113,10 +113,10 @@ public class AddonPanel extends OptWnd.Panel {
      * One dialog at a time: re-ticking while a consent is already open is a no-op. Because it is top-level, it
      * is closed explicitly when this panel leaves the screen — see {@link #tick(double)}.
      */
-    private void confirmEnablePermissions(String id, String name, PermissionSet declared) {
+    private void confirmEnablePermissions(String id, String name, PermissionSet declared, List<String> hosts) {
         if((consent != null) && (consent.parent != null))
             return;
-        consent = ui.root.adda(new PermissionConsentWnd(name, declared, AddonRegistry.consentedKeys(id),
+        consent = ui.root.adda(new PermissionConsentWnd(name, declared, AddonRegistry.consentedKeys(id), hosts,
                                                        () -> { AddonRegistry.grantConsent(id, declared); rebuild(); }),
                                ui.root.sz.div(2), 0.5, 0.5);
         consent.raise();
@@ -162,7 +162,7 @@ public class AddonPanel extends OptWnd.Panel {
                             // unticked (a stays false) until the user confirms in the dialog — which then
                             // records the grant, enables it and rebuilds the rows. Disabling (v=false) and
                             // read-only addons fall straight through with no prompt.
-                            confirmEnablePermissions(rid, aname, declared);
+                            confirmEnablePermissions(rid, aname, declared, ai.networkHosts);
                         } else {
                             AddonRegistry.setEnabled(rid, v);
                             a = v;

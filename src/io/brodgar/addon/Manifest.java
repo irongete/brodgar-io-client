@@ -149,11 +149,22 @@ public final class Manifest {
             throw new IllegalArgumentException("'files' must list at least one .lua file");
 
         String name = str(m, "name", false);
+        PermissionSet perms = PermissionSet.parse(strlist(m, "permissions"));
+        List<String> hosts = networkhosts(m);
+        // 093.4 (A-098): the network is a KEY now, and the hosts block is that key's argument. So a manifest
+        // that lists hosts and asks for neither is refused HERE, at load, naming the two -- rather than
+        // loading and dying at the first hafen.http() call, and rather than reaching the consent dialog with
+        // a network declaration the user is shown nothing about.
+        if(!hosts.isEmpty() && !perms.has(Permission.HTTP_GET) && !perms.has(Permission.HTTP_POST))
+            throw new IllegalArgumentException("'network' declares hosts but no permission asks to reach them"
+                + " -- add \"http.get\" (or \"http.post\", or the group \"http.*\") to 'permissions'. The key"
+                + " says whether this addon may use the network, and the hosts say where; the user approves"
+                + " both in one line when they enable it.");
         return new Manifest(id, (name != null) ? name : id,
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), intv(m, "api_version", 1),
                             files, strlist(m, "dependencies"), strlist(m, "optional_dependencies"),
-                            savedvars(m), PermissionSet.parse(strlist(m, "permissions")), networkhosts(m));
+                            savedvars(m), perms, hosts);
     }
 
     /**

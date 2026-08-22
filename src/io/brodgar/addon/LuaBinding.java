@@ -146,11 +146,14 @@ public final class LuaBinding {
 
     /** One addon's Binding cache and metatable (its {@link Addon#bindings}), keyed by the registry id. */
     static final class Cache {
+        /** The addon these handles belong to — what {@code client.settings} is checked against (093.3). */
+        private final Addon owner;
         private final Map<String, Ref> live = new HashMap<String, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
         Cache(Addon owner) {
+            this.owner = owner;
         }
 
         synchronized LuaValue of(String id) {
@@ -179,7 +182,7 @@ public final class LuaBinding {
 
         private LuaValue meta() {
             if(mt == null)
-                mt = buildMeta();
+                mt = buildMeta(owner);
             return mt;
         }
     }
@@ -195,9 +198,9 @@ public final class LuaBinding {
 
     // ---- the Binding metatable -----------------------------------------------------------------------
 
-    private static LuaValue buildMeta() {
+    private static LuaValue buildMeta(Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("binding", methods(),
+        mt.set(LuaValue.INDEX, Retired.closedIndex("binding", methods(owner),
             "a binding answers :id() :key() :default() :assigned() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Binding"));
         mt.set("__tostring", new OneArgFunction() {
@@ -208,7 +211,7 @@ public final class LuaBinding {
         return mt;
     }
 
-    private static LuaTable methods() {
+    private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // id() — the registry id, its identity. Your own hotkeys read addon/<your addon id>/<name>.
         m.set("id", new OneArgFunction() {
@@ -222,9 +225,17 @@ public final class LuaBinding {
         // and "None" to unbind, and an explicit nil to put the binding back on the client's own default —
         // one of the API's documented nil meanings (Args), which is why this reads its own argument rather
         // than going through Args.written.
+        //   093.3 (A-097): the two WRITE arities are PROTECTED, under client.settings, and the read is not.
+        // A remap is the user's own configuration and it persists -- and it reaches the CLIENT's bindings as
+        // readily as an addon's own, so binding:key("Ctrl+I") on "inv" takes the inventory key. That is a
+        // control the player has in front of them, which is the tier's own definition of what it gates.
+        // Arity is what says whether there is a write here at all, so the gate runs the instant that is
+        // known, before the binding is resolved.
         m.set("key", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
+                if(Args.passed(a, 2))
+                    AddonManager.requirePermission(owner, Permission.CLIENT_SETTINGS, "binding:key");
                 LuaBinding h = handle(self, "key");
                 KeyBinding b = h.binding();
                 if(!Args.passed(a, 2))

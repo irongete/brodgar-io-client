@@ -15,26 +15,31 @@ end)
 
 ## Declaring network access
 
-Add a `network` block to `manifest.json` whose `hosts` array lists every host you will call:
+**Two lines, and they are one declaration.** `http.get` / `http.post` are
+[permission keys](../guides/permissions.md) like any other, and the `network` block is **what those keys
+take** — the key says *whether*, the hosts say *where*:
 
 ```json
 {
   "id": "prices",
   "files": ["main.lua"],
+  "permissions": ["http.get"],
   "network": {
     "hosts": ["api.example.com", "*.githubusercontent.com"]
   }
 }
 ```
 
-- **No `network` block means no network.** Any `hafen.http()` call raises a Lua error telling you to add
-  one.
+- **The user reads them as one line** when they enable your addon: *"fetch data from the servers it lists:
+  api.example.com, \*.githubusercontent.com"*. That is the point of the key — before, a network addon
+  raised no consent dialog at all and the hosts lived in a tooltip.
+- **Hosts with no key is a load error** naming the key, so your addon does not run. **A key with no hosts**
+  is refused at the call, naming the block to add. Neither can be forgotten quietly.
 - **`hosts` is an exact, case-insensitive allowlist**, with a `*.domain` wildcard for sub-domains:
   `*.example.com` matches `a.example.com` and `a.b.example.com`, but **not** the apex `example.com`,
   which you list separately. A call to any other host is rejected **synchronously**, as a Lua error at
   call time, so wrap the call if the URL is dynamic.
-- The **AddOns panel** shows a `[net]` badge and the declared hosts in the addon's tooltip, so the user
-  sees which servers it talks to before enabling it.
+- The **AddOns panel** still shows a `[net]` badge and the declared hosts in the addon's tooltip.
 
 ## Request
 

@@ -22,9 +22,9 @@ public final class AudioOptions {
     private AudioOptions() {}
 
     /** Create the audio options subsystem handle. */
-    public static LuaValue create() {
+    public static LuaValue create(final Addon owner) {
         LuaValue audio = OptionsHandle.open("Options(audio)");
-        return OptionsHandle.close(audio, "audio", methods(audio),
+        return OptionsHandle.close(audio, "audio", methods(owner, audio),
             "the audio options answer :masterVolume() :uiVolume() :eventVolume() :ambientVolume() and"
             + " :latency(), each reading with no argument and writing with one");
     }
@@ -43,9 +43,9 @@ public final class AudioOptions {
         return v;
     }
 
-    private static LuaTable methods(final LuaValue handle) {
+    private static LuaTable methods(final Addon owner, final LuaValue handle) {
         LuaTable m = new LuaTable();
-        m.set("masterVolume", new OptionsMethod(handle, "audio:masterVolume") {
+        m.set("masterVolume", new OptionsMethod(owner, handle, "audio:masterVolume") {
             protected LuaValue onRead() {
                 ActAudio.Root a = audio();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.sys.volume());
@@ -57,7 +57,7 @@ public final class AudioOptions {
                     a.sys.volume(v);
             }
         });
-        m.set("uiVolume", new OptionsMethod(handle, "audio:uiVolume") {
+        m.set("uiVolume", new OptionsMethod(owner, handle, "audio:uiVolume") {
             protected LuaValue onRead() {
                 ActAudio.Root a = audio();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.aui.volume);
@@ -69,7 +69,7 @@ public final class AudioOptions {
                     a.aui.setvolume(v);
             }
         });
-        m.set("eventVolume", new OptionsMethod(handle, "audio:eventVolume") {
+        m.set("eventVolume", new OptionsMethod(owner, handle, "audio:eventVolume") {
             protected LuaValue onRead() {
                 ActAudio.Root a = audio();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.pos.volume);
@@ -81,7 +81,7 @@ public final class AudioOptions {
                     a.pos.setvolume(v);
             }
         });
-        m.set("ambientVolume", new OptionsMethod(handle, "audio:ambientVolume") {
+        m.set("ambientVolume", new OptionsMethod(owner, handle, "audio:ambientVolume") {
             protected LuaValue onRead() {
                 ActAudio.Root a = audio();
                 return (a == null) ? LuaValue.NIL : LuaValue.valueOf(a.amb.volume);
@@ -97,7 +97,7 @@ public final class AudioOptions {
         // latency() — the output buffer, in MILLISECONDS (what the panel displays); the engine stores it as a
         // sample count. The panel's slider bounds are the real limits: below 128 samples the line will not
         // open, and a quarter-second buffer is as laggy as the client allows.
-        m.set("latency", new OptionsMethod(handle, "audio:latency") {
+        m.set("latency", new OptionsMethod(owner, handle, "audio:latency") {
             protected LuaValue onRead() {
                 ActAudio.Root a = audio();
                 if(a == null)

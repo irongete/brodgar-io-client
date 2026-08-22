@@ -272,24 +272,24 @@ aborts a runaway one.
 A verb that **starts an action the player could have performed** is **protected**: it runs only
 if **your** addon declared that verb's own permission key in its
 [manifest](../runtime.md#the-manifest) and the user enabled it. **A key names the action, not the
-character**: the player could have tabbed to any of their logins and performed it there, so one grant
-covers every character the client holds. Such an addon is disabled the first time
-the client sees it and enabling it raises a consent dialog; one that never declared the key gets an error
-naming the verb and the key it needs, before anything is sent.
+character**: the player could have tabbed to any of their logins and performed it there, so one grant covers
+every character the client holds. Such an addon is disabled the first time the client sees it and enabling it
+raises a consent dialog; one that never declared the key gets an error naming the verb and the key it needs.
 
 A key is named `<section>.<verb>` after the section its verb lives on — `gob.click`, `item.transfer` — and a
-`<prefix>.*` entry asks for the family under that prefix in one line. There is no key that grants the tier
-as a whole.
+`<prefix>.*` entry asks for the family under that prefix in one line. There is no key that grants the tier as
+a whole. **Reaching outside the client is keyed in the same words**: `http.get`/`http.post` are catalogue keys
+like any other, and the `network` host allowlist is **the argument of the key** — the key says whether, the
+hosts say where, and the consent dialog reads them as one line.
 
 **A protected verb lives with the thing it changes**, never in a section of its own: walking is on the
-character, clicking is on the gob, moving an item is on the item — so the page you look a verb up on is
-where you meet the permission, under a heading reading **Write (protected)**, with the key beside the verb.
-The catalogue of keys, what the permission does not buy and how to write an addon that acts are in
-[permissions](../guides/permissions.md).
+character, clicking is on the gob — so the page you look a verb up on is where you meet the permission,
+under a heading reading **Write (protected)**, with the key beside the verb.
 
-Everything else observes, or writes **client-local** only — a map marker, an icon flag, a sound — and
-needs no permission, so its group heading says `(unprotected)`. Nor does replacing an action the client
-is already sending. [`hafen.http`](http.md) declares separately, a `network` host allowlist in the manifest.
+**And the line is what a verb DOES**, not only what it tells the server: two keys that reach nothing outside
+the client are protected all the same — [`map.marker`](map/markers.md#write-protected) deletes a pin no
+server can restore, [`client.settings`](client/README.md) rewrites every hotkey the user has. Everything else
+observes, or writes **client-local and undoable**, so it says `(unprotected)`.
 
 ## See also
 

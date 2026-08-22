@@ -78,7 +78,7 @@ final class HttpApi {
                 if(!cb.isnil() && !cb.isfunction())
                     throw new LuaError("hafen.http():get: callback must be a function");
                 String host = httpHost(url, "hafen.http():get");
-                requireNetwork(owner, host, "hafen.http():get");
+                requireNetwork(owner, Permission.HTTP_GET, host, "hafen.http():get");
                 return newHttpRequest(owner, "GET", url, null,
                                       new LinkedHashMap<String, String>(), LuaHttp.DEFAULT_TIMEOUT, cb);
             }
@@ -95,7 +95,7 @@ final class HttpApi {
                 if(!cb.isnil() && !cb.isfunction())
                     throw new LuaError("hafen.http():post: callback must be a function");
                 String host = httpHost(url, "hafen.http():post");
-                requireNetwork(owner, host, "hafen.http():post");
+                requireNetwork(owner, Permission.HTTP_POST, host, "hafen.http():post");
                 Map<String, String> headers = new LinkedHashMap<String, String>();
                 byte[] bytes = httpBody(body, headers, "hafen.http():post");
                 return newHttpRequest(owner, "POST", url, bytes, headers, LuaHttp.DEFAULT_TIMEOUT, cb);
@@ -105,16 +105,27 @@ final class HttpApi {
     }
 
     /**
-     * Gate a network verb (D-037): the addon must have DECLARED a {@code network} block whose {@code hosts}
-     * allowlist matches {@code host}, or this throws a guiding Lua error <b>synchronously at call</b> (same
-     * instant feedback as {@code requirePermission}). The declaration IS the allowlist — a host not listed is
-     * refused before any I/O. (The resolved IP's private/loopback check happens later, on the pool thread.)
+     * Gate a network verb: <b>the key first, then the allowlist</b> (D-037, re-keyed by 093.4 / A-098).
+     *
+     * <p>Until 093 this was a second permission mechanism with none of the first one's vocabulary — no
+     * {@link Permission} constant, no {@code <prefix>.*} group, and a consent surface of its own — so a user
+     * who had learned that a key is {@code <section>.<verb>} wrote {@code "http.*"} and the addon failed to
+     * load, while an addon that declared {@code network} got no line in the enable-time dialog at all and the
+     * user approving it read about kin and items and nothing about the network.
+     *
+     * <p>Now {@code http.get} and {@code http.post} are ordinary catalogue keys and the {@code hosts} block is
+     * <b>the argument of the key</b> — the shape {@code player.hand.use} already had for a nested one. The
+     * catalogue decides <i>whether</i>, the allowlist decides <i>where</i>, and the consent dialog says both
+     * in one line. Both refusals are synchronous at the call, before any I/O. (The resolved IP's
+     * private/loopback check happens later, on the pool thread.)
      */
-    private static void requireNetwork(Addon owner, String host, String verb) {
+    private static void requireNetwork(Addon owner, Permission perm, String host, String verb) {
+        AddonManager.requirePermission(owner, perm, verb);
         if((owner == null) || !owner.manifest.usesNetwork())
-            throw new LuaError(verb + ": this addon did not declare a \"network\" block — add"
-                + " \"network\": { \"hosts\": [\"" + ((host != null) ? host : "example.com")
-                + "\"] } to its manifest.json (D-037: network access must be declared + allowlisted).");
+            throw new LuaError(verb + ": this addon declared \"" + perm.key + "\" but no hosts to reach — the"
+                + " key says WHETHER and the allowlist says WHERE. Add \"network\": { \"hosts\": [\""
+                + ((host != null) ? host : "example.com")
+                + "\"] } to its manifest.json beside the permission.");
         if(!owner.manifest.hostAllowed(host))
             throw new LuaError(verb + ": host \"" + host + "\" is not in this addon's network allowlist"
                 + " (declared hosts: " + owner.manifest.network + "). Add it to \"network\": { \"hosts\": [...] }.");

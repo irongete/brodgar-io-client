@@ -25,16 +25,16 @@ public final class ClientOptions {
     private ClientOptions() {}
 
     /** Create the client options subsystem handle. */
-    public static LuaValue create() {
+    public static LuaValue create(final Addon owner) {
         LuaValue client = OptionsHandle.open("Options(client)");
-        return OptionsHandle.close(client, "client", methods(client),
+        return OptionsHandle.close(client, "client", methods(owner, client),
             "the client options answer one setting, :profiling(), reading with no argument and writing"
             + " with one");
     }
 
-    private static LuaTable methods(final LuaValue handle) {
+    private static LuaTable methods(final Addon owner, final LuaValue handle) {
         LuaTable m = new LuaTable();
-        m.set("profiling", new OptionsMethod(handle, "client:profiling") {
+        m.set("profiling", new OptionsMethod(owner, handle, "client:profiling") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(Prof.armed());
             }

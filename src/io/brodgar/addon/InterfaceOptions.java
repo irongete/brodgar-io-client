@@ -23,19 +23,19 @@ public final class InterfaceOptions {
     private InterfaceOptions() {}
 
     /** Create the interface options subsystem handle. */
-    public static LuaValue create() {
+    public static LuaValue create(final Addon owner) {
         LuaValue iface = OptionsHandle.open("Options(interface)");
-        return OptionsHandle.close(iface, "interface", methods(iface),
+        return OptionsHandle.close(iface, "interface", methods(owner, iface),
             "the interface options answer :scale() :posGran() and :angGran(), each reading with no argument"
             + " and writing with one");
     }
 
-    private static LuaTable methods(final LuaValue handle) {
+    private static LuaTable methods(final Addon owner, final LuaValue handle) {
         LuaTable m = new LuaTable();
 
         // scale() — the "Interface scale (requires restart)" slider. Persisted only; UI.scale reads it at
         // startup, so a write takes effect on the next client launch (matching the panel's own label).
-        m.set("scale", new OptionsMethod(handle, "interface:scale") {
+        m.set("scale", new OptionsMethod(owner, handle, "interface:scale") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(Utils.getprefd("uiscale", 1.0));
             }
@@ -49,7 +49,7 @@ public final class InterfaceOptions {
 
         // posGran() — object fine-placement position granularity: subdivisions per tile, 2..17, or 0 for
         // "infinite" (the panel's ∞, i.e. unsnapped placement). Applies live.
-        m.set("posGran", new OptionsMethod(handle, "interface:posGran") {
+        m.set("posGran", new OptionsMethod(owner, handle, "interface:posGran") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(MapView.plobpgran);
             }
@@ -62,7 +62,7 @@ public final class InterfaceOptions {
         });
 
         // angGran() — object fine-placement angle granularity, in DEGREES per step. Applies live.
-        m.set("angGran", new OptionsMethod(handle, "interface:angGran") {
+        m.set("angGran", new OptionsMethod(owner, handle, "interface:angGran") {
             protected LuaValue onRead() {
                 return LuaValue.valueOf(180.0 / MapView.plobagran);
             }

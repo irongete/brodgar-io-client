@@ -15,6 +15,12 @@ introduce, not a catalogue the client owns, so any string is accepted. One strin
 
 ## Intercepting an outbound action
 
+> **`ev:resend()` and `ev:send(t)` need the `widget.send`
+> [permission](../../guides/permissions.md)**, the same key
+> [`widget:send`](../ui/widget.md#send-a-message-protected) needs: they put a message on the same wire, and
+> `ev:send(t)` carries arguments of your choosing. `ev:preventDefault()` needs nothing — cancelling reaches
+> no one.
+
 `hafen.event():action():on(msg, fn)` fires when a widget is about to send an action `msg` to the server,
 with the arguments **fully resolved** — for a move `"click"`, that is the destination world coordinate,
 which does not exist yet at input time. This is the door for stopping or rewriting something *before* it

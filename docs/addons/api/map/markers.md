@@ -52,7 +52,7 @@ local mark = hafen.map():marker():find("Camp")
 if mark then hafen.store():get("cfg").camp = mark:position() end   -- survives the relog
 ```
 
-## Write (unprotected)
+## Write (protected)
 
 | Call | Returns | Description |
 |---|---|---|
@@ -74,9 +74,11 @@ print(pin:color().g, pin:onMap())                    -- 200  true
 A colour you read is one of the two spellings `:color` takes, so `a:color(b:color())` copies one.
 Writing either property on a system marker is refused: those are the server's own pins.
 
-> **These verbs write, and they need no permission.** Unlike a verb that reaches the server, adding,
-> removing and recolouring markers is not protected: it edits the user's own on-disk map database, which
-> is client-local and reversible by hand. Remove only what your addon added.
+> **All four need the `map.marker` [permission](../../guides/permissions.md).** They reach no server — they
+> edit the player's own on-disk map database — and they are keyed all the same, because `:remove(m)`
+> **permanently deletes a pin** that took real play to place and that nothing can put back. The consent
+> dialog says *"add, rename and delete pins on your map"*. Reading markers needs nothing. Remove only what
+> your addon added.
 
 A pin goes into [the client's one map](README.md#one-map-for-the-client), not into the character that
 dropped it: your other characters in that world see it on their own maps, and it stays there when the

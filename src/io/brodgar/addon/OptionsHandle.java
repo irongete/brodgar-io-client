@@ -76,35 +76,35 @@ public final class OptionsHandle {
         m.set("interface", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientInterface == null)
-                    owner.clientInterface = InterfaceOptions.create();
+                    owner.clientInterface = InterfaceOptions.create(owner);
                 return owner.clientInterface;
             }
         });
         m.set("video", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientVideo == null)
-                    owner.clientVideo = VideoOptions.create();
+                    owner.clientVideo = VideoOptions.create(owner);
                 return owner.clientVideo;
             }
         });
         m.set("audio", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientAudio == null)
-                    owner.clientAudio = AudioOptions.create();
+                    owner.clientAudio = AudioOptions.create(owner);
                 return owner.clientAudio;
             }
         });
         m.set("camera", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientCamera == null)
-                    owner.clientCamera = CameraOptions.create();
+                    owner.clientCamera = CameraOptions.create(owner);
                 return owner.clientCamera;
             }
         });
         m.set("client", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(owner.clientClient == null)
-                    owner.clientClient = ClientOptions.create();
+                    owner.clientClient = ClientOptions.create(owner);
                 return owner.clientClient;
             }
         });

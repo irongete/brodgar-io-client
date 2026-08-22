@@ -24,24 +24,35 @@ key. The third column is what the consent dialog tells the user, word for word.
 | `item.transfer` | [`item:transfer`](../api/ui/items.md#write-protected) | move items between containers |
 | `world.place` | [`session:world():place`](../api/world.md#write-protected) | place buildings and objects |
 | `world.select` | [`session:world():select`](../api/world.md#write-protected) | select an area of the ground |
+| `map.marker` | [`hafen.map():marker():add`](../api/map/markers.md#write-protected), `:remove`, `marker:color`, `:onMap` | add, rename and delete pins on your map |
 | `menugrid.use` | [`pag:use`](../api/menugrid.md#use-protected) | invoke entries of the action menu, on any of your characters |
 | `flowermenu.select` | [`s:flowermenu():select`](../api/flowermenu.md#write-protected) | choose from the radial menu of any of your characters |
 | `flowermenu.cancel` | [`s:flowermenu():cancel`](../api/flowermenu.md#write-protected) | dismiss the radial menu of any of your characters |
 | `craft.make` | [`session:craft():make`](../api/craft.md#write-protected) | press the Craft button, on any of your characters |
 | `actionbar.use` | [`slot:use`](../api/actionbar.md#write-protected) | press the action-bar buttons of any of your characters |
-| `actionbar.res` | [`slot:res`](../api/actionbar.md#write-protected) | change what any of your characters' action-bar buttons hold |
+| `actionbar.res` | [`slot:res`](../api/actionbar.md#write-protected) | assign one of the game's own actions to any of your characters' action-bar buttons |
 | `kin.add` | [`session:kin():add`](../api/kin.md#write-protected) | add someone to any of your characters' kin lists |
 | `kin.rename` | [`kin:rename`](../api/kin.md#write-protected) | rename someone on any of your characters' kin lists |
 | `kin.group` | [`kin:group`](../api/kin.md#write-protected) | change someone's kin group, on any of your characters |
-| `kin.endKin` | [`kin:endKin`](../api/kin.md#write-protected) | end kinship with someone, on any of your characters |
+| `kin.end` | [`kin:endKin`](../api/kin.md#write-protected) | end kinship with someone, on any of your characters |
 | `kin.forget` | [`kin:forget`](../api/kin.md#write-protected) | forget someone from any of your characters' kin lists |
 | `speed.set` | [`session:speed():set`](../api/speed.md#write-protected) | change the movement speed of any of your characters |
 | `session.close` | [`session:close`](../api/session.md#write-protected) and [`hafen.session():remove`](../api/session.md#write-protected) | log out any of your characters |
-| `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected) | send any message the client itself could send |
+| `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected), [`ev:resend`, `ev:send`](../api/event/streams.md#intercepting-an-outbound-action) | send any message the client itself could send |
 | `widget.value` | [`widget:value`](../api/ui/edit.md#driving-one-protected) | flip the client's own controls — a box it ticks, a field it types into — which the server sees |
+| `client.settings` | [every option write](../api/client/README.md) and [`binding:key(k)`](../api/client/keybindings.md) | change your client settings and hotkeys |
+| `http.get` | [`hafen.http():get`](../api/http.md) | fetch data from the servers it lists |
+| `http.post` | [`hafen.http():post`](../api/http.md) | send data to the servers it lists |
 
 That is the whole set. Nothing else in the API is protected, and **no key grants the tier as a whole**: an
 addon that declared `gob.click` can click objects and none of the other things on that list.
+
+**Three of them do not reach the server at all**, and are keyed because a key gates what a verb *does*.
+`map.marker` deletes a pin the player placed, which took real play to make and which no server can restore.
+`client.settings` rewrites the configuration and every hotkey they have, and it reaches the **client's own**
+bindings as readily as your addon's — `binding:key("Ctrl+I")` on `inv` takes the inventory key. `http.get`
+and `http.post` reach outside the client entirely. All of them are plainly actions the player could have
+performed: every one is a control they have in front of them.
 
 ## A key names the action, not the target
 
@@ -69,16 +80,17 @@ A `<prefix>.*` entry stands for every key under that prefix, so one line asks fo
 | Group | Covers |
 |---|---|
 | `item.*` | `item.use`, `item.take`, `item.drop`, `item.transfer` |
-| `kin.*` | `kin.add`, `kin.rename`, `kin.group`, `kin.endKin`, `kin.forget` |
+| `kin.*` | `kin.add`, `kin.rename`, `kin.group`, `kin.end`, `kin.forget` |
 | `world.*` | `world.place`, `world.select` |
 | `flowermenu.*` | `flowermenu.select`, `flowermenu.cancel` |
 | `actionbar.*` | `actionbar.use`, `actionbar.res` |
 | `player.*` | `player.move`, `player.hand.use` |
 | `player.hand.*` | `player.hand.use` |
 | `widget.*` | `widget.send`, `widget.value` |
+| `http.*` | `http.get`, `http.post` |
 
-Any key's prefix is a legal group, so `gob.*`, `menugrid.*`, `craft.*`, `speed.*` and `session.*` parse
-too — each a longer way of writing the single key it covers.
+Any key's prefix is a legal group, so `gob.*`, `menugrid.*`, `craft.*`, `speed.*`, `map.*`, `client.*` and
+`session.*` parse too — each a longer way of writing the single key it covers.
 
 The prefix is matched on **whole dot segments**, so a group can never reach a key that merely starts with the
 same letters — and it does reach a nested one. `player.hand.use` is the only nested key: `player.*` covers it
@@ -127,7 +139,6 @@ several of them look like writes:
 
 | Unprotected write | What it changes |
 |---|---|
-| [`hafen.map():marker():add`](../api/map/markers.md#write-unprotected) | your own map database |
 | [`s:menugrid():add`](../api/menugrid.md#write-unprotected) | an entry of your own in a character's action menu |
 | [`slot:hold(pag)`](../api/actionbar.md#hold-a-slot-unprotected) | which of your entries the client draws over a bar slot |
 | [`cat:show(on)`](../api/map/icons.md#the-iconcat-object) | which icons your minimap draws |
@@ -136,10 +147,12 @@ several of them look like writes:
 | [`hafen.ui():sheet()`](theming.md) | what the client looks like |
 | [`hafen.vr`](../api/vr/README.md) | props only you can see |
 | [`hafen.sound`](../api/sound.md) | what you hear |
-| [client options](../api/client/README.md) | the settings you could have edited by hand |
+| [option **reads**](../api/client/README.md) | nothing — every option write is `client.settings` |
 
-Subscribing, drawing and reading are not writes at all. The line is the server: if nothing leaves the
-client, there is no key to ask for.
+Subscribing, drawing and reading are not writes at all. The line is **whether the user would have to undo
+it by hand**: everything above is a display choice they can change back in a click, or something only your
+addon can see. A pin deleted from the map, a rebound hotkey and a request to another host are not, which is
+why those three are keyed.
 
 An entry you put in the action menu sits on this side of it whole: naming it, drawing it, putting it on the
 action bar and running your own function when the user clicks it never reach past your client. The bar slot is
@@ -148,14 +161,16 @@ why the key `slot:res(name)` needs is not asked for here. [`pag:use()`](../api/m
 is the exception, and it keeps `menugrid.use` whichever entry it names — pressing a button on the player's
 behalf is an act, and any addon can address any entry by name.
 
-Re-issuing reaches the server without a key, which is why the line above is *starting* an action rather
-than sending one.
-[`ev:resend()` and `ev:send(t)`](../api/event/streams.md#intercepting-an-outbound-action) re-issue a message
-the client was already about to send, in place of it, and
-[`ev:resend()` on one of the client's own controls](../api/ui/edit.md#running-the-action-yourself) re-runs
-the action the user's own gesture just triggered. Either way you choose what happens to a gesture, not
-whether there was one — that is exactly what `widget.value` above does not have, which is why it is keyed
-and these are not.
+**Re-issuing an action needs `widget.send`.**
+[`ev:resend()` and `ev:send(t)`](../api/event/streams.md#intercepting-an-outbound-action) put a message on the
+same wire `widget:send` does, and `ev:send(t)` carries **arbitrary arguments** — replacing a click's
+destination is replacing, and replacing an `itemact`'s target is a different action wearing the same name.
+Neither is once-only either: a handler that loops turns one user click into as many server messages as it
+likes. So both are behind the key whose line already reads *"send any message the client itself could send"*.
+
+[`ev:preventDefault()`](../api/event/streams.md) stays open, and so does
+[`ev:resend()` on one of the client's own controls](../api/ui/edit.md#running-the-action-yourself): cancelling
+reaches nothing, and re-running a control's own method is the client's, not the wire.
 
 ## Writing an addon that acts
 
@@ -191,12 +206,21 @@ The server is still the authority. An addon can only send what a click could hav
 what happened the same way you do — by watching the world change. There is no verb that reaches past the
 game rules, and a refused action is refused server-side with nothing to catch.
 
-## Network is a separate declaration
+## Network: one key, and the hosts are its argument
 
-Reaching outside the client is none of these keys and does not use `permissions` at all: a
-[`network` block](../api/http.md#declaring-network-access) in the manifest lists the hosts your addon may
-talk to, and that list **is** the allowlist — anything else is refused at the call. A network addon loads
-normally, and the AddOns panel shows a `[net]` badge with the exact hosts in the row's tooltip, so the user
-sees who you talk to before enabling you.
+Reaching outside the client is `http.get` and `http.post`, keys like any other — and the
+[`network` block](../api/http.md#declaring-network-access) in your manifest is **what those keys take**:
+
+```json
+"permissions": ["http.get"],
+"network": { "hosts": ["api.example.com"] }
+```
+
+The key says **whether** your addon may use the network, the hosts say **where**, and the user reads both as
+one line when they enable you: *"fetch data from the servers it lists: api.example.com"*. Declaring hosts
+without a key is a **load error** naming the key; asking for the key with no hosts is refused at the call.
+A host you did not list is refused before any request leaves.
+
+The AddOns panel still shows a `[net]` badge with the exact hosts in the row's tooltip.
 
 **Next:** [theming](theming.md) — changing what the client looks like, which needs no permission at all.

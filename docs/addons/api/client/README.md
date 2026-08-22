@@ -2,7 +2,7 @@
 
 `hafen.client():options()` opens the settings the client's **Options window** edits, plus the hotkey
 registry. Reach for it to read or change what the user has configured — one handle per Options panel.
-Everything here is unprotected.
+Reading is unprotected; **every write needs `client.settings`**.
 
 ```lua
 local opts = hafen.client():options()
@@ -91,6 +91,13 @@ opts:interface():angGran(15)                       -- 24 steps per full turn
 and writing it removes the cap. A value the renderer refuses raises a Lua error carrying the client's own
 message.
 
+> **Every write here needs the `client.settings`
+> [permission](../../guides/permissions.md).** These settings persist to the user's own preference stores —
+> indistinguishable from the same edit made in the Options window — and
+> [`binding:key(k)`](keybindings.md) reaches the **client's own** bindings, so an addon can take the
+> inventory key. The consent dialog says *"change your client settings and hotkeys"*. **Reading needs
+> nothing**, so a settings-aware addon that only adapts to what it finds declares no key at all.
+
 **A write reaches every session up.** The renderer keeps its settings per tree, so before this a graphics
 change moved the scene you were looking at and left the others at whatever they loaded — and since all of
 them persist to one file, which value survived a restart was whichever tree wrote last. `hafen.client()` is
@@ -166,7 +173,7 @@ a live instrumentation of every frame.
 ```lua
 local c = hafen.client():options():client()
 
-if not c:profiling() then c:profiling(true) end
+if not c:profiling() then c:profiling(true) end       -- the write needs client.settings
 ```
 
 A write moves an **open** panel's checkbox immediately, since the panel re-reads the switch every frame.
