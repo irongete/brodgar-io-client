@@ -95,6 +95,11 @@ same error comes back when an invalid selector is used as a [sheet key](style/ke
 `:role()` answers what a widget is, or `nil` when nothing classifies it. The names are the same vocabulary
 as the stylesheet's [site keys](style/keys.md), deliberately, so there is one set of names rather than two.
 
+**The vocabulary describes itself.** `hafen.ui():role()` is the collection of every role the client
+publishes, each answering `:name()` and `:selector()` — the same string when it can match a widget, and
+`nil` for a **site** role, which is valid in a stylesheet rule and matches no widget by construction. So
+`for _, r in ipairs(hafen.ui():role():list()) do` enumerates the table below rather than reading it.
+
 | Role | Matches |
 |---|---|
 | `window` | `Window` and every subclass, including the `Hidewnd` the client wraps the inventory in |

@@ -3,6 +3,8 @@ package io.brodgar.addon;
 import haven.BuddyWnd;
 import haven.GAttrib;
 import haven.Gob;
+import haven.SListBox;
+import haven.Widget;
 import haven.res.ui.obj.buddy.Buddy;
 
 import org.luaj.vm2.LuaError;
@@ -181,7 +183,7 @@ public final class LuaKin {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("kin", methods(owner),
             "someone on your kin list answers :id() :exists() :info() :name() :group() :color() :online() "
-            + ":gob(), and :rename() :endKin() :forget() write"));
+            + ":gob() :widget(), and :rename() :endKin() :forget() write"));
         mt.set("__name", LuaValue.valueOf("Kin"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -202,6 +204,18 @@ public final class LuaKin {
         m.set("id", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(handle(self, "id").id);
+            }
+        });
+        // widget() — 094 (A-104): THE CROSSING BACK. The widget tree and the domain objects are two address
+        // spaces, and until now they met in one place and in one direction (widget:items()). "Highlight the
+        // kin row for whoever just came online" needed the row and there was none: s:ui():match() reaches the
+        // WINDOW by role and the thing inside it is a domain object the selector language cannot address.
+        //   nil when that row is not being drawn -- the window is closed, or the kin is scrolled out of the
+        // list, which recycles the widgets of rows it is not showing.
+        m.set("widget", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Widget row = kinRow(self, "widget");
+                return (row == null) ? LuaValue.NIL : LuaWidget.of(owner, row);
             }
         });
         m.set("exists", new OneArgFunction() {
@@ -330,6 +344,34 @@ public final class LuaKin {
     }
 
     /** The LIVE buddy behind a method's {@code self}: re-resolved every call, {@code null} once it is gone. */
+    /**
+     * <b>The list row that draws this kin</b> (094, A-104), or {@code null}. Two hops, both public: the Kin
+     * window's roster is an {@link SListBox}, and {@code getcur(item)} answers the {@code ItemWidget} it is
+     * currently rendering for one item.
+     *
+     * <p><b>{@code null} for a kin that is not on screen</b>, and that is the row's own truth rather than a
+     * gap: an {@code SListBox} mints a widget for the rows it is <i>showing</i> and recycles the rest, so a
+     * kin scrolled out of view is drawn by nothing. Scroll to it, or close the window, and the answer changes
+     * — which is why the crossing hands back a live Widget rather than something held.
+     */
+    private static Widget kinRow(LuaValue self, String method) {
+        LuaKin h = handle(self, method);
+        BuddyWnd bw = CharApi.buddywnd(h.user);
+        if(bw == null)
+            return null;
+        BuddyWnd.Buddy b = bw.find(h.id);
+        if(b == null)
+            return null;
+        for(SListBox<?, ?> box : bw.children(SListBox.class)) {
+            @SuppressWarnings("unchecked")
+            SListBox<Object, ?> raw = (SListBox<Object, ?>)box;
+            Widget row = raw.getcur(b);
+            if(row != null)
+                return row;
+        }
+        return null;
+    }
+
     private static BuddyWnd.Buddy buddy(LuaValue self, String method) {
         LuaKin h = handle(self, method);
         BuddyWnd bw = CharApi.buddywnd(h.user);

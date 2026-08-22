@@ -223,6 +223,39 @@ final class UiApi {
         // The verb is on the thing now (D-044) — gob:overlay(key, spec) attaches, gob:overlay() reads back what
         // is attached (the game's own overlays included), and the state lives on the gob, so it dies with it.
         // "Every player gets a label" is a GobAdded handler plus a loop; that trade is the point.
+        // 094 (A-113): the role collection is minted ONCE per addon, like every other section-held set, so
+        // hafen.ui():role() == hafen.ui():role() and a per-frame read allocates nothing. The set is closed
+        // and static, so its Source holds nothing either.
+        final LuaValue roleColl = LuaCollection.create("hafen.ui():role()", new LuaCollection.Source() {
+            public java.util.List<LuaValue> members() {
+                return LuaRole.members(owner);
+            }
+
+            public String needle(LuaValue member) {
+                return LuaRole.name(member);
+            }
+
+            /** A role IS its name, so a string filter is a substring test over it. */
+            public boolean named() {
+                return true;
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                if(key.type() != LuaValue.TSTRING)
+                    throw new LuaError("hafen.ui():role():get(name): a role is addressed by its name, a"
+                        + " string (\"window\", \"window.title\"), got " + key.typename());
+                return LuaRole.named(owner, key.tojstring());
+            }
+
+            /** The key is the role's own name. */
+            public String keyName() {
+                return "name";
+            }
+        }, null);
         LuaTable m = new LuaTable();
         // hafen.ui.adopt(id) is GONE (029.2). It only ever existed to get a readable handle on a native widget, and
         // it charged you a hidden window for the privilege. Now every widget IS an entity: s:ui():node(id) hands
@@ -372,6 +405,16 @@ final class UiApi {
         // 100,100, no caption) and, crucially, IS NOT IN THE TREE: it is added on the next tick (armPending),
         // so a widget halfway through its own configuration cannot be drawn, hit-tested or laid out. That is a
         // property of the shape rather than a rule to remember, and it is why the builder needs no "commit" verb.
+        // role() -- 094 (A-113): THE SELECTOR LANGUAGE DESCRIBES ITSELF. A collection of every role the
+        // client publishes, each a Role answering :name() and :selector(). w:role() reported a widget's role
+        // and nothing enumerated what a role could BE: the vocabulary was a page, which is why the inspector
+        // in addons/widgetstack exists partly to answer it at runtime.
+        m.set("role", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "role");
+                return roleColl;
+            }
+        });
         m.set("window", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "ui", "window");

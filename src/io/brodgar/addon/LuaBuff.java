@@ -139,7 +139,7 @@ public final class LuaBuff {
 
         private LuaValue meta() {
             if(mt == null)
-                mt = buildMeta();
+                mt = buildMeta(owner);
             return mt;
         }
     }
@@ -160,11 +160,11 @@ public final class LuaBuff {
      * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
      * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
      */
-    private static LuaValue buildMeta() {
+    private static LuaValue buildMeta(Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("buff", methods(),
+        mt.set(LuaValue.INDEX, Retired.closedIndex("buff", methods(owner),
             "a buff is one icon on the buff bar: it answers :res() :name() :amount() :remaining() :number()"
-            + " :exists() and :info()"));
+            + " :exists() :widget() and :info()"));
         mt.set("__name", LuaValue.valueOf("Buff"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -179,7 +179,7 @@ public final class LuaBuff {
      * The method set. Every reader re-reads through the widget and answers {@code nil} when the value is not
      * (yet) published or is still {@code Loading}; {@code :exists()} always answers.
      */
-    private static LuaTable methods() {
+    private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // res() — the buff's resource name, its stable identity ("paginae/buff/poison"). Mutable: a "ch"
         // uimsg replaces it under a live buff, so this reads through the widget every call.
@@ -226,6 +226,18 @@ public final class LuaBuff {
         // exists() — is this buff still ON the bar? False once the server removes it (including while it
         // fades out), and false across a relog. The reads keep working either way, which is what makes a
         // stashed BuffRemoved payload useful.
+        // widget() — 094 (A-104): THE CROSSING BACK. The widget tree and the domain objects are two address
+        // spaces, and until now they met in one place and in one direction (widget:items()). So "draw a badge
+        // over the buff that is about to expire" needed the buff's widget and there was none: s:ui():match()
+        // reaches the WINDOW by role, and the thing inside it is a domain object the selector language cannot
+        // address. The bridge was already holding the widget -- it IS the handle -- so the crossing is one
+        // closure. nil once the thing is gone, like every other read here.
+        m.set("widget", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaBuff h = handle(self, "widget");
+                return LuaWidget.of(owner, h.wdg);
+            }
+        });
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(active(handle(self, "exists").wdg));

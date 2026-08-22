@@ -7,7 +7,9 @@ import haven.WoundWnd;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
@@ -141,8 +143,8 @@ public final class LuaWound {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("wound", methods(owner),
-            "a wound answers :id() :name() :res() :severity() :label() :parent() :depth() :exists()"
-            + " and :info()"));
+            "a wound answers :id() :name() :res() :severity() :label() :parent() :children() :depth()"
+            + " :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Wound"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -205,6 +207,18 @@ public final class LuaWound {
                 if((w == null) || (w.parentid < 0) || (wound(h.user, w.parentid) == null))
                     return LuaValue.NIL;
                 return of(owner, h.user, w.parentid);
+            }
+        });
+        // children() — 094 (A-109): the complications OF this wound, as a collection. The tree could be
+        // walked UP and not down: :parent() resolved one and there was nothing coming back, so "show me this
+        // wound and everything under it" -- the natural reading of a wound tree -- was a manual scan of the
+        // whole list per wound, comparing :parent() against a held object, which is exactly the work an API
+        // is supposed to have done. The API's two other tree-shaped types expose both directions
+        // (pag:parent()/pag:children(), widget:parent()/widget:children()); this one exposed one.
+        m.set("children", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaWound h = handle(self, "children");
+                return subtree(owner, h.user, h.id);
             }
         });
         // level() — how deep in the tree the window indents this wound; 0 at a root.
@@ -354,6 +368,52 @@ public final class LuaWound {
      * {@code w:level()} prints the shape. Addressable by wound id. There is no {@code :add}/{@code :remove}:
      * wounds heal by playing and by tending, and no client can add or take one away.
      */
+    /**
+     * <b>The wounds whose {@code parentid} is {@code parent}</b>, as a collection (094, A-109) — the
+     * complications of one wound for {@code wound:children()}, and the top of the tree for
+     * {@code s:wound():roots()} when {@code parent} is {@code -1}.
+     *
+     * <p>One pass over the very list {@link #collection} already builds, so both directions cost what the
+     * list costs and neither holds anything: {@code WoundWnd.wounds} is re-read on every call, exactly as
+     * every other read here does.
+     */
+    static LuaValue subtree(final Addon owner, final String user, final int parent) {
+        final String verb = (parent < 0) ? (CharApi.WD + ":roots()") : "wound:children()";
+        return LuaCollection.create(verb, new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<WoundWnd.Wound> ws = all(user);
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                for(int i = 0; i < ws.size(); i++) {
+                    WoundWnd.Wound w = ws.get(i);
+                    // A root is one whose parent is not on the roster -- the server's own -1, and also a
+                    // complication whose parent has healed out from under it, which the window draws flat.
+                    boolean root = (w.parentid < 0) || (wound(user, w.parentid) == null);
+                    if(root ? (parent < 0) : (w.parentid == parent))
+                        out.add(of(owner, user, w.id));
+                }
+                return out;
+            }
+
+            public String needle(LuaValue member) {
+                LuaWound h = resolve(member);
+                WoundWnd.Wound w = (h == null) ? null : wound(user, h.id);
+                if(w == null)
+                    return "";
+                String r = AddonManager.resIdent(w.res), nm = nameOf(w);
+                return ((r == null) ? "" : r) + "\n" + ((nm == null) ? "" : nm);
+            }
+
+            public boolean named() {
+                return true;
+            }
+
+            public String noGet() {
+                return "a wound is addressed by its id on the whole list, not inside a branch of it: "
+                    + CharApi.WD + ":get(id) reads one wherever it hangs, and :find(\"<name>\") searches";
+            }
+        }, null);
+    }
+
     static LuaValue collection(final Addon owner, final String user) {
         return LuaCollection.create(CharApi.WD, new LuaCollection.Source() {
             public List<LuaValue> members() {
@@ -396,6 +456,19 @@ public final class LuaWound {
             public String keyName() {
                 return "id";
             }
-        }, null);
+        }, roots(owner, user));
+    }
+
+    /** {@code s:wound():roots()} — the wounds nothing is a complication of, mirroring
+     *  {@code s:menugrid():roots()} (094, A-109). */
+    private static LuaTable roots(final Addon owner, final String user) {
+        LuaTable extra = new LuaTable();
+        extra.set("roots", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "roots");
+                return subtree(owner, user, -1);
+            }
+        });
+        return extra;
     }
 }

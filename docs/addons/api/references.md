@@ -85,6 +85,13 @@ false, once its widget is gone. What you may *write* depends on whether your add
 [owned vs borrowed](ui/widget.md#owned-vs-borrowed). A **server widget id**, `:id()`, is what makes one
 *bound*, which is what the protected [`widget:send`](ui/widget.md#send-a-message-protected) needs.
 
+**The domain objects cross back to it.** A [Buff](buff.md), a [Meter](meter.md), a
+[StudySlot](study.md) and a [Kin](kin.md) each answer `:widget()` — the widget that draws them — so
+"put a badge over the buff that is about to expire" is one hop rather than a search the selector language
+cannot express. A selector reaches the *window* by role; the thing inside it is a domain object, and
+`:widget()` is where the two address spaces meet. `w:session()` is the crossing in the other direction:
+the character whose tree a widget stands in, `nil` for one in your own layer.
+
 Its write verbs answer for **your** addon: what you wrote comes back unchanged, and what you drop
 leaves another addon's alone. [`w:replace(view)`](ui/replace.md) installs a stand-in and
 `w:replace(nil)` undoes it; [`w:rule()`](ui/style/README.md#restyle-one-widget) is your own level of the

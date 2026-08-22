@@ -180,6 +180,15 @@ final class StoreApi {
         // file (the same rule Json.writePos states for a position with no anchor) -- and since 084.5 they LOG
         // the first value they degrade, which is the half that was missing: not refusing is not a reason to
         // say nothing, and an addon that never calls flush() was otherwise never told at all.
+        // list() — the ACCOUNT-scope names this addon declared, in manifest order. The per-character half is
+        // s:store():list(), for the reason :get is split the same way: scope is the manifest's answer, and
+        // each verb is about the file it names.
+        store.set("list", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "store", "list");
+                return names(owner, true);
+            }
+        });
         //   092.8: ...and the ACCOUNT's remembered placements, which are the windows the addon built ITSELF:
         // those stand in the layer, which belongs to no character, so this is the call that names their file.
         // A session's own widget files under that character and is written by that session's flush -- one
@@ -258,6 +267,15 @@ final class StoreApi {
         // well (092.8) -- the widgets of this session's own tree. Before, only the session on screen wrote
         // them anywhere, because there was one set of them and it was the screen's. The windows the addon
         // built itself stand in the layer and are hafen.store():flush()'s: one call, one file.
+        // list() — the PER-CHARACTER names this addon declared, in manifest order (094, A-111). The account
+        // half is hafen.store():list(); the two together are the whole declaration, and neither was readable
+        // from Lua before although the refusal on a misspelt :get already printed it.
+        m.set("list", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "store", "list", SS);
+                return names(owner, false);
+            }
+        });
         m.set("flush", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Section.self(self, "store", "flush", SS);
@@ -352,6 +370,27 @@ final class StoreApi {
     }
 
     /** The declared saved-variable names, quoted, for the message a misspelt {@code :get} raises. */
+
+    /**
+     * <b>The names this addon declared in one scope</b> (094, A-111), as a plain string array — what
+     * {@code hafen.store():list()} and {@code s:store():list()} answer, each about its own half.
+     *
+     * <p>The set is closed at load and {@code nameArg}'s refusal already enumerates it: the bridge could
+     * produce the list and only an error message could see it, so an addon could not ask what it declared and
+     * a debug dump of its own saved state was written by hand and went stale with the manifest. A list of
+     * NAMES, so it stays an array rather than becoming a collection — the rule {@code pag:categories()} and
+     * {@code item:slots()} already follow.
+     */
+    private static LuaValue names(Addon a, boolean account) {
+        LuaTable t = new LuaTable();
+        int n = 0;
+        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
+            if(sv.account == account)
+                t.set(++n, LuaValue.valueOf(sv.name));
+        }
+        return t;
+    }
+
     private static String declared(Addon a) {
         StringBuilder b = new StringBuilder();
         for(Manifest.SavedVar sv : a.manifest.savedVariables)

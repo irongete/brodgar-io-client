@@ -73,6 +73,24 @@ public final class FontHandle implements AssetApi.Loaded {
     }
 
     /**
+     * <b>Which of the three shapes this handle wears</b> (094, A-112) — {@code "builtin"}, {@code "font"}
+     * for a face loaded from a file, or {@code "variant"} for one {@code :derive()} made.
+     *
+     * <p>Three shapes wore one name and nothing on a handle said which, so a helper that takes "a font" and
+     * calls {@code h:dispose()} worked for one of the three and failed as <i>attempt to call a nil value</i>
+     * for the other two. The distinction was discoverable on the WRITE side — a setter on a shared face
+     * raises naming {@code :derive()} — and not on the read side at all.
+     *
+     * <p>A variant of an asset is a {@code "variant"}: it is a face and never a file, whatever it was derived
+     * from, which is the rule the asset verbs already enforce by refusing on it.
+     */
+    synchronized String kind() {
+        if(draft)
+            return "variant";
+        return (asset != null) ? "font" : "builtin";
+    }
+
+    /**
      * A fresh <b>draft</b> of this font — what {@code h:derive()} hands back. It starts as a copy, so an omitted
      * setter inherits, and it is the only shape of this object whose properties may be written.
      */

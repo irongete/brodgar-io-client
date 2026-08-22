@@ -61,6 +61,7 @@ s:study():curiosity():get("bar")
 | `slot:cost()` | number \| nil | experience cost |
 | `slot:time()` | number \| nil | study time in seconds |
 | `slot:progress()` | number \| nil | `0..1` study progress; best-effort |
+| `slot:widget()` | [Widget](ui/widget.md) \| nil | **the widget that draws it** — the crossing from the domain back into the tree |
 | `slot:exists()` | boolean | whether it is still in a study window — always answers |
 | `slot:info()` | [`StudySlot`](types.md#studyslot-and-studysummary) \| nil | a plain-table **snapshot** |
 

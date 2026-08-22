@@ -58,6 +58,7 @@ name — bare it reads, with a value it writes and hands the handle back, so a v
 
 | Method | Returns | Description |
 |---|---|---|
+| `h:type()` | string | which of the three this handle is: `"builtin"`, `"font"` for one loaded from a file, or `"variant"` for one `:derive()` made |
 | `h:derive()` | `FontHandle` | a fresh variant of this font, ready to configure |
 | `h:family()` | string | the family name — feed it to a `$font[family, size]{…}` tag for per-run mixing |
 | `h:size()` / `h:size(px)` | number \| nil | [design px](ui/pixels.md), the same unit every coordinate takes. `nil` is the stock size of whatever surface it is applied to, and writing `nil` [undoes](conventions.md#nil-is-an-error-unless-it-means-something) the size this variant carries |
@@ -66,10 +67,10 @@ name — bare it reads, with a value it writes and hands the handle back, so a v
 | `h:italic()` / `h:italic(b)` | boolean | style, baked into the font |
 | `h:color()` / `h:color(c)` | [colour](shapes.md#colours) \| nil | text colour — **for your own drawing only**, see below |
 
-A derived handle is a **variant of a font, not a file**: like a built-in it carries no `:type` and no
-`:path`, even when the handle it came from was an asset, and `hafen.asset():remove(it)` refuses it for the
-same reason. Reaching for either verb says which of the two you are holding, rather than reading `nil` — and
-so does a mistyped property. A face is an
+A derived handle is a **variant of a font, not a file**: like a built-in it carries no `:path`, even when
+the handle it came from was an asset, and `hafen.asset():remove(it)` refuses it for the same reason.
+**`h:type()` is what says which of the three you are holding** — ask it before reaching for `:path()` or
+`:dispose()`, which a built-in and a variant have not got. A face is an
 [object, not a table](asset.md#every-asset), and it prints as what it is:
 
 ```lua

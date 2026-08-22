@@ -36,8 +36,10 @@ Any scope other than `"account"` is per-character. A name declared twice keeps t
 | Method | Description |
 |---|---|
 | `s:store():get(name)` | that character's persisted table for one declared variable |
+| `s:store():list()` | the per-character names **this addon** declared, as a string array |
 | `s:store():flush()` | write that character's changed tables to disk now |
 | `hafen.store():get(name)` | the account's persisted table for one declared variable |
+| `hafen.store():list()` | the account-scope names **this addon** declared, as a string array |
 | `hafen.store():flush()` | write the account's changed tables to disk now |
 
 **What `get` hands back is the table itself, not a copy**, so writing into it is the whole of saving: there

@@ -866,7 +866,20 @@ public final class LuaPagina {
                 if(!key.isstring())
                     throw new LuaError(CharApi.MG + ":get(key): expected a string — one with a '/' is a"
                         + " resource name, any other is a display name; got " + key.typename());
-                return find(owner, user, key.tojstring());
+                String k = key.tojstring();
+                // 094 (A-114): an entry of YOUR OWN is addressable by the short id you gave :add(id). Its
+                // real identity is "addon/<your addon's id>/<id>" and an addon cannot read its own manifest
+                // id from Lua, so storing an entry's identity and reading it back meant composing a string
+                // out of a value the API does not publish. The collection knows the owner, so it composes it.
+                //   Tried FIRST and only for a name with no '/', which a resource name always has and a
+                // display name may not: a short id that names nothing of yours falls through to the search
+                // below, so nothing that resolved before resolves differently now.
+                if(k.indexOf('/') < 0) {
+                    LuaValue mine = find(owner, user, AddonPagina.PREFIX + owner.manifest.id + "/" + k);
+                    if(!mine.isnil())
+                        return mine;
+                }
+                return find(owner, user, k);
             }
 
             public boolean creatable() {

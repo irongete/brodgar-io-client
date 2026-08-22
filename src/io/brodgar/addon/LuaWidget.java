@@ -224,7 +224,8 @@ public final class LuaWidget {
     private static LuaValue buildMeta(Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("widget", methods(owner),
-            "a widget answers :type() :role() :res() :picture() :id() :exists() :info() :parent() "
+            "a widget answers :type() :role() :res() :picture() :id() :exists() :info() :session() "
+            + ":events() :owned() :is(sel) :parent() "
             + ":children() :position() :size() :rootPos() :walk() :match() :matchAll() and :hit(); its content "
             + "is :title() :text() :tooltip() :image() :value() :source() :rows() :range() :rowHeight() "
             + ":cellSize() :columns() :items() :font() and :focused(); its frame is :draggable() :resizable() "
@@ -269,6 +270,64 @@ public final class LuaWidget {
                     return LuaValue.NIL;
                 String r = role(w);
                 return (r == null) ? LuaValue.NIL : LuaValue.valueOf(r);
+            }
+        });
+        // ---- what a widget can say about ITSELF (094, A-105/A-106/A-107/A-108) -----------------------
+        // Four facts the bridge already had and did not publish. Each is one closure, and each deletes a
+        // workaround measured in a shipped addon (audit 16-consumer-evidence.md).
+
+        // session() — W2: the Session whose TREE this widget stands in, or nil for one in the addon layer,
+        // which belongs to no character. The model's headline is that the session is the address, and a
+        // widget is looked up THROUGH a session (s:ui():find(sel)) -- but until 094 it could not say which
+        // one it came back from, so `eventstack` mapped every session's root and walked up to 64 parents per
+        // message, with a bounded memo in front of it because "a per-message walk is a per-message loop".
+        m.set("session", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Widget w = live(handle(self, "session"));
+                String user = AddonManager.userOf(w);
+                return (user == null) ? LuaValue.NIL : LuaSession.of(owner, user);
+            }
+        });
+        // events() — W3: the event keys this widget answers, as a plain array of strings (a list of names
+        // stays an array, 091's A-074 rule). widgetKeys() already computes exactly this list on every :on
+        // call, to BUILD THE REFUSAL -- so the answer existed and only the error message could see it, and
+        // the only way to ask was to subscribe and catch the failure, which leaves a live subscription
+        // behind as the side effect of a question.
+        m.set("events", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Widget w = live(handle(self, "events"));
+                LuaTable t = new LuaTable();
+                if(w != null) {
+                    List<String> keys = widgetKeys(owner, w);
+                    for(int i = 0; i < keys.size(); i++)
+                        t.set(i + 1, LuaValue.valueOf(keys.get(i)));
+                }
+                return t;
+            }
+        });
+        // owned() — W5: is this widget YOURS (built through hafen.ui()) or the client's? Provenance is the
+        // rule that decides what you may write to it -- ui/widget.md builds a section on it -- and it was a
+        // field of the snapshot alone, so `widgetstack` read it as w:info().owned. Every other fact a widget
+        // carries has a verb. The snapshot field stays.
+        m.set("owned", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Widget w = live(handle(self, "owned"));
+                return LuaValue.valueOf((w != null) && (ownedContent(owner, w) != null));
+            }
+        });
+        // is(sel) — W6: does THIS widget match that selector? The predicate the selector language never had,
+        // so `widgetstack` built candidate selectors and ran each one over the whole live tree to see which
+        // hit, reporting "what the answer cost, in tree walks" because there was no cheaper way to ask.
+        //   Named `is` and not `matches` by D3: 088 took w:match(sel) for the search-inside verb, and the two
+        // would be one letter apart with opposite meanings -- :match searches BELOW w, :is asks about w. It
+        // is not the `is` prefix D1 banned either: that rule is about boolean PROPERTIES, which are read/write
+        // pairs, and this takes an argument and can never be one.
+        m.set("is", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {            // w:is(sel) → self=arg1, sel=arg2
+                Widget w = live(handle(a.arg1(), "is"));
+                Selector sel = UiApi.selArg(Args.required(a, 2, "widget:is", "selector"),
+                                            "widget:is(selector)");
+                return LuaValue.valueOf((w != null) && sel.matches(w));
             }
         });
         // res() — 030.1: the widget's RESOURCE name ("gfx/hud/…"), the stable server-published key [title=] only

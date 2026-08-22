@@ -346,6 +346,16 @@ final class FontApi {
                 return LuaValue.valueOf(fh.family());
             }
         });
+        // type() — 094 (A-112): WHICH OF THE THREE this handle is, on every handle. The asset case already
+        // answered "font" through the shared asset verbs; the other two answered a nil call. Set before the
+        // asset verbs below, so a loaded face keeps the one the file gives it and the answer is one string
+        // from one place either way.
+        m.set("type", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                FontHandle fh = FontHandle.of(self);
+                return (fh == null) ? LuaValue.NIL : LuaValue.valueOf(fh.kind());
+            }
+        });
         m.set("size", property("size"));
         m.set("color", property("color"));
         m.set("aa", property("aa"));
@@ -358,9 +368,9 @@ final class FontApi {
                 + " frees it");
         }
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("font", m, "a font answers :derive() :family() :size()"
-            + " :color() :aa() :bold() and :italic() — :type() and :path() belong to the file a face was"
-            + " loaded from, and a built-in or a variant is not one"));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("font", m, "a font answers :type() :derive() :family()"
+            + " :size() :color() :aa() :bold() and :italic() — :path() belongs to the file a face was loaded"
+            + " from, and a built-in or a variant is not one, which is what :type() says"));
         mt.set("__name", LuaValue.valueOf("Font"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

@@ -518,6 +518,9 @@ public final class Addon {
     LuaValue fepMeta;
     LuaValue hungerMeta;
     LuaValue petalMeta;
+    /** {@link LuaRole}'s metatable, and its intern cache: a closed set of names that never dies (094). */
+    LuaValue roleMeta;
+    final java.util.Map<String, LuaValue> roles = new java.util.HashMap<String, LuaValue>();
 
     LuaValue subMeta;
 

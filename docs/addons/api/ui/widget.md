@@ -63,6 +63,10 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:res()` | string \| nil | its [resource name](selectors.md#what-carries-a-res), e.g. `"gfx/invobjs/torch"`; `nil` for most widgets |
 | `:picture()` | string \| nil | the resource name of the **picture it shows**, e.g. `"gfx/hud/wnd/lg/cbtnu"` on a window's close button; `nil` where it holds none — [a different read from `:res()`](selectors.md#the-picture-is-a-different-read) |
 | `:id()` | int \| nil | server widget id, or `nil` when the widget is not server-bound |
+| `:session()` | [Session](../session.md) \| nil | the character whose **tree** it stands in; `nil` for one in your own layer, which belongs to nobody |
+| `:events()` | array | the [event keys](#subscribing) this widget answers, which is what `:on(key, fn)` refuses anything outside |
+| `:owned()` | boolean | whether **your** addon built it — see [owned vs borrowed](#owned-vs-borrowed) |
+| `:is(sel)` | boolean | whether **this** widget matches that [selector](selectors.md) — the predicate, where [`:match(sel)`](#searching-inside-one-widget) searches below it |
 | `:children()` | array | child Widgets in tree order; empty for a leaf |
 | `:parent()` | Widget \| nil | the enclosing widget, or `nil` at the root |
 | `:position()` | `{x=, y=}` | position within the parent, in widget-local [design pixels](pixels.md) — [`:position(x, y)` moves it](native.md) |
@@ -87,7 +91,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
 | `:walk(fn)` | self | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |
 | `:hit(coord)` | Widget \| nil | the deepest widget under a `{x=, y=}` **root-coord** point within this subtree |
-| `:rootPos()` | `{x=, y=}` \| nil | its top-left in **root coords**, the same [unit](pixels.md) as `:size()`; a place keeps `x`/`y` where a size reads `w`/`h`, and the two together are the rectangle that outlines it |
+| `:rootPos()` | `{x=, y=}` \| nil | its top-left in **root coords**; with `:size()` that is the rectangle outlining it |
 | `:replacement()` | Widget \| nil | the view **you** put in place of this widget's window, or `nil` — see [replace](replace.md) |
 | `:chrome()` | table \| nil | on a **window**, where its decoration drew its [ornaments](style/chrome.md#ornaments) — `{caption = {x=, y=}, plate = {x=, y=, w=, h=, styled=}, sizer = {x=, y=}, close = {x=, y=, w=, h=}}`, each present only once it has been drawn; `nil` on anything else |
 | `:style()` | table \| nil | the style this widget [resolves to](style/README.md#the-cascade), or `nil` when nothing names it |

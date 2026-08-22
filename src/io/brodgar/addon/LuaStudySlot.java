@@ -67,11 +67,14 @@ public final class LuaStudySlot {
 
     /** One addon's StudySlot cache and metatable (its {@link Addon#studySlots}), keyed by widget identity. */
     static final class Cache {
+        /** The addon these handles belong to — what mints the Widget :widget() crosses to (094). */
+        private final Addon owner;
         private final Map<GItem, Ref> live = new IdentityHashMap<GItem, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
         Cache(Addon owner) {
+            this.owner = owner;
         }
 
         synchronized LuaValue of(GItem it) {
@@ -101,7 +104,7 @@ public final class LuaStudySlot {
 
         private LuaValue meta() {
             if(mt == null)
-                mt = buildMeta();
+                mt = buildMeta(owner);
             return mt;
         }
     }
@@ -117,11 +120,11 @@ public final class LuaStudySlot {
 
     // ---- the StudySlot metatable --------------------------------------------------------------------
 
-    private static LuaValue buildMeta() {
+    private static LuaValue buildMeta(Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("studyslot", methods(),
+        mt.set(LuaValue.INDEX, Retired.closedIndex("studyslot", methods(owner),
             "one curiosity in the study window answers :res() :name() :lp() :attention() :cost() :time() "
-            + ":progress() :exists() and :info()"));
+            + ":progress() :exists() :widget() and :info()"));
         mt.set("__name", LuaValue.valueOf("StudySlot"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -132,7 +135,7 @@ public final class LuaStudySlot {
         return mt;
     }
 
-    private static LuaTable methods() {
+    private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // res() — the curiosity's resource name, its stable identity, or nil while it resolves.
         m.set("res", new OneArgFunction() {
@@ -161,6 +164,18 @@ public final class LuaStudySlot {
             }
         });
         // exists() — is this curiosity still in the study window?
+        // widget() — 094 (A-104): THE CROSSING BACK. The widget tree and the domain objects are two address
+        // spaces, and until now they met in one place and in one direction (widget:items()). So "draw a badge
+        // over the buff that is about to expire" needed the buff's widget and there was none: s:ui():match()
+        // reaches the WINDOW by role, and the thing inside it is a domain object the selector language cannot
+        // address. The bridge was already holding the widget -- it IS the handle -- so the crossing is one
+        // closure. nil once the thing is gone, like every other read here.
+        m.set("widget", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaStudySlot h = handle(self, "widget");
+                return LuaWidget.of(owner, h.wdg);
+            }
+        });
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(inStudy(handle(self, "exists").wdg));

@@ -24,7 +24,7 @@ holds has an empty catalogue rather than raising.
 
 | Call | Returns |
 |---|---|
-| `s:menugrid():get(key)` | the one `Pagina` that `key` names, else `nil` |
+| `s:menugrid():get(key)` | the one `Pagina` that `key` names, else `nil` — a resource name, a display name, or **the short id you gave `:add(id)`** for one of your own |
 | `s:menugrid():list(filter)` | the whole **catalogue** — an array of `Pagina` objects in the grid's own sort order |
 | `s:menugrid():count(filter)` | how many match |
 | `s:menugrid():find(filter)` | the first that matches, or `nil` |

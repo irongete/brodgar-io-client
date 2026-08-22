@@ -82,6 +82,7 @@ literal into your Lua source.
 | `meter:res()` | string \| nil | the background resource name — the identity |
 | `meter:index()` | number \| nil | its 1-based position in its own HUD; `nil` once the meter is gone |
 | `meter:segment()` | collection | the bar, as [Segment](#a-segment) objects in draw order — never `nil`, may be empty |
+| `meter:widget()` | [Widget](ui/widget.md) \| nil | **the widget that draws it** — the crossing from the domain back into the tree |
 | `meter:exists()` | boolean | whether this meter is still in its HUD slot — always answers |
 | `meter:info()` | [`Meter`](types.md#meter) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
 

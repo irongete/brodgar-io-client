@@ -1,0 +1,9 @@
+{
+  "name": "094 — The widget and the thing",
+  "id": "094-the-widget-and-the-thing.all",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for the whole of feature 094: the crossing back from the domain objects into the widget tree (:widget() on Buff, Meter, StudySlot and Kin), the four facts a widget could not say about itself (:session(), :events(), :owned(), :is(sel)), the wound tree walking downward, gob:party(), store():list(), h:type(), hafen.ui():role() and the menugrid's short id.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

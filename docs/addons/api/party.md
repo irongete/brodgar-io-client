@@ -61,6 +61,9 @@ a party member has nothing to match it against — see below.
 That is also why `:get` takes a gob id and a string filter is refused: a name is the one thing the roster
 cannot match on, and matching nothing quietly would be worse than saying so.
 
+[`gob:party()`](gob.md#read) is the way back: the member standing at a gob, in the party of the character
+that read it, or `nil`. The kin pair went both ways and this one did not.
+
 `member:gob()` is never `nil`, exactly like [`s:world():gob():get(id)`](gob.md) — a member whose object
 that character's world does not currently hold answers a Gob whose `:exists()` is `false`. So the way to
 ask whether that character can see someone is `member:gob():exists()`, not a `nil` test.

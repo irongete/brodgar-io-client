@@ -158,7 +158,7 @@ public final class LuaMeter {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("meter", methods(owner),
             "a meter is one bar in the HUD meter slot: it answers :res() :index() :segment()"
-            + " :exists() and :info()"));
+            + " :exists() :widget() and :info()"));
         mt.set("__name", LuaValue.valueOf("Meter"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -229,6 +229,18 @@ public final class LuaMeter {
         });
         // exists() — is this meter still in the HUD meter slot? False once it is destroyed, and false across
         // a relog. The reads keep working either way, which is what makes a stashed MeterRemoved payload useful.
+        // widget() — 094 (A-104): THE CROSSING BACK. The widget tree and the domain objects are two address
+        // spaces, and until now they met in one place and in one direction (widget:items()). So "draw a badge
+        // over the buff that is about to expire" needed the buff's widget and there was none: s:ui():match()
+        // reaches the WINDOW by role, and the thing inside it is a domain object the selector language cannot
+        // address. The bridge was already holding the widget -- it IS the handle -- so the crossing is one
+        // closure. nil once the thing is gone, like every other read here.
+        m.set("widget", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaMeter h = handle(self, "widget");
+                return LuaWidget.of(owner, h.wdg);
+            }
+        });
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return LuaValue.valueOf(exists(handle(self, "exists").wdg));

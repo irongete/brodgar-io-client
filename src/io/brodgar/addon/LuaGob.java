@@ -182,7 +182,7 @@ public final class LuaGob {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("gob", methods(owner),
             "a gob is one thing in the world: it answers :id() :exists() :sessions() :info() :position() "
-            + ":facing() :name() :health() :moving() :speed() :speech() :icon() :overlay() :scale() "
+            + ":facing() :name() :health() :moving() :speed() :speech() :icon() :overlay() :scale() :party() "
             + ":player() :kin() and :distance()"));
         mt.set("__name", LuaValue.valueOf("Gob"));
         mt.set("__tostring", new OneArgFunction() {
@@ -424,6 +424,22 @@ public final class LuaGob {
                     return LuaValue.NIL;
                 Integer bid = LuaKin.buddyId(AddonManager.getgob(user, h.id));
                 return (bid == null) ? LuaValue.NIL : LuaKin.of(owner, user, bid.intValue());
+            }
+        });
+        // party() — 094 (A-110): the PartyMember this gob is, in the session that read it, or nil. The
+        // missing inverse: member:gob() crossed to the world and nothing came back, while the kin pair went
+        // both ways (gob:kin() and kin:gob()) -- so a reader who had learned one guessed gob:party() and got
+        // a silent nil from the methodIndex, then had to find s:party():get(gob:id()) instead.
+        //   A Gob is per object and a party is per session, so the answer is read in the session this handle
+        // resolves through, which is the same one gob:kin() answers in.
+        m.set("party", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaGob h = handle(self, "party");
+                String user = AddonManager.gobUser(h.id);
+                if(user == null)
+                    return LuaValue.NIL;
+                return (LuaPartyMember.member(user, h.id) == null)
+                    ? LuaValue.NIL : LuaPartyMember.of(owner, user, h.id);
             }
         });
         // distance([other]) — world distance to another Gob; `other` defaults to the character measuring.

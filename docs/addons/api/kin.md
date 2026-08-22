@@ -59,6 +59,7 @@ The first three are called on the collection, the rest on a `Kin`.
 | `kin:group()` | number \| nil | the kin's group, `0..254` |
 | `kin:color()` | [colour](shapes.md#colours) \| nil | the group's palette colour; `nil` for a group of 8 or more |
 | `kin:online()` | boolean \| nil | whether the kin is online |
+| `kin:widget()` | [Widget](ui/widget.md) \| nil | **the list row that draws them**, or `nil` when the Kin window is closed or that row is scrolled out of view |
 | `kin:exists()` | boolean | whether this id is still on that character's roster |
 | `kin:gob()` | [`Gob`](gob.md) \| nil | the kin's gob in the world, their body if it is loaded |
 | `kin:info()` | [`KinEntry`](types.md#kinentry) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |

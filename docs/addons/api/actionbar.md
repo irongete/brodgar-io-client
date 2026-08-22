@@ -123,6 +123,12 @@ hafen.timer():after(0.5, function()
 end)
 ```
 
+> **A slot has no `:widget()`.** The other domain objects cross back into the tree — a
+> [Buff](buff.md), a [Meter](meter.md) — because the client draws each with a widget of its own. The bar
+> does not: it is **one** widget that paints all 144 slots itself, so there is nothing per-slot to hand
+> back and a `slot:widget()` would answer the same bar for every index. Reach the bar by role instead,
+> `s:ui():match("hud.belt")`, and place against `w:rootPos()`.
+
 ## Hold a slot (unprotected)
 
 **One of your own [menu entries](menugrid.md#write-unprotected) sits on the bar too**, drawing its icon in

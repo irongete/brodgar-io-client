@@ -86,6 +86,7 @@ answer. None of them throws.
 | `gob:icon()` | string \| nil | minimap icon category name |
 | `gob:player()` | bool \| nil | whether it is a player body |
 | `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if the reading character has them on its roster |
+| `gob:party()` | [`PartyMember`](party.md) \| nil | the party member standing here, in the party of the character that read it |
 | `gob:distance(other)` | number \| nil | world distance to another Gob; defaults to the reading character |
 | `gob:info()` | [`GobInfo`](types.md#gobinfo) \| nil | everything above as one plain snapshot table |
 

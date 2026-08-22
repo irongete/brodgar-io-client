@@ -54,6 +54,7 @@ reads exactly as it looks, and what it hands back on a hit is the wound itself.
 | `w:severity()` | number \| nil | the magnitude beside it, as a number |
 | `w:label()` | string \| nil | that magnitude spelled the way the client paints it |
 | `w:parent()` | `Wound` \| nil | the wound this one complicates; `nil` at a root |
+| `w:children()` | collection | the wounds that complicate **this** one; empty at a leaf |
 | `w:depth()` | number \| nil | how deep the tree draws it; `0` at a root |
 | `w:exists()` | boolean | whether it is still on the character — always answers |
 | `w:info()` | [`Wound`](types.md#wound) \| nil | a plain-table **snapshot** |
@@ -67,6 +68,13 @@ A wound is interned on its session and its id, so `s:wound():list()[1] == s:woun
 `seen[w] = true` work, while the same id on two characters is two objects. The client
 rewrites a wound **in place** as it worsens, so a stashed handle is the right way to watch one; healing
 takes it off the list, which is what `:exists()` reads.
+
+**The tree walks both ways.** `s:wound():roots()` is the wounds nothing complicates — the top of the list
+as the window draws it — and `w:children()` is what hangs under one, so "this wound and everything under
+it" is a recursion rather than a scan of the whole list per wound. A complication whose parent has healed
+out from under it is a root, which is how the window draws it too. Both are
+[collections](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many); a wound is still
+addressed by id on the whole list, `s:wound():get(id)`, wherever it hangs.
 
 `w:parent()` is the tree link resolved for you — the wound above this one, rather than an id you have to
 look up. It is `nil` at a root, which is where `:level()` is `0`.
