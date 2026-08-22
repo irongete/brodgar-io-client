@@ -77,7 +77,8 @@ when the hotkey is emptied, while the maneuver half goes `nil` and `:exists()` g
 
 | Method | Returns | Description |
 |---|---|---|
-| `card:index()` | number | the raw 0-based deck index — always answers |
+| `card:index()` | number | its **1-based** position in `:deck()` — always answers |
+| `card:wire()` | number | the raw 0-based deck index the write path takes |
 | `card:key()` | string | the hotkey label the window paints — always answers |
 | `card:maneuver()` | `Maneuver` \| nil | the maneuver dealt here |
 | `card:res()` | string \| nil | that maneuver's resource name |

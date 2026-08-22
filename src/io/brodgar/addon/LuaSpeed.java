@@ -180,7 +180,7 @@ public final class LuaSpeed {
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("speed", methods(),
-            "one movement speed answers :index() :name() :available() :exists() and :info(); picking one "
+            "one movement speed answers :index() :wire() :name() :available() :exists() and :info(); picking one "
             + "is s:speed():set(x)"));
         mt.set("__name", LuaValue.valueOf("Speed"));
         mt.set("__tostring", new OneArgFunction() {
@@ -199,11 +199,17 @@ public final class LuaSpeed {
      */
     private static LuaTable methods() {
         LuaTable m = new LuaTable();
-        // index() — the wire number this Speed addresses (0=crawl 1=walk 2=run 3=sprint), which is what the
-        // selector's own message carries. Always answers, selector or no selector.
+        // index() — the 1-based position in s:speed():list() (1=crawl 2=walk 3=run 4=sprint), the number
+        // :get(n) and :set(n) take, so :list()[n] == :get(n) holds (090, A-071). Always answers.
         m.set("index", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "index").index);
+                return LuaValue.valueOf(handle(self, "index").index + 1);
+            }
+        });
+        // wire() — the raw number the selector's own message carries (0=crawl 1=walk 2=run 3=sprint).
+        m.set("wire", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(handle(self, "wire").index);
             }
         });
         // name() — the display name, from the widget's own resource tooltips (Speedget.tips). Those are
@@ -309,7 +315,8 @@ public final class LuaSpeed {
     /** A Speed snapshot — the documented {@code Speed} table shape: {@code index name available current}. */
     private static LuaValue snapshot(String user, int n) {
         LuaTable t = new LuaTable();
-        t.set("index", LuaValue.valueOf(n));
+        t.set("index", LuaValue.valueOf(n + 1));   // 090: the same number sp:index() answers
+        t.set("wire", LuaValue.valueOf(n));        //      and the raw one sp:wire() does
         String name = speedName(n);
         if(name != null)
             t.set("name", LuaValue.valueOf(name));
@@ -454,14 +461,14 @@ public final class LuaSpeed {
             public LuaValue getMember(LuaValue key) {
                 Integer n;
                 if(key.isnumber()) {                // BEFORE isstring(): in LuaJ a number IS a string
-                    int i = key.toint();
-                    n = ((i < 0) || (i >= SPEEDS)) ? null : Integer.valueOf(i);
+                    int i = key.toint();            // 090: the 1-based position sp:index() answers
+                    n = ((i < 1) || (i > SPEEDS)) ? null : Integer.valueOf(i - 1);
                 } else if(key.isstring()) {
                     n = byName(key.tojstring());
                 } else {
-                    throw new LuaError(CharApi.SP + ":get(key): the key is an index 0..3 (0=crawl 1=walk"
-                        + " 2=run 3=sprint) or a whole display name (\"Run\", case-insensitive), got "
-                        + key.typename());
+                    throw new LuaError(CharApi.SP + ":get(key): the key is the 1-based position sp:index()"
+                        + " answers, 1..4 (1=crawl 2=walk 3=run 4=sprint), or a whole display name"
+                        + " (\"Run\", case-insensitive), got " + key.typename());
                 }
                 if((n == null) || (speedget(user) == null))
                     return LuaValue.NIL;            // no selector: there is nothing to address yet
@@ -481,20 +488,20 @@ public final class LuaSpeed {
         if(h != null)
             return h.index;
         if(x.isnumber()) {                          // BEFORE isstring(): in LuaJ a number IS a string
-            int n = x.toint();
-            if((n < 0) || (n >= SPEEDS))
-                throw new LuaError(CharApi.SP + ":set(speed): the index must be 0..3 (0=crawl 1=walk 2=run"
-                    + " 3=sprint), got " + n);
-            return n;
+            int n = x.toint();                      // 090: the 1-based position sp:index() answers
+            if((n < 1) || (n > SPEEDS))
+                throw new LuaError(CharApi.SP + ":set(speed): the index is the 1-based position sp:index()"
+                    + " answers, 1..4 (1=crawl 2=walk 3=run 4=sprint), got " + n);
+            return n - 1;
         }
         if(x.isstring()) {
             Integer n = byName(x.tojstring());
             if(n == null)
                 throw new LuaError(CharApi.SP + ":set(speed): no speed is called \"" + x.tojstring()
-                    + "\" — the names are " + names() + ", and an index 0..3 works too");
+                    + "\" — the names are " + names() + ", and the 1..4 position works too");
             return n.intValue();
         }
         throw new LuaError(CharApi.SP + ":set(speed): expected a Speed object (" + CharApi.SP + ":get(key)),"
-            + " an index 0..3 or a display name, got " + x.typename());
+            + " the 1..4 position or a display name, got " + x.typename());
     }
 }

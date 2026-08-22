@@ -1,0 +1,10 @@
+{
+  "name": "090 — One base for an index",
+  "id": "090-one-base-for-an-index.all",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for feature 090: :index() is the 1-based position in :list() everywhere, :wire() carries the raw number the server's own message uses, and :get(n) takes the number :index() answers — so s:actionbar():list()[n] == s:actionbar():get(n) holds at both ends and in the middle. The call an addon written before this makes, :get(0), must raise and name the change rather than answer the wrong slot.",
+  "api_version": 1,
+  "permissions": ["speed.set"],
+  "files": ["main.lua"]
+}

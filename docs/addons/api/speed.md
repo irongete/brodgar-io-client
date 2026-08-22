@@ -46,8 +46,9 @@ has an empty list and a `nil` `:current()` rather than raising.
 | `s:speed():get(key)` | Speed \| nil | any of the four by key, selectable or not, else `nil` |
 | `s:speed():current()` | Speed \| nil | the speed that character is on |
 
-A **key** is the index `0..3` — `0` crawl, `1` walk, `2` run, `3` sprint — or the whole display name,
-case-insensitively, so `:get(2)` and `:get("run")` address the same speed. A key of the right shape that
+A **key** is the **1-based** position `sp:index()` answers — `1` crawl, `2` walk, `3` run, `4` sprint
+— or the whole display name, case-insensitively, so `:get(3)` and `:get("run")` address the same
+speed. A key of the right shape that
 names no speed is a plain `nil`; a key of another type raises, because there is no reading of it that could
 ever hit, and an explicit `nil` raises as it does
 [everywhere else](conventions.md#nil-is-an-error-unless-it-means-something). A string
@@ -69,7 +70,8 @@ server locking and unlocking it.
 
 | Method | Returns | Description |
 |---|---|---|
-| `sp:index()` | number | the wire number, `0..3` — its identity, and always answers |
+| `sp:index()` | number | its **1-based** position, `1..4`, the number `:get` and `:set` take |
+| `sp:wire()` | number | the raw number the selector's own message carries, `0..3` |
 | `sp:name()` | string | the display name, such as `"Run"`; it is known before the selector is |
 | `sp:available()` | boolean | whether it can be picked right now, which is what `:list()` filters on |
 | `sp:exists()` | boolean | whether that character's speed selector is up at all |
@@ -93,7 +95,7 @@ end
 |---|---|---|
 | `s:speed():set(speed)` | `speed.set` | pick a speed; returns the collection, so writes chain |
 
-`speed` is a `Speed` object, an index `0..3` or a display name — whatever `:get` takes, plus the object
+`speed` is a `Speed` object, the `1..4` position or a display name — whatever `:get` takes, plus the object
 itself. The call drives the client's own selector and sends exactly what clicking that icon sends, so the
 server has the last word on whether the speed is allowed.
 
@@ -109,7 +111,7 @@ It raises for each of these, before anything is sent:
 
 - an addon that did not declare `speed.set` in its [manifest](../guides/permissions.md), naming the key
 - a speed that is not selectable, listing the ones that are
-- an index outside `0..3`, or a name no speed has
+- a position outside `1..4`, or a name no speed has
 - a `nil`, or a value that is neither a `Speed`, a number nor a string
 - no speed selector on that character, which is any moment before it has streamed in
 

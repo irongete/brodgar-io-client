@@ -194,7 +194,7 @@ public final class LuaSlot {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("slot", methods(owner),
-            "one action-bar slot answers :index() :empty() :res() :hold() :name() :cooldown() :info(), "
+            "one action-bar slot answers :index() :wire() :empty() :res() :hold() :name() :cooldown() :info(), "
             + "and :use() presses it"));
         mt.set("__name", LuaValue.valueOf("Slot"));
         mt.set("__tostring", new OneArgFunction() {
@@ -213,11 +213,21 @@ public final class LuaSlot {
      */
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
-        // index() — the raw 0-based game index this Slot addresses. Answers from the handle alone, so it is
-        // the reliable way back from an array POSITION (s:actionbar():list()[i], 1-based) to the game INDEX.
+        // index() — the 1-based position in s:actionbar():list(), which is the number :get(n) takes, so
+        // s:actionbar():list()[n] == s:actionbar():get(n) holds (090, A-071/A-072). It was the raw 0-based
+        // game index, and the array beside it was 1-based, which is the one off-by-one this API could still
+        // remove for free: get(1) was a real slot, just the wrong one, and nothing raised.
         m.set("index", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "index").index);
+                return LuaValue.valueOf(handle(self, "index").index + 1);
+            }
+        });
+        // wire() — the raw 0-based game index, the number the server's own message carries. The server owns
+        // the bar and 0 is its number, which is why the raw one is still reachable; it is just no longer the
+        // thing a verb named `index` answers while :list() counts from one.
+        m.set("wire", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(handle(self, "wire").index);
             }
         });
         // empty() — has this slot no content? Also true before the HUD exists (nothing is on the bar yet).
@@ -415,15 +425,23 @@ public final class LuaSlot {
 
             public LuaValue getMember(LuaValue key) {
                 if(!key.isnumber())             // BEFORE isstring(): in LuaJ a number IS a string
-                    throw new LuaError(CharApi.AB + ":get(n): the key is the raw 0-based game index"
-                        + " (0.." + (SLOTS - 1) + "), got " + key.typename());
+                    throw new LuaError(CharApi.AB + ":get(n): the key is the 1-based position"
+                        + " slot:index() answers (1.." + SLOTS + "), got " + key.typename());
                 int n = key.toint();
                 // Bounded, unlike s:kin():get(id): the belt is a fixed array, so an out-of-range index is
                 // a bug in the addon (a typo'd loop), never a slot that merely does not exist yet.
-                if((n < 0) || (n >= SLOTS))
-                    throw new LuaError(CharApi.AB + ":get(n): slot index out of range (0.."
-                        + (SLOTS - 1) + "), got " + n);
-                return of(owner, user, n);
+                //
+                // 090: the key moved from the raw 0-based game index to the 1-based list position, so
+                // s:actionbar():list()[n] == s:actionbar():get(n) holds. get(0) is the commonest thing an
+                // addon written before that says, so the refusal names the change rather than the range.
+                if(n == 0)
+                    throw new LuaError(CharApi.AB + ":get(n): the key is the 1-based position"
+                        + " slot:index() answers, so :list()[n] == :get(n) \u2014 :get(1) is the first slot."
+                        + " The raw 0-based game index the server carries is slot:wire()");
+                if((n < 1) || (n > SLOTS))
+                    throw new LuaError(CharApi.AB + ":get(n): slot position out of range (1.."
+                        + SLOTS + "), got " + n);
+                return of(owner, user, n - 1);
             }
 
             /** The belt is a fixed array: every index in range is a slot, holding something or not. */
@@ -431,7 +449,7 @@ public final class LuaSlot {
                 return LuaCollection.Missing.MINT;
             }
 
-            /** The key is the raw 0-based game index. */
+            /** The key is the 1-based position {@code slot:index()} answers. */
             public String keyName() {
                 return "n";
             }

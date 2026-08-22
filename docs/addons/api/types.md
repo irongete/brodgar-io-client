@@ -210,9 +210,10 @@ live [`Kin` objects](kin.md), not this table.
 From [`sp:info()`](speed.md#the-speed-object), the snapshot escape hatch for one movement speed.
 `s:speed()` hands out live [`Speed` objects](speed.md#the-speed-object), not this table.
 
-`{ index = number, name = string, available = bool, current = bool }` — `index` is the wire number `0..3`
+`{ index = number, wire = number, name = string, available = bool, current = bool }` — `index` is the
+1-based position `1..4` and `wire` the raw number `0..3`
 and the speed's identity, `available` says whether it can be picked right now, and `current` whether it is
-the one your character is on. The live reads are `sp:index()`, `:name()` and `:available()` — a boolean here, unlike `man:dealable()`; whether you are
+the one your character is on. The live reads are `sp:index()`, `:wire()`, `:name()` and `:available()` — a boolean here, unlike `man:dealable()`; whether you are
 on it is `s:speed():current() == sp`, since the objects are interned.
 
 ## Quest and Condition
@@ -259,7 +260,7 @@ you the live objects.
 
 - **Maneuver** — `{ res?, name?, avail = number, used = number }`, `avail` dealable against `used`
   dealt. The live reads are `man:res()`, `:name()`, `:dealable()` and `:used()`.
-- **DeckCard** — `{ slot = number, key = string, res?, name?, used? }`, `slot` the raw 0-based deck index
+- **DeckCard** — `{ slot = number, key = string, res?, name?, used? }`, `slot` the raw 0-based deck index, which `card:wire()` reads — `card:index()` is the 1-based position
   and `key` the hotkey label such as `"1"` or `"⇧1"`. The maneuver half is absent for an empty slot,
   where the place itself still reads.
 - **FightSummary** — `{ maxact, used, nact, nsave, usesave }`, in the window's own spelling; the live

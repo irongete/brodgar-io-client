@@ -1332,7 +1332,7 @@ final class CharApi {
                 Section.self(a.arg1(), "fight", "deck", FT);
                 if(Args.passed(a, 2))
                     throw new LuaError(FT + ":deck() takes no arguments — it is a layout, ordered by hotkey,"
-                        + " and every card carries its own :slot() and :key()");
+                        + " and every card carries its own :index() and :key()");
                 return LuaDeckCard.deck(owner, user);
             }
         });

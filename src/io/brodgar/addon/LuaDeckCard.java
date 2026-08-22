@@ -139,7 +139,7 @@ public final class LuaDeckCard {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("deckcard", methods(owner),
-            "a fight deck card answers :index() :key() :maneuver() :res() :name() :used() :exists() and "
+            "a fight deck card answers :index() :wire() :key() :maneuver() :res() :name() :used() :exists() and "
             + ":info()"));
         mt.set("__name", LuaValue.valueOf("DeckCard"));
         mt.set("__tostring", new OneArgFunction() {
@@ -153,10 +153,16 @@ public final class LuaDeckCard {
 
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
-        // slot() — the raw 0-based deck index, the same one the write path takes.
+        // index() — the 1-based position in s:fight():deck(), so deck()[n]:index() == n (090, A-071).
         m.set("index", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "slot").slot);
+                return LuaValue.valueOf(handle(self, "index").slot + 1);
+            }
+        });
+        // wire() — the raw 0-based deck index, the same one the write path takes.
+        m.set("wire", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                return LuaValue.valueOf(handle(self, "wire").slot);
             }
         });
         // key() — the hotkey label the window paints under this slot.

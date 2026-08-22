@@ -11,7 +11,7 @@ for _, slot in ipairs(s:actionbar():list()) do           -- every slot, occupied
     hafen.log():write(slot:index() .. ": " .. (slot:name() or slot:res()))
   end
 end
-s:actionbar():get(0):use()                               -- protected: activate the first slot
+s:actionbar():get(1):use()                               -- protected: activate the first slot
 ```
 
 ## Whose bar it is
@@ -21,7 +21,7 @@ two different buttons. So the read says which character it is about, and it answ
 looking at exactly as it answers for the drawn one:
 
 ```lua
-hafen.session():current():actionbar():get(0):name()   -- the first slot of the character on screen
+hafen.session():current():actionbar():get(1):name()   -- the first slot of the character on screen
 hafen.session():get("alt"):actionbar():count()        -- that character's bar, while you watch someone else
 ```
 
@@ -30,16 +30,17 @@ holds reads as 144 empty slots rather than raising.
 
 | Call | Returns |
 |---|---|
-| `s:actionbar():get(n)` | the `Slot` at the raw 0-based game index `n`, `0..143` |
+| `s:actionbar():get(n)` | the `Slot` at position `n`, `1..144` — the same number `slot:index()` answers |
 | `s:actionbar():list(filter)` | every slot — a 1-based array of `Slot` objects, in game-index order |
 | `s:actionbar():count(filter)` | how many match |
 | `s:actionbar():find(filter)` | the first that matches, or `nil` |
 
-**The index is 0-based, and an array position is not an index.** `:get(n)` takes the raw game index —
-the same number `use` takes and the same one the server uses — and that is the one way to address a
-slot. `:list()` is the iteration view, and a Lua array starts at 1, so
-`s:actionbar():list()[1] == s:actionbar():get(0)`. Never do the arithmetic yourself: a Slot
-knows its own index, and `slot:index()` is the way back.
+**One number addresses a slot, and it is the position.** `:get(n)` takes the same number
+`slot:index()` answers, so **`s:actionbar():list()[n] == s:actionbar():get(n)`** — the invariant a
+reader assumes on first contact. `:get(0)` raises, naming the change.
+
+The server's own message carries a **raw 0-based** number, and that is `slot:wire()`. You need it only
+to compare against something the server said; every verb here takes the position.
 
 The array is always 144 entries and never sparse. An empty slot is a `Slot` object like any other; it
 just answers `:empty()`. A string [filter](conventions.md#the-filter-argument) matches a slot's
@@ -49,7 +50,7 @@ bug rather than a slot that does not exist yet. There is no `:add` and no `:remo
 set of slots, and what changes is a slot's *content*.
 
 Slot objects are **interned per addon** on the character *and* the index, so
-`s:actionbar():get(0) == s:actionbar():get(0)` and `seen[slot] = true` work as a table key — while the same
+`s:actionbar():get(1) == s:actionbar():get(1)` and `seen[slot] = true` work as a table key — while the same
 number reached through two sessions gives you two objects, because it names two buttons. A `Slot` carries the
 character and the index and re-reads the bar on every call, so a stashed one tracks the slot being set,
 cleared or dragged, and goes `:empty()` the moment it is cleared — see
@@ -62,7 +63,8 @@ At login the occupied slots stream in a beat later, as a burst of `ActionbarChan
 
 | Method | Returns | Description |
 |---|---|---|
-| `slot:index()` | number | the raw 0-based game index this Slot addresses — always answers |
+| `slot:index()` | number | its **1-based** position, the number `:get(n)` takes — always answers |
+| `slot:wire()` | number | the raw 0-based game index the server's own message carries |
 | `slot:empty()` | boolean | whether the slot has no content; also `true` before the hotbar exists |
 | `slot:res()` | string \| nil | the resource name of the slot's action or item — the identity of the entry, on a [held](#hold-a-slot-unprotected) slot |
 | `slot:name()` | string \| nil | the display name, once the action's data has resolved |
@@ -115,9 +117,9 @@ since those are session-local and opaque to addons.
 
 ```lua
 local s = hafen.session():current()
-s:actionbar():get(0):res("gfx/hud/act/mine")             -- protected: put "Mine" on the first slot
+s:actionbar():get(1):res("gfx/hud/act/mine")             -- protected: put "Mine" on the first slot
 hafen.timer():after(0.5, function()
-  s:actionbar():get(0):use()
+  s:actionbar():get(1):use()
 end)
 ```
 
