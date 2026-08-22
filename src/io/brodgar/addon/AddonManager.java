@@ -1949,6 +1949,20 @@ public final class AddonManager {
      * the whole of the ref, so {@code :user()} answers there while {@code :exists()} is {@code false}, which
      * is what lets a handler drop its own tables by the very key it was handed.
      */
+    /**
+     * {@code MarkersChanged} — the marker COLLECTION, per owner (091, A-083). It was a bare count, which
+     * answered a question nobody asked ({@code :count()} is one call away) and not the one they did.
+     */
+    static void fireMarkers() {
+        for(Addon a : addons) {
+            if(hasSub(a, "MarkersChanged"))
+                fireTo(a, "MarkersChanged", MapApi.markers(a));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "MarkersChanged"))
+            fireTo(c, "MarkersChanged", MapApi.markers(c));
+    }
+
     static void fireSession(String event, String user) {
         for(Addon a : addons) {
             if(hasSub(a, event))
@@ -2909,20 +2923,23 @@ public final class AddonManager {
     static void fireFlowerMenu(String user, String event, String[] petals, String label) {
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, flowerPayload(petals, label), sessionArg(a, user));
+                fireTo(a, event, flowerPayload(a, user, petals, label), sessionArg(a, user));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, flowerPayload(petals, label), sessionArg(c, user));
+            fireTo(c, event, flowerPayload(c, user, petals, label), sessionArg(c, user));
     }
 
     /** One owner's radial-menu payload: the captions on an open, the label (or nil) on a close. */
-    private static LuaValue flowerPayload(String[] petals, String label) {
+    private static LuaValue flowerPayload(Addon owner, String user, String[] petals, String label) {
         if(petals == null)
             return (label == null) ? LuaValue.NIL : LuaValue.valueOf(label);
+        // 091/A-083: the PETALS, as the objects s:flowermenu() hands back one call away. It was an array of
+        // caption strings, so `function(petals) petals[1]:select() end` -- what flowermenu.md teaches --
+        // failed as "attempt to index a string".
         LuaTable t = new LuaTable();
         for(int i = 0; i < petals.length; i++)
-            t.set(i + 1, LuaValue.valueOf((petals[i] == null) ? "" : petals[i]));
+            t.set(i + 1, LuaPetal.of(owner, user, i));
         return t;
     }
 

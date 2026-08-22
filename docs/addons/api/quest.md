@@ -51,7 +51,7 @@ predicate receives the Quest object.
 | `q:status()` | string | `"pending"`, `"done"`, `"failed"` or `"disabled"` |
 | `q:modified()` | number \| nil | the server's change stamp; higher is more recent |
 | — | — | whether this is the one open in the log is `s:quest():selected() == q`: the quests are interned, so the comparison is exact and there is no per-member flag |
-| `q:conditions()` | `Condition[]` | its objectives — see below |
+| `q:conditions()` | collection | its objectives — see below |
 | `q:exists()` | boolean | whether it is still in the log — always answers |
 | `q:info()` | [`Quest`](types.md#quest-and-condition) \| nil | a plain-table **snapshot** |
 
@@ -63,7 +63,7 @@ already have. A quest the server drops goes `:exists() == false` and every other
 
 ## Objectives
 
-> `q:conditions()` is an **empty array on every quest but the selected one**. The client is sent the
+> `q:conditions()` is **empty on every quest but the selected one**. The client is sent the
 > objectives of the quest that character has open in the log and of no other, so opening a different quest is
 > what fills them in. `s:quest():selected() == q` is how you tell the two cases apart.
 
@@ -85,7 +85,7 @@ which is the whole reason to reach past the quest. Deselecting the quest ends th
 local s = hafen.session():current()
 local q = s and s:quest():selected()
 if q then
-  for _, c in ipairs(q:conditions()) do
+  for _, c in ipairs(q:conditions():list()) do
     hafen.log():write(" - [" .. c:status() .. "] " .. (c:description() or ""))
   end
 end

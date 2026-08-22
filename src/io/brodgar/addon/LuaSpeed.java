@@ -389,6 +389,46 @@ public final class LuaSpeed {
         // current() — the speed you are ON, as the very member :list() holds, so `s:speed():current() == sp`
         // is the identity test and there is no second "am I on this one" verb. nil with no selector.
         // The write arity is GONE (060): :current() addresses a member, and a member address is not a property.
+        // available(filter) -- the SELECTABLE speeds (091, A-079). :list() is all four now, so the
+        // partition that used to BE :list() needs its own name, the way s:char():skill():buyable() does.
+        extra.set("available", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "available");
+                final LuaValue filter = a.arg(2);
+                return LuaCollection.create(CharApi.SP + ":available()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        List<LuaValue> out = new ArrayList<LuaValue>(SPEEDS);
+                        Speedget s = speedget(user);
+                        if(s == null)
+                            return out;
+                        int max = Math.min(s.max, SPEEDS - 1);
+                        for(int i = 0; i <= max; i++) {
+                            LuaValue member = of(owner, user, i);
+                            LuaSpeed sh = resolve(member);
+                            if(LuaCollection.keeps(filter, member, true,
+                                                   (sh == null) ? null : speedName(sh.index),
+                                                   CharApi.SP, "available"))
+                                out.add(member);
+                        }
+                        return out;
+                    }
+
+                    public boolean named() {
+                        return true;
+                    }
+
+                    public String needle(LuaValue member) {
+                        LuaSpeed h = resolve(member);
+                        return (h == null) ? null : speedName(h.index);
+                    }
+
+                    public String noGet() {
+                        return "the selectable speeds are a partition of the four:"
+                            + " " + CharApi.SP + ":get(key) addresses any of them, selectable or not";
+                    }
+                }, null);
+            }
+        });
         extra.set("current", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "current");
@@ -428,12 +468,12 @@ public final class LuaSpeed {
         return LuaCollection.create(CharApi.SP, new LuaCollection.Source() {
             /** Exactly the selectable ones, crawl→sprint: empty with no selector, empty with max &lt; 0. */
             public List<LuaValue> members() {
+                // 091/A-079: ALL FOUR, always. :list() was the SELECTABLE ones, so it grew as the character
+                // unlocked them -- a collection that answered a different question from every other :list()
+                // in the API. Which of them can be picked right now is sp:available(), and the partition is
+                // s:speed():available(filter).
                 List<LuaValue> out = new ArrayList<LuaValue>(SPEEDS);
-                Speedget s = speedget(user);
-                if(s == null)
-                    return out;
-                int max = Math.min(s.max, SPEEDS - 1);
-                for(int i = 0; i <= max; i++)
+                for(int i = 0; i < SPEEDS; i++)
                     out.add(of(owner, user, i));
                 return out;
             }

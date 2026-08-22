@@ -28,7 +28,7 @@ holds has an empty catalogue rather than raising.
 | `s:menugrid():list(filter)` | the whole **catalogue** — an array of `Pagina` objects in the grid's own sort order |
 | `s:menugrid():count(filter)` | how many match |
 | `s:menugrid():find(filter)` | the first that matches, or `nil` |
-| `s:menugrid():roots()` | the entries with no parent: what the grid shows on its root screen |
+| `s:menugrid():roots()` | a collection of the entries with no parent: what the grid shows on its root screen |
 
 Pagina objects are **interned per addon** on the character *and* the resource name, so
 `s:menugrid():get("Dig") == s:menugrid():get("paginae/act/dig")` and `seen[pag] = true` works as a table key
@@ -79,7 +79,7 @@ The first four are called on the collection, the rest on a `Pagina`.
 | `s:menugrid():list(filter)` | `Pagina[]` | the whole catalogue, in the grid's own sort order |
 | `s:menugrid():count(filter)` | number | how many match |
 | `s:menugrid():find(filter)` | `Pagina` \| nil | the first entry that matches |
-| `s:menugrid():roots()` | `Pagina[]` | the entries with no parent: what the grid shows on its root screen |
+| `s:menugrid():roots()` | collection | the entries with no parent: what the grid shows on its root screen |
 | `pag:res()` | string | the resource name, the identity — always answers, even for a revoked entry |
 | `pag:addon()` | string \| nil | the id of the addon that added this entry; `nil` for the game's own |
 | `pag:name()` | string \| nil | the display name the grid shows |
@@ -88,7 +88,7 @@ The first four are called on the collection, the rest on a `Pagina`.
 | `pag:hotkey()` | string \| nil | the letter the grid paints over the button while Alt is held |
 | `pag:categories()` | string[] \| nil | the categories above this entry, as the action tokens the message carries; **empty** for a category and for an id-only entry |
 | `pag:parent()` | `Pagina` \| nil | the category this entry sits under; `nil` for a root entry |
-| `pag:children()` | `Pagina[]` \| nil | the entries under this one, exactly what the grid shows after clicking it; empty for a leaf |
+| `pag:children()` | collection \| nil | the entries under this one, exactly what the grid shows after clicking it; empty for a leaf |
 | `pag:unseen()` | boolean | whether the entry is still flagged as a new discovery, the grid's highlight |
 | `pag:exists()` | boolean | whether the entry is still in the menu |
 | `pag:info()` | [`Pagina`](types.md#pagina) \| nil | a plain-table **snapshot** of the same fields |
@@ -100,10 +100,10 @@ resource is still loading. No reader throws, and none is protected.
 
 The catalogue is **flat and complete**: it holds every action *plus* the categories they hang under, so
 `:parent()` always lands on something you can read, `:roots()` is never empty once the menu is up, and "is
-this a category" is `#pag:children() > 0`.
+this a category" is `pag:children():count() > 0`.
 
 ```lua
-for _, cat in ipairs(hafen.session():current():menugrid():roots()) do
+for _, cat in ipairs(hafen.session():current():menugrid():roots():list()) do
   hafen.log():write(cat:name() or cat:res())
   for _, child in ipairs(cat:children()) do
     hafen.log():write("   " .. (child:name() or child:res()))

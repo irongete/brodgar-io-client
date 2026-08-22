@@ -197,11 +197,21 @@ public final class LuaContents {
         // what it holds instead of carrying it (a bucket) and for one that is simply empty.
         m.set("items", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                LuaTable out = new LuaTable();
-                List<GItem> its = items(handle(self, "items").cont);
-                for(int i = 0; i < its.size(); i++)
-                    out.set(i + 1, LuaItem.of(owner, its.get(i)));
-                return out;
+                final LuaContents h = handle(self, "items");
+                return LuaCollection.create("contents:items()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        List<LuaValue> out = new ArrayList<LuaValue>();
+                        for(GItem g : items(h.cont))
+                            out.add(LuaItem.of(owner, g));
+                        return out;
+                    }
+
+                    public String noGet() {
+                        return "the things inside a container have no key of their own:"
+                            + " contents:items():find(filter) is the search and"
+                            + " contents:items():list()[n] takes a position";
+                    }
+                }, null);
             }
         });
         // name() — what the server calls this inside: the caption its own window carries, or nil when it gave

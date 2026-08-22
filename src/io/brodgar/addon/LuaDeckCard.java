@@ -13,6 +13,8 @@ import java.lang.ref.WeakReference;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A <b>DeckCard object</b> — one hotkey slot of the combat school a character has loaded
@@ -282,14 +284,36 @@ public final class LuaDeckCard {
      * search it by). An empty slot is omitted; the card's own {@code :slot()} and {@code :key()} carry the
      * position, so the gap is never ambiguous. Empty before that character's schools tab has built.
      */
-    static LuaValue deck(Addon owner, String user) {
-        FightWnd.Action[] order = order(user);
-        LuaTable out = new LuaTable();
-        int n = 0;
-        for(int slot = 0; slot < order.length; slot++) {
-            if(order[slot] != null)
-                out.set(++n, of(owner, user, slot));
-        }
-        return out;
+    static LuaValue deck(final Addon owner, final String user) {
+        return LuaCollection.create(CharApi.FT + ":deck()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                FightWnd.Action[] order = order(user);
+                for(int slot = 0; slot < order.length; slot++) {
+                    if(order[slot] != null)
+                        out.add(of(owner, user, slot));
+                }
+                return out;
+            }
+
+            /** A card names the maneuver it holds, so a string filter is a substring test over that. */
+            public boolean named() {
+                return true;
+            }
+
+            public String needle(LuaValue member) {
+                // Resolved, never member.get("name"): since 084 a field read on a closed type hands back the
+                // METHOD, so a filter written that way would silently match nothing.
+                LuaDeckCard h = resolve(member);
+                FightWnd.Action a = (h == null) ? null : action(h.user, h.slot);
+                return (a == null) ? null : AddonManager.resTipName(a.res, null);
+            }
+
+            public String noGet() {
+                return "a deck card has no key: it is a layout ordered by hotkey, so"
+                    + " session:fight():deck():find(filter) is the search and :list()[n] takes a position"
+                    + " — card:index() is that same position back";
+            }
+        }, null);
     }
 }

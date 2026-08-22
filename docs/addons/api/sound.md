@@ -23,7 +23,7 @@ Resources resolve off the UI thread, so a not-yet-loaded one never throws either
 | Method | Returns | Description |
 |---|---|---|
 | `hafen.sound():get(name)` | Sound | the Sound for that resource name |
-| `hafen.sound():list(filter)` | Sound[] | your addon's **still-playing** Sounds, 1-based; empty when there are none |
+| `hafen.sound():playing(filter)` | collection | your addon's **still-playing** Sounds; empty when there are none. `hafen.sound()` itself does not enumerate — `:get(name)` mints a Sound for any clip, playing or not, so there is no set of "your sounds" to count |
 | `hafen.sound():count(filter)` | number | how many are still sounding |
 | `hafen.sound():find(filter)` | Sound \| nil | the first still-sounding one that matches |
 | `sound:res()` | string | the resource name this Sound addresses |
@@ -38,7 +38,7 @@ string [filter](conventions.md#the-filter-argument) matches the resource name. T
 playing is `sound:play(volume)` — and no `:remove`, since silencing one is `sound:stop()`.
 
 ```lua
-local live = hafen.sound():list()
+local live = hafen.sound():playing():list()
 for i = 1, #live do live[i]:stop() end   -- silence everything this addon started
 ```
 

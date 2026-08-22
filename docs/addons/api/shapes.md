@@ -69,7 +69,7 @@ than looked up, because the neighbouring id it rounds to is a real grid somewher
 { 200, 210, 220 }                                   -- positional: r, g, b, and a if you want it
 ```
 
-Every colour you read is the keyed one — `kin:color()`, `meter:color()`, `marker:color()`, `ov:color()`,
+Every colour you read is the keyed one — `kin:color()`, `seg:color()`, `marker:color()`, `ov:color()`,
 `h:color()`, `e:tint()`, `rule:color()` — so `.r` answers on all of them and `[1]` on none. Both spellings
 go in at every colour write: `rule:color(c)`, `marker:color(c)`, `ov:color(c)`, `h:color(c)`, a ghost or
 sprite `:tint(c)`, `g:text{color = c}`. A colour you read is one of the two, so `ov:color(kin:color())` is
@@ -101,7 +101,7 @@ rather than countdowns, so a read whose name sounds like a timer answers how muc
 | `hafen.time():dayFraction()`, `:yearFraction()`, `:moon()` | how far through the day, the year, the lunar cycle |
 | `buff:amount()`, `buff:remaining()` | the buff's own meter, and how much of its run is left |
 | `slot:cooldown()` | an ability's cooldown meter |
-| `meter:value()`, `slot:progress()` | a HUD bar's fill, a curiosity's progress |
+| `meter:segment():list()[n]:value()`, `slot:progress()` | a HUD bar's fill, a curiosity's progress |
 
 A name ending **`Fraction`** says so in the name. The rest do not, which is why they are listed here.
 

@@ -408,7 +408,7 @@ public final class LuaPagina {
                 MenuGrid.Pagina p = live(h.user, h.res);
                 if(p == null)
                     return LuaValue.NIL;
-                return childrenOf(owner, h.user, p);
+                return childCollection(owner, h.user, p, "pagina:children()");
             }
         });
         // info() — the one SNAPSHOT escape hatch, for logging/serialising: the same fields as plain values
@@ -711,19 +711,47 @@ public final class LuaPagina {
     }
 
     /** The entries whose {@code parent()} is {@code p} (identity — the client interns paginae in its pmap). */
-    private static LuaValue childrenOf(Addon owner, String user, MenuGrid.Pagina p) {
-        LuaTable out = new LuaTable();
+    private static List<LuaValue> childrenOf(Addon owner, String user, MenuGrid.Pagina p) {
+        List<LuaValue> out = new ArrayList<LuaValue>();
         List<Entry> cat = catalogue(user);
-        int i = 0;
         for(int n = 0; n < cat.size(); n++) {
             Entry e = cat.get(n);
             try {
                 if(e.pag.parent() == p)
-                    out.set(++i, of(owner, user, e.res));
-            } catch(RuntimeException ex) {   // Loading etc. — skip, never throw into Lua
+                    out.add(of(owner, user, e.res));
+            } catch(RuntimeException ex) {   // Loading etc. \u2014 skip, never throw into Lua
             }
         }
         return out;
+    }
+
+    /**
+     * The children of {@code p} (or the roots, for {@code null}) as a <b>collection</b> (091, A-073): the
+     * menu is a tree of entries, and a relation whose members are objects is a collection like any other.
+     */
+    private static LuaValue childCollection(final Addon owner, final String user,
+                                            final MenuGrid.Pagina p, String name) {
+        return LuaCollection.create(name, new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return childrenOf(owner, user, p);
+            }
+
+            /** An entry has a display name, so a string filter is a substring test over it. */
+            public boolean named() {
+                return true;
+            }
+
+            public String needle(LuaValue member) {
+                LuaPagina h = resolve(member);
+                String nm = (h == null) ? null : dispname(button(live(user, h.res)));
+                return (nm == null) ? "" : nm;
+            }
+
+            public String noGet() {
+                return "an entry is addressed by its resource name through session:menugrid():get(res);"
+                    + " here :find(needle) searches the display name";
+            }
+        }, null);
     }
 
     /**
@@ -803,7 +831,7 @@ public final class LuaPagina {
         // roots() — the entries with no parent, i.e. what the menu shows on its ROOT screen.
         extra.set("roots", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return childrenOf(owner, user, null);
+                return childCollection(owner, user, null, CharApi.MG + ":roots()");
             }
         });
         return LuaCollection.create(CharApi.MG, new LuaCollection.Source() {

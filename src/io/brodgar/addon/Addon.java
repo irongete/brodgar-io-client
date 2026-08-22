@@ -504,6 +504,14 @@ public final class Addon {
      * metatable here is: no Lua value crosses a sandbox boundary (D-017). A Sub holds no engine object, so
      * there is nothing to tear down.
      */
+    /** The six per-addon metatables 091 added, each built once on the first read of its kind (D-017). */
+    LuaValue meterSegMeta;
+    LuaValue craftSpecMeta;
+    LuaValue fepEntryMeta;
+    LuaValue fepMeta;
+    LuaValue hungerMeta;
+    LuaValue petalMeta;
+
     LuaValue subMeta;
 
     /**

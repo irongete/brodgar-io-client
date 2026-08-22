@@ -9,6 +9,8 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -111,34 +113,6 @@ final class FlowerMenuApi {
         LuaTable menu = new LuaTable();
         // list() — the open menu's petal captions, as strings, in ring order (the order the ring is numbered
         // in, which is the order a petal is addressed by). An empty array when no menu is open.
-        menu.set("list", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "flowermenu", "list", FM);
-                if(Args.passed(a, 2))
-                    throw new LuaError(FM + ":list() takes no arguments: a petal is a bare"
-                        + " label with no field to filter on, and a string here would read as \"pick this"
-                        + " one\" — picking a petal is " + FM + ":select(label)");
-                String[] names = names(open(user));
-                LuaTable t = new LuaTable();
-                for(int i = 0; i < names.length; i++)
-                    t.set(i + 1, LuaValue.valueOf((names[i] == null) ? "" : names[i]));
-                return t;
-            }
-        });
-        // count() — how many petals the open menu has; 0 when none is open. The arity sibling of list().
-        menu.set("count", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "flowermenu", "count", FM);
-                if(Args.passed(a, 2))
-                    throw new LuaError(FM + ":count() takes no arguments: there is nothing to"
-                        + " filter on — a petal is a bare label");
-                return LuaValue.valueOf(names(open(user)).length);
-            }
-        });
-        // gob() — the game object the open menu was opened ON, or nil. A CORRELATION, not something the server
-        // sends (see ClickToken): the answer is the gob the press that put this ring up resolved to, and it is
-        // nil for a menu opened from an inventory item, for the Kin window's own menu, and whenever any other
-        // press intervened. Unprotected: it names an object that character can see.
         menu.set("gob", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "flowermenu", "gob", FM);
@@ -178,7 +152,48 @@ final class FlowerMenuApi {
                 return a.arg1();          // the section: every ending chains
             }
         });
-        return Section.object("flowermenu", menu, FM);
+        // 091/A-078: the section IS the ring, and a ring is a set of PETALS. It was a set of caption
+        // STRINGS -- the only :list() in the API whose members could not be passed back to anything, so
+        // picking one meant re-spelling its caption or counting its position. A Petal wraps (user, index)
+        // and re-resolves, so one held past the close reports :exists() false, exactly as a Buff or a Craft
+        // does -- and both of those are shorter-lived than a menu.
+        return LuaCollection.create(FM, new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                String[] ns = names(open(user));
+                for(int i = 0; i < ns.length; i++)
+                    out.add(LuaPetal.of(owner, user, i));
+                return out;
+            }
+
+            /** A petal is its caption, so a string filter is a substring test over that. */
+            public boolean named() {
+                return true;
+            }
+
+            public String needle(LuaValue member) {
+                return LuaPetal.needle(member);
+            }
+
+            public boolean addressable() {
+                return true;
+            }
+
+            public LuaValue getMember(LuaValue key) {
+                if(key.type() != LuaValue.TNUMBER)
+                    throw new LuaError(FM + ":get(n): the key is a petal's 1-based position, the same"
+                        + " number petal:index() answers and the 1..9 key the ring is picked with, got "
+                        + key.typename());
+                int n = key.toint();
+                String[] ns = names(open(user));
+                return ((n < 1) || (n > ns.length)) ? LuaValue.NIL : LuaPetal.of(owner, user, n - 1);
+            }
+
+            /** The key is a petal's 1-based position on the open ring. */
+            public String keyName() {
+                return "n";
+            }
+        }, menu);
     }
 
     // ---- the open menu ---------------------------------------------------------------------------
@@ -206,6 +221,17 @@ final class FlowerMenuApi {
      * The petal captions of {@code fm}, in ring order, or an empty array when there is no menu. Nulls are
      * preserved: {@code ActApi}'s matcher skips them, and the Lua reader substitutes {@code ""}.
      */
+    /** The caption on {@code user}'s open ring at 0-based {@code i}, or {@code null} — no ring, or gone. */
+    static String petalLabel(String user, int i) {
+        String[] ns = names(open(user));
+        return ((i < 0) || (i >= ns.length)) ? null : ns[i];
+    }
+
+    /** Pick the petal at 0-based {@code i} on {@code user}'s ring — {@code petal:select()}'s own door. */
+    static void selectPetal(String user, int i) {
+        selectOn(required(user, FM + ":select"), LuaValue.valueOf(i + 1));
+    }
+
     static String[] names(FlowerMenu fm) {
         FlowerMenu.Petal[] opts = (fm == null) ? null : fm.opts;
         if(opts == null)

@@ -7,7 +7,7 @@ and what it costs.
 
 ```lua
 local s = hafen.session():current()                      -- the character on screen
-for _, card in ipairs(s:fight():deck()) do
+for _, card in ipairs(s:fight():deck():list()) do
   hafen.log():write(card:key() .. ": " .. (card:name() or card:res()))
 end
 
@@ -43,11 +43,11 @@ world, which is the one the id came out of.
 | `s:fight():maneuver():list(filter)` | `Maneuver[]` | every maneuver and attack that character knows |
 | `s:fight():maneuver():count(filter)` | number | how many match |
 | `s:fight():maneuver():find(filter)` | `Maneuver` \| nil | the first that matches |
-| `s:fight():deck()` | `DeckCard[]` | the loaded school's layout: the filled hotkey slots |
+| `s:fight():deck()` | collection | the loaded school's layout: the filled hotkey slots |
 | `s:fight():summary()` | `FightSummary` \| nil | the action-point budget and the saved-school slots |
 | `s:fight():target()` | `Opponent` \| nil | who that character is fighting |
 
-`:maneuver():list()` and `:deck()` answer empty and `:summary()` answers `nil` until that character's tab
+`:maneuver():list()` and `:deck():list()` answer empty and `:summary()` answers `nil` until that character's tab
 has built; `:target()` is `nil` whenever it is not in a fight. Nothing throws and nothing is protected;
 there is no write side, and no combat event — read on demand.
 
@@ -77,7 +77,7 @@ when the hotkey is emptied, while the maneuver half goes `nil` and `:exists()` g
 
 | Method | Returns | Description |
 |---|---|---|
-| `card:index()` | number | its **1-based** position in `:deck()` — always answers |
+| `card:index()` | number | its **1-based** position in `:deck():list()` — always answers |
 | `card:wire()` | number | the raw 0-based deck index the write path takes |
 | `card:key()` | string | the hotkey label the window paints — always answers |
 | `card:maneuver()` | `Maneuver` \| nil | the maneuver dealt here |

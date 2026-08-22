@@ -126,7 +126,7 @@ would answer confidently and wrongly.
 
 | Read | Returns | Description |
 |---|---|---|
-| `contents:items()` | [`Item`](#the-item-object)`[]` | what is inside, as live objects; an **empty array**, never `nil`, for a container that states what it holds rather than carrying it |
+| `contents:items()` | collection | what is inside, as live objects; **empty**, never `nil`, for a container that states what it holds rather than carrying it |
 | `contents:name()` | string \| nil | what the server calls this inside — the caption its own window carries; `nil` when it gave none |
 | `contents:text()` | string \| nil | the line the tooltip states about what is inside; `nil` for a container carrying items |
 | `contents:quality()` | number \| nil | the **content's** own quality, which is not `item:quality()`; `nil` when none is stated |

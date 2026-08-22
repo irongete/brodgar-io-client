@@ -38,7 +38,7 @@ events hand it that character's session as their last argument.
 
 | Call | Returns |
 |---|---|
-| `s:flowermenu():list()` | the petal captions, as strings, in ring order — an empty array when that character has no menu open |
+| `s:flowermenu():list(filter)` | the [Petals](#a-petal), in ring order — empty when that character has no menu open |
 | `s:flowermenu():count()` | how many petals are on the ring; `0` when none is open |
 | `s:flowermenu():gob()` | the object the ring was opened on, or `nil` |
 
@@ -144,7 +144,7 @@ ended: you picked a petal, you pressed Esc, you clicked away, or it simply died 
 connection dropped. The payload is the label on a pick and `nil` on everything else.
 
 `FlowerMenuOpened` fires at the one moment the petal set is complete, so the array it carries is the whole
-ring — the same array `s:flowermenu():list()` answers with inside the handler, where `s` is the
+ring — the same Petals `s:flowermenu():list()` answers with inside the handler, where `s` is the
 [session the event carries](event/bus.md#whose-character-it-was).
 
 Both events cover the menus the **client** puts up as well as the server's. The Kin window's right-click

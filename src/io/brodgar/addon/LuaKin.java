@@ -483,7 +483,11 @@ public final class LuaKin {
                     throw new LuaError(CharApi.KN + ":add(secret): no Kin window (that character is not in"
                         + " the world yet)");
                 bw.wdgmsg("bypwd", s);      // BuddyWnd's own "Add kin" field sends exactly this
-                return a.arg1();
+                // 091/A-084: NOT the collection and not a member. Adding by hearth secret is a round
+                // trip -- the server decides whether that secret names anyone -- so there is no Kin to hand
+                // back yet, and handing back the roster made s:kin():add(x):name() look like it might work.
+                // nil makes the mistake fail at the assignment, one line from where it was made.
+                return LuaValue.NIL;
             }
 
             /** :get(id) always hands back a Kin; the NAME form is a lookup and answers nil. */

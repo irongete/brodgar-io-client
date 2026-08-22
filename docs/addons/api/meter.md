@@ -81,9 +81,7 @@ literal into your Lua source.
 |---|---|---|
 | `meter:res()` | string \| nil | the background resource name — the identity |
 | `meter:index()` | number \| nil | its 1-based position in its own HUD; `nil` once the meter is gone |
-| `meter:value()` | number \| nil | the first segment's fill fraction, `0..1` |
-| `meter:color()` | [colour](shapes.md#colours) \| nil | the first segment's colour, `{r=, g=, b=, a=}` |
-| `meter:segments()` | `{{value=, color=}, …}` | the whole bar, 1-based — never `nil`, may be empty |
+| `meter:segment()` | collection | the bar, as [Segment](#a-segment) objects in draw order — never `nil`, may be empty |
 | `meter:exists()` | boolean | whether this meter is still in its HUD slot — always answers |
 | `meter:info()` | [`Meter`](types.md#meter) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
 
@@ -92,7 +90,20 @@ stream in after it appears. Only `:exists()` always answers. Nothing throws once
 
 A bar is genuinely multi-segment in the engine, and `:value()` and `:color()` are simply its first
 segment. The vital bars use one segment each, so the two shorthands are all you normally need, but a
-bar with more shows them all in `:segments()`.
+bar with more shows them all in `:segment():list()`.
+
+## A segment
+
+| Method | Returns | Description |
+|---|---|---|
+| `seg:index()` | number | its 1-based place in the bar |
+| `seg:value()` | number \| nil | its fill fraction, `0..1` |
+| `seg:color()` | [colour](shapes.md#colours) \| nil | its colour, `{r=, g=, b=, a=}` |
+| `seg:info()` | table \| nil | a plain-table **snapshot** |
+
+The bar's fill is `meter:segment():list()[1]:value()`, and it says which segment it is. There was a
+`meter:value()` that read segment one under a whole-bar name: right on every meter the client ships,
+and silently wrong the first time a server publishes a split bar.
 
 > `:value()` is a **bar fraction only**. There are no absolute hp, stamina or energy numbers, and no
 > hunger figure, in the client. The one place absolute numbers exist is FEP:
@@ -133,7 +144,7 @@ end)
 > `MeterAdded`.
 
 **A removed meter keeps answering.** Once it is out of the slot `:exists()` is `false` and `:index()`
-is `nil`, but `:res()`, `:value()`, `:color()` and `:segments()` still read the values it had. That is
+is `nil`, but `:res()` and `:segment()` still read the values it had. That is
 what makes a `MeterRemoved` payload, or a meter you stashed, worth holding on to; `:exists()` is
 exactly the predicate `:list()` filters on.
 

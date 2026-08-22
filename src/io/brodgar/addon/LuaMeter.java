@@ -133,7 +133,7 @@ public final class LuaMeter {
 
         private LuaValue meta() {
             if(mt == null)
-                mt = buildMeta();
+                mt = buildMeta(owner);
             return mt;
         }
     }
@@ -154,11 +154,11 @@ public final class LuaMeter {
      * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
      * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
      */
-    private static LuaValue buildMeta() {
+    private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("meter", methods(),
-            "a meter is one bar in the HUD meter slot: it answers :res() :index() :value() :color()"
-            + " :segments() :exists() and :info()"));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("meter", methods(owner),
+            "a meter is one bar in the HUD meter slot: it answers :res() :index() :segment()"
+            + " :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Meter"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -173,7 +173,7 @@ public final class LuaMeter {
      * The method set. Every reader re-reads through the widget and answers {@code nil} when the value is not
      * (yet) published or is still {@code Loading}; {@code :exists()} always answers.
      */
-    private static LuaTable methods() {
+    private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // res() — the meter's background resource name, its identity and the thing s:meter():find(needle)
         // searches. SERVER-published, so it is never hard-coded here; nil for a beat while it loads.
@@ -193,25 +193,38 @@ public final class LuaMeter {
         });
         // value() — the FIRST bar segment's fraction, 0..1 (what the old vitals snapshot returned). nil
         // while the meter has no segments yet. For a multi-segment bar see :segments().
-        m.set("value", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Double v = value(handle(self, "value").wdg);
-                return (v == null) ? LuaValue.NIL : LuaValue.valueOf(v.doubleValue());
-            }
-        });
+
         // color() — the first segment's colour as {r,g,b,a} 0..255. The server changes it on its own (the
         // "col" uimsg), so it is a real state change, not decoration. nil while there are no segments.
-        m.set("color", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LayerMeter.Meter s = segment(handle(self, "color").wdg, 0);
-                return ((s == null) || (s.c == null)) ? LuaValue.NIL : AddonManager.color(s.c);
-            }
-        });
+
         // segments() — the whole bar as a 1-based array of {value=0..1, color={r,g,b,a}}. A vital bar is one
         // segment; the engine's meter type is genuinely multi-segment and the old snapshot threw that away.
-        m.set("segments", new OneArgFunction() {
+        m.set("segment", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return segments(handle(self, "segments").wdg);
+                final IMeter wdg = handle(self, "segment").wdg;
+                return LuaCollection.create("meter:segment()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        List<LuaValue> out = new ArrayList<LuaValue>();
+                        List<LayerMeter.Meter> ms;
+                        try {
+                            ms = (wdg == null) ? null : AddonWidgets.meters(wdg);
+                        } catch(RuntimeException e) {
+                            return out;
+                        }
+                        if(ms == null)
+                            return out;
+                        for(int i = 0; i < ms.size(); i++) {
+                            if(ms.get(i) != null)
+                                out.add(LuaMeterSegment.of(owner, wdg, i));
+                        }
+                        return out;
+                    }
+
+                    public String noGet() {
+                        return "a segment has no key: meter:segment():list()[n] takes a position, which is"
+                            + " what segment:index() answers back";
+                    }
+                }, null);
             }
         });
         // exists() — is this meter still in the HUD meter slot? False once it is destroyed, and false across
@@ -291,6 +304,10 @@ public final class LuaMeter {
     }
 
     /** Bar segment {@code i} of a meter, or {@code null} (none published yet / out of range). */
+    static LayerMeter.Meter segmentAt(IMeter m, int i) {
+        return segment(m, i);
+    }
+
     private static LayerMeter.Meter segment(IMeter m, int i) {
         if(m == null)
             return null;

@@ -18,6 +18,7 @@ import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 /**
  * A <b>Segment object</b> — one contiguous explored area of the recorded map ({@link MapFile.Segment}): what
@@ -172,9 +173,28 @@ public final class LuaSegment {
         // markers(filter) — the markers recorded in THIS segment (D-066: a relation, not a namespace). The
         // filter is the canonical one: nil = all, a string = a substring of the name, a function = a
         // predicate called with the Marker object.
-        m.set("markers", new TwoArgFunction() {
-            public LuaValue call(LuaValue self, LuaValue filter) {
-                return LuaMarker.collection(owner, Long.valueOf(handle(self, "markers").id), filter);
+        m.set("markers", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                final Long seg = Long.valueOf(handle(self, "markers").id);
+                return LuaCollection.create("segment:markers()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        return LuaMarker.members(owner, seg);   // the same Source hafen.map():marker() reads
+                    }
+
+                    public String needle(LuaValue member) {
+                        return LuaMarker.name(member);
+                    }
+
+                    /** These have a name, so a string filter is a substring test over {@link #needle}. */
+                    public boolean named() {
+                        return true;
+                    }
+
+                    public String noGet() {
+                        return "a marker's only id is a per-session ref this client mints, which is not a key"
+                            + " anything could hold on to: segment:markers():find(filter) is the search";
+                    }
+                }, null);
             }
         });
         // info() — the snapshot escape hatch (logging/serialising), never the way to read one field.

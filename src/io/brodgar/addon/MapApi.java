@@ -203,6 +203,11 @@ final class MapApi {
      * player, and the two writes. There is no {@code :get}: a marker's only id is a per-session ref this
      * bridge mints, which is not a key anything outside the session could hold.
      */
+    /** The marker collection for {@code owner} — what {@code MarkersChanged} hands its handler. */
+    static LuaValue markers(Addon owner) {
+        return markerCollection(owner);
+    }
+
     private static LuaValue markerCollection(final Addon owner) {
         LuaTable extra = new LuaTable();
         extra.set("nearest", new VarArgFunction() {
@@ -564,12 +569,12 @@ final class MapApi {
             st.lastMarkerSeq = seq;
             // The COUNT itself, not a { count = n } wrapper (041.1): one thing to say is said directly, and
             // the wrapper was the only field this payload ever had.
-            fire("MarkersChanged", LuaValue.valueOf(markerCount(file)));
+            AddonManager.fireMarkers();
             return;
         }
         if(seq != st.lastMarkerSeq) {
             st.lastMarkerSeq = seq;
-            fire("MarkersChanged", LuaValue.valueOf(markerCount(file)));
+            AddonManager.fireMarkers();
         }
     }
 

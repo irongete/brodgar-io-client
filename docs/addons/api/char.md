@@ -153,12 +153,11 @@ character's sheet is up.
 
 | Method | Returns | Description |
 |---|---|---|
-| `food:cap()` | number \| nil | how much the FEP bar holds |
-| `food:total()` | number \| nil | the sum of the current food-event amounts |
-| `food:feps()` | table | the food-event groups: `{res?, name?, amount}` each |
+| `food:fep()` | `Fep` \| nil | the FEP bar: `:cap()`, `:total()` and `:entry()` |
+| `food:fep():entry()` | collection | the food events, each answering `:res()`, `:name()` and `:amount()` |
 | `food:hunger()` | number \| nil | the hunger level |
-| `food:label()` | string \| nil | the client's own word for that level |
-| `food:efficacy()` | number \| nil | the multiplier on what you eat next at this hunger |
+| `food:hunger():label()` | string \| nil | the client's own word for that level |
+| `food:hunger():efficacy()` | number \| nil | the multiplier on what you eat next at this hunger |
 | `food:exists()` | boolean | whether this is still that character's live sheet |
 | `food:info()` | [`Food`](types.md#food) \| nil | a plain-table **snapshot** |
 
@@ -166,7 +165,8 @@ Subscribe to [`FepChanged`](event/bus.md#character-and-status), whose payload is
 
 ```lua
 hafen.event():on("FepChanged", function(food)
-  hafen.log():write(("fep %.0f/%.0f, %s"):format(food:total(), food:cap(), food:label() or "?"))
+  hafen.log():write(("fep %.0f/%.0f, %s"):format(food:fep():total(), food:fep():cap(),
+                                                 food:hunger():label() or "?"))
 end)
 ```
 

@@ -63,7 +63,10 @@ public final class LuaFood {
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
+        private final Addon owner;
+
         Cache(Addon owner) {
+            this.owner = owner;
         }
 
         synchronized LuaValue of(BAttrWnd w) {
@@ -93,7 +96,7 @@ public final class LuaFood {
 
         private LuaValue meta() {
             if(mt == null)
-                mt = buildMeta();
+                mt = buildMeta(owner);
             return mt;
         }
     }
@@ -109,11 +112,10 @@ public final class LuaFood {
 
     // ---- the Food metatable -------------------------------------------------------------------------
 
-    private static LuaValue buildMeta() {
+    private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("food", methods(),
-            "the food meter answers :cap() :total() :feps() :hunger() :label() :efficacy() :exists() and "
-            + ":info()"));
+        mt.set(LuaValue.INDEX, Retired.closedIndex("food", methods(owner),
+            "the food meter answers :fep() :hunger() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Food"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -123,59 +125,24 @@ public final class LuaFood {
         return mt;
     }
 
-    private static LuaTable methods() {
+    private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // cap() — how much the FEP bar holds before it stops accepting more.
-        m.set("cap", new OneArgFunction() {
+        // fep() — the FEP bar as an OBJECT (091, A-077): :cap(), :total() and :entry(), which is the
+        // same nesting food:info().fep has always had. It was three flat verbs and an array of anonymous
+        // tables, so the live shape and the snapshot disagreed about their own structure.
+        m.set("fep", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                BAttrWnd.FoodMeter f = feps(handle(self, "cap").wdg);
-                return (f == null) ? LuaValue.NIL : LuaValue.valueOf(f.cap);
+                return LuaFep.of(owner, handle(self, "fep").wdg);
             }
         });
-        // total() — the sum of the current food-event amounts: how full the bar actually is.
-        m.set("total", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                BAttrWnd.FoodMeter f = feps(handle(self, "total").wdg);
-                if(f == null)
-                    return LuaValue.NIL;
-                double sum = 0;
-                for(BAttrWnd.FoodMeter.El el : els(f))
-                    sum += el.a;
-                return LuaValue.valueOf(sum);
-            }
-        });
-        // feps() — the food-event groups as a plain array of {res?, name?, amount}: a value, not entities.
-        m.set("feps", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                BAttrWnd.FoodMeter f = feps(handle(self, "feps").wdg);
-                return (f == null) ? new LuaTable() : entries(f);
-            }
-        });
-        // hunger() — the hunger level itself, the number the client draws the glut bar from.
+        // hunger() — the hunger meter as an OBJECT: :level(), :label() and :efficacy(), mirroring
+        // food:info().hunger. It was three flat verbs, one of them called :hunger() and answering a number.
         m.set("hunger", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                BAttrWnd.GlutMeter g = glut(handle(self, "hunger").wdg);
-                return (g == null) ? LuaValue.NIL : LuaValue.valueOf(g.glut);
+                return LuaHunger.of(owner, handle(self, "hunger").wdg);
             }
         });
-        // label() — the client's own word for that level ("Satiated", …), or nil before one arrives.
-        m.set("label", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                BAttrWnd.GlutMeter g = glut(handle(self, "label").wdg);
-                return ((g == null) || (g.lbl == null)) ? LuaValue.NIL : LuaValue.valueOf(g.lbl);
-            }
-        });
-        // efficacy() — how much food is worth at the current hunger: the multiplier on what you eat next.
-        m.set("efficacy", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                BAttrWnd.GlutMeter g = glut(handle(self, "efficacy").wdg);
-                return (g == null) ? LuaValue.NIL : LuaValue.valueOf(g.gmod);
-            }
-        });
-        // exists() — is this still the live base-attributes tab? False after a relog rebuilt it.
-        //   077.1: asked of the tab itself — is it still the `battr` of the sheet it hangs in — rather than
-        // compared against the drawn session's, which would report a background character's own live tab as
-        // gone the moment the player tabbed away from it.
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 BAttrWnd w = handle(self, "exists").wdg;
@@ -202,16 +169,32 @@ public final class LuaFood {
 
     // ---- the reads (all Loading-guarded) -------------------------------------------------------------
 
-    private static BAttrWnd.FoodMeter feps(BAttrWnd w) {
+    static BAttrWnd.FoodMeter feps(BAttrWnd w) {
         return (w == null) ? null : w.feps;
     }
 
-    private static BAttrWnd.GlutMeter glut(BAttrWnd w) {
+    static BAttrWnd.GlutMeter glut(BAttrWnd w) {
         return (w == null) ? null : w.glut;
     }
 
     /** A defensive copy of the food-event list (it is rebuilt off-thread as the server pushes updates). */
-    private static java.util.List<BAttrWnd.FoodMeter.El> els(BAttrWnd.FoodMeter f) {
+    /** One {@link LuaFepEntry} from one food-bar element — what {@code fep:entry()} hands back. */
+    static LuaValue entry(Addon owner, BAttrWnd.FoodMeter.El el) {
+        String res = null, name = null;
+        try {
+            haven.Resource r = el.res.get();
+            if(r != null)
+                res = r.name;
+            BAttrWnd.FoodMeter.Event ev = el.ev();
+            if((ev != null) && (ev.nm != null))
+                name = ev.nm;
+        } catch(RuntimeException ex) {
+            /* this event's resource is still Loading — keep the amount */
+        }
+        return LuaFepEntry.of(owner, res, name, el.a);
+    }
+
+    static java.util.List<BAttrWnd.FoodMeter.El> els(BAttrWnd.FoodMeter f) {
         try {
             return new ArrayList<BAttrWnd.FoodMeter.El>(f.els);
         } catch(RuntimeException e) {

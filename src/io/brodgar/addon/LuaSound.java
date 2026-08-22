@@ -472,9 +472,50 @@ public final class LuaSound {
      * {@code :remove} (silencing is {@code s:stop()}).
      */
     static LuaValue collection(final Addon owner) {
+        LuaTable extra = new LuaTable();
+        // playing(filter) -- the clips of yours that are AUDIBLE right now (091, A-081). It was :list(),
+        // which promised the set :get() addresses and delivered a different one.
+        extra.set("playing", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaCollection.receiver(a.arg1(), "playing");
+                final LuaValue filter = a.arg(2);
+                return LuaCollection.create("hafen.sound():playing()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        List<LuaValue> out = new ArrayList<LuaValue>();
+                        for(LuaValue m : owner.sounds.members()) {
+                            LuaSound h = resolve(m);
+                            if(LuaCollection.keeps(filter, m, true, (h == null) ? "" : h.res,
+                                                   "hafen.sound()", "playing"))
+                                out.add(m);
+                        }
+                        return out;
+                    }
+
+                    public boolean named() {
+                        return true;
+                    }
+
+                    public String needle(LuaValue member) {
+                        LuaSound h = resolve(member);
+                        return (h == null) ? "" : h.res;
+                    }
+
+                    public String noGet() {
+                        return "the audible clips are a partition of what you have addressed:"
+                            + " hafen.sound():get(name) mints one by resource name, playing or not";
+                    }
+                }, null);
+            }
+        });
         return LuaCollection.create("hafen.sound()", new LuaCollection.Source() {
             public List<LuaValue> members() {
-                return owner.sounds.members();
+                // 091/A-081: this collection ADDRESSES by name and does not enumerate. :get(name) mints a
+                // Sound for ANY clip, playing or not, so a :list() of the PLAYING ones was a different set
+                // under the same collection -- :count() answered "how many are audible", which is correct
+                // and is not the question :count() asks anywhere else. The playing ones are :playing(f).
+                throw new LuaError("hafen.sound() does not enumerate: hafen.sound():get(name) mints a Sound"
+                    + " for any clip, playing or not, so there is no set of \"your sounds\" to count."
+                    + " hafen.sound():playing(filter) is the ones audible right now");
             }
 
             public String needle(LuaValue member) {
@@ -513,6 +554,6 @@ public final class LuaSound {
             public String keyName() {
                 return "name";
             }
-        }, null);
+        }, extra);
     }
 }

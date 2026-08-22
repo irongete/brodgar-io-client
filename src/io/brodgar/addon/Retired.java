@@ -939,6 +939,24 @@ final class Retired {
         put("gob:isPlayer", "gob:isPlayer() is now gob:player() — a boolean reads as a bare adjective in this"
             + " API (kin:online(), w:visible(), grid:live()). It collides with nothing: s:player() is a"
             + " section on a Session, not a verb on a Gob");
+        // ---- 091: a set is a collection. Nine array relations became collections (ipairs on one now raises
+        // ---- naming :list()), and five reads that were a PART under a whole's name are gone.
+        put("meter:value", "meter:value() is gone — it was SEGMENT ONE's fill under a whole-bar name, so a"
+            + " health readout was right on every meter the client ships and silently wrong the first time a"
+            + " server published a split bar. meter:segment():list()[1]:value() says which segment it is");
+        put("meter:color", "meter:color() is gone — it was SEGMENT ONE's colour under a whole-bar name."
+            + " meter:segment():list()[1]:color() says which segment it is");
+        put("meter:segments", "meter:segments() is now meter:segment(), a COLLECTION of Segment objects:"
+            + " :list() is the bar, :count() how many, and each answers :index() :value() :color() :info()"
+            + " rather than being an anonymous table you index into");
+        put("food:cap", "food:cap() is now session:char():food():fep():cap() — the FEP bar is an object,"
+            + " so the live reads nest the way food:info().fep always did");
+        put("food:total", "food:total() is now session:char():food():fep():total()");
+        put("food:feps", "food:feps() is now session:char():food():fep():entry(), a COLLECTION of FepEntry"
+            + " objects answering :res() :name() :amount() — it was an array of anonymous tables");
+        put("food:label", "food:label() is now session:char():food():hunger():label() — the hunger meter"
+            + " is an object, so the live reads nest the way food:info().hunger always did");
+        put("food:efficacy", "food:efficacy() is now session:char():food():hunger():efficacy()");
         put("pagina:isNew", "pagina:isNew() is now pagina:unseen() — a boolean reads as a bare adjective, and"
             + " `new` reads as a verb that makes one rather than a property");
     }

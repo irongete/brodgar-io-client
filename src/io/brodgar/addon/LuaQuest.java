@@ -201,12 +201,21 @@ public final class LuaQuest {
         // every quest but the selected one: the client is sent conditions for that one alone.
         m.set("conditions", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                LuaQuest h = handle(self, "conditions");
-                LuaTable t = new LuaTable();
-                int i = 0;
-                for(QuestWnd.Quest.Condition c : conditions(h.user, h.id))
-                    t.set(++i, LuaCondition.of(owner, h.user, h.id, c.desc));
-                return t;
+                final LuaQuest h = handle(self, "conditions");
+                return LuaCollection.create("quest:conditions()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        List<LuaValue> out = new ArrayList<LuaValue>();
+                        for(QuestWnd.Quest.Condition c : conditions(h.user, h.id))
+                            out.add(LuaCondition.of(owner, h.user, h.id, c.desc));
+                        return out;
+                    }
+
+                    public String noGet() {
+                        return "an objective's only key is the description text it was minted from:"
+                            + " quest:conditions():find(filter) is the search and"
+                            + " quest:conditions():list()[n] takes a position";
+                    }
+                }, null);
             }
         });
         // exists() — is this quest still in the log? (The server drops one by sending it with no resource.)

@@ -154,13 +154,13 @@ public final class LuaCraft {
      */
     static LuaTable section(final Addon owner, final String user) {
         LuaTable m = new LuaTable();
-        m.set("recipe", sectionRead(user, "recipe"));
-        m.set("inputs", sectionRead(user, "inputs"));
-        m.set("outputs", sectionRead(user, "outputs"));
-        m.set("qualityInputs", sectionRead(user, "qualityInputs"));
-        m.set("tools", sectionRead(user, "tools"));
-        m.set("info", sectionRead(user, "info"));
-        m.set("exists", sectionRead(user, "exists"));
+        m.set("recipe", sectionRead(owner, user, "recipe"));
+        m.set("inputs", sectionRead(owner, user, "inputs"));
+        m.set("outputs", sectionRead(owner, user, "outputs"));
+        m.set("qualityInputs", sectionRead(owner, user, "qualityInputs"));
+        m.set("tools", sectionRead(owner, user, "tools"));
+        m.set("info", sectionRead(owner, user, "info"));
+        m.set("exists", sectionRead(owner, user, "exists"));
         // make([all]) — the PROTECTED verb: press Craft, or Craft All. The gate is FIRST (D-213).
         m.set("make", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -180,8 +180,97 @@ public final class LuaCraft {
         return m;
     }
 
+    /**
+     * {@code :inputs()} / {@code :outputs()} as a <b>collection of {@link LuaCraftSpec}</b> (091, A-076).
+     * Empty rather than nil once nothing is open; re-read on every call, because a recipe's slots are data
+     * the server rebuilds wholesale.
+     */
+    private static LuaValue specColl(final Addon owner, final String user, final String verb,
+                                     final boolean in) {
+        return LuaCollection.create(CharApi.CR + ":" + verb + "()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                Makewindow mw = ActApi.makewindow(user);
+                if(mw == null)
+                    return out;
+                for(Makewindow.Spec spec : specsOf(mw, in))
+                    out.add(LuaCraftSpec.of(owner, spec));
+                return out;
+            }
+
+            /** A slot names what fills it, so a string filter is a substring test over that. */
+            public boolean named() {
+                return true;
+            }
+
+            public String needle(LuaValue member) {
+                return LuaCraftSpec.needle(member);
+            }
+
+            public String noGet() {
+                return "a recipe's slots are data the server rebuilds wholesale, so one has no key:"
+                    + " " + CharApi.CR + ":" + verb + "():find(needle) searches the name and the resource,"
+                    + " and :list()[n] takes a position";
+            }
+        }, null);
+    }
+
+    /** {@code :qualityInputs()} / {@code :tools()} — the same object, carrying no count and no flag. */
+    private static LuaValue resColl(final Addon owner, final String user, final String verb,
+                                    final boolean quality) {
+        return LuaCollection.create(CharApi.CR + ":" + verb + "()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                List<LuaValue> out = new ArrayList<LuaValue>();
+                Makewindow mw = ActApi.makewindow(user);
+                if(mw == null)
+                    return out;
+                for(Indir<Resource> r : resesOf(mw, quality))
+                    out.add(LuaCraftSpec.of(owner, r));
+                return out;
+            }
+
+            public boolean named() {
+                return true;
+            }
+
+            public String needle(LuaValue member) {
+                return LuaCraftSpec.needle(member);
+            }
+
+            public String noGet() {
+                return "these are data the server rebuilds wholesale, so one has no key:"
+                    + " " + CharApi.CR + ":" + verb + "():find(needle) searches the name and the resource";
+            }
+        }, null);
+    }
+
+    /** One side's slots, copied under the UI monitor (both lists are swapped wholesale off-thread). */
+    private static List<Makewindow.Spec> specsOf(Makewindow mw, boolean in) {
+        List<Makewindow.Spec> specs = new ArrayList<Makewindow.Spec>();
+        synchronized(LuaWidget.monitor(mw)) {
+            if(in) {
+                for(Makewindow.Input w : mw.inputs)
+                    specs.add(w.spec);
+            } else {
+                for(Makewindow.SpecWidget w : mw.outputs)
+                    specs.add(w.spec);
+            }
+        }
+        return specs;
+    }
+
+    /** The quality inputs or the tools, copied under the UI monitor. */
+    private static List<Indir<Resource>> resesOf(Makewindow mw, boolean quality) {
+        List<Indir<Resource>> reses = new ArrayList<Indir<Resource>>();
+        synchronized(LuaWidget.monitor(mw)) {
+            reses.addAll(quality ? mw.qmod : mw.tools);
+        }
+        return reses;
+    }
+
     /** One read on the flattened section: {@link Section#self}, then the window, then the answer. */
-    private static VarArgFunction sectionRead(final String user, final String verb) {
+    private static VarArgFunction sectionRead(final Addon owner, final String user,
+                                             final String verb) {
         return new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue me = a.arg1();
@@ -192,16 +281,16 @@ public final class LuaCraft {
                 Makewindow mw = ActApi.makewindow(user);
                 if("exists".equals(verb))
                     return LuaValue.valueOf(mw != null);
-                if(mw == null)
-                    return "info".equals(verb) || "recipe".equals(verb) ? LuaValue.NIL : new LuaTable();
+                if((mw == null) && ("info".equals(verb) || "recipe".equals(verb) || "exists".equals(verb)))
+                    return LuaValue.NIL;
                 if("recipe".equals(verb)) {
                     String nm = mw.rcpnm;
                     return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
                 }
-                if("inputs".equals(verb))         return specList(mw, true);
-                if("outputs".equals(verb))        return specList(mw, false);
-                if("qualityInputs".equals(verb))  return resList(mw, true);
-                if("tools".equals(verb))          return resList(mw, false);
+                if("inputs".equals(verb))         return specColl(owner, user, verb, true);
+                if("outputs".equals(verb))        return specColl(owner, user, verb, false);
+                if("qualityInputs".equals(verb))  return resColl(owner, user, verb, true);
+                if("tools".equals(verb))          return resColl(owner, user, verb, false);
                 LuaTable t = new LuaTable();      // info()
                 String nm = mw.rcpnm;
                 t.set("recipe", LuaValue.valueOf((nm == null) ? "" : nm));

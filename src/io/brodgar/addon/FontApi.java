@@ -3,6 +3,7 @@ package io.brodgar.addon;
 import haven.Fonts;
 import haven.Text;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.luaj.vm2.LuaError;
@@ -55,6 +56,8 @@ final class FontApi {
 
     /** The built-in font names {@code hafen.font(name)} answers to, as the error text lists them. */
     private static final String BUILTINS = "\"sans\", \"serif\", \"mono\" or \"fraktur\"";
+    /** The closed set itself — what {@code :list()} enumerates, whatever this addon has asked for. */
+    static final String[] BUILTIN_NAMES = {"sans", "serif", "mono", "fraktur"};
 
     /**
      * Build {@code hafen.font} for {@code owner}: <b>the section object IS the collection</b> of the client's
@@ -72,7 +75,13 @@ final class FontApi {
     private static LuaValue collection(final Addon owner) {
         return LuaCollection.create("hafen.font()", new LuaCollection.Source() {
             public List<LuaValue> members() {
-                return owner.assets.builtinFonts();
+                // 091/A-080: the FOUR built-ins, always — not the ones this addon happens to have asked
+                // for. The set is closed and four long, so :count() answering 0 on a fresh addon and 4 after
+                // four :get calls measured the addon's history rather than the client's fonts.
+                List<LuaValue> out = new ArrayList<LuaValue>(BUILTIN_NAMES.length);
+                for(String nm : BUILTIN_NAMES)
+                    out.add(builtin(owner, LuaValue.valueOf(nm)));
+                return out;
             }
 
             public String needle(LuaValue member) {

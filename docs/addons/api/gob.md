@@ -75,7 +75,7 @@ answer. None of them throws.
 |---|---|---|
 | `gob:id()` | number | the gob id — answers even after the gob is gone |
 | `gob:exists()` | bool | whether any of your characters has it loaded |
-| `gob:sessions()` | [`Session`](session.md)`[]` | which of them — see [above](#gobsessions) |
+| `gob:sessions()` | collection | which of them — see [above](#gobsessions) |
 | `gob:position()` | [Position](position.md) \| nil | where it is: a place you can offset, measure and save |
 | `gob:facing()` | number \| nil | facing angle, radians |
 | `gob:name()` | string \| nil | resource identity, not a display name |

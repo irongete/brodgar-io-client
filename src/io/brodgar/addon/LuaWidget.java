@@ -316,14 +316,24 @@ public final class LuaWidget {
         // children() — a 1-based array of child Widget objects in tree order (empty for a leaf / a stale widget).
         m.set("children", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                LuaTable out = new LuaTable();
-                Widget w = live(handle(self, "children"));
-                if(w != null) {
-                    int i = 0;
-                    for(Widget c : kids(w))
-                        out.set(++i, of(owner, c));
-                }
-                return out;
+                final LuaWidget h = handle(self, "children");
+                return LuaCollection.create("widget:children()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        List<LuaValue> out = new ArrayList<LuaValue>();
+                        Widget w = live(h);
+                        if(w != null) {
+                            for(Widget c : kids(w))
+                                out.add(of(owner, c));
+                        }
+                        return out;
+                    }
+
+                    public String noGet() {
+                        return "a child has no key of its own: widget:children():find(filter) is the search,"
+                            + " widget:children():list()[n] takes a position, and a SELECTOR is"
+                            + " widget:match(sel) / widget:matchAll(sel)";
+                    }
+                }, null);
             }
         });
         // parent() / parent(w) — the enclosing Widget object, and (039.6) the builder setter that chooses it.
@@ -979,8 +989,19 @@ public final class LuaWidget {
         // :transfer(n)).
         m.set("items", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Widget w = live(handle(self, "items"));
-                return (w == null) ? new LuaTable() : items(owner, w);
+                final LuaWidget h = handle(self, "items");
+                return LuaCollection.create("widget:items()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        Widget w = live(h);
+                        return (w == null) ? new ArrayList<LuaValue>()
+                                           : LuaCollection.fromArray(items(owner, w));
+                    }
+
+                    public String noGet() {
+                        return "an item in a container has no key: widget:items():find(filter) is the search"
+                            + " and widget:items():list()[n] takes a position";
+                    }
+                }, null);
             }
         });
         // text() / text(s) — WHAT THE WIDGET DISPLAYS, and arity is the verb here as everywhere else (R2). The

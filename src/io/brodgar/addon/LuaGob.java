@@ -18,6 +18,8 @@ import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A <b>Gob object</b> — the OOP successor of the flat {@code hafen.gob.*(ref)} accessor (spec
@@ -218,12 +220,30 @@ public final class LuaGob {
         // nobody holds is exactly the case a GobRemoved handler asks about.
         m.set("sessions", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                LuaGob h = handle(self, "sessions");
-                LuaTable out = new LuaTable();
-                int i = 0;
-                for(String user : AddonManager.gobUsers(h.id))
-                    out.set(++i, LuaSession.of(owner, user));
-                return out;
+                final LuaGob h = handle(self, "sessions");
+                return LuaCollection.create("gob:sessions()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        List<LuaValue> out = new ArrayList<LuaValue>();
+                        for(String user : AddonManager.gobUsers(h.id))
+                            out.add(LuaSession.of(owner, user));
+                        return out;
+                    }
+
+                    /** A Session is named by its account, so a string filter is a substring of it. */
+                    public boolean named() {
+                        return true;
+                    }
+
+                    public String needle(LuaValue member) {
+                        LuaSession s = LuaSession.resolve(member);
+                        return (s == null) ? null : s.user;
+                    }
+
+                    public String noGet() {
+                        return "the sessions holding a gob are addressed by account through"
+                            + " hafen.session():get(user); here gob:sessions():find(needle) is the search";
+                    }
+                }, null);
             }
         });
         // info() — the one SNAPSHOT escape hatch (the old hafen.gob.info shape), for logging/serialising.

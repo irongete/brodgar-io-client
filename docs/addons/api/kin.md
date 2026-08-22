@@ -121,7 +121,7 @@ an addon that did not declare it, each raises an error naming that key; see
 
 | Method | Key | Description |
 |---|---|---|
-| `s:kin():add(secret)` | `kin.add` | add a kin by the other player's hearth secret, the string the "Add kin" field takes |
+| `s:kin():add(secret)` | `kin.add` | add a kin by the other player's hearth secret, the string the "Add kin" field takes. It returns **nothing**: the server decides whether that secret names anyone, so there is no `Kin` yet — watch `KinChanged` for the roster |
 | `kin:rename(name)` | `kin.rename` | set the kin's nickname |
 | `kin:group(group)` | `kin.group` | move the kin to group `0..254` — the write half of `kin:group()` |
 | `kin:endKin()` | `kin.endKin` | end the kinship; the kin stays *memorized* in the list |

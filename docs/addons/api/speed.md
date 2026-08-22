@@ -40,7 +40,8 @@ has an empty list and a `nil` `:current()` rather than raising.
 
 | Method | Returns | Description |
 |---|---|---|
-| `s:speed():list(filter)` | array | the selectable speeds, a 1-based array of `Speed` objects, crawl first |
+| `s:speed():list(filter)` | array | **all four** speeds, crawl first — `sp:available()` says which can be picked |
+| `s:speed():available(filter)` | collection | the ones that can be picked right now |
 | `s:speed():count(filter)` | number | how many match |
 | `s:speed():find(filter)` | Speed \| nil | the first selectable speed that matches, else `nil` |
 | `s:speed():get(key)` | Speed \| nil | any of the four by key, selectable or not, else `nil` |

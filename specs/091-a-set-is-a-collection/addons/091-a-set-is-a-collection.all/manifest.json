@@ -1,0 +1,9 @@
+{
+  "name": "091 — A set is a collection",
+  "id": "091-a-set-is-a-collection.all",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for the whole of feature 091: nine array relations became collections, four reads that handed back arrays of anonymous tables became collections of objects (Segment, CraftSpec, FepEntry, Petal, plus Fep and Hunger), three collections stopped answering a different question from the one asked (sound, font, speed), the three that stay arrays say why, and the two degraded event payloads hand back what the API already has. Every deleted read is asked to raise and to name what says which part it meant.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

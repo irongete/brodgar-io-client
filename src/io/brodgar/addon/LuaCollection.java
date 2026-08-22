@@ -11,6 +11,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
+import java.util.ArrayList;
 
 /**
  * A <b>collection object</b> — the one shape a set you can address into has (spec {@code 039-uniform-api}
@@ -312,6 +313,21 @@ public final class LuaCollection {
             }
         }
         return m;
+    }
+
+    /**
+     * Every value of a 1-based Lua array, as the member list a {@link Source} hands back — for a relation
+     * that was an array before 091 and whose builder still hands one back. It copies: a Source is read fresh
+     * on every call, so the array it walked is not held.
+     */
+    public static List<LuaValue> fromArray(LuaValue arr) {
+        List<LuaValue> out = new ArrayList<LuaValue>();
+        if((arr == null) || !arr.istable())
+            return out;
+        int n = arr.length();
+        for(int i = 1; i <= n; i++)
+            out.add(arr.get(i));
+        return out;
     }
 
     /** Does {@code member} pass {@code filter}? The canonical filter: nil = all, predicate, or substring. */
