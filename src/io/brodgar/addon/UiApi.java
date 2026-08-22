@@ -580,10 +580,10 @@ final class UiApi {
         //     local s = hafen.ui():sheet()
         //     s:rule("*"):font(body)
         //     s:rule("window.title"):font(body:derive{ size = 14 })
-        //     s:install()                       -- ...and s:drop()
+        //     s:install()                       -- ...and s:release()
         // An addon has exactly ONE sheet, handed back by identity. :install() applies what it says, replacing
         // whatever this addon had installed WHOLE (a site the sheet no longer names falls back); an edit to an
-        // installed sheet applies at once; :drop() takes it off, and a :reload/disable drops it too — the stock
+        // installed sheet applies at once; :release() takes it off, and a :reload/disable drops it too — the stock
         // client is always restorable. s:load(t) is the DATA door: a whole sheet as a parsed table (a theme.json
         // goes straight in), replacing what the sheet said. hafen.font.setFont / .reset / .scopes are a HARD CUT:
         // a font is one PROPERTY of a rule, not an API of its own. hafen.font(name) is untouched — it still names

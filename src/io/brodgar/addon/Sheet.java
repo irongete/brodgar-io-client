@@ -28,12 +28,12 @@ import java.util.WeakHashMap;
  *   s:rule("*"):font(body)
  *   s:rule("window.title"):font(body:derive():size(14):bold(true))
  *   s:rule("chat"):color({200, 210, 200})
- *   s:install()                       -- and s:drop()
+ *   s:install()                       -- and s:release()
  * </pre>
  *
  * <p><b>An addon owns exactly one sheet.</b> {@link LuaSheet} is its per-addon singleton, {@code s:install()}
  * applies whatever it currently says (replacing what was applied before, whole and not rule by rule),
- * {@code s:drop()} removes it, and teardown drops it too — so a {@code :reload}/disable always restores the
+ * {@code s:release()} removes it, and teardown drops it too — so a {@code :reload}/disable always restores the
  * stock client. What this class holds is never Lua: {@link LuaSheet} hands it a snapshot of its rules, so a
  * setter called a moment later changes nothing until the sheet is applied again.
  *
@@ -304,7 +304,7 @@ final class Sheet {
     }
 
     /**
-     * {@code sheet:drop()} — this addon's sheet stops being applied, and every surface it styled falls back.
+     * {@code sheet:release()} — this addon's sheet stops being applied, and every surface it styled falls back.
      * Inert when nothing was installed (D-084): a removal that already happened is not an error.
      */
     static void dropSheet(Addon owner) {

@@ -52,8 +52,8 @@ import javax.imageio.ImageIO;
  * <p><b>One cache, keyed by the RESOLVED path</b> ({@link Cache}), so {@code hafen.asset("icon.png") ==
  * hafen.asset("icon.png")} for every type — including {@code .ttf}, which previously re-read the file and
  * re-{@code registerFont}ed its family on <i>every</i> call. Identity is stable <b>while the asset is
- * alive</b>: {@code :dispose()} drops the entry, so the next load of that path is a <i>new</i> object. A dead
- * entry is never served and never listed.
+ * alive</b>: {@code hafen.asset():remove(a)} drops the entry, so the next load of that path is a <i>new</i>
+ * object. A dead entry is never served and never listed.
  *
  * <p><b>The cache is unified; the teardown is not.</b> The typed owned-resource lists ({@link Addon#images},
  * {@link Addon#meshes}) stay the teardown units because they encode an order that is load-bearing: {@code
@@ -62,11 +62,17 @@ import javax.imageio.ImageIO;
  * {@code RichText.Foundry} cache dies with it — so it needs no list at all; {@link #teardownAssets} drops it
  * with the cache.
  *
- * <p><b>Every asset answers {@code :type()}, {@code :path()} and {@code :dispose()}</b>, on top of its own
- * verbs ({@code :size()} for an image, {@code :bounds()}/{@code :info()} for a mesh,
- * {@code :derive}/{@code :family}/{@code :size} for a font, {@code :text()} for data). Those three are the <i>asset</i> surface: a
- * built-in font ({@code hafen.font("sans")}) and a derived variant are font handles that were never loaded
- * from a file, so they carry none of them ([D-060] — no file, no path, no lifetime).
+ * <p><b>Every asset answers {@code :type()} and {@code :path()}</b>, on top of its own verbs
+ * ({@code :size()} for an image, {@code :bounds()}/{@code :info()} for a mesh,
+ * {@code :derive}/{@code :family}/{@code :size} for a font, {@code :text()} for data). Those two are the
+ * <i>asset</i> surface: a built-in font ({@code hafen.font("sans")}) and a derived variant are font handles
+ * that were never loaded from a file, so they carry neither ([D-060] — no file, no path, no lifetime).
+ *
+ * <p><b>Freeing one is the COLLECTION's verb</b> ({@code hafen.asset():remove(a)}): the asset collection
+ * exists and owns its members, and where a collection exists the destroy verb is on it. So the handle carries
+ * no ending of its own — which is also the sandbox guarantee stated the other way round, since a
+ * {@link #imageFor view} of a file another addon loaded is reached through <i>your</i> {@code hafen.asset()}
+ * and refused there, naming the owner.
  *
  * <p><b>Sandboxed</b> ([D-017]): {@link #resolveAddonAsset} is the single containment check every load goes
  * through — an addon reads only its own folder. Not instantiable.
@@ -81,9 +87,9 @@ final class AssetApi {
     /**
      * Build {@code hafen.asset} for {@code owner}: <b>the section object IS the collection</b> of the files this
      * addon ships (spec §2.1). {@code hafen.asset():get(path)} loads and interns one, {@code :list(filter)} reads
-     * the ones it currently holds, and {@code :find} answers by path substring. There is no {@code :add} — an
-     * asset is a file the addon shipped, not something it creates here — and no {@code :remove}: freeing one is
-     * {@code a:dispose()}, which releases the memory <i>now</i> rather than dropping a member from a set.
+     * the ones it currently holds, {@code :find} answers by path substring, and {@code :remove(a)} frees one
+     * <b>now</b> rather than waiting for teardown. There is no {@code :add} — an asset is a file the addon
+     * shipped, not something it creates here.
      */
     static void install(LuaTable hafen, final Addon owner) {
         Section.mount(hafen, "asset", collection(owner),
@@ -130,6 +136,44 @@ final class AssetApi {
             public String keyName() {
                 return "path";
             }
+
+            /** The collection owns the files this addon loaded, so freeing one is <b>its</b> verb (D2). */
+            public boolean destroyable() {
+                return true;
+            }
+
+            /**
+             * {@code hafen.asset():remove(a)} — free one loaded file <b>now</b> rather than at teardown, and
+             * drop its intern entry, so the next {@code :get(path)} re-reads the file into a NEW object.
+             *
+             * <p><b>It compares the owner before it frees anything.</b> The ending is the collection's, and a
+             * caller reaches it through their OWN {@code hafen.asset()} — so the guarantee that an addon
+             * cannot free a file it never loaded is a refusal here rather than a verb the {@link #imageFor
+             * view} does not carry, and a refusal has to name whose job it is.
+             */
+            public void removeMember(LuaValue x) {
+                if(x.isstring())         // a number IS a string in LuaJ, and both are the same mistake
+                    throw new LuaError("hafen.asset():remove(a): pass the HANDLE, not a path —"
+                        + " hafen.asset():remove(hafen.asset():get(\"icon.png\")). Every use site of an asset"
+                        + " takes the handle, and this one is no different");
+                Object o = x.isuserdata() ? x.touserdata() : null;
+                if(!(o instanceof Loaded))
+                    throw new LuaError("hafen.asset():remove(a): expected an asset handle, got "
+                        + x.typename() + " — hafen.asset():get(path) is what hands one back");
+                Asset a = ((Loaded)o).asset();
+                if(a == null)
+                    throw new LuaError("hafen.asset():remove(a): a built-in font and a :derive()d variant were"
+                        + " never loaded from a file, so hafen.asset() does not hold them and there is nothing"
+                        + " to free");
+                if(a.owner != owner)
+                    throw new LuaError("hafen.asset():remove(a): that " + typeOf(x) + " was loaded by addon '"
+                        + AddonManager.ownerName(a.owner) + "' — freeing a file is the job of the addon that"
+                        + " loaded it, and hafen.asset() holds your own files only");
+                if(!a.member())
+                    throw new LuaError("hafen.asset():remove(a): a map drawing is not one of this addon's"
+                        + " files — grid:image(lvl) renders it and img:dispose() frees the one it handed back");
+                a.dispose();
+            }
         }, null);
     }
 
@@ -155,7 +199,7 @@ final class AssetApi {
          * The <b>built-in</b> fonts this addon has asked for ({@code hafen.font("sans")}), interned by name.
          * They are deliberately kept here — one home for "the things this addon loads once" — but they are
          * <b>not assets</b>: engine-owned, no file, no lifetime, so they are never listed by
-         * {@code hafen.asset()} and carry no {@code :dispose()} ([D-060]).
+         * {@code hafen.asset()} and are not members it can remove ([D-060]).
          */
         private final Map<String, LuaValue> builtinFonts = new LinkedHashMap<String, LuaValue>();
         /**
@@ -345,7 +389,7 @@ final class AssetApi {
         if(img == null)
             throw new LuaError("hafen.asset: '" + name + "' is not a decodable image (PNG/JPG/GIF/BMP)");
         final LuaImage li = new LuaImage(owner, name, new TexI(img));
-        li.asset = new Asset(name) {
+        li.asset = new Asset(owner, name) {
             void dispose() {
                 owner.assets.remove(key);  // a re-load after this is a NEW asset, never the disposed one
                 disposeImage(li);
@@ -364,11 +408,12 @@ final class AssetApi {
      * {@code w:style().bg.image == panel} holds; a rule from <b>another addon's</b> sheet arrives as
      * {@code reader}'s own interned view, because no Lua value crosses a sandbox boundary (D-017).
      *
-     * <p>The view is deliberately <b>reduced</b>: it reads and it draws, but it carries no {@code :dispose()} —
-     * freeing an asset is the owner's to do, and an addon that could dispose a file it never loaded would be able
-     * to blank another addon's UI. That reduction is now a whole {@link Kind}: the view is minted with a
-     * metatable that has no such verb, so reaching for one raises saying whose job it is, where a table simply
-     * had the closure left off it.
+     * <p>The view reads and it draws, and it cannot be freed: an addon that could free a file it never loaded
+     * would be able to blank another addon's UI. Since the ending moved onto the collection that is a
+     * <b>refusal</b> rather than a missing verb — {@code hafen.asset():remove(a)} is reached through the
+     * caller's own {@code hafen.asset()}, so {@link Source#removeMember} compares {@link Asset#owner} and says
+     * whose job it is. The {@link Kind#IMAGE_VIEW} metatable stays, because the two sides still answer a typo
+     * with different sentences.
      */
     static LuaValue imageFor(Addon reader, final LuaImage li) {
         if((li.owner == reader) && (li.handle != null))
@@ -380,7 +425,8 @@ final class AssetApi {
     }
 
     /**
-     * Free one image now (its {@code :dispose()}, and teardown): flip {@link LuaImage#dead} (so an in-flight
+     * Free one image now ({@code hafen.asset():remove(img)}, a map drawing's {@code :dispose()}, and
+     * teardown): flip {@link LuaImage#dead} (so an in-flight
      * {@code g:image} on the draw thread no-ops instead of re-uploading the texture via {@code TexI.st()}), drop
      * it from the addon's registry, and dispose the {@link TexI} (frees the GL texture). The {@code dead} flag is
      * what makes dispose final — {@code TexI.dispose()} only releases, it does not invalidate (R1). Idempotent.
@@ -427,7 +473,7 @@ final class AssetApi {
             GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(f);   // so h:family() resolves in $font (F2)
         } catch(RuntimeException e) { /* best-effort: even if registration fails the handle still draws via its Font */ }
         FontHandle fh = new FontHandle(f, null, null, null);
-        fh.asset = new Asset(name) {
+        fh.asset = new Asset(owner, name) {
             void dispose() {
                 owner.assets.remove(key);  // a font owns nothing releasable — dropping the entry IS the dispose
             }
@@ -471,7 +517,7 @@ final class AssetApi {
         }
         TexI[] textures = buildMeshTextures(mesh, name);   // R3b: the shared base-colour textures (owned by the mesh)
         final LuaMesh lm = new LuaMesh(owner, name, mesh, textures);
-        lm.asset = new Asset(name) {
+        lm.asset = new Asset(owner, name) {
             void dispose() {
                 owner.assets.remove(key);  // a re-load after this is a NEW asset, never the disposed one
                 disposeMesh(lm);
@@ -564,11 +610,11 @@ final class AssetApi {
     }
 
     /**
-     * Free one model now (its {@code :dispose()}, and teardown): flip {@link LuaMesh#dead} (so a later
+     * Free one model now ({@code hafen.asset():remove(mdl)} and teardown): flip {@link LuaMesh#dead} (so a later
      * {@code render.object} refuses it), drop it from the addon's registry, and (R3b) dispose the mesh's
      * <b>shared base-colour textures</b> (the first GPU state a mesh owns). Each {@link LuaObject} owns its own
      * engine {@code Model}s (freed by {@code teardownObjects}, which runs first), so at teardown nothing still
-     * holds a sampler when its {@code TexI} goes. A manual {@code mesh:dispose()} while an object draws it does
+     * holds a sampler when its {@code TexI} goes. Removing a mesh by hand while an object draws it does
      * <b>not</b> break that object visually (it captured the sampler at mill time — measured 028.2); it only
      * forfeits the freeing until the object is destroyed. Dispose only when unused — see {@link LuaMesh}.
      * Idempotent.
@@ -606,7 +652,7 @@ final class AssetApi {
      * one Lua call. Parsing here would also make the interned value <b>mutable shared state</b> — every re-load of
      * the path handing back the same table, one addon's edit visible to its next reader — where a string is
      * immutable and interning stays honest. Like a font asset it owns nothing releasable, so dropping the cache
-     * entry IS its {@code :dispose()}.
+     * entry IS the whole of its freeing.
      */
     private static LuaValue newData(Addon owner, String name, String key, Path p) {
         String text;
@@ -618,7 +664,7 @@ final class AssetApi {
         if(text.startsWith("\uFEFF"))
             text = text.substring(1);      // a UTF-8 BOM is not JSON: it would fail parse() on the very first char
         Data d = new Data(LuaValue.valueOf(text));
-        d.asset = new Asset(name) {
+        d.asset = new Asset(owner, name) {
             void dispose() {
                 owner.assets.remove(key);  // data owns nothing releasable — dropping the entry IS the dispose
             }
@@ -680,11 +726,28 @@ final class AssetApi {
      * than handing back a corpse.
      */
     static abstract class Asset {
+        /**
+         * The addon that loaded it — what {@code hafen.asset():remove(a)} compares before it frees anything,
+         * since the ending is reached through the CALLER's collection and a view of another addon's file
+         * resolves to this same record.
+         */
+        final Addon owner;
         /** The addon-relative path of the FIRST load — what {@code a:path()} answers. */
         final String path;
 
-        Asset(String path) {
+        Asset(Addon owner, String path) {
+            this.owner = owner;
             this.path = path;
+        }
+
+        /**
+         * Is it a <b>member of {@code hafen.asset()}</b>? False for a {@link MapImages map drawing}, which
+         * wears this same facet but is a picture the client drew rather than a file the addon shipped: it is
+         * reached through {@code grid:image(lvl)}, it is listed by no collection, and it keeps its own
+         * {@code :dispose()}.
+         */
+        boolean member() {
+            return true;
         }
 
         abstract void dispose();
@@ -692,12 +755,12 @@ final class AssetApi {
 
     /**
      * The verbs <b>every</b> loaded file answers, contributed to one kind's methods table: {@code :type()} (the
-     * dispatch result — {@code "image"}/{@code "font"}/{@code "mesh"}/{@code "data"}), {@code :path()} (the
-     * addon-relative path it was loaded from) and, on the handle its owner holds, {@code :dispose()} (free it
-     * now — also automatic on {@code :reload}/disable/relogin, P2), which returns the handle so it chains like
-     * every other verb here.
+     * dispatch result — {@code "image"}/{@code "font"}/{@code "mesh"}/{@code "data"}) and {@code :path()} (the
+     * addon-relative path it was loaded from). <b>There is no ending here</b>: freeing one is
+     * {@code hafen.asset():remove(a)} on the collection that owns it, and it happens on
+     * {@code :reload}/disable/relogin either way (P2).
      */
-    static void addAssetVerbs(LuaTable m, final String type, boolean owned) {
+    static void addAssetVerbs(LuaTable m, final String type) {
         m.set("type", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 asset(self, "type");
@@ -709,14 +772,20 @@ final class AssetApi {
                 return LuaValue.valueOf(asset(self, "path").path);
             }
         });
-        if(owned) {
-            m.set("dispose", new OneArgFunction() {
-                public LuaValue call(LuaValue self) {
-                    asset(self, "dispose").dispose();
-                    return self;
-                }
-            });
-        }
+    }
+
+    /**
+     * {@code img:dispose()} — the one ending that stays on a handle, for the one asset facet that is not the
+     * member of a collection: a {@link MapImages map drawing}, which {@code grid:image(lvl)} hands back and
+     * which appears in no {@code hafen.asset()} list. It returns the handle, like every other verb here.
+     */
+    static void addDisposeVerb(LuaTable m) {
+        m.set("dispose", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                asset(self, "dispose").dispose();
+                return self;
+            }
+        });
     }
 
     /** The asset facet behind a shared verb's {@code self}, or the error that says what a colon call needs. */
@@ -765,9 +834,9 @@ final class AssetApi {
                     return LuaWidget.whTable(image(self, "size").sz);
                 }
             });
-            addAssetVerbs(m, "image", k == Kind.IMAGE);
+            addAssetVerbs(m, "image");
             return fileMeta("image", "image", m, (k == Kind.IMAGE)
-                ? "an image asset answers :type() :path() :size() and :dispose()"
+                ? "an image asset answers :type() :path() and :size(), and hafen.asset():remove(img) frees it"
                 : "an image another addon loaded answers :type() :path() and :size() — freeing a file is"
                   + " the job of the addon that loaded it");
         case MESH:
@@ -781,18 +850,19 @@ final class AssetApi {
                     return meshInfo(mesh(self, "info"));
                 }
             });
-            addAssetVerbs(m, "mesh", true);
+            addAssetVerbs(m, "mesh");
             return fileMeta("mesh", "mesh", m,
-                "a mesh asset answers :type() :path() :bounds() :info() and :dispose()");
+                "a mesh asset answers :type() :path() :bounds() and :info(), and hafen.asset():remove(mdl)"
+                + " frees it");
         default:
             m.set("text", new OneArgFunction() {
                 public LuaValue call(LuaValue self) {
                     return data(self, "text").text;
                 }
             });
-            addAssetVerbs(m, "data", true);
+            addAssetVerbs(m, "data");
             return fileMeta("data", "data", m,
-                "a data asset answers :type() :path() :text() and :dispose()");
+                "a data asset answers :type() :path() and :text(), and hafen.asset():remove(d) frees it");
         }
     }
 

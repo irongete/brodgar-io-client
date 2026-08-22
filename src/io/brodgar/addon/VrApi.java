@@ -1320,8 +1320,8 @@ final class VrApi {
             throw new LuaError("hafen.vr():object():add(model): the argument must be a hafen.asset mesh handle"
                 + " (hafen.asset():get(\"chair.glb\")), got " + modelv.typename());
         if(lm.dead)
-            throw new LuaError("hafen.vr():object():add(model): that mesh has been disposed — after a :dispose(), hafen.asset():get(path)"
-                + " loads the file again as a NEW asset");
+            throw new LuaError("hafen.vr():object():add(model): that mesh has been freed — after"
+                + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
         return lm;
     }
 
@@ -1493,8 +1493,8 @@ final class VrApi {
             throw new LuaError("hafen.vr():sprite():add(image): the argument must be a hafen.asset image handle"
                 + " (hafen.asset():get(\"icon.png\")), got " + imgv.typename());
         if(li.dead)
-            throw new LuaError("hafen.vr():sprite():add(image): that image has been disposed — after a :dispose(), hafen.asset():get(path)"
-                + " loads the file again as a NEW asset");
+            throw new LuaError("hafen.vr():sprite():add(image): that image has been freed — after"
+                + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
         return li;
     }
 

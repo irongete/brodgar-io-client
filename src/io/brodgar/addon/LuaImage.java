@@ -25,13 +25,13 @@ import org.luaj.vm2.LuaValue;
  * userdata in existence are the ones the bridge created.
  *
  * <p><b>Ownership (P2).</b> Bridge-owned: it lives only in the addon's owned-resource registry
- * ({@link Addon#images}). {@code :dispose()} / {@code Disable} / {@code :reload} / relogin teardown
+ * ({@link Addon#images}). {@code hafen.asset():remove(a)} / {@code Disable} / {@code :reload} / relogin teardown
  * ({@link AssetApi#teardownAssets}) frees its GPU texture ({@link TexI#dispose()}) and drops it from the
  * registry, leaking no GL resource — the same guarantee as windows, overlays, and ghosts. The {@link #dead}
- * flag makes any later {@code g:image} a clean no-op, so a disposed image never resurrects its texture via
+ * flag makes any later {@code g:image} a clean no-op, so a freed image never resurrects its texture via
  * {@code TexI.st()}'s lazy re-upload.
  *
- * <p><b>Threading.</b> Loading, {@code :dispose}, and teardown run on the UI thread (P5); {@link #resolve} and
+ * <p><b>Threading.</b> Loading, freeing, and teardown run on the UI thread (P5); {@link #resolve} and
  * the {@link #tex}/{@link #dead} reads happen inside a draw callback (the render thread). {@code TexI} is
  * itself draw-thread-safe (its GL upload is lazy + synchronized); {@link #dead} is {@code volatile}; the
  * {@link Addon#images} list is copy-on-write — so no extra locking is needed.
@@ -39,7 +39,7 @@ import org.luaj.vm2.LuaValue;
 public final class LuaImage implements AssetApi.Loaded {
     final Addon  owner;
     final String name;      // the addon-relative path — for load-dedup, the error text, and a future filter
-    final TexI   tex;       // the GPU texture (lazy upload in TexI.st()); freed by :dispose()/teardown
+    final TexI   tex;       // the GPU texture (lazy upload in TexI.st()); freed by a remove/teardown
     final Coord  sz;        // DESIGN pixel size (tex.sz()), for :size() — see stex
     /**
      * <b>The same texture, at the size it is drawn</b> (058.2) — a {@link ScaledTex} view wrapping {@link #tex}
@@ -54,7 +54,7 @@ public final class LuaImage implements AssetApi.Loaded {
      * this one would dispose that one twice.
      */
     final ScaledTex<TexI> stex;
-    volatile boolean dead;  // disposed/torn down → g:image becomes a no-op (no TexI.st() re-upload)
+    volatile boolean dead;  // freed/torn down → g:image becomes a no-op (no TexI.st() re-upload)
     LuaValue handle;        // the stable Lua handle (so a re-load of the same path returns the same one)
     /**
      * What the shared asset verbs answer for this picture, and how it frees itself — the addon-relative path

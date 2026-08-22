@@ -60,9 +60,10 @@ miss is `nil`, and a **position** is an error too.
 [`hafen.asset()`](asset.md) is a collection keyed by an **addon-relative path**: `:get(path)` is one
 asset, `:list(filter)` the ones this addon holds. It is the one collection that hands back an **owned
 resource** rather than a view of client state — the type comes from the file's extension, the handle is
-interned per path, and it is freed on reload or disable, or by `:dispose()`, after which the same path
-loads as a *new* object. Wherever a local file is used — a sprite's `:add(image)`, an object's
-`:add(model)`, a widget's `:font(h)` — you pass the **handle**, never a path.
+interned per path, and it is freed on reload or disable, or by `hafen.asset():remove(a)`, after which the
+same path loads as a *new* object. The ending is the **collection's**, because the collection is what owns
+the file. Wherever a local file is used — a sprite's `:add(image)`, an object's `:add(model)`, a widget's
+`:font(h)` — you pass the **handle**, never a path, and `:remove` is no exception.
 
 ## Item: a thing in a container
 
@@ -87,9 +88,9 @@ false, once its widget is gone. What you may *write* depends on whether your add
 Its write verbs answer for **your** addon: what you wrote comes back unchanged, and what you drop
 leaves another addon's alone. [`w:replace(view)`](ui/replace.md) installs a stand-in and
 `w:replace(nil)` undoes it; [`w:rule()`](ui/style/README.md#restyle-one-widget) is your own level of the
-style cascade, and `w:rule():remove()` drops it. [`w:revert()`](ui/edit.md#taking-the-whole-edit-back) gives
-back every [edit](ui/edit.md) you hold on a widget and on what is inside it at once, a standing replacement
-excepted.
+style cascade, and `w:rule():release()` gives it back.
+[`w:revert()`](ui/edit.md#taking-the-whole-edit-back) gives back every [edit](ui/edit.md) you hold on a
+widget and on what is inside it at once, a standing replacement excepted.
 
 ## Selector: naming a piece of the UI
 

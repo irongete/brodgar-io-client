@@ -34,7 +34,7 @@ itself, the per-widget level, the cascade they all resolve through, and the edge
 | `sheet:rule(selector)` | Rule | the rule for that key, minted on first use and the same object after |
 | `sheet:load(rules)` | self | a whole sheet from **data** — see [below](#a-sheet-from-data) |
 | `sheet:install()` | self | apply what the sheet says, **replacing** whatever this addon had installed |
-| `sheet:drop()` | self | stop applying it; every surface it styled falls back |
+| `sheet:release()` | self | give it back; every surface it styled falls back |
 | `sheet:stock()` | table | the **client's own** look as data — see [below](#the-clients-own-look) |
 | `sheet:stock(key)` | table \| nil | one site's own look; `nil` when this client has offered none |
 | `sheet:info()` | table | `{installed = …, rules = {selector, …}}` |
@@ -51,8 +51,8 @@ local s = hafen.ui():sheet()
 s:rule("chat"):color{200, 210, 200}
 s:install()                        -- from here the sheet IS the client's look
 s:rule("tooltip"):color{255, 150, 90}   -- ...so this lands on the spot
-s:rule("chat"):remove()                 -- ...and so does dropping one rule
-s:drop()                                -- everything it styled falls back
+s:rule("chat"):release()                -- ...and so does giving one rule back
+s:release()                             -- everything it styled falls back
 ```
 
 The change is **live** — existing text re-renders on the spot — and the sheet is **owned**: it is dropped
@@ -151,7 +151,7 @@ Each is a setter that returns the rule, and each reads back with no argument.
 
 A rule also carries `rule:selector()` (the key it was named by), `rule:sheet()` (the sheet it belongs to, so
 a whole sheet can be one expression), `rule:info()` (everything it says, or `nil` when it says nothing) and
-`rule:remove()` (it stops saying anything; the handle goes on working, and setting a property says the level
+`rule:release()` (it stops saying anything; the handle goes on working, and setting a property says the level
 again).
 
 **The properties are independent.** A rule may carry any one alone: a colour-only rule leaves the surface's
@@ -171,14 +171,14 @@ already hold, ask it for its own rule — the same Rule object a sheet's selecto
 local n = hafen.ui():mouse():over()      -- the widget under the cursor
 n:rule():font(h):color{200, 180, 140}   -- this widget and all inside it; SIBLINGS untouched
 n:rule():info()                         --> { font = h, color = {r=200, g=180, b=140, a=255} }
-n:rule():remove()                       -- drop it again
+n:rule():release()                      -- give the level back
 ```
 
 | Call | Returns | Description |
 |---|---|---|
 | `widget:rule()` | Rule | **your** level on that widget, carrying the same properties a sheet rule does |
 | `widget:rule():info()` | table \| nil | read **your own** level back, exactly as you wrote it; `nil` if you have none |
-| `widget:rule():remove()` | nothing | drop **your** level; another addon's on the same widget is untouched |
+| `widget:rule():release()` | nothing | give **your** level back; another addon's on the same widget is untouched |
 | `widget:style()` | table \| nil | what the widget **resolves to**; `nil` when nothing names it |
 
 - **It covers the whole subtree.** The client draws parents before children, so a style on a window reaches

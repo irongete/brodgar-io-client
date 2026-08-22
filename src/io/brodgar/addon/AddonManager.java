@@ -3235,7 +3235,7 @@ public final class AddonManager {
         // containment check lives here now). It takes a PATH AND NOTHING ELSE: loading a file is expensive and
         // happens once, configuring a use of it is cheap and happens many times, so a font's size/style is
         // h:derive{size=12} — AWT's own split, and what keeps == free of an options table. Interned per (addon,
-        // resolved path), so repeating the load costs nothing and identity is stable WHILE ALIVE: :dispose()
+        // resolved path), so repeating the load costs nothing and identity is stable WHILE ALIVE: a remove
         // drops the entry, so the next load of that path is a NEW object. Every asset answers :type()/:path()/
         // :dispose() on top of its own verbs. hafen.font.load / hafen.render.image / hafen.render.model are a
         // HARD CUT (D-013) and read as nil; the client's four BUILT-IN fonts are engine-owned, so they are

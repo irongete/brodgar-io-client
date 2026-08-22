@@ -467,8 +467,8 @@ public final class LuaPagina {
         LuaImage li = LuaImage.resolve(v);
         if(li != null) {
             if(li.dead)
-                throw new LuaError("pagina:icon(image): this asset has been disposed — after a :dispose(),"
-                    + " hafen.asset():get(path) loads the file again as a NEW asset");
+                throw new LuaError("pagina:icon(image): this asset has been freed — after"
+                    + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
             return li;
         }
         if(v.isstring() && !v.isnumber())

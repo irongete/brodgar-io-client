@@ -15,7 +15,7 @@ s:install()
 ```
 
 `"*"` is the fallback under everything; `"chat"` refines one surface out of it. Reload, and the chat
-log is green in a serif face. `s:drop()` puts the stock client back, as does disabling your addon.
+log is green in a serif face. `s:release()` puts the stock client back, as does disabling your addon.
 
 **An addon owns exactly one sheet**, handed back by identity from `hafen.ui():sheet()`, and `:install()`
 replaces the applied one *whole* rather than merging into it. The document is yours to keep and edit: a
@@ -25,7 +25,7 @@ the spot.
 ```lua
 local s = hafen.ui():sheet()
 s:rule("chat"):color{190, 210, 190}     -- ...or, once the sheet is installed, changes it live
-s:rule("chat"):remove()                 -- and this drops that one rule
+s:rule("chat"):release()                -- and this gives that one rule back
 ```
 
 ## What a key can name

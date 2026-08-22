@@ -1,0 +1,9 @@
+{
+  "name": "087.1 — three endings take the vocabulary's own word",
+  "id": "087-one-way-to-undo-it.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 087.1: rule:release() gives a widget's own layer back and the widget resolves to the client's own again, sheet:release() drops the sheet, hafen.asset():remove(a) frees a loaded image and the count falls by one, rule:remove() / sheet:drop() / img:dispose() each raise naming their replacement, and the collection refuses a path, a face that was never a file and a map drawing it does not hold.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

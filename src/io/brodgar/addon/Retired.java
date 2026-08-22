@@ -509,7 +509,7 @@ final class Retired {
         put("hafen.ui.skin", "hafen.ui.skin{…} is now hafen.ui():sheet(): s:rule(selector) hands back the rule"
             + " for that key and its properties are setters (:font(h) :color(c) :bg{…} :border{…}"
             + " :padding(n) :position(x, y) :anchor{…} :size(w, h)), s:load(t) takes a whole sheet as data, and"
-            + " s:install() / s:drop() apply and remove it — hafen.ui.skin(nil) is s:drop()");
+            + " s:install() / s:release() apply and drop it — hafen.ui.skin(nil) is s:release()");
         // ---- 065.1: a rule's room around its content is said on all FOUR sides, so the property is named for
         // ---- what it is rather than abbreviated. It is a Rule verb, so the row hangs off LuaRule's own closed
         // ---- __index; Sheet.propsOf consults this same table for the DATA door, where `pad = 4` is a key in a
@@ -531,7 +531,7 @@ final class Retired {
             + " value is the argument rather than the verb's name");
         put("widget:skin", "widget:skin{…} is now widget:rule(), the same Rule object a sheet's selectors hand"
             + " back: its properties are setters (:font(h) :color(c) :bg{…} :border{…} :padding(n)),"
-            + " widget:rule():info() reads your whole level back, and widget:rule():remove() drops it."
+            + " widget:rule():info() reads your whole level back, and widget:rule():release() drops it."
             + " widget:style() still answers what the widget RESOLVES to");
 
         // ---- 041.3: the four input slots join the one vocabulary every widget answers, ANY widget included ----
@@ -756,6 +756,23 @@ final class Retired {
             + " and mapImg:size() have always answered. A place and a pixel keep {x=, y=}");
         field("bounds", "size", "mdl:bounds() names its span extent — .extent.x/.y/.z, the reach of the"
             + " box in world units. .min and .max are the corners, unchanged");
+
+        // ---- three endings take the teardown vocabulary's own word. A LAYER you took is given back with
+        // ---- :release(), and a MEMBER of a collection is destroyed by the collection — so the rule a reader
+        // ---- can hold is the receiver's kind, not the verb's history.
+        put("rule:remove", "rule:remove() is now rule:release(): a rule is a LAYER you took over what the"
+            + " client draws — on one widget with widget:rule(), or on a selector through your sheet — and"
+            + " ending it gives that layer back. :remove(x) is what a COLLECTION does to a member. The handle"
+            + " goes on working either way: setting a property on it says the level again");
+        put("sheet:drop", "sheet:drop() is now sheet:release() — the same act rule:release() is, one level up:"
+            + " a sheet is the set of layers this addon took over the client's look, and this gives them back."
+            + " The document is untouched, so :install() puts it back");
+        assetVerb("dispose", "asset:dispose() is now hafen.asset():remove(a): the asset collection exists and"
+            + " owns the files this addon loaded, and where a collection exists the destroy verb is on it."
+            + " Pass the handle — hafen.asset():remove(hafen.asset():get(\"icon.png\")). A built-in font, a"
+            + " :derive()d variant and a file another addon loaded are not members of yours, and each says so"
+            + " when you try. A map drawing keeps img:dispose(): grid:image(lvl) hands it back and no"
+            + " collection lists it");
     }
 
     /**
@@ -829,6 +846,19 @@ final class Retired {
             + "(…) " + why
             + ". The session's half of hafen.ui is the widgets THE CLIENT put up — :find, :all, :on, :root,"
             + " :node, :inventory and :equipment.");
+    }
+
+    /**
+     * Register one verb retired on <b>every loaded-file kind at once</b>: the four entity names a file's
+     * handle wears ({@link AssetApi#fileMeta}), which are what a {@link #closedIndex} row is keyed on.
+     *
+     * <p>{@code "mapimage"} is deliberately absent. A map drawing wears the same asset facet and answers the
+     * same shared verbs, but it is the member of no collection and keeps its own {@code :dispose()} — so a row
+     * keyed on it would retire a verb that is still there.
+     */
+    private static void assetVerb(String verb, String message) {
+        for(String entity : new String[] {"image", "mesh", "data", "font"})
+            put(entity + ":" + verb, message);
     }
 
     /** Register the plain {@code hafen.<section>.<verb>(…)} → {@code hafen.<section>():<verb>(…)} rows. */

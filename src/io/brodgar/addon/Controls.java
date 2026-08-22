@@ -795,8 +795,8 @@ final class Controls {
         LuaImage li = LuaImage.resolve(v);
         if(li != null) {
             if(li.dead)
-                throw new LuaError("widget:image: the " + which + " face has been disposed — after a :dispose(),"
-                    + " hafen.asset():get(path) loads the file again as a NEW asset");
+                throw new LuaError("widget:image: the " + which + " face has been freed — after"
+                    + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
             return li.tex.back;
         }
         if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string — that one is just a wrong type
@@ -836,8 +836,8 @@ final class Controls {
         LuaImage li = LuaImage.resolve(v);
         if(li != null) {
             if(li.dead)
-                throw new LuaError("widget:image: the " + which + " face has been disposed — after a :dispose(),"
-                    + " hafen.asset():get(path) loads the file again as a NEW asset");
+                throw new LuaError("widget:image: the " + which + " face has been freed — after"
+                    + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
             return li.tex;
         }
         if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string — that one is just a wrong type
@@ -1087,8 +1087,8 @@ final class Controls {
         LuaImage li = LuaImage.resolve(v);
         if(li != null) {
             if(li.dead)
-                throw new LuaError("widget:source: this asset has been disposed — after a :dispose(),"
-                    + " hafen.asset():get(path) loads the file again as a NEW asset");
+                throw new LuaError("widget:source: this asset has been freed — after"
+                    + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
             return li.tex;
         }
         if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string — that one is just a wrong type

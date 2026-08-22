@@ -45,7 +45,7 @@ w:position(12, 12)      --                        -- named by hand: the top of t
 w:position()            --> {x = 12,  y = 12}
 w:position(nil)         --                        -- your level goes...
 w:position()            --> {x = 40,  y = 200}    -- ...and the RULE is what is underneath
-sheet:drop()            --                        -- ...and now nothing is: the user's again
+sheet:release()         --                        -- ...and now nothing is: the user's again
 ```
 
 `size` carries [the same caveat as the verb](../native.md): a client window that packs itself around its

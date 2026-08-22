@@ -54,7 +54,7 @@ import java.util.Map;
  * zoom grid share the one handle and the same call twice hands back the same object. It is an LRU bounded at
  * {@link #MAX} entries: a panel re-asks for the grids it is drawing every frame, so the visible ones stay and
  * the ones that scrolled away are disposed. Every handle is registered in {@link Addon#images} like any other
- * image, so {@code :dispose()}, {@code :reload}, disable and relogin all free the {@code TexI} — an
+ * image, so {@code img:dispose()}, {@code :reload}, disable and relogin all free the {@code TexI} — an
  * undisposed texture per grid is a GL leak by a new door.
  */
 final class MapImages {
@@ -282,7 +282,12 @@ final class MapImages {
             return LuaValue.NIL;
         }
         final LuaImage li = new LuaImage(owner, e.label, tex);
-        li.asset = new AssetApi.Asset(e.label) {
+        li.asset = new AssetApi.Asset(owner, e.label) {
+            /** A picture of the database, not a file the addon shipped: hafen.asset() never holds it. */
+            boolean member() {
+                return false;
+            }
+
             void dispose() {
                 owner.mapImages.remove(key);   // drop the entry FIRST: a re-read renders anew
             }
@@ -299,7 +304,9 @@ final class MapImages {
      * {@link LuaImage} {@code g:image}, {@code hafen.vr():sprite()} and the stylesheet's
      * {@code bg = {image = …}} resolve — answering {@code :size()}, {@code :type()}, {@code :path()},
      * {@code :info()} and {@code :dispose()}. It is its own {@link AssetApi.Kind} rather than a loaded image's,
-     * for the one verb the two do not share: a picture of the database can say what ground it is of.
+     * for the two verbs a loaded image has not got: a picture of the database can say what ground it is of, and
+     * it ends on the handle because it is the member of no collection — {@code hafen.asset():remove(a)} frees a
+     * file the addon shipped, and this is not one.
      *
      * <p>It is deliberately <b>not</b> an {@code hafen.asset} entry: an asset is a file this addon shipped,
      * and this is a picture the client drew of the database. It never appears in {@code hafen.asset()}'s list
@@ -323,7 +330,8 @@ final class MapImages {
                 return t;
             }
         });
-        AssetApi.addAssetVerbs(m, "image", true);
+        AssetApi.addAssetVerbs(m, "image");
+        AssetApi.addDisposeVerb(m);
         // The entity name is its OWN, not the image asset's: the two vocabularies differ (a drawing answers
         // :info(), an asset does not) and they have different lifetimes, so a retirement row keyed on one
         // must not fire on the other. The type it reports is still "image" -- what it IS, to a draw verb.

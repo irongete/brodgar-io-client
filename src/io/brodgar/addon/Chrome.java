@@ -74,8 +74,8 @@ import java.util.WeakHashMap;
  * from the very {@link Border#ibox} below.
  *
  * <p><b>A border costs no texture.</b> Its nine slices are {@link TexSI} views over the addon's <i>one</i>
- * uploaded image, so a border neither uploads a second copy nor owns anything to dispose — the image's own
- * {@code :dispose()}/teardown is still the whole lifetime, and a disposed image simply stops painting. A
+ * uploaded image, so a border neither uploads a second copy nor owns anything to free — the image's own
+ * removal or teardown is still the whole lifetime, and a freed image simply stops painting. A
  * {@code {box=}} border owns nothing at all: it is the client's own eight textures, from the resource cache.
  */
 final class Chrome {

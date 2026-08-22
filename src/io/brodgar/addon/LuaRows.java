@@ -91,8 +91,8 @@ final class LuaRows {
         LuaImage li = LuaImage.resolve(v);
         if(li != null) {
             if(li.dead)
-                throw new LuaError(verb + "(t): row " + row + "'s icon has been disposed — after a :dispose(),"
-                    + " hafen.asset():get(path) loads the file again as a NEW asset");
+                throw new LuaError(verb + "(t): row " + row + "'s icon has been freed — after"
+                    + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
             return li.tex.back;
         }
         if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string -- that one is just wrong type

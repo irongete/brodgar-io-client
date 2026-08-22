@@ -33,7 +33,7 @@ import java.util.WeakHashMap;
  *
  * <p><b>A rule is a NAME for a level, never the record itself</b> (D-065's shape). What it says lives in the
  * sheet (or, for a widget's own level, in {@link Sheet}'s per-widget map), and every read and write goes there
- * through the binding — so a handle kept across a {@code :remove()} is not stale: setting a property on it
+ * through the binding — so a handle kept across a {@code :release()} is not stale: setting a property on it
  * simply says that level again. That is also what lets {@code sheet:rule(sel)} hand back the same object every
  * time without the object having to hold anything.
  *
@@ -43,7 +43,7 @@ import java.util.WeakHashMap;
  * — the keys have no order — so a rule saying both there is refused rather than resolved by iteration order.
  *
  * <p><b>An explicit {@code nil} is refused</b> (§2.9): a rule property has no undo of its own, and a {@code nil}
- * that silently became a read is the accident the discipline exists for. What ends a level is {@code :remove()}.
+ * that silently became a read is the accident the discipline exists for. What ends a level is {@code :release()}.
  */
 public final class LuaRule {
     /** The sheet this rule belongs to, or {@code null} when it is a widget's own level. */
@@ -197,7 +197,7 @@ public final class LuaRule {
         // later as "attempt to call a nil value".
         mt.set(LuaValue.INDEX, Retired.closedIndex("rule", methods(owner),
             "the properties a rule carries are " + Sheet.PROPS
-            + ", and its other verbs are :selector() :sheet() :remove() and :info()"));
+            + ", and its other verbs are :selector() :sheet() :release() and :info()"));
         mt.set("__name", LuaValue.valueOf("Rule"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -362,7 +362,7 @@ public final class LuaRule {
         // picture{<art>, hover=, pressed=, …} — the whole plate a surface IS (065.12), where the client blits a
         // picture rather than framing something. ONE surface, never a list: layers are what a bg is painted in,
         // and a second plate under this one could never be seen. It is read at the DRAW, so a rule on a picture
-        // the server re-points survives the re-point and gives the client's own art back on :remove().
+        // the server re-points survives the re-point and gives the client's own art back on :release().
         m.set("picture", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -507,12 +507,13 @@ public final class LuaRule {
                 return (r.sheet == null) ? LuaValue.NIL : r.sheet.handle();
             }
         });
-        // remove() — this level stops saying anything (R7). On a widget's own level that is the undo of
-        // widget:rule(); on a sheet rule it is how one rule leaves a sheet without rebuilding it. The handle
-        // stays usable: a rule is a NAME for a level, so setting a property on it says that level again.
-        m.set("remove", new OneArgFunction() {
+        // release() — this level stops saying anything (R7). A rule is a LAYER you took over what the client
+        // draws, so ending it gives that layer back: on a widget's own level it is the undo of widget:rule(),
+        // and on a sheet rule it is how one rule leaves a sheet without rebuilding it. The handle stays usable:
+        // a rule is a NAME for a level, so setting a property on it says that level again.
+        m.set("release", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                LuaRule r = handle(self, "remove");
+                LuaRule r = handle(self, "release");
                 if(r.sheet != null) {
                     r.sheet.clear(r.selector);
                 } else {

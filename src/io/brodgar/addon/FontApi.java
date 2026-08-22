@@ -275,9 +275,8 @@ final class FontApi {
      * The Lua handle for a {@link FontHandle}: <b>userdata over the handle itself</b>, wearing one of this
      * addon's two font metatables. Facade-safe (no AWT {@code Font} reaches Lua). A font <b>asset</b>
      * ({@link AssetApi}) wears {@link AssetApi.Kind#FONT_ASSET}, which adds the shared
-     * {@code :type()}/{@code :path()}/{@code :dispose()}; a built-in, a {@code :derive}d variant and a view of
-     * another addon's face wear {@link AssetApi.Kind#FONT} — never loaded from a file, so no path and no
-     * lifetime.
+     * {@code :type()}/{@code :path()}; a built-in, a {@code :derive}d variant and a view of another addon's
+     * face wear {@link AssetApi.Kind#FONT} — never loaded from a file, so no path and no lifetime.
      */
     static LuaValue fontHandle(Addon owner, FontHandle fh, AssetApi.Kind kind) {
         LuaValue h = LuaValue.userdataOf(fh, AssetApi.meta(owner, kind));
@@ -316,7 +315,8 @@ final class FontApi {
         // derive() -- a DRAFT variant of this font, configured by the setters below. It takes no ARGUMENT: the
         // options table is gone, and { size = 12 } would be the last config table left in this section.
         //   A variant is a face and never a file, whatever it was derived FROM: it wears the plain metatable,
-        // so a :dispose() on it raises naming what a file is, rather than freeing the original twice.
+        // so an asset verb on it raises naming what a file is, and hafen.asset():remove refuses it too --
+        // freeing the original twice is the mistake both of those exist to stop.
         m.set("derive", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 FontHandle fh = font(a.arg1(), "derive");
@@ -343,14 +343,15 @@ final class FontApi {
         m.set("bold", property("bold"));
         m.set("italic", property("italic"));
         if(kind == AssetApi.Kind.FONT_ASSET) {
-            AssetApi.addAssetVerbs(m, "font", true);
-            return AssetApi.fileMeta("font", "font", m, "a font asset answers :type() :path() :dispose()"
-                + " :derive() :family() :size() :color() :aa() :bold() and :italic()");
+            AssetApi.addAssetVerbs(m, "font");
+            return AssetApi.fileMeta("font", "font", m, "a font asset answers :type() :path() :derive()"
+                + " :family() :size() :color() :aa() :bold() and :italic(), and hafen.asset():remove(h)"
+                + " frees it");
         }
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("font", m, "a font answers :derive() :family() :size()"
-            + " :color() :aa() :bold() and :italic() — :type(), :path() and :dispose() belong to the file a"
-            + " face was loaded from, and a built-in or a variant is not one"));
+            + " :color() :aa() :bold() and :italic() — :type() and :path() belong to the file a face was"
+            + " loaded from, and a built-in or a variant is not one"));
         mt.set("__name", LuaValue.valueOf("Font"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

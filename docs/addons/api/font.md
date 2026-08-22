@@ -38,10 +38,10 @@ or a path raises an error listing the four names and pointing paths at `hafen.as
 
 A font file your addon ships is an [**asset**](asset.md), loaded through the same door as an image, a model
 or a data file: `hafen.asset():get("fonts/Inter.ttf")`. It is sandboxed — absolute paths and `..` escapes are
-rejected — **interned per path**, so one parse per file however many times you call it, and disposed
+rejected — **interned per path**, so one parse per file however many times you call it, and freed
 automatically on reload or disable. Loading also registers the family into the JVM, so `h:family()` resolves
-in a [`$font[…]` tag](#mix-fonts-on-one-line). Being an asset, it also answers `:type()`, `:path()` and
-`:dispose()`.
+in a [`$font[…]` tag](#mix-fonts-on-one-line). Being an asset, it also answers `:type()` and `:path()`, and
+[`hafen.asset():remove(h)`](asset.md#the-collection) drops it early.
 
 ### The variant
 
@@ -66,9 +66,10 @@ name — bare it reads, with a value it writes and hands the handle back, so a v
 | `h:italic()` / `h:italic(b)` | boolean | style, baked into the font |
 | `h:color()` / `h:color(c)` | [colour](shapes.md#colours) \| nil | text colour — **for your own drawing only**, see below |
 
-A derived handle is a **variant of a font, not a file**: like a built-in it carries no `:type`, `:path` or
-`:dispose`, even when the handle it came from was an asset. Reaching for one of the three says which of the
-two you are holding, rather than reading `nil` — and so does a mistyped property. A face is an
+A derived handle is a **variant of a font, not a file**: like a built-in it carries no `:type` and no
+`:path`, even when the handle it came from was an asset, and `hafen.asset():remove(it)` refuses it for the
+same reason. Reaching for either verb says which of the two you are holding, rather than reading `nil` — and
+so does a mistyped property. A face is an
 [object, not a table](asset.md#every-asset), and it prints as what it is:
 
 ```lua
@@ -145,7 +146,7 @@ and never throws.
 ```lua
 hafen.ui():sheet():rule("window.title"):font(h)     -- name the rule...
 hafen.ui():sheet():install()                       -- ...and install THIS addon's sheet
-hafen.ui():sheet():drop()                          -- drop it; every surface it styled falls back
+hafen.ui():sheet():release()                       -- give it back; every surface it styled falls back
 ```
 
 A rule takes the handle, or **the same face named**: `{builtin = "mono", size = 11}` for one of the
@@ -175,7 +176,7 @@ end)
 hafen.slash():on("bigserif", function()
   hafen.ui():sheet():rule("*"):font(h):sheet():install()   -- most UI text becomes serif, live
 end)
--- reverted automatically when the addon is reloaded or disabled, or explicitly with sheet:drop()
+-- reverted automatically when the addon is reloaded or disabled, or explicitly with sheet:release()
 ```
 
 A whole look goes one step further: the face, the [chrome](ui/style/chrome.md) and every colour live in a

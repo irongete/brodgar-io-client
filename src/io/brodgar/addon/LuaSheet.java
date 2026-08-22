@@ -20,7 +20,7 @@ import java.util.Map;
  *   local s = hafen.ui():sheet()
  *   s:rule("window.title"):font(body)
  *   s:rule("chat"):color({200, 210, 200})
- *   s:install()                                  -- and s:drop()
+ *   s:install()                                  -- and s:release()
  * </pre>
  *
  * <p><b>An addon has exactly one sheet</b>, handed back by identity from {@code hafen.ui():sheet()} — a
@@ -47,7 +47,7 @@ public final class LuaSheet {
     /**
      * The rules, in the order they were first named: a later rule wins an equal-specificity tie, so the order
      * is part of what the sheet says. Entries are never dropped, only emptied, because a {@link LuaRule} handle
-     * is a NAME for its level and must go on answering after a {@code :remove()}.
+     * is a NAME for its level and must go on answering after a {@code :release()}.
      */
     private final Map<String, Rec> rules = new LinkedHashMap<String, Rec>();
     /** This object as Lua holds it — minted once, handed back by identity. */
@@ -117,7 +117,7 @@ public final class LuaSheet {
         return (r == null) ? null : r.sel;
     }
 
-    /** {@code rule:remove()} on a sheet rule: this level stops saying anything, the name goes on existing. */
+    /** {@code rule:release()} on a sheet rule: this level stops saying anything, the name goes on existing. */
     void clear(String selector) {
         synchronized(this) {
             Rec r = rules.get(selector);
@@ -156,7 +156,7 @@ public final class LuaSheet {
     private static LuaValue meta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("sheet", methods(owner),
-            "a sheet's verbs are :rule(selector) :load(rules) :install() :drop() :stock(key) and :info()"));
+            "a sheet's verbs are :rule(selector) :load(rules) :install() :release() :stock(key) and :info()"));
         mt.set("__name", LuaValue.valueOf("Sheet"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -209,11 +209,13 @@ public final class LuaSheet {
                 return self;
             }
         });
-        // drop() — stop applying it; every surface it styled falls back to another addon's sheet, else to
-        // stock. The document is untouched, so :install() puts it back. Inert when nothing was installed.
-        m.set("drop", new OneArgFunction() {
+        // release() — stop applying it; every surface it styled falls back to another addon's sheet, else to
+        // stock. The same act rule:release() is, one level up: a sheet is the set of layers this addon took
+        // over the client's look, and this gives them back. The document is untouched, so :install() puts it
+        // back. Inert when nothing was installed.
+        m.set("release", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                handle(self, "drop");
+                handle(self, "release");
                 Sheet.dropSheet(owner);
                 return self;
             }

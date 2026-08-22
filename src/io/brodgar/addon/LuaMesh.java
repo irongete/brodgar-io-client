@@ -24,13 +24,13 @@ import org.luaj.vm2.LuaValue;
  * parsed {@link Gltf} geometry is pure CPU data — each {@link LuaObject} builds its <b>own</b> engine
  * {@link haven.render.Model}s from it ({@link MeshSprite}). In R3b the mesh also owns the <b>shared base-colour
  * textures</b> ({@link #textures} — one {@link TexI} per referenced glTF image, decoded once and referenced by every
- * primitive/object that uses it): these are the first GPU state a mesh holds, so {@code :dispose()} / teardown
+ * primitive/object that uses it): these are the first GPU state a mesh holds, so a remove / teardown
  * ({@link AssetApi#teardownAssets}) now disposes each {@code TexI} in addition to marking it {@link #dead} (a
  * later {@code render.object} on a disposed handle errors). Teardown order guarantees safety: {@code teardownObjects}
  * (frees each object's own {@code Model}s) runs <b>before</b> {@code teardownMeshes} (frees the shared textures), so a
  * live object never references a freed texture.
  *
- * <p><b>What a manual {@code mesh:dispose()} under a live object actually does</b> (measured 028.2 — the earlier
+ * <p><b>What a manual {@code hafen.asset():remove(mdl)} under a live object actually does</b> (measured 028.2 — the earlier
  * R3b note predicted the opposite and was wrong): the object keeps drawing, <b>textured and unchanged</b>. It
  * never re-reads the {@link TexI}: {@link MeshSprite#texRender} captures {@code tex.st().data} <b>once</b>, at
  * mill time, into the material state, so nothing is pulled out from under it. What is lost is the <i>freeing</i>

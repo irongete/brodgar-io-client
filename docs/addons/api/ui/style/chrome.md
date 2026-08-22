@@ -254,7 +254,7 @@ s:install()
   framed: nothing moves and every click still lands, because a rule changes the paint and never the hit
   test, but you see the plate alone. Give such a surface art carrying the transparency the stock art had.
 - **The rule is read at the draw, never written into the widget.** The server re-points a picture whenever it
-  likes, so a rule keeps applying across that and `:remove()` hands the client's own art straight back —
+  likes, so a rule keeps applying across that and `:release()` hands the client's own art straight back —
   which is why `rule:picture(t)` and [`widget:picture()`](../widget.md#read) stay opposite questions: the
   first says what a surface is drawn as, the second names the resource the **client** put there.
 - **What names one is either a place the client has a name for, or a [tree key](keys.md#tree-keys).** The

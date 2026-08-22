@@ -75,9 +75,9 @@ So repeating the load is free. There is no reason to thread a handle through you
 second call, and no reason for the use sites to accept a path string. `a:path()` answers the spelling of
 the **first** load, since the resolved path is the key rather than the answer.
 
-> **Identity is stable *while the asset is alive*.** `:dispose()` drops it from the cache, so the next
-> `:get(path)` re-reads the file into a **new** object, and the old handle is never equal to it again. A
-> disposed asset is never served again and never [listed](#the-collection).
+> **Identity is stable *while the asset is alive*.** [`hafen.asset():remove(a)`](#the-collection) drops it
+> from the cache, so the next `:get(path)` re-reads the file into a **new** object, and the old handle is
+> never equal to it again. A freed asset is never served again and never [listed](#the-collection).
 
 ## Every asset
 
@@ -85,10 +85,11 @@ the **first** load, since the resolved path is the key rather than the answer.
 |---|---|
 | `a:type()` | `"image"` \| `"font"` \| `"mesh"` \| `"data"` — what the extension dispatched to |
 | `a:path()` | the addon-relative path it was loaded from |
-| `a:dispose()` | free it **now**, also automatic on reload, disable and relogin; returns the handle |
 
-You rarely need `:dispose()`: every asset is **bridge-owned** and freed for you, so nothing leaks a GPU
-texture. Use it only to release a large asset early.
+**Freeing one is the collection's verb**, [`hafen.asset():remove(a)`](#the-collection): the set that owns
+your files is what ends one of them. You rarely need it — every asset is **bridge-owned** and freed for you
+on reload, disable and relogin, so nothing leaks a GPU texture. Reach for it only to release a large asset
+early.
 
 A handle is an **object, not a table**. You call its verbs with `:`, you cannot write to it, and a name it
 does not answer raises where you wrote it rather than reading `nil` and failing a call later:
@@ -96,8 +97,8 @@ does not answer raises where you wrote it rather than reading `nil` and failing 
 ```lua
 local icon = hafen.asset():get("icon.png")
 tostring(icon)      --> Asset(image, icon.png)   -- the type and the path, for every type
-icon:sizes()        -- an error naming :type, :path, :size and :dispose
-icon.dispose = nil  -- an error: your own cleanup is not yours to delete
+icon:sizes()        -- an error naming :type, :path and :size
+icon.size = nil     -- an error: a handle is an object, and its verbs are not fields you can rewrite
 ```
 
 Nothing but a handle resolves to a file, either. A table you build to look like one is not one: the verbs
@@ -105,8 +106,9 @@ that take a picture refuse it naming this loader, and the [draw verbs](ui/drawin
 draw nothing for it.
 
 An image you did **not** load — one from another addon's [rule](ui/style/README.md), read back through
-`widget:style()` — answers `:type()`, `:path()` and `:size()` and carries no `:dispose()`. Freeing a file
-is the job of the addon that loaded it, and asking says so.
+`widget:style()` — answers `:type()`, `:path()` and `:size()` exactly as your own does. What it will not do
+is leave your collection: `hafen.asset():remove(it)` is refused, **naming the addon that loaded it**. Freeing
+a file is the job of the addon that loaded it.
 
 ### Image
 
@@ -117,7 +119,7 @@ is the job of the addon that loaded it, and asking says so.
 The file's pixels **are** design pixels: a 32×32 PNG answers `32, 32` and covers 32×32 wherever it is
 drawn, so it stands beside the client's own art at the same size at every interface scale.
 
-A disposed image simply **draws nothing** thereafter; the [draw verbs](ui/drawing.md) are forgiving and
+A freed image simply **draws nothing** thereafter; the [draw verbs](ui/drawing.md) are forgiving and
 never throw.
 
 A [stylesheet](ui/style/chrome.md#naming-a-picture) may name the file by path instead, `{asset =
@@ -126,9 +128,9 @@ A [stylesheet](ui/style/chrome.md#naming-a-picture) may name the file by path in
 
 ### Font
 
-A font asset **is** a [`FontHandle`](font.md) with the three asset verbs on top. See
+A font asset **is** a [`FontHandle`](font.md) with the two asset verbs on top. See
 [`hafen.font`](font.md#the-variant) for `:derive()`, `:family()` and `:size()`, and for the surfaces you
-can install it on. Disposing a font asset frees nothing, since a font holds no releasable resource; it only
+can install it on. Removing a font asset frees nothing, since a font holds no releasable resource; it only
 drops the cache entry, so the next load re-reads and re-registers the file.
 
 A [stylesheet](ui/style/text.md#font) may name it by path too, `{asset = "fonts/Inter.ttf", size = 12}`,
@@ -146,8 +148,8 @@ file, or one using an unsupported feature, raises a clear error that **names** t
 
 > **Disposing a mesh an object is still standing does not break that object.** The object keeps drawing,
 > textured and unchanged, because it captured its texture samplers when it was built. What you forfeit is
-> the *freeing*: the memory is not reclaimed until that object is destroyed. So `:dispose()` a mesh only
-> when nothing is standing it; the automatic teardown already gets the order right.
+> the *freeing*: the memory is not reclaimed until that object is destroyed. So remove a mesh only when
+> nothing is standing it; the automatic teardown already gets the order right.
 
 ### Data
 
@@ -170,7 +172,7 @@ of the path, where a string cannot be edited behind your back.
 
 The text is read once and held by the handle, so `:text()` is free to call repeatedly — and, like every
 other type, an **edit to the file takes effect on `:reload`**, which drops the cache with the addon's
-environment. Disposing a data asset frees nothing; it only drops that cache entry.
+environment. Removing a data asset frees nothing; it only drops that cache entry.
 
 ## The collection
 
@@ -180,11 +182,16 @@ environment. Disposing a data asset frees nothing; it only drops that cache entr
 | `hafen.asset():list(filter)` | asset`[]` | this addon's live assets, in load order |
 | `hafen.asset():count(filter)` | number | how many, without building the array |
 | `hafen.asset():find(filter)` | an asset \| nil | the first one that matches |
+| `hafen.asset():remove(a)` | the collection | free one **now** rather than at teardown; removals chain |
 
 `filter` is the canonical [filter](conventions.md#the-filter-argument), and a **string** matches the
 addon-relative path an asset was loaded from. There is no `:add` — an asset is a file you shipped, not
-something you make here — and no `:remove`: freeing one is `a:dispose()`, which releases the memory *now*
-rather than dropping a member from a set.
+something you make here.
+
+`:remove(a)` takes the **handle**, like every other place an asset is used. It frees the memory on the spot
+and drops the intern entry, so the next `:get(path)` re-reads the file as a new object. It holds **your own
+files only**: a built-in font, a derived variant, a [map drawing](map/drawings.md) and a file another addon
+loaded are each refused, and each says which of the four it is.
 
 ```lua
 for _, a in ipairs(hafen.asset():list()) do
@@ -193,7 +200,7 @@ end
 ```
 
 Only *loaded files* appear. A [built-in font](font.md#the-built-ins) has no file, no path and no lifetime,
-so it is never listed, and neither is a derived variant. A disposed asset is gone from the list and never
+so it is never listed, and neither is a derived variant. A freed asset is gone from the list and never
 resurrected.
 
 ## Errors
@@ -212,6 +219,10 @@ Everything below raises a `pcall`-able error naming `hafen.asset`, and each shap
 | `:get("")` | the path must be a **non-empty** string |
 | `:get(nil)` | the key is **required**: arity is the verb here, so a `nil` variable is refused rather than read as the list |
 | `:get("icon.png")` from `:lua` | the console **has no addon folder**, and an asset path is relative to the folder of the addon loading it |
+| `:remove("icon.png")` | pass the **handle**, not a path — every use site of an asset takes the handle |
+| `:remove(h)` on a built-in font or a variant | neither was loaded from a file, so this collection does not hold it |
+| `:remove(img)` on another addon's image | it **names the addon that loaded it**: freeing a file is that addon's job |
+| `:remove(img)` on a [map drawing](map/drawings.md) | it is a picture of the database, not a file you shipped, and it ends with `img:dispose()` |
 
 ## What this door does not open
 

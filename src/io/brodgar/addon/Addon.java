@@ -358,7 +358,7 @@ public final class Addon {
      * image is a passive texture drawn on demand through the {@code g} wrapper, so it lives only here. Teardown
      * ({@link AssetApi#teardownAssets}) disposes each ({@code TexI.dispose()} frees the GL texture) so a
      * reload/disable/relogin leaks no GPU resource — the same guarantee as windows, overlays, and ghosts.
-     * Copy-on-write: a firing callback may load or {@code :dispose()} an image.
+     * Copy-on-write: a firing callback may load or {@code hafen.asset():remove(a)} an image.
      */
     public final List<LuaImage> images = new CopyOnWriteArrayList<LuaImage>();
     /**
@@ -369,7 +369,7 @@ public final class Addon {
      * {@link #objects} build engine {@code Model}s from on demand, so it lives only here. Teardown
      * ({@link AssetApi#teardownAssets}) marks each dead and drops it (frees the CPU geometry for GC; its
      * per-object GPU {@code Model}s are freed with the objects) so a reload/disable/relogin leaks nothing.
-     * Copy-on-write: a firing callback may load or {@code :dispose()} a model.
+     * Copy-on-write: a firing callback may load or {@code hafen.asset():remove(a)} a model.
      */
     public final List<LuaMesh> meshes = new CopyOnWriteArrayList<LuaMesh>();
     /**
@@ -444,7 +444,7 @@ public final class Addon {
     /**
      * The <b>one stylesheet</b> this addon has applied ({@code hafen.ui():sheet():install()},
      * 033-ui-stylesheet), or {@code null}. An addon owns exactly one: installing again replaces it whole and
-     * {@code sheet:drop()} removes it ({@link Sheet#apply}). Each of its site keys is an owner-tagged entry in
+     * {@code sheet:release()} removes it ({@link Sheet#apply}). Each of its site keys is an owner-tagged entry in
      * the {@link haven.Fonts} provider, tagged by <b>this</b> {@code Addon} instance (spec 05); teardown
      * ({@link FontApi#teardownFonts}) removes them ({@code Fonts.removeOwner(this)} bumps the generation counter →
      * routed sites revert to the stock foundry), so a reload/disable restores the stock UI. What is here is a
@@ -563,9 +563,9 @@ public final class Addon {
      * data file, a font and a rendered map image answer, each built on the first handle of its kind. Indexed
      * by ordinal for the reason {@link #eventMeta} is: the kinds are a closed enum known at compile time.
      *
-     * <p>Two of them are the <b>same file seen from two sides</b>: the handle its owner holds carries
-     * {@code :dispose()} and the view another addon reads off a rule does not, because freeing an asset is
-     * the owner's to do. The record behind the handle is what is shared across that boundary, never a Lua
+     * <p>Two of them are the <b>same file seen from two sides</b>: the handle its owner holds and the view
+     * another addon reads off a rule, which {@code hafen.asset():remove(a)} refuses, because freeing an asset
+     * is the owner's to do. The record behind the handle is what is shared across that boundary, never a Lua
      * value (D-017), which is why the metatables are per addon like every other one here. The records are
      * torn down through {@link #images}/{@link #meshes} and {@link #assets}, not here.
      */

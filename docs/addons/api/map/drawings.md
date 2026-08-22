@@ -53,6 +53,10 @@ A drawing is an **owned resource** like a loaded image: `img:dispose()` frees it
 than becoming an error — it still answers `:size()`, drawing it simply draws nothing, and the next
 `grid:image(level)` renders a fresh one.
 
+The ending is **on the handle**, which is where an [asset](../asset.md#the-collection) has not got one: a
+file your addon shipped is a member of `hafen.asset()` and the collection frees it, while a drawing belongs
+to no collection at all. `hafen.asset():remove(img)` on one says so.
+
 You do not have to manage it. The cache keeps the most recently asked-for drawings and **disposes what
 falls off the end**, so a panel that scrolls across a continent frees the ground behind it by itself. That
 is also why a panel should re-ask each frame rather than stash a handle for later: asking is what keeps a
@@ -65,11 +69,12 @@ picture alive.
 It is an [object like every other handle](../asset.md#every-asset) — you cannot write to it, and a name it
 does not answer raises naming the ones it does. `tostring` gives you `Asset(image, map:<gridId>@<level>)`
 for a drawing of the ground and `Asset(image, overlay:<tag>@<gridId>)` for a mask, so a log line says which
-picture it is holding. Beside `:size()`, `:type()`, `:path()` and `:dispose()` it answers one verb an
-asset does not:
+picture it is holding. Beside `:size()`, `:type()` and `:path()` it answers two verbs an asset has not
+got — its own ending, and one read:
 
 | Method | Description |
 |---|---|
+| `img:dispose()` | free its texture **now**, also automatic on reload, disable and logout; returns the handle |
 | `img:info()` | `{source = "map", what, size = {w=, h=}, disposed}` — what was drawn, and whether it is still alive |
 
 A minimap panel is these pages end to end: its picture comes from `grid:image`, its pins from
@@ -80,5 +85,5 @@ paint it — `0` draw callbacks of your own while a map is on the screen.
 
 - [segments and grids](grids.md) — the `Grid` that renders itself
 - [overlays](overlays.md) — the recorded masks `grid:overlayImage` paints
-- [`hafen.asset`](../asset.md) — the image handle a drawing is one of, and its `:size()`/`:dispose()`
+- [`hafen.asset`](../asset.md) — the image handle a drawing is one of, and its `:size()`
 - [`hafen.vr`](../vr/sprites.md) — standing one of these in the 3D world

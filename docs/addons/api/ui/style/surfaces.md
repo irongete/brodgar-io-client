@@ -19,7 +19,7 @@ changes everything while another key refines any one surface.
 local s = hafen.ui():sheet()
 s:rule("*"):font(h)                    s:install()   -- everything routed
 s:rule("button"):font(h2)                     -- ...but buttons use h2 (an installed sheet is live)
-s:rule("button"):remove()                            -- buttons fall back to the cascade again
+s:rule("button"):release()                           -- buttons fall back to the cascade again
 ```
 
 ## `window.title`
