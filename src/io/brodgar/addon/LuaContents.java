@@ -179,7 +179,7 @@ public final class LuaContents {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("contents", methods(owner),
-            "what one item holds answers :items() :name() :text() :quality() :level() and :info()"));
+            "what one item holds answers :items() :name() :text() :quality() :fill() and :info()"));
         mt.set("__name", LuaValue.valueOf("Contents"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -233,7 +233,7 @@ public final class LuaContents {
         // level() — the fill meter's {cur, max}, read off the adopted ui/tt/level class, or nil for a container
         // that draws none. Two ABSOLUTE counts: the engine itself only ever asks that class for the bare fraction
         // it paints over the icon, so this is the one place the numbers behind the bar are reachable.
-        m.set("level", new OneArgFunction() {
+        m.set("fill", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return level(handle(self, "level").cont);
             }

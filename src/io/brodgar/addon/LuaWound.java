@@ -141,7 +141,7 @@ public final class LuaWound {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("wound", methods(owner),
-            "a wound answers :id() :name() :res() :severity() :label() :parent() :level() :exists()"
+            "a wound answers :id() :name() :res() :severity() :label() :parent() :depth() :exists()"
             + " and :info()"));
         mt.set("__name", LuaValue.valueOf("Wound"));
         mt.set("__tostring", new OneArgFunction() {
@@ -208,9 +208,9 @@ public final class LuaWound {
             }
         });
         // level() — how deep in the tree the window indents this wound; 0 at a root.
-        m.set("level", new OneArgFunction() {
+        m.set("depth", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                LuaWound h = handle(self, "level");
+                LuaWound h = handle(self, "depth");
                 WoundWnd.Wound w = wound(h.user, h.id);
                 return (w == null) ? LuaValue.NIL : LuaValue.valueOf(w.level);
             }

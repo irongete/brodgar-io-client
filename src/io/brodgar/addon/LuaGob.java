@@ -181,7 +181,7 @@ public final class LuaGob {
         mt.set(LuaValue.INDEX, Retired.closedIndex("gob", methods(owner),
             "a gob is one thing in the world: it answers :id() :exists() :sessions() :info() :position() "
             + ":facing() :name() :health() :moving() :speed() :speech() :icon() :overlay() :scale() "
-            + ":isPlayer() :kin() and :distance()"));
+            + ":player() :kin() and :distance()"));
         mt.set("__name", LuaValue.valueOf("Gob"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -375,7 +375,7 @@ public final class LuaGob {
                 return self;
             }
         });
-        m.set("isPlayer", new OneArgFunction() {
+        m.set("player", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Gob g = gob(self, "isPlayer");
                 // nil only when the gob is GONE; a gob whose name hasn't resolved yet is simply not a player.

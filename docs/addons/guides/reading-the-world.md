@@ -17,7 +17,7 @@ local s       = hafen.session():current()                            -- the char
 local trees   = s:world():gob():count("terobjs/tree")                -- how many, by name
 local nearest = s:world():gob():nearest("terobjs/tree")              -- the closest one, or nil
 local players = s:world():gob():within(50, function(g)               -- matching, in a radius
-  return g:isPlayer()
+  return g:player()
 end)
 ```
 
@@ -136,7 +136,7 @@ few-times-a-second timer that is both the retry and the "did the picture change?
 
 ## What the client does not know
 
-A gob's name is its *type*, so there is no display name for an arbitrary player; `gob:isPlayer()` is the
+A gob's name is its *type*, so there is no display name for an arbitrary player; `gob:player()` is the
 test, and [`gob:kin()`](../api/kin.md) names the ones on that character's own roster. Beyond that, reading
 tells you what the client itself has been told: an object outside your view has not been loaded and does
 not exist as far as your addon is concerned.

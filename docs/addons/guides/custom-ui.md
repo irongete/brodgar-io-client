@@ -76,7 +76,7 @@ name the gob rather than describing a set of them:
 
 ```lua
 local function tag(gob)
-  if gob:isPlayer() then gob:overlay():add("tag"):text("player"):color{0, 255, 0} end
+  if gob:player() then gob:overlay():add("tag"):text("player"):color{0, 255, 0} end
 end
 hafen.event():on("GobAdded", tag)                         -- everyone who walks in...
 local w = hafen.session():current():world()

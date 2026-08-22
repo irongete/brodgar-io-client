@@ -132,7 +132,7 @@ public final class LuaCredo {
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("credo", methods(),
-            "a credo answers :name() :res() :acquired() :pursuing() :level() :levelTotal() :quest() "
+            "a credo answers :name() :res() :acquired() :rank() :levelTotal() :questsDone() "
             + ":questTotal() :questId() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Credo"));
         mt.set("__tostring", new OneArgFunction() {
@@ -173,15 +173,9 @@ public final class LuaCredo {
             }
         });
         // pursuing() — is this the credo currently being pursued? Only that one answers the five below.
-        m.set("pursuing", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaCredo h = handle(self, "pursuing");
-                return LuaValue.valueOf(pursued(h.user, h.token));
-            }
-        });
-        m.set("level", progress("level", 0));
+        m.set("rank", progress("rank", 0));
         m.set("levelTotal", progress("levelTotal", 1));
-        m.set("quest", progress("quest", 2));
+        m.set("questsDone", progress("questsDone", 2));
         m.set("questTotal", progress("questTotal", 3));
         m.set("questId", progress("questId", 4));
         // exists() — is this credo still listed at all?
@@ -337,13 +331,6 @@ public final class LuaCredo {
                 SkillWnd.CredoGrid cg = grid(user);
                 SkillWnd.Credo p = (cg == null) ? null : cg.pcr;
                 return (p == null) ? LuaValue.NIL : of(owner, user, p.nm);
-            }
-        });
-        extra.set("cost", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "cost");
-                SkillWnd.CredoGrid cg = grid(user);
-                return (cg == null) ? LuaValue.NIL : LuaValue.valueOf(cg.cost);
             }
         });
         return LuaCollection.create(CharApi.C + ":credo()", new LuaCollection.Source() {

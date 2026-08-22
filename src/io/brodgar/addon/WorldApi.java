@@ -618,10 +618,10 @@ final class WorldApi {
                 return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t.dt);
             }
         });
-        // isNight() — is it night right now?
-        m.set("isNight", new VarArgFunction() {
+        // night() — is it night right now? A bare adjective, like every other boolean (D1).
+        m.set("night", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                timeRead(a, "isNight");
+                timeRead(a, "night");
                 Astronomy t = astro();
                 return (t == null) ? LuaValue.NIL : LuaValue.valueOf(t.night);
             }

@@ -277,7 +277,7 @@ public final class LuaSkill {
 
     /**
      * {@code s:char():skill()} — the skills the character <b>knows</b>, with the buyable ones a verb
-     * away. {@code :available(filter)} is the second group: a distinguished sub-list is a verb on the
+     * away. {@code :buyable(filter)} is the second group: a distinguished sub-list is a verb on the
      * collection (§2.3), never a second accessor, which is what the flat {@code skillsAvailable()} was.
      *
      * <p><b>There is no {@code :get}</b>: a skill's only key is the server's internal token, which is not
@@ -286,19 +286,47 @@ public final class LuaSkill {
      */
     static LuaValue collection(final Addon owner, final String user) {
         LuaTable extra = new LuaTable();
-        extra.set("available", new VarArgFunction() {
+        // buyable(filter) — the skills this character can BUY, as a collection of its own (089, A-058).
+        //
+        // It was :available(filter) and it handed back a plain array, which cost twice. The word first: a
+        // Speed's :available() is a BOOLEAN and a Maneuver's was a COUNT, so one spelling meant three things
+        // and `if man:available() then` fired with none dealable (0 is truthy in Lua). And the shape: a
+        // partition of a collection that is not itself a collection stops at its first verb —
+        // :available():count() threw while :skill():count() worked.
+        //
+        // The filter stays an argument of the partition rather than moving onto :list(f), because the row is
+        // written :buyable(f): what you filter is the buyable ones, and the collection it hands back then
+        // answers the whole quartet over exactly that set.
+        extra.set("buyable", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                LuaCollection.receiver(a.arg1(), "available");
-                LuaValue filter = a.arg(2);
-                LuaTable t = new LuaTable();
-                int n = 0;
-                for(String nm : tokens(user, false)) {
-                    LuaValue member = of(owner, user, nm);
-                    if(LuaCollection.keeps(filter, member, true, needleOf(member),
-                                           CharApi.C + ":skill()", "available"))
-                        t.set(++n, member);
-                }
-                return t;
+                LuaCollection.receiver(a.arg1(), "buyable");
+                final LuaValue filter = a.arg(2);
+                return LuaCollection.create(CharApi.C + ":skill():buyable()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        List<LuaValue> out = new ArrayList<LuaValue>();
+                        for(String nm : tokens(user, false)) {
+                            LuaValue member = of(owner, user, nm);
+                            if(LuaCollection.keeps(filter, member, true, needleOf(member),
+                                                   CharApi.C + ":skill()", "buyable"))
+                                out.add(member);
+                        }
+                        return out;
+                    }
+
+                    public String needle(LuaValue member) {
+                        return needleOf(member);
+                    }
+
+                    /** These have a name, so a string filter is a substring test over {@link #needle}. */
+                    public boolean named() {
+                        return true;
+                    }
+
+                    public String noGet() {
+                        return "a skill's only key is the server's internal token: " + CharApi.C
+                            + ":skill():buyable():find(needle) searches the display name and the resource";
+                    }
+                }, null);
             }
         });
         return LuaCollection.create(CharApi.C + ":skill()", new LuaCollection.Source() {
@@ -321,7 +349,7 @@ public final class LuaSkill {
             public String noGet() {
                 return "a skill's only key is the server's internal token: " + CharApi.C
                     + ":skill():find(needle) searches the display name and the resource, and " + CharApi.C
-                    + ":skill():available(filter) is the buyable ones";
+                    + ":skill():buyable(filter) is the ones it can buy, itself a collection";
             }
         }, extra);
     }

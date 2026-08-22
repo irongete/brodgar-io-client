@@ -84,13 +84,13 @@ answer. None of them throws.
 | `gob:speed()` | number \| nil | movement speed, `nil` when it is not moving |
 | `gob:speech()` | string \| nil | the floating speech text above it |
 | `gob:icon()` | string \| nil | minimap icon category name |
-| `gob:isPlayer()` | bool \| nil | whether it is a player body |
+| `gob:player()` | bool \| nil | whether it is a player body |
 | `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if the reading character has them on its roster |
 | `gob:distance(other)` | number \| nil | world distance to another Gob; defaults to the reading character |
 | `gob:info()` | [`GobInfo`](types.md#gobinfo) \| nil | everything above as one plain snapshot table |
 
 > `gob:name()` is the **type** resource — `"gfx/borka/body"` for any player body — not a character's
-> display name. Display names are not available for arbitrary gobs; `gob:isPlayer()` is the test for a
+> display name. Display names are not available for arbitrary gobs; `gob:player()` is the test for a
 > player body.
 
 `:info()` is the snapshot escape hatch: use it for logging, serialising, or passing gob data around as
@@ -164,7 +164,7 @@ making the gesture — the shape [`s:player():move(p)`](player.md#write-protecte
 [`s:kin()`](kin.md) when you mean a particular one.
 
 ```lua
-local g = hafen.session():current():world():gob():nearest(function(g) return g:isPlayer() end)
+local g = hafen.session():current():world():gob():nearest(function(g) return g:player() end)
 local k = g and g:kin()
 hafen.log():write(k and ("that is " .. k:name()) or "nobody you know")
 ```

@@ -143,7 +143,7 @@ public final class LuaQuest {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("quest", methods(owner),
-            "a quest answers :id() :title() :res() :status() :modified() :selected() :conditions() "
+            "a quest answers :id() :title() :res() :status() :modified() :conditions() "
             + ":exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Quest"));
         mt.set("__tostring", new OneArgFunction() {
@@ -195,13 +195,6 @@ public final class LuaQuest {
                 LuaQuest h = handle(self, "modified");
                 QuestWnd.Quest q = quest(h.user, h.id);
                 return (q == null) ? LuaValue.NIL : LuaValue.valueOf(q.mtime);
-            }
-        });
-        // selected() — is this the quest open in the log? The one that has objectives at all.
-        m.set("selected", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaQuest h = handle(self, "selected");
-                return LuaValue.valueOf(selected(h.user, h.id) != null);
             }
         });
         // conditions() — the objectives, a plain array (a layout, not a set to address into). EMPTY on

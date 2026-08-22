@@ -57,7 +57,7 @@ public enum Permission {
                                                                               + " of your characters"),
     FLOWERMENU_CANCEL("flowermenu.cancel",  "session:flowermenu():cancel",    "dismiss the radial menu of any of"
                                                                               + " your characters"),
-    CRAFT_MAKE       ("craft.make",         "session:craft():current():make", "press the Craft button, on any of"
+    CRAFT_MAKE       ("craft.make",         "session:craft():make",           "press the Craft button, on any of"
                                                                               + " your characters"),
     ACTIONBAR_USE    ("actionbar.use",      "slot:use",                       "press the action-bar buttons of any"
                                                                               + " of your characters"),

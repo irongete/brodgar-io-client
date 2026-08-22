@@ -130,7 +130,7 @@ would answer confidently and wrongly.
 | `contents:name()` | string \| nil | what the server calls this inside — the caption its own window carries; `nil` when it gave none |
 | `contents:text()` | string \| nil | the line the tooltip states about what is inside; `nil` for a container carrying items |
 | `contents:quality()` | number \| nil | the **content's** own quality, which is not `item:quality()`; `nil` when none is stated |
-| `contents:level()` | table \| nil | the fill meter's `{cur, max}`; `nil` for a container that draws none |
+| `contents:fill()` | table \| nil | the fill meter's `{cur, max}`; `nil` for a container that draws none |
 | `contents:info()` | table | the [snapshot](../types.md#contents), which carries no `items` |
 
 Reading is unprotected, and a `Contents` is **interned** like every other object here, so two reads of one

@@ -63,7 +63,7 @@ arrive in a second server message — so every reader may answer `nil`. That is 
 | `buff:res()` | string \| nil | the resource name, such as `"paginae/buff/poison"` |
 | `buff:name()` | string \| nil | the display name, once the resource has resolved |
 | `buff:amount()` | number \| nil | the buff's own meter fraction, `0..1` |
-| `buff:duration()` | number \| nil | the radial overlay fraction, `0..1`: how much of the buff is left |
+| `buff:remaining()` | number \| nil | the radial overlay fraction, `0..1`: how much of the buff is left |
 | `buff:number()` | number \| nil | the integer badge drawn on the icon |
 | `buff:exists()` | boolean | whether this buff is still on its bar — always answers |
 | `buff:info()` | [`Buff`](types.md#buff) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |

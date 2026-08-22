@@ -65,7 +65,7 @@ its own `:slot()` and `:key()`, so the gap is never ambiguous.
 |---|---|---|
 | `man:res()` | string \| nil | the maneuver's resource name, its identity |
 | `man:name()` | string \| nil | the display name |
-| `man:available()` | number | how many copies of it that character may deal into a deck |
+| `man:dealable()` | number | how many copies of it that character may deal into a deck |
 | `man:used()` | number | how many the loaded school has dealt |
 | `man:exists()` | boolean | whether that character still knows it — always answers |
 | `man:info()` | [`Maneuver`](types.md#maneuver-deckcard-fightsummary) \| nil | a plain-table **snapshot** |
@@ -77,7 +77,7 @@ when the hotkey is emptied, while the maneuver half goes `nil` and `:exists()` g
 
 | Method | Returns | Description |
 |---|---|---|
-| `card:slot()` | number | the raw 0-based deck index — always answers |
+| `card:index()` | number | the raw 0-based deck index — always answers |
 | `card:key()` | string | the hotkey label the window paints — always answers |
 | `card:maneuver()` | `Maneuver` \| nil | the maneuver dealt here |
 | `card:res()` | string \| nil | that maneuver's resource name |

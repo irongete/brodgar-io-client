@@ -79,7 +79,7 @@ keeps two strengths from being one number.
 | Call | Returns | Description |
 |---|---|---|
 | `s:char():skill():list(filter)` | `Skill[]` | the skills the character knows |
-| `s:char():skill():available(filter)` | `Skill[]` | the skills that can be bought, each with a `:cost()` |
+| `s:char():skill():buyable(filter)` | collection | the skills that can be bought, each with a `:cost()` — a collection of its own, so `:count()`, `:find()` and `:list()` all answer |
 | `s:char():skill():count(filter)` | number | how many known ones match |
 | `s:char():skill():find(filter)` | `Skill` \| nil | the first known skill that matches |
 
@@ -96,7 +96,7 @@ A string [filter](conventions.md#the-filter-argument) matches the display name *
 `:find(name)` hands back the skill itself, which is truthy, so `if s:char():skill():find("x") then`
 reads as a membership test and also gives you the thing.
 
-**One type covers both groups.** Buying a skill moves it from `:available()` to `:list()` without making
+**One type covers both groups.** Buying a skill moves it from `:buyable()` to `:list()` without making
 it a different skill: the handle you stashed goes on reading it, and `:known()` flips.
 
 ## Credos
@@ -105,7 +105,6 @@ it a different skill: the handle you stashed goes on reading it, and `:known()` 
 |---|---|---|
 | `s:char():credo():list(filter)` | `Credo[]` | every credo the tab lists, acquired and available |
 | `s:char():credo():pursuing()` | `Credo` \| nil | the one being pursued, if any |
-| `s:char():credo():cost()` | number \| nil | the learning-point price of beginning one |
 | `s:char():credo():count(filter)` | number | how many match |
 | `s:char():credo():find(filter)` | `Credo` \| nil | the first that matches |
 
@@ -114,9 +113,8 @@ it a different skill: the handle you stashed goes on reading it, and `:known()` 
 | `credo:name()` | string | the display name |
 | `credo:res()` | string \| nil | the icon resource name |
 | `credo:acquired()` | boolean | whether the character has completed it |
-| `credo:pursuing()` | boolean | whether it is the one being pursued |
-| `credo:level()`, `credo:levelTotal()` | number \| nil | pursuit progress — only on the pursued credo |
-| `credo:quest()`, `credo:questTotal()` | number \| nil | quest progress within the current level |
+| `credo:rank()`, `credo:levelTotal()` | number \| nil | pursuit progress — only on the pursued credo |
+| `credo:questsDone()`, `credo:questTotal()` | number \| nil | quest progress within the current level — both are **counts**; `credo:questId()` is the quest itself |
 | `credo:questId()` | number \| nil | the id of the credo quest, for [`session:quest`](quest.md) |
 | `credo:exists()` | boolean | whether it is still listed |
 | `credo:info()` | [`Credo`](types.md#skill-credo-experience) \| nil | a plain-table **snapshot** |

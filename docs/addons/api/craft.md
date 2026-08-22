@@ -6,14 +6,24 @@ character can make: there is nothing to read while that character has no recipe 
 
 ```lua
 local s = hafen.session():current()                      -- the character on screen
-local c = s:craft():current()
-if c then
-  hafen.log():write("recipe: " .. c:name())
-  for _, i in ipairs(c:inputs()) do
+if s:craft():exists() then
+  hafen.log():write("recipe: " .. s:craft():recipe())
+  for _, i in ipairs(s:craft():inputs()) do
     hafen.log():write("  needs " .. (i.name or i.res) .. " x" .. i.num)
   end
 end
 ```
+
+## The section is the recipe
+
+`s:craft()` **is** the open recipe, not a wrapper around it — the same shape
+[`s:buff()`](buff.md) is the bar, [`s:kin()`](kin.md) is the roster and
+[`s:flowermenu()`](flowermenu.md) is the open menu. Every read asks the window again rather than
+holding it, which is what you want here: the server builds a fresh window for each recipe, so opening a
+different one does not *change* this recipe, it ends it.
+
+With nothing open, `:exists()` is `false`, `:recipe()` is `nil` and the four list reads are empty. That
+is also what a session the client no longer holds answers, so one guard covers both.
 
 ## A window is open on the character that opened it
 
@@ -22,40 +32,26 @@ So this reads and crafts on a character you are not watching, which is what a cr
 logins is built out of:
 
 ```lua
-local c = hafen.session():get("alt"):craft():current()   -- the recipe that character has open
-if c then
-  hafen.log():write("the alt is making " .. c:name())
+local alt = hafen.session():get("alt")                   -- the recipe that character has open
+if alt:craft():exists() then
+  hafen.log():write("the alt is making " .. alt:craft():recipe())
 end
 ```
 
-`s:craft()` is the same object every call, minted once for that session. Where a character has no recipe
-open, `:current()` is `nil` — the same `nil` the drawn character gives you with nothing open, and a session
-the client no longer holds gives you too.
-
 ## Read
-
-| Call | Returns | Description |
-|---|---|---|
-| `s:craft():current()` | `Craft` \| nil | the recipe that character has open; `nil` when no recipe window is up |
-
-> `:current()` is **`nil` while no recipe is open**, which is why the `if c then` above is the whole
-> guard you need. Read it again rather than holding one across recipes: opening a different recipe is a
-> different window, so the Craft you were holding reports `:exists() == false` from that moment.
-
-## A recipe
 
 | Method | Returns | Description |
 |---|---|---|
-| `c:name()` | string \| nil | the recipe's name |
-| `c:inputs()` | [`CraftSpec`](types.md#craft-and-craftspec)`[]` | the ingredient slots, in window order |
-| `c:outputs()` | [`CraftSpec`](types.md#craft-and-craftspec)`[]` | the product slots |
-| `c:qualityInputs()` | [`ResRef`](types.md#craft-and-craftspec)`[]` | the ingredients whose quality carries into the product |
-| `c:tools()` | [`ResRef`](types.md#craft-and-craftspec)`[]` | the tools you must have with you |
-| `c:exists()` | boolean | whether that window is still open — always answers, drawn or not |
-| `c:info()` | [`Craft`](types.md#craft-and-craftspec) \| nil | a plain-table **snapshot** |
+| `s:craft():recipe()` | string \| nil | the recipe's name, as the server titled the window |
+| `s:craft():inputs()` | [`CraftSpec`](types.md#craft-and-craftspec)`[]` | the ingredient slots, in window order |
+| `s:craft():outputs()` | [`CraftSpec`](types.md#craft-and-craftspec)`[]` | the product slots |
+| `s:craft():qualityInputs()` | [`ResRef`](types.md#craft-and-craftspec)`[]` | the ingredients whose quality carries into the product |
+| `s:craft():tools()` | [`ResRef`](types.md#craft-and-craftspec)`[]` | the tools you must have with you |
+| `s:craft():exists()` | boolean | whether a recipe is open at all — always answers, drawn or not |
+| `s:craft():info()` | [`Craft`](types.md#craft-and-craftspec) \| nil | a plain-table **snapshot** |
 
-The four list reads are plain arrays of plain tables, and they are empty rather than `nil` once the
-recipe is gone. A slot is `{res, name, num, opt}`: `res` is the **displayed** resource — the constraint
+The four list reads are plain arrays of plain tables, and they are empty rather than `nil` when nothing
+is open. A slot is `{res, name, num, opt}`: `res` is the **displayed** resource — the constraint
 category when the recipe accepts one, such as any board, else the concrete item — `num` is the required
 or produced count, with `-1` meaning unspecified, and `opt` marks an optional ingredient or a chance
 byproduct.
@@ -67,12 +63,12 @@ that, watch for the window with [`s:ui():on`](ui/replace.md): `s:ui():on("window
 
 | Method | Key | Description |
 |---|---|---|
-| `c:make(all)` | `craft.make` | craft the open recipe once; with `all = true`, press Craft All |
+| `s:craft():make(all)` | `craft.make` | craft the open recipe once; with `all = true`, press Craft All |
 
 It presses the recipe's own button, so it **consumes the ingredients** exactly as a click would — on the
 character whose window it is, watched or not. Called from an addon that did not declare the `craft.make` key
-it raises an error naming that key, and it also refuses on a window that is no longer open. It returns the
-Craft, so writes chain. See [the permission model](conventions.md#the-permission-model).
+it raises an error naming that key, and it also refuses when no recipe is open. It returns the section, so
+writes chain. See [the permission model](conventions.md#the-permission-model).
 
 One key covers every character: `craft.make` lets you press the Craft button on any of your logins — see
 [a key names the action, not the target](../guides/permissions.md#a-key-names-the-action-not-the-target).

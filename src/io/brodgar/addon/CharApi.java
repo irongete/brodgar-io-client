@@ -1208,7 +1208,7 @@ final class CharApi {
     static LuaValue study(final Addon owner, final String user) {
         final LuaValue slots = LuaStudySlot.collection(owner, user);
         LuaTable study = new LuaTable();
-        study.set("slot", collection("study", ST, "slot", slots));
+        study.set("curiosity", collection("study", ST, "curiosity", slots));
         // summary() — that character's learning-point, attention and experience totals, nil before the tab
         // is built. A StudySummary object, the same kind of answer s:fight():summary() gives.
         study.set("summary", new VarArgFunction() {

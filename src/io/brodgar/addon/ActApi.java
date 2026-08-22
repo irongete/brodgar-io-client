@@ -57,18 +57,8 @@ final class ActApi {
      * character with none answers.
      */
     static LuaValue craft(final Addon owner, final String user) {
-        LuaTable craft = new LuaTable();
-        // current() — the open recipe, or nil. The protected make() lives on what this hands back.
-        craft.set("current", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "craft", "current", CharApi.CR);
-                if(Args.passed(a, 2))
-                    throw new LuaError(CharApi.CR + ":current() takes no arguments — it reads the recipe that"
-                        + " character has open, and which recipe that is is the player's choice");
-                return LuaCraft.of(owner, makewindow(user));
-            }
-        });
-        return Section.object("craft", craft, CharApi.CR);
+        // 089/A-070: the section IS the open recipe. Every verb re-reads the window; :current() is retired.
+        return Section.object("craft", LuaCraft.section(owner, user), CharApi.CR);
     }
 
     // ---- what the protected tier left behind (048) --------------------------------------------------

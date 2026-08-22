@@ -6,7 +6,7 @@ character's sheet is next door, in [`session:char`](char.md).
 
 ```lua
 local s = hafen.session():current()                    -- the character on screen
-for _, slot in ipairs(s and s:study():slot():list() or {}) do
+for _, slot in ipairs(s and s:study():curiosity():list() or {}) do
   hafen.log():write((slot:name() or slot:res()) .. "  lp=" .. (slot:lp() or 0))
 end
 ```
@@ -30,9 +30,9 @@ A session the client no longer holds answers an empty array and a `nil` summary 
 
 | Call | Returns | Description |
 |---|---|---|
-| `s:study():slot():list(filter)` | `StudySlot[]` | the curiosities currently in the window |
-| `s:study():slot():count(filter)` | number | how many match |
-| `s:study():slot():find(filter)` | `StudySlot` \| nil | the first that matches |
+| `s:study():curiosity():list(filter)` | `StudySlot[]` | the curiosities currently in the window |
+| `s:study():curiosity():count(filter)` | number | how many match |
+| `s:study():curiosity():find(filter)` | `StudySlot` \| nil | the first that matches |
 | `s:study():summary()` | `StudySummary` \| nil | the totals across the curiosities in the window |
 
 A string [filter](conventions.md#the-filter-argument) matches the resource name **and** the display name.
@@ -44,10 +44,10 @@ curiosity can sit in two slots at once, and the window has no index the server a
 a *search*, and asking for the address says which verb that is:
 
 ```lua
-s:study():slot():get("bar")
--- session:study():slot() has no verb 'get' — a slot has no key, since the same curiosity can
--- sit in two of them: session:study():slot():find(needle) is the search and
--- session:study():slot():list()[n] takes a position
+s:study():curiosity():get("bar")
+-- session:study():curiosity() has no verb 'get' — a slot has no key, since the same curiosity can
+-- sit in two of them: session:study():curiosity():find(needle) is the search and
+-- session:study():curiosity():list()[n] takes a position
 ```
 
 ## A slot

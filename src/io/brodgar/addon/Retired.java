@@ -129,7 +129,11 @@ final class Retired {
             + " gob:exists() is still the liveness test");
 
         // ---- the eight verb-only sections: every dotted verb is now a colon call on the section ---------
-        section("time", "clock", "dayFraction", "isNight", "season", "moon", "yearFraction");
+        section("time", "clock", "dayFraction", "night", "season", "moon", "yearFraction");
+        put("hafen.time.isNight", "hafen.time.isNight() is now hafen.time():night() \u2014 a boolean reads as a"
+            + " bare adjective in this API");
+        put("hafen.time():isNight", "hafen.time():isNight() is now hafen.time():night() \u2014 a boolean reads"
+            + " as a bare adjective in this API");
         section("json", "parse", "encode");
         section("timer", "after", "every");
 
@@ -359,7 +363,7 @@ final class Retired {
         // ---- entity methods (keyed "<entity>:<verb>", hung off that entity's own metatable) -------------
         put("gob:pos", "gob:pos() is now gob:position(), and it hands back a Position rather than a"
             + " {x, y} table: p:x()/p:y() are the components, p:offset(dx, dy) moves, p:info() saves");
-        put("gob:isplayer", "gob:isplayer() is now gob:isPlayer()");
+        put("gob:isplayer", "gob:isplayer() is now gob:player() \u2014 a boolean reads as a bare adjective");
         put("gob:overlays", "gob:overlays() is now gob:overlay():list() — gob:overlay() is the collection of"
             + " everything attached to the gob, and the verb says how many");
         // 079.3: a Gob is the server's OBJECT rather than one character's reading of it, so it has nobody to
@@ -629,7 +633,7 @@ final class Retired {
         put("kin:endkin", "kin:endkin() is now kin:endKin()");
         put("slot:set", "slot:set(res) is now slot:res(name) — slot:res() already read it, so the pair was one"
             + " name too many");
-        put("pagina:isnew", "pagina:isnew() is now pagina:isNew()");
+        put("pagina:isnew", "pagina:isnew() is now pagina:unseen() \u2014 a boolean reads as a bare adjective");
 
         // ---- hafen.speed: the section IS the collection of speeds, and a speed is an OBJECT (060) ----------
         // The two bounds-and-numbers verbs are gone rather than re-spelled: :max() was a bound every caller
@@ -708,12 +712,20 @@ final class Retired {
         put("hafen.fight.summary", "hafen.fight.summary() is now session:fight():summary()");
 
         // ---- crafting: the recipe is an entity, and the Craft button belongs to the recipe ---------------
-        put("hafen.craft.current", "hafen.craft.current() is now session:craft():current(), and it hands"
-            + " back a Craft object rather than a table: c:name() is the recipe, c:inputs()/:outputs() the"
-            + " slots, c:qualityInputs()/:tools() the rest, and c:info() is the old snapshot");
-        put("hafen.craft.make", "hafen.craft.make(all) is now session:craft():current():make(all) — the"
-            + " button belongs to the recipe. s:craft():current() is nil while no recipe is open, so test it"
-            + " first; it still needs the 'craft.make' permission");
+        put("hafen.craft.current", "hafen.craft.current() is now session:craft() itself, which IS the open"
+            + " recipe: s:craft():recipe() is its name, :inputs()/:outputs() the slots,"
+            + " :qualityInputs()/:tools() the rest, :info() the old snapshot, and :exists() says whether"
+            + " anything is open at all");
+        put("hafen.craft.make", "hafen.craft.make(all) is now session:craft():make(all) \u2014 the button"
+            + " belongs to the recipe, and the section IS the recipe. s:craft():exists() is false while"
+            + " none is open; it still needs the 'craft.make' permission");
+        // ---- 089/A-070: the section holds exactly one thing, so it IS that thing (conventions.md), the way
+        // ---- s:flowermenu() already was. :current() was the wrapper around it.
+        movedObj("craft", CharApi.CR, "current",
+                 "session:craft():current() is gone \u2014 the section IS the open recipe now, so"
+                 + " s:craft():recipe(), :inputs(), :outputs(), :qualityInputs(), :tools(), :make(all),"
+                 + " :info() and :exists() answer on it directly, exactly as s:flowermenu() does. With no"
+                 + " recipe open :exists() is false and every read is nil or empty");
 
         // ---- the Item entity: the snapshot's two PLACE fields become the two verbs that say which you meant ----
         // The rest of the old table's keys (`res`, `name`, `handle`) are live verbs, so a dotted read of one
@@ -867,6 +879,68 @@ final class Retired {
         put("ev:target", "ev:target() is now ev:widget() — what is about to receive the message and what sent"
             + " an action are the same widget, and which of the two you are looking at is already said by the"
             + " stream you subscribed on (hafen.event():action() or hafen.event():message())");
+
+        // ---- 089: a word means one thing II — the character sheet. Thirteen rows, and the two severe ones
+        // ---- are both silent: `if man:available() then` fired with NONE dealable (0 is truthy in Lua), and
+        // ---- s:quest():get(credo:quest()) addressed a quest by a COUNT.
+        put("maneuver:available", "maneuver:available() is now maneuver:dealable() — it is a COUNT, how many"
+            + " of this maneuver are left to deal, and 0 is truthy in Lua, so `if man:available() then` fired"
+            + " with none. It sits beside man:used(), which is the other half of the pair the client holds."
+            + " sp:available() on a Speed keeps the word, because there it is a boolean");
+        put("session:char():skill():available", "session:char():skill():available(filter) is now"
+            + " session:char():skill():buyable(filter), and it hands back a COLLECTION rather than an array —"
+            + " so :buyable():count(), :find() and :list() all answer, where :available():count() threw."
+            + " The word went because sp:available() is a boolean and maneuver:dealable() is a count");
+        put("credo:quest", "credo:quest() is now credo:questsDone() — it is a COUNT, the quests finished"
+            + " toward the credo being pursued, beside credo:questTotal(). It is not a Quest:"
+            + " s:quest():get(credo:quest()) addressed one by a number. credo:questId() is the quest's id");
+        put("credo:level", "credo:level() is now credo:rank() — how far the pursued credo has come, beside"
+            + " credo:levelTotal(). :level() named three unrelated things and now names none");
+        put("wound:level", "wound:level() is now wound:depth() — how deep the wound sits in the tree the"
+            + " window indents, 0 at a root. :level() named three unrelated things and now names none");
+        put("contents:level", "contents:level() is now contents:fill() — the container's fill meter,"
+            + " {cur, max}. :level() named three unrelated things and now names none");
+        put("deckcard:slot", "deckcard:slot() is now deckcard:index() — its position in the deck. `slot` is"
+            + " the action bar's word (s:actionbar():get(n) hands back a Slot), and an equipment slot name"
+            + " from item:slots() is the third thing that was called one");
+        put("hafen.study():slot", "session:study():slot() is now session:study():curiosity() — the"
+            + " curiosities in the study window, which is the game's own word for them. `slot` is the action"
+            + " bar's");
+        put("slot:pagina", "slot:pagina() is now slot:hold() — it reads what YOUR addon put on the slot and"
+            + " nothing else, which is what `hold` says and `pagina` did not: a slot holding one of the"
+            + " game's own actions answers nil, and s:menugrid():get(slot:res()) is that entry. The write is"
+            + " slot:hold(pag) and slot:hold(nil) ends it");
+        put("buff:duration", "buff:duration() is now buff:remaining() — it is a 0..1 FRACTION of the buff's"
+            + " run that is left, never seconds, so `if buff:duration() < 30` warned immediately and forever."
+            + " See the unit rule on the shapes page");
+        put("craft:name", "craft:name() is now session:craft():recipe() — the name matches the snapshot field"
+            + " c:info().recipe, and `name` is what a CraftSpec ingredient carries. The recipe is also no"
+            + " longer reached through :current(): the section IS the open recipe");
+        put("hafen.craft():name", "session:craft():name() is now session:craft():recipe() — the name"
+            + " matches the snapshot field s:craft():info().recipe, and `name` is what a CraftSpec"
+            + " ingredient carries. The section IS the open recipe now, so it answers directly");
+        put("condition:text", "condition:text() is now condition:tooltip() — the line the objective's tooltip"
+            + " states, which is what separates it from condition:description(), the objective itself");
+        put("partymember:leader", "partymember:leader() is gone — whether a member leads is the identity"
+            + " comparison s:party():leader() == member, exact because the objects are interned. The"
+            + " collection keeps :leader(), which hands back the leading member. s:speed() has answered this"
+            + " way since 060, and the snapshot keeps its `leader` field");
+        put("quest:selected", "quest:selected() is gone — whether a quest is the one open in the log is the"
+            + " identity comparison s:quest():selected() == q, exact because the objects are interned. The"
+            + " collection keeps :selected(), which hands back the open quest");
+        put("credo:pursuing", "credo:pursuing() is gone — whether a credo is the one being pursued is the"
+            + " identity comparison s:char():credo():pursuing() == credo, exact because the objects are"
+            + " interned. The collection keeps :pursuing(), which hands back the pursued credo");
+        put("session:char():credo():cost", "session:char():credo():cost() is gone — it was the pursued"
+            + " credo's own cost read off the collection, where the call site could not say whether it was a"
+            + " sum, a maximum or one member's. s:char():credo():pursuing():cost() says it exactly");
+        // ---- A-069: a boolean reads as a bare adjective (D1). Seven of them are read/write pairs and
+        // ---- w:isVisible(true) cannot be read, so the `is` form is incompatible with arity-is-the-verb.
+        put("gob:isPlayer", "gob:isPlayer() is now gob:player() — a boolean reads as a bare adjective in this"
+            + " API (kin:online(), w:visible(), grid:live()). It collides with nothing: s:player() is a"
+            + " section on a Session, not a verb on a Gob");
+        put("pagina:isNew", "pagina:isNew() is now pagina:unseen() — a boolean reads as a bare adjective, and"
+            + " `new` reads as a verb that makes one rather than a property");
     }
 
     /**

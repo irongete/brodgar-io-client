@@ -51,7 +51,7 @@ a party member has nothing to match it against — see below.
 | `member:gob()` | [Gob](gob.md) | the member's live object, in that character's view — never `nil` |
 | `member:position()` | [Position](position.md) \| nil | where they are |
 | `member:color()` | [colour](shapes.md#colours) \| nil | the party colour drawn for them |
-| `member:leader()` | boolean | whether they lead the party |
+| — | — | whether they lead is `s:party():leader() == member`: the members are interned, so the comparison is exact and there is no per-member flag |
 | `member:exists()` | boolean | whether they are still in the party — always answers |
 | `member:info()` | [`PartyMember`](types.md#partymember) \| nil | a plain-table **snapshot** |
 

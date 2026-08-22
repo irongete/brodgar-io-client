@@ -140,9 +140,9 @@ menu, and holding one for an entry you added on another login is refused naming 
 
 | Method | Returns | Description |
 |---|---|---|
-| `slot:pagina()` | `Pagina` \| nil | the entry this slot is being held for; `nil` for every slot the server owns |
-| `slot:pagina(pag)` | the `Slot` | hold this slot for one of the entries your addon added |
-| `slot:pagina(nil)` | the `Slot` | end the hold, whoever took it; inert on a slot nobody is holding |
+| `slot:hold()` | `Pagina` \| nil | the entry this slot is being held for; `nil` for every slot the server owns |
+| `slot:hold(pag)` | the `Slot` | hold this slot for one of the entries your addon added |
+| `slot:hold(nil)` | the `Slot` | end the hold, whoever took it; inert on a slot nobody is holding |
 
 Nothing reaches the server, so this needs **no permission** and it lands **immediately** — where
 `slot:res(name)` below is a round trip. [`ActionbarChanged`](event/bus.md#character-and-status) fires on both
@@ -163,7 +163,7 @@ already named by `slot:res()`, and [`s:menugrid():get(name)`](menugrid.md) is th
 
 | What happened | What the slot goes back to | The slot is |
 |---|---|---|
-| `slot:pagina(nil)` | the server's own content | forgotten |
+| `slot:hold(nil)` | the server's own content | forgotten |
 | a **right-click** on the slot | the server's own content — the right-click is not sent, so nothing is cleared | forgotten |
 | `s:menugrid():remove(pag)` | the server's own content | remembered |
 | your addon reloads, or you log out | the server's own content | remembered |
@@ -197,12 +197,12 @@ end)                                         -- if it was on that bar, it is on 
 ```
 
 Nothing about that is timed, and you wait for nothing: the entry lands in its slot inside the `add`, so the
-line after it already reads `slot:pagina()`. Your addon stores nothing — this is not
-[saved variables](store.md), it is the client's own record of a slot, and a `slot:pagina(pag)` call is
+line after it already reads `slot:hold()`. Your addon stores nothing — this is not
+[saved variables](store.md), it is the client's own record of a slot, and a `slot:hold(pag)` call is
 remembered exactly as a drag is.
 
 **The two ways a hold ends are remembered differently**, as the table above says. Ending it by hand —
-`slot:pagina(nil)`, a right-click, the server taking the slot — says the entry no longer belongs there, and
+`slot:hold(nil)`, a right-click, the server taking the slot — says the entry no longer belongs there, and
 the record goes with it. The entry merely *going away* — `:remove`, a reload, a logout — says nothing
 about the slot, so the slot waits. A `:reload` therefore puts every one of your buttons straight back, while a
 player who right-clicked one off the bar keeps it off.
@@ -216,14 +216,14 @@ another character, and a slot you hold on one is not held on the next.
 
 | What you did | What you get |
 |---|---|
-| `slot:pagina(pag)` for one of the game's own entries | that *is the client's own entry* — pointing at `slot:res(name)` |
-| `slot:pagina(pag)` for another addon's entry | it *belongs to* that addon, named |
-| `slot:pagina(pag)` for an entry you removed | that entry *is no longer in the menu* |
-| `slot:pagina(7)`, `slot:pagina("dig")` | expected the **`Pagina` object**, or `nil` |
-| `slot:res("addon/myaddon/dig")` | that *is an entry an addon added* — pointing back at `slot:pagina` |
+| `slot:hold(pag)` for one of the game's own entries | that *is the client's own entry* — pointing at `slot:res(name)` |
+| `slot:hold(pag)` for another addon's entry | it *belongs to* that addon, named |
+| `slot:hold(pag)` for an entry you removed | that entry *is no longer in the menu* |
+| `slot:hold(7)`, `slot:hold("dig")` | expected the **`Pagina` object**, or `nil` |
+| `slot:res("addon/myaddon/dig")` | that *is an entry an addon added* — pointing back at `slot:hold` |
 
 The last row is the pair's dividing line: `slot:res(name)` assigns one of the game's actions, by a name the
-server publishes and stores; `slot:pagina(pag)` holds a slot for one of yours, which the server never sees.
+server publishes and stores; `slot:hold(pag)` holds a slot for one of yours, which the server never sees.
 One string could never mean both.
 
 ## See also

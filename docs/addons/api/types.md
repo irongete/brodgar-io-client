@@ -7,7 +7,7 @@ underlying data is not available yet or is still resolving, so guard for it. See
 [snapshots vs handles](conventions.md#snapshots-vs-handles).
 
 > **A snapshot field keeps the client's own spelling; the live read is the verb.** The API's verbs are
-> camelCase (`:isPlayer()`, `:modified()`, `:qualityInputs()`) because you write them. A snapshot is the
+> camelCase (`:modified()`, `:qualityInputs()`, `:questsDone()`) because you write them. A snapshot is the
 > shape the client holds, handed over as it is — `isplayer`, `mtime`, `qmod` — so what you serialise is
 > what the client said. Each table below names the verb beside the field wherever the two differ.
 
@@ -36,7 +36,7 @@ always fresh. [`session:world`](world.md) and the `GobAdded`/`GobRemoved` events
 | `x`, `y` | number | world position; optional (absent before the position is known) |
 | `angle` | number | facing, radians |
 | `name` | string | the **resource** identity, e.g. `"gfx/kritter/rabbit/rabbit"` — *not* a display name; optional |
-| `isplayer` | bool | true if the gob is a player body, read live as `gob:isPlayer()`; present only when `name` is |
+| `isplayer` | bool | true if the gob is a player body, read live as `gob:player()`; present only when `name` is |
 | `hp` | number | 0..1 remaining object integrity (1 = undamaged); optional |
 | `moving` | bool | whether it is moving |
 | `speed` | number | movement speed; present only while moving |
@@ -122,7 +122,7 @@ until its meter arrives.
 
 ## StudySlot and StudySummary
 
-From [`slot:info()`](study.md#a-slot), the one snapshot escape hatch. `s:study():slot()` and the
+From [`slot:info()`](study.md#a-slot), the one snapshot escape hatch. `s:study():curiosity()` and the
 `StudyChanged` event hand you live [`StudySlot` objects](study.md#a-slot), not this table.
 
 | Field | Type | Notes |
@@ -212,7 +212,7 @@ From [`sp:info()`](speed.md#the-speed-object), the snapshot escape hatch for one
 
 `{ index = number, name = string, available = bool, current = bool }` — `index` is the wire number `0..3`
 and the speed's identity, `available` says whether it can be picked right now, and `current` whether it is
-the one your character is on. The live reads are `sp:index()`, `:name()` and `:available()`; whether you are
+the one your character is on. The live reads are `sp:index()`, `:name()` and `:available()` — a boolean here, unlike `man:dealable()`; whether you are
 on it is `s:speed():current() == sp`, since the objects are interned.
 
 ## Quest and Condition
@@ -258,7 +258,7 @@ From the `:info()` escape hatch on each of [`session:fight`](fight.md)'s objects
 you the live objects.
 
 - **Maneuver** — `{ res?, name?, avail = number, used = number }`, `avail` dealable against `used`
-  dealt. The live reads are `man:res()`, `:name()`, `:available()` and `:used()`.
+  dealt. The live reads are `man:res()`, `:name()`, `:dealable()` and `:used()`.
 - **DeckCard** — `{ slot = number, key = string, res?, name?, used? }`, `slot` the raw 0-based deck index
   and `key` the hotkey label such as `"1"` or `"⇧1"`. The maneuver half is absent for an empty slot,
   where the place itself still reads.
@@ -288,7 +288,7 @@ path = string[]?, parent = string?, isnew = bool? }` — `res` is the identity a
 **`parent` is the parent's resource name** rather than an object, and `path` is what the live
 `pag:categories()` reads. `addon` is the id of the addon that added the entry, and is absent on the game's
 own. Every other field is absent when the menu cannot answer it: the entry is gone, or its resource has
-not loaded. The live reads are `pag:res()`, `:addon()`, `:name()`, `:parent()`, `:isNew()` and the rest.
+not loaded. The live reads are `pag:res()`, `:addon()`, `:name()`, `:parent()`, `:unseen()` and the rest.
 
 ## Marker
 

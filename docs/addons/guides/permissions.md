@@ -27,7 +27,7 @@ key. The third column is what the consent dialog tells the user, word for word.
 | `menugrid.use` | [`pag:use`](../api/menugrid.md#use-protected) | invoke entries of the action menu, on any of your characters |
 | `flowermenu.select` | [`s:flowermenu():select`](../api/flowermenu.md#write-protected) | choose from the radial menu of any of your characters |
 | `flowermenu.cancel` | [`s:flowermenu():cancel`](../api/flowermenu.md#write-protected) | dismiss the radial menu of any of your characters |
-| `craft.make` | [`session:craft():current():make`](../api/craft.md#write-protected) | press the Craft button, on any of your characters |
+| `craft.make` | [`session:craft():make`](../api/craft.md#write-protected) | press the Craft button, on any of your characters |
 | `actionbar.use` | [`slot:use`](../api/actionbar.md#write-protected) | press the action-bar buttons of any of your characters |
 | `actionbar.res` | [`slot:res`](../api/actionbar.md#write-protected) | change what any of your characters' action-bar buttons hold |
 | `kin.add` | [`session:kin():add`](../api/kin.md#write-protected) | add someone to any of your characters' kin lists |
@@ -129,7 +129,7 @@ several of them look like writes:
 |---|---|
 | [`hafen.map():marker():add`](../api/map/markers.md#write-unprotected) | your own map database |
 | [`s:menugrid():add`](../api/menugrid.md#write-unprotected) | an entry of your own in a character's action menu |
-| [`slot:pagina(pag)`](../api/actionbar.md#hold-a-slot-unprotected) | which of your entries the client draws over a bar slot |
+| [`slot:hold(pag)`](../api/actionbar.md#hold-a-slot-unprotected) | which of your entries the client draws over a bar slot |
 | [`cat:show(on)`](../api/map/icons.md#the-iconcat-object) | which icons your minimap draws |
 | [`w:position`, `w:size`, `w:visible`, `w:draggable`, `w:resizable`, `w:remember`](../api/ui/native.md) | where the client's own windows sit and how big they are, whether the user can drag or size one, and whether that lasts |
 | [`w:replace(view)`](../api/ui/replace.md) | which window a client toggle opens |

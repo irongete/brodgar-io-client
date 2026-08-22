@@ -89,7 +89,7 @@ The first four are called on the collection, the rest on a `Pagina`.
 | `pag:categories()` | string[] \| nil | the categories above this entry, as the action tokens the message carries; **empty** for a category and for an id-only entry |
 | `pag:parent()` | `Pagina` \| nil | the category this entry sits under; `nil` for a root entry |
 | `pag:children()` | `Pagina[]` \| nil | the entries under this one, exactly what the grid shows after clicking it; empty for a leaf |
-| `pag:isNew()` | boolean | whether the entry is still flagged as a new discovery, the grid's highlight |
+| `pag:unseen()` | boolean | whether the entry is still flagged as a new discovery, the grid's highlight |
 | `pag:exists()` | boolean | whether the entry is still in the menu |
 | `pag:info()` | [`Pagina`](types.md#pagina) \| nil | a plain-table **snapshot** of the same fields |
 
@@ -253,7 +253,7 @@ An entry nobody subscribed to does nothing when it is pressed. That is not an er
 wired yet is a legal thing to leave in the menu.
 
 The same handlers run when the entry is pressed **on the action bar**: drag it out of the grid onto a slot, or
-put it there with [`slot:pagina(pag)`](actionbar.md#hold-a-slot-unprotected), and its key fires them too.
+put it there with [`slot:hold(pag)`](actionbar.md#hold-a-slot-unprotected), and its key fires them too.
 
 `pag:on` refuses on an entry your addon did not add, like every write above: the handler is your code, and
 it hangs on your own button. Your subscriptions end when the addon reloads or is disabled and when you

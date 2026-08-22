@@ -131,7 +131,7 @@ public final class LuaManeuver {
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("maneuver", methods(),
-            "a fight maneuver answers :res() :name() :available() :used() :exists() and :info()"));
+            "a fight maneuver answers :res() :name() :dealable() :used() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Maneuver"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -160,9 +160,9 @@ public final class LuaManeuver {
             }
         });
         // available() — how many copies of this maneuver you may put in a deck.
-        m.set("available", new OneArgFunction() {
+        m.set("dealable", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(handle(self, "available").act.a);
+                return LuaValue.valueOf(handle(self, "dealable").act.a);
             }
         });
         // used() — how many you have put in the current deck.

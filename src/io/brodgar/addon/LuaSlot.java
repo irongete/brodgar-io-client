@@ -194,7 +194,7 @@ public final class LuaSlot {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("slot", methods(owner),
-            "one action-bar slot answers :index() :empty() :res() :pagina() :name() :cooldown() :info(), "
+            "one action-bar slot answers :index() :empty() :res() :hold() :name() :cooldown() :info(), "
             + "and :use() presses it"));
         mt.set("__name", LuaValue.valueOf("Slot"));
         mt.set("__tostring", new OneArgFunction() {
@@ -282,10 +282,10 @@ public final class LuaSlot {
         // nil is DOCUMENTED here (end the hold), so it is the write and not the read: Args.passed, never
         // Args.written. The read half is the hold alone — a slot holding one of the game's own actions is
         // already named by :res(), and s:menugrid():get(that) is the Pagina for it.
-        m.set("pagina", new VarArgFunction() {
+        m.set("hold", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                LuaSlot h = handle(self, "pagina");
+                LuaSlot h = handle(self, "hold");
                 if(!Args.passed(a, 2)) {
                     AddonPagina p = BeltHold.held(h.user, h.index);
                     return (p == null) ? LuaValue.NIL : LuaPagina.of(owner, h.user, p.id);

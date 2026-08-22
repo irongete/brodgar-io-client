@@ -133,7 +133,7 @@ public final class LuaCondition {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("condition", methods(owner),
-            "a quest condition answers :description() :status() :text() :quest() :exists() and :info()"));
+            "a quest condition answers :description() :status() :tooltip() :quest() :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Condition"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -162,7 +162,7 @@ public final class LuaCondition {
             }
         });
         // text() — the objective's extra progress string, when the content publishes one.
-        m.set("text", new OneArgFunction() {
+        m.set("tooltip", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 QuestWnd.Quest.Condition c = live(handle(self, "text"));
                 return ((c == null) || (c.status == null)) ? LuaValue.NIL : LuaValue.valueOf(c.status);

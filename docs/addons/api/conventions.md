@@ -43,8 +43,8 @@ w:title()                          -- reads
 w:title("Scout"):size(180, 48)     -- writes, and chains
 ```
 
-There is one name per property: no `getX`, no `setX`, no `clearX`. A boolean is a property like any other,
-so a window is shown with `w:visible(true)` rather than a second verb.
+There is one name per property: no `getX`, no `setX`, no `clearX`. A boolean is one too — written
+`w:visible(true)`, and named as a **bare adjective**, never `isX`: `kin:online()`, `gob:player()`.
 
 **Arity binds a verb that names a property.** Three families take arguments without being writes:
 
@@ -70,7 +70,8 @@ appears** — it enumerates and never builds, so the control named for a list is
 | `:remove(keyOrMember)` | the collection, so removals chain, where it can destroy one |
 
 A distinguished member is a verb on its collection rather than a second accessor: `:current()`,
-`:selected()`, `:leader()`, `:available()`.
+`:selected()`, `:leader()`, `:pursuing()` — and the member carries **no flag of its own**, because
+the objects are interned, so `s:party():leader() == member` is the exact test.
 
 **A section's collection is one object; a thing's collection is a view.** `hafen.map():marker()` is the
 same object on every call. `gob:overlay()` is re-derived from the gob, so two calls are not `==` and
@@ -143,7 +144,7 @@ the write into a read, silently. Every meaning it does carry is here, and anywhe
 | `nil` means | Where |
 |---|---|
 | undo your layer, back to the client's own | `w:position(nil)`, `w:size(nil)`, `w:text(nil)`, `w:title(nil)`, `w:replace(nil)`; a [font](font.md) variant's `h:size(nil)` and `h:aa(nil)` |
-| end the hold | `slot:pagina(nil)` |
+| end the hold | `slot:hold(nil)` |
 | none | a [vr entity](vr/README.md)'s `:tint(nil)` |
 | the root screen | `pag:parent(nil)` |
 | everything | a [filter](#the-filter-argument): `coll:list(nil)`, `:count(nil)`, `:find(nil)` |

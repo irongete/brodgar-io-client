@@ -4,7 +4,7 @@ The in-game clock and the day, night and season state. Reach for it to schedule 
 label something with the game's own time rather than the wall clock.
 
 ```lua
-if hafen.time():isNight() then hafen.log():write("it's dark out") end
+if hafen.time():night() then hafen.log():write("it's dark out") end
 ```
 
 ## Read
@@ -13,7 +13,7 @@ if hafen.time():isNight() then hafen.log():write("it's dark out") end
 |---|---|---|
 | `hafen.time():clock()` | number \| nil | interpolated game-time seconds |
 | `hafen.time():dayFraction()` | number \| nil | time of day, `0..1` |
-| `hafen.time():isNight()` | bool \| nil | whether it is night |
+| `hafen.time():night()` | bool \| nil | whether it is night |
 | `hafen.time():season()` | string \| nil | one of `"spring"`, `"summer"`, `"autumn"`, `"winter"` |
 | `hafen.time():moon()` | number \| nil | moon phase, `0..1` |
 | `hafen.time():yearFraction()` | number \| nil | position in the year, `0..1` |

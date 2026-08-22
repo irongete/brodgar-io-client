@@ -9,12 +9,12 @@ local s = hafen.session():current()                    -- the character on scree
 if s and s:wound():find("Infection") then hafen.log():write("infected!") end
 
 for _, w in ipairs(s and s:wound():list() or {}) do
-  hafen.log():write(("  "):rep(w:level()) .. (w:name() or w:res()) .. "  " .. (w:label() or ""))
+  hafen.log():write(("  "):rep(w:depth()) .. (w:name() or w:res()) .. "  " .. (w:label() or ""))
 end
 ```
 
 Wounds form a **tree**: a complication hangs off the wound that caused it. `:list()` returns them flat
-and in tree order, with `w:level()` as the indent depth, so the loop above prints the shape.
+and in tree order, with `w:depth()` as the indent depth, so the loop above prints the shape.
 
 ## Whose wounds they are
 
@@ -54,7 +54,7 @@ reads exactly as it looks, and what it hands back on a hit is the wound itself.
 | `w:severity()` | number \| nil | the magnitude beside it, as a number |
 | `w:label()` | string \| nil | that magnitude spelled the way the client paints it |
 | `w:parent()` | `Wound` \| nil | the wound this one complicates; `nil` at a root |
-| `w:level()` | number \| nil | how deep the tree draws it; `0` at a root |
+| `w:depth()` | number \| nil | how deep the tree draws it; `0` at a root |
 | `w:exists()` | boolean | whether it is still on the character — always answers |
 | `w:info()` | [`Wound`](types.md#wound) \| nil | a plain-table **snapshot** |
 

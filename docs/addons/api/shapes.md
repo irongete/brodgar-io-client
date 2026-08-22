@@ -25,7 +25,7 @@ space they are in.
 | `{x=, y=}` | a place in a lattice: a tile, a grid, a segment cell | `p:tileCoord()`, `item:cell()`, `grid:segmentCoord()`, `marker:segmentTile()` |
 | `{x=, y=}` | a screen point, in [design pixels](ui/pixels.md) | `widget:position()`, `widget:rootPos()`, `s:player():worldToScreen(p)`, `ev:pixel(i)` |
 | `{w=, h=}` | a size, in design pixels | `widget:size()`, `widget:cellSize()`, `img:size()`, `mapImg:size()` and `mapImg:info().size`, `rule:size()` |
-| `{cur=, max=}` | a pair of counts | `item:durability()`, `contents:level()` |
+| `{cur=, max=}` | a pair of counts | `item:durability()`, `contents:fill()` |
 | `{x=, y=, z=}` | a point or a span in world units | the `min`, `max` and `extent` of `mdl:bounds()` |
 
 **A size is `{w=, h=}` and a place is `{x=, y=}`**, and neither answers the other's keys: `w:size().x`
@@ -99,7 +99,7 @@ rather than countdowns, so a read whose name sounds like a timer answers how muc
 | Read | What the number is |
 |---|---|
 | `hafen.time():dayFraction()`, `:yearFraction()`, `:moon()` | how far through the day, the year, the lunar cycle |
-| `buff:amount()`, `buff:duration()` | the buff's own meter, and how much of its run is left |
+| `buff:amount()`, `buff:remaining()` | the buff's own meter, and how much of its run is left |
 | `slot:cooldown()` | an ability's cooldown meter |
 | `meter:value()`, `slot:progress()` | a HUD bar's fill, a curiosity's progress |
 

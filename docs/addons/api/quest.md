@@ -50,7 +50,7 @@ predicate receives the Quest object.
 | `q:res()` | string \| nil | its resource name |
 | `q:status()` | string | `"pending"`, `"done"`, `"failed"` or `"disabled"` |
 | `q:modified()` | number \| nil | the server's change stamp; higher is more recent |
-| `q:selected()` | boolean | whether this is the quest open in its log |
+| — | — | whether this is the one open in the log is `s:quest():selected() == q`: the quests are interned, so the comparison is exact and there is no per-member flag |
 | `q:conditions()` | `Condition[]` | its objectives — see below |
 | `q:exists()` | boolean | whether it is still in the log — always answers |
 | `q:info()` | [`Quest`](types.md#quest-and-condition) \| nil | a plain-table **snapshot** |
@@ -65,13 +65,13 @@ already have. A quest the server drops goes `:exists() == false` and every other
 
 > `q:conditions()` is an **empty array on every quest but the selected one**. The client is sent the
 > objectives of the quest that character has open in the log and of no other, so opening a different quest is
-> what fills them in. `q:selected()` is how you tell the two cases apart.
+> what fills them in. `s:quest():selected() == q` is how you tell the two cases apart.
 
 | Method | Returns | Description |
 |---|---|---|
 | `c:description()` | string \| nil | what the objective asks for |
 | `c:status()` | string | `"pending"`, `"done"` or `"failed"` |
-| `c:text()` | string \| nil | its extra progress string, when the content publishes one |
+| `c:tooltip()` | string \| nil | the line its tooltip states, when the content publishes one — `c:description()` is the objective itself |
 | `c:quest()` | `Quest` | the quest it belongs to — never `nil` |
 | `c:exists()` | boolean | whether it is still an objective of the open quest |
 | `c:info()` | [`Condition`](types.md#quest-and-condition) \| nil | a plain-table **snapshot** |

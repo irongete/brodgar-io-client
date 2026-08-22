@@ -133,12 +133,93 @@ public final class LuaCraft {
         }
     }
 
+    // ---- the SECTION itself (089, A-070) ------------------------------------------------------------
+
+    /**
+     * {@code s:craft()} — <b>the section IS the open recipe</b>, not a wrapper around it.
+     *
+     * <p>{@code conventions.md}: "Where a section holds exactly one thing, the section object <b>is</b> that
+     * thing rather than a wrapper around it". {@code s:craft()} holds exactly one thing — the recipe window
+     * that is open — and answered it through {@code :current()}, while {@code s:flowermenu()}, the
+     * neighbouring "a window this character has open" section, reads {@code :list()}/{@code :count()}/
+     * {@code :gob()} directly. One design applied twice, two different ways.
+     *
+     * <p><b>Every verb re-reads the window</b> ({@link ActApi#makewindow}) rather than holding one, which is
+     * what {@code craft.md} already tells the reader to do: the server builds a fresh window for each recipe,
+     * so opening another recipe does not change this one, it ends it. With nothing open {@code :exists()} is
+     * false and every read is {@code nil} or empty — exactly what {@code s:flowermenu()} does.
+     *
+     * <p>The {@link LuaCraft} object stays: it is what {@code Retired} keys the old spellings on, and it is
+     * still the shape a held handle has. Nothing hands one out any more.
+     */
+    static LuaTable section(final Addon owner, final String user) {
+        LuaTable m = new LuaTable();
+        m.set("recipe", sectionRead(user, "recipe"));
+        m.set("inputs", sectionRead(user, "inputs"));
+        m.set("outputs", sectionRead(user, "outputs"));
+        m.set("qualityInputs", sectionRead(user, "qualityInputs"));
+        m.set("tools", sectionRead(user, "tools"));
+        m.set("info", sectionRead(user, "info"));
+        m.set("exists", sectionRead(user, "exists"));
+        // make([all]) — the PROTECTED verb: press Craft, or Craft All. The gate is FIRST (D-213).
+        m.set("make", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue me = a.arg1();
+                Section.self(me, "craft", "make", CharApi.CR);
+                AddonManager.requirePermission(owner, Permission.CRAFT_MAKE);
+                LuaValue all = Args.written(a, 2, CharApi.CR + ":make", "all");
+                Makewindow mw = ActApi.makewindow(user);
+                if(mw == null)
+                    throw new LuaError(CharApi.CR + ":make(all): no recipe is open on that character — "
+                        + CharApi.CR + ":exists() is the test, and which recipe is open is the player's"
+                        + " choice");
+                mw.wdgmsg("make", ((all != null) && all.toboolean()) ? 1 : 0);
+                return me;
+            }
+        });
+        return m;
+    }
+
+    /** One read on the flattened section: {@link Section#self}, then the window, then the answer. */
+    private static VarArgFunction sectionRead(final String user, final String verb) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue me = a.arg1();
+                Section.self(me, "craft", verb, CharApi.CR);
+                if(Args.passed(a, 2))
+                    throw new LuaError(CharApi.CR + ":" + verb + "() takes no arguments — it reads the"
+                        + " recipe that character has open, and which recipe that is is the player's choice");
+                Makewindow mw = ActApi.makewindow(user);
+                if("exists".equals(verb))
+                    return LuaValue.valueOf(mw != null);
+                if(mw == null)
+                    return "info".equals(verb) || "recipe".equals(verb) ? LuaValue.NIL : new LuaTable();
+                if("recipe".equals(verb)) {
+                    String nm = mw.rcpnm;
+                    return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
+                }
+                if("inputs".equals(verb))         return specList(mw, true);
+                if("outputs".equals(verb))        return specList(mw, false);
+                if("qualityInputs".equals(verb))  return resList(mw, true);
+                if("tools".equals(verb))          return resList(mw, false);
+                LuaTable t = new LuaTable();      // info()
+                String nm = mw.rcpnm;
+                t.set("recipe", LuaValue.valueOf((nm == null) ? "" : nm));
+                t.set("inputs", specList(mw, true));
+                t.set("outputs", specList(mw, false));
+                t.set("qmod", resList(mw, true));
+                t.set("tools", resList(mw, false));
+                return t;
+            }
+        };
+    }
+
     // ---- the Craft metatable ------------------------------------------------------------------------
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("craft", methods(owner),
-            "the open crafting recipe answers :name() :inputs() :outputs() :qualityInputs() :tools() "
+            "the open crafting recipe answers :recipe() :inputs() :outputs() :qualityInputs() :tools() "
             + ":exists() :info(), and :make() runs it"));
         mt.set("__name", LuaValue.valueOf("Craft"));
         mt.set("__tostring", new OneArgFunction() {
@@ -153,9 +234,9 @@ public final class LuaCraft {
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
         // name() — the recipe's name, as the server titled the window.
-        m.set("name", new OneArgFunction() {
+        m.set("recipe", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                Makewindow mw = live(handle(self, "name"));
+                Makewindow mw = live(handle(self, "recipe"));
                 if(mw == null)
                     return LuaValue.NIL;
                 String nm = mw.rcpnm;

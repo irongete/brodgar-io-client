@@ -1,0 +1,10 @@
+{
+  "name": "089 — A word means one thing II",
+  "id": "089-a-word-means-one-thing-ii.all",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for the whole of feature 089, the character sheet's thirteen rows, under one command: man:dealable() is the count and sp:available() keeps the predicate, skill():buyable() is a collection, credo:questsDone() is a count and not a Quest, :level() is gone from all three receivers, slot means the action bar, the three distinguished members are identity comparisons, buff:remaining/slot:hold/craft:recipe/condition:tooltip say their unit and their source, a boolean is a bare adjective, and s:craft() IS the open recipe. Every retired spelling is asked to raise and to name its replacement.",
+  "api_version": 1,
+  "permissions": ["craft.make"],
+  "files": ["main.lua"]
+}

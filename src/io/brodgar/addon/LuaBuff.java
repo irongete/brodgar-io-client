@@ -163,7 +163,7 @@ public final class LuaBuff {
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("buff", methods(),
-            "a buff is one icon on the buff bar: it answers :res() :name() :amount() :duration() :number()"
+            "a buff is one icon on the buff bar: it answers :res() :name() :amount() :remaining() :number()"
             + " :exists() and :info()"));
         mt.set("__name", LuaValue.valueOf("Buff"));
         mt.set("__tostring", new OneArgFunction() {
@@ -209,7 +209,7 @@ public final class LuaBuff {
         // run is left, which on a buff is what that meter means (the action bar's identical meter is a
         // cooldown, hence the different name there). Content-defined and nil when the buff publishes none,
         // and NOT seconds: the client has no seconds-based buff timer to read.
-        m.set("duration", new OneArgFunction() {
+        m.set("remaining", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 Double c = duration(handle(self, "duration").wdg);
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.doubleValue());

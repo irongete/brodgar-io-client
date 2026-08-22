@@ -154,7 +154,7 @@ public final class LuaPartyMember {
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("partymember", methods(owner),
-            "someone in your party answers :id() :gob() :position() :color() :leader() :exists() and "
+            "someone in your party answers :id() :gob() :position() :color() :exists() and "
             + ":info()"));
         mt.set("__name", LuaValue.valueOf("PartyMember"));
         mt.set("__tostring", new OneArgFunction() {
@@ -198,15 +198,6 @@ public final class LuaPartyMember {
                 LuaPartyMember h = handle(self, "color");
                 Party.Member pm = member(h.user, h.gobid);
                 return ((pm == null) || (pm.col == null)) ? LuaValue.NIL : AddonManager.color(pm.col);
-            }
-        });
-        // leader() — is this member the one leading the party?
-        m.set("leader", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaPartyMember h = handle(self, "leader");
-                Party.Member pm = member(h.user, h.gobid);
-                Party p = CharApi.partyOf(h.user);
-                return LuaValue.valueOf((pm != null) && (p != null) && (p.leader == pm));
             }
         });
         // exists() — is this member still in the party?

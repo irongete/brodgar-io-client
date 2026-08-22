@@ -197,7 +197,7 @@ public final class LuaPagina {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("pagina", methods(owner),
             "one entry of the action menu answers :res() :exists() :name() :icon() :categories() :tooltip() "
-            + ":addon() :on() :hotkey() :isNew() :parent() :children() :info(), and :use() runs it"));
+            + ":addon() :on() :hotkey() :unseen() :parent() :children() :info(), and :use() runs it"));
         mt.set("__name", LuaValue.valueOf("Pagina"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -361,7 +361,7 @@ public final class LuaPagina {
         });
         // isNew() — is this entry still flagged as a NEW DISCOVERY (the green flash in the grid)? The flag is
         // cleared by the client when the button is actually used.
-        m.set("isNew", new OneArgFunction() {
+        m.set("unseen", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaPagina h = handle(self, "isNew");
                 MenuGrid.Pagina p = live(h.user, h.res);
