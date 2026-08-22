@@ -15,6 +15,7 @@ World-of-Warcraft-style Lua (LuaJ) AddOn system in `src/io/brodgar/addon/`, on b
 | `bin/addons/` | What the running client actually scans, beside the jar. A suite is copied here to be run, and gitignored |
 | `specs/ROADMAP.md` | The maintainer's own long-term queue. `/plan` reads it; **no command writes it** |
 | `specs/NNN-<feature>/` | `spec.md` · `plan.md` (its *Discarded alternatives* are the decision record) · `tasks.md`, plus the archived suites. Written once, then frozen |
+| `tools/` | The checkers that hold `docs/` to `src/`: every documented verb resolved against its own **receiver's** vocabulary, and every verb a refusal offers as a replacement. Run them when either side moves — they exit non-zero, and they state their own blind spots |
 | `DOCUMENTATION.md` | How a page under `docs/` is written |
 
 **If a fact is true of the API today, it lives in `docs/` and `src/` — nowhere else.** `ls specs/`

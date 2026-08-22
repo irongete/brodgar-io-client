@@ -164,7 +164,7 @@ never sent one.
 | `leader` | bool | whether this member is the party leader |
 
 The live reads are `member:id()`, `:position()` — a [Position](position.md), not the two
-loose numbers — `:color()` and `:leader()`.
+loose numbers — `:color()`. Whether a member leads is `s:party():leader() == member`, not a flag on them.
 
 ## Buff
 

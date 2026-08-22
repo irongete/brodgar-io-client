@@ -57,7 +57,7 @@ the display name. **There is no `:get`**: a maneuver is addressed by nothing you
 
 The deck is a **plain array**, not a collection: it is a layout, ordered by hotkey, and there is nothing
 to search it by that the maneuvers do not already answer. Empty slots are left out — each card carries
-its own `:slot()` and `:key()`, so the gap is never ambiguous.
+its own `:index()` and `:key()`, so the gap is never ambiguous.
 
 ## A maneuver
 
@@ -72,7 +72,7 @@ its own `:slot()` and `:key()`, so the gap is never ambiguous.
 
 ## A deck card
 
-A card is a **place** in the layout, not the maneuver in it. It keeps answering `:slot()` and `:key()`
+A card is a **place** in the layout, not the maneuver in it. It keeps answering `:index()` and `:key()`
 when the hotkey is emptied, while the maneuver half goes `nil` and `:exists()` goes `false`.
 
 | Method | Returns | Description |

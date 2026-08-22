@@ -194,8 +194,9 @@ ground pair means the query has not run — over your own ground it never does. 
 `groundMissed` is the only one of the two that can climb: the session that would be asked is the one already
 looking.
 
-`session()` is read-only in the strict sense — it takes no argument, and passing one raises rather than
-being ignored.
+**Every counter group is read-only in the strict sense** — each takes no argument, and passing one raises
+rather than being ignored, so `p:net(1)` is a refusal rather than a read that quietly discards what you
+meant. The one that does take an argument is `p:history(n)`, which says how many frames back to read.
 
 ```lua
 local a = hafen.client():profiling():session()

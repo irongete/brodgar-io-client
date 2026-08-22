@@ -9,16 +9,10 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
-import java.lang.ref.Reference;
-import java.lang.ref.ReferenceQueue;
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A <b>Craft object</b> — the recipe a character has open ({@code s:craft():current()}): what it needs,
@@ -54,84 +48,23 @@ import java.util.Map;
  * resolved outside it.
  */
 public final class LuaCraft {
-    /** The recipe window this reads — the whole state of a handle. */
-    public final Makewindow wnd;
-
-    private LuaCraft(Makewindow wnd) {
-        this.wnd = wnd;
-    }
-
-    /** {@code tostring(c)}: {@code Craft(<recipe>)}. */
-    public String toString() {
-        return "Craft(" + wnd.rcpnm + ")";
-    }
-
-    /** An interned Craft object for {@code wnd} in {@code owner}'s env, or {@code NIL} for no window. */
-    static LuaValue of(Addon owner, Makewindow wnd) {
-        return owner.crafts.of(wnd);
-    }
-
-    /** The {@code LuaCraft} behind a Lua value, or {@code null} for anything else. */
-    static LuaCraft resolve(LuaValue v) {
-        if((v == null) || !v.isuserdata())
-            return null;
-        Object o = v.touserdata();
-        return (o instanceof LuaCraft) ? (LuaCraft)o : null;
-    }
-
-    // ---- the per-addon intern cache + metatable ----------------------------------------------------
-
-    /** One addon's Craft cache and metatable (its {@link Addon#crafts}), keyed by the recipe window. */
-    static final class Cache {
-        private final Addon owner;
-        private final Map<Makewindow, Ref> live = new IdentityHashMap<Makewindow, Ref>();
-        private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
-        private LuaValue mt;
-
-        Cache(Addon owner) {
-            this.owner = owner;
-        }
-
-        synchronized LuaValue of(Makewindow mw) {
-            drain();
-            if(mw == null)
-                return LuaValue.NIL;
-            Ref r = live.get(mw);
-            if(r != null) {
-                LuaValue v = r.get();
-                if(v != null)
-                    return v;
-                live.remove(mw);
-            }
-            LuaValue v = LuaValue.userdataOf(new LuaCraft(mw), meta());
-            live.put(mw, new Ref(v, mw, dead));
-            return v;
-        }
-
-        private void drain() {
-            Reference<? extends LuaValue> r;
-            while((r = dead.poll()) != null) {
-                Ref cr = (Ref)r;
-                if(live.get(cr.key) == cr)
-                    live.remove(cr.key);
-            }
-        }
-
-        private LuaValue meta() {
-            if(mt == null)
-                mt = buildMeta(owner);
-            return mt;
-        }
-    }
-
-    private static final class Ref extends WeakReference<LuaValue> {
-        final Makewindow key;
-
-        Ref(LuaValue v, Makewindow key, ReferenceQueue<LuaValue> q) {
-            super(v, q);
-            this.key = key;
-        }
-    }
+    /*
+     * 096: THE HANDLE HALF IS GONE, and with it a second implementation of everything below it.
+     *
+     * D4 flattened this section at 089 -- s:craft() IS the open recipe, because a section that holds exactly
+     * one thing is that thing -- and the LuaCraft object was kept on a stated reason: "it is what Retired
+     * keys the old spellings on, and it is still the shape a held handle has." Neither half of that survives
+     * a look. Retired keys on STRINGS (`session:craft():current`, `craft:name`), never on a class; and
+     * nothing had handed a LuaCraft out since 089, so no handle was held.
+     *
+     * What the reason was protecting was 200 lines nothing could reach: an intern cache, a metatable, and a
+     * SECOND set of the four recipe reads in the array shape 091 replaced -- beside a SECOND
+     * CRAFT_MAKE-gated :make(). A protected write with no call site is a protected write nobody keeps in
+     * step, and its refusal quoted `session:craft():current():make`, a spelling retired two features ago.
+     *
+     * Deletion is the whole of the fix. The compiler is the proof: every remaining member is reached from
+     * ActApi's Section.object("craft", LuaCraft.section(owner, user), CharApi.CR).
+     */
 
     // ---- the SECTION itself (089, A-070) ------------------------------------------------------------
 
@@ -303,126 +236,7 @@ public final class LuaCraft {
         };
     }
 
-    // ---- the Craft metatable ------------------------------------------------------------------------
-
-    private static LuaValue buildMeta(final Addon owner) {
-        LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("craft", methods(owner),
-            "the open crafting recipe answers :recipe() :inputs() :outputs() :qualityInputs() :tools() "
-            + ":exists() :info(), and :make() runs it"));
-        mt.set("__name", LuaValue.valueOf("Craft"));
-        mt.set("__tostring", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                LuaCraft h = resolve(self);
-                return LuaValue.valueOf((h == null) ? "Craft(?)" : h.toString());
-            }
-        });
-        return mt;
-    }
-
-    private static LuaTable methods(final Addon owner) {
-        LuaTable m = new LuaTable();
-        // name() — the recipe's name, as the server titled the window.
-        m.set("recipe", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Makewindow mw = live(handle(self, "recipe"));
-                if(mw == null)
-                    return LuaValue.NIL;
-                String nm = mw.rcpnm;
-                return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
-            }
-        });
-        // inputs() / outputs() — the ingredient and product slots, in the order the window lays them out.
-        m.set("inputs", specs("inputs", true));
-        m.set("outputs", specs("outputs", false));
-        // qualityInputs() — the ingredients whose quality carries into the product.
-        m.set("qualityInputs", reses("qualityInputs", true));
-        // tools() — the tools you must have with you for the recipe to work.
-        m.set("tools", reses("tools", false));
-        // make([all]) — the PROTECTED verb: press Craft, or Craft All. It consumes the ingredients, exactly as
-        // clicking the button does, and it chains on self like every other write in the API.
-        m.set("make", new VarArgFunction() {
-            public Varargs invoke(Varargs a) {
-                LuaValue me = a.arg1();
-                LuaCraft h = handle(me, "make");
-                AddonManager.requirePermission(owner, Permission.CRAFT_MAKE);
-                LuaValue all = Args.written(a, 2, CharApi.CR + ":current():make", "all");
-                Makewindow mw = live(h);
-                if(mw == null)
-                    throw new LuaError(CharApi.CR + ":current():make(all): this recipe window is gone —"
-                        + " read " + CharApi.CR + ":current() again for the recipe that is open now");
-                mw.wdgmsg("make", ((all != null) && all.toboolean()) ? 1 : 0);
-                return me;
-            }
-        });
-        // exists() — is this still the recipe that is open? (Another recipe is another window.)
-        m.set("exists", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(live(handle(self, "exists")) != null);
-            }
-        });
-        // info() — the one SNAPSHOT escape hatch.
-        m.set("info", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Makewindow mw = live(handle(self, "info"));
-                if(mw == null)
-                    return LuaValue.NIL;
-                LuaTable t = new LuaTable();
-                String nm = mw.rcpnm;
-                t.set("recipe", LuaValue.valueOf((nm == null) ? "" : nm));
-                t.set("inputs", specList(mw, true));
-                t.set("outputs", specList(mw, false));
-                t.set("qmod", resList(mw, true));
-                t.set("tools", resList(mw, false));
-                return t;
-            }
-        });
-        return m;
-    }
-
-    /** {@code :inputs()} / {@code :outputs()} — an empty array once the window is gone, never nil. */
-    private static OneArgFunction specs(final String verb, final boolean in) {
-        return new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Makewindow mw = live(handle(self, verb));
-                return (mw == null) ? new LuaTable() : specList(mw, in);
-            }
-        };
-    }
-
-    /** {@code :qualityInputs()} / {@code :tools()} — an empty array once the window is gone, never nil. */
-    private static OneArgFunction reses(final String verb, final boolean quality) {
-        return new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
-                Makewindow mw = live(handle(self, verb));
-                return (mw == null) ? new LuaTable() : resList(mw, quality);
-            }
-        };
-    }
-
-    private static LuaCraft handle(LuaValue self, String method) {
-        LuaCraft h = resolve(self);
-        if(h == null)
-            throw new LuaError("craft:" + method + "() — use a COLON call on a Craft object ("
-                + CharApi.CR + ":current())");
-        return h;
-    }
-
     // ---- the reads ----------------------------------------------------------------------------------
-
-    /**
-     * The recipe window this handle reads, or {@code null} once it is no longer open — <b>asked of the window
-     * itself</b> (077.3): a widget that is still parented to its own tree's root is still up, whichever
-     * session that tree belongs to and whoever is looking at it. Comparing against the recipe open on screen
-     * would have called every background character's window closed.
-     */
-    private static Makewindow live(LuaCraft h) {
-        Makewindow mw = h.wnd;
-        UI u = mw.ui;
-        if((u == null) || (u.root == null))
-            return null;
-        return (!u.destroyed && mw.hasparent(u.root)) ? mw : null;
-    }
 
     /** One side's slots as {@code {res, name, num, opt}} values, copied under the UI monitor. */
     private static LuaTable specList(Makewindow mw, boolean in) {

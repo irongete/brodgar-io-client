@@ -77,7 +77,7 @@ out from under it is a root, which is how the window draws it too. Both are
 addressed by id on the whole list, `s:wound():get(id)`, wherever it hangs.
 
 `w:parent()` is the tree link resolved for you — the wound above this one, rather than an id you have to
-look up. It is `nil` at a root, which is where `:level()` is `0`.
+look up. It is `nil` at a root, which is where `:depth()` is `0`.
 
 ## Events
 

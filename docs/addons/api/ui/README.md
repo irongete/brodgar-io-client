@@ -31,7 +31,7 @@ client's own controls the way the user would.
 
 ```lua
 local s = hafen.session():current()                    -- the character on screen
-hafen.log():write(#s:ui():inventory():items() .. " items in the backpack")
+hafen.log():write(s:ui():inventory():items():count() .. " items in the backpack")
 
 local clock = hafen.ui():window():title("Clock"):size(160, 40):position(50, 50)
 clock:on("Draw", function(ev)

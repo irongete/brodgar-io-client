@@ -95,7 +95,7 @@ end)
 
 hafen.event():on("MeterChanged", function(m, s)          -- ...or let the client tell you
   if m:res() == "gfx/hud/meter/hp" then
-    hafen.log():write(s:user() .. " hp: " .. tostring(m:value()))
+    hafen.log():write(s:user() .. " hp: " .. tostring(m:segment():list()[1]:value()))
   end
 end)
 ```
@@ -124,7 +124,7 @@ open when you subscribe.
 
 ```lua
 hafen.session():current():ui():on("window[title=Cupboard]", "appear", function(w)
-  hafen.log():write(#w:items() .. " items")
+  hafen.log():write(w:items():count() .. " items")
 end)
 ```
 

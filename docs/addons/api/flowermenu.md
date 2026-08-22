@@ -8,7 +8,9 @@ open — what it offers, how many petals that is, and which one to pick. You rea
 
 ```lua
 hafen.event():on("FlowerMenuOpened", function(petals, s)
-  hafen.log():write(s:user() .. " menu: " .. table.concat(petals, ", "))   -- {"Chop", "Pick branch", …}
+  local names = {}
+  for i, p in ipairs(petals) do names[i] = p:label() end
+  hafen.log():write(s:user() .. " menu: " .. table.concat(names, ", "))   -- Chop, Pick branch, …
 end)
 
 hafen.event():on("FlowerMenuClosed", function(label)
@@ -26,7 +28,7 @@ up and it is still up: still readable, and still pickable.
 ```lua
 local menu = hafen.session():get("alt"):flowermenu()     -- the ring that character left open
 if menu:count() > 0 then
-  hafen.log():write("the alt is being offered: " .. table.concat(menu:list(), ", "))
+  for _, p in ipairs(menu:list()) do hafen.log():write("the alt is offered: " .. p:label()) end
 end
 ```
 
@@ -70,27 +72,31 @@ hafen.event():on("FlowerMenuOpened", function(petals)
   local gob = hafen.session():current():flowermenu():gob()
   local name = gob and gob:name()
   if name and name:find("tree") then
-    hafen.log():write("a tree offers: " .. table.concat(petals, ", "))
+    for _, p in ipairs(petals) do hafen.log():write("a tree offers: " .. p:label()) end
   end
 end)
 ```
 
-## Petals are labels, not objects
+## A petal
 
-Everywhere else in this API a member of a set is a live object you keep and re-read. A petal is not. A menu
-is put up by the server, its petals are fixed from the moment it appears, and it lives for about as long as
-it takes to decide — so there is nothing for a handle to track, and `:list()` hands you plain strings.
+A petal is an object like every other member of a set here, and it re-resolves: one held past the close
+reports `:exists()` false rather than pointing at whatever is on screen now.
 
-That has one consequence worth stating: the array is a **reading**, not a subscription. Take it while the
-menu is up, and take it again next time.
+| Method | Returns | Description |
+|---|---|---|
+| `petal:label()` | string | the caption the ring paints |
+| `petal:index()` | number | its **1-based** place in the ring |
+| `petal:select()` | the petal | pick it — **protected**, `flowermenu.select` |
+| `petal:exists()` | boolean | whether that menu is still up |
+| `petal:info()` | table | a plain-table **snapshot** |
 
-A petal's **position** in that array is real identity here, not an artefact of one call's ordering: it is
-the number the client sends when you pick that petal, and it is the `1`–`9` key the menu itself accepts
-from the keyboard. This is the opposite of [`session:menugrid`](menugrid.md), where a position means nothing
-and is refused — there the catalogue grows as you play, and here the ring is frozen the instant it opens.
+A petal's **position** is real identity here, not an artefact of one call's ordering: it is the number the
+client sends when you pick that petal, and it is the `1`–`9` key the menu itself accepts from the keyboard.
+This is the opposite of [`session:menugrid`](menugrid.md), where a position means nothing and is refused —
+there the catalogue grows as you play, and here the ring is frozen the instant it opens.
 
-`:list()` takes **no filter**. There is no field to match on, and a string argument would read as *pick
-this one*; passing anything raises an error pointing at `:select`, which is how a petal is chosen.
+The ring is fixed from the moment it appears and lives about as long as it takes to decide, so a petal is
+worth reading rather than keeping — but it is a handle, so keeping one is safe and says so.
 
 > **The menu answers while it is on screen, closing animation included.** A pick or an Esc starts a
 > quarter-to-three-quarter-second fade, and the ring is still there for it — so a `:count()` read from

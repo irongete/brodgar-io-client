@@ -24,7 +24,7 @@ key. The third column is what the consent dialog tells the user, word for word.
 | `item.transfer` | [`item:transfer`](../api/ui/items.md#write-protected) | move items between containers |
 | `world.place` | [`session:world():place`](../api/world.md#write-protected) | place buildings and objects |
 | `world.select` | [`session:world():select`](../api/world.md#write-protected) | select an area of the ground |
-| `map.marker` | [`hafen.map():marker():add`](../api/map/markers.md#write-protected), `:remove`, `marker:color`, `:onMap` | add, rename and delete pins on your map |
+| `map.marker` | [`hafen.map():marker():add`](../api/map/markers.md#write-protected), `:remove`, `marker:color`, `:onMap` | add and delete pins on your map, and recolour them |
 | `menugrid.use` | [`pag:use`](../api/menugrid.md#use-protected) | invoke entries of the action menu, on any of your characters |
 | `flowermenu.select` | [`s:flowermenu():select`](../api/flowermenu.md#write-protected) | choose from the radial menu of any of your characters |
 | `flowermenu.cancel` | [`s:flowermenu():cancel`](../api/flowermenu.md#write-protected) | dismiss the radial menu of any of your characters |

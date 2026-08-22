@@ -8,7 +8,7 @@ when your addon goes away.
 local s = hafen.session():current()                    -- the character on screen
 local sub = s:ui():on("window[title=Inventory] inventory", "appear", function(inv)
   local view = hafen.ui():window():title("Bags"):size(200, 120)
-  view:on("Draw", function(ev) ev:g():text(#inv:items() .. " items", 6, 6) end)
+  view:on("Draw", function(ev) ev:g():text(inv:items():count() .. " items", 6, 6) end)
   inv:replace(view)
 end)
 -- later:  sub:off()
@@ -33,7 +33,7 @@ both:
 
 ```lua
 s:ui():on("window[title=Cupboard]", "appear", function(w)
-  hafen.log():write(("cupboard open: %d item(s)"):format(#w:items()))
+  hafen.log():write(("cupboard open: %d item(s)"):format(w:items():count()))
 end)
 ```
 

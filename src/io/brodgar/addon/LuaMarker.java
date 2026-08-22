@@ -219,9 +219,22 @@ public final class LuaMarker {
 
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
-        // name() — the marker's label, as the map window shows it.
-        m.set("name", new OneArgFunction() {
-            public LuaValue call(LuaValue self) {
+        // name() — the marker's label, as the map window shows it. READ ONLY, and it says so.
+        //   It was a OneArgFunction, so marker:name("New") passed the string as argument 2 and the function
+        // never saw it: neither a write nor a refusal, in a namespace whose whole grammar is that arity is
+        // the verb. Every other read/write pair here takes its argument through Args.written and refuses a
+        // shape it cannot use; this one silently answered the OLD name and looked like it had worked.
+        //   The client's own map window CAN rename a pin (haven.MapWnd's mark.nm = text), so this is a verb
+        // the API has not got rather than an act the player could not perform -- which is why the refusal
+        // names that gap instead of pretending the read is the whole story.
+        m.set("name", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                if(Args.passed(a, 2))
+                    throw new LuaError("marker:name(s): a marker cannot be renamed through this API —"
+                        + " marker:name() reads the label and there is no write beside it. Rename it in the"
+                        + " map window, or remove the pin and add another:"
+                        + " hafen.map():marker():remove(m) then :add(name, p), both under map.marker.");
                 MapFile.Marker mk = marker(self, "name");
                 return ((mk == null) || (mk.nm == null)) ? LuaValue.NIL : LuaValue.valueOf(mk.nm);
             }

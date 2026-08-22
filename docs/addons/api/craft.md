@@ -8,7 +8,7 @@ character can make: there is nothing to read while that character has no recipe 
 local s = hafen.session():current()                      -- the character on screen
 if s:craft():exists() then
   hafen.log():write("recipe: " .. s:craft():recipe())
-  for _, i in ipairs(s:craft():inputs()) do
+  for _, i in ipairs(s:craft():inputs():list()) do
     hafen.log():write("  needs " .. (i.name or i.res) .. " x" .. i.num)
   end
 end

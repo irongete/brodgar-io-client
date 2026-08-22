@@ -23,7 +23,7 @@ hafen.session():current():study():summary()      -- the totals of the character 
 hafen.session():get("alt"):study():summary()     -- that character's, while you watch someone else
 ```
 
-`s:study()` and its `:slot()` collection are the same objects every call, minted once for that session.
+`s:study()` and its `:curiosity()` collection are the same objects every call, minted once for that session.
 A session the client no longer holds answers an empty array and a `nil` summary rather than raising.
 
 ## Read

@@ -45,7 +45,7 @@ Unprotected.
 
 ```lua
 local tree = hafen.session():current():world():gob():nearest("terobjs/tree")
-for _, s in ipairs(tree:sessions()) do
+for _, s in ipairs(tree:sessions():list()) do
   hafen.log():write(s:user() .. " can see it")
 end
 ```

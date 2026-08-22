@@ -5,7 +5,7 @@ yourself. It is the one type `hafen.ui` hands back, and every door below returns
 
 ```lua
 local inv = hafen.session():current():ui():inventory()
-if inv then hafen.log():write(inv:type() .. " holds " .. #inv:items() .. " items") end
+if inv then hafen.log():write(inv:type() .. " holds " .. inv:items():count() .. " items") end
 ```
 
 ## Getting a Widget

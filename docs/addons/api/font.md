@@ -27,9 +27,9 @@ Neither takes options. Size and style are a [`:derive()`](#the-variant) away, ne
 
 ### The built-ins
 
-`hafen.font()` is the collection of the client's built-in fonts your addon has named: `:get(name)` is the
-handle for one of `"sans"`, `"serif"`, `"mono"`, `"fraktur"`, and `:list(filter)` is the ones you have asked
-for so far. They are engine-owned, so they are *addressed by name* rather than loaded: interned, no file, no
+`hafen.font()` is the collection of the client's built-in fonts: `:get(name)` is the handle for one of
+`"sans"`, `"serif"`, `"mono"`, `"fraktur"`, and `:list(filter)` is **all four, always** — the client's
+fonts, not your addon's history of asking for them. They are engine-owned, so they are *addressed by name* rather than loaded: interned, no file, no
 path, and **no lifetime**, so a built-in carries none of the [asset verbs](asset.md#every-asset). There is no
 `:add` — you cannot make a built-in — and no `:remove`, since there is no lifetime to end. A typo, a number
 or a path raises an error listing the four names and pointing paths at `hafen.asset`.

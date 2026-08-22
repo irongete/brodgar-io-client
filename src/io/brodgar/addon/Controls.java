@@ -737,7 +737,7 @@ final class Controls {
             throw new LuaError("widget:image(...) sets the FACE of a control you built, and hafen.ui():button()"
                 + " or hafen.ui():check() are the builders that take one — " + LuaWidget.typeName(w) + " has no"
                 + " face to set. A surface you paint yourself draws its own pictures with g:image inside"
-                + " widget:onDraw(fn).");
+                + " widget:on(\"Draw\", fn).");
         if(!c.pending())
             throw new LuaError("widget:image(up, down[, hover]) chooses a button's FACE while the control is"
                 + " being BUILT, and this one is already on screen — a face is not a property of a button, it IS"

@@ -25,12 +25,11 @@ import java.util.Map;
  * (uniform grammar §2.1): {@code s:actionbar()} is the {@link LuaCollection} of every slot and
  * {@code s:actionbar():get(n)} is one Slot.
  *
- * <p><b>Addressing is 0-based and single.</b> {@code :get(n)} takes the <b>raw game index</b> (0..143 — the
- * index the server uses in {@code setbelt}), and that is the <i>one</i> way to address a slot.
- * {@code :list()} is not a second way in: it is the iteration view (a 1-based Lua array), whose position is a
- * position and not an index — it hands back the very same interned objects, so
- * {@code s:actionbar():list()[1] == s:actionbar():get(0)}. A Slot always knows its own game index
- * ({@code slot:index()}), so nothing has to reconstruct it from the array position.
+ * <p><b>Addressing is 1-based and single</b> (090). {@code :get(n)} takes the position {@code slot:index()}
+ * answers, {@code 1..144}, and that is the <i>one</i> way to address a slot; {@code slot:wire()} is the raw
+ * number the server's {@code setbelt} carries, which is that position minus one and is a wire fact rather
+ * than an address. {@code :list()} is not a second way in: it hands back the very same interned objects, so
+ * {@code s:actionbar():list()[1] == s:actionbar():get(1)}.
  *
  * <p><b>Wraps the account and the index.</b> Every method re-reads through one funnel —
  * {@link AddonManager#gameui(String)}{@code .belt[index]} — so a stashed Slot tracks the slot being set,
@@ -390,8 +389,8 @@ public final class LuaSlot {
 
     /**
      * {@code s:actionbar()} — <b>that character's bar</b>, as the {@link LuaCollection} the section object IS:
-     * {@code :get(n)} is one slot by its raw 0-based game index, {@code :list(filter)} all 144 in game-index
-     * order (a fresh 1-based array), {@code :count}/{@code :find} the usual pair. There is no {@code :add} or
+     * {@code :get(n)} is one slot by its 1-based position, {@code :list(filter)} all 144 in that order (a
+     * fresh 1-based array), {@code :count}/{@code :find} the usual pair. There is no {@code :add} or
      * {@code :remove}: the bar is a fixed 144-slot array and what changes is a slot's <i>content</i>
      * ({@code slot:res(name)}).
      *

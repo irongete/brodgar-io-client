@@ -7,7 +7,8 @@ puts there. You reach it through the [session](session.md) whose character you m
 ```lua
 local s = hafen.session():current()                    -- the character on screen
 local hp = s and s:meter():find("hp")
-if hp and (hp:value() or 1) < 0.3 then hafen.log():write("low health!") end
+local fill = hp and hp:segment():list()[1]
+if fill and ((fill:value() or 1) < 0.3) then hafen.log():write("low health!") end
 ```
 
 | Call | Returns |
@@ -89,8 +90,8 @@ literal into your Lua source.
 Every read is guarded and may answer `nil`: a brand-new meter is nameless for a beat and its segments
 stream in after it appears. Only `:exists()` always answers. Nothing throws once you hold a `Meter`.
 
-A bar is genuinely multi-segment in the engine, and `:value()` and `:color()` are simply its first
-segment. The vital bars use one segment each, so the two shorthands are all you normally need, but a
+A bar is genuinely multi-segment in the engine, and the first segment is what a whole-bar reading means —
+`meter:segment():list()[1]`. The vital bars use one segment each, so the two shorthands are all you normally need, but a
 bar with more shows them all in `:segment():list()`.
 
 ## A segment
@@ -106,7 +107,7 @@ The bar's fill is `meter:segment():list()[1]:value()`, and it says which segment
 `meter:value()` that read segment one under a whole-bar name: right on every meter the client ships,
 and silently wrong the first time a server publishes a split bar.
 
-> `:value()` is a **bar fraction only**. There are no absolute hp, stamina or energy numbers, and no
+> `seg:value()` is a **bar fraction only**. There are no absolute hp, stamina or energy numbers, and no
 > hunger figure, in the client. The one place absolute numbers exist is FEP:
 > see [`s:char():food()`](char.md#food).
 
@@ -133,7 +134,8 @@ and a pure recolour count, and standing still is silent.
 ```lua
 hafen.event():on("MeterChanged", function(m)
   if m:res() == "gfx/hud/meter/hp" then
-    hafen.log():write(("hp %.0f%%"):format((m:value() or 0) * 100))
+    local seg = m:segment():list()[1]
+    hafen.log():write(("hp %.0f%%"):format(((seg and seg:value()) or 0) * 100))
   end
 end)
 ```

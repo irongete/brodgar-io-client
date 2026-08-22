@@ -29,7 +29,7 @@ hafen.map():marker():get(1)
 
 | Method | Returns | Description |
 |---|---|---|
-| `marker:name()` | string \| nil | the label the map shows |
+| `marker:name()` | string \| nil | the label the map shows. **Read only** — there is no rename; `marker:name(s)` raises rather than swallowing the string |
 | `marker:type()` | string | `"player"` or `"system"` |
 | `marker:position()` | [Position](../position.md) \| nil | where it is — the form you may **store or send** |
 | `marker:segmentTile()` | `{x, y}` | its segment tile coord — where it really lives in the database |
@@ -77,14 +77,14 @@ Writing either property on a system marker is refused: those are the server's ow
 > **All four need the `map.marker` [permission](../../guides/permissions.md).** They reach no server — they
 > edit the player's own on-disk map database — and they are keyed all the same, because `:remove(m)`
 > **permanently deletes a pin** that took real play to place and that nothing can put back. The consent
-> dialog says *"add, rename and delete pins on your map"*. Reading markers needs nothing. Remove only what
-> your addon added.
+> dialog says *"add and delete pins on your map, and recolour them"*. Reading markers needs nothing. Remove
+> only what your addon added.
 
 A pin goes into [the client's one map](README.md#one-map-for-the-client), not into the character that
 dropped it: your other characters in that world see it on their own maps, and it stays there when the
 session that added it ends.
 
-The [`MarkersChanged`](../event/bus.md#roster-quests-markers) event, payload the marker count, fires on any
+The [`MarkersChanged`](../event/bus.md#roster-quests-markers) event, payload the marker collection, fires on any
 add, remove or edit, including ones the player makes.
 
 ## See also

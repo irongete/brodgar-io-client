@@ -45,7 +45,7 @@ to compare against something the server said; every verb here takes the position
 The array is always 144 entries and never sparse. An empty slot is a `Slot` object like any other; it
 just answers `:empty()`. A string [filter](conventions.md#the-filter-argument) matches a slot's
 **resource name**, so `:list("act/")` is the occupied ability slots and an empty slot matches nothing.
-An index outside `0..143` **raises an error** — the bar is a fixed array, so an out-of-range index is a
+An index outside `1..144` **raises an error** — the bar is a fixed array, so an out-of-range index is a
 bug rather than a slot that does not exist yet. There is no `:add` and no `:remove`: the bar is a fixed
 set of slots, and what changes is a slot's *content*.
 
@@ -140,7 +140,7 @@ over what the server has there and hands it back untouched when the hold ends.
 local s   = hafen.session():current()
 local dig = s:menugrid():add("dig"):name("Auto-dig"):icon(hafen.asset():get("dig.png"))
 dig:on("use", function() hafen.log():write("dug") end)
-s:actionbar():get(11):pagina(dig)          -- the entry now draws in that slot, and fires from it
+s:actionbar():get(11):hold(dig)            -- the entry now draws in that slot, and fires from it
 ```
 
 The entry and the slot are **one character's pair**: a slot is held for an entry in that same character's

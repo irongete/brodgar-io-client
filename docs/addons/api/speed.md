@@ -25,16 +25,16 @@ looking at exactly as it answers for the drawn one:
 
 ```lua
 hafen.session():current():speed():current()      -- the speed of the character on screen
-hafen.session():get("alt"):speed():get(3):available()   -- has that character unlocked sprint?
+hafen.session():get("alt"):speed():get(4):available()   -- has that character unlocked sprint?
 ```
 
 `s:speed()` is the same object every call, minted once for that session. A session the client no longer holds
 has an empty list and a `nil` `:current()` rather than raising.
 
-> **The collection enumerates what you can pick; `:get` addresses a speed by its key.** `:list()` is
-> *exactly* the selectable speeds, so everything it hands you is something `:set` accepts. `:get(key)` reaches
-> all four, selectable or not, which is how "is sprint unlocked yet?" has something to ask about:
-> `s:speed():get(3):available()`.
+> **`:list()` is all four; `:available()` is the ones you can pick.** So everything
+> `s:speed():available():list()` hands you is something `:set` accepts, while `:list()` and `:get(key)` reach
+> every speed, selectable or not — which is how "is sprint unlocked yet?" has something to ask about:
+> `s:speed():get(4):available()`.
 
 ## Read
 
@@ -43,7 +43,7 @@ has an empty list and a `nil` `:current()` rather than raising.
 | `s:speed():list(filter)` | array | **all four** speeds, crawl first — `sp:available()` says which can be picked |
 | `s:speed():available(filter)` | collection | the ones that can be picked right now |
 | `s:speed():count(filter)` | number | how many match |
-| `s:speed():find(filter)` | Speed \| nil | the first selectable speed that matches, else `nil` |
+| `s:speed():find(filter)` | Speed \| nil | the first speed that matches, else `nil` |
 | `s:speed():get(key)` | Speed \| nil | any of the four by key, selectable or not, else `nil` |
 | `s:speed():current()` | Speed \| nil | the speed that character is on |
 
@@ -55,11 +55,11 @@ ever hit, and an explicit `nil` raises as it does
 [everywhere else](conventions.md#nil-is-an-error-unless-it-means-something). A string
 [filter](conventions.md#the-filter-argument) is a substring match against the display name.
 
-Nothing here is protected, and none of these reads throws. **The list is empty in two different
-situations**, and both are states rather than errors. Before the client's speed selector streams in, a beat
-after entering the world, there is nothing to pick from and `:get` answers `nil` as well. And the server can
-lock every speed at once, which leaves a live selector on which `:list()` is empty and `:set` refuses
-everything — `:get` still answers a `Speed` there, because a locked speed is a speed.
+Nothing here is protected, and none of these reads throws. **`:list()` is empty in one situation only**, and
+it is a state rather than an error: before the client's speed selector streams in, a beat after entering the
+world, there is nothing at all and `:get` answers `nil` too. The server locking every speed at once is a
+different thing — `:list()` still answers four, `s:speed():available()` is empty, and `:set` refuses
+everything, naming what is pickable.
 
 There is no speed event. Read on demand: the classic use is a command or a hotkey that reads, decides and
 sets in one go.
@@ -74,7 +74,7 @@ server locking and unlocking it.
 | `sp:index()` | number | its **1-based** position, `1..4`, the number `:get` and `:set` take |
 | `sp:wire()` | number | the raw number the selector's own message carries, `0..3` |
 | `sp:name()` | string | the display name, such as `"Run"`; it is known before the selector is |
-| `sp:available()` | boolean | whether it can be picked right now, which is what `:list()` filters on |
+| `sp:available()` | boolean | whether it can be picked right now, which is what `s:speed():available()` partitions on |
 | `sp:exists()` | boolean | whether that character's speed selector is up at all |
 | `sp:info()` | [`Speed`](types.md#speed) | a plain-table **snapshot**, the escape hatch for logging |
 

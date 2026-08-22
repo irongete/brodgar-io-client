@@ -7,7 +7,7 @@ each one hands back its live [Gob](gob.md).
 ```lua
 local s = hafen.session():current()                     -- the character on screen
 for _, m in ipairs(s and s:party():list() or {}) do
-  hafen.log():write(m:gob():name() .. (m:leader() and " (leader)" or ""))
+  hafen.log():write(m:gob():name() .. ((s:party():leader() == m) and " (leader)" or ""))
 end
 ```
 

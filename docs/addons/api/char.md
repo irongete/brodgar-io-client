@@ -155,7 +155,8 @@ character's sheet is up.
 |---|---|---|
 | `food:fep()` | `Fep` \| nil | the FEP bar: `:cap()`, `:total()` and `:entry()` |
 | `food:fep():entry()` | collection | the food events, each answering `:res()`, `:name()` and `:amount()` |
-| `food:hunger()` | number \| nil | the hunger level |
+| `food:hunger()` | `Hunger` \| nil | the hunger meter: `:level()`, `:label()` and `:efficacy()` |
+| `food:hunger():level()` | number \| nil | how full it is |
 | `food:hunger():label()` | string \| nil | the client's own word for that level |
 | `food:hunger():efficacy()` | number \| nil | the multiplier on what you eat next at this hunger |
 | `food:exists()` | boolean | whether this is still that character's live sheet |

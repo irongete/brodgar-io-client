@@ -93,10 +93,28 @@ final class Stock {
             LuaValue v = value(scope, e.getKey(), e.getValue());
             if(v == null)
                 continue;                                // no name for its art: left out, never guessed at
-            t.set(e.getKey(), v);
+            t.set(ruleKey(e.getKey()), v);
             any = true;
         }
         return any ? t : LuaValue.NIL;
+    }
+
+    /**
+     * <b>The name a RULE spells this property by</b>, where the engine declares it by another.
+     *
+     * <p>{@code Fonts.stockOf} hands back the client's own declaration keys, and one of them is not the
+     * API's word for the same property: {@code Window} declares its close button as {@code "close"}
+     * ({@code haven.Window}'s {@code Fonts.stock("window.frame", "close", …)}) and the rule that writes it is
+     * {@code rule:closeButton(...)}, renamed because {@code :close()} already meant <i>shut this window</i>.
+     *
+     * <p><b>This is the SECOND DOOR onto a property, and it is what makes the round trip close.</b>
+     * {@code sheet:stock()} and {@code sheet:load()} are the data half of the same vocabulary the setters
+     * are the verb half of, so a rename that reaches only the setter leaves {@code sheet:load(sheet:stock())}
+     * raising on its own output the moment a window has drawn — which is exactly what it did between the
+     * rename and this method. A property renamed on the verb side is renamed here in the same breath.
+     */
+    private static String ruleKey(String prop) {
+        return "close".equals(prop) ? Chrome.CLOSE : prop;
     }
 
     /** One declared property as a rule writes it, or {@code null} where it cannot be written at all. */

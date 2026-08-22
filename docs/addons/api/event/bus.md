@@ -212,7 +212,7 @@ The payload is the same `Slot`, and while the hold is on it `slot:res()` is the 
 | `KinChanged` | [`Kin`](../kin.md)`[]` | a kin is added, removed or edited, or flips online or offline |
 | `QuestAdded` | [`Quest`](../quest.md#a-quest) | a new active quest appears |
 | `QuestDone` | [`Quest`](../quest.md#a-quest) | an active quest is completed or failed |
-| `MarkersChanged` | `n` (number) | a map marker is added or removed |
+| `MarkersChanged` | the [marker collection](../map/markers.md) | a map marker is added or removed |
 
 `KinChanged` hands you the **whole roster** as live [`Kin` objects](../kin.md), in Kin-window sort order —
 the same interned objects `s:kin():list()` returns, so `payload[1]` and
@@ -233,7 +233,7 @@ care about, with the same [selector](../ui/selectors.md) a lookup uses:
 
 ```lua
 hafen.session():current():ui():on("window[title=Cupboard]", "appear", function(w)
-  hafen.log():write(#w:items() .. " items")
+  hafen.log():write(w:items():count() .. " items")
 end)
 ```
 
@@ -246,7 +246,7 @@ event is about *visibility*, and at `disappear` the widget is a key to match, no
 
 | Event | Payload | Fires |
 |---|---|---|
-| `FlowerMenuOpened` | `string[]` — the petal captions, in ring order | a right-click puts up a radial menu |
+| `FlowerMenuOpened` | [`Petal`](../flowermenu.md#a-petal)`[]` — in ring order | a right-click puts up a radial menu |
 | `FlowerMenuClosed` | `string` \| nil — the label picked | that menu goes away |
 
 **Every `FlowerMenuOpened` is followed by exactly one `FlowerMenuClosed`**, whether you picked a petal,

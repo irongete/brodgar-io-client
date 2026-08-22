@@ -105,7 +105,7 @@ this a category" is `pag:children():count() > 0`.
 ```lua
 for _, cat in ipairs(hafen.session():current():menugrid():roots():list()) do
   hafen.log():write(cat:name() or cat:res())
-  for _, child in ipairs(cat:children()) do
+  for _, child in ipairs(cat:children():list()) do
     hafen.log():write("   " .. (child:name() or child:res()))
   end
 end

@@ -65,8 +65,8 @@ public enum Permission {
     ITEM_TRANSFER    ("item.transfer",      "item:transfer",                  "move items between containers"),
     WORLD_PLACE      ("world.place",        "session:world():place",          "place buildings and objects"),
     WORLD_SELECT     ("world.select",       "session:world():select",         "select an area of the ground"),
-    MAP_MARKER       ("map.marker",         "hafen.map():marker():add",       "add, rename and delete pins on"
-                                                                              + " your map"),
+    MAP_MARKER       ("map.marker",         "hafen.map():marker():add",       "add and delete pins on your map,"
+                                                                              + " and recolour them"),
     MENUGRID_USE     ("menugrid.use",       "pag:use",                        "invoke entries of the action menu,"
                                                                               + " on any of your characters"),
     FLOWERMENU_SELECT("flowermenu.select",  "session:flowermenu():select",    "choose from the radial menu of any"

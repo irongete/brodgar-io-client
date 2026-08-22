@@ -107,6 +107,9 @@ public final class ProfHandle {
         // or when the ring has not filled its first sample yet.
         m.set("frame", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():frame() is read-only — it is the frame that just"
+                        + " finished and takes no argument; p:history(n) is how you ask for more than one.");
                 LuaTable t = new LuaTable();
                 int n = Prof.count();
                 if(!Prof.armed() || (n == 0))
@@ -188,6 +191,9 @@ public final class ProfHandle {
         // p:memory() -- the JVM heap, in BYTES, plus the client's own per-frame allocation estimate.
         m.set("memory", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():memory() is read-only \u2014 it counts what the JVM heap"
+                        + " did and takes no argument; call it with none to read.");
                 return memory();
             }
         });
@@ -195,6 +201,9 @@ public final class ProfHandle {
         // p:net() -- the connection's packet/byte counters and its smoothed round-trip time (ms).
         m.set("net", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():net() is read-only \u2014 it counts what the network layer"
+                        + " did and takes no argument; call it with none to read.");
                 return net();
             }
         });
@@ -202,6 +211,9 @@ public final class ProfHandle {
         // p:loader() -- the async queue depths: the UI loader, the Defer pool, the resource queues.
         m.set("loader", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():loader() is read-only \u2014 it counts what the resource loader"
+                        + " did and takes no argument; call it with none to read.");
                 return loader();
             }
         });
@@ -209,6 +221,9 @@ public final class ProfHandle {
         // p:render() -- the graphics counters as NUMBERS: draw slots, batching, tree size, VRAM, programs.
         m.set("render", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():render() is read-only \u2014 it counts what the render pass"
+                        + " did and takes no argument; call it with none to read.");
                 return render();
             }
         });
@@ -219,6 +234,9 @@ public final class ProfHandle {
         // profiling off. Global rather than per addon, because the pass is one walk of one list.
         m.set("surfaces", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():surfaces() is read-only \u2014 it counts what the surface pass"
+                        + " did and takes no argument; call it with none to read.");
                 return surfaces();
             }
         });
@@ -229,6 +247,9 @@ public final class ProfHandle {
         // profiling off. Global rather than per addon, because the re-derivation is one walk of one list.
         m.set("entities", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():entities() is read-only \u2014 it counts what the entity pass"
+                        + " did and takes no argument; call it with none to read.");
                 return entities();
             }
         });
@@ -253,6 +274,9 @@ public final class ProfHandle {
         // bound ITSELF, and this only reads them. Per addon, so the top level is the CALLER's own cache.
         m.set("textcache", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():textcache() is read-only \u2014 it counts what the text cache"
+                        + " did and takes no argument; call it with none to read.");
                 return textcache(owner);
             }
         });
@@ -263,6 +287,9 @@ public final class ProfHandle {
         // of a console snippet), sorted most expensive first, plus a `total` row. Empty when profiling is off.
         m.set("addons", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():addons() is read-only \u2014 it counts what the addons"
+                        + " did and takes no argument; call it with none to read.");
                 return addons();
             }
         });
@@ -299,6 +326,9 @@ public final class ProfHandle {
         // unlike the counters above, nothing counts widget time unless the switch is on.
         m.set("widgets", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():widgets() is read-only \u2014 it counts what the widget tree"
+                        + " did and takes no argument; call it with none to read.");
                 return widgets();
             }
         });
@@ -308,6 +338,9 @@ public final class ProfHandle {
         // p:passes() -- the curated render passes with CPU and GPU time side by side. Armed-only.
         m.set("passes", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():passes() is read-only \u2014 it counts what the render passes"
+                        + " did and takes no argument; call it with none to read.");
                 return passes();
             }
         });
@@ -316,6 +349,9 @@ public final class ProfHandle {
         // vertices and triangles per frame. Armed-only, unlike the pull-only counters above.
         m.set("gl", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():gl() is read-only \u2014 it counts what the GL driver"
+                        + " did and takes no argument; call it with none to read.");
                 return gl();
             }
         });
@@ -326,6 +362,9 @@ public final class ProfHandle {
         // budget is enforceable rather than aspirational. Armed-only: off, there is nothing to account for.
         m.set("overhead", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("client:profiling():overhead() is read-only \u2014 it counts what the profiler itself"
+                        + " did and takes no argument; call it with none to read.");
                 return overhead();
             }
         });

@@ -10,7 +10,7 @@ widget your addon built; what this page says is where the same name also answers
 
 ```lua
 hafen.session():current():ui():on("window[title=Options]", "appear", function(win)
-  win:find("@IButton"):on("Pressed", function(ev)
+  win:match("@IButton"):on("Pressed", function(ev)
     ev:preventDefault()                  -- the X on this window does nothing while your addon is loaded
   end)
 end)
@@ -26,7 +26,7 @@ naming the one that answers there.
 ```lua
 local win = hafen.session():current():ui():match("window[title=Options]")
 win:title("Options, edited")
-win:all("@Button")[1]:text("Go")
+win:matchAll("@Button")[1]:text("Go")
 ```
 
 | Call | Does |
@@ -120,7 +120,7 @@ A [control](controls/README.md)'s capability key answers on a **borrowed** contr
 | `Changed` | a [slider or scrollbar](controls/interactive.md#slider) of the client's own — a drag step, and a scrollbar's wheel and steps | `:value()` |
 
 Name the control the ordinary way, with a [selector](selectors.md). Every window carries a close button,
-so `win:find("@IButton")` is the one control you can reach without knowing what a window is made of.
+so `win:match("@IButton")` is the one control you can reach without knowing what a window is made of.
 
 **A grid fires only for the button that selects**: a right-click on a cell opens the client's own menu and
 moves nothing, so it is no selection, and a key that fired for it would let one handler swallow that menu.
@@ -137,7 +137,7 @@ emits a stream of these. So their `Changed` is a report rather than a question: 
 `ev:resend()` both **raise** there, naming that the value has already moved.
 
 ```lua
-local vol = hafen.session():current():ui():match("window[title=Options]"):all("@HSlider")[1]
+local vol = hafen.session():current():ui():match("window[title=Options]"):matchAll("@HSlider")[1]
 vol:on("Changed", function(ev) hafen.log():write("now at " .. ev:value()) end)
 ```
 
@@ -202,7 +202,7 @@ the control through the very method their gesture ends in, so what the client se
 and whatever that particular control was built to do is what happens.
 
 ```lua
-local box = hafen.session():current():ui():match("window[title=Options]"):all("@CheckBox")[1]
+local box = hafen.session():current():ui():match("window[title=Options]"):matchAll("@CheckBox")[1]
 box:value(not box:value())             -- ticked, exactly as a click would have ticked it
 ```
 
@@ -293,7 +293,7 @@ hafen.session():current():ui():on("window[title=Options]", "appear", function(wi
     :position(0, win:size().h)                    -- below everything it is showing
   go:on("Pressed", function() hafen.log():write("pressed") end)
   win:pack()                                      -- ...and the frame comes down around it
-  win:find("@IButton"):on("Pressed", function(ev)
+  win:match("@IButton"):on("Pressed", function(ev)
     ev:preventDefault()                           -- ...while its X does nothing at all
   end)
 end)

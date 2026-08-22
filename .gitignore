@@ -16,3 +16,5 @@
 /lib/brodgar/*.jar
 
 /audit
+# Python bytecode from the tools/ checkers
+__pycache__/

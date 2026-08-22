@@ -745,7 +745,6 @@ public final class Addon {
     final LuaQuest.Cache quests = new LuaQuest.Cache(this);
     final LuaCondition.Cache conditions = new LuaCondition.Cache(this);
     final LuaWound.Cache wounds = new LuaWound.Cache(this);
-    final LuaCraft.Cache crafts = new LuaCraft.Cache(this);
 
     /**
      * This addon's <b>Widget interning cache</b> ({@code s:ui():root()}/{@code node(id)}/{@code at(x,y)}, spec

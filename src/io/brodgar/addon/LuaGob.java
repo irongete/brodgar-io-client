@@ -211,9 +211,10 @@ public final class LuaGob {
                 return LuaValue.valueOf(gob(self, "exists") != null);
             }
         });
-        // sessions() — which of your characters can see this object RIGHT NOW, as an array of Sessions in the
-        // order they joined (079.3). A plain array and not a collection: it is an answer about one object, not
-        // a set to address into — hafen.session() is where a session is looked up by name.
+        // sessions() — which of your characters can see this object RIGHT NOW, as a COLLECTION of Sessions
+        // in the order they joined (079.3; a collection since 091/A-073, whose rule is that a relation whose
+        // members are objects is one). :get is refused naming hafen.session(), which is where a session is
+        // looked up by name — this is an answer about one object rather than a set to address into.
         //   A LIVE READ. The object caches are asked at the moment of the call and nothing is kept, so a
         // character that logs out is simply not in the next answer and nothing had to be notified — which is
         // what makes "it left one of several sessions" need no event at all. Empty, never nil: an object

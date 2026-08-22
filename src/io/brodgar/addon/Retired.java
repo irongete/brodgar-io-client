@@ -703,8 +703,10 @@ final class Retired {
             + " s:char():skill():available() — the buyable skills are a verb on the skill collection,"
             + " and each one carries s:cost()");
         put("hafen.char.credos", "hafen.char.credos() is now s:char():credo():list() — acquired and"
-            + " available in one collection with cr:acquired() saying which, s:char():credo():pursuing()"
-            + " for the one being pursued, and s:char():credo():cost() for the price of beginning one");
+            + " available in one collection with cr:acquired() saying which, and s:char():credo():pursuing()"
+            + " for the one being pursued. What beginning a credo COSTS is not readable: the collection-level"
+            + " read was deleted (A-068) because the call site could not say whose cost it was, and no"
+            + " per-credo one has ever existed — the Credo window is where that number is");
         put("hafen.char.experiences", "hafen.char.experiences() is now s:char():experience():list()");
         section("char", "lp", "weight", "food");
 
@@ -775,10 +777,10 @@ final class Retired {
         // ---- keyed on an anonymous SHAPE rather than a namespace or an entity: nothing here has verbs, so
         // ---- the field a caller wrote is the whole of what can be caught.
         field("size", "x", "a size is {w=, h=}: widget:size(), widget:info().size, rule:size() and a"
-            + " stylesheet snapshot all read back .w and .h, the same two keys widget:cell(), img:size()"
+            + " stylesheet snapshot all read back .w and .h, the same two keys widget:cellSize(), img:size()"
             + " and mapImg:size() have always answered. A place and a pixel keep {x=, y=}");
         field("size", "y", "a size is {w=, h=}: widget:size(), widget:info().size, rule:size() and a"
-            + " stylesheet snapshot all read back .w and .h, the same two keys widget:cell(), img:size()"
+            + " stylesheet snapshot all read back .w and .h, the same two keys widget:cellSize(), img:size()"
             + " and mapImg:size() have always answered. A place and a pixel keep {x=, y=}");
         field("bounds", "size", "mdl:bounds() names its span extent — .extent.x/.y/.z, the reach of the"
             + " box in world units. .min and .max are the corners, unchanged");
@@ -946,7 +948,9 @@ final class Retired {
             + " interned. The collection keeps :pursuing(), which hands back the pursued credo");
         put("session:char():credo():cost", "session:char():credo():cost() is gone — it was the pursued"
             + " credo's own cost read off the collection, where the call site could not say whether it was a"
-            + " sum, a maximum or one member's. s:char():credo():pursuing():cost() says it exactly");
+            + " sum, a maximum or one member's. There is no replacement: a Credo answers :name() :res()"
+            + " :acquired() :rank() :levelTotal() :questsDone() :questTotal() :questId() :exists() and"
+            + " :info(), and none of them is a price. Read it in the Credo window");
         // ---- A-069: a boolean reads as a bare adjective (D1). Seven of them are read/write pairs and
         // ---- w:isVisible(true) cannot be read, so the `is` form is incompatible with arity-is-the-verb.
         put("gob:isPlayer", "gob:isPlayer() is now gob:player() — a boolean reads as a bare adjective in this"

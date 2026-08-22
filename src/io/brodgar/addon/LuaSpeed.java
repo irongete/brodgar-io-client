@@ -25,11 +25,11 @@ import java.util.Map;
  * {@code s:speed():current()} the one it is on, and {@code s:speed():set(x)} the verb that picks one.
  *
  * <p><b>The collection enumerates what you can pick; {@code :get} addresses a speed by its key.</b> That one
- * sentence is the whole of the wrinkle here, and it is deliberate: {@code :list()} is <i>exactly</i> the
- * selectable speeds — so everything it hands you is something {@code :set} accepts — while {@code :get(key)}
- * reaches all four by index {@code 0..3} or by whole (case-insensitive) display name, selectable or not, so
- * "is sprint unlocked yet?" has an address to ask about. The old {@code :max()} was a bound every caller
- * turned back into this range by hand.
+ * sentence is the whole of the wrinkle here: {@code :list()} is <b>all four</b> (A-079) and
+ * {@code s:speed():available(filter)} is the partition {@code :set} accepts, while {@code :get(key)} reaches
+ * any of them by the 1-based index {@code 1..4} {@code sp:index()} answers, or by whole (case-insensitive)
+ * display name, selectable or not — so "is sprint unlocked yet?" has an address to ask about. The old
+ * {@code :max()} was a bound every caller turned back into this range by hand.
  *
  * <p><b>Wraps the account and the index</b> ({@link LuaSlot} is the exact model — the other cache keyed by a
  * small int rather than by an object). Every read re-resolves through <b>that character's</b> live
@@ -356,7 +356,15 @@ public final class LuaSpeed {
         return sb.toString();
     }
 
-    /** The selectable speeds as {@code "Crawl (0), Walk (1)"} — what a refused {@code :set} lists back. */
+    /**
+     * The selectable speeds as {@code "Crawl (1), Walk (2)"} — what a refused {@code :set} lists back.
+     *
+     * <p><b>1-based, because that is what {@code :set} takes.</b> 090 made the key the position
+     * {@code sp:index()} answers and this message kept counting from the internal 0, so a caller told
+     * <i>"you can pick Walk (2)"</i> who wrote {@code :set(1)} got <b>Crawl</b> — a refusal that handed back
+     * a number selecting the wrong thing. A message that names an index has to name the one the verb beside
+     * it accepts.
+     */
     private static String selectable(String user) {
         StringBuilder sb = new StringBuilder();
         for(int i = 0; i < SPEEDS; i++) {
@@ -364,7 +372,7 @@ public final class LuaSpeed {
                 continue;
             if(sb.length() > 0)
                 sb.append(", ");
-            sb.append(speedName(i)).append(" (").append(i).append(")");
+            sb.append(speedName(i)).append(" (").append(i + 1).append(")");
         }
         return (sb.length() == 0) ? "nothing at all" : sb.toString();
     }
@@ -458,15 +466,17 @@ public final class LuaSpeed {
                     throw new LuaError(CharApi.SP + ":set(speed): no speed selector (that character is not"
                         + " in the world yet)");
                 if(!available(user, n))
-                    throw new LuaError(CharApi.SP + ":set(speed): " + speedName(n) + " (" + n + ") is not"
-                        + " selectable right now — you can pick " + selectable(user) + ", which is what "
-                        + CharApi.SP + ":list() hands back");
+                    throw new LuaError(CharApi.SP + ":set(speed): " + speedName(n) + " (" + (n + 1) + ") is"
+                        + " not selectable right now — you can pick " + selectable(user) + ", which is what "
+                        + CharApi.SP + ":available() hands back (:list() is all four, and sp:available() says"
+                        + " which of them can be picked)");
                 s.set(n);
                 return me;
             }
         });
         return LuaCollection.create(CharApi.SP, new LuaCollection.Source() {
-            /** Exactly the selectable ones, crawl→sprint: empty with no selector, empty with max &lt; 0. */
+            /** ALL FOUR, crawl→sprint (A-079): empty only with no selector at all. Which of them can be
+             *  picked right now is {@code sp:available()}, and the partition is {@code s:speed():available()}. */
             public List<LuaValue> members() {
                 // 091/A-079: ALL FOUR, always. :list() was the SELECTABLE ones, so it grew as the character
                 // unlocked them -- a collection that answered a different question from every other :list()
@@ -493,9 +503,9 @@ public final class LuaSpeed {
             }
 
             /**
-             * All four, selectable or not — the collection enumerates what you can pick, {@code :get}
-             * addresses a speed by its key. A key of the right shape that names no speed is a plain
-             * {@code nil} miss (an index outside {@code 0..3}, an unknown name); a key of the wrong TYPE is
+             * All four, selectable or not — the collection enumerates every speed and {@code :get}
+             * addresses one by its key. A key of the right shape that names no speed is a plain
+             * {@code nil} miss (an index outside {@code 1..4}, an unknown name); a key of the wrong TYPE is
              * an error, because there is no reading of it that could ever hit.
              */
             public LuaValue getMember(LuaValue key) {
@@ -518,7 +528,7 @@ public final class LuaSpeed {
     }
 
     /**
-     * The index {@code x} names, for {@code :set} — a Speed object, an index {@code 0..3} or a whole
+     * The index {@code x} names, for {@code :set} — a Speed object, the 1-based index {@code 1..4} or a whole
      * (case-insensitive) display name. Unlike {@code :get}'s miss this <b>raises</b>: {@code :get} is a
      * lookup that may find nothing, while a {@code :set} whose argument names no speed is a write that was
      * meant to happen and did not.

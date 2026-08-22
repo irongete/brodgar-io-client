@@ -7,7 +7,7 @@ registered. Reading is unprotected.
 
 ```lua
 local s = hafen.session():current()              -- the character on screen
-for _, it in ipairs(s:ui():inventory():items()) do
+for _, it in ipairs(s:ui():inventory():items():list()) do
   hafen.log():write((it:name() or it:res() or "?") .. " x" .. (it:quantity() or 1))
 end
 
@@ -77,7 +77,7 @@ tooltip has not resolved yet.
 
 `:quantity()` is usually how many this one item **is**. A counted item (`42 seeds of Hemp`) is one thing
 with one quality and no parts, so it holds nothing and this is the only count it has; a stack draws the
-same number for what is inside it, where it agrees with `#item:contents():items()`.
+same number for what is inside it, where it agrees with `item:contents():items():count()`.
 
 **What the count counts is the item's own business, and it is not always a quantity.** The client has one
 way to put a number on an icon, and the code shipped with an item decides what to put there: gildable gear
@@ -99,7 +99,7 @@ pair is handed over exactly as the row states it, `cur` first, and the row is dr
 reaches `max`.
 
 ```lua
-for _, it in ipairs(hafen.session():current():ui():equipment():items()) do
+for _, it in ipairs(hafen.session():current():ui():equipment():items():list()) do
   local d = it:durability()
   if d then
     hafen.log():write((it:name() or "?") .. ": worn " .. d.cur .. " of " .. d.max)
@@ -138,7 +138,7 @@ item's contents are `==`. It answers `nil` while the item's info is still resolv
 object — so `nil` means "holds nothing" and an empty `:items()` means "an empty container".
 
 ```lua
-for _, it in ipairs(hafen.session():current():ui():inventory():items()) do
+for _, it in ipairs(hafen.session():current():ui():inventory():items():list()) do
   local held = it:contents()
   for _, one in ipairs(held and held:items() or {}) do
     hafen.log():write((one:name() or "?") .. " q" .. (one:quality() or 0)   -- its own quality...
@@ -164,20 +164,20 @@ lifts the whole pile in one message.
 A bucket, a jug, a barrel holds something and carries no items, so the other three reads answer instead:
 
 ```lua
-local b = hafen.session():current():ui():inventory():items()[1]   -- a jug holding water
+local b = hafen.session():current():ui():inventory():items():list()[1]   -- a jug holding water
 local c = b:contents()
 
 c:text()                   --> "4.55 l of Water"   the line its tooltip states
 c:quality()                --> the water's quality, and b:quality() is still the jug's
-c:level()                  --> { cur = 455, max = 500 }   the fill meter, in its own scale
+c:fill()                   --> { cur = 455, max = 500 }   the fill meter, in its own scale
 c:items()                  --> { }                 it states what it holds; it does not carry it
 ```
 
-`c:level()` is how you ask how full something is, and the two counts are the ones behind the bar drawn on
+`c:fill()` is how you ask how full something is, and the two counts are the ones behind the bar drawn on
 the item's icon — the client itself paints only the fraction of them, so this is the one place they read as
 numbers. **They are the meter's own scale and not the units the line states**: divide one by the other and
 compare fractions, rather than reading `cur` as the number in front of the `l`. A stack answers `nil` to
-`:text()` and `:level()`, and a container that states what it holds answers an empty `:items()`, so the two
+`:text()` and `:fill()`, and a container that states what it holds answers an empty `:items()`, so the two
 insides are told apart by asking rather than by knowing which you hold.
 
 **The substance is never named to the client.** What arrives is that rendered line, a quality and a fill:
@@ -206,7 +206,7 @@ Each needs its own [permission key](../../guides/permissions.md) declared in you
 `item.*`, which covers all four — and raises an error naming that key when it was not declared.
 
 ```lua
-local first = hafen.session():current():ui():inventory():items()[1]
+local first = hafen.session():current():ui():inventory():items():list()[1]
 if first then first:take() end
 ```
 

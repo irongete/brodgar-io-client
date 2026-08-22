@@ -392,7 +392,7 @@ local ABOUT = {
   BuffRemoved = function(b) return b:name() or b:res() or "buff" end,
   BuffChanged = function(b) return b:name() or b:res() or "buff" end,
 
-  FepChanged       = function(f) return f:label() or "fep" end,
+  FepChanged       = function(f) return f:hunger():label() or "fep" end,   -- 091: label moved onto hunger
   StudyChanged     = function(l) return num(#l) .. " slot(s)" end,
   EquipChanged     = function(l) return num(#l) .. " item(s)" end,
   ActionbarChanged = function(k) return k:name() or k:res() or ("slot " .. num(k:index())) end,
@@ -401,7 +401,7 @@ local ABOUT = {
   KinChanged     = function(l) return num(#l) .. " kin" end,
   QuestAdded     = function(q) return q:title() or "quest" end,
   QuestDone      = function(q) return (q:title() or "quest") .. " -> " .. (q:status() or "?") end,
-  MarkersChanged = function(n) return num(n) .. " marker(s)" end,
+  MarkersChanged = function(c) return num(c:count()) .. " marker(s)" end,  -- 091: the collection, not a count
 
   FlowerMenuOpened = function(p) return num(#p) .. " petal(s)" end,
   FlowerMenuClosed = function(p) return p or "(dismissed)" end,

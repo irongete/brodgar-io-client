@@ -1624,7 +1624,8 @@ public final class LuaWidget {
         if(!(c instanceof AddonWidget))
             throw new LuaError("widget:" + verb + " belongs to a SURFACE you painted yourself (hafen.ui():window()"
                 + " or hafen.ui():widget()); " + typeName(w) + " is a control, which the client draws and drives."
-                + " A button's activation is widget:onPress(fn), and a control's look comes from the stylesheet:"
+                + " A button's activation is widget:on(\"Pressed\", fn), and a control's look comes from the"
+                + " stylesheet:"
                 + " hafen.ui():sheet():rule(selector).");
         return (AddonWidget)c;
     }

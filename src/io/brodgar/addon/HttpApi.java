@@ -61,14 +61,15 @@ final class HttpApi {
     }
 
     /**
-     * Build the {@code hafen.http} section object (get/post) for {@code owner}. Called from
-     * {@code installHafen}. A plain section: {@code hafen.http():get(url, cb)}, so the receiver is argument 1
-     * and the URL is argument 2.
+     * Build the {@code hafen.http} section for {@code owner} — <b>the collection of its live requests</b>,
+     * with {@code :request(url)}, {@code :get(url)} and {@code :post(url, body)} as its {@code extra} verbs
+     * (095, A-115/A-118). Called from {@code installHafen}.
      *
-     * <p><b>There is no options table.</b> A request is constructed bare and configured by chained setters on
-     * the object it hands back — {@code req:header(name, value)}, {@code req:timeout(ms)} — which is why the
-     * request does not leave the client in the call that created it: it is sent on the next tick, so
-     * everything chained onto it is applied first. A cancelled request is never sent at all.
+     * <p><b>Constructed bare, dispatched on purpose.</b> A request is configured by chained setters and goes
+     * nowhere until {@code :send()}, so every setter is legal until that call and none after — a rule with
+     * no timing in it, where the shape before 095 sent on the next tick and every setter had to be chained
+     * in the statement that created the request. A request never sent costs the wire nothing and holds no
+     * slot against the cap; a cancelled one is never sent at all.
      */
     static void install(LuaTable hafen, final Addon owner) {
         // 095 (A-118): the section IS the collection of this addon's live requests. The set is bounded and
@@ -231,14 +232,15 @@ final class HttpApi {
     }
 
     /**
-     * Build + register a request, enforcing the per-addon queue cap, and queue the addon for the tick's
-     * scheduler run. On the UI thread (the call path). {@code cb} may be NIL (result discarded). Returns the
-     * Lua request object: {@code :header(name, value)}, {@code :timeout(ms)} and {@code :cancel()}.
+     * Build a request — <b>bare</b>. On the UI thread (the call path). Returns the Lua request object:
+     * {@code :url()} {@code :method(name)} {@code :body(v)} {@code :header(name, value)} {@code :timeout(ms)}
+     * {@code :on("done", fn)} {@code :send()} and {@code :cancel()}.
      *
-     * <p><b>The request is not started here</b>, and that is what makes the setters honest: the call that
-     * creates it returns first, everything chained onto it is applied, and the tick sends it. Starting it
-     * inside this method would race a {@code :timeout(5000)} written one character later against a pool
-     * thread already reading the field.
+     * <p><b>Nothing is registered or scheduled here</b> (095): the queue cap is charged by {@code :send()},
+     * because a request that never goes reaches no wire and should hold no slot against a cap that counts
+     * what is in flight. That is also what makes the setters honest — there is no tick coming for a request
+     * that has not been sent, so a {@code :timeout(5000)} written a minute later cannot race a pool thread
+     * already reading the field.
      */
     private static LuaValue newHttpRequest(final Addon owner, String method, String url) {
         final LuaHttpRequest req = new LuaHttpRequest(owner, method, url, null,
