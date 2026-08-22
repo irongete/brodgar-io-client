@@ -253,6 +253,27 @@ already-a-client-command refusal, the `"cannot parse key"` refusal, `font:derive
 takes-no-arguments refusal and the asset sandbox check (`resolveAddonAsset`) all sit beside the code
 these tasks rewrite. Each task's suite asserts one of them still fires.
 
+### 7 and 8 — the arrears
+
+**086.7** folds `LuaItem.count` into `Args` as the optional twin of `num` and points the six
+`optint`/`optdouble` sites at it. The helper is not new: `LuaItem.count(a, i, verb, param, def)`
+already does exactly the right thing — `Args.written` for the nil-aware read, the default when the
+argument is absent, `Args.num` when it is present — and it has been **private to one file** while six
+others hand-rolled LuaJ's `opt*`. That is why 084's sweep missed them: the pattern existed and was
+not reachable from `Args`, so nothing pointed the sweep at it. `item:drop` and `item:transfer` move
+onto the relocated copy in the same task, or the file keeps a private duplicate of what it donated.
+
+**086.8** points `Stock.color` at `AddonManager.color`. Check `Stock.color1` and `Stock.sequence`
+for the same shape while that file is open.
+
+### What 095 builds on
+
+086.6 converts `HttpApi`'s request handle to userdata; **A-115** then reshapes `hafen.http()` into a
+builder (`:request(url) … :send()`) and **A-117** turns the `res` table into an object. 095 reuses
+the metatable this feature mints rather than replacing it — what changes there is the shape, not the
+kind of Lua value. Doing it here is what lets `conventions.md` and `references.md` say *every handle
+is userdata* four features before 095 runs.
+
 ## Discarded alternatives
 
 - **Giving `Subs` a per-key `Idle` hook for all three registries instead of a per-sub `Ended`.**

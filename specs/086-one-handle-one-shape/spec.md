@@ -1,6 +1,20 @@
 # 086 — One handle, one shape
 
-Discharges: A-038, A-039, A-040, A-041, A-042, A-043, A-044, A-045.
+Discharges: A-038, A-039, A-040, A-041, A-042, A-043, A-044, A-045, A-103, A-121, A-122.
+
+**Where each of those comes from.** A-038 … A-045 are this feature's own block in
+`audit/INVENTORY.md`. **A-103** is filed there under **093** and is taken here because 086.3 is where
+its change lands — `binding:key(nil)` is exactly *"`KeyBinding.key` is three-state and the write
+handles two"*, and a row implemented by one feature and claimed by another is how a sheet stops being
+true. **A-121** and **A-122** are **arrears**: rows ticked for 084 and 085 that were not wholly true,
+which have their own ids and their own section in the inventory, because a frozen folder cannot be
+reopened and a ticked box that is false is the one failure the sheet exists to prevent.
+
+**The audit is readable, and every task names its part of it.** `audit/` is not in `CLAUDE.md`'s tree
+table, so nothing otherwise permits an `/implement` session to open it. It is permitted here: each
+task's *Audit* line names its ids, quotes the row, and names the finding page under `audit/` that
+carries the evidence and the cost. **Read those pages before starting.** The row is a one-line
+summary; the page is why the change is worth making and what a user's own code does today.
 
 ## What and why
 
@@ -219,14 +233,18 @@ feature leans on: Console commands are *"register only; no unregister"*, with th
 ## Closing the inventory
 
 `audit/INVENTORY.md` is the sweep's working sheet and the only thing that knows when the sweep is
-done. **At `/end`, and only after the maintainer's verification, this feature ticks its own rows:**
+done. `/end` runs **per task** and ticks that task's own rows — the table in `tasks.md` §When the
+feature closes says which task ticks what, and there are three things in it that are not routine:
 
-- For each of A-038 … A-045 the box becomes `☒` and the id is struck: `| ☒ | ~~**A-038**~~ | … |`.
-- **A-042's row gains its strike reason**: the member is the `Sub` itself, so `cmd:name()` shipped as
-  `sub:key()` — the collection landed, the second spelling did not.
-- Nothing else in the file is touched. An id never moves.
+- **A-038 is ticked by 086.6**, not by 086.4 or 086.5, because those two do parts of it and 086.6
+  finishes it. A row is ticked when the change is whole.
+- **A-103 is ticked by 086.6 too**, and it is filed under **093**. Its change shipped in 086.3.
+  093's `spec.md` must not claim it again.
+- **A-121 and A-122 are arrears** and live in the inventory's own §Arrears. Ticking them does not
+  untick A-005, A-009, A-020 or A-022 — those stay ticked and carry a forward pointer, because the
+  history of what was believed done is worth keeping.
 
-Then:
+Nothing else in the file is touched. An id never moves.
 
 ```bash
 grep -c '^| ☐' audit/INVENTORY.md
@@ -236,8 +254,10 @@ grep -c '^| ☐' audit/INVENTORY.md
 comm -23 <(grep -oE 'A-[0-9]{3}' audit/INVENTORY.md | sort -u) <(grep -rhoE 'A-[0-9]{3}' specs/*/spec.md | sort -u)
 ```
 
-After 085 the first prints `83`. After this feature it must print **75**, and the second must no
-longer name any id between A-038 and A-045.
+With 086.1 … 086.5 closed the first prints **78**. When the last task closes it must print **74**,
+and the second must no longer name A-038, A-103, A-121 or A-122. **A-011** stays unclaimed for the
+whole sweep — D3 struck it at Step 0, before any `spec.md` existed — and that is the terminal state,
+not a bug to hunt at the end.
 
 ## Context files
 
@@ -272,6 +292,13 @@ Under `src/io/brodgar/addon/`, tagged with the tasks that need each:
 - `AddonRegistry` (the teardown sequence: the order every owned resource is released in, and where each
   `teardown*` is called from) — 1, 4, 5, 6
 - `Args`, `Section` — every task
+
+**Under `audit/`** — permitted reading for this feature, and named per task on its *Audit* line:
+`INVENTORY.md` (every task) · `03-lifecycle.md` — 4, 5, 6 · `ns-ui.md`, `ns-slash.md`,
+`ns-client.md` — 1, 2, 3 · `ns-timer.md` — 4 · `ns-event.md` — 2 · `06-arity-and-nil.md`,
+`07-errors-and-refusals.md` — 7 · `ns-world.md`, `12-types-and-shapes.md` — 8. **Read nothing else
+there**: the rest of the audit is other features' ground and reading it invites scope that is not
+this feature's.
 
 Pages, by task:
 
