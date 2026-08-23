@@ -52,7 +52,7 @@ One namespace or one sub-subject per page, complete and lookup-shaped. The reade
 the name they want.
 
 ````markdown
-# hafen.speed: movement speed          <- h1, once, "namespace: subject"
+# speed: movement speed               <- h1, once, "namespace: subject"
 
 What it is in one sentence. When you reach for it, in one more. A link to the guide that
 uses it, if there is one.
@@ -62,12 +62,12 @@ uses it, if there is one.
 ```
 
 ## Read                                 <- h2 groups the verbs
-### `hafen.speed():current()`           <- h3 is the call, and nothing but the call
+### `s:speed():current()`               <- h3 is the call, and nothing but the call
 What it answers, in one line. Arguments and returns as a table when there is more than one.
 What it gives back when the data is not there.
 
 ## Write (protected)                    <- the heading says THAT it is protected, never which key
-### `hafen.speed():current(n)`          <- the key goes beside the verb: a column, or a sentence
+### `s:speed():set(n)`                  <- the key goes beside the verb: a column, or a sentence
 
 ## See also                             <- required, 2-5 links, last section
 ````
@@ -95,7 +95,7 @@ every block is run in order by the maintainer during verification.
 - `#` exactly once, as the first line. `##` and `###` for structure; `####` only inside a reference
   page's verb detail. **`#####` and deeper are forbidden** — a page needing them is two pages.
 - **Call headings** are the fully qualified call in backticks and nothing else, **with its
-  parameters and no `[ ]`**: `### \`hafen.world():place(p, angle, button, mods)\``. No arrows, no
+  parameters and no `[ ]`**: `### \`s:world():place(p, angle, button, mods)\``. No arrows, no
   return types, no prose — the return goes in the line below, and which parameters are optional is
   stated there or in the argument table.
 - **Topic headings** are sentence case; a subtitle uses a colon: `## Selectors: naming a widget`.
@@ -164,7 +164,7 @@ The docs describe what exists today. There is no release, no migration tier: his
 ## 9. Links, size, mechanics
 
 - **Relative paths only**, never a URL to the repo. Link the **page**, not an anchor, unless the
-  anchor is the actual answer. Link text is the thing linked (`hafen.world`), never "here".
+  anchor is the actual answer. Link text is the thing linked (`s:world()`), never "here".
 - **No link leaves `docs/`**, with one exception: a shipped example addon under `addons/`, from the
   page that also describes it — `examples.md`, and nothing else.
 - **When you retitle a heading or move a page, you re-point every link into it in the same task.**

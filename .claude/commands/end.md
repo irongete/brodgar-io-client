@@ -15,7 +15,7 @@ the approval: the maintainer only runs it after verifying, so do not ask again. 
 
 2. **Read the pasted test log, and check that it is the current one.** The log must be **later than
    your last edit**: if you changed a file after the log the maintainer pasted, this task is
-   unverified — name what you changed, ask for another `:t<NNN>-<X>` run, and stop. The last thing
+   unverified — name what you changed, ask for another `:t<NNN>` run, and stop. The last thing
    in this context before `/end` is a log, never an edit of yours.
 
    A `[fail]` line, or a `[manual]` line whose answer does not match its expected result, **is a
@@ -26,9 +26,16 @@ the approval: the maintainer only runs it after verifying, so do not ask again. 
    A task that shipped no suite is not closed either, and neither is one whose maintainer described
    anything needing code.
 
-3. **No page may teach a name that already throws.** Derive the refusal table from the engine
-   (`Retired.NAMES`/`KEYS`) and grep `docs/`. If a retired spelling survives, this closes only when
-   the NEXT task in `tasks.md` is the sweep that removes it; with no such task, it does not close.
+3. **No page may teach a name that already throws.** `python tools/docverbs.py` and
+   `python tools/retiredverbs.py` — both exit non-zero on a finding, so this is a gate and not a
+   reading. Between them they resolve every documented verb against its own **receiver's**
+   vocabulary, every event key against the sets the bridge actually fires, every verb a refusal
+   offers as a replacement, and every collection used as an array. A grep over `Retired.NAMES`
+   cannot do this: it asks only whether a name exists *somewhere*, which is why it was green while
+   six pages taught code that raises. **Read what each tool says it cannot see** — a green there is
+   exactly as wide as its stated blind spots and no wider. If a retired spelling survives, this
+   closes only when the NEXT task in `tasks.md` is the sweep that removes it; with no such task, it
+   does not close.
 
    The same for the map: if the task read upstream `haven` that no `docs/client/` page covered and
    left no page behind, **it is not closed**. Check it for line numbers and for anything about

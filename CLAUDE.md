@@ -11,7 +11,7 @@ World-of-Warcraft-style Lua (LuaJ) AddOn system in `src/io/brodgar/addon/`, on b
 | `docs/addons/**` | **The contract.** What the API *is*, always current. The only model `/plan` and `/implement` need |
 | `docs/client/**` | **The map of the upstream `haven` engine**: where each subsystem lives, what owns what, and the gotchas that cost time. Written only by the task that had to read that source anyway |
 | `src/` | The `haven` engine (upstream) and `src/io/brodgar/**` (ours) |
-| `addons/` | The two tools — `profiler` and `widgetstack` — and the one task suite in flight |
+| `addons/` | The five tools — `clickpath`, `eventstack`, `profiler`, `session-manager`, `widgetstack` — and the task suite in flight |
 | `bin/addons/` | What the running client actually scans, beside the jar. A suite is copied here to be run, and gitignored |
 | `specs/ROADMAP.md` | The maintainer's own long-term queue. `/plan` reads it; **no command writes it** |
 | `specs/NNN-<feature>/` | `spec.md` · `plan.md` (its *Discarded alternatives* are the decision record) · `tasks.md`, plus the archived suites. Written once, then frozen |
@@ -72,14 +72,33 @@ frozen folder. If the reason does not stand on its own words, it is not prior ar
   its replacement. **A rename is free and a reshape is not**: `Retired` carries a *name*, so a
   changed argument, return or payload shape has nothing to key on — it needs a refusal written
   inside the verb and a line on the page, and neither of those is a row anything sweeps.
-- A **section** is called and is a per-addon singleton; everything after it is a **colon verb**;
-  **arity is the verb**; a set is a **collection**.
+- A **section** is called and is a per-addon singleton; everything after it is a **colon verb**; a
+  set is a **collection**, and a relation whose members are objects is one too.
+- **Arity is the verb** — one name per property, no `getX`/`setX`, a bare adjective for a boolean.
+  It binds a verb that names a **property**: three families take an argument without being a write,
+  and `conventions.md` names them — **addressing** (`coll:get(key)`), **actions** (`item:drop(n)`,
+  `sound:play(volume)`), **conversions** (`p:distance(other)`).
+- **Every index is 1-based**, whatever the wire says. Where the server's own number differs it is a
+  separate verb naming itself as the wire's (`slot:index()` is the position, `slot:wire()` is the
+  server's), never the same verb counting from somewhere else.
 - **Reference-based accessors**: a read takes the thing it reads and hands back a **live interned
-  object**, with `:info()` as its only snapshot. An explicit `nil` raises, except where a page
-  documents a meaning for it.
+  object**, with `:info()` as its only snapshot — every live object answers it, with no exception.
+  An explicit `nil` raises, except where a page documents a meaning for it.
 - **One notification verb**: `X:on(key, fn)` → a `Sub`, ended with `sub:off()`. The address picks
   the door — hold the object, subscribe on it; otherwise on the bus.
-- A **builder** is constructed bare and configured by chained setters. A place is a **Position**.
+- **An event key is a subject and an edge, and there are three edges**: `Added`, `Removed`,
+  `Changed`, whatever the subject. The subject is **singular**; where an **outcome** differs the
+  **key** differs (`QuestCompleted`/`QuestFailed`, never one key and a field to check); one word per
+  edge **at every level** (a frame is `Update` on the bus and on a surface of yours). A key the
+  client fires is PascalCase and its set is **closed**; a key you or the protocol chose — a command,
+  a hotkey, a `wdgmsg` — is lower case and open.
+- **An ending's word is the receiver's kind**: `:off()` a subscription · `:remove(member)` on the
+  **collection**, never the member · `:release()` a hold over what the client owns · `:destroy()` a
+  thing you built · `:cancel()` something in flight · `:stop()` a sound · `:finish()` a scope. Every
+  ending hands the receiver back.
+- A **builder** is constructed bare, configured by chained setters, and **dispatched on purpose** —
+  never by a tick, so every setter is legal until the dispatch and none after. A place is a
+  **Position**.
 - **Protected tier**: a write verb sits behind a **per-verb permission key**, declared exactly or as
   a `<prefix>.*` group, with enable-time consent and no global switch. Everything else observes, or
   writes client-local only.
@@ -97,7 +116,7 @@ It asserts **through the very API the task just shipped** and prints one verdict
 [summary] 12 pass, 1 fail, 2 manual
 ```
 
-The maintainer runs `:t<NNN>-<X>`, writes the observed result on each `[manual]` line, and pastes
+The maintainer runs `:t<NNN>`, writes the observed result on each `[manual]` line, and pastes
 the whole block back. Nothing needs interpreting — that round trip is the format's point.
 
 - **A suite stands ALONE.** Its one command is the whole verification of that task. Where its proof
@@ -113,9 +132,10 @@ the whole block back. Nothing needs interpreting — that round trip is the form
 - `/implement` copies it to `bin/addons/` to be run, and re-copies it after every fix round. `/end`
   archives it into `specs/NNN-<feature>/addons/` and deletes the copy.
 - **An addon is a suite when its folder name reads `<NNN>-<feature>.<X>`, and only then.** The only
-  other folders under `addons/` are the two tools, `profiler` and `widgetstack`: never archived,
-  never deleted, never grown to carry a proof — fixed when a change breaks them, and that is all.
-  **No third folder is added.** A surface is shown by its own page's example, never by a demo.
+  other folders under `addons/` are the five tools — `clickpath`, `eventstack`, `profiler`,
+  `session-manager`, `widgetstack`: never archived, never deleted, never grown to carry a proof —
+  fixed when a change breaks them, and that is all. **No sixth is added.** A surface is shown by its
+  own page's example, never by a demo.
 
 ## The cycle
 

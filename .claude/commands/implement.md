@@ -115,6 +115,10 @@ docs sweep as the next task of the same feature, and the close charges it. Nothi
 - Run its §11 checks over the pages you touched and report the counts. The **impact set** the
   `spec.md` derived is discharged **once per feature**, by the task whose surface owns it — each
   page of it revised, or explicitly discharged with its reason.
+- **Run the checkers over what you moved**: `python tools/docverbs.py` and
+  `python tools/retiredverbs.py`. They hold `docs/` to `src/` by **receiver type**, which is the
+  drift a task that renames a verb or an event key creates and cannot see in its own diff. Both exit
+  non-zero; fix here, not at the close.
 - **A retired spelling is retired everywhere, `addons/` included**: `grep -rl` the old name over
   `addons/*/` and fix every demo in this same task. Nothing runs them, so the alternative detector
   is a reader of `examples.md` months from now.
@@ -157,7 +161,7 @@ new task or as a line for *Discarded alternatives*. A task added mid-feature is 
 `tasks.md`'s own template and density; if the feature stops fitting that budget it was mis-scoped,
 and the maintainer splits it. Anything past the boundary is one sentence in the same report.
 
-**Report exactly one command: `:t<NNN>-<X>`.** Never ask for a second one — if verifying this task
+**Report exactly one command: `:t<NNN>`.** Never ask for a second one — if verifying this task
 needs another suite, the assertion is missing from this one. Then stay with the maintainer for as
 many rounds as it takes: they run it and paste the log, you read every `[fail]` and every answered
 `[manual]` line, fix, re-install, they re-run. Still one task, still no commit — when they are

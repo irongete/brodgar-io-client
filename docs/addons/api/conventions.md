@@ -103,6 +103,22 @@ hafen.timer():get(1)
 -- one of yours
 ```
 
+### Every index is 1-based
+
+Lua counts from one, so this API does — everywhere, whatever the server counts from. `:list()` hands
+back a 1-based array, and the position a member reports is the position it sits at in that array:
+
+```lua
+local s = hafen.session():current()
+s:actionbar():get(1) == s:actionbar():list()[1]    -- true, and the same interned object
+s:speed():get(1)                                    -- crawl, the first of four
+```
+
+**Where the wire's number differs, it is a verb of its own** that says so — never the same verb
+counting from somewhere else. `slot:index()` is the position and `slot:wire()` is the number the
+server's `setbelt` carries; `card:index()`/`card:wire()` and `sp:index()`/`sp:wire()` are the same
+pair. A wire number is a fact about the protocol, not an address: nothing in this API takes one.
+
 ### Endings: the receiver's kind picks the word
 
 Nothing here has to be ended: what your addon takes is given back for you on reload or disable. An ending
