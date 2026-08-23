@@ -228,7 +228,7 @@ public final class LuaWidget {
             + ":events() :owned() :is(sel) :parent() "
             + ":children() :position() :size() :rootPos() :walk() :match() :matchAll() and :hit(); its content "
             + "is :title() :text() :tooltip() :image() :value() :source() :rows() :range() :rowHeight() "
-            + ":cellSize() :columns() :items() :font() and :focused(); its frame is :draggable() :resizable() "
+            + ":cellSize() :columns() :item() :items() :font() and :focused(); its frame is :draggable() :resizable() "
             + ":remember() :visible() :pack() :chrome() :style() and :rule(); and it acts with :on() "
             + ":send() :replace() :replacement() :revert() and :destroy()"));
         mt.set("__name", LuaValue.valueOf("Widget"));
@@ -1067,6 +1067,26 @@ public final class LuaWidget {
                             + " and widget:items():list()[n] takes a position";
                     }
                 }, null);
+            }
+        });
+        // item() — 103.1: the ONE item this widget DRAWS, and nil on every other widget and on a stale one.
+        // The join :items() cannot make: Widget.children(Class) is a deep traversal that EXCLUDES the receiver,
+        // so an item icon's own :items() is empty by construction — an addon handed an icon by a selector match
+        // or a MouseDown subscription could read WHERE it is and never WHAT it is. WItem.item is public, final
+        // and set in the constructor, so the answer stands from the moment the placement seam offers the widget.
+        // The Item handed back is the INTERNED one, so it is == the entry the container around it lists.
+        // Unprotected: a read of what is already drawn on the screen.
+        m.set("item", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                if(Args.passed(a, 2))
+                    throw new LuaError("widget:item() takes no arguments — an icon draws exactly one item and"
+                        + " this reads it. The items INSIDE a container are widget:items(), a collection whose"
+                        + " :find(filter) searches and whose :list()[n] takes a position.");
+                Widget w = live(handle(self, "item"));
+                if(!(w instanceof WItem))
+                    return LuaValue.NIL;
+                return LuaItem.of(owner, ((WItem)w).item);
             }
         });
         // text() / text(s) — WHAT THE WIDGET DISPLAYS, and arity is the verb here as everywhere else (R2). The

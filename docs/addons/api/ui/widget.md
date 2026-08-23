@@ -86,6 +86,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:rowHeight()` | int \| nil | the height of a row in a [listbox, dropdown, menu or table](lists.md), in [design pixels](pixels.md), or `nil` where a control has no rows — [`:rowHeight(n)` writes it](lists.md) |
 | `:cellSize()` | `{w=, h=}` \| nil | the cell box of a [grid](lists.md#grid), in [design pixels](pixels.md), or `nil` where a control has no cells — [`:cellSize(w, h)` writes it](lists.md#grid) |
 | `:columns()` | array \| nil | the column descriptors of a [table](lists.md#table), or `nil` where a control has no columns — [`:columns(t)` writes it](lists.md#table) |
+| `:item()` | [`Item`](items.md#the-item-object) \| nil | the item an **icon** draws — `nil` on everything else, where [`:items()`](items.md) is the container's own read |
 | `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |

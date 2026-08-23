@@ -1,0 +1,9 @@
+{
+  "name": "103.1 — the item an icon draws",
+  "id": "103-drawn-over-a-widget.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 103.1: widget:item() hands back the interned Item an item icon draws, nil on every other widget and on a stale one, and refuses an argument.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

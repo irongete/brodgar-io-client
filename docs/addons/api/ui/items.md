@@ -25,6 +25,7 @@ just as well as the one on screen.
 |---|---|---|
 | `widget:items()` | [`Item`](#the-item-object)`[]` | the items inside this widget, in the container's own order |
 | [`s:player():hand():item()`](../player.md#the-hand) | [`Item`](#the-item-object) \| nil | the item on the cursor |
+| [`widget:item()`](widget.md#read) | [`Item`](#the-item-object) \| nil | the item **one icon** draws; `nil` on any other widget |
 
 - The search is **deep**, so a whole window answers for the grid inside it: `s:ui():node(chestId):items()`
   works whether you point at the window or at its `Inventory` child.
