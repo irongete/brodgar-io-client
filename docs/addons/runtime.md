@@ -113,6 +113,12 @@ whole of what reaches the client.
 `coroutine`, and the Java bridge. They are not hidden or stubbed, they are never installed — so `type(io)`
 is `"nil"`, and code that reaches for one fails where it stands.
 
+`os.setlocale` is absent for the ordinary reason — it is process-wide C state, and an addon that changed it
+would change how every other addon's `string.format` and `os.date` behave. It is also not the door to a
+translation: [`hafen.locale`](api/locale.md) says what the client **displays**, one catalogue per addon,
+scoped to the addon that installed it and dropped with it, and it touches no number, date or sort order at
+all.
+
 Your addon also gets a global `ADDON` table with two fields: `ADDON.id`, its id, and `ADDON.dir`, the
 absolute path of its folder. Both are informational — reading a file is
 [`hafen.asset`](api/asset.md)'s job.

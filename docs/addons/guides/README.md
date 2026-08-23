@@ -16,6 +16,7 @@ assume you have a folder that loads.
 | [hotkeys and commands](hotkeys-and-commands.md) | let the user invoke your addon by hand |
 | [permissions](permissions.md) | drive the character: the catalogue of keys, and what declaring one costs you |
 | [theming](theming.md) | restyle the client's own surfaces, and ship a theme as a file |
+| [translating](translating.md) | change what the client says, and ship a translation as a file |
 | [debugging](debugging.md) | the reload loop, the inspector, the log and the profiling surface |
 
 They are written to be read in that order, and each one ends by pointing at the next. Nothing stops you

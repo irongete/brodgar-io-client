@@ -123,6 +123,11 @@ petal themselves.
 A string is always a caption and a number is always a position, so
 `s:flowermenu():select("3")` picks the petal captioned `3` and never the third one.
 
+**A caption is the client's own English**, whatever the ring is painting. A [catalogue](locale.md) lands at
+the render and nowhere above it, so `petal:label()`, the captions [the two events](#the-two-events) carry
+and the spelling `:select(label)` matches all go on naming what you wrote, on a client an addon has
+translated and on one it has not.
+
 Both verbs go through the client's own selection, which is what makes them exact rather than
 approximate: a petal the **client** handles by itself — the Kin window's entries, the mute toggle on
 another player — is handled locally, and nothing is sent to the server for it.

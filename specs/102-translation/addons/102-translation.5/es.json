@@ -1,0 +1,10 @@
+{ "text": {
+    "button":       { "Cancel": "Cancelar", "Buy": "Comprar" },
+    "window.title": { "Inventory": "Inventario", "Character Sheet": "Hoja de personaje" },
+    "menu":         { "Pick": "Recoger", "Destroy": "Destruir" },
+    "*":            { "Water": "Agua" }
+  },
+  "pattern": [
+    { "surface": "tooltip", "match": "Quality: (\\d+)", "text": "Calidad: %1$s" }
+  ]
+}

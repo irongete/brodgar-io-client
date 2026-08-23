@@ -19,7 +19,7 @@ import java.util.Map;
  * installed and released like a stylesheet, and read back through the strings it did not answer.
  *
  * <pre>
- *   hafen.locale():load(hafen.json():parse(hafen.asset():get("es.json"):read())):install()
+ *   hafen.locale():load(hafen.json():parse(hafen.asset():get("es.json"):text())):install()
  *   for _, m in ipairs(hafen.locale():miss():list()) do
  *     hafen.log():write(m:surface() .. "  " .. m:text())     -- ...and that is your next file
  *   end

@@ -27,7 +27,7 @@ a permission, a build step or a restart: drop the folder into `addons/`, type `:
 | Page | Read it when |
 |---|---|
 | [getting started](getting-started.md) | you have not written one yet: from an empty folder to a window with a hotkey that remembers its state |
-| [the guides](guides/README.md) | you know the shape and want to do a thing — read the world, schedule work, draw UI, save data, add hotkeys, act, theme, debug |
+| [the guides](guides/README.md) | you know the shape and want to do a thing — read the world, schedule work, draw UI, save data, add hotkeys, act, theme, translate, debug |
 | [the API reference](api/README.md) | you want a name: every namespace, verb, argument, return and error |
 | [the runtime](runtime.md) | the manifest field by field, the sandbox, the CPU budgets, the AddOns panel, and the console commands |
 | [the bundled addons](examples.md) | the addons that ship with the client, and what each one answers |
@@ -46,7 +46,7 @@ One page per namespace, and a directory where a namespace is large. The
 | **UI** | [`ui`](api/ui/README.md) · [the stylesheet](api/ui/style/README.md) · [`font`](api/font.md) · [`client`](api/client/README.md) |
 | **Your own content** | [`asset`](api/asset.md) · [`vr`](api/vr/README.md) · [entries in the action menu](api/menugrid.md#write-unprotected) |
 | **Data and network** | [`json`](api/json.md) · [`http`](api/http.md) *(protected by your manifest)* |
-| **Infrastructure** | [`event`](api/event/README.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`slash`](api/slash.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
+| **Infrastructure** | [`event`](api/event/README.md) · [`timer`](api/timer.md) · [`store`](api/store.md) · [`locale`](api/locale.md) · [`slash`](api/slash.md) · [`log`](api/log.md) · [`sound`](api/sound.md) |
 
 The pages every other page assumes are [conventions](api/conventions.md), how the API is spelled and what
 a read gives back, [references](api/references.md), every kind of thing a verb takes,

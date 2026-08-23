@@ -1,0 +1,9 @@
+{
+  "name": "102.5 — the pages",
+  "id": "102-translation.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 102.5: the translating guide's own example, run verbatim — the file it ships parses, loads, installs, and changes one string at one surface.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

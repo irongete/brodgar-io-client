@@ -53,7 +53,7 @@ every readback answer English: without `:miss()` nothing in this feature is mach
       string an exact entry names is never offered to a pattern. `pcall` a pattern with an unclosed group,
       a `pattern` given as an object rather than an array, and a `%3$s` with two groups.
 
-- [ ] **102.5 — the pages.** Writes `docs/addons/api/locale.md` (the section, the document, the misses
+- [x] **102.5 — the pages.** Writes `docs/addons/api/locale.md` (the section, the document, the misses
       round trip, the surfaces that are keys and the ones that are refused) and
       `docs/addons/guides/translating.md` (the workflow end to end), lists both in their READMEs, and gives
       `docs/client/text-and-fonts.md` the composition-scope seam. Discharges the spec's impact set:

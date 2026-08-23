@@ -157,4 +157,5 @@ whole boundary and why each part of it is a decision rather than a gap.
 Two addons may style the same surface: the entries are tagged by owner, the last applied wins, and
 disabling one falls back to the next owner beneath it.
 
-**Next:** [debugging](debugging.md) — when the rule, the selector or the addon does not do what you meant.
+**Next:** [translating](translating.md) — the other half of a shipped look: not what a surface is drawn
+with, but what it draws.
