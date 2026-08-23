@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.Waitable;
+import haven.GItem;
 import haven.Widget;
 
 import org.luaj.vm2.Globals;
@@ -162,8 +163,14 @@ public final class Addon {
             s.teardown();
     }
 
-    /** Deafen every engine listener this addon's {@link WidgetSubs} installed (teardown, P2). */
+    /**
+     * Deafen every engine listener this addon's {@link WidgetSubs} installed (teardown, P2) — and drop the
+     * {@link #itemSubs} with them. Those installed nothing in the engine (the item seam asks the addon, never
+     * the other way round), so dropping the map IS their teardown: what it holds is one {@link Subs} per item
+     * this addon was listening to, and after a {@code :reload} the addon that was listening no longer exists.
+     */
     void teardownWidgetSubs() {
+        itemSubs.clear();
         for(WidgetSubs s : widgetSubs.values())
             s.teardown();
         widgetSubs.clear();
@@ -749,6 +756,53 @@ public final class Addon {
      * {@code :reload}/disable.
      */
     final LuaItem.Cache items = new LuaItem.Cache(this);
+
+    /**
+     * This addon's <b>per-item subscriptions</b> ({@code item:on("Changed", fn)}, 104): one {@link Subs} per item
+     * this addon actually listens to, minted on the first subscription and keyed on the item widget's identity —
+     * the same key {@link #items} uses, and for the same reason.
+     *
+     * <p><b>Why an item needs its own door.</b> What an item <i>is</i> does not arrive with the item: the server
+     * sends the widget first and its tooltip after, and the code that reads a quality out of that tooltip ships
+     * inside a resource that may still be loading when it lands. So every read of a name, a quality, a wear row
+     * or a contents block answers {@code nil} for a while and then answers, with nothing in the API to say when
+     * — which left an addon with no way to draw a number on an icon except to keep asking. This is the address
+     * that says it: <i>hold the item, subscribe on it</i>, exactly as the widget keys read.
+     *
+     * <p>Weak-keyed, so an item nobody holds takes its subscriptions with it; dead with this {@link Addon} on
+     * {@code :reload}/disable, and there is no engine listener to deafen — the fires come from the seams.
+     */
+    final Map<GItem, Subs> itemSubs = new WeakHashMap<GItem, Subs>();
+
+    /** This addon's {@link Subs} for {@code it}, minted on the first {@code item:on(key, fn)}. */
+    Subs itemSubs(GItem it) {
+        Subs s = itemSubs.get(it);
+        if(s == null) {
+            s = new Subs(this, Addon.C_EVENT);
+            itemSubs.put(it, s);
+        }
+        return s;
+    }
+
+    /** This addon's {@link Subs} for {@code it}, or {@code null} — the FIRE-side lookup, which mints nothing. */
+    Subs itemSubsOrNull(GItem it) {
+        return itemSubs.get(it);
+    }
+
+    /**
+     * Drop this addon's subscriptions on <b>one</b> item, from the removal seam — and <b>clearing is the point,
+     * not the removal</b>. A handler written the way the page writes it closes over the very item it was
+     * subscribed on ({@code item:on("Changed", function() … item:quality() … end)}), so the map's VALUE reaches
+     * its own KEY: weak keys cannot collect that, and the entry would outlive the item forever, holding the
+     * {@code GItem} and everything under it. {@link Subs#clear} drops the handlers, which is what breaks the
+     * cycle — after it the entry is collectable whether or not it was removed, and a {@code sub:off()} kept in
+     * Lua finds a subscription already ended. This is exactly what {@link WidgetSubs} does at its own removal.
+     */
+    void dropItemSubs(GItem it) {
+        Subs s = itemSubs.remove(it);
+        if(s != null)
+            s.clear();
+    }
 
     /**
      * This addon's <b>Contents interning cache</b> ({@code item:contents()}), keyed on the <b>owning item

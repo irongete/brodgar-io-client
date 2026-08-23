@@ -28,7 +28,7 @@ both:
 
 | Event | Fires when |
 |---|---|
-| `"Added"` | a matching widget is placed into the tree, **or is already in it when you subscribe** |
+| `"Added"` | a matching widget is **up** in the tree, or was already up when you subscribe |
 | `"Removed"` | a widget that had matched is destroyed |
 
 ```lua
@@ -47,6 +47,14 @@ What is worth knowing:
   yourself.
 - **Search inside the widget you were handed**, with [`w:match(sel)`](widget.md#searching-inside-one-widget),
   not from the root. Two cupboards can be open at once, and only the callback knows which one this is.
+- **It covers what the client builds for itself**, not only what the server sends: the icon per item a
+  container mints, the one under the cursor, a stack's own window. Every widget announces itself the same
+  way, so the [`item`](selectors.md#roles) role is a subscription like any other.
+- **`Added` means up, not merely parented.** A subtree is routinely built before it is hung — the server
+  fills a chest's window and hangs the window afterwards — and until it is hung, nothing in it is in any
+  tree: `widget:exists()` is false and every verb refuses. So the event waits for the ancestor that was
+  missing, and then fires for the whole subtree at once, in tree order. The widget you are handed is always
+  one you can act on.
 - **Neither event is about visibility.** They track the *tree*: a window the client merely hides — the
   inventory's Tab toggle — never left, so it fires neither.
 - **At `Removed`, treat the widget as a key, not as something to read.** It fires when the widget stops

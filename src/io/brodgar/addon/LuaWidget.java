@@ -2491,6 +2491,12 @@ public final class LuaWidget {
             return null;
         if((w instanceof Inventory) || (w instanceof Equipory))
             return "inventory";
+        // 104: the icon ONE item is drawn as, wherever it is drawn -- a slot in a container, a slot of the
+        // equipment grid, or the cursor while the item is being carried. A role is an `instanceof`, so it covers
+        // the subclasses `@Class` deliberately does not: the cursor's icon is an ItemDrag, a WItem all the same,
+        // and an addon decorating item icons wants both without having to know that name.
+        if(w instanceof WItem)
+            return "item";
         if(w instanceof Window)
             return "window";
         if((w instanceof Button) || (w instanceof IButton))

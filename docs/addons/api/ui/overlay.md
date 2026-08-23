@@ -161,10 +161,10 @@ or is inert; [`widget:exists()`](widget.md#read) is the question to ask first.
 **An item icon is a new widget every time the item moves.** The client builds one icon per item the server
 puts in a container and destroys it when the server takes that item out, so moving an item to another slot
 — or onto the cursor — is a destroy and a build, not a widget that moved. What you hung on the old icon
-goes with it. Decorate the icons you have when you have them, and to keep a decoration on an item that
-moves, re-attach from the container's [`ItemAdded`](items.md#the-container-lifecycle): the new icon is in
-the tree by the time it fires, and [`widget:item()`](widget.md#read) is what tells you which icon is
-drawing the item you were handed.
+goes with it. So a decoration that has to survive a move is written as *decorate every icon there is*:
+[`s:ui():on("item", "Added", fn)`](selectors.md#roles) hands you each one as it appears — the ones already
+open when you subscribe, the ones built by a move, and the one the cursor carries — and
+[`widget:item()`](widget.md#read) is the item it draws.
 
 ```lua
 local mark = pack:overlay():get("frame")
@@ -179,16 +179,27 @@ every frame for a string that changes once an hour. `ov:text(s)` is that decorat
 the client puts the line up itself, and your addon is not called at all while it is there.
 
 ```lua
-local pack = hafen.session():current():ui():inventory()
 local face = hafen.font():get("serif"):derive():size(11)
-for _, icon in ipairs(pack:matchAll("@WItem")) do
+
+hafen.session():current():ui():on("item", "Added", function(icon)
   local item = icon:item()                              -- the item that icon draws
-  local q = item and item:quality()
-  icon:overlay():add("q"):text(q and tostring(math.floor(q)) or "-")
+  if item == nil then return end
+  local ov = icon:overlay():add("q")
       :anchor(0.5, 1):offset(0, -1)                     -- centred on the slot's bottom edge
       :color{255, 230, 140}:background{0, 0, 0, 200}:font(face)
-end
+
+  local function show()
+    local q = item:quality()
+    if q then ov:text(tostring(math.floor(q + 0.5))) end
+  end
+  show()
+  item:on("Changed", show)                              -- the quality lands after the icon does
+end)
 ```
+
+> **The number is not known when the icon is.** An item's tooltip arrives after the item, so `:quality()`
+> answers `nil` for a moment on an icon that has only just appeared — which is why the label is written
+> twice, once now and once from [`item:on("Changed")`](items.md#an-item-arrives-before-it-can-be-described).
 
 | Setter | Meaning |
 |---|---|

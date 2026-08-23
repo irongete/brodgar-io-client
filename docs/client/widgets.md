@@ -12,7 +12,8 @@
 | **Type registry (`@RName` → Factory)** ← replacement seam A | `Widget.types`, `Factory`, `initnames`, `gettype3` |
 | UI root / id map / dispatch | `UI`: `root`, `widgets`/`rwidgets`, `bind`/`getwidget`/`widgetid` |
 | **Server → widget create** | `UI.NewWidget.run`, `newwidgetp`  — its addon seam was **removed**: it only recorded the server type string for the retired descriptor |
-| **Server → widget place** ← the one addon seam | `UI.AddWidget.run` → `pwdg.addchild(...)` → `onWidgetPlaced(id, wdg)`, i.e. *after* the child is in the tree, so a `Selector` (`[title=]` included) already resolves |
+| **Server → widget place** ← an addon seam | `UI.AddWidget.run` → `pwdg.addchild(...)` → `onWidgetPlaced(id, wdg)`. ⚠️ This is the **server's message handler**, so it sees only what the server places, and it fires the instant the *parent* takes the child — which for a subtree built before it is hung is before the child is in any tree |
+| **Anything → the tree** ← the universal addon seam | `Widget.add0` → `onWidgetEntered(child)` (last statement, `// addon:`). The one point **every** widget passes, whoever added it — the mirror of `remove()` on the way out |
 | HUD placement switch (per type: inv/equ/chr/craft/…) | `GameUI.addchild` |
 | Window chrome / CPU-buffered base | `Window` · `SIWidget` |
 | 2D drawing context | `GOut` (image/text/rect/line/prect/chcolor) |
@@ -30,6 +31,24 @@
 | **Sizing to content** | `Widget.pack()` is `resize(contentsz())`, and `contentsz()` is the max bottom-right (`c.add(sz)`) over the **visible** children — so a leaf packs to `(0, 0)`. `Window` overrides `contentsz()` (see [chrome](ui-chrome.md)). `resize` returns early on an equal box, then cascades `presize()` to the children and calls `parent.cresize(ch)` — **both are empty in `Widget`, and `Window` overrides neither**, so resizing a window's child triggers no relayout of the window |
 | **Relative placement** | `Widget.Position` (a `Coord` subclass) with `getpos(name)`/`pos(name)` — the anchors `"ul"`/`"ur"`/`"br"`/`"bl"`/`"mid"` and their content-local `"c…"` twins, `pos` throwing where `getpos` answers `null`. `Position.add`/`sub`/`x`/`y` have `adds`/`subs`/`xs`/`ys` twins that `UI.scale` the argument, which is how the client writes a design-pixel offset. `addhlp`/`addhl` lay a row of children out, vertically centred on the tallest |
 | **The UPWARD walk, and its ~30 callers** | `Widget.getparent(Class)` — a plain `w = w.parent` loop. `getparent(GameUI.class)` is how a widget finds the HUD it belongs to: `Inventory.mousewheel` (the shift-wheel bulk transfer) dereferences it **unguarded**, while `GItem`/`WItem.contparent` and `Equipory.drawslots` guard and fall back. Fork: it steps across a standing widget's surface to where that widget was |
+
+**Entry gotcha — `UI.AddWidget` is the server's door, not the tree's.** Widgets the client mints for itself
+never pass it: `Inventory.addchild`/`Equipory.addchild` mint a `WItem` per item and `add()` it, `GameUI.updhand`
+mints the cursor's `ItemDrag`, `GItem.addchild` mints a `ContentsWindow`. `Widget.add0` is the one call all of
+them share, and it is where a "a widget entered the tree" signal has to live. Note the asymmetry that made this
+easy to miss: the *removal* signal has always been on `Widget.remove`, which is universal.
+
+**Entry gotcha — parented is not the same as up.** A subtree is routinely assembled before it is hung: a chest's
+grid is given to its window and the window is added afterwards. Between the two, `hasparent(root)` is false for
+everything in it, so anything handed such a widget and reading it gets "not in the tree" — true at that instant
+and false a moment later. `add0` fires for the child whether or not the chain reaches the root, so a consumer
+that needs a *usable* widget must test `hasparent(ui.root)` itself and wait for the ancestor's own entry, which
+passes the same seam.
+
+**`attached()` is NOT a reliable hook.** It looks like the natural "now I am really in the tree" callback, and it
+propagates to the subtree — but it is `protected` and overridden in 8 places, and `PView.attached()` (the base of
+`MapView`) **does not call `super`**, so the flag is never set for it and no descendant of the 3D view is ever
+notified. Anything that must not be skipped goes in `add0`, which nothing overrides.
 
 **Field-name gotcha — a new field on `Widget` can be shadowed by a subclass that already has the name.**
 Several subclasses declare public fields of their own with obvious names, and `MapWnd.overlays` (a

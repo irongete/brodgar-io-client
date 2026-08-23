@@ -93,7 +93,8 @@ same error comes back when an invalid selector is used as a [sheet key](style/ke
 ## Roles
 
 `:role()` answers what a widget is, or `nil` when nothing classifies it. The names are the same vocabulary
-as the stylesheet's [site keys](style/keys.md), deliberately, so there is one set of names rather than two.
+as the stylesheet's [site keys](style/keys.md), deliberately, so there is one set of names rather than two —
+**every site key is a role**, and one role (`item`) classifies a widget that names no render site.
 
 **The vocabulary describes itself.** `hafen.ui():role()` is the collection of every role the client
 publishes, each answering `:name()` and `:selector()` — the same string when it can match a widget, and
@@ -109,6 +110,7 @@ publishes, each answering `:name()` and `:selector()` — the same string when i
 | `textentry` | `TextEntry` |
 | `chat` | `ChatUI` and its channels |
 | `menu` | `MenuGrid`, `FlowerMenu` |
+| `item` | the icon **one item** is drawn as, wherever it is drawn — a container's slot, an equipment slot, and the cursor while the item is carried |
 
 **Some site-key names classify no widget** — `window.title`, `window.frame`, `panel`, `heading`, `tooltip`,
 `inventory.slot`, `world.nick`, `world.speech`. They name a *render site*, not a widget: a window's caption
@@ -116,9 +118,15 @@ and frame are drawn by the window's decoration, an inventory's empty square is p
 placed in it, a tooltip is painted rather than placed, and the world sites live over the 3D view. They stay
 valid selectors, because the vocabulary is shared with the sheet, but they match nothing.
 
-Most widgets have **no** role — layout containers, scroll ports, images, item icons. That is the rule
-working, not a gap: an unrecognised widget answers `nil` rather than being guessed into the nearest role.
-Reach those with `*`, `@Class`, `[res=]`, or by anchoring a chain on the window they sit in.
+Most widgets have **no** role — layout containers, scroll ports, images. That is the rule working, not a
+gap: an unrecognised widget answers `nil` rather than being guessed into the nearest role. Reach those with
+`*`, `@Class`, `[res=]`, or by anchoring a chain on the window they sit in.
+
+**`item` is why a role is not `@Class`.** A role is what a widget *is*, so it covers the subclasses `@Class`
+deliberately does not: the icon under the cursor is its own class, and an addon decorating item icons wants
+it without having to learn that name. `item` is also the one role with no site key behind it — an item icon
+draws a picture and whatever overlays its own resource publishes, and has no text of its own to give a font
+to, so calling it a site would promise a style nothing reads.
 
 ## Two rules that are easy to get wrong
 

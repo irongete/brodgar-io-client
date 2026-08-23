@@ -204,6 +204,48 @@ final class UiApi {
     }
 
     /**
+     * The <b>widget-entry seam</b>'s body (behind {@link AddonManager#onWidgetEntered}, called from
+     * {@code Widget.add0}) — the selector subscriptions' real feed, and the mirror of the removal seam.
+     *
+     * <p><b>Two faults it closes, and they are the same fault seen twice.</b> The placement seam above is the
+     * server's message handler: it never sees a widget the client mints for itself (every {@code WItem}, the
+     * {@code ItemDrag} under the cursor), and it announces a widget the instant its <i>parent</i> takes it,
+     * which for a subtree built before it is hung (a chest's grid, given to a window that is not up yet) is
+     * before the widget is in any tree at all. Here the question is asked where the answer is already true:
+     * a widget whose chain does not reach the root announces nothing and is announced later, when the ancestor
+     * that was missing enters — because that ancestor passes this same seam. There is nothing to re-check.
+     *
+     * <p><b>The whole subtree is offered, not just the widget.</b> What was built while its ancestor was
+     * detached said nothing at the time, so the entry of the ancestor is the moment all of it becomes true.
+     * {@link LuaSelectorWatch#matched} is the dedup that keeps the ones already announced from firing twice —
+     * including against the placement seam above, which still offers its own widget and is now, for anything
+     * that reached the tree through {@code add}, a no-op.
+     *
+     * <p><b>An uninterested client pays one {@code isEmpty()}</b>, which matters more here than above: this
+     * runs for every widget the client builds, a window's every label and button included.
+     */
+    static void onWidgetEntered(Widget wdg) {
+        UI u = wdg.ui;
+        if((u == null) || (u.root == null))
+            return;                            // not in any tree yet — it will pass here again when it is
+        SessionState st = state(u);            // 073.2: the tree the widget entered, and no other
+        if((st == null) || st.selectorWatches.isEmpty())
+            return;
+        if(!wdg.hasparent(u.root))
+            return;                            // hung under something that is not up: announced with it, later
+        List<Widget> entered = new ArrayList<Widget>();
+        collectSubtree(wdg, entered);
+        for(Widget w : entered) {
+            // Re-tested per widget, not once for the subtree: a handler this loop calls may close a window, and
+            // what it closes can be further down the list we took before it ran. The promise this seam makes is
+            // that the widget handed over is in the tree NOW, so it is asked about each one at the moment of
+            // handing it over rather than at the moment the walk started.
+            if(w.hasparent(u.root))
+                offerPlaced(st, w, u.widgetid(w));
+        }
+    }
+
+    /**
      * Build {@code hafen.ui} for {@code owner}. From installHafen.
      *
      * <p><b>The section, and the root that moved</b> (spec {@code 039-uniform-api} §2.1). {@code hafen.ui()} was

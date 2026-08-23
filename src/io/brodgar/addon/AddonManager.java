@@ -1503,6 +1503,41 @@ public final class AddonManager {
     }
 
     /**
+     * The <b>widget-entry seam</b> — called from the {@code Widget.add0} core edit, the one point every widget
+     * passes on its way into a tree, and the exact mirror of the removal seam in {@code Widget.remove}.
+     *
+     * <p><b>Why the placement seam above is not enough.</b> {@link #onWidgetPlaced} sits in
+     * {@code UI.AddWidget.run}, which is the code that applies a <b>server</b> message. Everything the client
+     * mints for itself — a {@code WItem} for each item an {@code Inventory} or an {@code Equipory} is given, the
+     * {@code ItemDrag} under the cursor, a {@code ContentsWindow} — reaches the tree through {@code add} alone
+     * and announced nothing, so {@code s:ui():on(sel, "Added")} could only ever see those in its registration
+     * scan: right at {@code :reload}, and never again. Item icons are exactly that population.
+     *
+     * <p><b>And it fires only once the widget is really up.</b> A subtree is routinely built before it is hung:
+     * the server gives a chest window its grid and hangs the window afterwards, so at the placement seam the
+     * grid is in its window and the window is nowhere. {@code s:ui():on("inventory", "Added", …)} handed that
+     * grid over, and the first verb on it refused with "this widget is no longer in the tree" — true at that
+     * instant and false a moment later. Here the answer is asked <b>at the moment it is already true</b>: a
+     * widget whose chain does not reach the root announces nothing, and is announced when its ancestor enters,
+     * because that ancestor passes this very seam. Nothing waits, nothing is polled, and nothing re-checks.
+     *
+     * <p><b>Threading.</b> {@code add0} runs under {@code synchronized(ui)} whenever the widget has a UI, which
+     * is the same discipline {@link #onWidgetPlaced} keeps. A widget with no UI yet cannot reach the root, so it
+     * returns before touching anything.
+     */
+    public static void onWidgetEntered(Widget wdg) {
+        // Never throws into `add`. Every other seam guards a path the client takes now and then; this one is on
+        // the path the client takes to build ANY widget, its own login screen included, so a fault here would
+        // not break a feature — it would break starting up. A subscription's own Lua is already isolated one
+        // level down (callLua); this catches the dispatch around it.
+        try {
+            UiApi.onWidgetEntered(wdg);
+        } catch(RuntimeException e) {
+            log("widget-entry seam error: " + e);
+        }
+    }
+
+    /**
      * The <b>window-toggle seam</b> (031.1) — called from {@code haven.AddonWidgets}, which is where
      * {@code GameUI.togglewnd} and {@code GameUI.wndstate} reach the addon layer. A native window an addon hid
      * with {@code widget:visible(false)} is a window that addon <b>owns</b>, toggle included: {@link #toggleWnd} answers
@@ -1969,6 +2004,53 @@ public final class AddonManager {
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, "MarkerChanged"))
             fireTo(c, "MarkerChanged", MapApi.markers(c));
+    }
+
+    /**
+     * The <b>item-info seam</b> — the core edit at the end of {@code GItem.info()}'s build block, and the moment
+     * an item stops being a picture and starts being a thing the client can describe. Fires
+     * {@code item:on("Changed", fn)} on the addons that hold that item.
+     *
+     * <p><b>Why here and not at the server's message.</b> Two things have to happen before a quality, a name, a
+     * wear row or a contents block can be read, and only the first is a message: the server sends the tooltip
+     * ({@code GItem.uimsg "tt"}, which clears the built list) and the code that renders it — which ships inside
+     * a resource — has to be loaded. Until the second, building the list throws {@code Loading} and every read
+     * answers {@code nil}. This seam sits where the build SUCCEEDS, so it names the moment both are true,
+     * whichever of them was last. That is the moment an addon drawing a number on an icon is waiting for, and
+     * before 104 there was no way to be told it: an author had no choice but to keep asking.
+     *
+     * <p><b>It costs nothing per frame.</b> {@code info()} caches into {@code GItem.info} and only enters its
+     * build block when that field is null — once per arrival and once per revision, never per draw. A theme
+     * change also rebuilds the list (the tooltip is re-rendered in the new font) and so fires this too: the
+     * words are the same and a handler re-reading them writes what it wrote before, which is why that is left
+     * as an honest extra rather than filtered with a second flag.
+     *
+     * <p><b>Threading.</b> The build runs on whichever thread first asks for the item's info — the UI thread
+     * drawing the icon, or an addon's own read, both already under the discipline every other Lua call here
+     * keeps. {@link #callLua} isolates a throwing handler, and a handler that reads the item back re-enters
+     * {@code info()} against a field that is already set, so nothing recurses.
+     */
+    public static void onItemInfo(GItem it) {
+        // Never throws into info(). This runs inside the build that WItem.draw asks for, so a fault here would
+        // not break a subscription — it would break drawing the icon, and info() already has a meaningful
+        // throw of its own (Loading) that callers handle. A handler's own Lua is isolated one level down.
+        try {
+            for(Addon a : addons)
+                fireItem(a, it);
+            fireItem(consoleOwner, it);
+        } catch(RuntimeException e) {
+            log("item-info seam error: " + e);
+        }
+    }
+
+    /** {@code Changed} to one owner, and only if that owner is actually holding this item's door open. */
+    private static void fireItem(Addon a, GItem it) {
+        if(a == null)
+            return;
+        Subs s = a.itemSubsOrNull(it);            // never mints: an addon that never subscribed pays a map get
+        if((s == null) || !s.has(LuaItem.CHANGED))
+            return;
+        s.fire(LuaItem.CHANGED, LuaItem.of(a, it));
     }
 
     static void fireSession(String event, String user) {
@@ -2510,7 +2592,23 @@ public final class AddonManager {
             Layout.dispatchRemoved(st, w);                // addon: 042.10 — drop its layout record, its pending
                                                            // late-caption entry, and (if it was an anchor target)
                                                            // any now-unused drag listener
+            if(w instanceof GItem)                        // addon: 104 — and an item takes item:on() with it
+                dropItemSubs((GItem)w);
         }
+    }
+
+    /**
+     * An item is gone: end every addon's {@code item:on("Changed", fn)} on it. <b>Not housekeeping</b> — a
+     * handler closes over the item it watches, so the record reaches the item it is keyed by and a weak map
+     * cannot collect the pair on its own; see {@link Addon#dropItemSubs}. The same discipline
+     * {@link WidgetSubs} keeps for a watched widget, at the same seam.
+     */
+    private static void dropItemSubs(GItem it) {
+        for(Addon a : addons)
+            a.dropItemSubs(it);
+        Addon c = consoleOwner;
+        if(c != null)
+            c.dropItemSubs(it);
     }
 
     // ------------------------------------------------------------- Resolve marshalling (M2, 042.1)

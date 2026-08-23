@@ -56,6 +56,7 @@ just as well as the one on screen.
 | `:handle()` | number \| nil | its server widget id, the number it is addressed by on the wire; `nil` once it is gone |
 | `:exists()` | boolean | is this still a live item |
 | `:info()` | table | the [snapshot](../types.md#item) — every read above in one table |
+| `:on("Changed", fn)` | a [subscription](../event/README.md#subscribe) | [what this item says about itself resolved, or was revised](#an-item-arrives-before-it-can-be-described) |
 
 An item is **interned**, so `==` is the identity test and a stashed one keeps answering. It is keyed on
 the item itself and never on `:handle()`, because the server re-uses that number: a reference built on
@@ -66,6 +67,49 @@ empty, because where it is is exactly what it no longer has.
 
 > The verbs below take the object, never the number. A stale one raises an error and sends nothing,
 > rather than moving whatever took its place.
+
+## An item arrives before it can be described
+
+**An item is on screen before the client knows what it is.** The server sends the icon first and the item's
+tooltip after it, and the code that reads a quality, a wear row or a contents block out of that tooltip
+*ships inside a resource* which may still be loading when the tooltip lands. Until both have happened,
+`:name()`, `:quality()`, `:durability()`, `:contents()` and the two icon numbers all answer `nil` — for an
+item that will answer perfectly well a moment later.
+
+`item:on("Changed", fn)` is the moment it can be described. It fires when the tooltip resolves, and again
+whenever the server revises it — a bucket you drink from, gear that wears, a stack you add to.
+
+```lua
+local face = hafen.font():get("serif"):derive():size(11)
+
+hafen.session():current():ui():on("item", "Added", function(icon)   -- every item icon, wherever it is drawn
+  local item = icon:item()
+  if item == nil then return end
+
+  local ov = icon:overlay():add("q")
+  ov:anchor(0.5, 1):offset(0, -1):color{255, 230, 140}:font(face)
+
+  local function show()
+    local q = item:quality()
+    if q then ov:text(tostring(math.floor(q + 0.5))) end
+  end
+  show()                                              -- if it is already known, now
+  item:on("Changed", show)                            -- ...and if it is not, the moment it is
+end)
+```
+
+- **One key, because the wire has one.** The server resends a whole tooltip rather than the field that
+  changed, so a key per field would be a promise nothing can keep. Read what you need in the handler.
+- **The payload is the item**, the same object you subscribed on, so one handler can serve several items.
+- **It fires where the answer becomes true**, which is the first time the client succeeds in building that
+  item's description — the frame its icon draws, or your own read, whichever comes first. An item in a
+  container nobody has drawn yet is described the moment something asks; reading it *is* asking.
+- **A stale item never fires.** What it was is all it will ever say. Subscribing to one is legal and inert,
+  so a handler that outlives its item needs no guard.
+- **The subscription is per item**, and it goes when the item does. Ending one early is `sub:off()`.
+
+> A **changed tooltip** is this event. An item **arriving** or **leaving** is the container's
+> [`ItemAdded`/`ItemRemoved`](#the-container-lifecycle) — where it is is not what it is.
 
 ## The two numbers on an icon
 

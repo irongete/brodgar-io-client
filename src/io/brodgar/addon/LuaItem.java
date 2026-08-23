@@ -174,8 +174,8 @@ public final class LuaItem {
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("item", methods(owner),
             "an item answers :res() :name() :quantity() :progress() :durability() :quality() :contents() "
-            + ":container() :cell() :slots() :handle() :exists() :info(), and acts with :use() :take() "
-            + ":drop() and :transfer()"));
+            + ":container() :cell() :slots() :handle() :exists() :info(), notifies with :on(\"Changed\", fn),"
+            + " and acts with :use() :take() :drop() and :transfer()"));
         mt.set("__name", LuaValue.valueOf("Item"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -287,6 +287,39 @@ public final class LuaItem {
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return snapshot(handle(self, "info").wdg);
+            }
+        });
+        // on(key, fn) — the item's own door (104). ONE key: `Changed`, "what this item says about itself is
+        // not what it said". An item arrives before its tooltip does and the code that reads a quality out of
+        // that tooltip ships inside a resource that may still be loading when it lands, so every read here goes
+        // from nil to an answer at a moment no other event names. Both waits end at ONE seam rather than two,
+        // because the client cannot describe the item until both have ended: AddonManager.onItemInfo, where
+        // GItem.info() succeeds in building the list.
+        m.set("on", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaItem h = handle(a.arg1(), "on");
+                LuaValue keyArg = Args.required(a, 2, "item:on", "key");
+                LuaValue fnArg = Args.required(a, 3, "item:on", "fn");
+                if(!keyArg.isstring() || !fnArg.isfunction())
+                    throw new LuaError("item:on(key, fn) expects (string, function)");
+                String key = keyArg.tojstring();
+                String retired = Retired.eventKey("item", key);
+                if(retired != null)
+                    throw new LuaError(retired);
+                if(!CHANGED.equals(key))
+                    throw new LuaError("item:on(key, fn): an item has no event '" + key + "' — it has: "
+                        + CHANGED + " (its tooltip resolved, or the server revised it). What an item does and"
+                        + " where it sits are the container's events, widget:on(\"ItemAdded\"/\"ItemRemoved\")");
+                // A STALE item is a legal receiver and the subscription is inert: what it was is all it will
+                // ever say, so there is nothing left to change and nothing to fire. Refusing here would make
+                // an addon guard a call that has no wrong outcome. It is registered and ended in one breath
+                // rather than skipped, because the removal seam that ends a live item's subscriptions has
+                // ALREADY run for this one -- leaving the handler in place would leave it there for good, and
+                // a handler closing over its own item is what a weak map cannot collect (Addon#dropItemSubs).
+                LuaValue sub = owner.itemSubs(h.wdg).on(key, fnArg);
+                if(live(h) == null)
+                    owner.dropItemSubs(h.wdg);
+                return sub;
             }
         });
         // -- the four PROTECTED verbs (048.3) ----------------------------------------------------------
@@ -519,6 +552,14 @@ public final class LuaItem {
     }
 
     // ---- quality: the one number only the resource's own code knows -------------------------------------
+
+    /**
+     * The item's one event key — <b>a subject and an edge</b>: what this item says about itself is not what it
+     * said. One key rather than several because the client is never told <i>which</i> part of a tooltip a
+     * revision touched: the server resends the whole thing, and the resource that renders it either has loaded
+     * or has not. A key per field would be a promise the wire cannot keep.
+     */
+    static final String CHANGED = "Changed";
 
     /** The class every quality tooltip derives from, wherever it was loaded from. */
     private static final String QBUFF = "haven.res.ui.tt.q.qbuff.QBuff";

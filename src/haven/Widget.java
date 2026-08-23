@@ -305,6 +305,12 @@ public class Widget {
 	    child.attached();
 	if(((Widget)child).canfocus && child.visible)
 	    newfocusable(child);
+	/* addon: THE universal entry seam. Its mirror is the removal seam in remove(), which every widget
+	 * runs on the way out whoever built it -- while the entry seam sat in UI.AddWidget.run, which only
+	 * the SERVER's placements pass through. A WItem, an ItemDrag, and every other widget a container
+	 * mints for itself entered the tree announcing nothing, so s:ui():on(sel, "Added") could only ever
+	 * see them in its registration scan. This is the one point every widget passes, whoever added it. */
+	io.brodgar.addon.AddonManager.onWidgetEntered(child);   // addon:
 	return(child);
     }
 

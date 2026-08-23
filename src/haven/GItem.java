@@ -212,6 +212,12 @@ public class GItem extends AWidget implements ItemInfo.SpriteOwner, GSprite.Owne
 	    if(pg != null)
 		info.add(new ItemInfo.Pagina(this, pg.text));
 	    this.info = info;
+	    /* addon: (104) the item-info seam -- the moment this item can be DESCRIBED. Everything above throws
+	     * Loading until the tooltip has arrived AND the resource that renders it has loaded, so this line is
+	     * reached exactly once per arrival and once per revision, whichever of the two was last, and never
+	     * per frame (the built list is cached in `info` and this block is skipped while it stands). It is
+	     * what fires item:on("Changed", fn). */
+	    io.brodgar.addon.AddonManager.onItemInfo(this);   // addon:
 	}
 	return(this.info);
     }

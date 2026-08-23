@@ -6,7 +6,7 @@ names a place the client *draws* and is resolved there. Any other valid selector
 property.
 
 **Which kind a key is, in one line:** a **bare role** is a site key; a **role with a refiner** — or a role
-with no site behind it (`window`, `inventory`) — is a tree key. Nothing is ambiguous and nothing has to be
+with no site behind it (`window`, `inventory`, `item`) — is a tree key. Nothing is ambiguous and nothing has to be
 declared: the key's own shape decides. A key that is not valid *grammar* is an error, and exactly the error
 [`s:ui():match(selector)`](../selectors.md) gives.
 
@@ -62,7 +62,7 @@ client's.
 ## Tree keys
 
 Any other valid selector — `@Class`, `window[title=…]`, `[text=…]`, `[res=…]`, a chain of steps, or a role
-that classifies a *widget* rather than a site (`window`, `inventory`) — is a **tree key**. Every tree rule
+that classifies a *widget* rather than a site (`window`, `inventory`, `item`) — is a **tree key**. Every tree rule
 that matches a widget is folded into one style, and
 [`widget:style()`](README.md#restyle-one-widget) reads the result back, `nil` when nothing names it.
 
