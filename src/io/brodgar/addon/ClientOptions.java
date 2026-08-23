@@ -28,8 +28,7 @@ public final class ClientOptions {
     public static LuaValue create(final Addon owner) {
         LuaValue client = OptionsHandle.open("Options(client)");
         return OptionsHandle.close(client, "client", methods(owner, client),
-            "the client options answer one setting, :profiling(), reading with no argument and writing"
-            + " with one");
+            "the client options", "each of them reads with no argument and writes with one");
     }
 
     private static LuaTable methods(final Addon owner, final LuaValue handle) {

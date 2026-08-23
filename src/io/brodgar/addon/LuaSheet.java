@@ -155,8 +155,8 @@ public final class LuaSheet {
 
     private static LuaValue meta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("sheet", methods(owner),
-            "a sheet's verbs are :rule(selector) :load(rules) :install() :release() :stock(key) and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("sheet", methods(owner),
+            "a stylesheet"));
         mt.set("__name", LuaValue.valueOf("Sheet"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

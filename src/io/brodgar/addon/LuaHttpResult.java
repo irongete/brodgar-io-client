@@ -63,8 +63,8 @@ final class LuaHttpResult {
         if(owner.httpResMeta != null)
             return owner.httpResMeta;
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("res", methods(),
-            "a result answers :ok() :status() :body() :header(name) and :error()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("res", methods(),
+            "a result"));
         mt.set("__name", LuaValue.valueOf("Result"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

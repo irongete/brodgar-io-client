@@ -28,8 +28,7 @@ public final class CameraOptions {
     public static LuaValue create(final Addon owner) {
         LuaValue camera = OptionsHandle.open("Options(camera)");
         return OptionsHandle.close(camera, "camera", methods(owner, camera),
-            "the camera options answer :mode() :invertHorizontal() and :invertVertical(), each reading with"
-            + " no argument and writing with one");
+            "the camera options", "each of them reads with no argument and writes with one");
     }
 
     private static LuaTable methods(final Addon owner, final LuaValue handle) {

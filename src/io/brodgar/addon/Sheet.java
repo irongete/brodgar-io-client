@@ -539,10 +539,10 @@ final class Sheet {
                 // spelled `position` everywhere now, because the verb it pairs with is widget:position(x, y).
                 throw new LuaError(ctx + ": \"pos\" is now \"position\" — a place is spelled the same way"
                     + " everywhere, and the verb beside this rule is widget:position(x, y)");
-            } else if(Retired.message("rule:" + p) != null) {
-                // A retired PROPERTY, through the data door: the same message its setter throws, because the two
+            } else if(Refusal.message("rule:" + p) != null) {
+                // A moved PROPERTY, through the data door: the same message its setter throws, because the two
                 // are one spelling read two ways and a table has no metatable to hang the refusal off.
-                throw new LuaError(ctx + ": " + Retired.message("rule:" + p));
+                throw new LuaError(ctx + ": " + Refusal.message("rule:" + p));
             } else {
                 throw new LuaError(ctx + ": \"" + pk.tojstring()
                     + "\" is not a style property — the properties this client ships are " + PROPS);

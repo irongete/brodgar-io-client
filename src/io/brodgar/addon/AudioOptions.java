@@ -25,8 +25,7 @@ public final class AudioOptions {
     public static LuaValue create(final Addon owner) {
         LuaValue audio = OptionsHandle.open("Options(audio)");
         return OptionsHandle.close(audio, "audio", methods(owner, audio),
-            "the audio options answer :masterVolume() :uiVolume() :eventVolume() :ambientVolume() and"
-            + " :latency(), each reading with no argument and writing with one");
+            "the audio options", "each of them reads with no argument and writes with one");
     }
 
     /** The live audio roots, or null before the UI exists. */

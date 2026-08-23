@@ -174,14 +174,14 @@ public final class LuaSpeed {
     // ---- the Speed metatable -----------------------------------------------------------------------
 
     /**
-     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * The per-addon metatable: {@code __index} = the methods table through {@link Refusal#closedIndex} (so
      * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
      */
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("speed", methods(),
-            "one movement speed answers :index() :wire() :name() :available() :exists() and :info(); picking one "
-            + "is s:speed():set(x)"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("speed", methods(),
+            "one movement speed",
+            "picking one is s:speed():set(x)"));
         mt.set("__name", LuaValue.valueOf("Speed"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -441,7 +441,7 @@ public final class LuaSpeed {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "current");
                 if(Args.passed(a, 2))
-                    throw new LuaError(CharApi.SP + ":current(n) is retired — picking a speed is "
+                    throw new LuaError(CharApi.SP + ":current() takes no argument — picking a speed is "
                         + CharApi.SP + ":set(speed|index|name), under the \"speed.set\" permission."
                         + " :current() ADDRESSES the member you are on, and a member address is not a"
                         + " property to write: " + CharApi.SP + ":set(" + CharApi.SP + ":get(\"Run\"))");

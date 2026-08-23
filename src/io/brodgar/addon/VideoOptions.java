@@ -34,8 +34,7 @@ public final class VideoOptions {
     public static LuaValue create(final Addon owner) {
         LuaValue video = OptionsHandle.open("Options(video)");
         return OptionsHandle.close(video, "video", methods(owner, video),
-            "the video options answer :shadows() :renderScale() :vsync() :fpsLimit() :bgFpsLimit()"
-            + " :lightingMode() and :lightLimit(), each reading with no argument and writing with one");
+            "the video options", "each of them reads with no argument and writes with one");
     }
 
     /** The live GSettings, or null before the UI exists. */

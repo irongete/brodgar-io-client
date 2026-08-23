@@ -176,14 +176,14 @@ public final class LuaKin {
     // ---- the Kin metatable -----------------------------------------------------------------------
 
     /**
-     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * The per-addon metatable: {@code __index} = the methods table through {@link Refusal#closedIndex} (so
      * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
      */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("kin", methods(owner),
-            "someone on your kin list answers :id() :exists() :info() :name() :group() :color() :online() "
-            + ":gob() :widget(), and :rename() :endKin() :forget() write"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("kin", methods(owner),
+            "someone on your kin list",
+            ":rename(), :endKin() and :forget() write; everything else reads"));
         mt.set("__name", LuaValue.valueOf("Kin"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

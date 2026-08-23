@@ -104,8 +104,8 @@ final class LuaRole {
         if(owner.roleMeta != null)
             return owner.roleMeta;
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("role", methods(),
-            "a role answers :name() :selector() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("role", methods(),
+            "a role"));
         mt.set("__name", LuaValue.valueOf("Role"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

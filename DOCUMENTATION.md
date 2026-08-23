@@ -149,8 +149,8 @@ The docs describe what exists today. There is no release, no migration tier: his
 
 - **Delete, do not relocate.** No obituaries ("`hafen.font.load` is gone"), no renames ("was called
   X"), no corrections addressed to a reader of a previous version, no promises ("a later feature").
-- **A retired name may not appear anywhere under `docs/`** — not in prose, not in a note, not in an
-  example. Derive the list from the engine's own refusal table (`Retired.NAMES`/`KEYS`) in the task
+- **A name the API has moved may not appear anywhere under `docs/`** — not in prose, not in a note, not in an
+  example. Derive the list from the engine's own refusal table (`Refusal.MOVED`/`KEYS`) in the task
   that sweeps; never carry a previous report forward.
 - The banned construction is writing to a reader who knew an earlier version, **not a word list**.
   `now`, `already`, `still` and `no longer` are ordinary present tense here ("is it still there", "a
@@ -206,7 +206,7 @@ Over the pages it touched. Report counts, with the offenders listed.
    codes, no trailing punctuation.
 4. **Wording** — the change-note constructions from §8. Every hit read, not counted.
 5. **Symbols** — every `hafen.*` name written on a page exists in `src/io/brodgar/addon/**`, and no
-   retired name appears anywhere under `docs/` (derive the refusal table again).
+   moved name appears anywhere under `docs/` (derive the refusal table again).
 6. **The impact set** — discharged **once per feature**, by the task whose surface owns it: each
    page the `spec.md` derived is either revised or **explicitly discharged with its reason**. This
    is the check that exists because a feature documents the pages it opens,

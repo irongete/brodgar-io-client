@@ -1108,10 +1108,10 @@ final class CharApi {
         // table would make s:player():nosuchverb() read plain nil and fail one character later as "attempt
         // to call a nil value" — the failure the whole grammar exists to delete, and the one Player would have
         // been alone in keeping, since the section object here IS the one thing the section contains (§2.1).
-        pmt.set(LuaValue.INDEX, Retired.closedIndex(P, methods,
-            "the section object is the character itself: :gob() :move(p) and :hand(). The character it is"
-            + " PLAYING is s:character(), on the Session; where a place falls on the screen is"
-            + " s:world():worldToScreen(p), which is a projection rather than anything about the player"));
+        pmt.set(LuaValue.INDEX, Refusal.closedIndex(P, methods,
+            "the section object is the character itself",
+            "The character it is PLAYING is s:character(), on the Session; where a place falls on the screen "
+            + "is s:world():worldToScreen(p), which is a projection rather than anything about the player"));
         pmt.set("__name", LuaValue.valueOf("Player"));
         pmt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

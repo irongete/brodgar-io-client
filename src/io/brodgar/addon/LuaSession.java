@@ -194,16 +194,13 @@ public final class LuaSession {
     // ---- the Session metatable --------------------------------------------------------------------
 
     /**
-     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * The per-addon metatable: {@code __index} = the methods table through {@link Refusal#closedIndex} (so
      * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
      */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("session", methods(owner),
-            "one logged-in character answers :user() :character() :exists() :info() and :close(); its "
-            + "sections are :world() :player() :char() :meter() :buff() :study() :quest() :wound() :kin() "
-            + ":party() :actionbar() :speed() :craft() :menugrid() :fight() :flowermenu() :ui() and "
-            + ":store()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("session", methods(owner),
+            "one logged-in character"));
         mt.set("__name", LuaValue.valueOf("Session"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

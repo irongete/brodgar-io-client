@@ -172,7 +172,7 @@ The keys of an emitter whose set is **open** are not this: a
 [slash command](slash.md), a [hotkey](client/keybindings.md), a
 [`wdgmsg` or `uimsg` name](event/streams.md) is a name you or the protocol chose, and those are written
 lower case. Every key the client itself fires is PascalCase, and its set is closed — an unknown one
-[raises](#a-retired-name-says-what-replaced-it-and-an-unknown-one-says-what-exists) rather than being
+[raises](#a-name-that-moved-says-where-it-went-and-an-unknown-one-says-what-exists) rather than being
 accepted and never firing.
 
 ### Objects, and the snapshot hatch
@@ -227,10 +227,11 @@ very object `:get(path)` hands you. That is the one place a path string stands f
 — a [sprite](vr/sprites.md), an [object](vr/models.md), a [draw verb](ui/drawing.md) — a path is refused
 and the handle is what goes in.
 
-### A retired name says what replaced it, and an unknown one says what exists
+### A name that moved says where it went, and an unknown one says what exists
 
-A spelling this API has replaced does not read as `nil`. It raises, at the line that wrote it, naming
-what to write instead.
+**A name this API moves does not read as `nil`.** It raises, at the line that wrote it, naming what to
+write instead — which is the whole of what porting an addon across a version costs you: the client tells
+you where each name went, at the line that has to change.
 
 A name that was never part of this API raises too, **on an object** — `gob:pozition()` and
 `gob.pozition` alike, because a field read and a colon call are the same lookup. The message names the

@@ -125,8 +125,8 @@ public final class LuaGrab {
             }
         });
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("grab", m,
-            "a grab answers :on(\"Move\"/\"Up\", fn) and :release()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("grab", m,
+            "a grab"));
         mt.set("__name", LuaValue.valueOf("Grab"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue v) {

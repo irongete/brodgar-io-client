@@ -21,7 +21,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  *
  * <p><b>The section itself stays a callable TABLE, never a bare function.</b> A function would make
  * {@code hafen.time.clock} fail as <i>"attempt to index a function"</i>; a table with {@code __call} makes
- * the field read reach {@link Retired}, which is where the cut becomes a message naming its replacement.
+ * the field read reach {@link Refusal}, which is where the cut becomes a message naming its replacement.
  * It also keeps {@code pcall(hafen.x, …)} working, which several addons rely on.
  *
  * <p><b>Arguments are refused, and that is §2.9's discipline at the door.</b> {@code hafen.time(nil)} throws
@@ -83,7 +83,7 @@ public final class Section {
      * Mint a section object over {@code methods} <b>without</b> mounting it, for a section whose callable table
      * is not empty yet: a migration that moves a section's verbs one task at a time leaves the ones a later task
      * owns standing as plain fields, and those go on the table handed to {@link #mount}. A field the table
-     * carries is found by {@code rawget} and never reaches {@link Retired}, so the two halves coexist without a
+     * carries is found by {@code rawget} and never reaches {@link Refusal}, so the two halves coexist without a
      * rule between them — and the day the last field moves, the caller drops back to {@link #install}.
      */
     static LuaValue object(String nm, LuaTable methods) {
@@ -93,7 +93,7 @@ public final class Section {
     /**
      * As {@link #object(String, LuaTable)}, for a section object <b>reached through another object</b> rather
      * than off {@code hafen}: {@code how} is the spelling every message of this section quotes
-     * ({@code "session:world()"}), while the section is still identified — and its retired verbs still keyed
+     * ({@code "session:world()"}), while the section is still identified — and its moved verbs still keyed
      * — by {@code nm}. Such a section is never mounted: the thing it hangs on is what hands it back.
      */
     static LuaValue object(String nm, LuaTable methods, String how) {
@@ -102,7 +102,7 @@ public final class Section {
 
     /**
      * Mount {@code obj} as the section object of {@code name}: the callable table hands it back by identity,
-     * and a retired verb of that section throws from the table's {@code __index}. Used directly where the
+     * and a moved verb of that section throws from the table's {@code __index}. Used directly where the
      * section object is not a {@link Section} but the one thing the section contains (§2.1) — a collection,
      * a roster, the player.
      *
@@ -119,16 +119,16 @@ public final class Section {
      * {@code __index} is consulted on a miss only.
      */
     static void mount(LuaTable hafen, final String nm, final LuaValue obj, final String hint, LuaTable t) {
-        mount(hafen, nm, obj, hint, t, Retired.sectionIndex(nm));
+        mount(hafen, nm, obj, hint, t, Refusal.sectionIndex(nm));
     }
 
     /**
      * As {@link #mount(LuaTable, String, LuaValue, String, LuaTable)}, with the callable table's {@code __index}
-     * supplied by the caller. {@link Retired} is a <b>static</b> table of names this migration renamed, which is
+     * supplied by the caller. {@link Refusal} is a <b>static</b> table of names this migration renamed, which is
      * enough for every section whose verbs are the same for every addon — and not enough for the one whose field
      * names are the <i>addon's own</i>: {@code hafen.store.<name>} is a manifest-declared saved variable, so the
      * spellings that have to throw are only known per owner. Such a section builds its own index and falls
-     * through to {@link Retired#sectionIndex} for everything else.
+     * through to {@link Refusal#sectionIndex} for everything else.
      */
     static void mount(LuaTable hafen, final String nm, final LuaValue obj, final String hint, LuaTable t,
                       LuaValue index) {
@@ -180,7 +180,7 @@ public final class Section {
     /**
      * The per-section metatable: methods by name, an unknown verb throws, and a readable {@code tostring}.
      *
-     * <p>A verb the section <b>used to</b> have throws its own message first ({@link Retired}, keyed
+     * <p>A verb the section <b>used to</b> have throws its own message first ({@link Refusal}, keyed
      * {@code "hafen.<section>():<verb>"}): a section that loses a verb to somewhere else in the API — 041.2's
      * {@code hafen.hook():action} to {@code hafen.event():action():on} — would otherwise fail with the generic
      * "has no verb", which says the call is wrong without saying what is right. The dotted pre-039 spelling of
@@ -195,11 +195,13 @@ public final class Section {
                 if(!m.isnil())
                     return m;
                 if(key.isstring()) {
-                    String msg = Retired.message("hafen." + nm + "():" + key.tojstring());
+                    String msg = Refusal.message("hafen." + nm + "():" + key.tojstring());
                     if(msg != null)
                         throw new LuaError(msg);
                 }
-                throw new LuaError(how + " has no verb '" + key.tojstring() + "'");
+                String verbs = Refusal.vocabulary(methods);
+                throw new LuaError(how + " has no verb '" + key.tojstring() + "'"
+                    + (verbs.isEmpty() ? "" : " — it answers " + verbs));
             }
         });
         mt.set("__name", LuaValue.valueOf("Section"));

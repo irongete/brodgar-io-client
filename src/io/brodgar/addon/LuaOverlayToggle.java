@@ -122,9 +122,9 @@ public final class LuaOverlayToggle {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("toggle", methods(owner),
-            "a map display switch answers :tag() :where() :what() :shown() :held() :info(), and :hold() / "
-            + ":release() take the hold and give it back"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("toggle", methods(owner),
+            "a map display switch",
+            ":hold() and :release() take the hold and give it back"));
         mt.set("__name", LuaValue.valueOf("OverlayToggle"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

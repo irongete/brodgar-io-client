@@ -76,12 +76,12 @@ public final class ProfHandle {
         // is refused, and tostring(p) is Profiling rather than table: 0x...
         LuaValue p = LuaValue.userdataOf(new Mark());
         LuaTable mt = new LuaTable();
-        // Retired.closedIndex, not the methods table itself: p:frmae() would otherwise read as plain nil and
+        // Refusal.closedIndex, not the methods table itself: p:frmae() would otherwise read as plain nil and
         // fail one character later as "attempt to call a nil value", naming neither the verb nor this line.
-        mt.set(LuaValue.INDEX, Retired.closedIndex("profiling", methods(p, owner),
-            "the profiling handle answers the armed-only :frame() :history() :addons() :widgets() :passes()"
-            + " :gl() :overhead() and :reset(), the always-on counters :memory() :net() :loader() :render()"
-            + " :surfaces() :entities() :session() :textcache(), and :scope()/:measure() for your own code"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("profiling", methods(p, owner),
+            "the profiling handle",
+            ":frame() :history() :addons() :widgets() :passes() :gl() :overhead() and :reset() need"
+            + " profiling armed; the counters and :scope()/:measure() answer whether it is or not"));
         mt.set("__name", LuaValue.valueOf("Profiling"));
         mt.set("__tostring", new VarArgFunction() {
             public Varargs invoke(Varargs a) {

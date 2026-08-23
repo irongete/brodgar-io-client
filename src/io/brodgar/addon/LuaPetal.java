@@ -66,9 +66,9 @@ final class LuaPetal {
         if(owner.petalMeta != null)
             return owner.petalMeta;
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("petal", methods(owner),
-            "one petal of the radial menu answers :label() :index() :exists() :info(),"
-            + " and :select() picks it"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("petal", methods(owner),
+            "one petal of the radial menu",
+            ":select() picks it"));
         mt.set("__name", LuaValue.valueOf("Petal"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

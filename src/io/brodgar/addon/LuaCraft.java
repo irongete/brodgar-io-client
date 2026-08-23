@@ -52,15 +52,15 @@ public final class LuaCraft {
      * 096: THE HANDLE HALF IS GONE, and with it a second implementation of everything below it.
      *
      * D4 flattened this section at 089 -- s:craft() IS the open recipe, because a section that holds exactly
-     * one thing is that thing -- and the LuaCraft object was kept on a stated reason: "it is what Retired
+     * one thing is that thing -- and the LuaCraft object was kept on a stated reason: "it is what Refusal
      * keys the old spellings on, and it is still the shape a held handle has." Neither half of that survives
-     * a look. Retired keys on STRINGS (`session:craft():current`, `craft:name`), never on a class; and
+     * a look. Refusal keys on STRINGS (`session:craft():current`, `craft:name`), never on a class; and
      * nothing had handed a LuaCraft out since 089, so no handle was held.
      *
      * What the reason was protecting was 200 lines nothing could reach: an intern cache, a metatable, and a
      * SECOND set of the four recipe reads in the array shape 091 replaced -- beside a SECOND
      * CRAFT_MAKE-gated :make(). A protected write with no call site is a protected write nobody keeps in
-     * step, and its refusal quoted `session:craft():current():make`, a spelling retired two features ago.
+     * step, and its refusal quoted a spelling this API no longer has.
      *
      * Deletion is the whole of the fix. The compiler is the proof: every remaining member is reached from
      * ActApi's Section.object("craft", LuaCraft.section(owner, user), CharApi.CR).
@@ -82,8 +82,8 @@ public final class LuaCraft {
      * so opening another recipe does not change this one, it ends it. With nothing open {@code :exists()} is
      * false and every read is {@code nil} or empty — exactly what {@code s:flowermenu()} does.
      *
-     * <p>The {@link LuaCraft} object stays: it is what {@code Retired} keys the old spellings on, and it is
-     * still the shape a held handle has. Nothing hands one out any more.
+     * <p>The {@link LuaCraft} object stays: it is still the shape a held handle has. Nothing hands one
+     * out any more.
      */
     static LuaTable section(final Addon owner, final String user) {
         LuaTable m = new LuaTable();

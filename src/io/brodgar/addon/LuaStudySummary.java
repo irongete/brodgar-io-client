@@ -127,8 +127,8 @@ public final class LuaStudySummary {
 
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("studysummary", methods(),
-            "the study summary answers :lp() :attention() :cost() :exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("studysummary", methods(),
+            "the study summary"));
         mt.set("__name", LuaValue.valueOf("StudySummary"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

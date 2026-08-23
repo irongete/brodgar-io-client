@@ -140,9 +140,8 @@ public final class LuaDeckCard {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("deckcard", methods(owner),
-            "a fight deck card answers :index() :wire() :key() :maneuver() :res() :name() :used() :exists() and "
-            + ":info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("deckcard", methods(owner),
+            "a fight deck card"));
         mt.set("__name", LuaValue.valueOf("DeckCard"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

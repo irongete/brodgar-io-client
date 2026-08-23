@@ -178,8 +178,8 @@ public final class LuaContents {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("contents", methods(owner),
-            "what one item holds answers :items() :name() :text() :quality() :fill() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("contents", methods(owner),
+            "what one item holds"));
         mt.set("__name", LuaValue.valueOf("Contents"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

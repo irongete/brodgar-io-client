@@ -7,7 +7,7 @@ still exist, just not on the type the page calls them on. A name-level check can
 receiver, and that is the failure mode that actually happens after a rename.
 
 This one is receiver-typed. Each entity in the bridge declares its own vocabulary in one place --
-`Retired.closedIndex("<entity>", methods(...), hint)` -- and the methods table is built in the same file.
+`Refusal.closedIndex("<entity>", methods(...), hint)` -- and the methods table is built in the same file.
 So: read each `Lua*.java`, take the entity name from its closedIndex, take the verbs from its `.set("x",`
 calls, and check the docs against the pair.
 
@@ -24,7 +24,7 @@ WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
 
   * A verb called ON A COLLECTION that is not one of the core six. A collection's `extra` verbs are
     per-site, so anything else is skipped rather than guessed at -- which is why `credo:cost()`, advertised
-    by two retirement messages for a feature and a half, had to be found by reading.
+    by two refusal messages for a feature and a half, had to be found by reading.
   * A chain rooted at `s`. It is the most overloaded name in the tree -- a Session on most pages, a
     profiling scope, a Sound, a string, a local for anything -- so mapping it reported 78 collisions and
     zero defects. A session-rooted chain is therefore not resolved at all, which is why `credo:cost()`
@@ -114,13 +114,13 @@ def per_file(rel):
 
 # What one verb hands back, where a page or a comment then calls a verb ON it. Without this a chained
 # receiver -- `credo:pursuing():cost()` -- resolves to `pursuing`, which is not a type, and the mention is
-# skipped: exactly the blind spot that let `credo:cost` be advertised as live by two retirement messages
+# skipped: exactly the blind spot that let a verb be advertised as live by two refusal messages
 # while this tool printed green. Seeded rather than derived, and every unresolved chain is COUNTED below,
 # so the map's own coverage is visible instead of assumed.
 RETURNS = {
     ("credo", "pursuing"): "credo",
     # The session chain: a message writes the whole address, `s:char():credo():cost()`, so the base is a
-    # session and the hops have to be walked or the mention is invisible -- which is how two retirements
+    # session and the hops have to be walked or the mention is invisible -- which is how two refusals
     # advertised `credo:cost()` for a feature and a half.
     ("session", "char"): "@charsection",
     ("charsection", "credo"): "@collection",
@@ -297,8 +297,7 @@ def java_mentions(vocab):
 
     A refusal is the contract a user reads at the moment they are stuck, and it went stale after every
     rename with nothing resolving it: `LuaSkill`'s points at `:available()[i]` and `LuaStudySlot`'s at
-    `s:study():slot()`, both retired, and two `hafen.ui.window` retirements advertise `:onDraw(fn)`, which
-    is itself a retirement. A message that names a verb the receiver has not got sends the reader to a
+    A message that names a verb the receiver has not got sends the reader to a
     second refusal.
 
     String literals only. A COMMENT may legitimately name a dead spelling -- "there is no gob:move()" is
@@ -306,9 +305,9 @@ def java_mentions(vocab):
     """
     bad, checked = [], 0
     for f in sorted(os.listdir(BRIDGE)):
-        # Retired.java names the DEAD spelling in every message by design; tools/retiredverbs.py owns it,
-        # and only it knows which half of a message is the retirement and which is the promise.
-        if (not f.endswith(".java")) or (f == "Retired.java"):
+        # Refusal.java names the DEAD spelling in every message by design; tools/refusalverbs.py owns it,
+        # and only it knows which half of a message is the dead spelling and which is the promise.
+        if (not f.endswith(".java")) or (f == "Refusal.java"):
             continue
         p = os.path.join(BRIDGE, f)
         for i, line in enumerate(io.open(p, encoding="utf-8", errors="replace"), 1):
@@ -341,8 +340,8 @@ def java_mentions(vocab):
 #     are not checked at all. Their key sets are PROTOCOL or user-chosen; there is nothing to check
 #     against, and a typo there is the author's own.
 #   - a key built from a variable rather than written as a literal is invisible here.
-#   - suites under addons/<NNN>-*/ are skipped: they call retired spellings ON PURPOSE, to prove the
-#     retirement raises. A suite is re-run every round, which is its own guard.
+#   - suites under addons/<NNN>-*/ are skipped: they call moved spellings ON PURPOSE, to prove the
+#     refusal raises. A suite is re-run every round, which is its own guard.
 def event_keys():
     """Every key a CLOSED emitter fires, read out of the bridge's own key sets."""
     def arr(text, name):

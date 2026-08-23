@@ -566,7 +566,7 @@ final class UiApi {
             }
         });
         // :entry() — 040.7, a real haven.TextEntry. Its content is :value(s), the ONE door (decision A) --
-        // entry:text() is retired, throwing and naming :value(). :onChange(fn) fires on every keystroke and
+        // :onChange(fn) fires on every keystroke and
         // :onSubmit(fn) once, on Enter -- two names for two gestures, not one name with a flag. Typing into it
         // never reaches the game: it takes keyboard focus like any TextEntry, and nothing here calls wdgmsg.
         m.set("entry", new VarArgFunction() {
@@ -1232,11 +1232,11 @@ final class UiApi {
         Selector sel = selArg(selv, where);
         if(!eventv.isstring())
             throw new LuaError(where + ": event must be \"Added\" or \"Removed\", got " + eventv.typename());
-        // 097: the retired lower-case pair is caught HERE, before the event is decoded, so an addon written
-        // against `appear` dies naming `Added` rather than being told its own spelling is not an event.
-        String retired = Retired.eventKey(UIS, eventv.tojstring());
-        if(retired != null)
-            throw new LuaError(retired);
+        // 097: a key that MOVED is caught HERE, before the event is decoded, so an addon written against the
+        // old spelling dies naming the new one rather than being told its own spelling is not an event.
+        String moved = Refusal.eventKey(UIS, eventv.tojstring());
+        if(moved != null)
+            throw new LuaError(moved);
         int ev = LuaSelectorWatch.eventCode(eventv.tojstring());
         if(ev < 0)
             throw new LuaError(where + ": \"" + eventv.tojstring() + "\" is not an event — the events are"

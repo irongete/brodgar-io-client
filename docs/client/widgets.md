@@ -11,7 +11,7 @@
 | Add/attach child | `Widget.add`, `add0`, `attach` — `attach(UI)` is what sets the public `Widget.ui` field, recursing the whole subtree, and `add0` calls it only where the child's is still null. So **every widget carries the `UI` whose tree it is in**, and the one to lock while writing a widget is `w.ui` rather than any field naming the session on screen ([multi-session.md](multi-session.md)). It is null on a widget that has never been added to a tree, and `remove()` does **not** take it back |
 | **Type registry (`@RName` → Factory)** ← replacement seam A | `Widget.types`, `Factory`, `initnames`, `gettype3` |
 | UI root / id map / dispatch | `UI`: `root`, `widgets`/`rwidgets`, `bind`/`getwidget`/`widgetid` |
-| **Server → widget create** | `UI.NewWidget.run`, `newwidgetp`  — its addon seam was **removed**: it only recorded the server type string for the retired descriptor |
+| **Server → widget create** | `UI.NewWidget.run`, `newwidgetp`  — it carries no addon seam: the only one it had recorded a server type string nothing reads |
 | **Server → widget place** ← an addon seam | `UI.AddWidget.run` → `pwdg.addchild(...)` → `onWidgetPlaced(id, wdg)`. ⚠️ This is the **server's message handler**, so it sees only what the server places, and it fires the instant the *parent* takes the child — which for a subtree built before it is hung is before the child is in any tree |
 | **Anything → the tree** ← the universal addon seam | `Widget.add0` → `onWidgetEntered(child)` (last statement, `// addon:`). The one point **every** widget passes, whoever added it — the mirror of `remove()` on the way out |
 | HUD placement switch (per type: inv/equ/chr/craft/…) | `GameUI.addchild` |

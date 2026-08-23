@@ -130,14 +130,13 @@ public final class LuaMask {
     // ---- the Mask metatable ------------------------------------------------------------------------
 
     /**
-     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * The per-addon metatable: {@code __index} = the methods table through {@link Refusal#closedIndex} (so
      * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
      */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("mask", methods(owner),
-            "a mask is one overlay tag recorded on one grid: it answers :tag() :grid() :covers() :count()"
-            + " :area() :exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("mask", methods(owner),
+            "a mask is one overlay tag recorded on one grid"));
         mt.set("__name", LuaValue.valueOf("Mask"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

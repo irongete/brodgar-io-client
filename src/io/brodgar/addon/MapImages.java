@@ -333,10 +333,9 @@ final class MapImages {
         AssetApi.addAssetVerbs(m, "image");
         AssetApi.addDisposeVerb(m);
         // The entity name is its OWN, not the image asset's: the two vocabularies differ (a drawing answers
-        // :info(), an asset does not) and they have different lifetimes, so a retirement row keyed on one
+        // :info(), an asset does not) and they have different lifetimes, so a refusal row keyed on one
         // must not fire on the other. The type it reports is still "image" -- what it IS, to a draw verb.
-        return AssetApi.fileMeta("mapimage", "image", m,
-            "a map drawing answers :type() :path() :size() :info() and :dispose()");
+        return AssetApi.fileMeta("mapimage", "image", m, "a map drawing", null);
     }
 
     // ---- argument parsing --------------------------------------------------------------------------

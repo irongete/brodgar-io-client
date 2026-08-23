@@ -114,8 +114,8 @@ public final class LuaFood {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("food", methods(owner),
-            "the food meter answers :fep() :hunger() :exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("food", methods(owner),
+            "the food meter"));
         mt.set("__name", LuaValue.valueOf("Food"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

@@ -200,8 +200,8 @@ public final class LuaBinding {
 
     private static LuaValue buildMeta(Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("binding", methods(owner),
-            "a binding answers :id() :key() :default() :assigned() :exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("binding", methods(owner),
+            "a binding"));
         mt.set("__name", LuaValue.valueOf("Binding"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

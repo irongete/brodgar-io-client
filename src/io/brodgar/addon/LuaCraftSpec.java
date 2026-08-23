@@ -95,8 +95,8 @@ final class LuaCraftSpec {
         if(owner.craftSpecMeta != null)
             return owner.craftSpecMeta;
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("craftspec", methods(),
-            "one slot of a recipe answers :res() :name() :count() :optional() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("craftspec", methods(),
+            "one slot of a recipe"));
         mt.set("__name", LuaValue.valueOf("CraftSpec"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

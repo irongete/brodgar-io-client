@@ -142,9 +142,8 @@ public final class LuaWound {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("wound", methods(owner),
-            "a wound answers :id() :name() :res() :severity() :label() :parent() :children() :depth()"
-            + " :exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("wound", methods(owner),
+            "a wound"));
         mt.set("__name", LuaValue.valueOf("Wound"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

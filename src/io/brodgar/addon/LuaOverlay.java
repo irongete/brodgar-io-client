@@ -30,9 +30,8 @@ import java.util.Map;
  *
  * <p><b>What it means, since 043.3: WHAT IS DRAWN AT THIS GOB.</b> An addon's own overlays are screen-space
  * painters at the gob's projected point — {@code :draw(fn)} and {@code :text(s)}, and nothing else. The three
- * world kinds are gone: what {@code ov:image}/{@code ov:model}/{@code ov:ghost} built was never an engine overlay
- * but a client gob of its own standing in the scene, so it belongs to {@code hafen.vr()}, where such a thing is
- * created, listed and ended. Each of the three retired spellings raises naming its replacement.
+ * kinds it does not draw are the ones standing in the world: such a thing is not an engine overlay but a client
+ * gob of its own, so it belongs to {@code hafen.vr()}, where it is created, listed and ended.
  *
  * <p><b>Three origins, one read.</b> {@code gob:overlay():list()} still answers everything drawn at the gob, and
  * each member says what it is. The addon's own records are writable. The game's own ({@code ov:native()}) are
@@ -312,9 +311,8 @@ public final class LuaOverlay {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("overlay", methods(owner),
-            "one overlay on a gob answers :key() :gob() :native() :res() :kind() :draw() :text() :color() "
-            + ":offset() :count() :exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("overlay", methods(owner),
+            "one overlay on a gob"));
         mt.set("__name", LuaValue.valueOf("Overlay"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

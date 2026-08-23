@@ -139,7 +139,7 @@ final class StoreApi {
      * declares {@code "scope": "account"} and there is nothing here for a second character to overwrite.
      *
      * <p>The names are the <i>addon's own</i>, so the refusal that catches the old spelling cannot live in the
-     * static {@link Retired} table: {@link #index} builds it per owner from the manifest.
+     * static {@link Refusal} table: {@link #index} builds it per owner from the manifest.
      */
     static void installStore(LuaTable hafen, final Addon owner) {
         LuaTable vars = new LuaTable();
@@ -402,11 +402,11 @@ final class StoreApi {
      * The {@code __index} of {@code hafen.store}'s callable table. A <b>declared</b> name throws naming
      * {@code :get} — {@code hafen.store.cfg.foo = 1} is the spelling the whole corpus used, and left to read
      * {@code nil} it would fail as <i>"attempt to index a nil value"</i> one character later. Everything else
-     * falls through to the static {@link Retired} rows ({@code hafen.store.flush}) and then to plain
+     * falls through to the static {@link Refusal} rows ({@code hafen.store.flush}) and then to plain
      * {@code nil}, so a feature probe still works.
      */
     private static LuaValue index(final Addon owner) {
-        final LuaValue rest = Retired.sectionIndex("store");
+        final LuaValue rest = Refusal.sectionIndex("store");
         return new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue key) {
                 if(key.type() == LuaValue.TSTRING) {

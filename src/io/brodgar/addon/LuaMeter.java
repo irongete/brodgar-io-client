@@ -151,14 +151,13 @@ public final class LuaMeter {
     // ---- the Meter metatable -----------------------------------------------------------------------
 
     /**
-     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * The per-addon metatable: {@code __index} = the methods table through {@link Refusal#closedIndex} (so
      * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
      */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("meter", methods(owner),
-            "a meter is one bar in the HUD meter slot: it answers :res() :index() :segment()"
-            + " :exists() :widget() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("meter", methods(owner),
+            "a meter is one bar in the HUD meter slot"));
         mt.set("__name", LuaValue.valueOf("Meter"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

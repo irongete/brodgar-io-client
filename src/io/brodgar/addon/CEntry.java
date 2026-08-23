@@ -10,11 +10,10 @@ import org.luaj.vm2.LuaValue;
 /**
  * The adapter behind {@code hafen.ui():entry()} — a real {@link TextEntry}, the client's own (spec
  * {@code 040-ui-controls}, task 040.7): its content is WRITTEN through {@code :value(s)}, the ONE door
- * (decision A) — {@code entry:text(s)} is retired, throwing and naming it, through the existing {@link Retired}
- * table. The READ half of {@code :text()} is untouched: it keeps answering best-effort, exactly as it always
+ * (decision A). The READ half of {@code :text()} is untouched: it answers best-effort, exactly as it always
  * has on every text-bearing widget ({@code docs/addons/api/ui/widget.md}), because that read is documented as
  * NEVER throwing and a tree-walking introspector ({@code widgetstack}) depends on that for every widget it
- * finds — retiring it too would have broken a published contract this feature does not own. The two
+ * finds. The two
  * notifications are separate names on purpose: {@link #onChange} per keystroke, {@link #onSubmit} once, on Enter.
  *
  * <p><b>{@code :value(v)} does NOT go through {@link ReadLine#setline}.</b> The engine's own {@code Base.setline}

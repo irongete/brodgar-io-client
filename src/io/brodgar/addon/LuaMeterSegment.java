@@ -61,8 +61,8 @@ final class LuaMeterSegment {
         if(owner.meterSegMeta != null)
             return owner.meterSegMeta;
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("segment", methods(),
-            "one segment of a meter's bar answers :index() :value() :color() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("segment", methods(),
+            "one segment of a meter's bar"));
         mt.set("__name", LuaValue.valueOf("Segment"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

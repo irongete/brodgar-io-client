@@ -24,13 +24,12 @@ import org.luaj.vm2.lib.VarArgFunction;
  * before 039 existed and never reached by it, which would have left {@code ev} the one object in the API
  * mixing {@code .} and {@code :} — the single most common Lua footgun. (A live verb answers the dotted read
  * with the FUNCTION rather than {@code nil}: no metamethod can tell {@code ev.msg} from {@code ev:msg()},
- * which {@link Retired} already records for the Item entity. What is gone is the <i>value</i> at that
- * spelling, not the key.)
+ * so the key is answered by the function itself.)
  *
  * <p><b>One class, a per-shape methods table</b> chosen at construction, rather than one subclass per shape:
  * ten near-identical classes would give the same refusal behaviour and ten places to change. The metatable's
  * {@code __index} consults that table and <b>throws naming the verb and listing what this shape does
- * answer</b> ({@link Retired#closedIndex}, D-125), so {@code ev:buton()} fails where it is written instead of
+ * answer</b> ({@link Refusal#closedIndex}, D-125), so {@code ev:buton()} fails where it is written instead of
  * one character later as <i>"attempt to call a nil value"</i>. The table is minted once per (addon, shape) and
  * cached on the {@link Addon} — per addon like every other metatable in the bridge, so no Lua value crosses a
  * sandbox boundary (D-017).
@@ -63,16 +62,14 @@ public final class LuaEvent {
      */
     public enum Shape {
         /** {@code hafen.event():action():on(msg, fn)} — an outbound {@code wdgmsg}, before the server sees it. */
-        ACTION("action", "an action event answers :msg() :widget() :args() :position(i) :pixel(i)"
-               + " :preventDefault() :resend() :send(t)"),
+        ACTION("action", "an action event"),
         /** {@code hafen.event():message():on(msg, fn)} — an inbound {@code uimsg}, before the widget applies it. */
-        MESSAGE("message", "a message event answers :msg() :widget() :args() :position(i) :pixel(i)"
-                + " :preventDefault() :rewrite(t)"),
+        MESSAGE("message", "a message event"),
         /**
          * {@code w:on("MouseDown"/"MouseUp"/"MouseMove"/"Wheel", fn)} — the four universal widget input keys
          * (041.3), on a widget you built, one you found by selector, or one an event handed you.
          */
-        INPUT("input", "an input event answers :x() :y() :button() :amount() :preventDefault()"),
+        INPUT("input", "an input event"),
         /**
          * {@code w:on("Pressed"/…, fn)} on a control the addon <b>borrowed</b> (061.1) — the client is about to
          * run its own action and is asking first, so unlike the owned half this one can be stopped
@@ -83,19 +80,19 @@ public final class LuaEvent {
          * a scrollbar's {@code Changed} is a <b>report</b> — the client wrote the value first — so both of
          * those verbs raise there rather than lying about what they did. See {@link #MOVED}.
          */
-        CONTROL("control", "a control event answers :value() :preventDefault() :resend()"),
+        CONTROL("control", "a control event"),
         /** {@code w:on("Draw", fn)} — an own widget's paint (041.4): three things to say, none cancelable. */
-        DRAW("draw", "a draw event answers :g() :w() :h()"),
+        DRAW("draw", "a draw event"),
         /** {@code grid:on("Cell", fn)} — one grid cell's paint (041.4): four things to say, none cancelable. */
-        CELL("cell", "a cell event answers :g() :item() :w() :h()"),
+        CELL("cell", "a cell event"),
         /** {@code w:on("Drop", fn)} — a "thing" dropped on an own widget (041.4): three things to say, cancelable. */
-        DROP("drop", "a drop event answers :x() :y() :thing() :preventDefault()"),
+        DROP("drop", "a drop event"),
         /** {@code slider:on("Changed", fn)} — a slider's drag step (041.4): two things to say, uncancelable. */
-        SLIDER("slider", "a slider's Changed event answers :value() :final()"),
+        SLIDER("slider", "a slider's Changed event"),
         /** {@code g:on("Move", fn)} — a mouse grab's drag step (041.5): the pointer plus the live modifiers. */
-        GRAB_MOVE("grabmove", "a grab's Move event answers :x() :y() :shift() :ctrl() :alt()"),
+        GRAB_MOVE("grabmove", "a grab's Move event"),
         /** {@code g:on("Up", fn)} — a mouse grab's release (041.5): {@code GRAB_MOVE} plus which button ended it. */
-        GRAB_UP("grabup", "a grab's Up event answers :x() :y() :shift() :ctrl() :alt() :button()"),
+        GRAB_UP("grabup", "a grab's Up event"),
         /**
          * {@code w:on("Dragged", fn)} / {@code w:on("Resized", fn)} — the user finished dragging or resizing a
          * widget by a handle {@code widget:draggable(h)}/{@code widget:resizable(h)} armed (062). Two things to
@@ -103,13 +100,13 @@ public final class LuaEvent {
          * {@code widget:size()} — read in that same frame, the client's own off-screen clamp and a window that
          * re-packs itself included. Uncancelable — it reports a gesture that is already over.
          */
-        GESTURE("gesture", "a gesture event answers :x() :y()"),
+        GESTURE("gesture", "a gesture event"),
         /**
          * {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)} — 038.3's payload, objectified
          * (041.7): three things to say, so an {@code ev} rather than the plain {@code {gob, key, native}} table
          * it was before this feature reached it.
          */
-        OVERLAY("overlay", "an overlay event answers :gob() :key() :native()"),
+        OVERLAY("overlay", "an overlay event"),
         /**
          * {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked", fn)} — the V2 click payload,
          * objectified (041.7): all three answer the same shape, and only the noun matching {@code clickKey()}
@@ -117,7 +114,7 @@ public final class LuaEvent {
          * the same "the data decides which field applies" rule {@code Shape.INPUT} already has for its
          * {@code button}/{@code amount} (EXAMPLES.md §1.1).
          */
-        CLICKED("clicked", "a clicked event answers :ghost() :sprite() :object() :button() :x() :y()");
+        CLICKED("clicked", "a clicked event");
 
         /** The shape's name, for {@code tostring(ev)}. */
         final String label;
@@ -532,7 +529,7 @@ public final class LuaEvent {
 
     /**
      * The metatable for {@code shape} in {@code owner}'s env, built once and cached on the {@link Addon}. An
-     * unknown verb throws listing what this shape answers ({@link Retired#closedIndex}) rather than reading
+     * unknown verb throws listing what this shape answers ({@link Refusal#closedIndex}) rather than reading
      * {@code nil}: a payload's vocabulary is the whole of its grammar, closed at construction, so a misspelt
      * member has no future meaning to wait for (D-125).
      */
@@ -571,7 +568,7 @@ public final class LuaEvent {
                 inbound(m);
         }
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("ev", m, shape.vocabulary));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("ev", m, shape.vocabulary));
         mt.set("__name", LuaValue.valueOf("Event"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue v) {

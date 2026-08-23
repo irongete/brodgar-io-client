@@ -142,9 +142,8 @@ public final class LuaQuest {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("quest", methods(owner),
-            "a quest answers :id() :title() :res() :status() :modified() :conditions() "
-            + ":exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("quest", methods(owner),
+            "a quest"));
         mt.set("__name", LuaValue.valueOf("Quest"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

@@ -291,8 +291,8 @@ final class LocaleApi {
 
         private static LuaValue meta() {
             LuaTable mt = new LuaTable();
-            mt.set(LuaValue.INDEX, Retired.closedIndex("miss", verbs(),
-                "a miss is a surface and the string that reached it: :surface() :text() :info()"));
+            mt.set(LuaValue.INDEX, Refusal.closedIndex("miss", verbs(),
+                "a miss is a surface and the string that reached it"));
             mt.set("__name", LuaValue.valueOf("Miss"));
             mt.set("__tostring", new OneArgFunction() {
                 public LuaValue call(LuaValue self) {

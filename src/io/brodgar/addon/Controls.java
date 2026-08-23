@@ -319,7 +319,7 @@ final class Controls {
     /**
      * {@code hafen.ui():entry()} — a real {@link haven.TextEntry}, the client's own (task 040.7). Its content is
      * {@code :value(s)} — the ONE door (decision A) — with {@code :onChange(fn)} firing per keystroke and
-     * {@code :onSubmit(fn)} once, on Enter; {@code entry:text()} is retired, throwing and naming {@code :value()}.
+     * {@code :onSubmit(fn)} once, on Enter.
      */
     static LuaValue entry(Addon owner, Varargs a) {
         if(Args.passed(a, 2))

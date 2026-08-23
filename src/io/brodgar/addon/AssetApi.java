@@ -598,7 +598,7 @@ final class AssetApi {
      * {@code .extent} rather than reading {@code nil} under code that was already written.
      */
     private static final LuaTable BOUNDS_META =
-        LuaWidget.shapeMeta("bounds", "mdl:bounds() carries .min, .max and .extent");
+        LuaWidget.shapeMeta("bounds");
 
     /** A {@code {x,y,z}} Lua table from a 3-float array (mesh bounds). */
     private static LuaTable vec3Table(float[] v) {
@@ -835,10 +835,10 @@ final class AssetApi {
                 }
             });
             addAssetVerbs(m, "image");
-            return fileMeta("image", "image", m, (k == Kind.IMAGE)
-                ? "an image asset answers :type() :path() and :size(), and hafen.asset():remove(img) frees it"
-                : "an image another addon loaded answers :type() :path() and :size() — freeing a file is"
-                  + " the job of the addon that loaded it");
+            return fileMeta("image", "image", m,
+                (k == Kind.IMAGE) ? "an image asset" : "an image another addon loaded",
+                (k == Kind.IMAGE) ? "hafen.asset():remove(img) frees it"
+                                  : "freeing a file is the job of the addon that loaded it");
         case MESH:
             m.set("bounds", new OneArgFunction() {
                 public LuaValue call(LuaValue self) {
@@ -851,9 +851,7 @@ final class AssetApi {
                 }
             });
             addAssetVerbs(m, "mesh");
-            return fileMeta("mesh", "mesh", m,
-                "a mesh asset answers :type() :path() :bounds() and :info(), and hafen.asset():remove(mdl)"
-                + " frees it");
+            return fileMeta("mesh", "mesh", m, "a mesh asset", "hafen.asset():remove(mdl) frees it");
         default:
             m.set("text", new OneArgFunction() {
                 public LuaValue call(LuaValue self) {
@@ -861,19 +859,19 @@ final class AssetApi {
                 }
             });
             addAssetVerbs(m, "data");
-            return fileMeta("data", "data", m,
-                "a data asset answers :type() :path() and :text(), and hafen.asset():remove(d) frees it");
+            return fileMeta("data", "data", m, "a data asset", "hafen.asset():remove(d) frees it");
         }
     }
 
     /**
-     * The metatable a loaded file's handle wears: its closed vocabulary ({@link Retired#closedIndex}, so a
+     * The metatable a loaded file's handle wears: its closed vocabulary ({@link Refusal#closedIndex}, so a
      * typo raises naming what this kind does answer) and a {@code __tostring} of {@code Asset(image,
      * icon.png)} — which is the whole reason a log line of an addon's own handles says anything.
      */
-    static LuaValue fileMeta(String entity, final String type, LuaTable methods, String hint) {
+    static LuaValue fileMeta(String entity, final String type, LuaTable methods, String blurb,
+                             String note) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex(entity, methods, hint));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex(entity, methods, blurb, note));
         mt.set("__name", LuaValue.valueOf("Asset"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

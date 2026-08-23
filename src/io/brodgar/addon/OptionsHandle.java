@@ -116,8 +116,7 @@ public final class OptionsHandle {
             }
         });
         return close(opts, "options", m,
-            "the options handle answers one panel of the client's Options window per verb: :interface()"
-            + " :video() :audio() :camera() :client() and :keybindings()");
+            "the options handle", "one panel of the client's Options window per verb");
     }
 
     /**
@@ -150,13 +149,13 @@ public final class OptionsHandle {
     /**
      * <b>Close {@code h}'s vocabulary</b>: {@code methods} is all it answers, {@code entity} names it in a
      * refusal and {@code hint} is what it does answer, spelled for the author. Everything else raises — a
-     * retired spelling with its replacement, any other name with {@code hint} — and, being userdata, so
+     * moved spelling with its replacement, any other name with {@code hint} — and, being userdata, so
      * does a write.
      */
-    static LuaValue close(LuaValue h, String entity, LuaTable methods, String hint) {
+    static LuaValue close(LuaValue h, String entity, LuaTable methods, String blurb, String note) {
         final String print = String.valueOf(h.touserdata());
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex(entity, methods, hint));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex(entity, methods, blurb, note));
         mt.set("__name", LuaValue.valueOf("Options"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

@@ -172,10 +172,9 @@ public final class LuaItem {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("item", methods(owner),
-            "an item answers :res() :name() :quantity() :progress() :durability() :quality() :contents() "
-            + ":container() :cell() :slots() :handle() :exists() :info(), notifies with :on(\"Changed\", fn),"
-            + " and acts with :use() :take() :drop() and :transfer()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("item", methods(owner),
+            "an item",
+            ":use(), :take(), :drop() and :transfer() act; everything else reads"));
         mt.set("__name", LuaValue.valueOf("Item"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -303,9 +302,9 @@ public final class LuaItem {
                 if(!keyArg.isstring() || !fnArg.isfunction())
                     throw new LuaError("item:on(key, fn) expects (string, function)");
                 String key = keyArg.tojstring();
-                String retired = Retired.eventKey("item", key);
-                if(retired != null)
-                    throw new LuaError(retired);
+                String moved = Refusal.eventKey("item", key);
+                if(moved != null)
+                    throw new LuaError(moved);
                 if(!CHANGED.equals(key))
                     throw new LuaError("item:on(key, fn): an item has no event '" + key + "' — it has: "
                         + CHANGED + " (its tooltip resolved, or the server revised it). What an item does and"

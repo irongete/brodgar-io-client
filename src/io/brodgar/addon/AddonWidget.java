@@ -64,7 +64,7 @@ import org.luaj.vm2.LuaValue;
  * (the deferred menu-ability primitive). An entry an addon added reports the identity it was given, never its
  * stand-in resource — see {@link #dropDescriptor}.
  *
- * <p><b>D-040's per-callback {@code mods} table is retired with the slots it rode on</b> (041.3): the input
+ * <p><b>The input event carries no modifier state</b> (041.3): the
  * {@code ev} {@code widget:on("MouseDown"/…, fn)} hands over does not carry modifier state (EXAMPLES §1.1) —
  * a later task in this feature puts it on the mouse entity instead, readable at any time rather than only
  * from inside a callback that happened to be handed it.

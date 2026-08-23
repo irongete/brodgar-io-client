@@ -146,7 +146,7 @@ public final class LuaCollection {
 
         /**
          * Why this collection has no {@code :get}, and what to write instead — the hint the refusal carries,
-         * in the {@link Retired#closedIndex} shape ({@code "<coll> has no verb 'get' — <this>"}). Declared by
+         * in the {@link Refusal#closedIndex} shape ({@code "<coll> has no verb 'get' — <this>"}). Declared by
          * every collection that is not {@link #addressable()}; {@code null} falls back to the sentence that is
          * true of all of them, which names {@code :find} and {@code :list} and teaches nothing else.
          *
@@ -391,7 +391,7 @@ public final class LuaCollection {
                 // which says the call is wrong without saying what is right. Additive — no collection had
                 // such a row before 060, so nothing else changes behaviour.
                 if(key.isstring()) {
-                    String msg = Retired.message(coll.name + ":" + key.tojstring());
+                    String msg = Refusal.message(coll.name + ":" + key.tojstring());
                     if(msg != null)
                         throw new LuaError(msg);
                 }
@@ -402,7 +402,9 @@ public final class LuaCollection {
                 // teaches nothing: what the author wants is a member, and there is always a way to one.
                 if(!coll.src.addressable() && key.isstring() && key.tojstring().equals("get"))
                     throw new LuaError(coll.name + " has no verb 'get' — " + coll.noGet());
-                throw new LuaError(coll.name + " has no verb '" + key.tojstring() + "'");
+                String verbs = Refusal.vocabulary(methods);
+                throw new LuaError(coll.name + " has no verb '" + key.tojstring() + "'"
+                    + (verbs.isEmpty() ? "" : " — it answers " + verbs));
             }
         });
         mt.set("__len", new VarArgFunction() {

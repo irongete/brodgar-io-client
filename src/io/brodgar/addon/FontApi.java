@@ -363,14 +363,14 @@ final class FontApi {
         m.set("italic", property("italic"));
         if(kind == AssetApi.Kind.FONT_ASSET) {
             AssetApi.addAssetVerbs(m, "font");
-            return AssetApi.fileMeta("font", "font", m, "a font asset answers :type() :path() :derive()"
-                + " :family() :size() :color() :aa() :bold() and :italic(), and hafen.asset():remove(h)"
-                + " frees it");
+            return AssetApi.fileMeta("font", "font", m, "a font asset",
+                "hafen.asset():remove(h) frees it");
         }
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("font", m, "a font answers :type() :derive() :family()"
-            + " :size() :color() :aa() :bold() and :italic() — :path() belongs to the file a face was loaded"
-            + " from, and a built-in or a variant is not one, which is what :type() says"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("font", m,
+            "a font",
+            ":path() belongs to the file a face was loaded from, and a built-in or a variant is not one, which "
+            + "is what :type() says"));
         mt.set("__name", LuaValue.valueOf("Font"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

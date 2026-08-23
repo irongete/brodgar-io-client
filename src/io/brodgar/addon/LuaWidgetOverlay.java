@@ -554,10 +554,9 @@ public final class LuaWidgetOverlay {
             }
         });
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("widgetoverlay", m,
-            "one overlay over a widget answers :key() :kind() :exists() and :info(); it draws :draw(fn) or"
-            + " :text(s), and a label is dressed by :anchor(ax, ay) :offset(x, y) :color(c) :font(h) and"
-            + " :background(c); widget:overlay():remove(key) ends it"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("widgetoverlay", m,
+            "one overlay over a widget",
+            "widget:overlay():remove(key) ends it"));
         mt.set("__name", LuaValue.valueOf("Overlay"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue v) {

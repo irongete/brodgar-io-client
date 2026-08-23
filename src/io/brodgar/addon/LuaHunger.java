@@ -52,8 +52,8 @@ final class LuaHunger {
         if(owner.hungerMeta != null)
             return owner.hungerMeta;
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("hunger", methods(),
-            "the hunger meter answers :level() :label() :efficacy() :exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("hunger", methods(),
+            "the hunger meter"));
         mt.set("__name", LuaValue.valueOf("Hunger"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

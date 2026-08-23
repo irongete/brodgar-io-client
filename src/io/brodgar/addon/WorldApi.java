@@ -640,8 +640,7 @@ final class WorldApi {
     // (posres, the server's ~1/93-of-a-tile position grid) and "sel" names TILES (MCache.tilesz).
 
     /**
-     * The MapView {@code "place"} angle encoding: radians → the server's {@code round(angle*32768/PI)}. Not
-     * to be confused with the retired Lua verb {@code hafen.world.placeAngle()}, which read a client setting.
+     * The MapView {@code "place"} angle encoding: radians → the server's {@code round(angle*32768/PI)}.
      */
     static int placeAngle(double radians) {
         return (int)Math.round(radians * 32768 / Math.PI);

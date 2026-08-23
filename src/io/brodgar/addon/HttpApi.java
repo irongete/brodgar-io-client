@@ -161,7 +161,7 @@ final class HttpApi {
     }
 
     /**
-     * <b>The one hard cut {@code Retired} cannot carry</b> (095, A-116). It keys on a NAME, and what changed
+     * <b>The one hard cut {@code Refusal} cannot carry</b> (095, A-116). It keys on a NAME, and what changed
      * here is an ARGUMENT COUNT: {@code hafen.http():get(url, cb)} still spells {@code get}. So the refusal
      * is written inside the verb, which is what {@code CLAUDE.md} asks for when a reshape has nothing to key
      * on — and it names the whole new shape rather than the argument.
@@ -377,9 +377,9 @@ final class HttpApi {
             }
         });
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("request", m,
-            "a request answers :url() :method() :body() :header(name) :timeout() and :on(\"done\", fn),"
-            + " and is dispatched by :send() -- every setter is legal until then and none after"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("request", m,
+            "a request",
+            "it is dispatched by :send(): every setter is legal until then and none after"));
         mt.set("__name", LuaValue.valueOf("Request"));
         mt.set("__tostring", new ZeroArgFunction() {
             public LuaValue call() {

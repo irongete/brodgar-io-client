@@ -68,8 +68,8 @@ frozen folder. If the reason does not stand on its own words, it is not prior ar
 ## The API grammar — invariant, every feature obeys it
 
 - **One canonical way** per operation, no dual styles. Namespaced `hafen.*`. Nothing is released,
-  so a replaced API is **hard-cut**: no deprecation alias, and every retired spelling throws naming
-  its replacement. **A rename is free and a reshape is not**: `Retired` carries a *name*, so a
+  so a replaced API is **hard-cut**: no deprecation alias, and every replaced spelling throws naming
+  its replacement. **A rename is free and a reshape is not**: `Refusal` carries a *name*, so a
   changed argument, return or payload shape has nothing to key on — it needs a refusal written
   inside the verb and a line on the page, and neither of those is a row anything sweeps.
 - A **section** is called and is a per-addon singleton; everything after it is a **colon verb**; a

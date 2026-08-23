@@ -118,8 +118,9 @@ public final class LuaSub {
             }
         });
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("sub", m,
-            "a subscription answers :off() (idempotent) and :key() (what it was registered under)"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("sub", m,
+            "a subscription",
+            ":off() is idempotent, and :key() is what it was registered under"));
         mt.set("__name", LuaValue.valueOf("Sub"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue v) {

@@ -1,14 +1,12 @@
-"""Resolve every verb a `Retired` message NAMES AS THE REPLACEMENT against the type it names it on.
+"""Resolve every verb a `Refusal` message NAMES AS THE REPLACEMENT against the type it names it on.
 
-A retirement message is a promise: *this is gone, write that instead*. Nothing checked that `that` exists.
-Three did not -- `session:char():credo():cost` pointed at `credo:pursuing():cost()`, which `LuaCredo` does
-not register, so following the message landed on a second refusal; and two `hafen.ui.window` rows advertise
-`:onDraw(fn)` / `:onTick(fn)` / `:onDrop(fn)` / `:onClose(fn)`, which are themselves retirements.
+A refusal message is a promise: *this is gone, write that instead*. Nothing checked that `that` exists.
+Three did not, and following the message landed on a second refusal instead of on the verb it promised.
 
 The check is the same shape as tools/docverbs.py and for the same reason: a message that names a verb on
 the wrong type is invisible to any check that only asks whether the NAME exists somewhere.
 
-    python tools/retiredverbs.py
+    python tools/refusalverbs.py
 
 Exit code 1 when a message names a verb its receiver does not answer.
 """
@@ -58,11 +56,11 @@ def statements(src):
 
 def main():
     vocab = vocabularies()
-    src = io.open(os.path.join(BRIDGE, "Retired.java"), encoding="utf-8", errors="replace").read()
+    src = io.open(os.path.join(BRIDGE, "Refusal.java"), encoding="utf-8", errors="replace").read()
     bad, checked = [], 0
     for lineno, key, text in statements(src):
-        # The key IS the retired spelling, so a mention of it inside its own message is the thing being
-        # retired rather than the replacement. Everything else the message names is a promise.
+        # The key IS the moved spelling, so a mention of it inside its own message is the thing that
+        # moved rather than the replacement. Everything else the message names is a promise.
         dead = key.split(":")[-1].split(".")[-1]
         deadrecv = key.split(":")[-2].split(".")[-1].replace("()", "") if (":" in key) else ""
         # A CHAINED receiver -- `credo:pursuing():cost()` -- goes through docverbs' resolver, which walks
@@ -72,7 +70,7 @@ def main():
         for spelling, verb, ent, ok in docverbs.resolve_line(text, TAIL, vocab, whole=True):
             base = spelling.split(":")[0]
             if (verb == dead) and ((base == deadrecv) or (base == key.split(":")[0]) or (deadrecv == "")):
-                continue                              # the retirement naming itself
+                continue                              # the row naming itself
             if ent is None:
                 continue
             checked += 1
@@ -80,13 +78,13 @@ def main():
                 snippet = " ".join(text.split())[:120]
                 bad.append((lineno, spelling, verb, ent, snippet))
 
-    print("checked %d receiver-typed replacement mentions in Retired.java" % checked)
+    print("checked %d receiver-typed replacement mentions in Refusal.java" % checked)
     if bad:
         print("\n== %d message(s) naming a replacement the receiver does not answer ==" % len(bad))
         for lineno, recv, verb, ent, text in bad:
-            print("  Retired.java:%d  %s:%s()  -- `%s` has no such verb\n      %s" % (lineno, recv, verb, ent, text))
+            print("  Refusal.java:%d  %s:%s()  -- `%s` has no such verb\n      %s" % (lineno, recv, verb, ent, text))
         return 1
-    print("every replacement a retirement names is a verb that type answers")
+    print("every replacement a refusal names is a verb that type answers")
     return 0
 
 if __name__ == "__main__":

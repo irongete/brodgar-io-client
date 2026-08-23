@@ -56,8 +56,8 @@ final class LuaFep {
         if(owner.fepMeta != null)
             return owner.fepMeta;
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("fep", methods(owner),
-            "the FEP bar answers :cap() :total() :entry() :exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("fep", methods(owner),
+            "the FEP bar"));
         mt.set("__name", LuaValue.valueOf("Fep"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

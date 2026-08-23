@@ -122,9 +122,8 @@ public final class LuaStudySlot {
 
     private static LuaValue buildMeta(Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("studyslot", methods(owner),
-            "one curiosity in the study window answers :res() :name() :lp() :attention() :cost() :time() "
-            + ":progress() :exists() :widget() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("studyslot", methods(owner),
+            "one curiosity in the study window"));
         mt.set("__name", LuaValue.valueOf("StudySlot"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

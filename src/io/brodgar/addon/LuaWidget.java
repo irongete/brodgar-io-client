@@ -214,23 +214,17 @@ public final class LuaWidget {
     // ---- the Widget metatable ----------------------------------------------------------------------
 
     /**
-     * The per-addon metatable: {@code __index} = the methods table <b>through {@link Retired#closedIndex}</b>,
-     * plus {@code __tostring}/{@code __name}. The indirection is what makes a retired verb ({@code w:pos},
-     * {@code w:show}) throw naming its replacement, and a verb that never existed throw naming the ones that
-     * do, instead of reading as plain {@code nil} and failing one line later as "attempt to call a nil value"
+     * The per-addon metatable: {@code __index} = the methods table <b>through {@link Refusal#closedIndex}</b>,
+     * plus {@code __tostring}/{@code __name}. The indirection is what makes a verb this type does not answer
+     * throw naming the ones it does, instead of reading as plain {@code nil} and failing one line later as
+     * "attempt to call a nil value"
      * — pointing {@code __index} straight at the methods table is the mistake that hid the cut on two earlier
      * entities.
      */
     private static LuaValue buildMeta(Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("widget", methods(owner),
-            "a widget answers :type() :role() :res() :picture() :id() :exists() :info() :session() "
-            + ":events() :owned() :is(sel) :parent() "
-            + ":children() :position() :size() :rootPos() :walk() :match() :matchAll() and :hit(); its content "
-            + "is :title() :text() :tooltip() :image() :value() :source() :rows() :range() :rowHeight() "
-            + ":cellSize() :columns() :item() :items() :font() and :focused(); its frame is :draggable() :resizable() "
-            + ":remember() :visible() :pack() :chrome() :overlay() :style() and :rule(); and it acts with :on() "
-            + ":send() :replace() :replacement() :revert() and :destroy()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("widget", methods(owner),
+            "a widget"));
         mt.set("__name", LuaValue.valueOf("Widget"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
@@ -772,8 +766,8 @@ public final class LuaWidget {
         // Close, a container's ItemAdded/ItemRemoved, and Destroy on any widget at all. The vocabulary is
         // WIDGET-SPECIFIC and computed fresh each call (widgetKeys, below): a Button answers Pressed and the
         // universal five, a Label only the five, a surface adds Draw/Tick/Drop/Close, a non-control adds
-        // ItemAdded/ItemRemoved. An unknown key throws naming what THIS widget does answer, exactly like a
-        // retired spelling one line later would, only sooner (D-125). preventDefault() is on the ev this hands
+        // ItemAdded/ItemRemoved. An unknown key throws naming what THIS widget does answer, at the line that
+        // wrote it rather than one line later (D-125). preventDefault() is on the ev this hands
         // the handler where a key cancels, never a return value (spec R3) — arity is NOT the verb here, because
         // a subscription is not a property: :on(key, fn) always registers and returns a Sub, and :on(key) with
         // no function is a missing-argument error, not a read.
@@ -793,12 +787,12 @@ public final class LuaWidget {
                 // fault and is what the message has to say; the key is only unknown BECAUSE of it.
                 if(w == null)
                     throw new LuaError("widget:on(key, fn) — this widget is no longer in the tree");
-                // 097: a retired key is caught before the key SET, for the same reason the bus catches its
-                // own there — "a Button has no event 'Destroy'" is true and useless, while the row says
+                // 097: a key that MOVED is caught before the key SET, for the same reason the bus catches
+                // its own there — "a Button has no event 'Destroy'" is true and useless, while the row says
                 // where the spelling went. It comes after the staleness check above, which outranks it.
-                String retired = Retired.eventKey("widget", key);
-                if(retired != null)
-                    throw new LuaError(retired);
+                String moved = Refusal.eventKey("widget", key);
+                if(moved != null)
+                    throw new LuaError(moved);
                 List<String> keys = widgetKeys(owner, w);
                 if(!keys.contains(key)) {
                     throw new LuaError("widget:on(key, fn): a " + typeName(w)
@@ -979,7 +973,7 @@ public final class LuaWidget {
             }
         });
         // ---- the builder setters (039.6, spec 039-uniform-api §2.5) -----------------------------------------
-        // The thirteen keys of the retired opts table, as verbs on the widget the builder handed back — each
+        // The thirteen builder keys, as verbs on the widget the builder handed back — each
         // with a matching bare read, so a surface's properties are readable after construction with no second
         // vocabulary. :position/:size/:parent are above (they already existed as reads); the rest are here.
         //
@@ -1097,9 +1091,8 @@ public final class LuaWidget {
         // hafen.ui():button() is the first of them — because that is the only text in the tree that is yours
         // to change. A window's caption is widget:title(s), and a widget that displays nothing refuses NAMING
         // what does, rather than failing one line later as a nil call.
-        //   040.7: entry:text(s) — the WRITE only — is retired, throwing and naming :value(s): a text entry's
-        // content has exactly one door to WRITE it through. The read stays exactly as above (best-effort,
-        // never throwing) — retiring it too would have broken the very contract this comment documents for
+        //   040.7: a text entry's content has exactly one door to WRITE it through, :value(s). The read stays
+        // exactly as above (best-effort, never throwing) — it is the contract this comment documents for
         // every OTHER widget, on the one type this feature happens to touch.
         //   061.5: AND IT ANSWERS ON A BORROWED CONTROL — a native Label, a Button's caption, a CheckBox's
         // label. There it is a LEVEL rather than a write: the stock caption is recorded at the first touch
@@ -1125,7 +1118,7 @@ public final class LuaWidget {
                     return self;
                 }
                 if(w instanceof CEntry)
-                    throw new LuaError(Retired.message("entry:text"));
+                    throw new LuaError(Refusal.message("entry:text"));
                 Owned c = ownedContent(owner, w);
                 if(c != null) {
                     Controls.text(c, w, v.tojstring());
@@ -2969,7 +2962,7 @@ public final class LuaWidget {
      * {@code setmetatable}, so a size costs two field writes and no allocation of its own. {@code .w} and
      * {@code .h} never reach it; {@code .x} and {@code .y} do, and say what a size is spelled now.
      */
-    private static final LuaTable SIZE_META = shapeMeta("size", "a size carries .w and .h");
+    private static final LuaTable SIZE_META = shapeMeta("size");
 
     /**
      * A {@code {w=,h=}} table from a {@link Coord} that is a <b>size</b> — {@code widget:size()},
@@ -2978,8 +2971,8 @@ public final class LuaWidget {
      * <b>nothing</b>, for the same reason {@link #xyTable} does not.
      *
      * <p>{@code .x} and {@code .y} on one of these <b>raise</b> naming {@code .w}/{@code .h} rather than
-     * reading {@code nil}: the keys moved under code that was already written, and {@link Retired} is what
-     * turns a silent {@code nil} into a line saying what to write.
+     * reading {@code nil}: {@link Refusal#closedFields} is what turns a silent {@code nil} into a line
+     * naming what the shape carries.
      */
     static LuaValue whTable(Coord c) {
         LuaTable t = new LuaTable();
@@ -2989,10 +2982,10 @@ public final class LuaWidget {
         return t;
     }
 
-    /** One shared metatable for an anonymous shape: {@link Retired#closedFields} under {@code __index}. */
-    static LuaTable shapeMeta(String shape, String hint) {
+    /** One shared metatable for an anonymous shape: {@link Refusal#closedFields} under {@code __index}. */
+    static LuaTable shapeMeta(String shape) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedFields(shape, hint));
+        mt.set(LuaValue.INDEX, Refusal.closedFields(shape));
         return mt;
     }
 

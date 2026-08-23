@@ -58,8 +58,8 @@ final class LuaFepEntry {
         if(owner.fepEntryMeta != null)
             return owner.fepEntryMeta;
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("fepentry", methods(),
-            "one food event answers :res() :name() :amount() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("fepentry", methods(),
+            "one food event"));
         mt.set("__name", LuaValue.valueOf("FepEntry"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

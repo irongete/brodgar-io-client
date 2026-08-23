@@ -26,8 +26,7 @@ public final class InterfaceOptions {
     public static LuaValue create(final Addon owner) {
         LuaValue iface = OptionsHandle.open("Options(interface)");
         return OptionsHandle.close(iface, "interface", methods(owner, iface),
-            "the interface options answer :scale() :posGran() and :angGran(), each reading with no argument"
-            + " and writing with one");
+            "the interface options", "each of them reads with no argument and writes with one");
     }
 
     private static LuaTable methods(final Addon owner, final LuaValue handle) {

@@ -29,9 +29,9 @@ import org.luaj.vm2.lib.VarArgFunction;
  * every verb reads live UI state ({@code UI.mc}, {@code UI.modflags()}) fresh on each call — so there is
  * nothing to go stale and nothing to tear down.
  *
- * <p><b>The old dotted read is retired by construction, not by a table.</b> {@code m.x} now finds the live
- * VERB (a function), never {@code nil} and never a number — the same outcome {@code ev:msg()} already
- * established for {@link LuaEvent} (041.2): no metamethod can tell a dot read from a colon call, so a live
+ * <p><b>The dotted read is answered by construction, not by a table.</b> {@code m.x} finds the live
+ * VERB (a function), never {@code nil} and never a number — the same shape {@link LuaEvent} has: no
+ * metamethod can tell a dot read from a colon call, so a live
  * member answers a dot read with the function it always was. What is gone is the table shape, not the name.
  *
  * <p><b>{@code :over()} is not absorbed from {@code hafen.ui():hit(x, y)}</b> — that verb takes an arbitrary
@@ -96,8 +96,8 @@ final class LuaMouse {
             }
         });
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("hafen.ui():mouse()", m,
-            "the pointer answers :x() :y() :over() :shift() :ctrl() :alt() :grab()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("hafen.ui():mouse()", m,
+            "the pointer"));
         mt.set("__name", LuaValue.valueOf("Mouse"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

@@ -123,9 +123,8 @@ public final class LuaFightSummary {
 
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("fightsummary", methods(),
-            "the fight summary answers :maxActions() :used() :deckSize() :saveCount() :activeSave() "
-            + ":exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("fightsummary", methods(),
+            "the fight summary"));
         mt.set("__name", LuaValue.valueOf("FightSummary"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

@@ -147,9 +147,8 @@ public final class LuaMapGrid {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("grid", methods(owner),
-            "one map grid answers :id() :exists() :live() :segmentCoord() :position() :segment() :tile() "
-            + ":height() :modified() :mask() :image() :overlayImage() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("grid", methods(owner),
+            "one map grid"));
         mt.set("__name", LuaValue.valueOf("Grid"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

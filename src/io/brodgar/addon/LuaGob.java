@@ -35,7 +35,7 @@ import java.util.List;
  * interned object is shared by all of the addon's own code, so it must be <b>immutable from Lua</b> (a LuaTable
  * handle could be scribbled on: {@code gob.position = nil}); userdata with no {@code __newindex} rejects writes,
  * and the raw {@link Gob} never crosses the facade. Field access is methods-only — {@code gob.id} is the
- * function, {@code gob:id()} the number, and a retired spelling ({@code gob.pos}) throws naming its replacement.
+ * function and {@code gob:id()} the number.
  *
  * <p><b>A gob is ONE OBJECT, however many characters are looking at it</b> (spec
  * {@code 079-what-the-address-left-behind}). A gob id is the <b>server's</b> and names the same thing in every
@@ -175,15 +175,13 @@ public final class LuaGob {
     // ---- the metatable ---------------------------------------------------------------------------
 
     /**
-     * The per-addon metatable: {@code __index} = the methods table through {@link Retired#closedIndex} (so
+     * The per-addon metatable: {@code __index} = the methods table through {@link Refusal#closedIndex} (so
      * an unknown verb throws naming what this type does answer), plus {@code __tostring}/{@code __name}.
      */
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("gob", methods(owner),
-            "a gob is one thing in the world: it answers :id() :exists() :sessions() :info() :position() "
-            + ":facing() :name() :health() :moving() :speed() :speech() :icon() :overlay() :scale() :party() "
-            + ":player() :kin() and :distance()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("gob", methods(owner),
+            "a gob is one thing in the world"));
         mt.set("__name", LuaValue.valueOf("Gob"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

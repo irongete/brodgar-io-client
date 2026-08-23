@@ -50,8 +50,7 @@ import static io.brodgar.addon.AddonManager.*;
  * (R7: the collection placed it, so the collection ends it). Every handle then speaks the same verbs, each a
  * read/write pair on one name: {@code :position(p [, a])}, {@code :rotate}, {@code :scale}, {@code :alpha},
  * {@code :tint}, {@code :visible}, {@code :clickable}, {@code :onClick} — plus the one or two its own kind
- * adds. Every retired spelling, {@code hafen.ghost} and {@code hafen.render} included, is a {@link Retired} row
- * naming what replaced it.
+ * adds.
  *
  * <p><b>The dispatch is a table of collections, not a branch</b> — {@link #installVr} registers each kind by
  * name, so a fourth ({@code :widget()}, 044) is one more line rather than a shape to re-open.
@@ -752,7 +751,7 @@ final class VrApi {
      * The entity a creation produced, or a {@link LuaError} naming when one can be made at all. <b>A creation
      * RAISES where a removal is inert</b> (D-114): the caller is about to chain a setter onto what comes back, so
      * answering {@code nil} turns the very next {@code :position(p)} into <i>attempt to index a nil value</i> one
-     * line later — which is the failure the retired-name table exists to prevent.
+     * line later — which is the failure the refusal exists to prevent.
      */
     private static LuaValue born(LuaWorldEntity e, String where) {
         if(e == null)
@@ -894,9 +893,9 @@ final class VrApi {
      * {@code :scale(2)} writes and hands back the handle, so a placement is one statement.
      *
      * <p>The handle table itself is left <b>empty</b> and every name is answered by the metatable, which is what
-     * lets a retired spelling ({@code :pos}, {@code :move}, {@code :show}, {@code :hide}, {@code :destroy}) throw
-     * naming its replacement instead of reading as plain {@code nil} and failing one line later — and, since the
-     * vocabulary is closed ({@link Retired#closedIndex}), lets a name that was never a verb throw too.
+     * lets a name this API answers for elsewhere throw saying what to write, instead of reading as plain
+     * {@code nil} and failing one line later — and, since the vocabulary is closed
+     * ({@link Refusal#closedIndex}), lets a name that was never a verb throw too.
      *
      * <p><b>The receiver and the collection are two names, not one</b> (084.6). For the three picture kinds
      * they are the same word; a standing widget is spelled {@code panel} as a receiver — so its refusals are its
@@ -1017,8 +1016,7 @@ final class VrApi {
                 return self;
             }
         });
-        // visible() / visible(b) -- a boolean property is a property. :show()/:hide() were two spellings of one
-        // write and are retired rows naming this.
+        // visible() / visible(b) -- a boolean property is a property, so one name carries both directions.
         m.set("visible", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -1147,9 +1145,8 @@ final class VrApi {
         // what it is a picture of, so a log line of an addon's own entities reads.
         LuaValue h = LuaValue.userdataOf(e);
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex(kind, m,
-            "a " + kind + " in the world answers :position() :offset() :rotate() :scale() :alpha() :tint() "
-            + ":visible() :clickable() :onClick() :exists() :drawn() :info()" + extraVocab));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex(kind, m,
+            "a " + kind + " in the world"));
         final String printed = Character.toUpperCase(kind.charAt(0)) + kind.substring(1);
         mt.set("__name", LuaValue.valueOf(printed));
         mt.set("__tostring", new VarArgFunction() {
@@ -1705,7 +1702,7 @@ final class VrApi {
      * {@code hafen.vr():widget():add(w, p)}.
      *
      * <p><b>Its receiver is {@code panel}, and the flat one's is {@code widget}</b> (084.6). Two types cannot
-     * share a receiver spelling and keep {@link Retired}'s promise, because the twenty-odd rows keyed
+     * share a receiver spelling and keep {@link Refusal}'s promise, because the twenty-odd rows keyed
      * {@code widget:<verb>} fire on whichever of the two is in hand and only one of the two can be right:
      * {@code widget:pos} says a widget lives on the screen and this is not a Position, which is the wrong fix
      * for a thing standing in the world, whose {@code :position()} <b>is</b> a Position. So the panel answers

@@ -131,9 +131,8 @@ public final class LuaCredo {
 
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("credo", methods(),
-            "a credo answers :name() :res() :acquired() :rank() :levelTotal() :questsDone() "
-            + ":questTotal() :questId() :exists() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("credo", methods(),
+            "a credo"));
         mt.set("__name", LuaValue.valueOf("Credo"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

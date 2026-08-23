@@ -92,7 +92,7 @@ final class HookApi {
      * Build {@code hafen.slash} for {@code owner}. From {@code installHafen}. {@code hafen.hook} is not
      * mounted at all any more (041.5): input, action, message and grab have all moved elsewhere, and a section
      * with nothing left in it is not kept around as an empty shell — reading {@code hafen.hook} throws
-     * naming where each half went ({@link Retired}).
+     * naming where each half went ({@link Refusal}).
      *
      * <p><b>The section object IS the collection of this addon's commands</b> (086.2, §2.1: a section that
      * contains exactly one thing is that thing), mounted the way {@code hafen.timer()} is. Its members are

@@ -195,9 +195,10 @@ public final class LuaRule {
         // A CLOSED vocabulary (D-072, one shape along): a misspelt property is a typo with no future
         // meaning, so it throws naming the ones that exist rather than reading nil and failing a character
         // later as "attempt to call a nil value".
-        mt.set(LuaValue.INDEX, Retired.closedIndex("rule", methods(owner),
-            "the properties a rule carries are " + Sheet.PROPS
-            + ", and its other verbs are :selector() :sheet() :release() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("rule", methods(owner),
+            "a style rule",
+            "every property is a setter that chains; :selector() :sheet() :release() and :info() are not"
+            + " properties"));
         mt.set("__name", LuaValue.valueOf("Rule"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

@@ -131,8 +131,8 @@ public final class LuaSegment {
 
     private static LuaValue buildMeta(final Addon owner) {
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("segment", methods(owner),
-            "one continuous piece of mapped ground answers :id() :exists() :grid() :markers() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("segment", methods(owner),
+            "one continuous piece of mapped ground"));
         mt.set("__name", LuaValue.valueOf("Segment"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

@@ -1691,7 +1691,7 @@ public final class AddonManager {
      * 041 — so most of what that feature found was already the exact string the corpus called. The four
      * lifecycle keys moved there, dropping the {@code On} prefix that {@code :on} already says, and 074.3
      * moved one of those again: an addon no longer enters the world, a <b>session</b> does, so the moment is
-     * {@code SessionEnteredWorld} and the spelling it replaced throws (see {@link Retired#eventKey}).
+     * {@code SessionEnteredWorld} and the spelling it replaced throws (see {@link Refusal#eventKey}).
      *
      * <p><b>The session family is four keys and one payload</b> (076.2): a {@link LuaSession}, the address
      * every read the handler goes on to make is named by. They are the vocabulary the addon layer needs now
@@ -1781,10 +1781,10 @@ public final class AddonManager {
             }
         });
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("hafen.event():" + nm + "()", m,
-            "a message stream answers one verb, :on(msg, fn), and its key set is OPEN: any message name is"
-            + " accepted, because a wdgmsg name is protocol rather than a catalogue the client owns, and"
-            + " \"*\" is every message on this stream"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("hafen.event():" + nm + "()", m,
+            "a message stream",
+            "its key set is OPEN: any message name is accepted, because a wdgmsg name is protocol rather"
+            + " than a catalogue the client owns, and \"*\" is every message on this stream"));
         mt.set("__name", LuaValue.valueOf("Stream"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue v) {
@@ -3162,7 +3162,7 @@ public final class AddonManager {
         // (that session's own GameUI.chrid, not the name `:session add` asked for), :exists() and :info().
         //   076.3: and it is the ADDRESS the first two namespaces hang off — s:world() and s:player(), each
         // minted once per (addon, session) on the interned Session handle. Both are gone from `hafen`: reading
-        // hafen.world or hafen.player throws out of Retired naming the session, which is the hard cut.
+        // hafen.world or hafen.player throws out of Refusal naming the session, which is the hard cut.
         SessionApi.installSession(hafen, owner);
 
         // hafen.gob is GONE into s:world():gob() (039.2, D-066): a gob lives IN the world, so the by-id door
@@ -3256,7 +3256,7 @@ public final class AddonManager {
         // Every one of them names ONE CHARACTER's own state, and the client holds several logins at once, so
         // the read says which: hafen.session():current():meter():list() are the bars on screen and
         // hafen.session():get(user):meter():list() are another character's. Reading `hafen.meter` at all now
-        // throws from the hafen table's own __index (Retired.hafenIndex), naming the replacement.
+        // throws from the hafen table's own __index (Refusal.hafenIndex), naming the replacement.
         //   The reads themselves did not change shape — what changed is the funnel each resolves through:
         // CharApi.charwnd(user) and AddonManager.gameui(user), the named session's own HUD, in place of the
         // drawn one. The six factories are CharApi.chr/study/buffs/meters/quests/wounds.
@@ -3368,7 +3368,7 @@ public final class AddonManager {
         // widget:send(msg, ...), where the receiver IS the target (048.6); and a petal is
         // s:flowermenu():select(label|n) (048.7, which also deleted act():enabled() — see actionsGranted
         // above). Same messages, same gate, on the things they act on; hafen.act and every one of its ten verb
-        // names throw from Retired naming the new home.
+        // names throw from Refusal naming the new home.
         // The per-subsystem protected verbs that always lived on their own subsystem (speed:current(n),
         // craft:make, slot:use, pag:use, the kin writes, flowermenu:select) share the one gate,
         // requirePermission — each asking for its own key out of the Permission catalogue.
@@ -3409,7 +3409,7 @@ public final class AddonManager {
         // no gameplay advantage — a visualization, like a HUD overlay (SAFE-tier, NOT protected; D-029/D-034). The
         // motivating use is city/base planning: lay ghost buildings over the real terrain. Everything here is
         // torn down on reload/disable/relogin (P2). It is a SCENE section only: the addon's own files come from
-        // hafen.asset (028.1). hafen.ghost and hafen.render are retired rows naming this.
+        // hafen.asset (028.1).
         VrApi.installVr(hafen, owner);
 
         // hafen.slash (WoW-style :name console commands) — L1 input, L2 action, L3 message and V5 grab have all
@@ -3515,9 +3515,9 @@ public final class AddonManager {
                 if(!nm.isstring() || !fn.isfunction())
                     throw new LuaError("hafen.event():on(key, fn) expects (string, function)");
                 String key = nm.tojstring();
-                String retired = Retired.eventKey("hafen.event()", key);
-                if(retired != null)
-                    throw new LuaError(retired);
+                String moved = Refusal.eventKey("hafen.event()", key);
+                if(moved != null)
+                    throw new LuaError(moved);
                 if(!busKey(key))
                     throw new LuaError(busKeyRefusal(key));
                 if(key.startsWith("GobOverlay"))   // 038.3: arm the two Gob seams (see `overlaySubs`)
@@ -3633,12 +3633,12 @@ public final class AddonManager {
         // Load. The table object for each name is STABLE for the addon's whole life (restore fills it in
         // place), so a cached reference stays valid. This is the one section whose ACCESS PATTERN changed
         // rather than its spelling, so the old field form throws from a per-owner __index built off the
-        // manifest (StoreApi.index) — a static retired table cannot know an addon's own variable names.
+        // manifest (StoreApi.index) — a static refusal table cannot know an addon's own variable names.
         StoreApi.installStore(hafen, owner);
 
-        // Every retired spelling throws naming its replacement rather than reading as nil (§2.10). The section
-        // tables carry their own verbs' rows; this one carries the sections whose NAME changed.
-        Retired.install(hafen);
+        // The door every section name goes through: one this table answers for throws saying what to write
+        // instead, and every other reads as plain nil, so a feature probe keeps working.
+        Refusal.install(hafen);
 
         g.set("hafen", hafen);
     }
@@ -3747,8 +3747,8 @@ public final class AddonManager {
             }
         });
         LuaTable mt = new LuaTable();
-        mt.set(LuaValue.INDEX, Retired.closedIndex("timer", m,
-            "a timer answers :cancel() :interval() :repeats() :due() :alive() and :info()"));
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("timer", m,
+            "a timer"));
         mt.set("__name", LuaValue.valueOf("Timer"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue self) {

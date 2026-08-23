@@ -30,8 +30,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * the same permission (048.5); the escape hatch is {@code widget:send(msg, ...)}, where the receiver IS the
  * target (048.6); and a petal is {@code s:flowermenu():select(label|n)} (048.7, which also deleted
  * {@code enabled()} — a running addon is granted exactly what it declared, so the question answered
- * itself). Every one of those spellings, and {@code hafen.act} itself, throws from {@link Retired} naming its
- * new home.
+ * itself).
  */
 final class ActApi {
     private ActApi() {}
@@ -57,7 +56,7 @@ final class ActApi {
      * character with none answers.
      */
     static LuaValue craft(final Addon owner, final String user) {
-        // 089/A-070: the section IS the open recipe. Every verb re-reads the window; :current() is retired.
+        // 089/A-070: the section IS the open recipe. Every verb re-reads the window.
         return Section.object("craft", LuaCraft.section(owner, user), CharApi.CR);
     }
 

@@ -135,10 +135,10 @@ for _, r in ipairs(hafen.http():list("example.com")) do r:cancel() end
 because the server answered, while a DNS, connect or timeout failure is not `ok` and `res:error()` is set.
 So check `:ok()` first and branch on `:status()` after.
 
-> **It is an object, like every other payload the API hands a handler.** It used to be a plain table, and
-> it was the one that taught the dot habit — which is a trap everywhere else, because a field read on any
-> object here answers the **method**: `if gob.name then` is always true. `res:header("content-type")` also
-> does the matching the old `res.headers` table asked you to remember it had lower-cased.
+> **It is an object, like every other payload the API hands a handler**, so every field of it is a verb.
+> Reach for the dot here and you get the **method**, never the value — a trap this API has everywhere,
+> because `if gob.name then` is always true. `res:header("content-type")` also does the header matching
+> for you: the name is matched case-insensitively, so there is nothing to remember about casing.
 
 ## Cancellation and lifecycle
 
