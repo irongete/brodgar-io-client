@@ -22,7 +22,7 @@ end
 | `locale:load(doc)` | self | replace what it says, **whole** — the [document](#the-document) is below |
 | `locale:install()` | self | make it what the client displays, and start a fresh [miss](#what-missed) round |
 | `locale:release()` | self | give the client its own words back |
-| `locale:info()` | table | `{installed = …, entries = …, surfaces = {…}, misses = …}` |
+| `locale:info()` | table | `{installed = …, entries = …, patterns = …, surfaces = {…}, misses = …}` |
 | `locale:miss()` | collection | the strings that reached a surface with no entry — [below](#what-missed) |
 
 **An addon owns exactly one catalogue**, so the document is the thing you keep and `:install()` is the
@@ -61,7 +61,9 @@ Nothing in it is a handle and nothing in it is Lua, so a translation is a JSON f
 command — which is what `hafen.json():parse` in the block at the top is doing.
 
 A document carries `text` and `pattern`, and nothing else. Anything else in it is a typo, and a typo that
-quietly did nothing is the worst answer available, so it raises naming both.
+quietly did nothing is the worst answer available, so it raises naming both. `pattern` is the half that
+reaches a string the client composed as it drew it, and it is
+[below](#patterns-the-strings-the-client-composed).
 
 ## The surfaces a catalogue names
 
@@ -87,9 +89,12 @@ plates — raises, listing the ones that do. So does `textentry`, and for a reas
 types is theirs.** No catalogue matches an entry field, an entry under `"*"` included, so a word being typed
 into a search box is never rewritten as it is typed.
 
-**Free text has no key at all.** A chat body, a kin name, an item's quality — anything the server or the
-player generated — is not a string the client chose, so nothing names it and nothing matches it. That is
-also why a catalogue keys on `button` and `menu` rather than reaching for `"*"` first.
+**Free text has no exact key.** A chat body, a kin name, an item's quality — anything the server or the
+player generated — is a different string every time, so no entry under `text` can name it. A
+[pattern](#patterns-the-strings-the-client-composed) is what reaches a string like that, by naming the
+shape around the part that varies. It is also why a catalogue keys on `button` and `menu` rather than
+reaching for `"*"` first: a pattern written wide enough to catch a line the client composed will catch
+a line the player typed as well.
 
 **A key is the string as the surface composed it.** A catalogue is asked once, at the render, with whatever
 the site had assembled by then — so a tooltip that carries a keyboard shortcut is one string with the
@@ -115,6 +120,55 @@ nothing you write: a catalogue lands beneath every foundry, so a row a resource 
 its own is keyed and answered exactly like a button caption. It does mean the wording is the
 *resource author's*, not the client's, so read the row off [`locale:miss()`](#what-missed) rather than
 typing what you think it says.
+
+## Patterns: the strings the client composed
+
+Most of what the client draws is a literal, and an exact key names it. Some of it is not — a row carrying a
+number, a line carrying a name, a caption carrying a count. That string is a different string every time, so
+no key can name it, and a **pattern** names its shape instead.
+
+`pattern` is an **ordered list**, and each member carries three properties and no others:
+
+| Property | What it is |
+|---|---|
+| `surface` | the key it is written under: one of [the surfaces above](#the-surfaces-a-catalogue-names), or `*` |
+| `match` | a regular expression, which has to match the **whole** string the client would have drawn |
+| `text` | what to draw instead, with `%1$s` where the first capture group goes |
+
+```lua
+hafen.locale():load{
+  pattern = {
+    { surface = "tooltip", match = "Quality: (\\d+)",  text = "Calidad: %1$s" },
+    { surface = "heading", match = "(\\d+) of (\\d+)", text = "%1$s de %2$s" },
+  },
+}:install()
+```
+
+A capture group is written `( )`, and an argument names the group it takes **by its number** — so `%2$s` is
+the second group wherever it stands in the display string, which is what lets a translation put the parts in
+the order its own language wants them. An argument is the only thing that is not a literal: every other
+per-cent sign is drawn as one, so `"%1$s% de calidad"` ends in a per-cent sign and not in an argument.
+
+**The order is the whole reason this half is a list.** Two patterns can describe one string, and the one
+written **first** is the one that answers. A JSON object has no order to say that in, so a `pattern` written
+as an object raises rather than picking one of the two for you.
+
+**Every exact key is consulted first** — the surface's own, then `*` — and a pattern is reached only by a
+string that no key names at all. So an exact entry is always the stronger statement, and a pattern added to a
+catalogue never changes a line it had already named. A string a pattern answered is not a
+[miss](#what-missed), exactly as a keyed one is not.
+
+A pattern is checked whole at `:load(doc)`, so a document carrying a bad one leaves your catalogue exactly as
+it was:
+
+| What raises | What the refusal says |
+|---|---|
+| a `match` that does not compile | which construction failed and where, so an unclosed `(` names its index |
+| `pattern` written as an object | that the list's order is what resolves two patterns describing one string |
+| an argument past the last group | the number it asked for, and how many groups the `match` has |
+| an unknown property in a member | that a pattern carries `surface`, `match` and `text` |
+| a missing `surface`, `match` or `text` | which one is missing, and what it is for |
+| a `surface` that draws no text, or `textentry` | the same two things [an exact key is told](#the-surfaces-a-catalogue-names) |
 
 ## What missed
 

@@ -11,6 +11,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * A <b>catalogue</b> — one addon's document of what this client <b>displays</b>, parsed once and immutable
@@ -21,6 +24,13 @@ import java.util.Map;
  * client would otherwise have drawn. That is what tells a button caption from a chat line reading the same
  * word, and it is why {@code "*"} exists — one key that answers at every surface, consulted only after the
  * named one has missed.
+ *
+ * <p><b>And a pattern reaches what the client composed.</b> A string the site assembled as it drew it — a
+ * row carrying a number, a line carrying a name — is a different string every time, so no exact key can
+ * name it. A pattern names the shape instead, and its capture groups come back through {@code %1$s}-style
+ * positional arguments. Patterns are an <b>ordered list</b>, resolved in the document's own order once every
+ * exact key has missed: two of them can describe one string, and the order is the author's answer to which
+ * of the two wins. That is why the property is an array — a JSON object has no order to say it in.
  *
  * <p><b>Immutable, and that is what keeps it off a lock.</b> {@link Fonts#display} is called from inside a
  * render; a document that could change under it would need a lock taken on the render path and held across
@@ -34,17 +44,22 @@ import java.util.Map;
 final class Catalogue {
     /** A catalogue that names nothing — what {@code load({})} builds, and what records every string that misses. */
     static final Catalogue EMPTY = new Catalogue(Collections.<String, Map<String, String>>emptyMap(),
+                                                 Collections.<Pat>emptyList(),
                                                  Collections.<String>emptyList(), 0);
 
     /** surface &rarr; the English the client would draw &rarr; what to draw instead. */
     private final Map<String, Map<String, String>> text;
+    /** The patterns, in the order the document wrote them — which is the order they are resolved in. */
+    private final List<Pat> pats;
     /** The surfaces this document names, in the order it named them — what {@code :info()} reads back. */
     private final List<String> surfaces;
-    /** How many entries it carries in total, across every surface. */
+    /** How many exact entries it carries in total, across every surface. */
     final int entries;
 
-    private Catalogue(Map<String, Map<String, String>> text, List<String> surfaces, int entries) {
+    private Catalogue(Map<String, Map<String, String>> text, List<Pat> pats, List<String> surfaces,
+                      int entries) {
         this.text = text;
+        this.pats = pats;
         this.surfaces = surfaces;
         this.entries = entries;
     }
@@ -54,11 +69,23 @@ final class Catalogue {
         return surfaces;
     }
 
+    /** How many patterns it carries — the other half of {@link #entries}, and a count of its own. */
+    int patterns() {
+        return pats.size();
+    }
+
     /**
      * What this catalogue says the client displays for {@code s} at {@code scope}, or {@code null} when it
      * names nothing for it. The surface's own key first, then {@link Fonts#EVERY} — so an entry written for
      * every surface is the fallback rather than the winner, and naming one surface exactly is always the
      * stronger statement.
+     *
+     * <p><b>Every exact key first, and the patterns only after all of them have missed.</b> This is called
+     * from inside a render, and an immediate-mode site renders its string every frame — so a scan that
+     * compiled nothing and matched nothing is what an exact hit has to cost, and a pattern is walked only
+     * for a string no key names. The patterns are then taken in the document's <b>own order</b>, {@code "*"}
+     * and a named surface alike: two patterns can describe one string, and the array is where the author
+     * said which of them wins.
      */
     String display(String scope, String s) {
         Map<String, String> m = text.get(scope);
@@ -66,7 +93,18 @@ final class Catalogue {
         if(d != null)
             return d;
         m = text.get(Fonts.EVERY);
-        return (m == null) ? null : m.get(s);
+        d = (m == null) ? null : m.get(s);
+        if(d != null)
+            return d;
+        for(int i = 0; i < pats.size(); i++) {
+            Pat p = pats.get(i);
+            if(!p.reaches(scope))
+                continue;
+            Matcher mt = p.re.matcher(s);
+            if(mt.matches())
+                return p.expand(mt);
+        }
+        return null;
     }
 
     /**
@@ -81,6 +119,7 @@ final class Catalogue {
             throw new LuaError(ctx + ": a catalogue is a table of { text = {...}, pattern = {...} }, got "
                 + doc.typename());
         Map<String, Map<String, String>> out = new LinkedHashMap<String, Map<String, String>>();
+        List<Pat> pats = new ArrayList<Pat>();
         List<String> order = new ArrayList<String>();
         int n = 0;
         LuaValue k = LuaValue.NIL;
@@ -94,17 +133,16 @@ final class Catalogue {
             if("text".equals(p)) {
                 n = parseText(ctx, v, out, order);
             } else if("pattern".equals(p)) {
-                if(!v.istable())
-                    throw new LuaError(ctx + ".pattern: expected a list of patterns, got " + v.typename());
+                parsePatterns(ctx + ".pattern", v, pats, order);
             } else {
                 throw new LuaError(ctx + ": \"" + k.tojstring() + "\" is not a catalogue property — a"
                     + " catalogue carries \"text\", the strings it names exactly, and \"pattern\", the ones"
                     + " it matches with capture groups");
             }
         }
-        if(out.isEmpty())
+        if(out.isEmpty() && pats.isEmpty())
             return EMPTY;
-        return new Catalogue(out, Collections.unmodifiableList(order), n);
+        return new Catalogue(out, Collections.unmodifiableList(pats), Collections.unmodifiableList(order), n);
     }
 
     /** The {@code text} property: surface &rarr; english &rarr; display, every key checked as it is read. */
@@ -162,6 +200,182 @@ final class Catalogue {
             n++;
         }
         return n;
+    }
+
+    /**
+     * The {@code pattern} property: the patterns, <b>in order</b>, because the order is the answer to which of
+     * two overlapping ones wins. An object could not have given one, which is why this half of a catalogue is
+     * a list and the refusal below says so rather than quietly taking the keys.
+     */
+    private static void parsePatterns(String ctx, LuaValue v, List<Pat> into, List<String> order) {
+        if(!v.istable())
+            throw new LuaError(ctx + ": expected an ordered list of patterns — { { surface = \"tooltip\","
+                + " match = \"...\", text = \"...\" } }, got " + v.typename());
+        int n = 0;
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            Varargs it = v.next(k);
+            k = it.arg1();
+            if(k.isnil())
+                break;
+            if((k.type() != LuaValue.TNUMBER) || (k.todouble() != k.toint()) || (k.toint() < 1))
+                throw new LuaError(ctx + ": \"" + k.tojstring() + "\" — the patterns are an ORDERED LIST,"
+                    + " not an object: two of them can describe one string, and a position is what says which"
+                    + " one wins. Write { { surface = \"tooltip\", match = \"...\", text = \"...\" }, ... }");
+            n++;
+        }
+        int len = v.length();
+        if(n != len)
+            throw new LuaError(ctx + ": the list runs to " + len + " and carries " + n + " patterns — a"
+                + " pattern's position IS its priority, so the list is 1..n with no gap in it");
+        for(int i = 1; i <= len; i++)
+            into.add(parsePattern(ctx + "[" + i + "]", v.get(i), order));
+    }
+
+    /** One pattern: the surface it is written under, the shape it matches, and what to draw instead. */
+    private static Pat parsePattern(String ctx, LuaValue v, List<String> order) {
+        if(!v.istable())
+            throw new LuaError(ctx + ": a pattern is { surface = \"tooltip\", match = \"...\","
+                + " text = \"...\" }, got " + v.typename());
+        String surface = null, match = null, display = null;
+        LuaValue k = LuaValue.NIL;
+        while(true) {
+            Varargs it = v.next(k);
+            k = it.arg1();
+            if(k.isnil())
+                break;
+            String p = (k.type() == LuaValue.TSTRING) ? k.tojstring() : null;
+            if("surface".equals(p))
+                surface = prop(ctx, "surface", it.arg(2));
+            else if("match".equals(p))
+                match = prop(ctx, "match", it.arg(2));
+            else if("text".equals(p))
+                display = prop(ctx, "text", it.arg(2));
+            else
+                throw new LuaError(ctx + ": \"" + k.tojstring() + "\" is not a pattern property — a pattern"
+                    + " carries \"surface\", the key it is written under, \"match\", the shape of the"
+                    + " string the client would draw, and \"text\", what to draw in its place");
+        }
+        if(surface == null)
+            throw missing(ctx, "surface", "the key it is written under, one of " + names());
+        if(match == null)
+            throw missing(ctx, "match", "the shape of the string the client would draw, capture groups and"
+                + " all");
+        if(display == null)
+            throw missing(ctx, "text", "what to draw instead, with %1$s where a capture group goes");
+        surface(ctx + ".surface", surface);
+        if(!order.contains(surface))
+            order.add(surface);
+        Pattern re;
+        try {
+            re = Pattern.compile(match);
+        } catch(PatternSyntaxException e) {
+            throw new LuaError(ctx + ".match: \"" + match + "\" is not a pattern this client can read — "
+                + e.getDescription() + " at index " + e.getIndex() + ". A capture group is written ( ... ) and"
+                + " every one that opens has to close");
+        }
+        return Pat.make(ctx, surface, match, re, display);
+    }
+
+    /** A pattern's property, which is a string in all three cases, or the refusal that says so. */
+    private static String prop(String ctx, String name, LuaValue v) {
+        if(v.type() != LuaValue.TSTRING)
+            throw new LuaError(ctx + "." + name + ": expected a string, got " + v.typename());
+        return v.tojstring();
+    }
+
+    /** A pattern is three properties and needs all three: none of them has a sane default to fall back on. */
+    private static LuaError missing(String ctx, String name, String what) {
+        return new LuaError(ctx + ": a pattern needs \"" + name + "\" — " + what);
+    }
+
+    /**
+     * One pattern, compiled: the surface it is written under, the expression, and the display string cut into
+     * the literal pieces around its {@code %1$s} arguments.
+     *
+     * <p><b>The template is cut at load rather than at the render</b>, and its arguments are checked against
+     * the expression's own group count there too — a {@code %3$s} over two groups is a mistake the author
+     * can only be told about at {@code :load}, since a render has nowhere to say it and would have to draw
+     * <i>something</i>.
+     *
+     * <p><b>An argument is the only thing that is not a literal.</b> Every other per-cent sign is drawn as
+     * one, because a translation says "50% quality" far more often than it names an argument, and a
+     * formatter that took the whole string would refuse that line rather than draw it.
+     */
+    private static final class Pat {
+        /** The locale key, or {@link Fonts#EVERY} — which reaches every surface, as it does for an exact key. */
+        private final String surface;
+        private final Pattern re;
+        /** The literal pieces of the display string; one more of these than there are arguments. */
+        private final String[] lits;
+        /** The capture group each gap between two literals takes. */
+        private final int[] args;
+
+        private Pat(String surface, Pattern re, String[] lits, int[] args) {
+            this.surface = surface;
+            this.re = re;
+            this.lits = lits;
+            this.args = args;
+        }
+
+        /** Cut {@code display} at its arguments, refusing one the expression has no group for. */
+        static Pat make(String ctx, String surface, String match, Pattern re, String display) {
+            int groups = re.matcher("").groupCount();
+            List<String> lits = new ArrayList<String>();
+            List<Integer> args = new ArrayList<Integer>();
+            StringBuilder lit = new StringBuilder();
+            int i = 0;
+            while(i < display.length()) {
+                char c = display.charAt(i);
+                if(c != '%') {
+                    lit.append(c);
+                    i++;
+                    continue;
+                }
+                int j = i + 1;
+                while((j < display.length()) && (display.charAt(j) >= '0') && (display.charAt(j) <= '9'))
+                    j++;
+                if((j == i + 1) || (j + 1 >= display.length()) || (display.charAt(j) != '$')
+                   || (display.charAt(j + 1) != 's')) {
+                    lit.append(c);           // an ordinary per-cent sign, and it stays one
+                    i++;
+                    continue;
+                }
+                String num = display.substring(i + 1, j);
+                long n = 0;
+                for(int q = 0; (q < num.length()) && (n <= 1000000); q++)
+                    n = (n * 10) + (num.charAt(q) - '0');
+                if((n < 1) || (n > groups))
+                    throw new LuaError(ctx + ".text: %" + num + "$s asks for capture group " + num + ", and"
+                        + " \"" + match + "\" has " + groups + " — an argument names the group it takes,"
+                        + " so %1$s is the first ( ... ) in the match and there is no argument past the last"
+                        + " one");
+                lits.add(lit.toString());
+                lit.setLength(0);
+                args.add(Integer.valueOf((int)n));
+                i = j + 2;
+            }
+            lits.add(lit.toString());
+            int[] a = new int[args.size()];
+            for(int q = 0; q < a.length; q++)
+                a[q] = args.get(q).intValue();
+            return new Pat(surface, re, lits.toArray(new String[0]), a);
+        }
+
+        /** Is this pattern written at {@code scope}? {@link Fonts#EVERY} reaches every surface. */
+        boolean reaches(String scope) {
+            return Fonts.EVERY.equals(surface) || surface.equals(scope);
+        }
+
+        /** The display string for a match: the literals, with each argument's group between them. */
+        String expand(Matcher m) {
+            StringBuilder sb = new StringBuilder(lits[0]);
+            for(int i = 0; i < args.length; i++) {
+                String g = m.group(args[i]);
+                sb.append((g == null) ? "" : g).append(lits[i + 1]);
+            }
+            return sb.toString();
+        }
     }
 
     /**

@@ -44,7 +44,7 @@ every readback answer English: without `:miss()` nothing in this feature is mach
       `[manual]`: hover an inventory item twice when the suite asks — expect the second tooltip's first row
       in the catalogue's words.
 
-- [ ] **102.4 — patterns.** `pattern` is an array of `{surface, match, text}`, resolved in the array's own
+- [x] **102.4 — patterns.** `pattern` is an array of `{surface, match, text}`, resolved in the array's own
       order after every exact key has missed, with `%1$s`-style positional arguments substituted from the
       capture groups. A malformed pattern raises at `:load`, naming the group that did not close.
       *Its suite* installs two patterns that both match one composed string and asserts the **first** wins,

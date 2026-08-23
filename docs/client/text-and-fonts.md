@@ -121,6 +121,11 @@ own party line is `(192, 192, 255)`, not a party colour. And `PrivChat`'s error 
   `BuddyWnd.Buddy.rnamesrc`, `Fightsess.acttipsrc`, `ILabel.texts`, `SListWidget.TextItem`/`IconText`'s
   `textsrc`. `ChatUI.Selector.DarkChannel.rname` needs none — `namedeco` rebuilds the `Text` around the
   channel's own name, so what it holds is the source already.
+- **A `Label` is exactly as wide as the string it drew.** Its private `mktext` renders and every caller
+  follows with `resize(text.sz())` — the constructor, `settext` and `restyle` alike — so `Widget.sz`
+  on one is the raster's own measurement and nothing else's. It is the one place the string that reached the
+  screen is readable from outside the render, `Text.text` aside, and the only widget of which that is true:
+  a `Button` is the width its own constructor was handed, whatever its caption says.
 - ⚠️ **An ellipsis measured on the raster must be cut out of the raster's string.** `charat(x)` indexes the
   string that was **drawn**, so taking the substring out of the source indexes one string with an offset
   measured in another — and a display string longer than the English runs past the end. `Foundry.ellipsize`,

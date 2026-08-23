@@ -1,0 +1,9 @@
+{
+  "name": "102.4 — patterns",
+  "id": "102-translation.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 102.4: a catalogue's patterns are an ordered list resolved after every exact key has missed, with %1$s-style arguments taking the capture groups by number.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
