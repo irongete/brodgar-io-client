@@ -62,6 +62,16 @@ the approval: the maintainer only runs it after verifying, so do not ask again. 
      becomes a task or a line before this runs again. *A feature ships whole; what it leaves undone
      about itself is the premise of the next one, and a queue that only grows.*
 
+   **What the folder already decides is not open — it is closed, and it closes here.** Before
+   anything is called undecided and stops this, put it against `plan.md`'s *Discarded alternatives*,
+   `spec.md`'s acceptance criteria and its *out of scope*, the checked-off lines of `tasks.md`, and
+   the API grammar in `CLAUDE.md`. A gap a shipped task already delivered, or a boundary the spec
+   already drew, is **decided**: close over it and say nothing about it. What survives stops the
+   close **quoting the sentence that came closest and saying what it leaves open**; where there is no
+   such sentence to quote, nothing stands open. Holding a verified task back over a question the
+   folder answers costs the maintainer a round trip to answer it out of a file this context had open,
+   and this command counts that exactly as it counts closing over a real gap.
+
    The `NNN-` folder then stays exactly where it is and is frozen — nothing is appended, nothing is
    archived, no index is updated. It is done because no box is unchecked, which is derived.
 
