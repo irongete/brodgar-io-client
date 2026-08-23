@@ -87,6 +87,7 @@ with their reason, not grown.
 | `src/haven/Label.java` | 1, 2 |
 | `src/haven/Button.java` | 1, 2 |
 | `src/haven/Window.java`, `ChatUI.java`, `TextEntry.java` | 2 |
+| `src/haven/Widget.java`, `UILoop.java` | 2, 3 |
 | `src/haven/ItemInfo.java`, `MenuGrid.java`, `res/ui/tt/slots_alt/ISlots.java` | 3 |
 | `src/haven/FlowerMenu.java` | 2, 4 |
 | `src/io/brodgar/addon/Sheet.java`, `LuaSheet.java` | 1, 4 |
@@ -96,3 +97,6 @@ with their reason, not grown.
 | `src/io/brodgar/addon/LuaWidget.java`, `src/haven/CheckBox.java` | 2 |
 | `docs/addons/api/locale.md` | 2, 3, 4, 5 |
 | `docs/addons/api/ui/style/README.md`, `DOCUMENTATION.md` | 5 |
+| `docs/client/text-and-fonts.md` — where every scope pair and both display seams are mapped | 3, 4, 5 |
+| `docs/addons/runtime.md`, `menugrid.md`, `ui/edit.md`, `ui/widget.md` — the impact set still to discharge | 5 |
+| `docs/addons/api/README.md`, `docs/addons/guides/README.md` — the two index rows | 5 |

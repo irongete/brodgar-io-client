@@ -828,6 +828,12 @@ public class RichText extends Text {
 	 * is active, deriving FAMILY+SIZE off itself (so its own markup keeps working and its other default
 	 * attributes are inherited). A no-op outside a composition, and `noresolve` stops the derived one recursing. */
 	boolean noresolve = false;
+	/* addon: (102.2) this foundry renders a string that has ALREADY been through Fonts.display -- it is the
+	 * private wrap foundry a Text.Foundry keeps (Text.Foundry.renderwrap), whose document is the caption
+	 * wrapped in $col markup of the caller's own making. Asking the catalogue about THAT string could only
+	 * miss, and a miss is what an author reads back, so the pair would be reported as a surface to translate
+	 * and spelled as markup. It rides along to the derived twin below, which is the one that renders. */
+	boolean nodisplay = false;
 	private Foundry rfnd = null;
 	private int rgen = -1;
 	private Foundry resolved() {
@@ -850,6 +856,7 @@ public class RichText extends Text {
 				     TextAttribute.FOREGROUND, col))
 			.aa(st.aa(aa));
 		    rfnd.noresolve = true;
+		    rfnd.nodisplay = nodisplay;   // addon: (102.2) the derived twin is what renders -- see nodisplay
 		}
 		rgen = g;
 		rscope = sc;
@@ -871,6 +878,16 @@ public class RichText extends Text {
 	    Foundry rf = resolved();   // addon: (F3d)
 	    if(rf != this)
 		return(rf.render(doc, width));
+	    /* addon: (102.2) the RichText twin of the seam in Text.Foundry.render: an addon's catalogue says what
+	     * this client DISPLAYS for the document, at the scope the site declared (Fonts.enter). It is the SOURCE
+	     * of the document that is asked -- markup and all -- because that is the string a rich site composed,
+	     * and a run of it is a fragment no author could key on. `RichText.text` is therefore the document that
+	     * was DRAWN, exactly as `Text.Line.text` is the line that was. */
+	    if(!nodisplay) {
+		String dtext = Fonts.display(Fonts.scope(), doc.text);
+		if(dtext != doc.text)
+		    doc = new Document(dtext, doc.attrs);
+	    }
 	    Part fp = parser.parse(doc.text, doc.attrs);
 	    fp.prepare(rs);
 	    fp = layout(fp, width);

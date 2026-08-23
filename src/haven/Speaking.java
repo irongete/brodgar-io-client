@@ -55,16 +55,28 @@ public class Speaking extends GAttrib implements RenderTree.Node, PView.Render2D
 	return(Fonts.foundry("world.speech", Text.std));
     }
 
+    /* addon: (102.2) the one place a bubble becomes a raster, and so where it declares "world.speech": an
+     * addon's catalogue reaches what a character is made to say by name. What a PLAYER said is the server's
+     * words and is never named by anything; what the game puts in a bubble is the client's. */
+    private Text render(String text) {
+	Fonts.enter("world.speech");
+	try {
+	    return(font().render(text, Color.BLACK));
+	} finally {
+	    Fonts.exit();
+	}
+    }
+
     public Speaking(Gob gob, float zo, String text) {
 	super(gob);
 	this.zo = zo;
 	this.str = text;                                 // addon: (F4) the recipe, for a re-render on a gen move
-	this.text = font().render(text, Color.BLACK);    // addon: (F4) was Text.render(...) = the "default" scope
+	this.text = render(text);                        // addon: (F4) was Text.render(...) = the "default" scope
     }
 
     public void update(String text) {
 	this.str = text;                                 // addon: (F4)
-	this.text = font().render(text, Color.BLACK);    // addon: (F4)
+	this.text = render(text);                        // addon: (F4)
     }
 
     /* addon: (F4) re-render this bubble when a font override moved the generation. */
@@ -72,7 +84,7 @@ public class Speaking extends GAttrib implements RenderTree.Node, PView.Render2D
 	int gen = Fonts.gen();
 	if((fontgen != gen) && (str != null)) {
 	    fontgen = gen;
-	    this.text = font().render(str, Color.BLACK);
+	    this.text = render(str);
 	}
     }
 

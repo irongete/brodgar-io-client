@@ -243,7 +243,14 @@ public abstract class UILoop implements Console.Directory {
 		} else if(tooltip instanceof String) {
 		    if(((String)tooltip).length() > 0) {
 			// addon: the "tooltip" scope (F3d) -- was Text.render(...), i.e. the "default" scope.
-			Tex r = new TexI(Fonts.foundry("tooltip", Text.std).render((String)tooltip, Text.white).img, false);
+			// (102.2) ...declared with the pair as well, so a catalogue reaches a plain-string tip.
+			Fonts.enter("tooltip");
+			Tex r;
+			try {
+			    r = new TexI(Fonts.foundry("tooltip", Text.std).render((String)tooltip, Text.white).img, false);
+			} finally {
+			    Fonts.exit();
+			}
 			tt = () -> r;
 			free = r;
 		    }

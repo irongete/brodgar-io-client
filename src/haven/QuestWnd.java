@@ -112,10 +112,13 @@ public class QuestWnd extends Widget {
 		    public void tick(double dt) {
 			if(img == null) {
 			    try {
-				title = (done == QST_DONE ? CharWnd.catfont() : CharWnd.failfont()).render(title()).tex();   // addon: the "heading" font scope (F3e, D-043)
+				// addon: (102.2) both renders declare the "heading" scope, so a catalogue reaches the
+				// popup's caption and its verdict line by name (the title itself is the quest's, which
+				// is the server's words -- and so is never named by anything).
+				title = Fonts.render("heading", done == QST_DONE ? CharWnd.catfont() : CharWnd.failfont(), title()).tex();   // addon: the "heading" font scope (F3e, D-043)
 				img = res.get().flayer(Resource.imgc).tex();
-				msg = (done == QST_DONE) ? CharWnd.catfont().render("Quest completed").tex()
-						 : CharWnd.failfont().render("Quest failed").tex();   // addon: the "heading" font scope (F3e, D-043)
+				msg = (done == QST_DONE) ? Fonts.render("heading", CharWnd.catfont(), "Quest completed").tex()
+						 : Fonts.render("heading", CharWnd.failfont(), "Quest failed").tex();   // addon: the "heading" font scope (F3e, D-043)
 				/*
 				resize(new Coord(Math.max(img.sz().x + 25 + title.sz().x, msg.sz().x),
 						 Math.max(img.sz().y, title.sz().y) + 25 + msg.sz().y));

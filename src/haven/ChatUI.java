@@ -302,7 +302,17 @@ public class ChatUI extends Widget {
 	    public Text text() {
 		lseen = ui.lasttick;
 		if(text == null) {
-		    text = data().get();
+		    /* addon: (102.2) the ONE place a line becomes a raster, whichever Message subclass built it and
+		     * whenever the Indir is finally pulled -- so this is where the line's own key is declared and an
+		     * addon's catalogue reaches a System notice, a private message or a party line by name. The key
+		     * is the line's, not the channel's: `scope()` is the kind's when the kind names one (065.16).
+		     * The Message and its text are untouched, so nothing that reads the chat back changes. */
+		    Fonts.enter(msg.scope());
+		    try {
+			text = data().get();
+		    } finally {
+			Fonts.exit();
+		    }
 		} else {
 		    sunlink();
 		}
@@ -1336,7 +1346,8 @@ public class ChatUI extends Widget {
 	}
 
 	public Text nmrender(String name, Color col) {
-	    return(namedeco(name, tfont().render(name).img, col));   // addon: the "chat" scope (F3d)
+	    // addon: (102.2) ...and so does the same name rendered anywhere else in the selector.
+	    return(namedeco(name, Fonts.render("chat", tfont(), name).img, col));   // addon: the "chat" scope (F3d)
 	}
 
 	public int chidx(Channel chan) {
@@ -1378,11 +1389,23 @@ public class ChatUI extends Widget {
 		    rname = null;
 		}
 		fontgen = fgen;   // addon:
+		// addon: (102.2) `rname.text` is the channel's own name here -- namedeco rebuilds the Text
+		// around it -- so this guard is against the source already and a catalogue cannot break it.
 		if((rname == null) || !rname.text.equals(name) || (urgency != urg)) {
-		    Text.Line raw = tfont().render(name);   // addon: the "chat" scope (F3d)
-		    if(raw.sz().x > maxnmw) {
-			int len = raw.charat(maxnmw - ellw);
-			raw = tfont().render(name.substring(0, len) + "...");   // addon:
+		    /* addon: (102.2) a channel tab is chat text and declares "chat", so a catalogue reaches the
+		     * names the CLIENT chose (a private tab is named after a player, which nothing names). The
+		     * ellipsis is then cut out of `raw.text`, the string the raster is OF: measuring an offset in
+		     * one string and taking it out of another indexes past the end of the shorter. */
+		    Fonts.enter("chat");
+		    Text.Line raw;
+		    try {
+			raw = tfont().render(name);   // addon: the "chat" scope (F3d)
+			if(raw.sz().x > maxnmw) {
+			    int len = raw.charat(maxnmw - ellw);
+			    raw = tfont().render(raw.text.substring(0, len) + "...");   // addon:
+			}
+		    } finally {
+			Fonts.exit();
 		    }
 		    BufferedImage img = raw.img;
 		    rname = namedeco(name, img, urgcol(urgency = urg, uc));   // addon: the "chat.urgent" sequence (065.16)
@@ -1590,14 +1613,30 @@ public class ChatUI extends Widget {
     private Text.Line rqline = null;
     private int rqpre;
     private int rqgen = -1;   // addon: Fonts.gen() at the last rqline render (F3d)
+    /* addon: (102.2) the composed line `rqline` was rendered FROM. The guard beneath used to compare the
+     * BUFFER against `rqline.text`, which also carries the channel prompt -- so it never matched and the
+     * quick line was re-rendered, and re-textured, on every single frame it was open. Under a catalogue
+     * that also meant a miss recorded per frame, spelling out every prefix of what was being typed. */
+    private String rqsrc = null;
     public void drawsmall(GOut g, Coord br, int h) {
 	Coord c;
 	if(qline != null) {
 	    // addon: re-render the typed quick line when a "chat" font override moves (F3d)
-	    if((rqline == null) || !qline.buf.lneq(rqline.text) || (rqgen != Fonts.gen())) {
+	    String pre = String.format("%s> ", qline.chan.name());
+	    String qsrc = pre + qline.buf.line();   // addon: (102.2) the line as composed -- see rqsrc
+	    if((rqline == null) || !qsrc.equals(rqsrc) || (rqgen != Fonts.gen())) {
 		rqgen = Fonts.gen();   // addon:
-		String pre = String.format("%s> ", qline.chan.name());
-		rqline = qfnd().render(pre + qline.buf.line());   // addon: the "chat" scope (F3d)
+		/* addon: (102.2) the quick line declares "chat", which is the surface it IS -- it lives in the chat
+		 * window and is built from the chat's own recipe -- and declares in the same breath that what it
+		 * DRAWS is the line the player is typing. So a theme goes on styling it as chat while no catalogue
+		 * can rewrite a word as it is typed, nor report one as a string to translate. */
+		Fonts.enterTyped("chat");
+		try {
+		    rqline = qfnd().render(qsrc);   // addon: the "chat" scope (F3d)
+		} finally {
+		    Fonts.exit();
+		}
+		rqsrc = qsrc;          // addon: (102.2)
 		rqpre = pre.length();
 	    }
 	    int point = qline.buf.point(), mark = qline.buf.mark();

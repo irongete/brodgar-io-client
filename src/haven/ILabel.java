@@ -29,11 +29,14 @@ package haven;
 public class ILabel extends Widget {
     public final Text.Furnace f;
     public Text text;
+    /* addon: (102.2) the caption this label was WRITTEN. `text.text` is the string it DREW, and a
+     * catalogue makes the two different -- so both the read below and its guard take this instead. */
+    private String texts;
 
     public ILabel(String text, Text.Furnace f) {
 	super(Coord.z);
 	this.f = f;
-	this.text = f.render(text);
+	this.text = f.render(texts = text);
 	resize(this.text.sz());
     }
 
@@ -42,14 +45,16 @@ public class ILabel extends Widget {
     }
 
     public String text() {
-	return(text.text);
+	return(texts);   // addon: (102.2) the caption this label was WRITTEN, not the string it drew
     }
 
     public void settext(String text) {
-	if(text.equals(this.text.text))
+	// addon: (102.2) ...and the guard compares that same field, exactly as Label.settext does: an
+	// unchanged write measured against the raster would stop short-circuiting under a catalogue.
+	if(text.equals(this.texts))
 	    return;
 	this.text.dispose();
-	this.text = f.render(text);
+	this.text = f.render(texts = text);
 	resize(this.text.sz());
     }
 

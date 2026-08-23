@@ -36,6 +36,11 @@ public class CheckBox extends ACheckBox {
     // addon: public, not package-private (spec 040-ui-controls, task 040.4) -- LuaWidget's best-effort
     // :text() read matches Button's own public `text` field; see settext() below for the write half.
     public Text lbl;
+    /* addon: (102.2) the caption this box was WRITTEN. `lbl.text` is the string that was drawn, and a
+     * catalogue makes the two different strings -- so the API's :text() read answers this, exactly as a
+     * Button's answers `rtext` and a Label's `texts`. Empty is the client's own "no caption", where `lbl`
+     * is null and there is nothing to read off a raster at all. */
+    public String lbls;
 
     @RName("chk")
     public static class $_ implements Factory {
@@ -47,6 +52,7 @@ public class CheckBox extends ACheckBox {
     }
 
     public CheckBox(String lbl, boolean lg) {
+	this.lbls = lbl;   // addon: (102.2)
 	this.lbl = (lbl.length() > 0) ? Text.std.render(lbl, java.awt.Color.WHITE) : null;
 	if(lg) {
 	    box = lbox; mark = lmark;
@@ -71,6 +77,7 @@ public class CheckBox extends ACheckBox {
     public void settext(String s) {
 	if(lbl != null)
 	    lbl.dispose();
+	lbls = s;   // addon: (102.2)
 	lbl = (s.length() > 0) ? Text.std.render(s, java.awt.Color.WHITE) : null;
 	Coord nsz = (lbl != null)
 	    ? Coord.of(box.sz().x + UI.scale(5) + lbl.sz().x, Math.max(box.sz().y, lbl.sz().y))

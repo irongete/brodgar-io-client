@@ -1,0 +1,9 @@
+{
+  "name": "102.2 — the client's own text sites",
+  "id": "102-translation.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 102.2: every client surface a catalogue reaches declares its own key, what the user types reaches none of them, and every readback is still the client's English.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

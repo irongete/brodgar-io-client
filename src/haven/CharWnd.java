@@ -91,7 +91,9 @@ public class CharWnd extends Window {
 	private int fontgen;
 
 	public Heading(String text, Supplier<Text.Furnace> fnd) {
-	    this(text, fnd, fnd.get().render(text).tex());
+	    // addon: (102.2) rendered UNDER "heading", so an addon's catalogue reaches a section caption by name.
+	    // The pair goes around the FURNACE, beneath the relief and the halo it is carved out of.
+	    this(text, fnd, Fonts.render("heading", fnd.get(), text).tex());
 	}
 
 	private Heading(String text, Supplier<Text.Furnace> fnd, Tex tex) {
@@ -105,7 +107,7 @@ public class CharWnd extends Window {
 	    if(gen != fontgen) {
 		fontgen = gen;
 		Tex old = cur;
-		setimg(cur = fnd.get().render(text).tex());
+		setimg(cur = Fonts.render("heading", fnd.get(), text).tex());   // addon: (102.2) see the constructor
 		if(old != null)
 		    old.dispose();
 	    }

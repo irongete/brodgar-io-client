@@ -213,9 +213,16 @@ public class Text implements Disposable {
 		return(f.renderwrap(text, c, width));
 	    if(fixcol != null)
 		c = fixcol;            // addon: (033.2) the sheet's colour for this surface outranks the caller's
-	    if(wfnd == null)
+	    if(wfnd == null) {
 		wfnd = new RichText.Foundry(font, defcol);
+		wfnd.nodisplay = true;   // addon: (102.2) the display below is this method's -- see the comment
+	    }
 	    wfnd.aa = aa;
+	    /* addon: (102.2) a WRAPPED caption is displayed here rather than down in the rich foundry, and it has
+	     * to be: what that foundry would be asked about is the caption already quoted and wrapped in this
+	     * method's own $col markup, which is nothing a catalogue could be keyed on. So the catalogue answers
+	     * the caption, and the markup is built around what it answered. */
+	    text = Fonts.display(Fonts.scope(), text);
 	    text = RichText.Parser.quote(text);
 	    if(c != null)
 		text = String.format("$col[%d,%d,%d,%d]{%s}", c.getRed(), c.getGreen(), c.getBlue(), c.getAlpha(), text);

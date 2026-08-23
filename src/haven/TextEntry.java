@@ -175,7 +175,16 @@ public class TextEntry extends Widget implements ReadLine.Owner {
 	    redraw();
 	Text.Line tcache = this.tcache;
 	if(tcache == null) {
-	    this.tcache = tcache = tfont().render(dtext(), (dshow && dirty) ? dirtycol : defcol);   // addon: was `fnd.render(...)`
+	    /* addon: (102.2) a field declares "textentry", which is the one scope Fonts.display refuses outright --
+	     * an entry written under "*" included. Without the pair the render would resolve under "default" and a
+	     * "*" catalogue would rewrite a word as the user typed it, which is the whole reason the key does not
+	     * exist. The style half is unaffected: tfont() is already the provider's product for this scope. */
+	    Fonts.enter("textentry");
+	    try {
+		this.tcache = tcache = tfont().render(dtext(), (dshow && dirty) ? dirtycol : defcol);   // addon: was `fnd.render(...)`
+	    } finally {
+		Fonts.exit();
+	    }
 	    this.tcgen = Fonts.gen();   // addon:
 	}
 	// addon: (065.9) the rule's own surface and frame, and the room its padding keeps between the two and

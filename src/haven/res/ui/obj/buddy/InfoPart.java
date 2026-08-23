@@ -30,8 +30,16 @@ public interface InfoPart {
 	return(Fonts.foundry("world.nick", fnd));
     }
 
+    /* addon: (102.2) every part that draws its text goes through here, so this is where the label declares
+     * "world.nick" and an addon's catalogue reaches a floating name by name. A player's OWN name is the
+     * server's word and nothing names it; a title or a group the client itself writes is the client's. */
     public static BufferedImage rendertext(String str, Color col) {
-	return(rasterimg(blurmask2(fnd().render(str, col).img.getRaster(), UI.rscale(1.0), UI.rscale(1.0), Color.BLACK)));   // addon: (F4) was fnd.render(...)
+	Fonts.enter("world.nick");
+	try {
+	    return(rasterimg(blurmask2(fnd().render(str, col).img.getRaster(), UI.rscale(1.0), UI.rscale(1.0), Color.BLACK)));   // addon: (F4) was fnd.render(...)
+	} finally {
+	    Fonts.exit();
+	}
     }
 }
 

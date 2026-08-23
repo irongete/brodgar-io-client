@@ -115,7 +115,16 @@ public abstract class ConsoleHost extends Widget implements Console.Host, ReadLi
     public void drawcmd(GOut g, Coord c) {
 	if(cmdline != null) {
 	    if((cmdtext == null) || !cmdline.lneq(cmdtextf) || (cmdgen != Fonts.gen())) {   // addon: re-render on a font change (F3c)
-		cmdtext = cmdfont().render(":" + (cmdtextf = cmdline.line()));   // addon: was `cmdfoundry.render(...)`
+		/* addon: (102.2) the console line declares "textentry", the scope it is already styled at and the
+		 * one Fonts.display refuses outright -- so the command being typed is neither matched by a
+		 * catalogue nor reported as a string somebody could translate. Without the pair it would resolve
+		 * under "default", where an entry written under "*" reaches everything. */
+		Fonts.enter("textentry");
+		try {
+		    cmdtext = cmdfont().render(":" + (cmdtextf = cmdline.line()));   // addon: was `cmdfoundry.render(...)`
+		} finally {
+		    Fonts.exit();
+		}
 		cmdgen = Fonts.gen();   // addon:
 	    }
 	    int point = cmdline.point(), mark = cmdline.mark();

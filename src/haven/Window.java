@@ -238,6 +238,10 @@ public class Window extends Widget {
 	public boolean platestyled;   // addon: (065.4) did the last frame paint it from a RULE?
 	public Text cap = null;
 	private int capgen = -1;   // addon: Fonts.gen() at the last `cap` render — re-render the caption when the font override moves
+	/* addon: (102.2) the caption `cap` was rendered FROM -- the window's own English. `cap.text` is what was
+	 * drawn, and a catalogue makes the two different strings, so the guard below would never short-circuit
+	 * again and every frame would re-render (and re-texture) the caption. */
+	private String capsrc = null;
 
 	public DefaultDeco(boolean lg) {
 	    this.lg = lg;
@@ -307,8 +311,12 @@ public class Window extends Widget {
 	    Window wnd = (Window)parent;
 	    checktitlefont();          // addon: rebuild the title furnaces if the "window.title" font override moved
 	    int fg = Fonts.gen();      // addon:
-	    if((cap == null) || (cap.text != wnd.cap) || (cfocus != wnd.hasfocus) || (capgen != fg)) {  // addon: capgen -> re-render caption on a font change
-		cap = (wnd.cap == null) ? null : ((cfocus = wnd.hasfocus) ? cf : ncf).render(wnd.cap);
+	    if((cap == null) || (capsrc != wnd.cap) || (cfocus != wnd.hasfocus) || (capgen != fg)) {  // addon: capgen -> re-render caption on a font change; capsrc -> the caption we were WRITTEN (102.2)
+		// addon: (102.2) the caption is rendered UNDER "window.title", so an addon's catalogue reaches it by
+		// name. The pair wraps the whole furnace stack: translation lands at the raster, beneath the relief
+		// and the halo, so what a rule embosses is whatever this client displays.
+		cap = (wnd.cap == null) ? null : Fonts.render("window.title", (cfocus = wnd.hasfocus) ? cf : ncf, wnd.cap);
+		capsrc = wnd.cap;      // addon: (102.2)
 		capgen = fg;           // addon:
 		cmw = (cap == null) ? 0 : cap.sz().x;
 		cmw = Math.max(cmw, this.sz.x / 4);

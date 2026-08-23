@@ -1983,7 +1983,14 @@ public class Widget {
 			    else
 				text = title + "\n\n" + pag.text;
 			}
-			rend = tipfoundry().render(text, UI.scale(300)).tex();   // addon: the "tooltip" scope (F3d)
+			// addon: (102.2) rendered UNDER "tooltip", so a catalogue reaches a pagina tip by name. The
+			// composed title + body is one document and so one key, which is what a pattern is for.
+			Fonts.enter("tooltip");
+			try {
+			    rend = tipfoundry().render(text, UI.scale(300)).tex();   // addon: the "tooltip" scope (F3d)
+			} finally {
+			    Fonts.exit();
+			}
 		    } catch(Loading l) {
 			return(null);
 		    }
@@ -2044,7 +2051,15 @@ public class Widget {
 		    else
 			tip = String.format("Keyboard shortcut: $col[255,255,0]{%s}", RichText.Parser.quote(key.name()));
 		}
-		rend = (tip == null) ? null : tipfoundry().render(tip, w).tex();   // addon: the "tooltip" scope (F3d)
+		// addon: (102.2) ...and so is the settip()-backed tip every widget hands out -- the surface a
+		// `w:tooltip(s)` writes. The key is the string as COMPOSED: a tip with a keybind carries the
+		// binding's own markup, and a bare one is the tip verbatim.
+		Fonts.enter("tooltip");
+		try {
+		    rend = (tip == null) ? null : tipfoundry().render(tip, w).tex();   // addon: the "tooltip" scope (F3d)
+		} finally {
+		    Fonts.exit();
+		}
 		hrend = true;
 		rkey = key;
 	    }

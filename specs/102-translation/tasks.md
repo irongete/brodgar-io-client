@@ -19,7 +19,7 @@ every readback answer English: without `:miss()` nothing in this feature is mach
       text; `textentry`, saying what the user types is never matched; an unknown property, naming `text`
       and `pattern`; and `:load(nil)`.
 
-- [ ] **102.2 — the client's own text sites.** The `Fonts.enter`/`exit` pair at `window.title`
+- [x] **102.2 — the client's own text sites.** The `Fonts.enter`/`exit` pair at `window.title`
       (`Window.DefaultDeco`), `heading`, `tooltip`, `menu` (`FlowerMenu`), `chat` and its four kinds
       (`ChatUI.Message.scope()` already answers), `world.nick` and `world.speech`. `Fonts.display` refuses
       the `textentry` scope outright, so even a `*` entry leaves what the user types alone.

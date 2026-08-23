@@ -278,6 +278,7 @@ public class Fightsess extends Widget {
 
     private Widget prevtt = null;
     private Text acttip = null;
+    private String acttipsrc = null;   // addon: (102.2) the tip `acttip` was rendered FROM -- see mktip
     private int acttipgen = -1;   // addon: Fonts.gen() at the last acttip render (F3d)
     public static final String[] keytips = {"1", "2", "3", "4", "5", "Shift+1", "Shift+2", "Shift+3", "Shift+4", "Shift+5"};
     public Object tooltip(Coord c, Widget prev) {
@@ -314,9 +315,10 @@ public class Fightsess extends Widget {
 		    String tip = act.get().flayer(Resource.tooltip).t;
 		    if(kb_acts[i].key() != KeyMatch.nil)
 			tip += " ($b{$col[255,128,0]{" + kb_acts[i].key().name() + "}})";
-		    if((acttip == null) || !acttip.text.equals(tip) || (acttipgen != Fonts.gen())) {   // addon: (F3d)
+		    // addon: (102.2) `acttipsrc` -- the tip we were HANDED. `acttip.text` is what was drawn.
+		    if((acttip == null) || !tip.equals(acttipsrc) || (acttipgen != Fonts.gen())) {   // addon: (F3d)
 			acttipgen = Fonts.gen();   // addon:
-			acttip = Widget.tipfoundry().render(tip, -1);   // addon: the "tooltip" scope (F3d)
+			acttip = Widget.tipfoundry().render(acttipsrc = tip, -1);   // addon: the "tooltip" scope (F3d)
 		    }
 		    return(acttip);
 		}

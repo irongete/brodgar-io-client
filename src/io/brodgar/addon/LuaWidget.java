@@ -2566,10 +2566,8 @@ public final class LuaWidget {
             return ((Window)w).cap;
         if(w instanceof TextEntry)
             return ((TextEntry)w).text();
-        if(w instanceof CheckBox) {                // 040.4: CheckBox.lbl is public for exactly this read
-            Text t = ((CheckBox)w).lbl;
-            return (t == null) ? null : t.text;
-        }
+        if(w instanceof CheckBox)                  // 040.4: CheckBox.lbls is public for exactly this read
+            return ((CheckBox)w).lbls;             // addon: (102.2) the caption it was WRITTEN -- see Button above
         return null;
     }
 

@@ -91,6 +91,18 @@ into a search box is never rewritten as it is typed.
 player generated — is not a string the client chose, so nothing names it and nothing matches it. That is
 also why a catalogue keys on `button` and `menu` rather than reaching for `"*"` first.
 
+**A key is the string as the surface composed it.** A catalogue is asked once, at the render, with whatever
+the site had assembled by then — so a tooltip that carries a keyboard shortcut is one string with the
+shortcut inside it, a line in the System log is one string with the name of the addon that wrote it in
+front, and a window caption is the caption alone. Read what a surface actually offered off
+[`locale:miss()`](#what-missed) rather than guessing at it: that is the string an entry goes under, spelt
+exactly as an entry has to spell it.
+
+**A chat line is keyed at the kind it is**, not at the channel it landed in: a System notice is
+`chat.system`, your own line is `chat.mine`, and `chat` names the ones that have no kind of their own. The
+key a line reached is what `locale:miss()` hands back, so the four kinds never have to be told apart by
+hand.
+
 ## What missed
 
 `locale:miss()` is the

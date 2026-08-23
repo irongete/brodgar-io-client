@@ -1003,11 +1003,79 @@ public class Fonts {
         st.add(scope);
     }
 
+    /* ---- a surface that draws WHAT THE USER TYPED (102.2) --------------------------------------------
+     *
+     * Two halves read the scope a site declares: the STYLE half, which asks what this surface looks like,
+     * and the CATALOGUE, which asks what this client displays for the string. At almost every site the two
+     * want the same answer. At a text field they do not: the chat's quick line is styled as `chat` -- it
+     * lives in the chat window and is built from the chat's own recipe -- while what it DRAWS is the line
+     * the player is typing, and a catalogue that could rewrite that would rewrite a word as it was typed.
+     *
+     * `textentry` says both at once and is the whole answer at a field the client styles as one. It is not
+     * the answer here, because moving the quick line's style key is a change to a surface a theme already
+     * names. So the site declares its scope and, separately, that its text is the user's -- and the
+     * catalogue is the only half that hears the second thing.
+     *
+     * The mark is per FRAME, not per thread: a frame that carries it remembers where it sits, so exit()
+     * takes it down with the scope it belongs to and a render nested inside one -- there is none today, and
+     * that is not something to depend on -- is covered exactly as far as its own frame reaches.
+     */
+    private static final ThreadLocal<List<Integer>> typedscope = new ThreadLocal<List<Integer>>();
+
+    /**
+     * {@link #enter(String)}, for a surface whose text is <b>what the user typed</b>: the scope is declared
+     * exactly as it would be, and {@link #display} refuses the frame outright — so a catalogue neither
+     * rewrites the string nor records it as one somebody could translate, an entry written under
+     * {@link #EVERY} included. Paired with {@link #exit()} like its twin.
+     */
+    public static void enterTyped(String scope) {
+        enter(scope);
+        List<String> st = dynscope.get();
+        if((st == null) || st.isEmpty())
+            return;                       // enter() took its inactive fast path: nothing is asking anyway
+        List<Integer> ty = typedscope.get();
+        if(ty == null)
+            typedscope.set(ty = new ArrayList<Integer>(2));
+        ty.add(st.size() - 1);            // the frame this mark belongs to
+    }
+
+    /** Is the innermost scope one {@link #enterTyped} opened? */
+    private static boolean typed() {
+        List<Integer> ty = typedscope.get();
+        if((ty == null) || ty.isEmpty())
+            return false;
+        List<String> st = dynscope.get();
+        return (st != null) && (ty.get(ty.size() - 1).intValue() == st.size() - 1);
+    }
+
     /** Leave the innermost {@link #enter(String)} scope. */
     public static void exit() {
         List<String> st = dynscope.get();
-        if((st != null) && !st.isEmpty())
-            st.remove(st.size() - 1);
+        if((st == null) || st.isEmpty())
+            return;
+        List<Integer> ty = typedscope.get();
+        if((ty != null) && !ty.isEmpty() && (ty.get(ty.size() - 1).intValue() == st.size() - 1))
+            ty.remove(ty.size() - 1);     // ...and the mark that frame carried, with it
+        st.remove(st.size() - 1);
+    }
+
+    /**
+     * Render {@code text} through {@code f} with {@code scope} declared — the {@link #enter}/{@link #exit} pair,
+     * written once (102.2).
+     *
+     * <p>Every routed site owes the pair, because {@link #display} reads the scope the SITE declared rather than
+     * the one its foundry was resolved for: a furnace is handed around (a heading's is a {@code Supplier} four
+     * classes ask for) and the string it is given arrives from somewhere that never named a scope. Sites whose
+     * render is one call take this; a site that renders more than one string, or renders with a colour, opens the
+     * pair itself around the lot.
+     */
+    public static Text render(String scope, Text.Furnace f, String text) {
+        enter(scope);
+        try {
+            return f.render(text);
+        } finally {
+            exit();
+        }
     }
 
     /**
@@ -1126,7 +1194,7 @@ public class Fonts {
         Catalogue[] cs = catalogues;
         if(cs.length == 0)
             return text;              // fast path: no catalogue anywhere
-        if((text == null) || (text.length() == 0) || !isDisplayScope(scope))
+        if((text == null) || (text.length() == 0) || !isDisplayScope(scope) || typed())
             return text;
         String out = null;
         for(int i = cs.length - 1; i >= 0; i--) {

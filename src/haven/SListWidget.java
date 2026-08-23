@@ -93,16 +93,19 @@ public abstract class SListWidget<I, W extends Widget> extends Widget {
 	protected boolean valid(String text) {return(true);}
 
 	private Text.Slug text = null;
+	/* addon: (102.2) the row text this raster was rendered FROM. `Text.text` is what was DRAWN, and a
+	 * catalogue makes the two different strings -- so `valid` is asked about the source (its overrides
+	 * compare it against text(), which is the model) and the ellipsis is cut out of the raster's own. */
+	private String textsrc = null;
 	private int fontgen = -1;    // addon: Fonts.gen() at the last render
 	protected void drawtext(GOut g) {
 	    dropfont();   // addon: re-render this item when a "label" font override moves (F3c)
 	    try {
-		if((this.text == null) || !valid(text.text)) {
-		    String text = text();
-		    this.text = foundry().render(text);
+		if((this.text == null) || !valid(textsrc)) {
+		    this.text = foundry().render(textsrc = text());
 		    if(this.text.sz().x > sz.x) {
 			int len = this.text.charat(sz.x - foundry().strsize("...").x);
-			this.text = foundry().render(text.substring(0, len) + "...");
+			this.text = foundry().render(this.text.text.substring(0, len) + "...");
 		    }
 		}
 		int m = margin();
@@ -199,17 +202,17 @@ public abstract class SListWidget<I, W extends Widget> extends Widget {
 	}
 
 	private Text.Slug text = null;
+	private String textsrc = null;   // addon: (102.2) see the TextItem twin above
 	private int fontgen = -1;    // addon: Fonts.gen() at the last render
 	protected void drawtext(GOut g) {
 	    dropfont();   // addon: re-render this item when a "label" font override moves (F3c)
 	    int tx = sz.y + UI.scale(5);
 	    try {
-		if((this.text == null) || !valid(text.text)) {
-		    String text = text();
-		    this.text = foundry().render(text);
+		if((this.text == null) || !valid(textsrc)) {
+		    this.text = foundry().render(textsrc = text());
 		    if(tx + this.text.sz().x > sz.x) {
 			int len = this.text.charat(sz.x - tx - foundry().strsize("...").x);
-			this.text = foundry().render(text.substring(0, len) + "...");
+			this.text = foundry().render(this.text.text.substring(0, len) + "...");
 		    }
 		}
 		g.image(this.text.tex(), Coord.of(tx, (sz.y - this.text.sz().y) / 2));

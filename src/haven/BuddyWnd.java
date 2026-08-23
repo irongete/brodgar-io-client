@@ -146,9 +146,14 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 	}
 
 	private Text rname = null;
+	private String rnamesrc = null;   // addon: (102.2) the name `rname` was rendered FROM -- see below
 	public Text rname() {
-	    if((rname == null) || !rname.text.equals(name))
-		rname = Text.render(name);
+	    /* addon: (102.2) against the name this group HAS, not against the raster. A catalogue makes the
+	     * two different strings, and comparing the drawn one would re-render -- and re-texture -- this
+	     * caption on every frame it is on screen. */
+	    if((rname == null) || !name.equals(rnamesrc)) {
+		rname = Text.render(rnamesrc = name);
+	    }
 	    return(rname);
 	}
 

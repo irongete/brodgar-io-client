@@ -88,7 +88,8 @@ public abstract class GridList<T> extends Widget {
 		rname = null;
 	    }
 	    if(rname == null) {
-		rname = ((catf == dcatf) ? dcatfont() : catf).render(name);   // addon: was `catf.render(name)`
+		// addon: (102.2) ...and under the "heading" scope, so a catalogue reaches a group caption by name.
+		rname = Fonts.render("heading", (catf == dcatf) ? dcatfont() : catf, name);   // addon: was `catf.render(name)`
 		rnamegen = gen;
 	    }
 	    return(rname);

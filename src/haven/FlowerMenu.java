@@ -88,7 +88,15 @@ public class FlowerMenu extends Widget {
 	    Coord mid = (text == null) ? null : c.add(sz.div(2));
 	    if(text != null)
 		text.dispose();
-	    text = ptfont().render(name, ptc);
+	    // addon: (102.2) the caption is rendered UNDER "menu", so an addon's catalogue reaches a petal by
+	    // name -- and the petal's own `name` is untouched, which is what `s:flowermenu():list()`, the
+	    // FlowerMenuClosed event and picking one by label all go on reading.
+	    Fonts.enter("menu");
+	    try {
+		text = ptfont().render(name, ptc);
+	    } finally {
+		Fonts.exit();
+	    }
 	    textgen = Fonts.gen();
 	    resize(text.sz().x + UI.scale(25), ph);
 	    if(mid != null)
