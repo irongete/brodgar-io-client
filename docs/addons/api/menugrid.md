@@ -134,7 +134,7 @@ dig:name("Auto-dig"):icon(hafen.asset():get("dig.png"))  -- writes chain, like e
 
 Nothing reaches the server — a custom entry is drawn by this client, and pressing it runs
 [your own Lua](#a-click-runs-your-lua) — so it needs **no permission**, like a
-[HUD overlay](ui/custom.md#overlays).
+[HUD overlay](ui/overlay.md).
 
 Your entries are **bridge-owned**. Reloading or disabling your addon, and logging out, take every one of
 them back out — from every character — so each menu is the game's own catalogue again, with nothing left.

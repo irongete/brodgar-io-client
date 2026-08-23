@@ -20,7 +20,7 @@ hafen.vr():sprite():add(icon, rabbit)                      -- following a game o
 
 > **Unprotected.** These are visualizations with no server id: the server never learns one exists and none of
 > them grants a gameplay advantage, so they need no permission and no consent dialog. They sit
-> alongside [a HUD overlay](../ui/custom.md#overlays), not beside a verb that acts. Committing a *real*
+> alongside [a HUD overlay](../ui/overlay.md), not beside a verb that acts. Committing a *real*
 > build is still the protected [`session:world():place`](../world.md#write-protected).
 
 Everything here is **bridge-owned**: every entity your addon stands is torn down automatically on reload,
@@ -118,7 +118,7 @@ Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the
 | `e:clickable()` / `e:clickable(b)` | the pick surface — opt-in, and client-side only |
 | `e:onClick()` / `e:onClick(fn)` | `fn(e, button, x, y)` fired on click |
 | `e:exists()` | is it still in the world? `false` once the collection removed it |
-| `e:info()` | the whole state as a plain table — the [one snapshot](../../conventions.md) |
+| `e:info()` | the whole state as a plain table — the [one snapshot](../conventions.md) |
 
 **`:position` and `:offset` are the two halves of "where", one for each anchor.** A thing that follows a gob
 has the gob's place, so writing `:position(p)` on it would be undone on the next frame — it raises instead,

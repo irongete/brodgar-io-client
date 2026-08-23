@@ -14,7 +14,7 @@
       an empty backpack it prints one `[fail]` naming the precondition rather than skipping.
       `[manual]`: none.
 
-- [ ] **103.2 — One page for the UI overlays.** Docs only, no Lua and no Java. Creates
+- [x] **103.2 — One page for the UI overlays.** Docs only, no Lua and no Java. Creates
       `api/ui/overlay.md` and moves `hafen.ui():overlay()` into it out of `api/ui/custom.md`, which
       keeps the two builders. The new page states once what both receivers share and what this feature
       then extends: the collection, the key per addon, `:list()` as the draw order, the `g` the painter

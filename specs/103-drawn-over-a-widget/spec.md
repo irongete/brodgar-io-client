@@ -76,6 +76,7 @@ answer) · every remaining anchor link above · `docs/client/widgets.md` (the dr
 - `src/io/brodgar/addon/LuaWidget.java` — 1, 3, 4
 - `src/io/brodgar/addon/LuaItem.java` — 1
 - `src/io/brodgar/addon/LuaGobOverlay.java` — 3, 4
+- `src/io/brodgar/addon/LuaHudOverlay.java` — 3, 4
 - `src/io/brodgar/addon/UiApi.java` — 3, 4
 - `src/io/brodgar/addon/LuaGOut.java` — 4
 - `src/io/brodgar/addon/Addon.java`, `AddonRegistry.java`, `LuaCollection.java` — 3
@@ -84,6 +85,7 @@ answer) · every remaining anchor link above · `docs/client/widgets.md` (the dr
 - `src/haven/WItem.java` — 1, 3
 - `docs/client/widgets.md` — 3
 - `docs/addons/api/ui/custom.md`, `api/ui/README.md`, `api/README.md` — 2
+- `docs/addons/api/ui/overlay.md` — 3, 4
 - `docs/addons/api/overlay.md` — 2, 3, 4
 - `docs/addons/api/ui/widget.md`, `api/ui/items.md` — 1
 - `docs/addons/api/ui/drawing.md`, `api/ui/pixels.md`, `guides/custom-ui.md` — 2, 4

@@ -1,11 +1,11 @@
-# hafen.ui: your own windows and overlays
+# hafen.ui: your own windows and widgets
 
-Three builders make a surface of your own — a window with chrome, a bare rectangle, or a painter over the
-whole HUD. Each is built **bare** and configured by chained setters. All three are unprotected, and all three
-are torn down with your addon.
+Two builders make a surface of your own — a window with chrome, or a bare rectangle. Each is built **bare**
+and configured by chained setters. Both are unprotected, and both are torn down with your addon.
 
 This page is about the surfaces you **paint**. To put one of the client's own controls in one instead of
-drawing it, see [controls](controls/README.md).
+drawing it, see [controls](controls/README.md); to draw over what the client has already put on screen
+rather than build a surface at all, see [overlays](overlay.md).
 
 ```lua
 local win = hafen.ui():window()
@@ -156,51 +156,11 @@ An entry an addon [added to the menu](../menugrid.md#write-unprotected) carries 
 [`s:menugrid():get(res)`](../menugrid.md) resolves. It is not a client resource, so `g:resource` has
 nothing to draw for it: read the entry and ask it what it looks like.
 
-## Overlays
-
-An overlay paints every frame without being a widget: there is nothing to place, nothing to size and
-nothing in the tree. `hafen.ui():overlay()` is the **collection** of the ones your addon has installed,
-each under a key of your own.
-
-| Call | Returns | Description |
-|---|---|---|
-| `hafen.ui():overlay():add(key)` | Overlay | attach a painter under `key`, built bare; the same key again replaces it |
-| `hafen.ui():overlay():get(key)` | Overlay \| nil | the one under that key |
-| `hafen.ui():overlay():remove(key)` | self | stop it; the member itself is also accepted |
-| `hafen.ui():overlay():list(filter)` | Overlay[] | every one of yours, **in draw order** |
-| `hafen.ui():overlay():count(filter)` | number | how many |
-| `hafen.ui():overlay():find(filter)` | Overlay \| nil | the first whose key matches |
-
-| Method | Description |
-|---|---|
-| `:key()` | the key it answers to; answers even after it is removed |
-| `:draw(fn)` / `:draw()` | paint `fn(g, w, h)` on top of the HUD each frame; `w, h` is the screen size |
-| `:exists()` | is it still painting |
-
-```lua
-hafen.ui():overlay():add("banner"):draw(function(g, w, h)
-  g:color(255, 200, 0)
-  g:atext("hello", w / 2, 4, 0.5, 0)      -- centred along the top of the screen
-end)
-```
-
-Until it has a painter it paints nothing, which is the same rule the widget builders get from not drawing
-before their first tick. **`:list()` is the draw order**: a painter added later paints over one added
-earlier, and re-adding a key moves it to the end. A reload or a disable removes every one of them.
-
-This is the **HUD**, and it is the same vocabulary a game object's decorations have. To paint over a
-**game object** instead, the verb is on the object: [`gob:overlay()`](../overlay.md) — you name the gob it
-hangs on, so nothing is searched per frame. To stand something in the **world** rather than over it, use
-[`hafen.vr`](../vr/README.md) — your own images and models, the game's own props, or
-[this very window](../vr/widgets.md), drawn out there instead of on the screen.
-
-The bundled **`widgetstack`** addon is all three at once: a window it builds and toggles, an inspector
-window per widget you click, and a HUD overlay that outlines whatever the cursor is over.
-
 ## See also
 
 - [drawing](drawing.md) — what `g` can do, and why text is nearly free to redraw
 - [widget](widget.md) — the object both builders return, and what you can do to it afterwards
+- [overlays](overlay.md) — painting over the screen without owning a widget at all
 - [`hafen.font`](../font.md) — the handle `:font(h)` takes
 - [style](style/README.md) — restyling the client's surfaces rather than drawing your own
 - [`hafen.vr`](../vr/README.md) — the same idea in the 3D world

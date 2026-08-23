@@ -1,10 +1,9 @@
 # hafen.ui: the g draw wrapper
 
-Every draw callback — a widget's [`Draw`](custom.md), [a HUD overlay](custom.md#overlays), a
-[`gob:overlay()`](../overlay.md) `draw` callback — receives `g`, a drawing surface. Its coordinates
-are the
-callback's own local pixel space: widget-local for a widget, screen for a HUD overlay, and for a gob
-overlay the `sx, sy` you were handed is that gob's projected screen point. Every method is a colon call.
+Every draw callback — a widget's [`Draw`](custom.md), [a HUD overlay](overlay.md), a
+[`gob:overlay()`](../overlay.md) `draw` callback — receives `g`, a drawing surface. Its coordinates are the
+callback's own local pixel space: widget-local for a widget, screen for a HUD overlay, and for a gob overlay
+the `sx, sy` you were handed is that gob's projected screen point. Every method is a colon call.
 
 **Every length here is a [design pixel](pixels.md)** — a coordinate, a width, a height, a line's stroke,
 a wedge's radius. It is the same unit `:size(w, h)` and `ev:w()` speak, so the rectangle you laid out is
@@ -158,6 +157,7 @@ addon's cache holds and its hit rate. Rich-text markup is cached on the same ter
 
 - [the pixel](pixels.md) — the unit every coordinate here is in
 - [custom](custom.md) — the callbacks `g` arrives in
+- [overlays](overlay.md) — the painter over the HUD, which is handed one too
 - [`hafen.font`](../font.md) — getting a handle to pass as `font`
 - [`hafen.asset`](../asset.md) — loading the images `g:image` draws
 - [`hafen.client`](../client/profiling/counters.md#textcache) — the cache's own counters

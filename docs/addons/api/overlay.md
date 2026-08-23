@@ -13,7 +13,7 @@ if me then me:overlay():add("mark"):text("here"):color{255, 90, 90} end
 
 It is **unprotected**, the attach included: what you paint at a gob is your own drawing, and it changes
 nothing the server, the client or another addon owns — the same footing as
-[a HUD overlay](ui/custom.md#overlays).
+[a HUD overlay](ui/overlay.md).
 
 **An overlay hangs on the object, not on a character.** Attach one and every character of yours that can
 see the gob draws it, **including one that loads the object afterwards** — so the label is there whichever
@@ -167,4 +167,4 @@ per frame.
 - [`hafen.vr`](vr/README.md) — standing a sprite, a model or a ghost at a gob instead
 - [drawing](ui/drawing.md) — the `g` wrapper a `draw` callback paints with
 - [events](event/bus.md#overlays-coming-and-going) — watching one arrive instead of polling for it
-- [custom UI](ui/custom.md#overlays) — the screen-space overlay that is not anchored to anything
+- [the UI overlays](ui/overlay.md) — the screen-space overlay that is not anchored to anything

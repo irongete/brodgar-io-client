@@ -60,8 +60,8 @@ its *text* changes, and round anything you do not need to the digit you do.
 ## Overlays
 
 An overlay paints without being in the tree: nothing to place, nothing to size, nothing for the user to
-drag. It is the same vocabulary on the **HUD** and on a **game object** — keyed decorations you add, read
-back and remove. On the HUD you name the screen:
+drag. It is the same vocabulary on the [**HUD**](../api/ui/overlay.md) and on a **game object** — keyed
+decorations you add, read back and remove. On the HUD you name the screen:
 
 ```lua
 hafen.ui():overlay():add("clock"):draw(function(g, w, h)  -- over the whole HUD; w, h is the screen

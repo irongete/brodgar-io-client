@@ -71,7 +71,8 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 | Page | What it holds |
 |---|---|
 | [`hafen.ui`](ui/README.md) | the hub: what is on screen, and the order to read these pages in |
-| [custom](ui/custom.md) | your own windows, bare rectangles and HUD overlays |
+| [custom](ui/custom.md) | your own windows and bare rectangles |
+| [overlays](ui/overlay.md) | painting over the screen without owning a widget |
 | [controls](ui/controls/README.md) | the hub: what a control is, the roster, and the order to read these pages in |
 | [display controls](ui/controls/display.md) | a label, a picture, a separator and a progress bar |
 | [interactive controls](ui/controls/interactive.md) | a button, a text entry, a checkbox, a radio, a slider, a scroll and a scrollbar |

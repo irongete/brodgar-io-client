@@ -150,7 +150,7 @@ snapper — together, the primitives any drag-on-the-ground tool is built from.
 
 **`worldToScreen(p)`** answers a **root** screen point, in [design pixels](ui/pixels.md) — the one space
 [the mouse](ui/mouse.md), `hafen.ui():hit(x, y)`, [`widget:rootPos()`](ui/widget.md#read) and a
-[HUD overlay's](ui/custom.md#overlays) painter already share. So the pair goes straight into a
+[HUD overlay's](ui/overlay.md) painter already share. So the pair goes straight into a
 [`g:` verb](ui/drawing.md) or a hit test, at any interface scale. What comes back is not a Position: a pixel
 is not a place in the world, and only the direction that has an answer will type-check.
 
@@ -249,7 +249,7 @@ Place the object **currently on the pointer** at a [Position](#the-position-type
 
 `p` and `angle` are both required — a missing or non-number `angle` raises, and so does a `p` that is not a
 Position. To land where a real building would, prepare both with
-[`snapPlace`](#screen-to-world-and-placement-snapping) and `snapAngle` above.
+[`snapPlace`](#the-screen-and-the-world) and `snapAngle` above.
 
 ```lua
 local w = hafen.session():current():world()

@@ -1,0 +1,9 @@
+{
+  "name": "103.2 — one page for the UI overlays",
+  "id": "103-drawn-over-a-widget.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 103.2: every example the new UI overlays page prints, run in order, and every claim it makes about the collection, the key, the draw order and the refusals.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
