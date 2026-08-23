@@ -4,7 +4,7 @@ Shipped as **one task with one suite**, in the maintainer's own session, alongsi
 [097](../097-three-edges-three-words/tasks.md) — the same re-audit's other leftover, sharing no code and
 no page with it.
 
-- [ ] **098 — the vr snapshot.** `conventions.md` states the rule without qualification: a point-in-time
+- [x] **098 — the vr snapshot.** `conventions.md` states the rule without qualification: a point-in-time
       copy is what `:info()` gives you, and every live object in the API answers it. The **vr entities were
       the one family that did not** — nothing in `VrApi` or `LuaWorldEntity` set an `info` verb, and
       `types.md` carried no entity shape — so logging what an addon had standing cost ten calls per entity.
@@ -28,8 +28,9 @@ no page with it.
 
 ## Result
 
-**Closed without the in-game run, on the maintainer's instruction.** `:t098` was never executed, so the box
-above stays unticked. `e:info()` has never returned a table in a live client.
+**Closed without the in-game run, on the maintainer's instruction.** The box above is ticked to close the
+task, not to claim a run: `:t098` was never executed, and `e:info()` has never returned a table in a live
+client.
 
 Verified headlessly only: a clean build from an empty `build/classes`, both checkers green (`:info()` is in
 the entity's own `closedIndex` vocabulary, and every verb the vr pages name resolves against it), and the

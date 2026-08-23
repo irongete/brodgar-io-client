@@ -3,7 +3,7 @@
 Shipped as **one task with one suite**, in the maintainer's own session: eleven spellings that are one
 rule, so splitting them would leave the finding alive between the halves.
 
-- [ ] **097 — three edges, three words.** The event vocabulary used **five word-pairs for three edges**,
+- [x] **097 — three edges, three words.** The event vocabulary used **five word-pairs for three edges**,
       and six spellings for "it went away" alone. All of those throw when you guess wrong, which is cheap —
       except **`QuestDone`, which fired for a quest that FAILED as well as one completed** and said nothing
       about it, the only silent wrong answer left in the bus. `Added` / `Removed` / `Changed` are now the
@@ -29,8 +29,9 @@ rule, so splitting them would leave the finding alive between the halves.
 
 ## Result
 
-**Closed without the in-game run, on the maintainer's instruction.** `:t097` was never executed, so the
-box above stays unticked: nothing here has been seen working in a live client.
+**Closed without the in-game run, on the maintainer's instruction.** The box above is ticked because the
+task is closed, not because it was seen working: `:t097` was never executed, and nothing here has run in a
+live client.
 
 What WAS verified, and it is not the same thing:
 
