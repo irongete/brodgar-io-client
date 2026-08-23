@@ -232,6 +232,13 @@ public class Text implements Disposable {
 		return(f.render(text, c));
 	    if(fixcol != null)
 		c = fixcol;            // addon: (033.2) a `color` rule paints this surface whatever the site asked for
+	    /* addon: (102.1) the LAST thing that happens to a string before it becomes a raster: an addon's
+	     * catalogue says what this client DISPLAYS for it at the scope this site declared (Fonts.enter).
+	     * It lands here, beneath everything, so no read anywhere above it ever sees anything but the
+	     * client's own English -- and text drawn by code that ships inside a .res, through a private
+	     * foundry we cannot route, comes through this very line for nothing. `Line.text` is therefore the
+	     * string that was DRAWN; what the site was written is the site's own field. */
+	    text = Fonts.display(Fonts.scope(), text);
 	    Coord sz = strsize(text);
 	    if(sz.x < 1)
 		sz = sz.add(1, 0);
@@ -256,8 +263,12 @@ public class Text implements Disposable {
 	    Line full = render(text);
 	    if(full.sz().x <= w)
 		return(full);
+	    /* addon: (102.1) the cut is measured on the raster, so it is cut out of the string that RASTER is
+	     * of -- `full.text`, which is what the catalogue answered. Cutting the argument instead would index
+	     * one string with an offset measured in another, and a display string longer than the English is
+	     * an index past the end. */
 	    int len = full.charat(w - strsize(e).x);
-	    return(render(text.substring(0, len) + e));
+	    return(render(full.text.substring(0, len) + e));
 	}
 
 	public Line ellipsize(String text, int w) {

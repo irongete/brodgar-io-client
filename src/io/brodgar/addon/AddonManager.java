@@ -3391,6 +3391,14 @@ public final class AddonManager {
         // hafen.http — external HTTP requests (N2a / D-037), protected by a manifest "network" host allowlist.
         HttpApi.install(hafen, owner);
 
+        // hafen.locale() — what this client DISPLAYS (102-translation). One catalogue per addon, loaded as a
+        // document (:load(doc)), installed and released like a stylesheet, and read back through the strings
+        // it did NOT answer (:miss()). Unprotected: it writes client-local and its release undoes it.
+        // The catalogue lands at Fonts.display, the last thing that happens to a string before it becomes a
+        // raster, so the MODEL is not translated: w:text(), a petal's name and an action's name all still
+        // answer the client's own English while it is installed.
+        LocaleApi.install(hafen, owner);
+
         // hafen.event():on(key, fn) -> a Sub; sub:off() ends it. The bus is the door for a notification with
         // no object to hang off (041 R2: have you got the object? obj:on(...); no? hafen.event()), and it is
         // the same one verb every emitter answers. 097: the SUBJECT of a key is singular too -- MarkersChanged

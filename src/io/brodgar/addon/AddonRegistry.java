@@ -177,6 +177,10 @@ public final class AddonRegistry {
         HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
         a.teardownWaitings();         // 042.1: cancel every pending Resolve registration (a value still loading) —
                                       //   same shape as the HTTP requests above, for the same reason
+        LocaleApi.teardown(a);        // 102.1: give the client its own words back -- this addon's CATALOGUE
+                                      //   leaves the provider stack and every string it displayed reverts to
+                                      //   the English the client wrote. Beside teardownFonts below, and for
+                                      //   the same reason: both bump the generation every routed site rebuilds on
         FontApi.teardownFonts(a);     // 033.1: drop this addon's STYLESHEET (hafen.ui():sheet()) and its per-widget
                                       //   widget:setFont overrides in one sweep (bumps gen -> stock foundry restored)
         UiApi.teardownMoved(a);       // 036.1: put every native widget this addon laid out back where the user had

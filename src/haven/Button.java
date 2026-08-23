@@ -140,12 +140,21 @@ public class Button extends SIWidget {
 
     // addon: (re)render this button's own caption through the "button" scope provider.
     private void render() {
-	if(rwrap > 0)
-	    this.text = tfont().renderwrap(rtext, rwrap);
-	else if(rcol != null)
-	    this.text = tfont().render(rtext, rcol);
-	else
-	    this.text = nfont().render(rtext);
+	// addon: (102.1) the caption is rendered UNDER THE "button" SCOPE, so an addon's catalogue reaches it by
+	// name and an entry written for any other surface does not. The pair wraps all three paths, the blurred
+	// one included: translation lands beneath the decoration, at the raster, so what a rule embosses and
+	// haloes is whatever this client displays.
+	Fonts.enter("button");
+	try {
+	    if(rwrap > 0)
+		this.text = tfont().renderwrap(rtext, rwrap);
+	    else if(rcol != null)
+		this.text = tfont().render(rtext, rcol);
+	    else
+		this.text = nfont().render(rtext);
+	} finally {
+	    Fonts.exit();
+	}
 	this.cont = this.text.img;
 	this.contgen = Fonts.gen();
     }

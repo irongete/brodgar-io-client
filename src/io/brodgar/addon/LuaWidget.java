@@ -2552,7 +2552,14 @@ public final class LuaWidget {
         if(w instanceof Label)
             return ((Label)w).texts;
         if(w instanceof Button) {
-            Text t = ((Button)w).text;
+            // addon: (102.1) the caption this button was WRITTEN, not the raster it drew. A catalogue makes
+            // the two different strings, and every read in this API answers the client's own English. A
+            // button built from a Text or a picture has no `rtext`, and its raster is the only caption there
+            // is -- which is the same best-effort this method has always been.
+            Button b = (Button)w;
+            if(b.rtext != null)
+                return b.rtext;
+            Text t = b.text;
             return (t == null) ? null : t.text;
         }
         if(w instanceof Window)

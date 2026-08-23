@@ -1,0 +1,9 @@
+{
+  "name": "102.1 — the catalogue, and the surface a string is drawn at",
+  "id": "102-translation.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 102.1: hafen.locale() -- one catalogue per addon, loaded as a document, installed and released like a stylesheet, and read back through the strings it did not answer. It builds a button and a label both reading one word, and proves that a key names ONE surface (an entry under `button` reaches the caption and not the label, whose surface is `default`), that an entry under `*` answers both, that an EMPTY catalogue still records every pair that missed -- which is what writing the first file needs -- that a released one records nothing at all, that the model is not translated (:text() still answers the client's own English), and that a surface drawing no text, `textentry`, an unknown property and a nil document are each refused saying why.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

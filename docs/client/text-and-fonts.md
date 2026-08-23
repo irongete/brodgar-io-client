@@ -17,6 +17,8 @@
 | **`Text` → GPU** | `Text.tex()` lazily wraps the `BufferedImage` in a `TexI` and **memoises it**; `Text.dispose()` forwards to it. A `Text` is therefore two allocations: the AWT raster (kept) and the texture |
 | **The immediate-mode blit** | `GOut.atext` = `Text.render` → `tex()` → `aimage` → `dispose()`, **all four per call, every frame**; `GOut.text` is `atext(…,0,0)`. Drop the `dispose()` and you have the `Label` pattern |
 | **`TexI` GL side** | `st()` uploads **lazily on first render** (so building a `TexI` is free of GL); `dispose()` drops the `ColorTex` and nulls it — but `st()` would silently **re-upload**, so a double-free shows up as a slow leak, never a crash. Size is `Tex.nextp2`-rounded (`tdim`): bytes = `4·nextp2(w)·nextp2(h)`, not `4·w·h` |
+| **The composition scope** | `Fonts.enter(scope)`/`Fonts.exit()` push a per-thread stack a routed site declares itself with; `Fonts.scope()` is the innermost one else `"default"` (what the generic `Text.render`/`RichText.render` statics resolve), and `Fonts.dynamic()` is the innermost one else **null**, which is the form `Text.Foundry.resolved()` and its `RichText` twin ask — that is how a foundry the fork cannot route, a `.res`'s own private one, still resolves. `enter` early-outs while `Fonts` is inactive AND the stack is empty, so the skip can only be taken outermost and an unmatched `exit()` finds an empty stack |
+| **What a string is DISPLAYED as** | `Fonts.display(scope, text)`, called from `Text.Foundry.render(String, Color)` after `resolved()` has delegated — the last thing that happens to a string before `g.drawString`. It walks a volatile `Fonts.Catalogue[]` (top first), so `Text.text` is the string that was **drawn**, not the one the site was handed. `Fonts.isDisplayScope`/`displayScopes` are which scopes may be keyed; `Fonts.EVERY` is `"*"` |
 | **The scope vocabulary** | `Fonts.SCOPES` — the names a stylesheet key may be a **site** key for, `default` being the selector `*`'s twin; `Fonts.isScope` is the test. Some (`button`, `label`, `textentry`, `chat`, `menu`) are also `Selector.WIDGET_ROLES`; the rest name a render site nothing is ever classified as (`Selector.SITE_ROLES`); and the widget roles `window`/`inventory` have **no** scope, so a bare `window` key is a *tree* key |
 | **What a site declares its own look to be** | `Fonts.stock(scope, prop, value…)` writes into the private `Fonts.stocks` map; `Fonts.stockOf(scope)` reads one site and `Fonts.stocked()` lists every scope that has declared anything, in `SCOPES` order. The property is spelled as a rule spells it (`"font"`, `"bg"`, `"border"`, `"padding"`, …) and the value is what the site holds — a `Text.Foundry`, a `Color`, a pair of `Coord`s, one or more `Fonts.Piece`s. Idempotent: an unchanged declaration compares equal and writes nothing, so a site may declare from inside its own draw |
 | **Where COLOUR enters a render** | Three different layers — see the gotcha below. `Text.Foundry.defcol` (the default), the `Color` argument of `render(text, c)`/`renderwrap` (**baked into the raster** by `g.setColor(c)`), and a per-render `TextAttribute.FOREGROUND` extra on a `RichText.Foundry.render(…)` call |
@@ -106,6 +108,14 @@ own party line is `(192, 192, 255)`, not a party colour. And `PrivChat`'s error 
   the client has **drawn**, not what it can draw, and `Fonts.stocked()` grows as a session goes on. A
   surface built more than one way — a `CheckBox` is large or small and the two wear different art —
   leaves whichever was drawn last.
+- **A guard that compares against `Text.text` compares against the DISPLAYED string.** `Label.settext`
+  compares `Label.texts` instead — the caption the widget was written — because a catalogue makes the two
+  different strings, and an unchanged write measured against `Text.text` stops short-circuiting. Any site
+  that caches a `Text` and asks "is this still the same caption" has the same choice, and the site's own
+  field is the answer.
+- **`Foundry.ellipsize` cuts the raster it just made**, so the substring is taken out of `full.text` rather
+  than out of the string it was handed: the two are different strings once a catalogue is installed, and a
+  longer display string would index past the end of the shorter English.
 - **`Text.Foundry` is both leaf and `Forge`**, so `new TexFurn(foundry, tex)` and
   `new TexFurn(otherFurn, tex)` compile identically — the `Text.Furnace` overloads of both decorators are
   `@Deprecated` and exist only for that ambiguity. Prefer the `Forge` one.

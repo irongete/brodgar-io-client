@@ -142,6 +142,10 @@ widgets whose code ships inside a resource (`ui/rchan`, `ui/vlg`). **Most window
 own windows are plain Java classes with nothing behind them. So in practice, `[res=]` for items and meters,
 `[title=]` for windows. [`w:res()`](widget.md#read) tells you what a widget actually carries.
 
+A caption selector matches the client's **own English**, whatever the client is displaying: a
+[catalogue](../locale.md) lands at the render and nowhere above it, so `[title=Inventory]` goes on matching
+a window whose caption is drawn in another language.
+
 A resource name is a path, so `*=` is usually the operator you want: `[res*=gfx/hud/meter]` catches every
 meter, where `[res=gfx/hud/meter]` matches nothing, because no widget's resource name is *exactly* that.
 

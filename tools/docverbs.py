@@ -58,6 +58,10 @@ RECEIVERS = {
     "h": None, "asset": "asset", "req": "request", "res": "res", "sheet": "sheet",
     "rule": "rule", "petal": "petal", "spec": "craftspec", "role": "role",
     "binding": "binding", "b": None, "sound": "sound", "timer": "timer",
+    "miss": "miss",
+    # A SECTION object, whose verbs are not a closedIndex vocabulary: `hafen.locale()` is the catalogue
+    # itself, so its verbs are enumerable only by reading LocaleApi, exactly as `s:char()`'s are.
+    "locale": None,
     "seg2": None, "g": None, "s": None, "t": None, "v": None, "x": None,
 }
 

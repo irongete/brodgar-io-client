@@ -30,12 +30,15 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 // addon: font provider facade (F-series, D-043) — driven from io.brodgar.addon.FontApi.
 /**
@@ -989,6 +992,12 @@ public class Fonts {
      */
     public static void enter(String scope) {
         List<String> st = dynscope.get();
+        // addon: (102.1) a routed TEXT site declares its scope on every render, and a client with no addon at
+        // all must not pay for that. Nothing can read this stack while no override and no catalogue exists, so
+        // there is nothing to push -- and the skip is taken only while the stack is EMPTY, which is what keeps
+        // the pair balanced: an unmatched exit() then finds an empty stack and does nothing.
+        if(!active && ((st == null) || st.isEmpty()))
+            return;
         if(st == null)
             dynscope.set(st = new ArrayList<String>(4));
         st.add(scope);
@@ -1032,6 +1041,102 @@ public class Fonts {
         if((st != null) && !st.isEmpty())
             return st.get(st.size() - 1);
         return (frameTop() != null) ? "default" : null;   // addon: (F5) a per-widget frame claims unroutable foundries
+    }
+
+    /* ---- what the client DISPLAYS (102.1) -------------------------------------------------------------
+     *
+     * A string becomes pixels at one place per foundry -- Text.Foundry.render(String, Color) and its RichText
+     * twin -- and that is where an addon's CATALOGUE lands: display(scope, text) answers what to draw for the
+     * string the site was about to draw, under the scope that site declared with the enter()/exit() pair
+     * above. Nothing higher up is touched, which is the whole invariant: every string this client hands back
+     * or matches on is its own English, and a catalogue changes what you SEE and nothing else.
+     *
+     * The stack is a twin of `overrides`: one member per owner, in install order, the top one winning PER
+     * ENTRY, so a string a catalogue does not name falls through to the one beneath rather than to English.
+     * It is a volatile ARRAY rather than a guarded List because display() is called from inside a render: a
+     * lock taken there would be held across a call into the addon layer, and copy-on-write costs an install
+     * what it saves every draw.
+     */
+
+    /**
+     * One addon's catalogue, as the addon layer holds it. This class carries it and asks it two questions;
+     * what an entry <i>is</i> — an exact key, a pattern, the owner it belongs to — is that layer's business,
+     * exactly as a {@link Style}'s properties are.
+     */
+    public interface Catalogue {
+        /** What to draw for {@code text} at {@code scope}, or {@code null} when this catalogue names nothing for it. */
+        public String display(String scope, String text);
+
+        /** {@code text} reached the routed surface {@code scope} and this catalogue named nothing for it. */
+        public void missed(String scope, String text);
+    }
+
+    // The installed catalogues, in install order (last = top). Replaced whole under `Fonts.class`; read
+    // unlocked from inside a render.
+    private static volatile Catalogue[] catalogues = new Catalogue[0];
+
+    /**
+     * Install {@code c} at the top of the catalogue stack, replacing the entry it already had there — an addon
+     * owns at most one, and re-installing re-raises it. Bumps {@link #gen()}, so every site that caches a
+     * {@link Text} re-renders on the very compare it already performs.
+     */
+    public static synchronized void installCatalogue(Catalogue c) {
+        List<Catalogue> st = new ArrayList<Catalogue>(Arrays.asList(catalogues));
+        st.remove(c);
+        st.add(c);
+        catalogues = st.toArray(new Catalogue[0]);
+        active = true;                // ...so enter() pushes and scope() answers the site's own key
+        bumped();
+    }
+
+    /**
+     * Drop {@code c} from the stack — every string it named falls back to the catalogue beneath it, else to
+     * the client's own English. Returns whether it was installed; bumps {@link #gen()} only when it was.
+     */
+    public static synchronized boolean releaseCatalogue(Catalogue c) {
+        List<Catalogue> st = new ArrayList<Catalogue>(Arrays.asList(catalogues));
+        if(!st.remove(c))
+            return false;             // a removal that already happened is not an error
+        catalogues = st.toArray(new Catalogue[0]);
+        prune();
+        bumped();
+        return true;
+    }
+
+    /** An installed catalogue changed what it says: every routed site re-renders on the same compare. */
+    public static synchronized void catalogueChanged() {
+        bumped();
+    }
+
+    /**
+     * <b>What the client draws for {@code text} at {@code scope}</b> — the one seam a translation lands at, and
+     * the last thing that happens to a string before it becomes a raster. Answers {@code text} itself
+     * whenever nothing names it, which is the overwhelming case and costs a single {@code volatile} read.
+     *
+     * <p>{@code scope} is the site's own key ({@link #scope()}), and a scope that is not a <b>locale key</b>
+     * is answered unchanged: the surfaces that draw no text have nothing to translate, and {@code textentry}
+     * is refused here as well as at the document, so what the user types is never matched — not even by an
+     * entry written under {@code "*"}.
+     *
+     * <p>Every catalogue is asked, top first, and the topmost answer wins. The ones that answer nothing are
+     * told so ({@link Catalogue#missed}), because a miss is what <i>your own</i> catalogue did not name, and
+     * that is what an author writing their first file reads back.
+     */
+    public static String display(String scope, String text) {
+        Catalogue[] cs = catalogues;
+        if(cs.length == 0)
+            return text;              // fast path: no catalogue anywhere
+        if((text == null) || (text.length() == 0) || !isDisplayScope(scope))
+            return text;
+        String out = null;
+        for(int i = cs.length - 1; i >= 0; i--) {
+            String d = cs[i].display(scope, text);
+            if(d == null)
+                cs[i].missed(scope, text);
+            else if(out == null)
+                out = d;              // the top one that names it wins; the rest are asked to record only
+        }
+        return (out == null) ? text : out;
     }
 
     /**
@@ -1115,7 +1220,10 @@ public class Fonts {
         boolean any = false;
         for(List<Spec> st : overrides.values())
             any |= !st.isEmpty();
-        active = any || treed;   // addon: (034.2) a per-widget-only sheet still needs the slow path
+        // addon: (034.2) a per-widget-only sheet still needs the slow path, and (102.1) so does a catalogue
+        // with no style rule at all: `active` is what makes enter() push, and a catalogue is read at the scope
+        // that pushes.
+        active = any || treed || (catalogues.length > 0);
     }
 
     /* ---- what a site's own look is MADE OF (065.17) --------------------------------------------------
@@ -1244,5 +1352,52 @@ public class Fonts {
                 return true;
         }
         return false;
+    }
+
+    /* ---- which scopes a LOCALE key may name (102.1) --------------------------------------------------
+     *
+     * A catalogue is keyed on a surface, and half of SCOPES is not a surface that draws text: the boxes,
+     * plates and rails a rule paints chrome on, and the two chat keys that are a colour SEQUENCE rather than
+     * a line. Naming one of those in a document could only ever match nothing, so it is refused at the
+     * document instead of accepted and left inert.
+     *
+     * The set is derived from SCOPES rather than re-typed beside it, so the two cannot disagree about which
+     * scopes exist; what is written here is the exclusion, which is the part that carries a reason.
+     */
+
+    /** The scopes that draw no text of their own — chrome, rails, plates, and the two chat colour sequences. */
+    private static final Set<String> NOTEXT = new HashSet<String>(Arrays.asList(
+        "window.frame", "panel", "inventory.slot", "checkbox", "checkbox.mark",
+        "scrollbar", "scrollbar.knob", "slider", "slider.knob",
+        "hud.belt", "hud.menu.left", "hud.menu.right", "hud.search", "minimap.frame",
+        "chat.urgent", "chat.speaker"));
+
+    /** The locale key that names every text surface at once — the {@code "default"} scope's twin, as {@code "*"} is a sheet's. */
+    public static final String EVERY = "*";
+
+    /**
+     * Is {@code name} a key a <b>catalogue</b> may be written under? Every scope that draws text, plus
+     * {@link #EVERY}.
+     *
+     * <p>{@code textentry} is a text surface and is <b>not</b> one of them, for its own reason rather than
+     * this one: what the user types is theirs, and a catalogue that could rewrite it would rewrite a name
+     * being typed into a search field as the user typed it. {@link #display} asks this too, so the refusal
+     * holds at the render as well as at the document — {@code "*"} does not reach an entry field either.
+     */
+    public static boolean isDisplayScope(String name) {
+        if(EVERY.equals(name))
+            return true;
+        return isScope(name) && !NOTEXT.contains(name) && !"textentry".equals(name);
+    }
+
+    /** Every key a catalogue may be written under, {@link #EVERY} first and the rest in {@link #SCOPES} order. */
+    public static List<String> displayScopes() {
+        List<String> out = new ArrayList<String>();
+        out.add(EVERY);
+        for(String s : SCOPES) {
+            if(isDisplayScope(s))
+                out.add(s);
+        }
+        return out;
     }
 }

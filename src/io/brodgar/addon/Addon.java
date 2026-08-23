@@ -461,6 +461,13 @@ public final class Addon {
      */
     volatile Sheet skin = null;
     /**
+     * The <b>one catalogue</b> this addon holds ({@code hafen.locale()}, 102-translation) — what it says the
+     * client <b>displays</b>. Minted with the sandbox and never replaced: the object is the owner tag the
+     * {@link haven.Fonts} catalogue stack carries, so installing again re-raises this very one. Teardown
+     * ({@link LocaleApi#teardown}) releases it, and the client's own English comes back.
+     */
+    volatile LocaleApi.Held locale = null;
+    /**
      * Has this addon styled any single widget by hand ({@code widget:rule()}, 034.3)? Only a flag, not a list: the
      * styles are keyed by widget inside {@link Sheet}, whose map holds its widget keys <b>weakly</b> — a list here
      * would pin a closed window's widget tree in memory. Teardown ({@link FontApi#teardownFonts}) sweeps this

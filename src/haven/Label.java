@@ -81,8 +81,22 @@ public class Label extends Widget {
 	this.fontwrapw = w;
 	this.fontgen = Fonts.gen();
 	this.f = Fonts.foundry(scope, stock);
-	this.text = (w >= 0) ? f.renderwrap(texts = text, this.col, w) : f.render(texts = text, this.col);
+	this.text = mktext(texts = text, w);
 	resize(this.text.sz());
+    }
+
+    /* addon: (102.1) render this caption UNDER THIS LABEL'S OWN SCOPE, so an addon's catalogue reaches it by
+     * name: a plain label draws under "default", one built with a foundry of its own under "label", and an
+     * entry written anywhere else does not touch either. Fonts.display runs down at the raster and reads the
+     * innermost Fonts.enter, so the pair is opened around every render this widget makes and around nothing
+     * else it draws. `w` < 0 = unwrapped, exactly as the constructor's. */
+    private Text mktext(String s, int w) {
+	Fonts.enter(fontscope);
+	try {
+	    return((w >= 0) ? f.renderwrap(s, col, w) : f.render(s, col));
+	} finally {
+	    Fonts.exit();
+	}
     }
 
     public void draw(GOut g) {
@@ -102,19 +116,25 @@ public class Label extends Widget {
 	    return;
 	fontgen = gen;
 	Text.Foundry nf = Fonts.foundry(fontscope, fontstock);
-	if(nf == f)
+	/* addon: (102.1) a CATALOGUE may have moved while the foundry did not, and what this label draws is
+	 * Fonts.display(scope, texts) -- `text.text` is the string it last drew, so comparing the two is what
+	 * asks "would this render differently now". A wrapped label re-renders on any move instead: its raster
+	 * is rich text's, whose `text` is not the string to compare. */
+	if((nf == f) && (fontwrapw < 0) && Fonts.display(fontscope, texts).equals(this.text.text))
 	    return;
 	f = nf;
 	this.text.dispose();
-	this.text = (fontwrapw >= 0) ? f.renderwrap(texts, col, fontwrapw) : f.render(texts, col);
+	this.text = mktext(texts, fontwrapw);
 	resize(this.text.sz());
     }
 
     public void settext(String text) {
-	if(text.equals(this.text.text))
+	// addon: (102.1) against `texts` -- the caption this label was WRITTEN. `text.text` is what it drew,
+	// which a catalogue may have made a different string entirely.
+	if(text.equals(this.texts))
 	    return;
 	this.text.dispose();
-	this.text = f.render(texts = text, col);
+	this.text = mktext(texts = text, -1);
 	resize(this.text.sz());
     }
 
@@ -127,11 +147,11 @@ public class Label extends Widget {
     }
 
     public void settext(String text, int w) {
-	if(text.equals(this.text.text) && (w == fontwrapw))
+	if(text.equals(this.texts) && (w == fontwrapw))   // addon: (102.1) see settext(String)
 	    return;
 	this.text.dispose();
 	this.fontwrapw = w;
-	this.text = (w >= 0) ? f.renderwrap(texts = text, col, w) : f.render(texts = text, col);
+	this.text = mktext(texts = text, w);
 	resize(this.text.sz());
     }
 
@@ -139,7 +159,8 @@ public class Label extends Widget {
 	if(color.equals(col))
 	    return;
 	this.text.dispose();
-	this.text = f.render(texts, col = color);
+	this.col = color;
+	this.text = mktext(texts, -1);
 	resize(this.text.sz());
     }
 
