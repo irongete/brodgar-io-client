@@ -67,6 +67,10 @@ public class Speaking extends GAttrib implements RenderTree.Node, PView.Render2D
 	}
     }
 
+    /* addon: (102.6) what the character was made to SAY, which is what gob:speech() answers. `text.text`
+     * is the string that was DRAWN, and a catalogue makes the two different. */
+    public String source() {return(str);}
+
     public Speaking(Gob gob, float zo, String text) {
 	super(gob);
 	this.zo = zo;

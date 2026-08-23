@@ -213,11 +213,22 @@ pixels — and nowhere above it. So while yours is installed:
 - an [action's](menugrid.md) name and a [petal's](flowermenu.md) are the client's own words too, so
   `select(label)` and the [event](event/bus.md) that names a petal go on matching what you wrote before you
   had a catalogue;
+- what a **tooltip row** says answers the same way, even though an entry under `tooltip` is what changed it
+  on screen: [`item:name()`](ui/items.md#the-item-object) and `item:info().name`, the rows
+  [`contents:text()`](ui/items.md#what-an-item-holds) prints, [`buff:name()`](buff.md#read),
+  [`wound:name()`](wound.md#a-wound) and the slot names [`item:slots()`](ui/items.md#the-item-object)
+  answers with;
+- so does [`gob:speech()`](gob.md#read), while the bubble over that character reads your words;
 - an addon that reads a caption and one that translates it never disagree.
 
 That is the whole of what this section changes: what you **see**, and nothing else. It also means no addon
 can observe your translation from Lua — `locale:miss()` is the one thing that reads back, which is why it
 exists.
+
+> The one place a read can still come back in your words is a name the **item's own resource code** handed
+> the client already rendered, rather than as a string: there is no English left underneath it to answer
+> with, so the picture is the whole of what that row is. It is rare, and it is the same limit
+> [`w:text()`](ui/widget.md) has on a button built from a picture.
 
 There is no inverse lookup and nothing here travels to the server: the model is English by construction, so
 what the server hears is the English the client would have sent.

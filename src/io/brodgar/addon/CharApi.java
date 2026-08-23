@@ -1540,21 +1540,52 @@ final class CharApi {
     }
 
 
-    /** The human-readable equipment slot name for an ep index, or nil. */
+    /**
+     * The human-readable equipment slot name for an ep index, or nil.
+     *
+     * <p>(102.6) Read off {@link Equipory#ettstr}, the string the slot's background resource named it,
+     * <b>not</b> {@code etts[ep].text}: that one is a raster, and a {@link io.brodgar.addon.LocaleApi
+     * catalogue} installed before this class loads would make it the display string. The raster is the
+     * fallback for a slot whose source is missing, which is the same best-effort this always was.
+     */
     static LuaValue slotName(int ep) {
-        if((ep >= 0) && (ep < Equipory.etts.length) && (Equipory.etts[ep] != null))
-            return LuaValue.valueOf(Equipory.etts[ep].text);
+        if((ep >= 0) && (ep < Equipory.ettstr.length)) {
+            if(Equipory.ettstr[ep] != null)
+                return LuaValue.valueOf(Equipory.ettstr[ep]);
+            if(Equipory.etts[ep] != null)
+                return LuaValue.valueOf(Equipory.etts[ep].text);
+        }
         return LuaValue.NIL;
     }
 
-    /** {@code ItemInfo.Name} display text for an item, or {@code null} (Loading-guarded). */
+    /**
+     * {@code ItemInfo.Name} text for an item, or {@code null} (Loading-guarded).
+     *
+     * <p>(102.6) The name row's <b>source</b> — what the tip was written — rather than {@code str.text},
+     * which is what it drew: reading a name is itself what builds the tip, so a {@code tooltip} entry
+     * naming this row would otherwise come straight back out of this verb. A {@code Name} the caller
+     * handed a rendered {@link haven.Text} has no source, and its raster is the only name there is.
+     */
     static String itemNameOf(GItem it) {
         try {
-            ItemInfo.Name n = ItemInfo.find(ItemInfo.Name.class, it.info());
-            return ((n == null) || (n.str == null)) ? null : n.str.text;
+            return nameStr(ItemInfo.find(ItemInfo.Name.class, it.info()));
         } catch(RuntimeException e) {   // Loading etc.
             return null;
         }
+    }
+
+    /**
+     * <b>What a name row says, in the client's own English</b> (102.6) — the one read of an
+     * {@link ItemInfo.Name}, shared by an item, a buff and a wound, so the three cannot drift apart on
+     * which of the row's two strings they answer.
+     */
+    static String nameStr(ItemInfo.Name n) {
+        if(n == null)
+            return null;
+        String src = n.source();
+        if(src != null)
+            return src;
+        return (n.str == null) ? null : n.str.text;
     }
 
     /** Resource name (stable identity) for an item, or {@code null} (Loading-guarded). */

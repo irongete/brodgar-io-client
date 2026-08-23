@@ -185,6 +185,11 @@ public abstract class ItemInfo {
 	    this.fontgen = Fonts.gen();        // addon:
 	}
 
+	/* addon: (102.6) the row this tip was WRITTEN, which is what a readback answers. `str.text` is the
+	 * string that was DRAWN, and a catalogue makes the two different. Never null: an AdHoc is only ever
+	 * built from a String. */
+	public String source() {return(rtext);}
+
 	public BufferedImage tipimg() {
 	    if(fontgen != Fonts.gen()) {       // addon: re-render when the "tooltip" override moves (F3d)
 		fontgen = Fonts.gen();
@@ -212,6 +217,11 @@ public abstract class ItemInfo {
 	    this.str = tipfnd().render(str);   // addon: ...and render through the provider (was Text.render(str))
 	    this.fontgen = Fonts.gen();
 	}
+
+	/* addon: (102.6) the name this tip was WRITTEN, or null where the caller handed the client a rendered
+	 * Text and there is no source to answer -- the same best-effort LuaWidget.text takes for a Button
+	 * built from one. `str.text` is the string that was DRAWN. */
+	public String source() {return(rtext);}
 
 	public BufferedImage tipimg() {
 	    checkfont();   // addon:

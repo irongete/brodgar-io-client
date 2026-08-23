@@ -89,6 +89,9 @@ with their reason, not grown.
 | `src/haven/Window.java`, `ChatUI.java`, `TextEntry.java` | 2 |
 | `src/haven/Widget.java`, `UILoop.java` | 2, 3 |
 | `src/haven/ItemInfo.java`, `MenuGrid.java`, `res/ui/tt/slots_alt/ISlots.java` | 3 |
+| `src/haven/Speaking.java`, `Equipory.java`, `GItem.java` — the three other sites that cache a rendered `Text`, and the `Fonts.gen()` rebuild that makes a tip readable without a hover | 6 |
+| `src/io/brodgar/addon/CharApi.java`, `LuaBuff.java`, `LuaWound.java`, `LuaContents.java`, `LuaItem.java`, `LuaWidget.java` — every readback that answers out of a `Text` | 6 |
+| `docs/client/state.md` — where the raster reads are mapped | 6 |
 | `src/haven/FlowerMenu.java` | 2, 4 |
 | `src/io/brodgar/addon/Sheet.java`, `LuaSheet.java` | 1, 4 |
 | `src/io/brodgar/addon/LuaRule.java`, `Section.java`, `AddonManager.java`, `FontApi.java` | 1 |

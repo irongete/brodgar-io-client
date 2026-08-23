@@ -4445,7 +4445,14 @@ public final class AddonManager {
     static String gobSpeech(Gob g) {
         try {
             Speaking sp = g.getattr(Speaking.class);
-            return ((sp == null) || (sp.text == null)) ? null : sp.text.text;
+            if(sp == null)
+                return null;
+            // addon: (102.6) what the character was made to SAY, not the bubble's raster: a catalogue naming
+            // that line changes the bubble, and this verb goes on answering the client's own English.
+            String src = sp.source();
+            if(src != null)
+                return src;
+            return (sp.text == null) ? null : sp.text.text;
         } catch(RuntimeException e) {
             return null;
         }

@@ -121,6 +121,12 @@ own party line is `(192, 192, 255)`, not a party colour. And `PrivChat`'s error 
   `BuddyWnd.Buddy.rnamesrc`, `Fightsess.acttipsrc`, `ILabel.texts`, `SListWidget.TextItem`/`IconText`'s
   `textsrc`. `ChatUI.Selector.DarkChannel.rname` needs none — `namedeco` rebuilds the `Text` around the
   channel's own name, so what it holds is the source already.
+- **...and so does a READ of it**, which is the same trap one consumer along: anything answering "what does
+  this say" out of a cached `Text` answers what was drawn. The four that are read rather than compared keep
+  a source of their own too — `ItemInfo.Name.source()` and `ItemInfo.AdHoc.source()` (the rows an item tip,
+  a `Buff` and a `WoundWnd.Wound` are named by, and the rows inside an `ItemInfo.Contents`),
+  `Speaking.source()`, and `Equipory.ettstr`. `Name.source()` is `null` on the `Name(Owner, Text)` ctor,
+  where the caller handed the client a raster and there is no string underneath it to answer with.
 - **A `Label` is exactly as wide as the string it drew.** Its private `mktext` renders and every caller
   follows with `resize(text.sz())` — the constructor, `settext` and `restyle` alike — so `Widget.sz`
   on one is the raster's own measurement and nothing else's. It is the one place the string that reached the

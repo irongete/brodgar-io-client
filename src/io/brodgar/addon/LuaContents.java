@@ -323,12 +323,23 @@ public final class LuaContents {
         return (sb.length() == 0) ? null : sb.toString();
     }
 
-    /** One nested tooltip row as plain text, or {@code null} for a row that is not one. */
+    /**
+     * One nested tooltip row as plain text, or {@code null} for a row that is not one.
+     *
+     * <p>(102.6) Each row is read at its <b>source</b> — the string that tip was written — rather than at
+     * {@code str.text}, the string it drew: printing the contents is itself what builds the tip, so a
+     * {@code tooltip} entry naming one of these rows would otherwise come straight back out of this verb.
+     * A {@link ItemInfo.Name} the caller handed a rendered {@link Text} has no source, and its raster is
+     * the only row there is.
+     */
     private static String line(ItemInfo inf) {
         if(inf instanceof ItemInfo.Name)
-            return str(((ItemInfo.Name)inf).str);
-        if(inf instanceof ItemInfo.AdHoc)
-            return str(((ItemInfo.AdHoc)inf).str);
+            return CharApi.nameStr((ItemInfo.Name)inf);
+        if(inf instanceof ItemInfo.AdHoc) {
+            ItemInfo.AdHoc ah = (ItemInfo.AdHoc)inf;
+            String src = ah.source();
+            return (src != null) ? src : str(ah.str);
+        }
         return null;
     }
 

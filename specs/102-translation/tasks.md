@@ -63,7 +63,7 @@ every readback answer English: without `:miss()` nothing in this feature is mach
       *Its suite* is the page's own example run verbatim: the file loads, installs, and one asserted string
       changes surface — a page whose example does not run is the defect this catches.
 
-- [ ] **102.6 — the readbacks that read a raster.** `Text.text` is the string that was **drawn**, so six
+- [x] **102.6 — the readbacks that read a raster.** `Text.text` is the string that was **drawn**, so six
       verbs answer the display string the moment a catalogue names their row, against criterion 6:
       `item:name()` and `buff:name()` and `wound:name()` (`ItemInfo.Name.str`), the rows
       `item:contents()` prints (`Name.str` and `AdHoc.str`), `gob:speech()` (`Speaking.text`), and the

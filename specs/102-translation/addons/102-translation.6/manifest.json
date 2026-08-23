@@ -1,0 +1,9 @@
+{
+  "name": "102.6 — the readbacks that read a raster",
+  "id": "102-translation.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 102.6: item:name(), item:info().name, the contents() rows, buff:name(), wound:name(), the equipment slot name and gob:speech() all answer the client's own English while a catalogue names the very row they read.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

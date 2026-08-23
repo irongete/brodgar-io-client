@@ -288,8 +288,8 @@ public final class LuaWound {
         if(tip != null)
             return tip;
         try {
-            ItemInfo.Name n = ItemInfo.find(ItemInfo.Name.class, w.info());
-            return ((n == null) || (n.str == null)) ? null : n.str.text;
+            // addon: (102.6) the name row's SOURCE, not the raster it drew -- CharApi.nameStr is the one read.
+            return CharApi.nameStr(ItemInfo.find(ItemInfo.Name.class, w.info()));
         } catch(RuntimeException e) {   // info() still Loading / no rawinfo yet
             return null;
         }

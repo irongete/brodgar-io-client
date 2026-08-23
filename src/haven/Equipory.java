@@ -65,7 +65,9 @@ public class Equipory extends Widget implements DTarget {
     // addon: the slot names above are a class-init static array, so they could never follow a font override (the
     // F3e lesson). `ettstr` keeps the strings and etttip(sl) re-renders through the "tooltip" scope when
     // Fonts.gen() moves (F3d, D-043); `etts` itself stays the stock render.
-    private static final String[] ettstr = new String[ecoords.length];
+    // addon: (102.6) public, because it is also the SOURCE the equipment slot name reads back: `etts[sl].text`
+    // is a raster, and a catalogue installed before this class loads would make it the display string.
+    public static final String[] ettstr = new String[ecoords.length];
     private static final Text[] betts = new Text[ecoords.length];
     private static int ettgen = -1;
     private static Text etttip(int sl) {
