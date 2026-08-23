@@ -72,6 +72,20 @@ public class Widget {
     /** addon: slot indices into {@link #prof} (019.5). */
     public static final int PR_GEN = 0, PR_TICK = 1, PR_TICKCH = 2, PR_DRAW = 3, PR_DRAWCH = 4, PR_N = 5;
 
+    /* addon: what an addon draws OVER this widget (spec 103, task 103.3) -- the records
+     * widget:overlay() hangs here, in draw order, painted by the seam in the child loop below.
+     *
+     * A field, and for the reason written on prof above: the draw traversal touches every widget every
+     * frame, so an IdentityHashMap<Widget,...> would be a hash lookup per widget per frame, and this is
+     * armed for the whole session by construction rather than for the length of a measurement. Null on
+     * every widget that carries none, which is nearly all of them, so an unarmed client pays one null
+     * check inside a loop it already runs.
+     *
+     * Copy-on-write and volatile: the writers are Lua verbs on the UI thread (and teardown, which may run
+     * off it), the reader is the draw pass. io.brodgar.addon.LuaWidgetOverlay owns every mutation of it --
+     * nothing in haven writes it -- and nulls it again when the last record leaves. */
+    public volatile java.util.List<io.brodgar.addon.LuaWidgetOverlay.Rec> addonovs = null;
+
     /** addon: add {@code d} nanos to slot {@code i}, rolling the array over at a frame boundary (019.5).
      *  Only ever called from a probe that has already read {@code Prof.on}. */
     public void profadd(int i, long d) {
@@ -880,6 +894,13 @@ public class Widget {
 		try(Fonts.Frame ff = Fonts.frame(wdg)) {
 		    wdg.draw(g2);
 		}
+		/* addon: what an addon draws OVER this widget (103.3). AFTER the child's own draw, so an
+		 * overlay lands on top of it, and OUTSIDE the style frame above, so a painter of an addon's
+		 * is not restyled by the sheet the user put on the widget underneath it. g2 is already
+		 * translated and clipped to the child's box, so the painter draws widget-local and is cut
+		 * off at that widget's edge. */
+		if(wdg.addonovs != null)   // addon:
+		    io.brodgar.addon.LuaWidgetOverlay.paint(wdg, g2);
 	    }
 	    if(pon) {   // addon:
 		long d = System.nanoTime() - pt0;

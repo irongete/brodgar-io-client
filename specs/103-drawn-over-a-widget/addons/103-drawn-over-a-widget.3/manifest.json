@@ -1,0 +1,9 @@
+{
+  "name": "103.3 — what is drawn over one widget",
+  "id": "103-drawn-over-a-widget.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 103.3: widget:overlay() as a whole collection, the draw seam that runs its painters, and the death of an overlay with the widget it hangs on.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -229,7 +229,7 @@ public final class LuaWidget {
             + ":children() :position() :size() :rootPos() :walk() :match() :matchAll() and :hit(); its content "
             + "is :title() :text() :tooltip() :image() :value() :source() :rows() :range() :rowHeight() "
             + ":cellSize() :columns() :item() :items() :font() and :focused(); its frame is :draggable() :resizable() "
-            + ":remember() :visible() :pack() :chrome() :style() and :rule(); and it acts with :on() "
+            + ":remember() :visible() :pack() :chrome() :overlay() :style() and :rule(); and it acts with :on() "
             + ":send() :replace() :replacement() :revert() and :destroy()"));
         mt.set("__name", LuaValue.valueOf("Widget"));
         mt.set("__tostring", new OneArgFunction() {
@@ -1455,6 +1455,26 @@ public final class LuaWidget {
         m.set("chrome", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return chromeTable(live(handle(self, "chrome")));
+            }
+        });
+        // overlay() — 103.3: WHAT YOU DRAW OVER THIS WIDGET, the third receiver of a word that means one
+        // thing in this API — keyed decorations bound to a thing. hafen.ui():overlay() binds them to the
+        // screen and gob:overlay() to a game object; this binds them to one widget, so a mark on a button,
+        // a number on an item icon or a bar under a slot is attached where it belongs instead of being
+        // re-derived every frame by a screen-wide painter searching the tree for a rectangle.
+        //   The standard collection, keyed per addon, whose members paint AFTER the widget, translated and
+        // clipped to its own box, and die with it. It is a VIEW minted per call over the widget's own
+        // record list, so the collection is not == itself twice while :get(key) is: the identity that
+        // matters is the member's. Unprotected: what you paint is your own drawing over a widget the client
+        // already drew, and it changes nothing anybody else owns.
+        m.set("overlay", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaWidget h = handle(a.arg1(), "overlay");
+                if(Args.passed(a, 2))
+                    throw new LuaError("widget:overlay() takes no arguments — it IS the collection of what"
+                        + " you draw over this widget, and widget:overlay():add(key) attaches one whose"
+                        + " :draw(fn) says what it paints");
+                return LuaWidgetOverlay.collection(owner, h);
             }
         });
         // style() — 034.1/034.3: the style THIS widget RESOLVES to — { font = <handle>, color = {r=,g=,b=,a=} },

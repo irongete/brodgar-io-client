@@ -4,8 +4,8 @@ Two builders make a surface of your own — a window with chrome, or a bare rect
 and configured by chained setters. Both are unprotected, and both are torn down with your addon.
 
 This page is about the surfaces you **paint**. To put one of the client's own controls in one instead of
-drawing it, see [controls](controls/README.md); to draw over what the client has already put on screen
-rather than build a surface at all, see [overlays](overlay.md).
+drawing it, see [controls](controls/README.md); to draw over the screen, or over one widget the client
+has already put there, rather than build a surface at all, see [overlays](overlay.md).
 
 ```lua
 local win = hafen.ui():window()
@@ -160,7 +160,7 @@ nothing to draw for it: read the entry and ask it what it looks like.
 
 - [drawing](drawing.md) — what `g` can do, and why text is nearly free to redraw
 - [widget](widget.md) — the object both builders return, and what you can do to it afterwards
-- [overlays](overlay.md) — painting over the screen without owning a widget at all
+- [overlays](overlay.md) — painting over the screen, or over one widget, without owning either
 - [`hafen.font`](../font.md) — the handle `:font(h)` takes
 - [style](style/README.md) — restyling the client's surfaces rather than drawing your own
 - [`hafen.vr`](../vr/README.md) — the same idea in the 3D world

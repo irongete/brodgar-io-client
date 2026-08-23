@@ -19,6 +19,7 @@ lookup instead of a search.
 | [terminology](glossary.md) | the words the engine's own code uses — gob, grid, pagina, wdgmsg, `Loading` — each anchored to the class that defines it |
 | [boot and the frame loop](boot-and-loop.md) | `main` → login → `RemoteUI.init` → `GameUI`; the per-frame tick/draw loop; the `UI` monitor, Loader/Connection threads and the `Loading` protocol; the profiling seams; building a `UI` headlessly |
 | [the widget system](widgets.md) | the `Widget`/`UI` tree, the `@RName` registry, the create/place/**destroy** seams (unbind ≠ unlink: a `Window` fades, and its death notice arrives before its death), the upward `getparent` walk, `GOut` |
+| [the tick and draw traversals](widget-draw.md) | how a frame reaches a widget: the two recursion seams, why an override of `draw` may paint no child at all, where the screen `GOut` is built, and what a frame allocates |
 | [widget input](widget-input.md) | how an event reaches a widget: the grab checked *before* the tree, the three propagation walks, focus bookkeeping vs delivery (`hasfocus` is the wrong read), the per-frame point queries, popup rooting, and the two drop families |
 | [GameUI's own windows](gameui-windows.md) | the `Hidewnd` wrappers, the menu bars, the one private `togglewnd`/`wndstate` path, and the client's own window-position store |
 | [chrome](ui-chrome.md) | what draws a **frame**: `Window.deco` and the `Deco` contract (the ctor's `sz` is the CONTENT size), `IBox`, and the window-less panels |

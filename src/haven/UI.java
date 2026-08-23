@@ -396,6 +396,11 @@ public class UI {
 	try(Fonts.Frame ff = Fonts.frame(root)) {
 	    root.draw(g);
 	}
+	/* addon: what an addon draws over the ROOT (103.3). Widget.draw's child loop paints the overlays of
+	 * every widget in the tree except the one it starts from, so without this the root -- the one widget
+	 * whose box is the whole screen -- would be the only receiver widget:overlay() did not answer for. */
+	if(root.addonovs != null)   // addon:
+	    io.brodgar.addon.LuaWidgetOverlay.paint(root, g);
 	if(pon) {   // addon:
 	    io.brodgar.prof.Overhead.hWidget++;   // addon: one probe bracket (spec 019, task 019.7)
 	    root.profadd(Widget.PR_DRAW, System.nanoTime() - pt0);

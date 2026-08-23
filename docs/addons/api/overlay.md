@@ -167,4 +167,4 @@ per frame.
 - [`hafen.vr`](vr/README.md) — standing a sprite, a model or a ghost at a gob instead
 - [drawing](ui/drawing.md) — the `g` wrapper a `draw` callback paints with
 - [events](event/bus.md#overlays-coming-and-going) — watching one arrive instead of polling for it
-- [the UI overlays](ui/overlay.md) — the screen-space overlay that is not anchored to anything
+- [the UI overlays](ui/overlay.md) — the same vocabulary over the screen and over one widget

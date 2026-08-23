@@ -1,6 +1,7 @@
 # The widget system: tree, create and destroy seams, introspection, drops
 
-> Covers: tree, creation + destruction paths, introspection, drops, per-frame cost.
+> Covers: tree, creation + destruction paths, re-homing and focus, introspection, drops. The
+> per-frame tick and draw traversals are [widget-draw.md](widget-draw.md).
 
 ## Core tree
 
@@ -29,6 +30,12 @@
 | **Sizing to content** | `Widget.pack()` is `resize(contentsz())`, and `contentsz()` is the max bottom-right (`c.add(sz)`) over the **visible** children — so a leaf packs to `(0, 0)`. `Window` overrides `contentsz()` (see [chrome](ui-chrome.md)). `resize` returns early on an equal box, then cascades `presize()` to the children and calls `parent.cresize(ch)` — **both are empty in `Widget`, and `Window` overrides neither**, so resizing a window's child triggers no relayout of the window |
 | **Relative placement** | `Widget.Position` (a `Coord` subclass) with `getpos(name)`/`pos(name)` — the anchors `"ul"`/`"ur"`/`"br"`/`"bl"`/`"mid"` and their content-local `"c…"` twins, `pos` throwing where `getpos` answers `null`. `Position.add`/`sub`/`x`/`y` have `adds`/`subs`/`xs`/`ys` twins that `UI.scale` the argument, which is how the client writes a design-pixel offset. `addhlp`/`addhl` lay a row of children out, vertically centred on the tallest |
 | **The UPWARD walk, and its ~30 callers** | `Widget.getparent(Class)` — a plain `w = w.parent` loop. `getparent(GameUI.class)` is how a widget finds the HUD it belongs to: `Inventory.mousewheel` (the shift-wheel bulk transfer) dereferences it **unguarded**, while `GItem`/`WItem.contparent` and `Equipory.drawslots` guard and fall back. Fork: it steps across a standing widget's surface to where that widget was |
+
+**Field-name gotcha — a new field on `Widget` can be shadowed by a subclass that already has the name.**
+Several subclasses declare public fields of their own with obvious names, and `MapWnd.overlays` (a
+`Collection<String>` of map-overlay tags) is one: a field added to `Widget` under that name compiles into a
+silent shadow wherever the subclass is in scope, and only a *type* mismatch makes javac say so. Give a field
+added to this class a name nothing in `src/haven` already uses, and grep before adding it.
 
 **Destroy gotcha — the subtree is not removed.** `destroy()` is `remove()` on itself plus `rdispose()`, which
 recurses `dispose()` only: no descendant is unlinked, runs `remove()`, reaches the removal seam or fires
@@ -84,32 +91,11 @@ therefore called from TWO sites — `Widget.resize` and
 would realistically target it by) — the same "a notification a subclass can skip is not a seam" lesson
 `Widget.remove`/`cdestroy` already taught, applied to a second method.
 
-## Tick and draw traversal (the two recursion seams)
+## Re-homing and focus
 
 | What | Where |
 |---|---|
-| **Tick root** | `UI.tick` → `dispatch(root, new Widget.TickEvent(delta))` → `UI.dispatch` → `ev.dispatch(to)` |
-| **Tick recursion point (the ONE seam)** | `Widget.Event.dispatch` — `handle(this)` then `propagate(w)`; `TickEvent.dispatch` overrides it to carry `visible` |
-| Tick descent / leaf call | `TickEvent.propagation` walks `from.child`→`next`; `shandle` calls `w.tick(ev)` |
-| **Draw root** | `UI.draw` → `root.draw(g)` (direct — **not** through a dispatch), then `afterdraws` |
-| **Draw recursion point (the ONE seam)** | `Widget.draw(GOut,boolean)` child loop — `xlate`+`reclip(l)`, `CPUProfile.begin(wdg)`, `Fonts.frame(wdg)`, `wdg.draw(g2)` |
-| `gtick` (render hand-off) | `UI.gtick` → `GTickEvent` — a **separate** pass, inside the same `utick` phase |
-| Frame phases around them | `UILoop.Frame.tick` (`dwait`/`stick`/`utick`), `display` (`draw`) |
-| Per-widget cost probe (fork) | `// addon:` `Widget.prof` + `profadd` (`Widget`), the two seams above, and the root bracket in `UI.draw` |
-
-**Gotchas.** Draw iterates `child`→`next` (bottom-first), hit-testing `lchild`→`prev` (topmost-first) — opposite,
-both correct. `draw` skips `!visible` children; **tick does not** (`TickEvent.visible` goes false for the subtree).
-The root is reached by neither seam (its "parent" is `UI`), so anything wrapped per widget misses it unless
-`UI.draw`/`UI.dispatch` is handled separately. `TickEvent.shandle` tolerates a widget removing itself mid-tick —
-hence the cached `next` — and a widget may equally rebuild **its own** child list in its `tick`: `handle`
-(→`shandle`, the widget itself) runs **before** `propagation`, which then re-reads `from.child` fresh. That is
-what makes `Window.tick` a legal place to `chdeco` (035).
-
-## The 2D draw target, re-homing and focus
-
-| What | Where |
-|---|---|
-| **Where the screen `GOut` is built** | `UILoop.display`: `basestate()` (a `BufPipe` + `FragColor.defcolor` + `DepthBuffer.defdepth`) `.prep` blend + `States.Viewport` + `Ortho2D` + `FrameInfo`, `buf.clear(...)`, then `new GOut(buf, base, wnd.sz())` → `ui.draw(g)` under `synchronized(ui)`. **The 3D scene is inside that traversal** (the MapView is a widget), so this ONE `Render` carries the whole frame in order — see [world-3d.md](world-3d.md) for drawing a subtree into a texture instead |
+| **The tick and draw traversals** | [widget-draw.md](widget-draw.md) — the two recursion seams, where the screen `GOut` is built, and what a frame allocates |
 | **Re-homing a widget** | `unlink()`  + `parent.cdestroy(w)` + `parent = null`, then `neu.add(w, at)`. All public |
 | Focus bookkeeping **and delivery** | [widget-input.md](widget-input.md) — including why `hasfocus` is the wrong read |
 | What `added()` can do to you | `Window.added` — `parent.setfocus(this)` **and** `initanim()` (a show transition). Both re-run on a re-home, since `add0` calls `added()` again |
@@ -135,16 +121,3 @@ re-home row above (plus `delfocusable` if `canfocus`); `ui.removed(w)` is skippe
 | **Coord translation (scroll offsets)** | `Widget.xlate` / `rootxlate` — a hit test must respect these, not a naïve rect test |
 | **Parent-relative `c` ⇄ root coords** | `Widget.parentpos(in)` — `parent.xlate(parent.parentpos(in).add(c), true)`, recursing to `in`; `rootpos()` is `parentpos(ui.root)`. Folds every level's `xlate` in, so it is the only correct crossing of a scrolling container. **`c` is relative to the PARENT**: a screen-space answer becomes a `c` by subtracting the parent's own `parentpos(root)`. Prefer `parentpos(u.root)` over `rootpos()` where the `UI` is already in hand — the latter reads the widget's own `ui` field |
 | **The root's size, and who changes it** | `UILoop.Frame.tick` compares `ui.root.sz` with the OS window size **every iteration** and calls `ui.root.resize(sz)` when they differ; `Widget.resize` then cascades `presize()` to the children and notifies `parent.cresize`. **Has an addon seam**: `AddonManager.onWidgetResized(this)`, the last statement of `resize`, after the `Utils.eq` no-op guard and the `presize`/`cresize` cascade — the root resizing is just another resize through this one tap |
-
-## Per-frame allocation (garbage, not time)
-
-- **A `GOut` per visible child per frame**: `Widget.draw` `reclip(l)` → `GOut.reclip2` `new GOut(this)` →
-  ctor `def2d.copy()` → `BufPipe.copy`. ≈ 0.5 kB/widget (a `State[]` of `numslots()`, ~60)
-  ⇒ **~0.4 MB/frame** at ~700 widgets.
-- **Nothing 2D is cached across frames**: `drawp` builds `Model`+`VertexArray`+`float[]` per call,
-  `image(BufferedImage)` a whole `TexI`, `atext` is render→tex→blit→dispose **per call** (a `Label` dodges
-  it by holding its `Text`; immediate-mode cannot).
-  Still true of `haven` — **no longer true of addon text**: `LuaGOut` holds the rendered `Text` behind
-  `g:text`/`g:atext` in a per-addon bounded LRU, so that path no longer calls `atext` at all.
-- Sums to <1 MB/frame while `UILoop.framealloc` reads **~11 MB** — the bulk is **not** here. `haven/render/gl`
-  (`BGL` = one `Command` per GL call; `GLDrawList` = incremental) has **no subsystem file**: pay that toll first.

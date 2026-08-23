@@ -28,7 +28,7 @@
       `[manual]`: read the top-of-screen banner the page's own example draws — expect yellow text,
       centred, over the HUD.
 
-- [ ] **103.3 — What is drawn over one widget.** The record, its two lists, the seam and the first
+- [x] **103.3 — What is drawn over one widget.** The record, its two lists, the seam and the first
       kind. A `// addon:` field on `Widget` holds that widget's records; `Addon` holds its own for the
       census and the teardown. The paint is one call after `wdg.draw(g2)` in `Widget.draw`'s child
       loop, outside the style frame, plus the root's own call in `UI.draw`. Ships `widget:overlay()`

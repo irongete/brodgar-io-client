@@ -96,6 +96,16 @@ public final class Addon {
      * immediately) — no widget, nothing else to release, so teardown is just {@code clear()}.
      */
     public final List<AddonManager.HudOverlay> hudOverlays = new CopyOnWriteArrayList<AddonManager.HudOverlay>();
+    /**
+     * Live <b>widget</b> overlays owned by this addon ({@code widget:overlay()}, 103.3): what it draws over
+     * one widget rather than over the screen. This list is the <b>census and the teardown</b> only — the
+     * draw order is the widget's own {@code Widget.addonovs} field, which is what the paint walks, and a
+     * record stands in both. So teardown has two ends: dropping this list is not enough, each record must
+     * leave its widget's field too ({@link LuaWidgetOverlay#teardown}), or a disabled addon goes on
+     * painting until that widget dies. A record holds its widget <b>weakly</b>, so nothing here pins a
+     * destroyed subtree, and the list is swept of the dead at the one moment it grows.
+     */
+    public final List<LuaWidgetOverlay.Rec> widgetOverlays = new CopyOnWriteArrayList<LuaWidgetOverlay.Rec>();
     /*
      * There is NO list of gob overlays here, and that is the point of 038.1. What an addon attaches to a
      * game object (gob:overlay(key, spec)) lives on the gob itself, inside the shared LuaGobOverlay attrib,

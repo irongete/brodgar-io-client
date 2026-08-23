@@ -266,6 +266,11 @@ reversible to the pixel; and since a rule is only values, a whole look can
 - **Motion.** A rule is a state, not a transition: nothing tweens, eases or animates, and installing a sheet
   moves things in one frame. Animation is a per-frame job, and the reason this system costs nothing per
   frame is that it does not have one.
+- **A decoration drawn over a widget.** A rule is a state resolved per property, not a painter: it says
+  what a surface *looks like*, and it does not put a second thing on top of it. A badge on a button, a
+  count on an item icon, a bar under a slot — what an addon draws over a widget it did not build is
+  [`widget:overlay()`](../overlay.md#over-one-widget), not a rule. It is keyed, clipped to that widget's
+  box and reversible the same way, and it is a callback where a rule is a value.
 - **A configuration UI.** No drag-to-arrange editor, no docking, no profile manager. The engine ships the
   mechanism — a layout is data, `widget:position()` reads it back and [`hafen.store`](../../store.md)
   persists

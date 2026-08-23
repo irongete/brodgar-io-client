@@ -1,6 +1,6 @@
 # Widget input: where an event enters, and what it resolves against
 
-> Split out of [widgets.md](widgets.md), which keeps the tree, the traversal seams and the read-only
+> Split out of [widgets.md](widgets.md), which keeps the tree, the lifecycle seams and the read-only
 > walk. The **input** half: grabs, propagation, focus, the point queries, popups and drops. Lines are
 > indicative —
 

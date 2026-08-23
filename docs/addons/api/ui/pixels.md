@@ -55,8 +55,9 @@ end)
 ```
 
 **And for every question about drawing.** Every coordinate, width and radius a [`g:` verb](drawing.md)
-takes, the `:w()`/`:h()` a `Draw` callback reports, the `w, h` a [HUD overlay's](overlay.md)
-painter is handed, and the `sx, sy` at a [gob overlay](../overlay.md) are the same unit — so the box you
+takes, the `:w()`/`:h()` a `Draw` callback reports, the `w, h` an [overlay's](overlay.md) painter is
+handed over the screen or over one widget, and the `sx, sy` at a [gob overlay](../overlay.md) are the
+same unit — so the box you
 sized is the box you paint into:
 
 ```lua

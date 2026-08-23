@@ -60,8 +60,8 @@ its *text* changes, and round anything you do not need to the digit you do.
 ## Overlays
 
 An overlay paints without being in the tree: nothing to place, nothing to size, nothing for the user to
-drag. It is the same vocabulary on the [**HUD**](../api/ui/overlay.md) and on a **game object** — keyed
-decorations you add, read back and remove. On the HUD you name the screen:
+drag. It is the same vocabulary on the [**HUD**](../api/ui/overlay.md), on **one widget** and on a **game
+object** — keyed decorations you add, read back and remove. On the HUD you name the screen:
 
 ```lua
 hafen.ui():overlay():add("clock"):draw(function(g, w, h)  -- over the whole HUD; w, h is the screen
@@ -87,6 +87,20 @@ The label is drawn at that object's projected screen point, just above the head,
 because it is attached to it — no projection to do and nothing to poll. A `:draw(fn)` overlay gets that
 point as `sx, sy` when you want to paint it yourself. Standing something **in** the world instead of over
 it is [`hafen.vr`](../api/vr/README.md).
+
+Over **one widget** the verb is on the widget — [`widget:overlay()`](../api/ui/overlay.md#over-one-widget)
+— and the painter is handed that widget's own box, clipped to it and hidden with it:
+
+```lua
+local pack = hafen.session():current():ui():inventory()
+pack:overlay():add("frame"):draw(function(g, w, h)   -- w, h is the grid, not the screen
+  g:color(255, 90, 90)
+  g:rect(0, 0, w, h)
+end)
+```
+
+That is the one to reach for when the thing you want to decorate is a button, a slot or an item icon: you
+name the widget, so nothing is searched and no rectangle is re-derived every frame.
 
 ## Input
 

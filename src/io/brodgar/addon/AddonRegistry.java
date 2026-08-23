@@ -202,6 +202,10 @@ public final class AddonRegistry {
                                       //   who wrote it, so another addon's scale is left alone; nothing an
                                       //   addon that stopped running left distorted stays distorted.
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
+        LuaWidgetOverlay.teardown(a); // 103.3: ...and every painter this addon hung on a WIDGET comes off the
+                                      //   widget as well as off the addon's list — the paint walks the widget's
+                                      //   own field, so a record left there goes on painting for an addon that
+                                      //   has stopped running, until the widget itself dies
         a.subs.clear();               // 041.1: the whole bus, in one drop — nothing to unsubscribe by hand
         a.timers.clear();
     }
