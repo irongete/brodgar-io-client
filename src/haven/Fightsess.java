@@ -318,7 +318,12 @@ public class Fightsess extends Widget {
 		    // addon: (102.2) `acttipsrc` -- the tip we were HANDED. `acttip.text` is what was drawn.
 		    if((acttip == null) || !tip.equals(acttipsrc) || (acttipgen != Fonts.gen())) {   // addon: (F3d)
 			acttipgen = Fonts.gen();   // addon:
-			acttip = Widget.tipfoundry().render(acttipsrc = tip, -1);   // addon: the "tooltip" scope (F3d)
+			Fonts.enter("tooltip");   // addon: (102.3) the pair -- display reads the SITE's scope
+			try {
+			    acttip = Widget.tipfoundry().render(acttipsrc = tip, -1);   // addon: the "tooltip" scope (F3d)
+			} finally {
+			    Fonts.exit();   // addon:
+			}
 		    }
 		    return(acttip);
 		}
@@ -333,7 +338,7 @@ public class Fightsess extends Widget {
 		    if((lastacttip1 == null) || (lastactgen != Fonts.gen())) {   // addon: (F3d)
 			lastactgen = Fonts.gen();   // addon:
 			lastacttip1 = lastacttip2 = null;
-			lastacttip1 = Fonts.foundry("tooltip", Text.std).render(lastact.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d)
+			lastacttip1 = Fonts.render("tooltip", lastact.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d) the scope, (102.3) declared with it
 		    }
 		    return(lastacttip1);
 		}
@@ -348,7 +353,7 @@ public class Fightsess extends Widget {
 		    if((lastacttip2 == null) || (lastactgen != Fonts.gen())) {   // addon: (F3d)
 			lastactgen = Fonts.gen();   // addon:
 			lastacttip1 = null;
-			lastacttip2 = Fonts.foundry("tooltip", Text.std).render(lastact.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d)
+			lastacttip2 = Fonts.render("tooltip", lastact.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d) the scope, (102.3) declared with it
 		    }
 		    return(lastacttip2);
 		}

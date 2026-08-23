@@ -477,7 +477,12 @@ public class BAttrWnd extends Widget {
 		rtip = null;
 	    }
 	    if(rtip == null) {
-		rtip = Widget.tipfoundry().render(String.format("%s: %.1f\u2030\nFood efficacy: %d%%", lbl, glut * 1000, Math.round(gmod * 100)), -1).tex();   // addon: the "tooltip" scope (F3d)
+		Fonts.enter("tooltip");   // addon: (102.3) the pair -- display reads the SITE's scope
+		try {
+		    rtip = Widget.tipfoundry().render(String.format("%s: %.1f\u2030\nFood efficacy: %d%%", lbl, glut * 1000, Math.round(gmod * 100)), -1).tex();   // addon: the "tooltip" scope (F3d)
+		} finally {
+		    Fonts.exit();   // addon:
+		}
 		rtipgen = Fonts.gen();   // addon:
 	    }
 	    return(rtip);

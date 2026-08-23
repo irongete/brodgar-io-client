@@ -92,7 +92,7 @@ public class SkillWnd extends Widget {
 		tooltip = null;
 	    }
 	    if(tooltip == null)
-		tooltip = Fonts.foundry("tooltip", Text.std).render(res.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d)
+		tooltip = Fonts.render("tooltip", res.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d) the scope, (102.3) DECLARED with it
 	    return(tooltip);
 	}
     }
@@ -128,7 +128,7 @@ public class SkillWnd extends Widget {
 		tooltip = null;
 	    }
 	    if(tooltip == null)
-		tooltip = Fonts.foundry("tooltip", Text.std).render(res.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d)
+		tooltip = Fonts.render("tooltip", res.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d) the scope, (102.3) DECLARED with it
 	    return(tooltip);
 	}
     }
@@ -164,7 +164,7 @@ public class SkillWnd extends Widget {
 		tooltip = null;
 	    }
 	    if(tooltip == null)
-		tooltip = Fonts.foundry("tooltip", Text.std).render(res.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d)
+		tooltip = Fonts.render("tooltip", res.get().flayer(Resource.tooltip).t, Text.white);   // addon: (F3d) the scope, (102.3) DECLARED with it
 	    return(tooltip);
 	}
     }

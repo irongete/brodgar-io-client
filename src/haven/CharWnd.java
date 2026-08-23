@@ -400,8 +400,17 @@ public class CharWnd extends Window {
 		Resource.Pagina pag = attr.res().get().layer(Resource.pagina);
 		if(pag != null)
 		    binfo.add(new ItemInfo.Pagina(this, pag.text));
-		if(!binfo.isEmpty())
-		    binfo.add(new ItemInfo.Name(this, attr.res().get().flayer(Resource.tooltip).t));
+		if(!binfo.isEmpty()) {
+		    /* addon: (102.3) an ItemInfo.Name renders in its CONSTRUCTOR, and this one is built outside
+		     * the pair ItemInfo.buildinfo opens around its own -- so the row was offered to a catalogue
+		     * under "default" while every other row of the same tip went under "tooltip". */
+		    Fonts.enter("tooltip");
+		    try {
+			binfo.add(new ItemInfo.Name(this, attr.res().get().flayer(Resource.tooltip).t));
+		    } finally {
+			Fonts.exit();   // addon:
+		    }
+		}
 		this.binfo = binfo;
 	    }
 	    return(this.binfo);

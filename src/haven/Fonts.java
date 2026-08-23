@@ -1079,6 +1079,24 @@ public class Fonts {
     }
 
     /**
+     * Render {@code text} in {@code c} at {@code scope} — {@link #render(String, Text.Furnace, String)} for a site
+     * that renders <b>with a colour</b> (102.3), which is nearly every plain tooltip in the client.
+     *
+     * <p>It resolves the foundry and declares the scope in one call, because a site that did only the first is the
+     * shape the tooltip widening found over and over: its font followed the scope while the string it drew was
+     * still offered to a catalogue under {@code "default"}, since {@link #display} reads the scope the <b>site</b>
+     * declared and a foundry is not a site.
+     */
+    public static Text.Line render(String scope, String text, Color c) {
+        enter(scope);
+        try {
+            return foundry(scope, Text.std).render(text, c);
+        } finally {
+            exit();
+        }
+    }
+
+    /**
      * The scope the generic statics should resolve right now: the innermost {@link #enter(String)} scope, else
      * {@code "default"}. Cheap — a {@code volatile} read while no addon has installed any override.
      */

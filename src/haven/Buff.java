@@ -138,7 +138,7 @@ public class Buff extends Widget implements ItemInfo.ResOwner, Bufflist.Managed 
 	if(rawinfo != null)
 	    return(ItemInfo.shorttip(info()));
 	String ret = res.get().flayer(Resource.tooltip).t;
-	return(Fonts.foundry("tooltip", Text.std).render(ret, Text.white).img);   // addon: the "tooltip" scope (F3d)
+	return(Fonts.render("tooltip", ret, Text.white).img);   // addon: (F3d) the scope, (102.3) declared with it -- this branch is reached from tooltip() too
     }
 
     private BufferedImage longtip() {

@@ -78,8 +78,11 @@ public class Equipory extends Widget implements DTarget {
 	if(betts[sl] == null) {
 	    if(ettstr[sl] == null)
 		return(etts[sl]);
-	    Text.Foundry f = Fonts.foundry("tooltip", Text.std);
-	    betts[sl] = (f == Text.std) ? etts[sl] : f.render(ettstr[sl], Text.white);
+	    /* addon: (102.3) rendered through the "tooltip" pair EVERY time, never short-circuited back to
+	     * `etts[sl]`: that one was rasterised at class init, so a catalogue could not reach this surface
+	     * and a `default` pair was what a miss reported. The Fonts.gen() guard above is what keeps it to
+	     * one render per change; the colour is Text.white, which is what Text.render(String) used. */
+	    betts[sl] = Fonts.render("tooltip", ettstr[sl], Text.white);
 	}
 	return(betts[sl]);
     }

@@ -642,9 +642,14 @@ public class OptWnd extends Window {
     // addon: was a class-init `static final Text` -- baked at class load, it could never follow a font override
     // (the F3e lesson), so it renders per use through the "tooltip" scope now (F3d, D-043).
     private static Text kbtt() {
-	return(Widget.tipfoundry().render("$col[255,255,0]{Escape}: Cancel input\n" +
-					  "$col[255,255,0]{Backspace}: Revert to default\n" +
-					  "$col[255,255,0]{Delete}: Disable keybinding", 0));
+	Fonts.enter("tooltip");   // addon: (102.3) the pair -- display reads the SITE's scope
+	try {
+	    return(Widget.tipfoundry().render("$col[255,255,0]{Escape}: Cancel input\n" +
+					      "$col[255,255,0]{Backspace}: Revert to default\n" +
+					      "$col[255,255,0]{Delete}: Disable keybinding", 0));
+	} finally {
+	    Fonts.exit();   // addon:
+	}
     }
     public class BindingPanel extends Panel {
 	private int addbtn(Widget cont, String nm, KeyBinding cmd, int y) {
@@ -766,10 +771,12 @@ public class OptWnd extends Window {
 
 	public PointBind(int w) {
 	    super(w, msg, false);
-	    tooltip = RichText.render("Bind a key to an element not listed above, such as an action-menu " +
-				      "button. Click the element to bind, and then press the key to bind to it. " +
-				      "Right-click to stop rebinding.",
-				      300);
+	    // addon: (102.3) was a RichText baked in the CONSTRUCTOR, under "default" and once: it followed
+	    // neither a font override nor a catalogue. settip(text, rich) is the live shape -- KeyboundTip
+	    // renders on demand, inside the "tooltip" pair, and re-renders when Fonts.gen() moves.
+	    settip("Bind a key to an element not listed above, such as an action-menu " +
+		   "button. Click the element to bind, and then press the key to bind to it. " +
+		   "Right-click to stop rebinding.", true);
 	}
 
 	public void click() {

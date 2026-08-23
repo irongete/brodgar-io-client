@@ -76,7 +76,7 @@ it has missed, so naming a surface exactly is always the stronger statement.
 | `button` | button captions |
 | `window.title` | window captions |
 | `heading` | the section headings inside a window |
-| `tooltip` | tooltips |
+| `tooltip` | every tooltip, and **every row inside one** — see [below](#a-tooltip-is-many-rows) |
 | `menu` | the flower menu and the context menus |
 | `chat` | chat text, with `chat.system`, `chat.mine`, `chat.private` and `chat.party` for its kinds |
 | `world.nick` | the floating names above characters |
@@ -102,6 +102,19 @@ exactly as an entry has to spell it.
 `chat.system`, your own line is `chat.mine`, and `chat` names the ones that have no kind of their own. The
 key a line reached is what `locale:miss()` hands back, so the four kinds never have to be told apart by
 hand.
+
+### A tooltip is many rows
+
+An item tooltip is not one string. Its name, its quality, its wear, its gilding and each of its bonuses
+are **separate rows**, composed one under another, and each one reaches `tooltip` as a key of its own. So
+an entry names one row and leaves the rest of the tip alone — which is what you want, since most of those
+rows carry a number the player's own item put there.
+
+Most of them are also drawn by **code that ships inside the resource**, not by the client. That changes
+nothing you write: a catalogue lands beneath every foundry, so a row a resource composed with a font of
+its own is keyed and answered exactly like a button caption. It does mean the wording is the
+*resource author's*, not the client's, so read the row off [`locale:miss()`](#what-missed) rather than
+typing what you think it says.
 
 ## What missed
 

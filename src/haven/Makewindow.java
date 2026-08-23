@@ -117,8 +117,14 @@ public class Makewindow extends Widget {
 	    List<ItemInfo> info = info();
 	    BufferedImage img = ItemInfo.longtip(info);
 	    Resource.Pagina pg = item.res.get().layer(Resource.pagina);
-	    if(pg != null)
-		img = ItemInfo.catimgs(0, img, Widget.tipfoundry().render("\n" + pg.text, 200).img);   // addon: the "tooltip" scope (F3d)
+	    if(pg != null) {
+		Fonts.enter("tooltip");   // addon: (102.3) the pair -- ItemInfo.longtip above declares its own
+		try {
+		    img = ItemInfo.catimgs(0, img, Widget.tipfoundry().render("\n" + pg.text, 200).img);   // addon: the "tooltip" scope (F3d)
+		} finally {
+		    Fonts.exit();   // addon:
+		}
+	    }
 	    return(new SpecTip(info, img));
 	}
 

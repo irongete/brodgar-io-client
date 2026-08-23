@@ -1,6 +1,6 @@
 # 102 — Translation: tasks
 
-Five tasks. The first ships the catalogue and the oracle every later suite reads, because criterion 6 makes
+Six tasks. The first ships the catalogue and the oracle every later suite reads, because criterion 6 makes
 every readback answer English: without `:miss()` nothing in this feature is machine-checkable at all.
 
 - [x] **102.1 — the catalogue, and the surface a string is drawn at.** Adds `hafen.locale()` —
@@ -32,7 +32,7 @@ every readback answer English: without `:miss()` nothing in this feature is mach
       client's own English.
       `[manual]`: open any window — expect the caption in the catalogue's words, frame and font unchanged.
 
-- [ ] **102.3 — the text a resource's own code draws.** `Text.Foundry.resolved()` and its `RichText` twin
+- [x] **102.3 — the text a resource's own code draws.** `Text.Foundry.resolved()` and its `RichText` twin
       translate under `Fonts.dynamic()`, so a foundry the fork cannot route is reached with no copy of that
       code. `Fonts.enter("tooltip")` widens past `ItemInfo.longtip` and `MenuGrid` to the item name and the
       composed rows, `res/ui/tt/slots_alt/ISlots` among them.
@@ -62,3 +62,19 @@ every readback answer English: without `:miss()` nothing in this feature is mach
       `ui/widget.md` are discharged with their ceiling as the reason.
       *Its suite* is the page's own example run verbatim: the file loads, installs, and one asserted string
       changes surface — a page whose example does not run is the defect this catches.
+
+- [ ] **102.6 — the readbacks that read a raster.** `Text.text` is the string that was **drawn**, so six
+      verbs answer the display string the moment a catalogue names their row, against criterion 6:
+      `item:name()` and `buff:name()` and `wound:name()` (`ItemInfo.Name.str`), the rows
+      `item:contents()` prints (`Name.str` and `AdHoc.str`), `gob:speech()` (`Speaking.text`), and the
+      equipment slot name (`Equipory.etts`). Each reads its site's **source** field instead, falling back
+      to the raster only where the caller handed the client a rendered `Text` and there is no source — the
+      shape `LuaWidget.text` already takes for a `Button` built from one. Needs a source accessor on
+      `ItemInfo.Name`, `ItemInfo.AdHoc` and `Speaking`, and `Equipory.ettstr` reachable.
+      *Its suite* needs no hover: reading `item:name()` is itself what builds the tip, so it installs a
+      `tooltip` entry naming a backpack item's name row, asserts the pair is answered off `:miss()`, and
+      asserts `item:name()`, `item:info().name` and the same item's `contents()` rows all still answer the
+      client's own English. It does the same for one buff and one wound where the character carries either,
+      and scores the ones it could not reach rather than skipping them.
+      `[manual]`: say a word in area chat under a `*` catalogue naming it — expect the bubble in the
+      catalogue's words and `gob:speech()` printing the English beside it.

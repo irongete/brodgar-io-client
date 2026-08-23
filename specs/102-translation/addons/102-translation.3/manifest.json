@@ -1,0 +1,9 @@
+{
+  "name": "102.3 — the text a resource's own code draws",
+  "id": "102-translation.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 102.3: every row of an item tooltip is keyed at tooltip, the rows a resource's own code draws included, and an entry answers them while every readback stays English.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

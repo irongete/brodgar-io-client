@@ -1197,7 +1197,7 @@ public class MiniMap extends Widget {
 	    if(icon != null) {
 		if(icon.icon != null) {
 		    objid = icon.icon;
-		    objtip = () -> Fonts.foundry("tooltip", Text.std).render(icon.icon.name(), Text.white).img;   // addon: the "tooltip" scope (F3d)
+		    objtip = () -> Fonts.render("tooltip", icon.icon.name(), Text.white).img;   // addon: (F3d) the scope, (102.3) declared with it
 		}
 	    } else if(mark != null) {
 		objid = mark;
@@ -1207,9 +1207,15 @@ public class MiniMap extends Widget {
 	if((tname != null) || (objid != null)) {
 	    if((tname != lasttname) || (objid != lastobjid) || (lasttipgen != Fonts.gen())) {   // addon: (F3d)
 		lasttipgen = Fonts.gen();   // addon:
-		BufferedImage tip = ItemInfo.catimgs(0,
-		    (objid == null) ? null : objtip.get(),
-		    (tname == null) ? null : Widget.tipfoundry().render("Terrain: $col[255,255,128]{" + RichText.Parser.quote(tname) + "}", 0).img);   // addon: (F3d)
+		BufferedImage tip;
+		Fonts.enter("tooltip");   // addon: (102.3) the pair, around BOTH rows this composes
+		try {
+		    tip = ItemInfo.catimgs(0,
+			(objid == null) ? null : objtip.get(),
+			(tname == null) ? null : Widget.tipfoundry().render("Terrain: $col[255,255,128]{" + RichText.Parser.quote(tname) + "}", 0).img);   // addon: (F3d)
+		} finally {
+		    Fonts.exit();   // addon:
+		}
 		lasttip = new TexI(tip);
 		lasttname = tname; lastobjid = objid;
 	    }
