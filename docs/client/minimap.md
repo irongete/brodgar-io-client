@@ -8,14 +8,14 @@
 
 - `haven/MiniMap.java` `file`, `` `sessloc`, `` `curloc`. `GameUI.mmap` is the corner minimap and
   `GameUI.mapfile` the big window; **both hold the same `MapFile`**.
-- `Location(seg, tc)` (``): `sessloc.tc` is the **segment tile coord of session tile (0,0)**, so
+- `Location(seg, tc)`: `sessloc.tc` is the **segment tile coord of session tile (0,0)**, so
   segment tile = session tile + `sessloc.tc`. That single addition is the whole coordinate bridge.
-- `resolve(Locator)` (``) is the rule to copy: **`tryLock` on the read lock, else throw `Loading`** —
-  never wait for a lock a disk write may be holding. `SessionLocator` (``) derives `sessloc` from any
-  live `MCache.Grid` whose `gridinfo` is known; `MapLocator` (``) and `SpecLocator` (``) are the
-  other two. `tick` (``) re-resolves `sessloc` every frame and swallows `Loading`.
-- **That assignment (``) is the coordinate space's own mutation point**, and carries the one
-  `// addon:` seam in this file (`` → `AddonManager.sessionRebased(this, sessloc)`): every
+- `resolve(Locator)` is the rule to copy: **`tryLock` on the read lock, else throw `Loading`** —
+  never wait for a lock a disk write may be holding. `SessionLocator` derives `sessloc` from any
+  live `MCache.Grid` whose `gridinfo` is known; `MapLocator` and `SpecLocator` are the
+  other two. `tick` re-resolves `sessloc` every frame and swallows `Loading`.
+- **That assignment is the coordinate space's own mutation point**, and carries the one
+  `// addon:` seam in this file, a call to `AddonManager.sessionRebased(this, sessloc)`: every
   session world coordinate derived from a durable place goes through `sessloc`, so when it
   moves, all of them have. Two things make the seam correct rather than a poll. **It is guarded on
   `(seg.id, tc)`** — `resolve` mints a fresh `Location` object every frame, so identity says nothing and
@@ -31,10 +31,10 @@
 
 ## Drawing a grid
 
-- `DisplayGrid` (``) is one square of the display: `seg`, `sc` (the coord **at its level**), `mapext`,
-  and a `gref` the caller built as `seg.grid(lvl, sc.mul(1 << lvl))`. `redisplay` (``) is the walk —
+- `DisplayGrid` is one square of the display: `seg`, `sc` (the coord **at its level**), `mapext`,
+  and a `gref` the caller built as `seg.grid(lvl, sc.mul(1 << lvl))`. `redisplay` is the walk —
   the client never enumerates a segment, it iterates `dgext`, the rectangle it is about to paint.
-- `CachedImage` (``) is the whole async pattern: it holds the `DataGrid` it last rendered, and when
+- `CachedImage` is the whole async pattern: it holds the `DataGrid` it last rendered, and when
   `gref.get()` hands back a *different* one it cancels the old `Defer.Future` and starts a new one.
   `get()` calls `next.get()` inside `catch(Loading){}` — so **a caller polls and gets `null` until the
   render lands**. Nothing is ever rendered on the UI thread, and the `TexI` is built off-thread too (its
@@ -45,7 +45,7 @@
     `fin()` ``). The neighbours are there for **tile transitions**: `drawmap` blends across the grid
     border, so a grid rendered alone carries a seam the minimap does not have.
   - **level ≥ 1** → the `ZoomGrid`'s own `DataGrid.render(sc.mul(cmaps))`.
-- `olimg(tag)` (``) is the same `CachedImage` over `DataGrid.olrender(off, tag)` — the overlay mask in
+- `olimg(tag)` is the same `CachedImage` over `DataGrid.olrender(off, tag)` — the overlay mask in
   the overlay's own colour, one cache per tag in a `synchronized` map.
 - Both renderers produce a **`cmaps`-sized image at every level** (`PUtils.imgraster(cmaps)` /
   `TexI.mkbuf(a.sz())` where the area is `cmaps`): 100×100 pixels, one per `2^lvl` tiles.

@@ -41,7 +41,18 @@ is a check in the archived suite, and none of them has run.
 
 ## Reported at the close, not changed
 
-**`audit/ns-vr.md` F2 and F4 are findings with no row and are not discharged here.** F2 —
-`hafen.vr():pointer(key, x, y, a)` returning a bare boolean where every other write returns the receiver —
-and F4 — a standing widget not being drawable from another character, with the page silent about it — are
-both outside this finding. Recorded so a later reader does not go looking for them under 098.
+**`audit/ns-vr.md` F2 and F4 were listed here as open. They are not, and were not.** The line is
+corrected rather than deleted, because the mistake is the useful part: both were read off the audit's
+finding list without being checked against the tree, which is the one habit this whole sweep keeps
+punishing.
+
+- **F2** — `hafen.vr():pointer(key, x, y, a)` reading as a noun and returning a bare boolean — shipped
+  earlier in the sweep. The verb is `hafen.vr():click(key, x, y [, a])`, `Retired` carries a `moved` row
+  giving the noun-to-verb reason, and `vr/widgets.md` documents the boolean **and what `false` means**:
+  the point was on no panel, so the client's own world click goes through untouched.
+- **F4** — a standing widget not drawable from another character, with the page silent about it — also
+  shipped. `vr/widgets.md` has a section of its own, *"It stands with the character you stood it from"*,
+  stating the limit in the present tense and separating `panel:exists()` from `panel:drawn()`.
+  `VrApi.rehome`'s javadoc points at that section, and the code does what both say.
+
+Both were cited by rows in `audit/INVENTORY.md` and closed with them. Nothing of `ns-vr` is open.
