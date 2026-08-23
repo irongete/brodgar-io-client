@@ -32,6 +32,13 @@ WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
   * A receiver spelled ambiguously. `p` is a Position and a profiling handle; `sp` is a Speed and a
     scrollport. Those are mapped per file where a page is unambiguous and skipped otherwise, and
     --verbose lists what was skipped so the map's coverage is visible instead of assumed.
+  * WHICH of a page's receivers a call belongs to, where one page documents two types under one
+    spelling. `ov:` on the UI overlay page is a HUD painter in one section and a widget's overlay in
+    the next, so that file maps `ov` to BOTH and a verb resolves if either type answers it. A verb
+    written in the wrong section of that one page therefore still resolves -- which is the price of
+    checking it at all, and far less than the alternative the map had before: `ov:` there resolved
+    against the GOB overlay, a third type neither section is about, and passed on the verbs the
+    three happen to share.
   * An event key on an OPEN emitter -- a slash command, a hotkey, a wdgmsg, an action, req:on("done").
     Those key sets are protocol or user-chosen, so there is nothing to check against; the key pass reads
     upper-case keys only, which is the convention that separates the two. Its other blind spots are
@@ -67,7 +74,9 @@ RECEIVERS = {
 
 # A receiver spelling that means something else on one page. `w:` is a widget nearly everywhere, a Wound on
 # wound.md and the world SECTION on world.md -- three types, one letter, which is the docs' own shorthand
-# rather than a defect. Keyed by the tail of the path.
+# rather than a defect. Keyed by the file's name, or by as much of its path as it takes to be unambiguous:
+# `overlay.md` is two pages, the gob's and the UI's, and they mean different types by `ov`. A tuple maps one
+# spelling to SEVERAL types, for a page that documents more than one of them and calls them all `ov`.
 PER_FILE = {
     "wound.md":  {"w": "wound"},
     "world.md":  {"w": None},                 # the world section object: its verbs live on WorldApi
@@ -90,7 +99,18 @@ PER_FILE = {
     "flowermenu.md": {"p": "petal"},          # `p` is a petal on that page, not a Position
     "lists.md":  {"grid": None},              # a UI grid control, not the map's Grid
     "drawings.md": {"grid": None},
+    # The UI overlays are one page and two receivers -- the HUD painter and a widget's overlay -- both
+    # spelled `ov`. The gob's page keeps the bare name, so this one is keyed by its directory too.
+    "ui/overlay.md": {"ov": ("uioverlay", "widgetoverlay")},
 }
+
+def per_file(rel):
+    """The receiver overrides in force for one page: its name's, plus any keyed by more of its path."""
+    over = dict(PER_FILE.get(rel.rsplit("/", 1)[-1], {}))
+    for k, v in PER_FILE.items():
+        if ("/" in k) and (rel == k or rel.endswith("/" + k)):
+            over.update(v)
+    return over
 
 # What one verb hands back, where a page or a comment then calls a verb ON it. Without this a chained
 # receiver -- `credo:pursuing():cost()` -- resolves to `pursuing`, which is not a type, and the mention is
@@ -199,6 +219,16 @@ def resolve_line(line, over, vocab, whole=None):
                 out.append((spelling, verb, ent, True))
             else:
                 out.append((spelling, verb, None, False))   # an `extra` verb: not knowable here
+            continue
+        if isinstance(ent, tuple):
+            # one spelling, several types on that page: a chain off it is not resolvable, a bare call is
+            if STEP.findall(mid):
+                out.append((spelling, verb, None, False))
+                continue
+            known = set()
+            for e in ent:
+                known |= vocab.get(e, set())
+            out.append((spelling, verb, "/".join(ent), verb in known))
             continue
         known = vocab.get(ent)
         if not known:
@@ -365,7 +395,8 @@ def main():
             p = os.path.join(dirpath, f)
             rel = os.path.relpath(p, ROOT).replace("\\", "/")
             for i, line in enumerate(io.open(p, encoding="utf-8", errors="replace"), 1):
-                for recv, verb, ent, ok in resolve_line(line, PER_FILE.get(f, {}), vocab):
+                over = per_file(rel)
+                for recv, verb, ent, ok in resolve_line(line, over, vocab):
                     if ent is None:
                         skipped[recv] += 1
                         continue

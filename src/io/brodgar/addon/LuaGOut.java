@@ -25,8 +25,9 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 /**
  * The Lua {@code g} drawing wrapper over {@link GOut} — the single, canonical draw surface shared by
- * <b>every</b> addon draw callback: custom widgets/windows ({@link AddonWidget}, Phase 2a), HUD overlays and
- * world-space gob overlays ({@link LuaGobOverlay}, Phase 2b). It is built once; the live {@code GOut} is
+ * <b>every</b> addon draw callback: custom widgets/windows ({@link AddonWidget}, Phase 2a), HUD overlays,
+ * gob overlays ({@link LuaGobOverlay}, Phase 2b) and what is drawn over one widget
+ * ({@link LuaWidgetOverlay}). It is built once; the live {@code GOut} is
  * bound only for the duration of a single draw callback via {@link #bind}/{@link #unbind}. Outside a draw
  * the wrapper is <b>inert</b> — every method no-ops on a {@code null} target — so an addon that stashes
  * {@code g} in a timer/handler and tries to draw later cannot corrupt the client's draw pipeline.
@@ -489,15 +490,16 @@ final class LuaGOut {
         }
         if((col == null) && (fh != null))
             col = fh.color;
-        draw0(d, str, c, ax, ay, fh, col);          // c is already device: converted at the Lua read (058.2)
+        draw0(d, str, c, ax, ay, fh, col, null);    // c is already device: converted at the Lua read (058.2)
     }
 
     /** The cached render-and-blit itself, shared by {@link #drawText} and the Java-side {@link #label}. */
-    private void draw0(GOut d, String str, Coord c, double ax, double ay, FontHandle fh, Color col) {
+    private void draw0(GOut d, String str, Coord c, double ax, double ay, FontHandle fh, Color col, Color bg) {
         Cache cache = (owner != null) ? owner.texts : null;
         Key k = (cache != null) ? new Key(str, fh, Fonts.gen()) : null;
         Tex T = (cache != null) ? cache.get(k) : null;
         if(T != null) {                                    // hit: blit the Text we already hold
+            fill(d, T, c, ax, ay, bg);
             blitText(d, T, c, ax, ay, col);
             return;
         }
@@ -505,9 +507,11 @@ final class LuaGOut {
         T = t.tex();
         if(cache != null) {
             cache.put(k, t, T);                            // the cache owns it from here — it is the only disposer
+            fill(d, T, c, ax, ay, bg);
             blitText(d, T, c, ax, ay, col);
         } else {                                           // no owner (defensive): the pre-026 per-frame lifecycle
             try {
+                fill(d, T, c, ax, ay, bg);
                 blitText(d, T, c, ax, ay, col);
             } finally {
                 t.dispose();
@@ -523,7 +527,38 @@ final class LuaGOut {
      * a {@code g:text} of the same string in the same addon are ONE entry.
      */
     void label(GOut d, String str, Coord c, double ax, double ay, Color col) {
-        draw0(d, str, c, ax, ay, null, col);
+        draw0(d, str, c, ax, ay, null, col, null);
+    }
+
+    /**
+     * The same label, in a font of the addon's own and over a filled background — the {@code :text(s)} half of
+     * {@code widget:overlay()} (103.4), which is dressed where a gob's label is not. Both extras are free of
+     * the cache: {@code fh} is already a key component (a label and a {@code g:text} of the same string in the
+     * same font are ONE entry), and the background is a {@code frect} <b>behind</b> the raster, measured off
+     * the very {@link Tex} the cache handed back — so a colour that changes every frame still costs no
+     * rasterisation, exactly as the tint does.
+     */
+    void label(GOut d, String str, Coord c, double ax, double ay, FontHandle fh, Color col, Color bg) {
+        draw0(d, str, c, ax, ay, fh, col, bg);
+    }
+
+    /**
+     * Fill {@code bg} behind a rendered text {@link Tex} about to be blitted at {@code c} with anchor
+     * {@code ax,ay} — the label's own box and not a pixel more, which is why the shift is {@link GOut#aimage}'s
+     * own arithmetic rather than a second guess at it. Nothing is drawn when there is no background.
+     */
+    private static void fill(GOut d, Tex tex, Coord c, double ax, double ay, Color bg) {
+        if(bg == null)
+            return;
+        Coord sz = tex.sz();
+        Coord ul = c.add((int)((double)sz.x * -ax), (int)((double)sz.y * -ay));
+        Color save = d.getcolor();
+        d.chcolor(bg);
+        try {
+            d.frect(ul, sz);
+        } finally {
+            d.chcolor(save);
+        }
     }
 
     /**

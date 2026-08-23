@@ -150,6 +150,10 @@ What that means when you write a draw callback:
 - **It is bounded, not a leak.** An LRU of at most **512 entries or 8 MiB** of texture; the least recently
   used entries are evicted and their textures disposed. An addon that draws thousands of distinct strings
   settles at the cap instead of growing.
+- **A label an overlay puts up shares it.** [`ov:text(s)`](overlay.md#a-label-the-client-draws) over a
+  widget, and [the same verb at a gob](../overlay.md), are drawn by the client rather than by a callback of
+  yours — through this very cache, on the same key. So one string in one font is one entry whether your
+  painter drew it or the client did, and a label costs no Lua at all per frame.
 
 [`hafen.client():profiling():textcache()`](../client/profiling/counters.md#textcache) reports what your
 addon's cache holds and its hit rate. Rich-text markup is cached on the same terms as plain text.

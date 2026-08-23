@@ -90,9 +90,10 @@ over.
 
 ## Over one widget
 
-`widget:overlay()` is the collection of the painters your addon has put over **one widget** — an item
-icon, a button, a container's grid, a window, or a surface of your own. You name the widget, so nothing is
-searched per frame and there is no rectangle to re-derive: the painter is handed that widget's own box.
+`widget:overlay()` is the collection of what your addon draws over **one widget** — an item icon, a
+button, a container's grid, a window, or a surface of your own. You name the widget, so nothing is searched
+per frame and there is no rectangle to re-derive: a painter is handed that widget's own box, and a label is
+placed in it by a fraction. Two kinds, and one overlay is exactly one of them.
 
 ```lua
 local pack = hafen.session():current():ui():inventory()
@@ -118,18 +119,25 @@ has already drawn.
 An argument to `widget:overlay()` itself raises, naming the collection you meant, and so does a key that is
 not a string.
 
-### One painter over a widget
+### One overlay over a widget
 
 | Method | Returns | Description |
 |---|---|---|
 | `ov:key()` | string | the key it answers to; it answers after the overlay is gone as well |
+| `ov:kind()` | string \| nil | what it draws — `"draw"` or `"text"`; `nil` while it is bare |
 | `ov:draw(fn)` | the overlay | paint `fn(g, w, h)` over the widget every frame; `w, h` is that widget's box |
-| `ov:draw()` | function \| nil | the painter it carries; `nil` while it is bare |
-| `ov:kind()` | string \| nil | what it paints — `"draw"`; `nil` while it is bare |
+| `ov:draw()` | function \| nil | the painter it carries; `nil` on a label and while it is bare |
+| `ov:text(s)` | the overlay | put the line `s` over the widget, drawn by the client — [see below](#a-label-the-client-draws) |
+| `ov:text()` | string \| nil | the label it carries; `nil` on a painter and while it is bare |
 | `ov:exists()` | bool | is it still painting |
-| `ov:info()` | table | the snapshot `{key, kind}`, with `kind` absent while it is bare |
+| `ov:info()` | table | the snapshot `{key, kind}`, and `text` on a label; `kind` is absent while it is bare |
 
-Like its two siblings, a painter here is **interned on its key**: `:get(key)` hands back the same object
+**An overlay says exactly one thing.** `ov:text` on a painter raises naming `draw`, `ov:draw` on a label
+raises naming `text`, and `:add(key)` again is how you change your mind: it replaces the record with a bare
+one. On its own kind either verb is a *change* rather than a second thing — `ov:text("120")` relabels a live
+label, `ov:draw(fn)` swaps a painter's function — and the key never changes hands.
+
+Like its two siblings, an overlay here is **interned on its key**: `:get(key)` hands back the same object
 every time, so `==` is the identity test. The **collection** is not — it is a view read fresh on every
 call, so `w:overlay() == w:overlay()` is `false` while `w:overlay():get(k) == w:overlay():get(k)` is
 `true`. `tostring(ov)` gives `Overlay("<key>")`.
@@ -150,11 +158,69 @@ window is still there, and so is what you hung on it.
 a widget that has already left raises, naming the tree it left, where every other verb here answers `nil`
 or is inert; [`widget:exists()`](widget.md#read) is the question to ask first.
 
+**An item icon is a new widget every time the item moves.** The client builds one icon per item the server
+puts in a container and destroys it when the server takes that item out, so moving an item to another slot
+— or onto the cursor — is a destroy and a build, not a widget that moved. What you hung on the old icon
+goes with it. Decorate the icons you have when you have them, and to keep a decoration on an item that
+moves, re-attach from the container's [`ItemAdded`](items.md#the-container-lifecycle): the new icon is in
+the tree by the time it fires, and [`widget:item()`](widget.md#read) is what tells you which icon is
+drawing the item you were handed.
+
 ```lua
 local mark = pack:overlay():get("frame")
 mark:exists()                                 -- true while the backpack is open
 pack:overlay():remove("frame")                -- ...or take it off yourself
 ```
+
+### A label the client draws
+
+A number on an item icon is a line of text and nothing else, and writing it as a painter means a Lua call
+every frame for a string that changes once an hour. `ov:text(s)` is that decoration said instead of drawn:
+the client puts the line up itself, and your addon is not called at all while it is there.
+
+```lua
+local pack = hafen.session():current():ui():inventory()
+local face = hafen.font():get("serif"):derive():size(11)
+for _, icon in ipairs(pack:matchAll("@WItem")) do
+  local item = icon:item()                              -- the item that icon draws
+  local q = item and item:quality()
+  icon:overlay():add("q"):text(q and tostring(math.floor(q)) or "-")
+      :anchor(0.5, 1):offset(0, -1)                     -- centred on the slot's bottom edge
+      :color{255, 230, 140}:background{0, 0, 0, 200}:font(face)
+end
+```
+
+| Setter | Meaning |
+|---|---|
+| `ov:anchor(ax, ay)` | `0..1` each: the point of the widget's box the label sits at, **and** the point of the label that lands on it. `0, 0` — the top-left of both — until you say otherwise |
+| `ov:offset(x, y)` | [design pixels](pixels.md), added after the anchor has placed it |
+| `ov:color(c)` | the glyphs' [colour](../shapes.md#colours); the client's white when you set none |
+| `ov:background(c)` | a [colour](../shapes.md#colours) filled behind the label, its own box and not a pixel wider; nothing behind it when you set none |
+| `ov:font(h)` | a [font handle](../font.md); the client's stock font when you set none |
+
+Each has a bare read of the same name, so what you wrote is what you read back: `ov:anchor()` and
+`ov:offset()` give `{x=, y=}`, `ov:color()` and `ov:background()` a colour, `ov:font()` the very handle you
+passed, and an unset colour, background or font reads `nil`. **The order does not matter** — a property may
+be set before the label or after it, and one set on a painter is simply never read, since a painter is
+handed the whole box and draws its own text where it likes.
+
+**One pair of fractions places the label**, read twice: `anchor(1, 1)` puts the label's bottom-right corner
+on the widget's, which is what makes it read as *in that corner* with no width to measure and subtract.
+`anchor(0.5, 0.5)` centres it. A label is clipped at the widget's edge like everything else here, so a
+number wider than the slot it sits on is cut rather than spilling over the slot beside it; `offset` is how
+you move it clear of a border.
+
+Both fractions are the verb, so `anchor(0.5)` raises naming the pair rather than assuming an axis. A label
+that is not a string raises, so does a font that is not a handle — naming where one comes from — and so
+does a colour that is not [one of the two spellings](../shapes.md#colours). A setter that raises leaves the
+overlay drawing exactly what it drew before.
+
+**A label costs one rasterisation for its lifetime.** It is drawn through the same
+[text cache](drawing.md#text-is-cached-across-frames) `g:text` goes through, so the line is laid out and
+uploaded once and every later frame is a lookup and a blit — with no Lua call at all, where a painter
+drawing the same words pays one every frame. The colour and the background are applied over the finished
+raster and are **not** part of what is cached, so either may change every frame for nothing; the string and
+the font are, so changing either rasterises once more and then settles again.
 
 ## What else you can paint on
 

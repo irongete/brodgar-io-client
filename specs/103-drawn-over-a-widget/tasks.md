@@ -47,7 +47,7 @@
       `[manual]`: with the suite's mark on your inventory grid, hide the window — expect the mark gone
       with it, and the mark cut off at the grid's edge rather than spilling past it.
 
-- [ ] **103.4 — The label that costs one raster.** The `:text(s)` kind and its dressing:
+- [x] **103.4 — The label that costs one raster.** The `:text(s)` kind and its dressing:
       `:anchor(ax, ay)`, `:offset(x, y)`, `:color(c)`, `:font(h)`, `:background(c)`, each with a bare
       read. It is drawn in Java through `LuaGOut`'s per-addon text cache, with the background filled
       behind the measured raster and left out of the cache key, which already excludes colour. Adds the

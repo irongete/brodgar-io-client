@@ -95,7 +95,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:rootPos()` | `{x=, y=}` \| nil | its top-left in **root coords**; with `:size()` that is the rectangle outlining it |
 | `:replacement()` | Widget \| nil | the view **you** put in place of this widget's window, or `nil` — see [replace](replace.md) |
 | `:chrome()` | table \| nil | on a **window**, where its decoration drew its [ornaments](style/chrome.md#ornaments) — `{caption = {x=, y=}, plate = {x=, y=, w=, h=, styled=}, sizer = {x=, y=}, close = {x=, y=, w=, h=}}`, each present only once it has been drawn; `nil` on anything else |
-| `:overlay()` | collection | what **your** addon [draws over this widget](overlay.md#over-one-widget) — a keyed painter, clipped to its box, that dies with it |
+| `:overlay()` | collection | what **your** addon [draws over this widget](overlay.md#over-one-widget) — a keyed painter or label, clipped to its box, that dies with it |
 | `:style()` | table \| nil | the style this widget [resolves to](style/README.md#the-cascade), or `nil` when nothing names it |
 | `:rule()` | Rule | **your own** [level of the cascade](style/README.md#restyle-one-widget) on this widget: its properties are setters, `:info()` reads them back and `:release()` gives them back |
 

@@ -5,6 +5,7 @@ import haven.GOut;
 import haven.UI;
 import haven.Widget;
 
+import java.awt.Color;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +22,9 @@ import org.luaj.vm2.lib.VarArgFunction;
  * <b>What an addon draws over ONE widget</b> — the third receiver of {@code overlay} (spec
  * {@code 103-drawn-over-a-widget}, task 103.3), beside {@code hafen.ui():overlay()} (the screen) and
  * {@code gob:overlay()} (a game object). A record hangs on the widget, paints straight after it, inside
- * that widget's own box, and dies with it.
+ * that widget's own box, and dies with it. It says exactly one of two things: {@code :draw(fn)}, a painter
+ * called back with that widget's box, and {@code :text(s)}, a label the engine draws through the addon's own
+ * text cache (103.4) — so a label costs one rasterisation for its lifetime and no Lua at all per frame.
  *
  * <p><b>One record set, two lists, neither derived from the other.</b> The <b>widget's</b> own list
  * ({@link Widget#addonovs}, {@code // addon:}) is the draw order and is what the paint walks; the
@@ -76,10 +79,29 @@ public final class LuaWidgetOverlay {
         /** The widget it hangs on, held weakly — see the class note. */
         private final WeakReference<Widget> wdg;
 
-        /** {@code "draw"}, or null while the record is still bare. */
+        /** {@code "draw"} or {@code "text"}, or null while the record is still bare. */
         volatile String kind;
-        /** {@code :draw(fn)} — {@code fn(g, w, h)}. */
+        /** {@code :draw(fn)} — {@code fn(g, w, h)}, or null for a label. */
         volatile LuaValue draw;
+        /** {@code :text(s)} — the label, or null for a painter. */
+        volatile String text;
+        /**
+         * {@code :anchor(ax, ay)} — ONE pair of fractions, read twice: it picks the point of the widget's box
+         * the label sits at, and the point of the label that lands there. So {@code (1, 1)} is the box's
+         * bottom-right corner and the label's own, which is what makes an anchor mean "in that corner" with no
+         * width to subtract. {@code (0, 0)}, the top-left of both, until the verb says otherwise.
+         */
+        volatile double ax, ay;
+        /** {@code :offset(x, y)} — <b>design</b> pixels, added after the anchor has placed the label. */
+        volatile double offX, offY;
+        /** {@code :color(c)} — the glyphs' tint; null = the stock white. */
+        volatile Color color;
+        /** {@code :background(c)} — filled behind the measured raster; null = nothing behind it. */
+        volatile Color bg;
+        /** {@code :font(h)} — resolved for the draw; null = the client's stock font. */
+        volatile FontHandle font;
+        /** The very handle {@code :font(h)} was given, for the read to hand back unchanged. */
+        volatile LuaValue fontVal;
         /** False once it is removed, replaced, or torn down: the record has stopped painting. */
         volatile boolean active = true;
         /** The interned Lua handle, minted on the first hand-out ({@link #of}). */
@@ -191,6 +213,12 @@ public final class LuaWidgetOverlay {
      * painter draws in widget-local coordinates and is cut off at the widget's edge with nothing to compute.
      * {@code w, h} are that box, in <b>design</b> pixels — the pair {@code widget:size()} answers, and the
      * space every {@code g:} coordinate the painter then writes is read in.
+     *
+     * <p><b>A {@code :text(s)} record never enters Lua here.</b> It is blitted straight through
+     * {@link LuaGOut#label}, the same per-addon rendered-text cache {@code g:text} goes through, so a label
+     * costs one rasterisation for its lifetime and a lookup a frame — where a painter drawing the same words
+     * pays a Lua call on top of it every frame. The record's own dressing is applied at that one call: its
+     * font is part of the cache key, its colour and its background are not.
      */
     public static void paint(Widget w, GOut g) {
         List<Rec> recs = w.addonovs;
@@ -199,18 +227,33 @@ public final class LuaWidgetOverlay {
         Coord sz = Px.out(w.sz);
         LuaValue lw = LuaValue.valueOf(sz.x), lh = LuaValue.valueOf(sz.y);
         for(Rec r : recs) {
-            LuaValue fn = r.draw;                          // bare until :draw(fn) — an incomplete overlay
-            if(!r.active || (fn == null))                  //   paints nothing rather than painting badly
+            LuaValue fn = r.draw;                          // bare until :draw(fn) or :text(s) — an incomplete
+            String txt = r.text;                           //   overlay paints nothing rather than painting badly
+            if(!r.active || ((fn == null) && (txt == null)))
                 continue;
             LuaTable gt = gwrap.bind(g, r.owner);          // per addon: the wrapper carries its text cache
             try {
-                AddonManager.callLua(r.owner, Addon.C_DRAW, fn, gt, lw, lh);
+                if(fn != null)
+                    AddonManager.callLua(r.owner, Addon.C_DRAW, fn, gt, lw, lh);
+                else
+                    gwrap.label(g, txt, at(w, r), r.ax, r.ay, r.font, r.color, r.bg);
             } catch(RuntimeException e) {
                 /* never throw into the draw pass — callLua already isolates a Lua error */
             } finally {
                 gwrap.unbind();
             }
         }
+    }
+
+    /**
+     * Where a label lands, in the <b>device</b> pixels the blit below this seam is in: the anchor's fraction of
+     * the widget's own box, plus the offset. The fraction is taken over {@code w.sz} itself rather than over the
+     * design size handed to Lua, since a fraction of the box is the same fraction in either space and the device
+     * one has not been rounded; the offset is written in design pixels, so it is the one term that converts.
+     */
+    private static Coord at(Widget w, Rec r) {
+        return new Coord((int)Math.round((w.sz.x * r.ax) + Px.in(r.offX)),
+                         (int)Math.round((w.sz.y * r.ay) + Px.in(r.offY)));
     }
 
     // ---- the collection ---------------------------------------------------------------------------
@@ -298,6 +341,26 @@ public final class LuaWidgetOverlay {
         }, null);
     }
 
+    /**
+     * The ONE-KIND rule: an overlay says exactly one thing, and a second, different kind is refused naming the
+     * first. Picking a winner between two is how one of them silently stops meaning anything, and the way back
+     * is the replace the collection already has.
+     */
+    private static void becomes(Rec r, String kind, String method) {
+        String had = r.kind;
+        if((had != null) && !had.equals(kind))
+            throw new LuaError("overlay:" + method + "(): this overlay already draws '" + had + "', and an"
+                + " overlay says ONE thing — widget:overlay():add(\"" + r.key + "\") again to replace it");
+    }
+
+    /** A pair of numbers read back, in the {@code {x=, y=}} shape every place in this API is read in. */
+    private static LuaValue pair(double x, double y) {
+        LuaTable t = new LuaTable();
+        t.set("x", LuaValue.valueOf(x));
+        t.set("y", LuaValue.valueOf(y));
+        return t;
+    }
+
     /** A key argument: a string, and yours — keys are per addon, so two addons' {@code "tag"} never collide. */
     private static String keyArg(LuaValue kv, String verb) {
         if(kv.type() != LuaValue.TSTRING)
@@ -367,12 +430,105 @@ public final class LuaWidgetOverlay {
                 }
                 if(!fn.isfunction())
                     throw new LuaError("overlay:draw(fn) expects a function fn(g, w, h), got " + fn.typename());
+                becomes(r, "draw", "draw");
                 r.draw = fn;
                 r.kind = "draw";
                 return a.arg1();
             }
         });
-        // kind() — what it paints, or nil while it is bare. An overlay says exactly one thing.
+        // text(s) / text() — the OTHER kind, and the cheap one: the engine draws the label itself, through the
+        // very per-addon text cache g:text goes through, so it costs one rasterisation for its lifetime and no
+        // Lua at all per frame. :text("…") on a live label relabels it rather than replacing the record.
+        m.set("text", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Rec r = handle(a.arg1(), "text");
+                LuaValue sv = Args.written(a, 2, "overlay:text", "s");
+                if(sv == null)
+                    return (r.text == null) ? LuaValue.NIL : LuaValue.valueOf(r.text);
+                becomes(r, "text", "text");
+                r.text = Args.str(sv, "overlay:text", "s", "the label to draw").tojstring();
+                r.kind = "text";
+                return a.arg1();
+            }
+        });
+        // ---- how the label is placed and dressed -----------------------------------------------------
+        // Five properties, each with a bare read of the same name. They are the LABEL's: a painter is handed the
+        // whole box and paints it with g itself, so a value set on one is stored and nothing reads it.
+        //
+        // anchor(ax, ay) — ONE pair of fractions read twice (see Rec.ax): the point of the widget's box the label
+        // sits at, and the point of the label that lands there. The pair is the verb, so ONE number is refused
+        // naming both — an anchor with an axis missing is the accident a default would swallow.
+        m.set("anchor", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Rec r = handle(a.arg1(), "anchor");
+                if(!Args.passed(a, 2))
+                    return pair(r.ax, r.ay);
+                if(!Args.passed(a, 3))
+                    throw new LuaError("overlay:anchor(ax, ay) takes BOTH fractions: ax picks the point across"
+                        + " the widget and across the label, ay the point down them — 0..1 each, so (0, 0) is"
+                        + " the top-left corner of both and (0.5, 1) centres the label on the bottom edge");
+                double ax = Args.num(a, 2, "overlay:anchor", "ax", "a fraction 0..1 across").todouble();
+                double ay = Args.num(a, 3, "overlay:anchor", "ay", "a fraction 0..1 down").todouble();
+                r.ax = ax; r.ay = ay;
+                return a.arg1();
+            }
+        });
+        // offset(x, y) — design pixels, added after the anchor has placed the label. What moves a label off a
+        // corner it is anchored to, and the one place a length is written here.
+        m.set("offset", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Rec r = handle(a.arg1(), "offset");
+                if(!Args.passed(a, 2))
+                    return pair(r.offX, r.offY);
+                double x = Args.num(a, 2, "overlay:offset", "x", "design pixels across").todouble();
+                double y = Args.num(a, 3, "overlay:offset", "y", "design pixels down").todouble();
+                r.offX = x; r.offY = y;
+                return a.arg1();
+            }
+        });
+        // color(c) — the glyphs' own colour, as the TABLE a colour is. Out of the cache key by construction: it
+        // is a tint over a white raster, so a colour that changes every frame rasterises nothing.
+        m.set("color", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Rec r = handle(a.arg1(), "color");
+                if(!Args.passed(a, 2))
+                    return AddonManager.color(r.color);
+                r.color = AddonManager.colorArg(a, 2, "overlay:color");
+                return a.arg1();
+            }
+        });
+        // background(c) — filled behind the label's measured raster, and nothing wider: a strip under a number
+        // on an icon, so it reads over whatever art is beneath it. Out of the cache key like the colour.
+        m.set("background", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Rec r = handle(a.arg1(), "background");
+                if(!Args.passed(a, 2))
+                    return AddonManager.color(r.bg);
+                r.bg = AddonManager.colorArg(a, 2, "overlay:background");
+                return a.arg1();
+            }
+        });
+        // font(h) — a font handle, and the one property that IS part of the cache key: a label and a g:text of
+        // the same string in the same font are one entry. A value that is not a handle is refused rather than
+        // resolving to the stock font, which is a label silently in the wrong face.
+        m.set("font", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Rec r = handle(a.arg1(), "font");
+                LuaValue hv = Args.written(a, 2, "overlay:font", "h");
+                if(hv == null) {
+                    LuaValue cur = r.fontVal;
+                    return (cur == null) ? LuaValue.NIL : cur;
+                }
+                FontHandle fh = FontHandle.resolve(hv);
+                if(fh == null)
+                    throw new LuaError("overlay:font(h) expects a font handle — hafen.font():get(\"serif\") or"
+                        + " hafen.asset():get(\"fonts/mine.ttf\") — got " + hv.typename());
+                r.font = fh;
+                r.fontVal = hv;
+                return a.arg1();
+            }
+        });
+        // kind() — "draw" or "text", or nil while it is bare. An overlay says exactly one thing.
         m.set("kind", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 String k = handle(self, "kind").kind;
@@ -392,13 +548,16 @@ public final class LuaWidgetOverlay {
                 t.set("key", LuaValue.valueOf(r.key));
                 if(r.kind != null)
                     t.set("kind", LuaValue.valueOf(r.kind));
+                if(r.text != null)
+                    t.set("text", LuaValue.valueOf(r.text));
                 return t;
             }
         });
         LuaTable mt = new LuaTable();
         mt.set(LuaValue.INDEX, Retired.closedIndex("widgetoverlay", m,
-            "one painter over a widget answers :key() :draw(fn) :kind() :exists() and :info();"
-            + " widget:overlay():remove(key) ends it"));
+            "one overlay over a widget answers :key() :kind() :exists() and :info(); it draws :draw(fn) or"
+            + " :text(s), and a label is dressed by :anchor(ax, ay) :offset(x, y) :color(c) :font(h) and"
+            + " :background(c); widget:overlay():remove(key) ends it"));
         mt.set("__name", LuaValue.valueOf("Overlay"));
         mt.set("__tostring", new OneArgFunction() {
             public LuaValue call(LuaValue v) {

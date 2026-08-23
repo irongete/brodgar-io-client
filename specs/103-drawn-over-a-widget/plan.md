@@ -92,3 +92,12 @@ refusal) · `LuaGOut.java` (a label that measures, fills and blits) · `Addon.ja
   user themed the window underneath it.
 - **Growing `custom.md` with the second receiver** — that page is the surfaces you *build*, and an
   overlay on a widget you did not build is not one.
+- **Splitting `api/ui/widget.md`, which stands at 312 lines against a 300 ceiling** — it was already
+  309 before this feature, and `DOCUMENTATION.md` §11.2 charges the split to the writing that pushes a
+  page over. Three rows of this feature's sit on it; none of them is what put it there, and a split
+  priced by that page's inbound anchors is its own piece of work.
+- **`:info()` and `:kind()` on the HUD painter**, which answers only `:key() :draw() :exists()` where
+  the widget's overlay beside it on the same page answers both — the grammar's "every live object
+  answers `:info()`" is unmet there. No task of this feature adds or changes a verb of
+  `hafen.ui():overlay()`, so it is not this feature's surface to complete, and the asymmetry is
+  visible now only because 103.2 put the two receivers on one page.

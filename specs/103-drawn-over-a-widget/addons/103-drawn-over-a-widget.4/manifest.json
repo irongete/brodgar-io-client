@@ -1,0 +1,9 @@
+{
+  "name": "103.4 — the label that costs one raster",
+  "id": "103-drawn-over-a-widget.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 103.4: the :text(s) kind of widget:overlay(), the five properties that dress it, the one-kind rule, and the claim that a live label never rasterises twice.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
