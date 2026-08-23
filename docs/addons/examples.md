@@ -2,14 +2,13 @@
 
 The addons below ship with the client, in the same `addons/` folder yours goes into. None of them
 illustrates a surface — a reference page states its own. The **tools** are the ones you point at your own
-addon: what a widget on the screen is and how to name it, where the frame went, and what the client is
-doing as it does it. Beside them stands a **surface of the client's own**, written in Lua like any other
-addon: the switcher over the logins the client holds.
+addon: what a widget on the screen is and how to name it, and what the client is doing as it does it.
+Beside them stands a **surface of the client's own**, written in Lua like any other addon: the switcher
+over the logins the client holds.
 
 | Addon | Use it to |
 |---|---|
 | [`widgetstack`](../../addons/widgetstack/main.lua) | find out what a widget is, and how to name it |
-| [`profiler`](../../addons/profiler/main.lua) | find out where the frame went |
 | [`eventstack`](../../addons/eventstack/main.lua) | watch what the client sends, receives and puts on screen |
 | [`session-manager`](../../addons/session-manager/main.lua) | go between the characters you have logged in |
 
@@ -18,8 +17,7 @@ their hotkey or type their command — so having them on costs you an untouched 
 exception, and deliberately: it records from the moment it loads, because what is worth reading has
 usually already happened by the time you think to look. Untick its `at login` box and it is dormant like
 the rest. Each is the whole of
-one subject as well: the inspector is [selectors](api/ui/selectors.md) end to end, the profiler is
-[the profiling surface](api/client/profiling/README.md) end to end, and the log is
+one subject as well: the inspector is [selectors](api/ui/selectors.md) end to end, and the log is
 [the streams and the bus](api/event/README.md) at once.
 
 ## widgetstack
@@ -38,17 +36,6 @@ tree walks.
 
 `:widgetstack` toggles it, `:selector` logs the current line, and the `freeze` hotkey holds the stack still
 while you move the mouse to read it.
-
-## profiler
-
-A six-tab window over [`hafen.client():profiling()`](api/client/profiling/README.md): the frame graph and the
-thread phases, the render passes with their GL counters, per-widget cost, per-addon cost with each addon's
-own scopes, the [pull-only counters](api/client/profiling/counters.md), and what profiling itself costs.
-Pausing freezes the ring and turns the graph into a timeline you scrub frame by frame.
-
-Its per-addon tab is where you find out what **your** addon costs, and its widget tab is where a window you
-built shows up beside the client's own. Dormant until its `toggle` hotkey or `:profiler`, which is the shape
-any profiling addon should have.
 
 ## eventstack
 

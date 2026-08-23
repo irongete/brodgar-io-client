@@ -140,8 +140,7 @@ Four causes cover almost all of it:
 Arm the client's profiler — the Options ▸ Client checkbox, or
 [`hafen.client():options():client():profiling(true)`](../api/client/README.md#client) — and read
 [`hafen.client():profiling()`](../api/client/profiling/README.md), which reports the frame, the render
-passes, per-widget cost and **what each addon's Lua cost**, most expensive first. The bundled **`profiler`**
-addon draws all of it, so you rarely need to write that code yourself.
+passes, per-widget cost and **what each addon's Lua cost**, most expensive first.
 
 The usual culprits are a scan in `Update` (do it on a timer instead), a string that changes every frame
 in a draw callback ([text is cached by its content](../api/ui/drawing.md#text-is-cached-across-frames)),

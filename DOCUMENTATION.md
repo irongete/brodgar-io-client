@@ -114,7 +114,7 @@ every block is run in order by the maintainer during verification.
 - **Only symbols that exist.** Every `hafen.*` name in an example is in the reference and in `src/`.
 - **A page carries its own example.** Nothing under `addons/` illustrates a surface, so a page writes
   the block it needs and leans on no folder for it. Where a page names one of them it uses bold
-  backticks (**`profiler`**) and says what it is for; the **link belongs to `examples.md` alone** — a
+  backticks (**`widgetstack`**) and says what it is for; the **link belongs to `examples.md` alone** — a
   reference page names, it does not link out.
 - **A page documents only what the client itself provides.** A `hafen.*` verb, a manifest field, a
   file the client reads — never a Lua library the reader would have to be handed, since nothing

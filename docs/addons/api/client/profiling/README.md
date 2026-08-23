@@ -12,11 +12,13 @@ hafen.log():write(string.format("%d fps, %.2f ms (ui %.2f, addons %.2f)",
                                f.fps, f.ms, f.ui, f.addons))
 ```
 
-The bundled **`profiler`** addon is a worked example of everything on these three pages: a six-tab window
-with the frame graph and phases, render passes and GL counters, per-widget cost, per-addon cost with
-scopes, the pull-only counters, and the overhead accounting. It is **dormant** — nothing is read or drawn
-until you open it — which is the shape any profiling addon should have. It also shows what `history()` is
-*for*: pausing freezes the snapshots and turns the graph into a timeline you scrub frame by frame.
+**A profiling addon is dormant**: it reads nothing and draws nothing until you open it, because a
+profiler that runs while you are not looking is measuring itself. Arm it on a hotkey, read on the frames
+you are watching, and stop when the window closes.
+
+That is also what `history()` is *for*. Reading it live tells you about the frame you are in; holding the
+snapshots and stopping the reads turns the graph into a timeline you scrub frame by frame, which is where a
+stutter that lasted three frames is visible at all.
 
 ## Read
 
