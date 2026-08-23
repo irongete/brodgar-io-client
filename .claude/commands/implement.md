@@ -155,6 +155,16 @@ client scans `bin/addons/`, not `addons/` — say which copy you made, and repea
 un-synced fix has the maintainer re-run the previous build of your suite and paste a result that is
 not yours.
 
+**A question the three files already answer is not a finding — it is a part of the task you have
+not built yet.** Before anything reaches the report, put it against `plan.md`'s *Discarded
+alternatives*, this task's own line in `tasks.md`, `spec.md`'s *out of scope*, and the API grammar
+in `CLAUDE.md` — which settles far more naming, arity and shape than a question tends to assume.
+If any of them decides it, **build what they decided and say nothing about it.** What survives is
+raised **quoting the sentence that came closest and saying what it leaves open**; where there is no
+such sentence to quote, there is nothing to raise. Handing a settled question back costs the
+maintainer a round trip to answer it out of a file this context had open, and this command counts
+that exactly as it counts missing a real gap.
+
 **Report what the task found, beside its one command.** A gap in this feature's own surface is a
 decision the maintainer takes before the feature can close: name it, and say whether it reads as a
 new task or as a line for *Discarded alternatives*. A task added mid-feature is written to
