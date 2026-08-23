@@ -966,7 +966,7 @@ local function togglePause()
   hafen.log():write("eventstack: " .. (paused and "paused -- the doors are still open" or "live"))
 end
 
-hafen.slash():on("eventstack", toggle)
+hafen.console():on("eventstack", toggle)
 
 -- Both start UNBOUND: the addon names an action and the user assigns the key, under
 -- Options > Keybindings > EventStack. Pause is worth one, because the row you want to read is usually

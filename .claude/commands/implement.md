@@ -81,7 +81,7 @@ local function run()
   hafen.log():write(("[summary] %d pass, %d fail, %d manual"):format(pass, fail, manual))
 end
 
-hafen.slash():register("t033-2", run)   -- the only way in: a suite does not start itself
+hafen.console():on("t033-2", run)   -- the only way in: a suite does not start itself
 ```
 
 `manifest.json` — `id` **must** equal the folder name, `version` starts at `1.0.0`:
@@ -100,7 +100,7 @@ hafen.slash():register("t033-2", run)   -- the only way in: a suite does not sta
 
 **Copy the shape, verify the calls** against today's API: a section is `hafen.<name>():<verb>(...)`,
 never `hafen.<name>.<verb>(...)`. The dotted form throws — and a throw at **file scope** kills the
-whole addon, so the slash command never registers and the maintainer sees a bare "no such command"
+whole addon, so the console command never registers and the maintainer sees a bare "no such command"
 with no hint why. A suite MAY declare the permission keys its own task needs to prove; the
 enable-and-approve is then part of the verification, and the keys it did *not* ask for must still
 refuse.

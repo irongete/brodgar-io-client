@@ -33,7 +33,7 @@ end
 
 **Categories describe what your Lua was doing**, not where it lives: `draw` is overlay and widget paint
 callbacks, including a grid's cell paint; `widgets` the rest of a widget's life — mouse input, tick, drop,
-close, destroy, a container's item events, and a control's own key; `hooks` hotkeys, slash commands and a
+close, destroy, a container's item events, and a control's own key; `hooks` hotkeys, console commands and a
 mouse grab's move and release; `events` the event bus and the two message streams; `timers` timer
 callbacks.
 

@@ -25,7 +25,7 @@ so `hafen.time() == hafen.time()` and calling a section inside a draw callback a
 
 A section takes no arguments. Where a section holds exactly one thing, the section object **is** that
 thing rather than a wrapper around it: `hafen.timer()` is the collection of your timers,
-`hafen.slash()` the collection of your console commands, and `hafen.session()` the collection of the
+`hafen.console()` the collection of your console commands, and `hafen.session()` the collection of the
 logins the client holds.
 
 **Not every subsystem hangs off `hafen`.** What names one character's state hangs off the
@@ -169,7 +169,7 @@ one failure this whole convention exists to prevent.
 and both hand your handler the same `dt` — the same edge one object apart is not two words.
 
 The keys of an emitter whose set is **open** are not this: a
-[slash command](slash.md), a [hotkey](client/keybindings.md), a
+[console command](console.md), a [hotkey](client/keybindings.md), a
 [`wdgmsg` or `uimsg` name](event/streams.md) is a name you or the protocol chose, and those are written
 lower case. Every key the client itself fires is PascalCase, and its set is closed — an unknown one
 [raises](#a-name-that-moved-says-where-it-went-and-an-unknown-one-says-what-exists) rather than being

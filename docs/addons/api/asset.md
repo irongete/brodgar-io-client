@@ -263,7 +263,7 @@ win:on("Draw", function(ev)
   g:text("mine", 26, 6)
 end)
 
-hafen.slash():on("stand", function()
+hafen.console():on("stand", function()
   local p = hafen.session():current():player():gob():position()
   hafen.vr():object():add(chair, p)               -- the handle, again
 end)

@@ -148,5 +148,5 @@ and stays.
 - [`hafen.client():options()`](README.md) — the rest of the settings surface
 - [conventions](../conventions.md) — the collection verbs, and what `:get` answers for a key nothing holds
 - [the Widget object](../ui/widget.md#subscribing) — intercepting a mouse event before the widget does
-- [`hafen.slash`](../slash.md) — a console command, the other way an addon is invoked by hand
+- [`hafen.console`](../console.md) — a console command, the other way an addon is invoked by hand
 - [`hafen.event`](../event/README.md) — the `Sub` a hotkey hands back, and every other subscription

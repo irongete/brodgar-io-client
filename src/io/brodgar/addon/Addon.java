@@ -190,7 +190,7 @@ public final class Addon {
      * EITHER holds, and both are handed one {@code ev}.
      *
      * <p>It charges {@link #C_EVENT}, not {@link #C_HOOK}: the two streams are doors of the bus now, and the
-     * {@code hooks} column is what is left of {@code hafen.hook()} — hotkeys and slash commands.
+     * {@code hooks} column is what is left of {@code hafen.hook()} — hotkeys and console commands.
      *
      * <p>Teardown drops it wholesale ({@link Subs#clear}). Unlike the hook records it replaced there is
      * nothing to unregister from a global dispatch map: {@link AddonManager#dispatchAction} asks each owner's
@@ -229,15 +229,15 @@ public final class Addon {
         }
     });
     /**
-     * This addon's <b>slash commands</b> as subscriptions ({@code hafen.slash():on(name, fn)}, 086.1), keyed
-     * by the command name, with the {@link LuaSlashCommand} on {@link LuaSub#tag}. Its {@link Subs.Ended}
+     * This addon's <b>console commands</b> as subscriptions ({@code hafen.console():on(name, fn)}, 086.1), keyed
+     * by the command name, with the {@link LuaConsoleCommand} on {@link LuaSub#tag}. Its {@link Subs.Ended}
      * clears the live handler and nothing else: a {@link haven.Console} command is <b>register only, no
      * unregister</b>, so the one engine-lifetime dispatcher stays installed and reports "no addon handles
      * :name" (coverage-gaps C1).
      */
-    public final Subs slashSubs = new Subs(this, Addon.C_HOOK, new Subs.Ended() {
+    public final Subs consoleSubs = new Subs(this, Addon.C_HOOK, new Subs.Ended() {
         public void ended(LuaSub s) {
-            HookApi.endSlashCommand(Addon.this, (LuaSlashCommand)s.tag);
+            HookApi.endConsoleCommand(Addon.this, (LuaConsoleCommand)s.tag);
         }
     });
     /**
@@ -343,16 +343,16 @@ public final class Addon {
     public final Map<String, StoreApi.PlaceSet> placeSets =
         new ConcurrentHashMap<String, StoreApi.PlaceSet>();
     /**
-     * Live addon slash commands owned by this addon ({@code hafen.slash():on}, gap subsystem A11): each routes
+     * Live addon console commands owned by this addon ({@code hafen.console():on}, gap subsystem A11): each routes
      * a console command {@code :name} to a Lua handler. Unlike the hook lists, the engine's {@link haven.Console}
      * dispatcher for a name is <b>engine-lifetime</b> and is deliberately <b>not</b> removed on teardown (coverage-
      * gaps C1: {@code Console.setscmd} has no unregister, so a single dispatcher per name routes to the current live
      * handler and is never re-registered). Teardown only marks each dead and drops it from {@link AddonManager}'s
-     * {@code slashHandlers} registry (principle P2) — after which the dispatcher reports "no addon handles :name".
-     * Since 086.1 the ending runs through {@link #slashSubs}, whose {@link Subs.Ended} hook this list is kept in
+     * {@code consoleHandlers} registry (principle P2) — after which the dispatcher reports "no addon handles :name".
+     * Since 086.1 the ending runs through {@link #consoleSubs}, whose {@link Subs.Ended} hook this list is kept in
      * step by. Copy-on-write: a firing command may {@code sub:off()} itself.
      */
-    public final List<LuaSlashCommand> slashCommands = new CopyOnWriteArrayList<LuaSlashCommand>();
+    public final List<LuaConsoleCommand> consoleCommands = new CopyOnWriteArrayList<LuaConsoleCommand>();
     /**
      * Live client-only world ghosts owned by this addon ({@code hafen.vr():ghost():add}, V1): each is a virtual
      * {@link haven.Gob} (no server id) rendered in the MapView's {@code basic} scene via

@@ -44,7 +44,7 @@ A list is answered for the addon that asks for it, so ask from a command of your
 in `:lua` is the console, not you.
 
 ```lua
-hafen.slash():on("mystate", function()
+hafen.console():on("mystate", function()
   hafen.log():write(hafen.event():count() .. " subscriptions")
   for _, sub in ipairs(hafen.event():list()) do
     hafen.log():write("  " .. sub:key())
@@ -54,7 +54,7 @@ end)
 ```
 
 [`hafen.event()`](../api/event/README.md#read-what-you-are-listening-to) covers the bus and the two
-message streams; [`hafen.slash()`](../api/slash.md#read-what-you-registered) is the collection of your
+message streams; [`hafen.console()`](../api/console.md#read-what-you-registered) is the collection of your
 commands; [`hafen.timer()`](../api/timer.md) is the collection of your timers. A count that climbs while
 the client runs is a subscription made from somewhere that is not your file body or `Load` — a handler
 that subscribes on each fire is the usual one, and it goes on firing once per copy.

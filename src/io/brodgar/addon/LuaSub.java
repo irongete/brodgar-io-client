@@ -18,7 +18,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * <p><b>One verb, and one spelling of it.</b> Before 041 an addon ended a subscription three ways
  * ({@code sub:off()}, {@code handle:remove()}, or by overwriting a single callback slot); {@code :off()} is
  * the one left, wherever the subscription came from. Since 086.1 that is <i>every</i> {@code :on} in the API:
- * a slash command, a hotkey and a selector watch are subscriptions too, and each hands one of these back.
+ * a console command, a hotkey and a selector watch are subscriptions too, and each hands one of these back.
  *
  * <p><b>{@code :key()} says what it was registered under</b> — a bus event, a message name, a widget key, a
  * command name, a hotkey's name, {@code "Added"}. It is the {@link #key} field a {@link Subs} already
@@ -48,7 +48,7 @@ public final class LuaSub {
     volatile boolean alive = true;
     /**
      * What the emitter registered <b>alongside</b> this subscription — a {@link LuaSelectorWatch}, a
-     * {@link LuaSlashCommand}, a {@link LuaKeyBind} — or {@code null} on the bus and the two streams, where a
+     * {@link LuaConsoleCommand}, a {@link LuaKeyBind} — or {@code null} on the bus and the two streams, where a
      * subscription is the whole of what was registered (086.1). Opaque here: only the {@link Subs} that made
      * it reads it back, from its {@link Subs.Ended} hook.
      */
@@ -109,7 +109,7 @@ public final class LuaSub {
             }
         });
         // key() — what this subscription was registered UNDER: a bus event name, a message name, a widget
-        // key, and since 086.1 a slash command's name, a hotkey's name and a selector watch's event. One
+        // key, and since 086.1 a console command's name, a hotkey's name and a selector watch's event. One
         // question with one answer, wherever the subscription came from — and what a collection of
         // subscriptions filters on.
         m.set("key", new VarArgFunction() {

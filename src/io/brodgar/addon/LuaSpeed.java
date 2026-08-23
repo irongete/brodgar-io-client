@@ -259,7 +259,7 @@ public final class LuaSpeed {
     // no named GameUI field, so we locate it with the 1d-1 Locator (a children(Class) subtree walk from the
     // HUD) — the same way vitals finds its IMeters. Both fields we read (cur = the selected speed, max = the
     // highest currently selectable one) are public ints, so this is a zero-haven-edit read. All calls run on
-    // the UI thread (addon tick / REPL / slash command).
+    // the UI thread (addon tick / REPL / console command).
 
     /** That character's movement-speed widget, or {@code null} before its HUD has streamed one in. */
     static Speedget speedget(String user) {

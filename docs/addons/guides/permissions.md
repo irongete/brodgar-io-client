@@ -175,7 +175,7 @@ reaches nothing, and re-running a control's own method is the client's, not the 
 ## Writing an addon that acts
 
 ```lua
-hafen.slash():on("gotree", function()
+hafen.console():on("gotree", function()
   local s = hafen.session():current()           -- the character on screen
   local tree = s:world():gob():nearest("terobjs/tree")
   if tree then

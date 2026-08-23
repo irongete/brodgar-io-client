@@ -1,11 +1,14 @@
-# hafen.slash: console commands
+# hafen.console: commands the user types
 
-Subscribe to a `:name`-style console command, so the user can drive your addon by typing at it. This is
-WoW's `SlashCmdList` pattern: the addon names a command, the engine routes it, and your function gets
-the words that followed. `hafen.slash()` is **unprotected** — it adds a way to call your own code.
+Subscribe to a **console command**, so the user can drive your addon by typing at it. That is the
+client's own word for the thing: `:` opens the console line, and everything typed there — `:lua`,
+`:reload`, `:fs`, yours — is a console command, dispatched by the client's console. If you come from
+WoW this is the `SlashCmdList` pattern: the addon names a command, the engine routes it, and your
+function gets the words that followed. `hafen.console()` is **unprotected** — it adds a way to call your
+own code.
 
 ```lua
-local cmd = hafen.slash():on("greet", function(args)
+local cmd = hafen.console():on("greet", function(args)
   hafen.log():write("hello, " .. (args[1] or "world"))
 end)
 -- in the console:  :greet Alice
@@ -16,7 +19,7 @@ end)
 
 | Function | Returns | Description |
 |---|---|---|
-| `hafen.slash():on(name, fn)` | a [subscription](event/README.md#subscribe) | route the console command `:name args…` to `fn(args)` |
+| `hafen.console():on(name, fn)` | a [subscription](event/README.md#subscribe) | route the console command `:name args…` to `fn(args)` |
 
 `name` is a single word: no spaces, and not empty. `fn(args)` receives `args`, a 1-based table of the
 whitespace-split words *after* the command name — `"quoted words"` group into one, and `\` escapes the
@@ -44,15 +47,16 @@ isolation: an error in it is logged, not propagated.
 
 ## Read what you registered
 
-`hafen.slash()` **is** the [collection](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many)
-of your addon's own commands, so the section you subscribe through is the section you read back:
+`hafen.console()` **is** the
+[collection](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) of your addon's own
+commands, so the section you subscribe through is the section you read back:
 
 | Verb | Gives you |
 |---|---|
-| `hafen.slash():list(filter)` | every command of yours, as an array of `Sub`s |
-| `hafen.slash():count(filter)` | how many |
-| `hafen.slash():find(filter)` | the first that matches, or `nil` |
-| `hafen.slash():get(name)` | the command registered under `name`, or `nil` |
+| `hafen.console():list(filter)` | every command of yours, as an array of `Sub`s |
+| `hafen.console():count(filter)` | how many |
+| `hafen.console():find(filter)` | the first that matches, or `nil` |
+| `hafen.console():get(name)` | the command registered under `name`, or `nil` |
 
 The members are the very `Sub`s `:on` handed you, so `==` finds the one you are holding and `sub:key()`
 is its name. A string `filter` is a substring match on that name; a function filter is called with each
@@ -63,11 +67,11 @@ commands were never subscriptions.
 since the registration *is* the subscription. All four verbs are **unprotected**.
 
 ```lua
-for _, cmd in ipairs(hafen.slash():list()) do
+for _, cmd in ipairs(hafen.console():list()) do
   hafen.log():write(":" .. cmd:key())
 end
 
-local greet = hafen.slash():get("greet")
+local greet = hafen.console():get("greet")
 if greet then greet:off() end
 ```
 

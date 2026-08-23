@@ -136,7 +136,7 @@ public final class Subs {
         this(owner, flat(cat), idle, null);
     }
 
-    /** As above, plus a registry's {@link Ended} hook (a slash command, a hotkey, a selector watch). */
+    /** As above, plus a registry's {@link Ended} hook (a console command, a hotkey, a selector watch). */
     Subs(Addon owner, final int cat, Ended ended) {
         this(owner, flat(cat), null, ended);
     }
@@ -216,7 +216,7 @@ public final class Subs {
     /**
      * Every subscription here that is still live, in no particular order across keys and in registration
      * order within one (086.2). {@link #byKey} is private and two collections now need to read it:
-     * {@code hafen.slash()} is a collection of one of these emitters, and {@code hafen.event():list(filter)}
+     * {@code hafen.console()} is a collection of one of these emitters, and {@code hafen.event():list(filter)}
      * is the concatenation of three.
      *
      * <p><b>A snapshot, walked off the copy-on-write lists and never sorted.</b> A subscription may be made

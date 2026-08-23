@@ -190,7 +190,7 @@ after which it stops growing.
 ```lua
 hafen.locale():load({}):install()             -- names nothing, records everything
 
-hafen.slash():on("dump", function()           -- open the windows you want, then type :dump
+hafen.console():on("dump", function()           -- open the windows you want, then type :dump
   local out = {}
   for _, m in ipairs(hafen.locale():miss():list()) do
     out[m:surface()] = out[m:surface()] or {}

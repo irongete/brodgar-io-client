@@ -26,7 +26,7 @@ A **name is a resource path**, not a display name: `"gfx/borka/body"` is any pla
 log what is around you once and read the list:
 
 ```lua
-hafen.slash():on("what", function()
+hafen.console():on("what", function()
   for _, g in ipairs(hafen.session():current():world():gob():within(15)) do
     hafen.log():write(g:name() or "?")
   end

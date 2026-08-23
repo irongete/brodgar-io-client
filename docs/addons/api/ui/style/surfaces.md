@@ -147,10 +147,10 @@ these buttons still: its letters are the client's, its face is the rule's.
 ## `textentry`
 
 Both of the client's text-input surfaces, **letters and field both**: every editable box — the chat input,
-search boxes, the login name and password fields, name-a-save fields — **and** the console command line, the
-`:` prompt, so `:lua` and your own [`hafen.slash`](../../slash.md) commands are typed in your font too. Each
-field drops its cached line when the rule moves, so the change is live on the next frame, and selection and
-caret positions follow the new glyph advances automatically.
+search boxes, the login name and password fields, name-a-save fields — **and** the console command line,
+the `:` prompt, so `:lua` and your own [`hafen.console`](../../console.md) commands are typed in your font
+too. Each field drops its cached line when the rule moves, so the change is live on the next frame, and
+selection and caret positions follow the new glyph advances automatically.
 
 ```lua
 local s = hafen.ui():sheet()

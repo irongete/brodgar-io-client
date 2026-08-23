@@ -137,7 +137,7 @@ end
 
 hafen.client():options():keybindings():on("next", cycle)
 
-hafen.slash():on("sessions", function()
+hafen.console():on("sessions", function()
   if win and win:exists() then
     win:destroy()
     win, rows = nil, {}

@@ -72,7 +72,7 @@ import java.util.Map;
  * hold ends. A held slot reads as the entry throughout: {@code :res()} answers the {@code addon/…} identity
  * ({@link CharApi#actionbarRes}), {@code :empty()} is false, and {@code ActionbarChanged} fires on both edges.
  *
- * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / slash command);
+ * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / console command);
  * {@code belt[n]} is a plain array read, but the resource-backed fields behind it are {@code Loading}-guarded
  * in {@link CharApi}. The {@link Cache} map is guarded on its own monitor (UI + REPL threads touch it).
  */

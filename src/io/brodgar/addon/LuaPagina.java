@@ -82,7 +82,7 @@ import java.util.Set;
  * {@code seen[pag] = true} reliable. Never static: no Lua value crosses a sandbox boundary and the cache dies
  * whole with the {@link Addon} on {@code :reload}.
  *
- * <p><b>Threading.</b> Every read runs on the UI thread (addon tick / REPL / timer / slash command);
+ * <p><b>Threading.</b> Every read runs on the UI thread (addon tick / REPL / timer / console command);
  * {@code MenuGrid.paginae} is mutated on the UI thread under its own monitor and is copied under it here. The
  * {@link Cache} map is guarded on its own monitor (UI + REPL threads touch it).
  */

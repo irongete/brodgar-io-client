@@ -430,7 +430,7 @@ end
 -- ADDONS --------------------------------------------------------------------------------------------
 
 -- The five call columns are the callLua categories, abbreviated so the row fits: evt = events,
--- tmr = timers, drw = draw callbacks, hk = hooks/hotkeys/slash, wdg = the rest of a custom widget's life.
+-- tmr = timers, drw = draw callbacks, hk = hooks/hotkeys/console commands, wdg = the rest of a custom widget's life.
 local A_SPEC = { { "addon", 16, "l" }, { "ms", 8, "r" }, { "avg", 8, "r" }, { "peak", 8, "r" },
                  { "share", 7, "r" }, { "evt", 5, "r" }, { "tmr", 5, "r" }, { "drw", 5, "r" },
                  { "hk", 5, "r" }, { "wdg", 5, "r" } }
@@ -718,7 +718,7 @@ keys:on("pause", function()
 end)
 
 -- :profiler [on|off|pause|live|clear|<tab>]
-hafen.slash():on("profiler", function(args)
+hafen.console():on("profiler", function(args)
   local a = (args and args[1] or ""):lower()
   if a == "" then
     toggle()

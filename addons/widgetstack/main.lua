@@ -676,7 +676,7 @@ hafen.event():on("SessionEnteredWorld", function()
 end)
 
 -- :widgetstack -- toggle the window (WoW /framestack on/off).
-hafen.slash():on("widgetstack", function(args)
+hafen.console():on("widgetstack", function(args)
   if not win then hafen.log():write(":widgetstack -> not up yet (enter the world first)"); return end
   local show = not win:visible()
   if show then win:visible(true) else win:visible(false) end
@@ -685,7 +685,7 @@ end)
 
 -- :selector -- log the hovered widget's full selector report. The window shows it too, but a logged line is
 -- SELECTABLE, which is how the string actually gets out of the client and into your addon.
-hafen.slash():on("selector", function(args)
+hafen.console():on("selector", function(args)
   if not insp then hafen.log():write(":selector -> nothing hovered yet (move the mouse over the UI)"); return end
   hafen.log():write((":selector -> class=%s role=%s [%s=] %s res=%s anchor=%s")
     :format(insp.cls or "?", insp.role or "nil", insp.ownKey,

@@ -118,7 +118,7 @@ It raises for each of these, before anything is sent:
 
 ```lua
 -- your manifest declares "speed.set", and the user granted it when they enabled you
-hafen.slash():on("run", function()
+hafen.console():on("run", function()
   local speed = hafen.session():current():speed()
   local pick = speed:get("Run")
   if pick and pick:available() then

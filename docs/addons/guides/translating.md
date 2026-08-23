@@ -34,7 +34,7 @@ read back what missed:
 -- addons/myaddon/main.lua, beside "saved_variables": ["catalogue"] in the manifest
 hafen.locale():load({}):install()          -- names nothing, and records everything that missed
 
-hafen.slash():on("dump", function()
+hafen.console():on("dump", function()
   local out = hafen.store():get("catalogue")
   for _, m in ipairs(hafen.locale():miss():list()) do
     out[m:surface()] = out[m:surface()] or {}

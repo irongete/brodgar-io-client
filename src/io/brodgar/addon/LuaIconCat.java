@@ -61,7 +61,7 @@ import java.util.Set;
  * {@link Addon} (weak values + a {@link ReferenceQueue} drained on every access) makes
  * {@code hafen.map():icon():get(res)} hand back one object every time and {@code seen[cat] = true} reliable.
  *
- * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / slash command),
+ * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / console command),
  * matching the settings window. {@code Settings.settings} is replaced wholesale by the loader thread, so a
  * local reference to it is a stable snapshot to iterate; the individual booleans are written on the UI thread
  * with no torn read. The {@link Cache} map is guarded on its own monitor (UI + REPL threads touch it).

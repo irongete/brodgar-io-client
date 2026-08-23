@@ -46,7 +46,7 @@ the collection verbs and the key-string grammar.
 ## A command
 
 ```lua
-hafen.slash():on("scout", function(args)
+hafen.console():on("scout", function(args)
   if args[1] == "off" then stop() else start(args[1]) end
 end)
 -- in the console:  :scout   ·   :scout off   ·   :scout "two words"
@@ -54,7 +54,7 @@ end)
 
 Press `:` to open the client's command line. Your function gets the words after the command name as a
 1-based table, with quotes grouping and `\` escaping; the name itself is not in it.
-[`hafen.slash`](../api/slash.md) can be called from your file body — there is nothing to wait for.
+[`hafen.console`](../api/console.md) can be called from your file body — there is nothing to wait for.
 
 Three things to know about names: `lua`, `addons` and `reload` are the engine's and cannot be taken; a name
 an existing client command owns is refused with an error; and if another *addon* holds the name, the newest

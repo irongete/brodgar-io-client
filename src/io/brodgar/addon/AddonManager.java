@@ -1946,7 +1946,7 @@ public final class AddonManager {
      * the name is the whole of a {@link LuaSession} anyway, so the payload is minted from it at fire time by
      * {@link #fireSession}.
      *
-     * <p><b>Queued, never fired at the seam.</b> A session is added from a slash command's thread, picked
+     * <p><b>Queued, never fired at the seam.</b> A session is added from a console command's thread, picked
      * from whatever thread reached {@code Sessions.anchor}, and destroyed from its own runner thread; Lua
      * runs on the UI thread and nowhere else (P5), so all three only enqueue and {@link #drainSessionEvents}
      * turns them into a fire — the same marshalling every off-thread seam in this layer uses (D-106). The
@@ -3412,7 +3412,7 @@ public final class AddonManager {
         // hafen.asset (028.1).
         VrApi.installVr(hafen, owner);
 
-        // hafen.slash (WoW-style :name console commands) — L1 input, L2 action, L3 message and V5 grab have all
+        // hafen.console (the client's own :name console commands) — L1 input, L2 action, L3 message and V5 grab have all
         // moved off hafen.hook() onto widgets/the bus/the mouse entity, and hook() itself is deleted (041.5).
         // Global hotkeys live under hafen.client:options():keybindings().
         HookApi.install(hafen, owner);

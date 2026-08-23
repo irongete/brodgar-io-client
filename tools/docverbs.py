@@ -39,7 +39,7 @@ WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
     checking it at all, and far less than the alternative the map had before: `ov:` there resolved
     against the GOB overlay, a third type neither section is about, and passed on the verbs the
     three happen to share.
-  * An event key on an OPEN emitter -- a slash command, a hotkey, a wdgmsg, an action, req:on("done").
+  * An event key on an OPEN emitter -- a console command, a hotkey, a wdgmsg, an action, req:on("done").
     Those key sets are protocol or user-chosen, so there is nothing to check against; the key pass reads
     upper-case keys only, which is the convention that separates the two. Its other blind spots are
     written above `event_keys` itself.
@@ -331,12 +331,12 @@ def java_mentions(vocab):
 # exactly the move that leaves that kind of rot behind.
 #
 # The rule that makes this checkable: every CLOSED key set in the API is PascalCase, and every OPEN
-# emitter's key is a name the addon author chose -- a slash command, a hotkey, a wdgmsg, an action --
+# emitter's key is a name the addon author chose -- a console command, a hotkey, a wdgmsg, an action --
 # which every page writes in lower case. So an upper-case key must be one the bridge fires, and a
 # lower-case one is skipped.
 #
 # BLIND SPOTS, stated rather than implied:
-#   - open emitters (hafen.slash(), keybindings(), action(), message(), pag:on("use"), req:on("done"))
+#   - open emitters (hafen.console(), keybindings(), action(), message(), pag:on("use"), req:on("done"))
 #     are not checked at all. Their key sets are PROTOCOL or user-chosen; there is nothing to check
 #     against, and a typo there is the author's own.
 #   - a key built from a variable rather than written as a literal is invisible here.

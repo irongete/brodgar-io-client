@@ -66,7 +66,7 @@ import java.util.Map;
  * that {@code UI}, and so to that {@code Session}), so a write lands on the character it was addressed at
  * whether or not anyone is looking at it.
  *
- * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / slash command);
+ * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / console command);
  * {@code BuddyWnd.iterator()} copies the list under the window's own lock, so iterating it is snapshot-safe
  * even though the server mutates it from the network thread. The {@link Cache} map is guarded on its own
  * monitor (UI + REPL threads touch it).

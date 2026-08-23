@@ -194,7 +194,7 @@ instruction watchdog still applies, so a stray infinite loop aborts instead of f
 :lua hafen.session():current():ui():match("window[title=Inventory]"):size()
 ```
 
-Addons add commands of their own with [`hafen.slash`](api/slash.md); `lua`, `addons` and `reload` are
+Addons add commands of their own with [`hafen.console`](api/console.md); `lua`, `addons` and `reload` are
 reserved and cannot be taken over.
 
 ## What a reload keeps, and what it drops

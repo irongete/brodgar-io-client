@@ -146,7 +146,7 @@ public final class AddonRegistry {
                                           //   teardown can itself make the client send and receive
         HookApi.teardownKeyBinds(a);      // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
         UiApi.teardownSelectorWatches(a);    // 030.2: drop the selector subscriptions (no disappear — reload != destroy)
-        HookApi.teardownSlashCommands(a); // A11: drop the addon's live slash handlers (Console dispatchers stay — C1)
+        HookApi.teardownConsoleCommands(a); // A11: drop the addon's live console handlers (Console dispatchers stay — C1)
         BeltHold.teardownHolds(a);        // 059.4: give back every action-bar slot this addon was HOLDING — the
                                           //   slot goes back to the server's own content, which never changed
         AddonPagina.teardownEntries(a);   // 059.1: take every entry this addon added to the action menu back out

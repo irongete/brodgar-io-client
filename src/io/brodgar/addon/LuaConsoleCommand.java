@@ -4,15 +4,15 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /**
- * An addon <b>slash command</b> (gap subsystem A11, spec {@code api-reference.md} &rarr; "hafen.slash") — the Java
- * half of {@code hafen.slash():on(name, fn)}. It routes the console command {@code :name} to a Lua handler,
- * the WoW {@code SlashCmdList} pattern at Haven's {@link haven.Console}.
+ * An addon <b>console command</b> (gap subsystem A11, spec {@code api-reference.md} &rarr; "hafen.console") — the Java
+ * half of {@code hafen.console():on(name, fn)}. It routes {@code :name} to a Lua handler — the WoW
+ * {@code SlashCmdList} pattern over Haven's own {@link haven.Console}.
  *
  * <p><b>Reload-safety (coverage-gaps C1).</b> {@link haven.Console#setscmd} has <b>no unregister</b>, so
- * registering one console command per addon slash command and re-running that registration on every {@code :reload}
- * would leak / duplicate commands. Instead {@link AddonManager} installs a <b>single engine-lifetime dispatcher</b>
- * per command name that forever routes to the <i>current</i> {@link LuaSlashCommand} in
- * {@code AddonManager.slashHandlers}; reload/disable only swaps or drops that entry (it never touches
+ * registering one {@link haven.Console} command per addon command and re-running that registration on every {@code :reload}
+ * would leak / duplicate commands. Instead {@link HookApi} installs a <b>single engine-lifetime dispatcher</b>
+ * per command name that forever routes to the <i>current</i> {@link LuaConsoleCommand} in
+ * {@code HookApi.consoleHandlers}; reload/disable only swaps or drops that entry (it never touches
  * {@code Console} again). So this object is cheap and disposable — a reload builds a fresh one and the dispatcher
  * picks it up; teardown marks it {@link #alive}=false and drops it, after which the still-installed dispatcher just
  * reports "no addon handles :name".
@@ -26,16 +26,16 @@ import org.luaj.vm2.LuaValue;
  * teardown a no-op.
  *
  * <p><b>Threading.</b> The in-game {@code ":"} console dispatches on the UI thread (input handling), the same
- * thread as the tick/draw, so a slash handler never races other Lua — matching the {@code :lua} REPL (a terminal
+ * thread as the tick/draw, so a command handler never races other Lua — matching the {@code :lua} REPL (a terminal
  * stdin build dispatches on the reader thread, the same trust/threading profile the REPL already accepts).
  */
-public final class LuaSlashCommand {
+public final class LuaConsoleCommand {
     final Addon owner;
-    final String name;     // the console command name this routes (":name"); also the key in slashHandlers
+    final String name;     // the console command name this routes (":name"); also the key in consoleHandlers
     final LuaValue fn;     // the Lua handler fn(args)
     boolean alive = true;
 
-    LuaSlashCommand(Addon owner, String name, LuaValue fn) {
+    LuaConsoleCommand(Addon owner, String name, LuaValue fn) {
         this.owner = owner;
         this.name = name;
         this.fn = fn;
@@ -43,7 +43,7 @@ public final class LuaSlashCommand {
 
     /**
      * Build the {@code args} table for one {@code :name a b c} invocation (the split words <i>after</i> the name,
-     * 1-based) and run this command's {@code fn(args)}. Called by {@link AddonManager#dispatchSlash}.
+     * 1-based) and run this command's {@code fn(args)}. Called by {@link HookApi#dispatchConsole}.
      * {@code words[0]} is the command name itself; {@code words[1..]} are the arguments handed to the addon.
      */
     void invoke(String[] words) {

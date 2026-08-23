@@ -39,7 +39,7 @@ from an event handler, a timer or a draw callback.
 
 ## See also
 
-- [`hafen.slash`](slash.md) — a console command, the other half of the console
+- [`hafen.console`](console.md) — a console command, the other half of the console
 - [`hafen.json`](json.md) — turning a table into something worth printing
 - [`hafen.client():profiling()`](client/profiling/README.md) — for questions about cost rather
   than about values
