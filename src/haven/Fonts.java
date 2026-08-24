@@ -95,6 +95,8 @@ public class Fonts {
         "label",          // F3  — explicit non-default labels
         "tooltip",        // F3  — tooltips
         "menu",           // F3  — flower/context menus
+        "menu.slot",      // C2  — ...and the empty square the ACTION menu's grid is paved with (106)
+        "menu.frame",     // C2  — ...and the frame the client blits round that grid (106; a picture)
         "chat",           // F3  — chat text
         "textentry",      // F3  — text-entry fields
         "world.nick",     // F4  — floating player/kin names
@@ -106,6 +108,7 @@ public class Fonts {
         "scrollbar.knob", // C2  — ...and the thumb that runs along it
         "slider",         // C2  — the rail a slider draws
         "slider.knob",    // C2  — ...and its thumb
+        "meter",          // C2  — a meter bar (106): what its fill is drawn ON, and the frame round it
         "hud.belt",         // C2 — the plate under the number belt (065.13; a `picture`, no text)
         "hud.menu.left",    // C2 — ...the map-menu plate in the bottom-left corner
         "hud.menu.right",   // C2 — ...the main-menu plate in the bottom-right one
@@ -117,6 +120,8 @@ public class Fonts {
         "chat.party",     // F3  — ...a party line, whose stock is the member's own colour
         "chat.urgent",    // F3  — ...the urgency indicator, a colour PER LEVEL rather than one
         "chat.speaker",   // F3  — ...and the hue the client WALKS, one speaker at a time
+        "chat.frame",     // C2  — ...and the chat's own DECORATION (106): its field, and its frame
+        "chat.log",       // C2  — ...and the wash a channel lays behind its lines, inside it
     };
 
     /**
@@ -127,6 +132,11 @@ public class Fonts {
      * naming one of the two impossible (065.10) — while {@code chat.private} must inherit {@code chat}'s,
      * because a kind of chat line IS a chat line and a theme that says nothing about the kinds still means all
      * of them.
+     *
+     * <p>{@code chat.frame} and {@code chat.log} (106) are the other half of that same lesson under the
+     * same prefix: one is the chat's own decoration and the other the wash inside it, and neither is a
+     * KIND of line — so both are <b>parts</b> and both are absent from this map. {@code menu.slot}
+     * and {@code menu.frame} likewise take nothing from {@code menu}, which is a text site.
      */
     private static final Map<String, String> SCOPE_PARENT = new HashMap<String, String>();
     static {

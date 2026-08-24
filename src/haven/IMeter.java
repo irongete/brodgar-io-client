@@ -29,6 +29,15 @@ package haven;
 import java.awt.Color;
 import java.util.*;
 
+/* addon: (106) the horizontal bar, and one of the two surfaces the "meter" key covers.
+ *
+ * NEITHER meter DECLARES a stock look, and that is a finding rather than an omission. A site declares a
+ * property only where the declaration IS what it draws, and the two kinds of meter are made of different
+ * things: this one paints a flat trough and blits a frame the SERVER named, while a VMeter blits a frame
+ * of the CLIENT's own and has no trough at all. One catalogue entry under one key would therefore describe
+ * neither -- a bg from here beside a picture from there is a surface that exists nowhere -- so the key is
+ * routed and sayable while sheet:stock() carries nothing for it, exactly as `panel`, `scrollbar` and
+ * `slider` already do. */
 public class IMeter extends LayerMeter {
     public static final Coord off = UI.scale(22, 7);
     public static final Coord fsz = UI.scale(101, 24);
@@ -53,9 +62,18 @@ public class IMeter extends LayerMeter {
     public void draw(GOut g) {
 	try {
 	    Tex bg = this.bg.get().flayer(Resource.imgc).tex();
-	    g.chcolor(0, 0, 0, 255);
-	    g.frect(off, msz);
-	    g.chcolor();
+	    /* addon: (106) the "meter" rule, resolved once: its `bg` stands in for the trough the fill is drawn
+	     * on, its `picture` for the frame blitted over the lot, and its `border` frames the whole bar. The
+	     * FILL between them is never a rule's -- that colour is the server's, one per meter, and it is what
+	     * tells a hunger bar from a stamina one. */
+	    Fonts.Chrome ch = Fonts.chrome("meter", this);
+	    if((ch == null) || !ch.bg()) {
+		g.chcolor(0, 0, 0, 255);
+		g.frect(off, msz);
+		g.chcolor();
+	    } else {
+		ch.drawbg(g, off, msz);
+	    }
 	    for(Meter m : meters) {
 		int w = msz.x;
 		w = (int)Math.ceil(w * m.a);
@@ -63,7 +81,13 @@ public class IMeter extends LayerMeter {
 		g.frect(off, new Coord(w, msz.y));
 	    }
 	    g.chcolor();
-	    g.image(bg, Coord.z);
+	    Fonts.Picture p = Fonts.picture("meter", this);   // addon: (106) the frame, the rule's or the server's
+	    if(p == null)
+		g.image(bg, Coord.z);
+	    else
+		p.draw(g, Coord.z, sz);
+	    if((ch != null) && ch.border())
+		ch.drawborder(g, Coord.z, sz);   // addon: (106) ...and a frame round the whole bar, if one is named
 	} catch(Loading l) {
 	}
     }

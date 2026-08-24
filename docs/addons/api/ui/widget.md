@@ -65,6 +65,8 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:id()` | int \| nil | server widget id, or `nil` when the widget is not server-bound |
 | `:session()` | [Session](../session.md) \| nil | the character whose **tree** it stands in; `nil` for one in your own layer, which belongs to nobody |
 | `:events()` | array | the [event keys](#subscribing) this widget answers, which is what `:on(key, fn)` refuses anything outside |
+| `:name()` | string \| nil | the name the addon that **built** it gave it, as `<addon>/<name>`; `nil` for every widget nobody named — [naming your own](custom.md#naming-and-dressing-your-own-surfaces) |
+| `:stock()` | table \| nil | what a widget **you built** declared its own look to be, or `nil` — [the same page](custom.md#naming-and-dressing-your-own-surfaces) |
 | `:owned()` | boolean | whether **your** addon built it — see [owned vs borrowed](#owned-vs-borrowed) |
 | `:is(sel)` | boolean | whether **this** widget matches that [selector](selectors.md) — the predicate, where [`:match(sel)`](#searching-inside-one-widget) searches below it |
 | `:children()` | array | child Widgets in tree order; empty for a leaf |

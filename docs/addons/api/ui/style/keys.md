@@ -32,12 +32,17 @@ These are the sites the client draws at:
 | `scrollbar.knob` | the **thumb** itself, wherever along that rail it currently sits |
 | `slider` | the **rail** a slider's thumb runs along |
 | `slider.knob` | that slider's own thumb |
+| `meter` | a **bar** the game fills — hunger, stamina, a fill gauge: what its fill is drawn **on**, and the frame blitted round it. The fill itself stays the server's. Draws no text |
 | `hud.belt` | the plate the numbered belt squares are laid on, across the bottom of the screen — [the HUD's plates](hud.md) |
 | `hud.menu.left`, `hud.menu.right` | the two plates behind the toggle buttons in the bottom corners |
 | `hud.search` | the plate the action-search button sits on |
 | `minimap.frame` | the frame drawn around the corner minimap |
 | `menu` | flower-menu petals and the action-menu keybind letters |
+| `menu.slot` | the empty **square** the action menu's grid is paved with. Draws no text, so it takes `bg` and `border` |
+| `menu.frame` | the **frame** the client blits round that grid, in the bottom-right corner — `minimap.frame`'s twin, and dressed the same way, with [`picture`](chrome.md#picture) |
 | `chat` | the chat window — messages, channel tabs, the typed line — and the cascade for the five kinds below |
+| `chat.frame` | the chat's own **decoration**: the field it tiles behind everything, and the frame of corners, runs and ornaments it paints round the lot. `window.frame`'s opposite number, the chat being no window |
+| `chat.log` | the **wash** one channel lays behind its lines, inside that frame. Draws no text — the lines on it are `chat`'s |
 | `chat.system` | the **System** log's lines: what the client tells you rather than what anyone said |
 | `chat.mine` | your **own** line, in whichever channel you said it in |
 | `chat.private` | a private message, received or sent |
@@ -55,9 +60,12 @@ blits whole.
 
 **Six keys refine another key rather than `*`.** The five `chat.` kinds and `chat.speaker` fall back to
 [`chat`](chat.md#each-kind-falls-back-to-chat) before they fall back to `*`, because a kind of chat line is
-a chat line. Nothing else does: `checkbox.mark` is a **part** of a checkbox rather than a kind of one, so it
-takes nothing from `checkbox`, and neither do the two knobs — name both or the one you leave out stays the
-client's.
+a chat line. **Nothing else does, the dot notwithstanding** — a dotted name means *a kind of* at those six
+and *a part of* everywhere else, and only a kind cascades. So `chat.frame` and `chat.log` are the chat's
+decoration and the wash inside it rather than kinds of line, and take nothing from `chat`;
+`checkbox.mark` is a **part** of a checkbox rather than a kind of one and takes nothing from
+`checkbox`; and neither do the two knobs, nor `menu.slot` and `menu.frame`, which take nothing from
+`menu` — name both or the one you leave out stays the client's.
 
 ## Tree keys
 
@@ -163,8 +171,9 @@ window from an unfocused one by whatever else the theme says, not by its caption
 
 And the three that draw the chrome. The surfaces that wear them are the ones that draw a box of their own:
 the window decoration, the caption plate inside it, the window-less panels, the box a tooltip is popped up
-in, an inventory square, a button's face, a text field, the boxes, rails and thumbs of the three
-controls the client blits, and the speech bubble over a talking character.
+in, an inventory square and an action-menu cell, a button's face, a text field, the boxes, rails and thumbs
+of the three controls the client blits, the field a chat channel is painted on, the trough a meter's fill
+runs along, and the speech bubble over a talking character.
 A [state face](chrome.md#a-face-per-state) inside a `bg` is
 worn by the surfaces that *have* that state, and ignored by the rest, exactly as the rows below say:
 
@@ -178,6 +187,10 @@ worn by the surfaces that *have* that state, and ignored by the rest, exactly as
 | `inventory.slot` | yes | yes | **inert** | one square of an inventory grid, drawn at the size and pitch the client's own square has, so `padding` has nothing to move — [what the square is](surfaces.md#inventoryslot) |
 | `button` | yes | yes | **inert** | the **face** of every standard button: the `bg` stands in for the fill its caption is set on, the `border` for the four edge caps around it, and either alone leaves the other the client's own. Its box was fixed when it was built, so `padding` has nothing to move — [what a button's face is](surfaces.md#button) |
 | `textentry` | yes | yes | yes | the **field** every line is typed into: the `bg` stands in for its stretched middle, the `border` for the two end caps, and `padding` is the room between those and the text, which moves inside a width the caller still owns — [what a field is](surfaces.md#textentry) |
+| `menu.slot` | yes | yes | **inert** | one cell of the action menu's grid, at the size and pitch the client's own has. It is the very raster `inventory.slot` paves a bag with, under a key of its own — so a theme that wants an action grid to read differently from a bag can say so, and one that does not writes the two rules alike |
+| `chat.frame` | yes | yes | **inert** | the chat's own decoration: the `bg` is the field it tiles inside its margin, the `border` the frame it paints round everything. The client's own frame has **no bottom edge** — the chat is open at the foot — so art for it wants a transparent bottom slice. `padding` has nothing to move: the chat's box is the size the user dragged it to — [the chat](chat.md#the-chats-own-decoration) |
+| `chat.log` | yes | yes | **inert** | the wash one channel lays behind its lines, over its own box inside that frame. The client paints a flat tint there and **no** frame, so a `border` here **adds** one |
+| `meter` | yes | yes | **inert** | a bar's `bg` is what its fill is drawn **on** — the trough on a horizontal bar, the whole box on a vertical one, which has no trough — and its `border` frames the whole bar. The **fill** between them is never a rule's: that colour is the server's, one per meter, and it is what tells a hunger bar from a stamina one |
 | `checkbox`, `scrollbar`, `slider` | yes | yes | **inert** | the box a checkbox ticks and the two **rails** a thumb runs along, each painted over the rectangle the control was built with, so `padding` has nothing to move. A [`checked` face](chrome.md#a-face-per-state) inside a `checkbox` `bg` is what a ticked box wears, and it is the only state any of the three enters. A checkbox drawn as a single **picture** — the HUD's map and menu buttons, a dropdown's arrow — is not in this key, for the reason an icon button is not in `button` — [the three controls](surfaces.md#checkbox-scrollbar-and-slider) |
 | `checkbox.mark`, `scrollbar.knob`, `slider.knob` | yes | yes | **inert** | the tick and the two **thumbs**, each a key of its own so the part is dressed apart from the whole it sits on. A part never takes the whole's art: name both or the one you leave out stays the client's |
 | `world.speech` | yes | yes | **inert** | the **bubble** over a talking character: the `bg` stands in for its white fill, the `border` for the frame around it, and either alone leaves the other the client's own. The bubble measures itself around the sentence every frame, so `padding` has nothing to move — [what the bubble is](surfaces.md#worldspeech-and-worldnick) |
@@ -211,7 +224,9 @@ through pictures the **server** places, which are told apart by nothing but wher
 | Key | `picture` | Worth knowing |
 |---|---|---|
 | the five [HUD plate](hud.md) keys | yes | `hud.belt`, `hud.menu.left`, `hud.menu.right`, `hud.search` and `minimap.frame`: the plates the client blits at fixed places of its own. The rule's picture fills the rectangle the client already had, so nothing moves and every button on a plate still takes its click |
-| `*` | **cascades** | into those five and nowhere else, they being the only sites that blit a plate. So a `picture` on `*` paints the whole HUD alike — name the key you mean |
+| `menu.frame` | yes | the frame round the action menu's grid, at the fixed place the client blits it — `minimap.frame`'s twin in the other corner. The grid is drawn **over** it, so art with no hole in the middle hides the actions; nothing moves and every click still lands, but you see the plate alone |
+| `meter` | yes | the frame a bar blits round itself, replaced where that meter draws its own — **over** the fill on a horizontal bar, **under** it on a vertical one. On the horizontal one the art is the **server's**, one per meter, so a single picture makes every bar look alike; give it a centre the fill shows through |
+| `*` | **cascades** | into those five, and into `menu.frame` and `meter`, and nowhere else — they being the only sites that blit a picture of their own. So a `picture` on `*` paints the whole HUD, the action menu's frame **and every meter** alike — name the key you mean |
 | a tree key **matching a picture** | yes | `["@Img"]`, or a chain naming the window it sits in. A [state face](chrome.md#a-face-per-state) inside the value is worn by a surface that enters that state, and a picture the server re-points keeps following the rule |
 | `widget:rule()` | yes | the same, one picture at a time and named by hand |
 | every other site key | **inert** | a text site draws no picture, and a surface that draws a box wears [`bg`](chrome.md#bg) and [`border`](chrome.md#border) instead. Readable back through `:style()`, and inert everywhere it lands |

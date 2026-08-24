@@ -97,6 +97,37 @@ Deliberately not in this key: the belt across the bottom of the screen, the acti
 window's input and output slots and the combat-manoeuvre row. Each of those happens to blit the *same*
 raster, but none of them is an inventory square, and each keeps the client's own.
 
+## `menu.slot`
+
+The empty **square** the action menu's grid is paved with — the icon grid in the bottom-right corner, and
+every page of it. It is the **same raster** [`inventory.slot`](#inventoryslot) paves a bag with: the client
+builds one square and two grids blit it. A key of its own all the same, because a shared key could never be
+told apart — a theme that wants an action grid to read differently from a bag says so here, and one that
+wants them alike writes the two rules the same.
+
+```lua
+local s = hafen.ui():sheet()
+local cell = { bg = {color = {20, 30, 50, 140}}, border = {color = {34, 232, 245}, width = 1} }
+s:rule("inventory.slot"):bg(cell.bg):border(cell.border)
+s:rule("menu.slot"):bg(cell.bg):border(cell.border)      -- ...or something else entirely
+s:install()
+```
+
+It draws no text — the **keybind letters** over it are [`menu`](#menu)'s, the same key the flower menu's
+petals wear — and it behaves exactly as an inventory square does: the rule paints inside the client's own
+cell, at the client's own pitch, so every icon stays where it is and every click still lands. `padding` has
+nothing to move.
+
+**The frame round the grid is `menu.frame`**, a key of its own and the twin of
+[`minimap.frame`](hud.md): the client blits both at fixed places of its own, one in each bottom corner,
+and each is dressed with [`picture`](chrome.md#picture) rather than with a fill and a frame. The grid is
+drawn **over** it, so art with no hole in the middle hides the actions behind it.
+
+Because the cell and an inventory square share a raster, the [caveat on `inventory.slot`](#inventoryslot)
+is this key's too: the
+client's own square is one picture whose outline is a single **device** pixel and whose corners are left
+transparent, so a `bg` under a `border` is a near restatement rather than an exact one.
+
 ## `button`
 
 The client's standard buttons — the Options window, the character-sheet, craft and build buttons, tab
@@ -220,6 +251,42 @@ s:install()
   sampling its own transparency. A rule replaces a surface the client already paints; it never paints over one
   that says something. Those keep the client's own art, and so does a scrollbar whose list fits, which draws
   nothing at all.
+
+## `meter`
+
+A **bar the game fills**: the hunger and stamina meters on the HUD, a container's fill gauge, a quality or
+progress bar a window puts up. Two shapes wear this one key — a **horizontal** bar, which paints a flat
+trough, fills it, and blits a frame over the lot; and a **vertical** one, which blits its frame first and
+draws the fill up over it.
+
+| Property | What it reaches |
+|---|---|
+| [`bg`](chrome.md#bg) | what the fill is drawn **on** — the trough on a horizontal bar, the whole box on a vertical one, which has no trough of its own |
+| [`picture`](chrome.md#picture) | the **frame** the bar blits, replaced where that bar draws its own |
+| [`border`](chrome.md#border) | a frame around the whole bar, painted last. The client draws none, so this **adds** one |
+
+```lua
+local s = hafen.ui():sheet()
+s:rule("meter"):bg{ color = {8, 12, 20, 255} }
+               :border{ color = {34, 232, 245}, width = 1 }
+s:install()
+```
+
+**The fill is never a rule's.** Its colour comes from the *server*, one per meter, and it is what tells a
+hunger bar from a stamina one — the same reason [a party line](chat.md#the-two-colours-the-client-walks)
+keeps the member's own colour. `color` on this key is inert, and a bar keeps meaning what it meant.
+
+**A horizontal bar's frame is the server's art too**, named per meter, so one `picture` makes every bar on
+the HUD look alike. That is a theme's choice to make rather than a mistake, and the art it gives wants the
+transparent centre the stock frame has, or the fill it framed disappears under it.
+
+**This key declares no stock look**, and it is the one place in the catalogue where that is a *finding*
+rather than a missing draw. The two shapes are made of different things — a trough here, a client-owned
+frame there — so one entry under one key would describe neither surface, and
+[`sheet:stock()`](README.md#the-clients-own-look) leaves it out rather than handing back a bar that exists
+nowhere. `panel`, `scrollbar` and `slider` are absent for their own versions of the same reason.
+
+A meter's **tooltip** is [`tooltip`](#tooltip)'s, like every other tip in the client.
 
 ## `heading`
 

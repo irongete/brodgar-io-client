@@ -507,10 +507,30 @@ public class ChatUI extends Widget {
 	    }
 	}
 
+	/* addon: (106) what a channel's wash is made of: one flat tint over the chat's own field, and nothing
+	 * else. No `border` is declared because a channel draws none -- a theme writing one ADDS a frame.
+	 *   It is "chat.log" rather than "chat.frame": the FRAME is the decoration ChatUI itself paints
+	 * round the lot -- corners, runs and two pinned ornaments over a tiled field -- which is the analogue
+	 * of window.frame. This is the dimming laid inside it, behind one channel's lines. */
+	private static final Color washc = new Color(0, 0, 0, 128);
+	private static void stockwash() {
+	    Fonts.stock("chat.log", "bg", Fonts.piece(washc));
+	}
+
 	public void draw(GOut g) {
-	    g.chcolor(0, 0, 0, 128);
-	    g.frect(Coord.z, sz);
-	    g.chcolor();
+	    /* addon: (106) the wash this channel lays behind its lines is the "chat.log" rule's -- the
+	     * dimming inside the decoration "chat.frame" dresses, and a PART of "chat" rather than a kind of
+	     * it, so it takes nothing from it (Fonts.SCOPE_PARENT is declared, never derived from the dot).
+	     * Null on a stock client, and then the wash below is the rectangle it always was. */
+	    stockwash();
+	    Fonts.Chrome fld = Fonts.chrome("chat.log", this);
+	    if(fld == null) {
+		g.chcolor(0, 0, 0, 128);
+		g.frect(Coord.z, sz);
+		g.chcolor();
+	    } else {
+		fld.draw(g, Coord.z, sz);
+	    }
 	    int sy = (int)Math.round(dy), h = ih(), w = iw();
 	    boolean sel = false;
 	    synchronized(rmsgs) {
@@ -1686,17 +1706,39 @@ public class ChatUI extends Widget {
     private static final Tex bvrb = bvlb;
     private static final Tex bmf = Resource.loadtex("gfx/hud/chat-mid");
     private static final Tex bcbd = Resource.loadtex("gfx/hud/chat-close-g");
+    /* addon: (106) what the chat's own DECORATION is made of. Only the FIELD is declared: the frame below
+     * is two corners, three repeated runs and two pinned ornaments with no bottom edge at all, a shape no
+     * single `border` value restates -- so the catalogue says the field and stays quiet about the rest,
+     * rather than handing back a frame that reads right and installs wrong. */
+    private static void stockdeco() {
+	Fonts.stock("chat.frame", "bg", Fonts.piece(Window.bg).tile());
+    }
+
     public void draw(GOut g) {
-	g.rimage(Window.bg, marg, sz.sub(marg.x * 2, marg.y));
+	/* addon: (106) the chat's own decoration is the "chat.frame" rule's -- its FIELD as a `bg`, tiled
+	 * inside the margin the chat keeps, and the corners/runs/ornaments below as a `border`. It is the
+	 * analogue of window.frame, and the chat being no Window is exactly why it needs a key of its own.
+	 * Each half is skipped only where the rule answers for it, so a bg-only rule keeps the stock frame
+	 * and a border-only rule the stock field. */
+	stockdeco();
+	Fonts.Chrome deco = Fonts.chrome("chat.frame", this);
+	if((deco == null) || !deco.bg())
+	    g.rimage(Window.bg, marg, sz.sub(marg.x * 2, marg.y));
+	else
+	    deco.drawbg(g, marg, sz.sub(marg.x * 2, marg.y));
 	super.draw(g);
-	g.image(bulc, new Coord(0, 0));
-	g.image(burc, new Coord(sz.x - burc.sz().x, 0));
-	g.rimagev(bvlb, new Coord(0, bulc.sz().y), sz.y - bulc.sz().y);
-	g.rimagev(bvrb, new Coord(sz.x - bvrb.sz().x, burc.sz().y), sz.y - burc.sz().y);
-	g.rimageh(bhb, new Coord(bulc.sz().x, 0), sz.x - bulc.sz().x - burc.sz().x);
-	g.aimage(bmf, new Coord(sz.x / 2, 0), 0.5, 0);
-	if((sel == null) || (sel.cb == null))
-	    g.aimage(bcbd, new Coord(sz.x, 0), 1, 0);
+	if((deco == null) || !deco.border()) {
+	    g.image(bulc, new Coord(0, 0));
+	    g.image(burc, new Coord(sz.x - burc.sz().x, 0));
+	    g.rimagev(bvlb, new Coord(0, bulc.sz().y), sz.y - bulc.sz().y);
+	    g.rimagev(bvrb, new Coord(sz.x - bvrb.sz().x, burc.sz().y), sz.y - burc.sz().y);
+	    g.rimageh(bhb, new Coord(bulc.sz().x, 0), sz.x - bulc.sz().x - burc.sz().x);
+	    g.aimage(bmf, new Coord(sz.x / 2, 0), 0.5, 0);
+	    if((sel == null) || (sel.cb == null))
+		g.aimage(bcbd, new Coord(sz.x, 0), 1, 0);
+	} else {
+	    deco.drawborder(g, Coord.z, sz);
+	}
     }
 
     private static final Resource notifsfx = Resource.local().loadwait("sfx/hud/chat");

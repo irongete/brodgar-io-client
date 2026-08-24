@@ -135,15 +135,43 @@ rather than a gap in the answer.
 To restyle a single widget you already hold, ask it for
 [its own rule](../api/ui/style/README.md#restyle-one-widget) rather than inventing a selector that matches
 only it. That is the top of a cascade which resolves most-specific-first — the widget's own level, then the
-matching tree rule, then the site rule, then `*`,
-then the client's stock — and **every level composes per property**, so a narrow rule never silently drops
-a broad one. [`widget:style()`](../api/ui/widget.md) reads back what a widget actually resolves to, which
+matching tree rule, then the site rule, then `*`, then
+[the widget's own stock](../api/ui/custom.md#naming-and-dressing-your-own-surfaces) where an addon declared
+one, then the client's stock — and **every level composes per property**, so a narrow rule never silently
+drops a broad one. [`widget:style()`](../api/ui/widget.md) reads back what a widget actually resolves to, which
 is the answer to "why is that still the wrong colour".
 
 Layout resolves through the same cascade with a different top: the hand-named level for `position` and
 `size` is the [verb](../api/ui/native.md), `w:position(x, y)`, not a rule of your own. Saving a *layout* is
 the same trick a theme file is: window positions read back with `widget:position()` are a table of numbers,
 and [`hafen.store`](../api/store.md) persists tables.
+
+## Reaching another addon's surfaces
+
+A theme is not confined to the client's own furniture. An addon that names the surfaces it builds can be
+themed like anything else, and it needs to know nothing about themes to be:
+
+```json
+"[name=actionbars/bar]":  { "border": { "box": "gfx/hud/wnd", "mode": "tile" } },
+"[name^=actionbars/slot]": { "bg": { "asset": "img/slot.png", "mode": "stretch" } }
+```
+
+- **`[name=…]` is [the one refiner an addon owns](../api/ui/selectors.md#the-one-refiner-an-addon-owns)**,
+  written `<addon>/<name>` — the engine puts the addon's id there, so two addons cannot collide over
+  `bar`. It outranks every other part of a selector: it is this vocabulary's `#id`.
+- **One step is enough.** What an addon declares for itself is a
+  [stock](../api/ui/custom.md#naming-and-dressing-your-own-surfaces), which sits *beneath* every rule, so
+  your rule wins without chaining for specificity and without depending on which addon loaded first.
+- **A site key never falls into one.** `["*"]` and the rest reach the places the *client* draws; an addon's
+  own surface is reached only by a rule that names it. So a theme cannot accidentally paint every addon in
+  the client, and a surface nobody named stays exactly as its author drew it.
+- **`^=` reaches a group.** An addon that names its squares `slot1` … `slot12` is dressed in one rule with
+  `[name^=actionbars/slot]`, and one of them alone with `[name=actionbars/slot7]`. The two weigh the same,
+  so an exception goes in a **chain** — `["[name=actionbars/bar] [name=actionbars/slot7]"]` — which sums
+  to 32 and wins outright.
+- **Ask the addon what it calls things**, or point [WidgetStack](../../../addons/widgetstack/) at it: names
+  are part of what an addon publishes, like its console commands, and a name nobody answers to matches
+  nothing rather than erroring.
 
 ## Where it stops
 

@@ -46,12 +46,27 @@ public class VMeter extends LayerMeter {
     }
 
     public void draw(GOut g) {
-	g.image(bg, Coord.z);
+	/* addon: (106) the "meter" rule, the same key the horizontal bar wears: `bg` is what the fill is
+	 * drawn on -- here the whole box, this meter having no trough of its own -- `picture` is the frame,
+	 * and `border` a frame round the lot. The fill stays the server's colour. Why neither meter declares
+	 * a stock look is on IMeter. */
+	Fonts.Chrome ch = Fonts.chrome("meter", this);
+	if((ch != null) && ch.bg())
+	    ch.drawbg(g, Coord.z, sz);
+	Fonts.Picture p = Fonts.picture("meter", this);
+	if(p == null)
+	    g.image(bg, Coord.z);
+	else
+	    p.draw(g, Coord.z, sz);
 	int h = (sz.y - UI.scale(6));
 	for(Meter m : meters) {
 	    g.chcolor(m.c);
 	    int mh = (int)Math.round(h * m.a);
 	    g.image(fg, new Coord(0, 0), new Coord(0, sz.y - UI.scale(3) - mh), sz.add(0, mh));
+	}
+	if((ch != null) && ch.border()) {
+	    g.chcolor();                     // addon: (106) the loop above leaves its tint set
+	    ch.drawborder(g, Coord.z, sz);
 	}
     }
 }

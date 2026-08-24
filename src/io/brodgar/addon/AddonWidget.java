@@ -2,6 +2,7 @@ package io.brodgar.addon;
 
 import haven.Coord;
 import haven.DropTarget;
+import haven.Fonts;
 import haven.GOut;
 import haven.Indir;
 import haven.MenuGrid;
@@ -184,6 +185,15 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
     public void draw(GOut g) {
         if(pending)     // built this frame and not armed yet: a half-configured widget paints NOTHING (§2.5)
             return;
+        /* addon: (107) the surface this widget WEARS -- its own stock under every rule that names it,
+         * resolved once here and painted in the order Frame uses for the client's own panels: the
+         * background under the contents, the frame over them. Null is the answer for a widget nobody has
+         * named and whose addon declared no stock, and then this draws exactly what it always drew.
+         *   Deliberately NOT routed through a Fonts scope: a widget an addon built is a widget, not one of
+         * the places the client draws, so no site key falls back into it and a bare one stays bare. */
+        Fonts.Chrome ch = Sheet.chromeOf(this, null);
+        if((ch != null) && ch.bg())
+            ch.drawbg(g, Coord.z, sz);
         if(!dead) {
             WidgetSubs s = owner.widgetSubsOrNull(rootw());
             if((s != null) && s.subs.has("Draw")) {
@@ -197,6 +207,8 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
             }
         }
         super.draw(g);   // draw any child widgets (none for a leaf; future-proofing)
+        if((ch != null) && ch.border())
+            ch.drawborder(g, Coord.z, sz);   // addon: (107) over the contents, as a panel's frame is
     }
 
     // mousedown/mouseup/mousemove/mousewheel are GONE (041.3): the four input keys are now delivered through

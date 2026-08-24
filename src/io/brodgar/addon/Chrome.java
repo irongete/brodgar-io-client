@@ -1769,6 +1769,15 @@ final class Chrome {
         return paint(Fonts.style(scope), null);
     }
 
+    /**
+     * {@code Sheet.chromeOf(w, state)} (107) — the paint an ALREADY-RESOLVED style does, for a surface that
+     * resolves itself rather than through a scope: a widget an addon built, whose answer is its own stock
+     * under whatever rules name it. Same interning, same states; only the resolution happened elsewhere.
+     */
+    static Fonts.Chrome of(Fonts.Style st, String state) {
+        return paint(st, state);
+    }
+
     /** The interned {@link Paint} one resolved style does in one state, or {@code null} when it paints nothing. */
     private static Fonts.Chrome paint(Fonts.Style st, String state) {
         Bg bg = bg(st);

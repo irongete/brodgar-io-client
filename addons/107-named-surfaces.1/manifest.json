@@ -1,0 +1,9 @@
+{
+  "id": "107-named-surfaces.1",
+  "name": "107.1 -- a surface you built, named and dressed",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Checks widget:name() and widget:stock(): a name the engine prefixes and a selector names back, a default look at the BOTTOM of the cascade, and every rule beating it per property.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "106-routed-sites.1",
+  "name": "106.1 -- three sites routed",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Checks the action menu's cell, a chat channel's field and a meter bar are style SITES: they parse as keys, they declare what they draw, and they refuse what a site may not carry.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -52,6 +52,54 @@ size it did not choose — and every property is a setter on the [Widget](widget
 | `:size(w, h)` | `:size()` | content size; a window's chrome is fitted around it |
 | `:font(h)` | `:font()` | default font for this widget's `g:text`/`g:atext` draws, not for the title bar |
 
+## Naming and dressing your own surfaces
+
+Two more setters, and they are what makes a surface you built **themeable by somebody else**: one says what
+you call it, the other what it looks like when nobody says otherwise.
+
+| Setter | Read | Meaning |
+|---|---|---|
+| `:name(s)` | `:name()` | what your addon calls this widget. A [`[name=…]` selector](selectors.md#the-one-refiner-an-addon-owns) names it back, as `<your addon>/<s>` |
+| `:stock(t)` | `:stock()` | what it looks like when **no rule** names it: the same properties a [rule](style/README.md#properties) carries, minus the three that lay a widget out |
+
+```lua
+local bar = hafen.ui():widget():parent(hud):name("bar")
+bar:stock{ bg = {color = {0, 0, 0, 90}}, padding = 2 }
+
+for i = 1, 12 do
+  local slot = hafen.ui():widget():parent(bar):name("slot" .. i):size(34, 34)
+  slot:stock{ bg = {color = {36, 52, 38, 125}},
+              border = {color = {20, 28, 21, 167}, width = 1} }
+end
+```
+
+That addon now has a default look, and knows nothing about themes. A theme dresses it by naming it:
+
+```json
+"[name^=actionbars/slot]": {
+  "bg": { "asset": "themes/cyberpunk/slot.png", "mode": "stretch" }
+}
+```
+
+- **A stock is the BOTTOM of the [cascade](style/README.md#the-cascade)**, under every rule, and that is the
+  whole reason to use it rather than a rule of your own. A `widget:rule()` would sit at the *top*, where no
+  theme could ever reach past it; a tree rule in your own sheet would **tie** with the theme's and leave the
+  winner to whichever sheet installed last, which nothing orders. A level beneath every rule has neither
+  problem: your default shows, and anybody's rule beats it, per property.
+- **A rule beats it per property, not wholesale.** A theme that names only your slot's `bg` leaves the
+  `border` you declared standing.
+- **`{}` drops the declaration**, and `:stock()` reads back what you wrote, or `nil`.
+- **Your surface wears it.** A widget with a stock, or that some rule names, paints its `bg` under whatever
+  your `Draw` handler draws and its `border` over the lot — the order the client's own panels use. One
+  with neither stays exactly what it always was: a bare rectangle that paints nothing of its own.
+- **No site key falls into it.** A widget you built is a widget, not one of the places the client draws, so
+  `["*"]` and the other [site keys](style/keys.md#site-keys) never reach it. Only a rule that *names* it
+  does, which is what keeps an unnamed surface bare.
+- **Both are yours alone.** Naming or declaring a stock on one of the client's own widgets is refused; the
+  level you have on somebody else's widget is [`widget:rule()`](style/README.md#restyle-one-widget).
+- **The layout three are refused**, with the same message `widget:rule()` gives: where a widget *sits* is the
+  verb, [`widget:position(x, y)`](native.md).
+
 Every setter returns the widget, so a whole surface is one expression; every one has a matching bare read,
 so nothing you configured needs a variable of its own to be readable later. They answer on a surface
 **your** addon painted, and two of them reach further: `:title(s)` writes

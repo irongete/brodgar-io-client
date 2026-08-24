@@ -704,6 +704,96 @@ final class Sheet {
      * Guarded by {@code Sheet.class}.
      */
     private static final Map<Widget, List<Skin>> skins = new WeakHashMap<Widget, List<Skin>>();
+
+    /* ---- the widget's own STOCK (107) ---------------------------------------------------------------
+     *
+     * What a widget an addon BUILT looks like when no rule says otherwise -- the addon-side twin of the
+     * client's own {@code Fonts.stock}. It sits at the BOTTOM of the cascade, under every rule, which is
+     * the whole point: the author of an addon says what their bar looks like by default, the author of a
+     * theme writes rules, and the theme wins mechanically rather than by loading second.
+     *
+     * That ordering is not a courtesy. Were an addon to express its default with {@code widget:rule()} it
+     * would sit at the TOP and no theme could ever reach past it; were it to express it with a tree rule of
+     * its own, whether the theme won would come down to which sheet installed last, which the manifest
+     * explicitly does not order. A level beneath every rule has neither problem.
+     */
+    private static final Map<Widget, Stock> stocks = new WeakHashMap<Widget, Stock>();
+    private static volatile boolean anyStock = false;
+
+    /** One widget's own stock look, and the addon that declared it (so teardown can take it back). */
+    private static final class Stock {
+        final Addon owner;
+        final Props p;
+
+        Stock(Addon owner, Props p) {
+            this.owner = owner;
+            this.p = p;
+        }
+    }
+
+    /**
+     * Declare (or, with {@code p} empty or {@code null}, drop) what {@code w} looks like when no rule names
+     * it. One widget has one stock, belonging to whoever built it — unlike a {@code widget:rule()} level,
+     * which every addon may hold one of at once, because that one is an opinion and this one is a fact.
+     */
+    static synchronized void setWidgetStock(Addon owner, Widget w, Props p) {
+        if(w == null)
+            return;                                       // a write on a stale widget: nothing to declare
+        boolean had = (stocks.remove(w) != null);
+        if((p != null) && !p.empty())
+            stocks.put(w, new Stock(owner, p));
+        else if(!had)
+            return;                                       // dropping what was never there changes nothing
+        rulesChanged();
+    }
+
+    /** Drop every stock {@code owner} declared (its teardown). Caller holds {@code Sheet.class}. */
+    private static boolean dropStocks(Addon owner) {
+        boolean rm = false;
+        for(Iterator<Map.Entry<Widget, Stock>> it = stocks.entrySet().iterator(); it.hasNext();) {
+            if(it.next().getValue().owner == owner) {
+                it.remove();
+                rm = true;
+            }
+        }
+        return rm;
+    }
+
+    /**
+     * The chrome {@code w} wears in state {@code state} — its own stock under every rule that names it — or
+     * {@code null} when neither says anything. This is what an addon's own widget asks at its draw, and it
+     * is deliberately NOT routed through a {@code Fonts} scope: a widget an addon built is a widget, not one
+     * of the places the client draws, so no site key falls back into it and an unnamed one stays bare.
+     */
+    static Fonts.Chrome chromeOf(Widget w, String state) {
+        return Chrome.of(specOf(w), state);
+    }
+
+    /**
+     * {@code widget:stock(t)} (107) — the table a stock is written in: the very vocabulary a rule is
+     * written in, minus the three that lay a widget out. Those are refused by the same gate
+     * {@code widget:rule()} refuses them with, and for the same reason: where a widget SITS is the verb.
+     */
+    static Props stockProps(Addon owner, String ctx, LuaValue t) {
+        if(!t.istable())
+            throw new LuaError(ctx + ": expected a table of properties — { bg = ..., border = ... }, written"
+                + " in the vocabulary a rule is written in, minus the three that lay a widget out");
+        return propsOf(owner, ctx, t, null, null);
+    }
+
+    /** {@code widget:stock()} — what this widget declared its own look to be, as a table, or {@code nil}. */
+    static LuaValue stockTable(Addon owner, Widget w) {
+        Props p;
+        synchronized(Sheet.class) {
+            Stock s = (w == null) ? null : stocks.get(w);
+            p = (s == null) ? null : s.p;
+        }
+        if(p == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        p.toLua(owner, t);
+        return t;
+    }
     /** Any style installed anywhere — a tree rule or a {@code widget:rule()}? Without one, {@link #styleOf} is a volatile read. */
     private static volatile boolean anyStyle = false;
     /** Any tree rule installed anywhere? (The {@code skins} half of {@link #anyStyle} is the map's emptiness.) */
@@ -929,7 +1019,10 @@ final class Sheet {
                 }
             }
         }
-        boolean any = tree || !skins.isEmpty();
+        // 107: a stock makes styleOf answer, but it does NOT open the client's own draw-pass frame below:
+        // nothing but the addon's own widget ever asks for it, and it asks Sheet directly.
+        anyStock = !stocks.isEmpty();
+        boolean any = tree || !skins.isEmpty() || anyStock;
         anyTree = tree;
         anyStyle = any;
         anyLate = late;
@@ -1011,6 +1104,7 @@ final class Sheet {
 
     /** Drop every {@code widget:rule()} level {@code owner} installed (its teardown). Caller holds {@code Sheet.class}. */
     private static boolean dropSkins(Addon owner) {
+        boolean stk = dropStocks(owner);                  // 107: and every stock it declared, with it
         boolean rm = false;
         for(Iterator<Map.Entry<Widget, List<Skin>>> it = skins.entrySet().iterator(); it.hasNext();) {
             List<Skin> st = it.next().getValue();
@@ -1024,7 +1118,7 @@ final class Sheet {
                 it.remove();
         }
         owner.skinNodes = false;
-        return rm;
+        return rm || stk;
     }
 
     /**
@@ -1044,7 +1138,9 @@ final class Sheet {
      * would otherwise never notice.
      */
     static Resolved styleOf(Widget w) {
-        if(!anyStyle || (w == null))
+        // 107: ...or the widget carries a stock of its own, which is an answer even with no rule installed
+        // anywhere -- that is what makes an addon's default look show on a client wearing no theme at all.
+        if((!anyStyle && !anyStock) || (w == null))
             return null;
         synchronized(Sheet.class) {
             int left = LATE_RECHECK;
@@ -1127,6 +1223,18 @@ final class Sheet {
         Addon posOwner = null, sizeOwner = null;
         int frank = -1, crank = -1, grank = -1, brank = -1, prank = -1, xrank = -1, zrank = -1;
         int arank = -1, srank = -1, krank = -1, qrank = -1, erank = -1, lrank = -1, wrank = -1;
+        /* 107: the widget's own stock goes in FIRST, with every rank left at -1 -- so the first rule that
+         * names this widget, at any specificity, wins the property outright, and what the addon declared
+         * survives only where no rule spoke. That is the whole ordering, and it costs one lookup. */
+        Stock st0 = stocks.get(w);
+        if(st0 != null) {
+            Props p = st0.p;
+            font = p.font; color = p.color; seq = p.seq; emboss = p.emboss; glow = p.glow;
+            bg = p.bg; border = p.border; padding = p.padding; picture = p.picture;
+            caption = p.caption; sizer = p.sizer; close = p.close;
+            if(font != null)
+                fontOwner = st0.owner;
+        }
         for(int i = 0; i < installed.size(); i++) {
             Sheet s = installed.get(i);
             for(int j = 0; j < s.tree.size(); j++) {

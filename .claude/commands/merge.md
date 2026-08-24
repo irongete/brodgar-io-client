@@ -18,14 +18,24 @@ find yourself about to take a shortcut in the middle of a hop.
 3. **Stop at §3 for the maintainer's approval** before the first merge.
 4. **Nothing commits before the build is green** (§8). `--no-commit` on both hops is not optional,
    whether or not a conflict was raised.
-5. **No `--ours`, `--theirs`, `-X ours`, or "accept incoming"** on any file that carries both sides.
+5. **Our behaviour survives the merge, whole.** Upstream owns the engine; we own everything our
+   own code makes the client do. A resolution may change how an edit of ours is *spelled* — a moved
+   call, a renamed local, a new argument — and may never change what it *does*. Where the two sides
+   cannot both hold, **ours holds**, upstream's version is the one re-worked around it, and the
+   report says exactly what of upstream's was set aside and why. There is no such thing as a small
+   behaviour of ours worth trading for a tidier merge.
+6. **In doubt, ask — before resolving, not in the report.** A resolution you are not sure of is not a
+   resolution; it is a guess with a commit on top. Stop, leave the file conflicted, and put the
+   question to the maintainer (§6). Reporting a doubt after the merge has landed is the one failure
+   this command cannot undo for them.
+7. **No `--ours`, `--theirs`, `-X ours`, or "accept incoming"** on any file that carries both sides.
    That is how a hook disappears silently, and silent disappearance is what this command exists to
    prevent.
-6. **Never leave `MERGE_HEAD` in the tree at the end of a turn.** A half-merged repository blocks
+8. **Never leave `MERGE_HEAD` in the tree at the end of a turn.** A half-merged repository blocks
    every other command, and the next context cannot know what was already resolved.
-7. **Only the merge is committed** — the resolution of the conflicts it raised, and nothing else. No
+9. **Only the merge is committed** — the resolution of the conflicts it raised, and nothing else. No
    checked boxes, no `spec.md`, no file in flight.
-8. **Never rebase.** A work branch here is hundreds of commits long and already published to
+10. **Never rebase.** A work branch here is hundreds of commits long and already published to
    `origin`; a rebase rewrites all of it and replays every conflict once per commit. The fork has
    always taken upstream by merge, and it keeps taking it by merge.
 
@@ -280,7 +290,7 @@ stood on; that is the maintainer's timing, not yours.
 
 ## 6. How a conflict is resolved
 
-**A conflict is read, not picked** (rule 5). The resolution rule is one sentence: upstream owns the
+**A conflict is read, not picked** (rule 7). The resolution rule is one sentence: upstream owns the
 engine's behaviour, we own the hook. Take upstream's version of the method in full — their refactor,
 their renamed local, their new argument — and then re-apply our edit on top of it, at the point that
 still means what it meant. If upstream moved the call our hook rode on, the hook moves with it. If
@@ -306,6 +316,32 @@ By owner:
   dependency classpath and the packaging the client is actually run from. Take upstream's targets,
   re-apply ours, and read the result end to end: a build file that merges cleanly and drops a
   `<pathelement>` compiles nothing.
+
+### When to stop and ask
+
+Rule 6 is not a mood, it is a test: **can you say, in one sentence, what our edit did before and that
+the resolution still does it?** If you cannot, you are guessing. Stop there and put the question to
+the maintainer with the file still conflicted — four things, no more:
+
+- the file and what our edit did before, read off `git show $BR:<path>`;
+- what upstream did to that ground, read off `git diff $MAIN...$UP -- <path>`;
+- why the two do not both fit, in one sentence;
+- the resolutions you can see, and which one you would take.
+
+These are the ones that earn a question rather than a judgement call, and none of them is rare:
+
+- **Upstream deleted the method our edit rode on.** Re-homing it is a design decision about where our
+  behaviour now belongs, and that is the maintainer's, not the merge's.
+- **Upstream now does, in its own way, something our edit was there to do.** Keeping both may double
+  the effect; dropping ours may lose a case theirs does not cover. Ask before choosing.
+- **The two sides disagree about behaviour, not about text.** Rule 5 says ours holds — but which of
+  upstream's new behaviour is being set aside is a fact the maintainer has to be told *before* it is
+  set aside, not after.
+- **A file the branch owns alone came back conflicted.** §6's ownership list says that cannot happen;
+  it did, so something is not what this page thinks it is.
+
+A question costs one turn. A wrong resolution costs a system that stops working with nothing pointing
+at when it stopped.
 
 Resolve every file before building. `git diff --name-only --diff-filter=U` must come back empty, and
 a grep for conflict markers over `src/` must find nothing. To start one file over:
@@ -348,6 +384,13 @@ no conflicts" is never a report on its own.
    Every file whose count dropped is either a hook you deliberately re-homed — say where it went — or
    a hook the merge ate. There is no third case, and **a count you cannot explain stops the commit.**
 
+   **A count that matches is not proof.** It counts lines, and a hook can survive the count and stop
+   working: the call left standing while the value it returns is dropped, an edit re-applied above
+   the branch it was meant to guard, a declaration moved after the draw that was supposed to read it.
+   So for every file the §3 impact map listed as *direct* — our hooks in ground upstream churned —
+   read the hook itself in the merged file and satisfy rule 5 out loud: what it did before, and that
+   it still does it. The census finds deletions; only reading finds a hook that was left for dead.
+
 3. **Our side is untouched where it should be.** Against §1's pre-merge sha for this hop, over the
    trees §6 derived as ours alone:
 
@@ -378,7 +421,7 @@ no conflicts" is never a report on its own.
    `Co-Authored-By: <the model actually running this> <noreply@anthropic.com>` trailer; if you cannot
    name it, `Claude <noreply@anthropic.com>`.
 
-If the build cannot be made green, `git merge --abort` and report (rule 6).
+If the build cannot be made green, `git merge --abort` and report (rule 8).
 
 ## 9. Report, and hand the client over
 

@@ -91,9 +91,16 @@ public class Inventory extends Widget implements DTarget {
      * ARE a fill and a one-pixel outline, which is a flat bg and a line border said the long way round. */
     private static final java.awt.Color sqbg = new java.awt.Color(36, 52, 38, 125);
     private static final java.awt.Color sqbd = new java.awt.Color(20, 28, 21, 167);
+    /* addon: (106) ...and the ACTION menu's grid is paved with this very raster, so it declares itself
+     * through here under its OWN scope rather than repeating the two colours. The code that BUILDS a surface
+     * is the only thing that knows what it is made of, so a second site drawing this one names its key and
+     * asks this method -- and a change to the raster still moves exactly one declaration. */
+    static void stocksq(String scope) {
+	Fonts.stock(scope, "bg", Fonts.piece(sqbg));
+	Fonts.stock(scope, "border", Fonts.piece(sqbd).width(1));
+    }
     private static void stocksq() {
-	Fonts.stock("inventory.slot", "bg", Fonts.piece(sqbg));
-	Fonts.stock("inventory.slot", "border", Fonts.piece(sqbd).width(1));
+	stocksq("inventory.slot");
     }
 
     /* addon: (065.7) one square, the rule's or the client's own, at the size the client's own always was --

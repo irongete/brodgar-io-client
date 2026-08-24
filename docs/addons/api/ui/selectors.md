@@ -72,6 +72,57 @@ refiners, or both — in any order, each refiner at most once. Refiners alone ar
 | `[title=…]` | a **window's own caption**; only valid in a step whose role is `window` |
 | `[text=…]` | the words a widget **displays** — a button's caption, a label, a checkbox's label, an entry's contents |
 | `[res=…]` | its resource name (`:res()`) |
+| `[name=…]` | what the addon that **built** it calls it, as `<addon>/<name>` — [see below](#the-one-refiner-an-addon-owns) |
+
+### The one refiner an addon owns
+
+Every other part of a step describes what a widget *happens to be*, and somebody else decided it: a role and
+a class come off its Java type, a caption and a text off what it displays, a resource off what the server
+named. **`[name=…]` is what an addon calls a widget it built**, and it is the only part an author *chose*.
+
+It exists because without it there is nothing finer to say. Every bare surface every addon builds reports the
+same class, so `@AddonWidget` reaches one addon's action bar, another's meter and a third's overlay all at
+once, and no refiner tells them apart.
+
+```lua
+-- in the addon, once, where the widget is built
+local bar = hafen.ui():widget():parent(hud):name("bar")
+
+-- in a theme, or in any other addon
+["[name=actionbars/bar]"] = { bg = {color = {9, 13, 22, 214}} }
+```
+
+- **The engine writes the addon's id in front.** You say `:name("bar")`, the selector says
+  `[name=actionbars/bar]`. Two addons naming a bar cannot collide, and a rule reads as the thing it points
+  at without anyone having to look up whose bar it is.
+- **It outranks everything: 16**, above `[res=]`'s 8. Not because it identifies one widget — it does not —
+  but because it is the only part of a step an author *chose*. Everything else describes what a widget
+  happens to be; a name is what its builder decided to call it, so it wins.
+- **Give each surface its own name, and reach a group with an operator.** `[name=…]` takes the same four
+  the other refiners do — `=`, `*=`, `^=`, `$=` — so an action bar that names its squares `slot1` …
+  `slot12` can be dressed both ways, and a theme chooses which it means:
+
+  ```json
+  "[name^=actionbars/slot]":  { … },   // all twelve, in one rule
+  "[name=actionbars/slot7]":  { … }    // ...and that one
+  ```
+
+  Naming all twelve the *same* is legal — nothing here requires a name to be unique, and what is written
+  once is the name *of one widget*, never the name across widgets — but it buys nothing the prefix does
+  not, and it costs the ability to name one of them.
+- **Two rules that weigh the same are not ordered.** `[name^=…]` and `[name=…]` are both 16, and a theme
+  loaded from JSON has no key order to break the tie with. So an exception is written as a **chain**, which
+  sums: `["[name=actionbars/bar] [name=actionbars/slot7]"]` is 32 and beats the group's 16, deterministically.
+  It is the same thing a CSS author writes for the same reason.
+- **It is written once.** A name is identity, not state — the states a surface enters ride
+  [inside the value](style/chrome.md#a-face-per-state), never in a selector, and renaming to express one
+  would leave every rule naming the old one silently pointing at nothing.
+- **Only on a widget your addon built.** Naming one of the client's own is refused, and the refusal names
+  [`widget:rule()`](style/README.md#restyle-one-widget) — your own level on somebody else's widget, reverted
+  with your addon.
+
+A name a theme writes and nobody answers to is not an error: like every selector here, it stays valid grammar
+and matches nothing.
 
 **A space is the descendant combinator**, exactly as in CSS: `window[title=Cupboard] inventory` is the
 container grid *anywhere* below the Cupboard window, however many layout wrappers sit in between. That is

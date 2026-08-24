@@ -34,21 +34,18 @@ local DEF_X   = 200         -- where the first bar stands before anyone has move
 local DEF_Y   = 120
 local STEP    = 6           -- the air between one bar and the next one added
 
--- THE CLIENT'S OWN FRAME -- `Window.wbox`, the box every panel in the game wears: the inventory, the
--- portrait, the party avatars, the skill lists. It is `gfx/hud/wnd` in eight pieces, and it is drawn here
--- rather than styled because a stylesheet `border` rule lands on the client's own surfaces and is inert on
--- a bare widget of ours.
+-- THE CLIENT'S OWN FRAME -- `gfx/hud/wnd`, the box every panel in the game wears: the inventory, the
+-- portrait, the party avatars, the skill lists. It is DECLARED rather than drawn: a bar says what it looks
+-- like when nothing else says otherwise, and the client paints it. That is `widget:stock`, and it is the
+-- bottom of the style cascade, so any rule -- a theme's -- beats it, per property, without this addon
+-- knowing that themes exist.
 --
--- The two numbers are the art's, in design pixels: the corner PNGs are 32 square and the edge runs 28
--- across, and every one of them carries `scale = 4`, so what they cover on screen is a quarter of that.
--- The layout below is `IBox.Scaled.draw` verb for verb -- edges stretched between the corners, corners at
--- their own size on top, centre never painted -- which is why the frame sits at the same weight beside the
--- client's own panels at every interface scale.
-local FRAME  = "gfx/hud/wnd/"
-local CORNER = 8            -- the corner art: 32 px at scale 4
-local EDGE_T = 7            -- the edge runs: 28 px at scale 4
-local PAD_F  = EDGE_T + 2   -- the room a button keeps: the frame's own inset, and two more so the field
-                            -- below shows as a margin around the buttons rather than only between them
+-- EDGE_T is the art's own edge run in design pixels (28 px at scale 4). It is kept because the LAYOUT is
+-- still ours: a nine-slice is painted at the box we compute, and PAD_F is the room a button keeps inside
+-- it -- the frame's own inset, and two more so the field below shows as a margin around the buttons rather
+-- than only between them.
+local EDGE_T = 7
+local PAD_F  = EDGE_T + 2
 
 -- The square inside it, in the client's own colours. haven.Inventory builds `invsq` in code rather than
 -- loading a resource, so there is no `.res` name to draw it by and these four numbers ARE the art: the same
@@ -240,66 +237,36 @@ end
 
 -- ---------------------------------------------------------------- drawing one bar
 
--- `IBox.Scaled.draw`, in Lua: the four edge runs stretched between the corners, then the four corners at
--- their own size on top of them. The centre is never painted, which is what leaves room for the squares.
-local function paintFrame(g, w, h)
-  g:resource(FRAME .. "extht", CORNER, 0,          w - (CORNER * 2), EDGE_T)
-  g:resource(FRAME .. "exthb", CORNER, h - EDGE_T, w - (CORNER * 2), EDGE_T)
-  g:resource(FRAME .. "extvl", 0,          CORNER, EDGE_T, h - (CORNER * 2))
-  g:resource(FRAME .. "extvr", w - EDGE_T, CORNER, EDGE_T, h - (CORNER * 2))
-  g:resource(FRAME .. "tl", 0, 0)
-  g:resource(FRAME .. "tr", w - CORNER, 0)
-  g:resource(FRAME .. "bl", 0, h - CORNER)
-  g:resource(FRAME .. "br", w - CORNER, h - CORNER)
-end
-
-local function paint(s, n, vert, ev)
+-- ONE SQUARE, drawn by the square's own widget. The cell itself -- its fill and its ring -- is not drawn
+-- here at all: it is what that widget DECLARED, so a theme can replace it and this function never learns.
+-- What is left is what only this addon can draw: whichever icon the slot holds, the recharge pie over it,
+-- and the key that presses it.
+local function paintSlot(s, n, i, ev)
   local g = ev:g()
-  local w, h = ev:w(), ev:h()
-
-  -- The surface, under everything and reaching the frame's inner edge, so the world stops showing through
-  -- the margin around the buttons and the gutters between them.
-  g:color(BACK[1], BACK[2], BACK[3], BACK[4])
-  g:frect(EDGE_T, EDGE_T, w - (EDGE_T * 2), h - (EDGE_T * 2))
-  g:color()
-
-  paintFrame(g, w, h)
-
   local ab = s:exists() and s:actionbar()
-  local base = baseOf(s, n)                 -- once, not once per button
+  local slot = ab and ab:get(baseOf(s, n) + i)
 
-  for i = 1, SLOTS do
-    local x, y = originOf(vert, i)
-
-    g:color(FILL[1], FILL[2], FILL[3], FILL[4])
-    g:frect(x, y, SQ, SQ)
-    g:color(EDGE[1], EDGE[2], EDGE[3], EDGE[4])
-    g:rect(x, y, SQ, SQ)
-    g:color()
-
-    local slot = ab and ab:get(base + i)
-    if slot and not slot:empty() then
-      -- A HELD slot draws one of our own menu entries and has no client resource to name; every other
-      -- slot is the server's, and its resource is its picture.
-      local held = slot:hold()
-      if held then
-        local img = held:icon()
-        if img then g:image(img, x + 1, y + 1, INNER, INNER) end
-      else
-        local res = slot:res()
-        if res then g:resource(res, x + 1, y + 1, INNER, INNER) end
-      end
-
-      local cd = slot:cooldown()
-      if cd and (cd > 0) then
-        g:color(METER[1], METER[2], METER[3], METER[4])
-        g:prect(x + 1 + (INNER / 2), y + 1 + (INNER / 2), INNER / 2, cd)
-        g:color()
-      end
+  if slot and not slot:empty() then
+    -- A HELD slot draws one of our own menu entries and has no client resource to name; every other
+    -- slot is the server's, and its resource is its picture.
+    local held = slot:hold()
+    if held then
+      local img = held:icon()
+      if img then g:image(img, 1, 1, INNER, INNER) end
+    else
+      local res = slot:res()
+      if res then g:resource(res, 1, 1, INNER, INNER) end
     end
 
-    g:atext(corner(n, i), x + SQ - 3, y + SQ - 1, 1, 1, {color = LABEL})
+    local cd = slot:cooldown()
+    if cd and (cd > 0) then
+      g:color(METER[1], METER[2], METER[3], METER[4])
+      g:prect(1 + (INNER / 2), 1 + (INNER / 2), INNER / 2, cd)
+      g:color()
+    end
   end
+
+  g:atext(corner(n, i), SQ - 3, SQ - 1, 1, 1, {color = LABEL})
 end
 
 -- ---------------------------------------------------------------- pressing one bar
@@ -428,7 +395,31 @@ local function build(s, n)
   local grip = hafen.ui():widget():parent(w):size(bw, bh):position(0, 0)
   w:draggable(grip)
 
-  w:on("Draw",      function(ev) paint(s, n, vert, ev) end)
+  -- WHAT THIS BAR IS, said once, so somebody else can change it.
+  --
+  -- `:name` is the handle a theme reaches it by -- the engine writes this addon's id in front, so the
+  -- selector a theme writes is [name=actionbars/bar]. `:stock` is what it looks like when no rule names
+  -- it, and it sits at the BOTTOM of the cascade: any rule beats it, per property. That is why the default
+  -- goes here rather than in a rule of our own -- a widget:rule() would sit at the TOP where no theme could
+  -- reach past it, and a tree rule would tie with the theme's and leave the winner to load order.
+  w:name("bar")
+  w:stock{bg = {color = BACK}, border = {box = "gfx/hud/wnd", mode = "tile"}}
+
+  -- ...and twelve squares, each a widget of its own so it can be named and dressed the same way. They
+  -- subscribe to NOTHING but Draw, which is what keeps them transparent to the mouse: a surface with no
+  -- input handler answers false and the press carries on to this bar, where it always landed. So the
+  -- pressing, the dropping and the tooltip below are untouched -- they still read `squareAt`.
+  local sq = {}
+  for i = 1, SLOTS do
+    local x, y = originOf(vert, i)
+    -- ONE NAME PER SQUARE, not one shared by twelve. It costs a theme nothing -- [name^=…] still
+    -- dresses the lot in one rule -- and it buys the thing a shared name cannot: naming ONE square.
+    local cell = hafen.ui():widget():parent(w):size(SQ, SQ):position(x, y):name("slot" .. i)
+    cell:stock{bg = {color = FILL}, border = {color = EDGE, width = 1}}
+    cell:on("Draw", function(ev) paintSlot(s, n, i, ev) end)
+    sq[i] = cell
+  end
+
   w:on("MouseDown", function(ev) onPress(s, n, vert, ev) end)
   w:on("MouseMove", function(ev) onMove(s, n, vert, w, ev) end)
   w:on("Drop",      function(ev) onDrop(s, n, vert, ev) end)
@@ -439,7 +430,7 @@ local function build(s, n)
     place(n)                                 -- and every other login's copy follows it
   end)
 
-  per[n] = {w = w, grip = grip}
+  per[n] = {w = w, grip = grip, sq = sq}
 end
 
 place = function(n)

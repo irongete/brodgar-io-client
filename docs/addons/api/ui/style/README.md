@@ -208,8 +208,16 @@ n:rule():release()                      -- give the level back
 ## The cascade
 
 Resolution is **most-specific first**: `widget:rule()` → the matching [tree rule](keys.md#tree-keys) → the
-matching [site rule](keys.md#site-keys) → the `*` rule → the client's stock. So `["*"]` alone changes
+matching [site rule](keys.md#site-keys) → the `*` rule → [the widget's own
+stock](../custom.md#naming-and-dressing-your-own-surfaces) → the client's stock. So `["*"]` alone changes
 everything, and any other key refines one surface, or one widget, out of that cascade.
+
+**The bottom two levels are the same idea twice.** The client's own surfaces have a look they draw with when
+nothing says otherwise, and a rule beats it; a widget an addon *built* may declare one the same way, and a
+rule beats that too. Which is why an addon that wants a default look for its own bar
+[declares it as a stock](../custom.md#naming-and-dressing-your-own-surfaces) rather than writing a rule: a
+rule of its own would either sit at the top, where no theme could reach past it, or tie with the theme's and
+leave the winner to whichever sheet installed last.
 
 **Every level composes per property, never wholesale.** A level takes the properties it *names* and leaves
 the rest to the level beneath, which is what makes this a cascade rather than a series of replacements: a

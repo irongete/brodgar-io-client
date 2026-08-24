@@ -75,6 +75,39 @@ rather than one of the two silently winning.
   remembers it, so installing a sequence re-colours the speakers who talk *after* it, and lines already in
   the scrollback keep what they were drawn with. A line's colour is decided when it arrives.
 
+## The chat's own decoration
+
+`chat` writes the letters. **`chat.frame` is what the chat paints round them, and `chat.log` the wash it
+lays behind them.** The chat is docked into the HUD rather than framed by a decoration, so
+[`window.frame`](chrome.md) and `window.title` never reach it: these two are the whole of what dresses it,
+and `chat.frame` is `window.frame`'s opposite number.
+
+```lua
+local s = hafen.ui():sheet()
+s:rule("chat.frame"):bg{ asset = "img/paper.png", mode = "tile" }   -- the field, behind everything
+                    :border{ asset = "img/chatframe.png", slice = {8, 14, 8, 6} }
+s:rule("chat.log"):bg{ color = {9, 13, 22, 200} }                   -- ...and the wash behind one channel
+s:rule("chat"):color{150, 225, 240}
+s:install()
+```
+
+- **Both are PARTS of `chat`, not kinds of it, so neither cascades.** The five kinds of line fall back to
+  `chat` because a kind of chat line *is* a chat line; a surface is not a line, so these two fall straight
+  back to `*` and a `["chat"]` rule leaves them alone. That is the same division
+  [`checkbox.mark`](keys.md#site-keys) draws against `checkbox`, and it is why the dot alone never decides.
+- **The frame has no bottom edge.** The client's own is two corners, three repeated runs and two pinned
+  ornaments, open at the foot — so a 9-slice for it wants a transparent bottom slice, or the chat grows a
+  bar across the bottom it never had. That shape is also why the catalogue declares the **field** and stays
+  quiet about the frame: no single `border` value restates it.
+- **The field is the very art a window's is.** `chat.frame`'s stock `bg` is `gfx/hud/wnd/lg/bg`, tiled — so
+  the one rule that themes your windows themes the chat's field with it.
+- **`padding` has nothing to move** on either. The chat's box is the size the user dragged it to, and its
+  contents are laid out against that box rather than against a rule.
+
+What neither key reaches: the channel list's own art, and the notification popups the chat throws up while
+it is collapsed. Each is a surface of its own that the client blits rather than fills, and neither has a key
+today.
+
 ## What else is worth knowing
 
 Only the messages currently **visible** re-render, the scrollback re-rendering as you scroll it into view,

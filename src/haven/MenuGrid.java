@@ -519,10 +519,21 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 
     public void draw(GOut g) {
 	double now = Utils.rtime();
+	/* addon: (106) the empty square this grid is paved with is the "menu.slot" rule's -- the SAME box at
+	 * every cell, so the rule is resolved ONCE here and painted per cell rather than resolved per cell,
+	 * which is the shape Inventory.draw already uses for its own. Null is the answer a stock client always
+	 * gets, and then every cell is the static raster at the coordinate it always had.
+	 *   A key of its OWN rather than "inventory.slot": the two share a raster today, and a theme that
+	 * wants an action grid to read differently from a bag could never say so if they shared one key. */
+	Fonts.Chrome sq = Fonts.chrome("menu.slot", this);
+	Inventory.stocksq("menu.slot");   // addon: (106) ...and what that raster is made of, said where it is built
 	for(int y = 0; y < gsz.y; y++) {
 	    for(int x = 0; x < gsz.x; x++) {
 		Coord p = bgsz.mul(new Coord(x, y));
-		g.image(bg, p);
+		if(sq == null)
+		    g.image(bg, p);
+		else
+		    sq.draw(g, p, bg.sz());
 		PagButton btn = layout[x][y];
 		if(btn != null) {
 		    GSprite spr;

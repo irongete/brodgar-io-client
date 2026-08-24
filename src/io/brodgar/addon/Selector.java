@@ -21,7 +21,7 @@ import java.util.List;
  * <pre>
  *   selector := step ( WS+ step )*
  *   step     := ( '*' | role )? refiner*
- *   refiner  := '&#64;' ClassName | '[' ('title'|'text'|'res') op value ']'
+ *   refiner  := '&#64;' ClassName | '[' ('title'|'text'|'res'|'name') op value ']'
  *   op       := '=' (exact) | '*=' (contains) | '^=' (starts with) | '$=' (ends with)
  * </pre>
  *
@@ -81,6 +81,7 @@ final class Selector {
         "inventory.slot", "checkbox", "checkbox.mark", "scrollbar", "scrollbar.knob", "slider",
         "slider.knob", "hud.belt", "hud.menu.left", "hud.menu.right", "hud.search", "minimap.frame",
         "chat.system", "chat.mine", "chat.private", "chat.party", "chat.urgent", "chat.speaker",
+        "menu.slot", "menu.frame", "chat.frame", "chat.log", "meter",
     };
 
     /**
@@ -131,13 +132,22 @@ final class Selector {
         final Attr title;         // the required own caption (window steps only), or null
         final Attr text;          // the required displayed text (never a Window), or null
         final Attr res;           // the required resource name, or null
+        /**
+         * The required {@code widget:name(...)}, or null (107) — the one refiner an <b>addon</b> owns. Every
+         * other part of a step is the client's or the server's: a role and a class come off the Java type, a
+         * caption and a text off what the widget displays, a resource off what the server named. A name is
+         * what the addon that BUILT the widget calls it, prefixed with that addon's id, so a theme can say
+         * "this addon's bar" and mean exactly one thing.
+         */
+        final Attr name;
 
-        Step(String role, String cls, Attr title, Attr text, Attr res) {
+        Step(String role, String cls, Attr title, Attr text, Attr res, Attr name) {
             this.role = role;
             this.cls = cls;
             this.title = title;
             this.text = text;
             this.res = res;
+            this.name = name;
         }
 
         /**
@@ -161,7 +171,9 @@ final class Selector {
                 return false;
             if((text != null) && !text.test((w instanceof Window) ? null : LuaWidget.text(w)))
                 return false;
-            return (res == null) || res.test(LuaWidget.resName(w));
+            if((res != null) && !res.test(LuaWidget.resName(w)))
+                return false;
+            return (name == null) || name.test(LuaWidget.nameOf(w));
         }
 
         boolean matches(Widget w) {
@@ -170,17 +182,37 @@ final class Selector {
 
         /** Does this step carry a refiner that can land AFTER the widget is placed? */
         boolean late() {
-            return (title != null) || (text != null) || (res != null);
+            // 107: a name is written once, but nothing says it is written before the widget is first placed,
+            // so it is late for the same reason a caption is: a rule may start matching after the fact.
+            return (title != null) || (text != null) || (res != null) || (name != null);
         }
 
-        /** This step's share of the specificity: role 1 · {@code @Class} 2 · title/text 4 · res 8. */
+        /**
+         * This step's share of the specificity: role 1 · {@code @Class} 2 · title/text 4 · res 8 · name 16.
+         *
+         * <p><b>A name outranks everything</b> (107) because it is the only part an author <i>chose</i>: a role,
+         * a class, a caption and a resource all describe what a widget happens to be, while a name is what its
+         * builder decided to call it.
+         *
+         * <p>It ranks like a CSS id and is <b>not required to be unique</b>: what is written once is a widget's
+         * own name, never the name across widgets. The advice is to give each surface its own all the same —
+         * a group is reached with the {@code ^=} operator, so {@code slot1}..{@code slot12} can be dressed
+         * together <i>and</i> one at a time, where a shared name can only be dressed together.
+         *
+         * <p><b>An operator does not change the weight</b>, so {@code [name^=a/slot]} and {@code [name=a/slot7]}
+         * tie at 16 and a JSON theme has no key order to break it with. An exception is therefore written as a
+         * chain, whose steps sum — the same thing a CSS author writes, for the same reason.
+         */
         int specificity() {
             return ((role != null) ? 1 : 0) + ((cls != null) ? 2 : 0)
-                + (((title != null) || (text != null)) ? 4 : 0) + ((res != null) ? 8 : 0);
+                + (((title != null) || (text != null)) ? 4 : 0) + ((res != null) ? 8 : 0)
+                + ((name != null) ? 16 : 0);
         }
 
         boolean bare() {
-            return (cls == null) && (title == null) && (text == null) && (res == null);
+            // 107: a name is a refiner like any other -- a step carrying one is NOT bare, and a bare
+            // step is what siteOf() reads as a SITE key. Miss this and [name=...] silently becomes "*".
+            return (cls == null) && (title == null) && (text == null) && (res == null) && (name == null);
         }
     }
 
@@ -259,7 +291,7 @@ final class Selector {
             i = j;
         }
         String cls = null;
-        Attr title = null, text = null, res = null;
+        Attr title = null, text = null, res = null, name = null;
         while(i < s.length()) {
             char c = s.charAt(i);
             if(c == '@') {
@@ -276,12 +308,13 @@ final class Selector {
             } else if(c == '[') {
                 int j = s.indexOf(']', i);
                 if(j < 0)
-                    throw bad(src, "unclosed \"[\" — a refiner is written [title=...], [text=...] or [res=...]");
+                    throw bad(src, "unclosed \"[\" — a refiner is written [title=...], [text=...],"
+                        + " [res=...] or [name=...]");
                 String body = s.substring(i + 1, j);
                 int eq = body.indexOf('=');
                 if(eq < 0)
-                    throw bad(src, "\"[" + body + "]\" is not key=value — the refiners are [title=...], [text=...]"
-                        + " and [res=...]");
+                    throw bad(src, "\"[" + body + "]\" is not key=value — the refiners are [title=...],"
+                        + " [text=...], [res=...] and [name=...]");
                 int op = Attr.EQ, kend = eq;
                 if(eq > 0) {
                     char o = body.charAt(eq - 1);
@@ -294,12 +327,14 @@ final class Selector {
                 if(v.isEmpty())
                     throw bad(src, "\"[" + body + "]\" has an empty value");
                 if(k.isEmpty())
-                    throw bad(src, "\"[" + body + "]\" has no key — the refiners are [title=...], [text=...]"
-                        + " and [res=...]");
-                if(!k.equals("title") && !k.equals("text") && !k.equals("res"))
+                    throw bad(src, "\"[" + body + "]\" has no key — the refiners are [title=...],"
+                        + " [text=...], [res=...] and [name=...]");
+                if(!k.equals("title") && !k.equals("text") && !k.equals("res") && !k.equals("name"))
                     throw bad(src, "\"" + k + "\" is not a refiner key — the refiners are [title=...] (a WINDOW's"
-                        + " own caption), [text=...] (the words a widget displays) and [res=...] (its resource"
-                        + " name). Each takes = (exact), *= (contains), ^= (starts with) or $= (ends with)");
+                        + " own caption), [text=...] (the words a widget displays), [res=...] (its resource"
+                        + " name) and [name=...] (what the addon that built it called it, as"
+                        + " \"<addon>/<name>\"). Each takes = (exact), *= (contains), ^= (starts with) or"
+                        + " $= (ends with)");
                 Attr a = new Attr(op, v);
                 if(k.equals("title")) {
                     if(title != null)
@@ -316,20 +351,25 @@ final class Selector {
                         throw bad(src, "[text" + Attr.opText(op) + v + "] is the words a widget displays; a window's"
                             + " own caption is [title" + Attr.opText(op) + v + "]");
                     text = a;
-                } else {
+                } else if(k.equals("res")) {
                     if(res != null)
                         throw bad(src, "[res" + Attr.opText(op) + "...] is given more than once");
                     res = a;
+                } else {
+                    if(name != null)
+                        throw bad(src, "[name" + Attr.opText(op) + "...] is given more than once");
+                    name = a;
                 }
                 i = j + 1;
             } else {
                 throw bad(src, "unexpected \"" + c + "\" in step \"" + s + "\" — after the role come only @Class"
-                    + " and [title=...]/[text=...]/[res=...], and a space starts a new step");
+                    + " and [title=...]/[text=...]/[res=...]/[name=...], and a space starts a new step");
             }
         }
-        if((role == null) && (cls == null) && (title == null) && (text == null) && (res == null) && (c0 != '*'))
+        if((role == null) && (cls == null) && (title == null) && (text == null) && (res == null)
+           && (name == null) && (c0 != '*'))
             throw bad(src, "\"" + s + "\" names nothing");
-        return new Step(role, cls, title, text, res);
+        return new Step(role, cls, title, text, res, name);
     }
 
     /**

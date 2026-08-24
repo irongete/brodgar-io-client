@@ -1500,6 +1500,58 @@ public final class LuaWidget {
                 return LuaRule.ofWidget(owner, h, live(h));
             }
         });
+        /* name(s) / name() (107) — what THIS addon calls a widget it built, so a theme can name it back:
+         * ["[name=actionbars/bar]"]. The engine writes the addon's own id in front, which is what makes two
+         * addons unable to collide and what makes a theme's selector read as the thing it points at.
+         *   WRITE-ONCE. A name is identity, not state: the four states a surface enters ride inside a VALUE
+         * (bg = {..., hover = ...}), and renaming to express a fifth would be a per-state selector by the back
+         * door, which the stylesheet's own page rules out. A second name would also leave every rule pointing
+         * at the first naming nothing, silently, which is the worst way for a theme to break. */
+        m.set("name", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaWidget h = handle(a.arg1(), "name");
+                Widget w = live(h);
+                if(!Args.passed(a, 2))
+                    return (w == null) ? LuaValue.NIL : str(nameOf(w));
+                if(w == null)
+                    return a.arg1();               // 029.2: a write on a stale widget is a silent no-op
+                mine(owner, w, "name");
+                LuaValue nv = a.arg(2);
+                if(!nv.isstring() || nv.isnumber())
+                    throw new LuaError("widget:name(name): expected a string — the word your addon calls this"
+                        + " widget by, which a theme then names back as [name=<your addon>/<the word>]");
+                String n = nv.tojstring().trim();
+                if(n.isEmpty() || (n.indexOf('/') >= 0) || (n.indexOf(']') >= 0) || (n.indexOf(' ') >= 0))
+                    throw new LuaError("widget:name(\"" + n + "\"): a name is one word of your own, with no"
+                        + " space, no \"]\" (a selector step ends on one) and no \"/\" — the engine writes"
+                        + " your addon's id there, so that two addons naming a bar cannot collide");
+                if(!nameSet(w, owner.manifest.id + "/" + n))
+                    throw new LuaError("widget:name(\"" + n + "\"): this widget is already called \""
+                        + nameOf(w) + "\". A name is written once: it is the identity a theme's [name=...]"
+                        + " points at, and a second one would leave every rule naming the first pointing at"
+                        + " nothing at all");
+                return a.arg1();
+            }
+        });
+        /* stock(t) / stock() (107) — what a widget you BUILT looks like when no rule says otherwise: the
+         * addon-side twin of the client's own stock look, and the BOTTOM of the cascade. Every rule beats it,
+         * a theme's included, which is exactly why an addon's default belongs here rather than in a rule of
+         * its own: widget:rule() would sit at the top where no theme could reach past it, and a tree rule
+         * would leave who wins to which sheet installed last. Written with the same properties a rule is,
+         * minus the three that lay a widget out. A table with nothing in it drops the declaration. */
+        m.set("stock", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaWidget h = handle(a.arg1(), "stock");
+                Widget w = live(h);
+                if(!Args.passed(a, 2))
+                    return (w == null) ? LuaValue.NIL : Sheet.stockTable(owner, w);
+                if(w == null)
+                    return a.arg1();               // 029.2
+                mine(owner, w, "stock");
+                Sheet.setWidgetStock(owner, w, Sheet.stockProps(owner, "widget:stock", a.arg(2)));
+                return a.arg1();
+            }
+        });
         return m;
     }
 
@@ -1628,6 +1680,24 @@ public final class LuaWidget {
                 return (Owned)c;
         }
         return null;
+    }
+
+    /** A LuaValue for a possibly-null string. */
+    private static LuaValue str(String s) {
+        return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
+    }
+
+    /**
+     * Refuse a write on a widget this addon did not build (107). {@code name} and {@code stock} are the two
+     * things an addon says about its OWN surface: naming the client's chat window, or declaring what it is
+     * made of, would be one addon writing shared state another addon's theme then reads as a fact.
+     */
+    private static void mine(Addon owner, Widget w, String verb) {
+        if(ownedContent(owner, w) == null)
+            throw new LuaError("widget:" + verb + "(): this widget is not one your addon built, and " + verb
+                + " is what an addon says about its OWN surface. Say it on a widget from hafen.ui():widget(),"
+                + " :window() or one of the controls; to restyle a widget the CLIENT put up, use"
+                + " widget:rule(), which is your own level and is reverted with your addon");
     }
 
     /** Is {@code c} this addon's live content, rooted at {@code root}? (A killed widget owns nothing any more.) */
@@ -2503,6 +2573,38 @@ public final class LuaWidget {
         if((w instanceof FlowerMenu) || (w instanceof MenuGrid))
             return "menu";
         return null;
+    }
+
+    /* ---- the name an addon gives a widget it built (107) --------------------------------------------
+     *
+     * The one part of a selector step an ADDON owns. Every other part is somebody else's: a role and a
+     * class come off the Java type, a caption and a text off what the widget displays, a resource off what
+     * the server named. None of them can tell one addon's box from another's -- every bare widget any addon
+     * builds reports the same class -- so without this a theme could reach "all addon boxes" and nothing
+     * finer.
+     *
+     * WRITE-ONCE, and deliberately: a name is identity, not state. The four states a surface can be in ride
+     * inside the VALUE (`bg = {..., hover = ...}`), and renaming to express a fifth would be a per-state
+     * selector by the back door -- which the stylesheet's own page rules out in as many words. Held weakly
+     * against the widget, so a name dies with the thing it named.
+     */
+    private static final Map<Widget, String> names = new WeakHashMap<Widget, String>();
+
+    /** The name {@code w} was given, {@code "<addon>/<name>"}, or {@code null} for the great majority. */
+    static synchronized String nameOf(Widget w) {
+        return (w == null) ? null : names.get(w);
+    }
+
+    /**
+     * Name {@code w} once. {@code false} if it already carries one — the caller raises naming what it is
+     * already called, rather than letting a second name silently win and leaving a theme pointing at a
+     * widget that stopped answering to it.
+     */
+    static synchronized boolean nameSet(Widget w, String full) {
+        if((w == null) || (full == null) || names.containsKey(w))
+            return false;
+        names.put(w, full);
+        return true;
     }
 
     /**
