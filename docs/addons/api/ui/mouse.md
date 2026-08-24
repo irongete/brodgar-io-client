@@ -115,5 +115,5 @@ frame later, and a move fires every frame.
 - [selectors](selectors.md#hit-testing) — hit-testing, and naming the widget under a point
 - [native](native.md#letting-the-user-drag-it-unprotected) — the same capture, wrapped as a widget the
   user can drag and size
-- [screen to world](../world.md#screen-to-world-and-placement-snapping) — turning a drag into a place
+- [screen to world](../world.md#the-screen-and-the-world) — turning a drag into a place
   on the ground

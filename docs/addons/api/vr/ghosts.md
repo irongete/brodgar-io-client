@@ -129,7 +129,7 @@ primitives and then `g:position(p)`:
 2. [`s:world():screenToWorld`](../world.md#the-screen-and-the-world) turns the cursor
    pixel into a ground Position. It reads a pixel, so it is the drawn character's:
    `s` is [`hafen.session():current()`](../session.md).
-3. [`s:world():snapPlace`](../world.md#screen-to-world-and-placement-snapping) snaps it to the placement
+3. [`s:world():snapPlace`](../world.md#the-screen-and-the-world) snaps it to the placement
    grid, with Shift for the fine grid.
 
 Wired into a move mode they read: select a ghost, take the grab, and it follows the cursor snapped

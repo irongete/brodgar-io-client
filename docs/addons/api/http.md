@@ -80,7 +80,7 @@ or more later. There is no blocking form — a request on the UI thread would fr
 | `req:header(name)` | string \| nil | the value this request carries for `name`, matched case-insensitively |
 | `req:header(name, value)` | the request | set a request header; setting it again replaces it, whatever the spelling |
 | `req:timeout()` / `req:timeout(ms)` | number / the request | the milliseconds it will wait; **10000** by default, capped at **60000** |
-| `req:on("done", fn)` | [`Sub`](event/README.md#the-sub) | the handler, called once with the [result](#the-result-object) |
+| `req:on("done", fn)` | [`Sub`](event/README.md#subscribe) | the handler, called once with the [result](#the-result-object) |
 | `req:send()` | the request | **put it on the wire.** Every setter above is refused from here on |
 | `req:cancel()` | the request | stop it; the handler never fires |
 

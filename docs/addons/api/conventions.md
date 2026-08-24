@@ -165,7 +165,7 @@ that covers two outcomes makes the handler that reads its name wrong half the ti
 one failure this whole convention exists to prevent.
 
 **One word per edge, at every level.** A frame passing is `Update` on
-[the bus](event/bus.md#the-addons-own-life) and `Update` on [a surface of yours](ui/custom.md#subscribing),
+[the bus](event/bus.md#lifecycle) and `Update` on [a surface of yours](ui/custom.md#subscribing),
 and both hand your handler the same `dt` — the same edge one object apart is not two words.
 
 The keys of an emitter whose set is **open** are not this: a

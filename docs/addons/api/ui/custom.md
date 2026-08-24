@@ -57,6 +57,12 @@ size it did not choose — and every property is a setter on the [Widget](widget
 Two more setters, and they are what makes a surface you built **themeable by somebody else**: one says what
 you call it, the other what it looks like when nobody says otherwise.
 
+> **Painting is final; a stock is a default anybody can beat.** Pixels you lay down in your `Draw` handler
+> with [`g:frect`, `g:image`, `g:text`](drawing.md) are yours and nothing can override them — a rule is a
+> value the client reads, not a painter that reaches into your callback. The *same look* declared as a
+> `stock` renders identically and stays replaceable. So the question is never "shall I paint or declare",
+> it is **which parts of my surface do I want somebody else to be able to change**.
+
 | Setter | Read | Meaning |
 |---|---|---|
 | `:name(s)` | `:name()` | what your addon calls this widget. A [`[name=…]` selector](selectors.md#the-one-refiner-an-addon-owns) names it back, as `<your addon>/<s>` |
@@ -80,6 +86,27 @@ That addon now has a default look, and knows nothing about themes. A theme dress
   "bg": { "asset": "themes/cyberpunk/slot.png", "mode": "stretch" }
 }
 ```
+
+### Which of the two does what
+
+They are **independent**, and only one of them decides whether a theme can reach you at all:
+
+| `:name` | `:stock` | What a theme can do |
+|:---:|:---:|---|
+| ✗ | ✗ | Almost nothing. `["@AddonWidget"]` reaches it — along with every bare surface every *other* addon built |
+| ✗ | ✓ | The same. It has a default look, but still nothing to single it out by |
+| ✓ | ✗ | **Everything.** Named, so a rule finds it; bare until one does |
+| ✓ | ✓ | **Everything**, and it starts from the look you chose |
+
+**`:name` is the one that enables.** `:stock` only decides the starting point — it neither opens nor closes
+the door. And neither is required: a surface with neither is exactly what a bare widget has always been.
+
+Widgets you build out of the client's own pieces — [`:window()`, `:button()`, `:label()`,
+`:entry()`](controls/README.md) and the rest — need none of this. They *are* client widgets, so the
+[site keys](style/keys.md#site-keys) already reach them and always did. This section is about
+`hafen.ui():widget()`, the bare rectangle, which was the one surface no rule could name.
+
+### Worth knowing
 
 - **A stock is the BOTTOM of the [cascade](style/README.md#the-cascade)**, under every rule, and that is the
   whole reason to use it rather than a rule of your own. A `widget:rule()` would sit at the *top*, where no

@@ -1,0 +1,172 @@
+{
+  "name": "Hello Kitty",
+  "author": "brodgar",
+  "description": "Bubblegum chrome and a plum field: pink 9-slice frames, bow close buttons, heart-lined wallpaper and a bow for every tick.",
+  "about": "Art lives in themes/hellokitty/ beside this file and is named by path, relative to the addon folder. Every PNG is authored in DESIGN pixels and at the exact size of the hole the client already draws in, so nothing is stretched out of shape and everything scales with the interface; frames are hairline -- a 1 px rule, a thin body, a 1 px lip -- because a 1.5x client multiplies whatever you write. The window FIELD is deep plum rather than pale pink on purpose: the client draws most of its own text white through the `*` key, and recolouring `*` to suit a pale field would take the login screen with it. And window.title's bg is a TRANSPARENT fill on purpose: the caption plate's box is the client's own scrollwork (77 design px tall, a quarter of the window wide), so no art fits it -- while leaving the property out would bring the stock brown plate back. Painting nothing there puts the caption on the frame's own band. The two meter shapes are a 75x10 trough and a 15x93 box, so the trough art is TILED rather than stretched -- tiled, it repeats at its own size whatever the aspect -- and the frame is a 9-slice, which fits either. `picture` names this theme's own plate, authored at the horizontal bar's 101x24 with the very hole the client's frame has at (22,7)-(97,17), so trough and fill show through it. It REPLACES the blit, so the per-meter glyph the server's art carried -- the heart, the lightning -- is gone and what tells the bars apart is the fill colour. Drop this one property to have them back. A VERTICAL bar is 15x93 and wears the same plate stretched, which is the price of one key covering both shapes. It also dresses the Actionbars addon, which knows nothing about themes: that addon NAMES its bar and its squares and DECLARES what they look like by default, and a declaration sits under every rule -- so one step is enough here, with no chaining and no dependence on which sheet loaded first.",
+  "rules": {
+    "*": {"font": {"builtin": "sans", "size": 10, "aa": true}},
+
+    "window.title": {
+      "font": {"builtin": "sans", "size": 13, "bold": true, "aa": true},
+      "emboss": false,
+      "glow": {"color": {"r": 255, "g": 241, "b": 247}, "radius": 1},
+      "color": {"r": 122, "g": 43, "b": 78},
+      "bg": {"color": {"r": 0, "g": 0, "b": 0, "a": 0}}
+    },
+
+    "window.frame": {
+      "bg": {"asset": "themes/hellokitty/wallpaper.png", "mode": "tile"},
+      "border": {
+        "asset": "themes/hellokitty/frame.png",
+        "slice": [5, 20, 5, 5],
+        "mode": "stretch",
+        "parts": [{"asset": "themes/hellokitty/bow.png", "at": "bottomleft", "offset": [3, -3]}]
+      },
+      "padding": [6, 4, 6, 6],
+      "caption": {"at": "topleft", "offset": [8, 3]},
+      "sizer": {"asset": "themes/hellokitty/sizer.png", "at": "bottomright", "offset": [-3, -3]},
+      "closeButton": {
+        "asset": "themes/hellokitty/close.png",
+        "hover": {"asset": "themes/hellokitty/close-hover.png"},
+        "pressed": {"asset": "themes/hellokitty/close-pressed.png"},
+        "at": "topright",
+        "offset": [-6, 3]
+      }
+    },
+
+    "panel": {
+      "bg": {"color": {"r": 255, "g": 232, "b": 243, "a": 240}},
+      "border": {"asset": "themes/hellokitty/panel.png", "slice": [4, 4, 4, 4], "mode": "stretch"}
+    },
+
+    "heading": {
+      "font": {"builtin": "sans", "size": 18, "bold": true, "aa": true},
+      "emboss": {"texture": {"asset": "themes/hellokitty/emboss.png"}},
+      "glow": {"color": {"r": 120, "g": 20, "b": 60}, "radius": 1}
+    },
+
+    "button": {
+      "font": {"builtin": "sans", "size": 11, "bold": true, "aa": true},
+      "emboss": false,
+      "color": {"r": 122, "g": 43, "b": 78},
+      "glow": {"color": {"r": 255, "g": 245, "b": 250}, "radius": 1},
+      "bg": {
+        "asset": "themes/hellokitty/button.png",
+        "mode": "stretch",
+        "hover": {"asset": "themes/hellokitty/button-hover.png", "mode": "stretch"},
+        "pressed": {"asset": "themes/hellokitty/button-pressed.png", "mode": "stretch"}
+      },
+      "border": {"asset": "themes/hellokitty/btn-frame.png", "slice": [4, 4, 4, 4], "mode": "stretch"}
+    },
+
+    "label": {"font": {"builtin": "sans", "size": 12, "aa": true}, "color": {"r": 255, "g": 225, "b": 238}},
+
+    "textentry": {
+      "font": {"builtin": "sans", "size": 11, "aa": true},
+      "color": {"r": 122, "g": 43, "b": 78},
+      "bg": {"asset": "themes/hellokitty/field.png", "mode": "stretch"},
+      "border": {"asset": "themes/hellokitty/field-frame.png", "slice": [5, 4, 5, 4], "mode": "stretch"},
+      "padding": [5, 2, 5, 2]
+    },
+
+    "tooltip": {
+      "font": {"builtin": "sans", "size": 11, "aa": true},
+      "color": {"r": 122, "g": 43, "b": 78},
+      "bg": {"color": {"r": 255, "g": 238, "b": 246, "a": 242}},
+      "border": {"asset": "themes/hellokitty/tip.png", "slice": [4, 4, 4, 4], "mode": "stretch"},
+      "padding": [4, 2, 4, 2]
+    },
+
+    "inventory.slot": {"bg": {"asset": "themes/hellokitty/slot.png", "mode": "stretch"}},
+
+    "checkbox": {
+      "bg": {
+        "asset": "themes/hellokitty/check.png",
+        "mode": "stretch",
+        "checked": {"asset": "themes/hellokitty/check-on.png", "mode": "stretch"}
+      }
+    },
+
+    "checkbox.mark": {"bg": {"asset": "themes/hellokitty/check-mark.png", "mode": "stretch"}},
+
+    "scrollbar": {"bg": {"asset": "themes/hellokitty/rail-v.png", "mode": "stretch"}},
+
+    "scrollbar.knob": {"bg": {"asset": "themes/hellokitty/knob.png", "mode": "stretch"}},
+
+    "slider": {"bg": {"asset": "themes/hellokitty/rail-h.png", "mode": "stretch"}},
+
+    "slider.knob": {"bg": {"asset": "themes/hellokitty/knob.png", "mode": "stretch"}},
+
+    "meter": {
+      "bg": {"asset": "themes/hellokitty/meter-trough.png", "mode": "tile"},
+      "border": {"asset": "themes/hellokitty/meter-frame.png", "slice": [3, 3, 3, 3], "mode": "stretch"},
+      "picture": {"asset": "themes/hellokitty/meter-plate.png", "mode": "stretch"}
+    },
+
+    "hud.belt": {"picture": {"asset": "themes/hellokitty/plate-belt.png", "mode": "stretch"}},
+
+    "hud.menu.left": {"picture": {"asset": "themes/hellokitty/plate-menu-left.png", "mode": "stretch"}},
+
+    "hud.menu.right": {"picture": {"asset": "themes/hellokitty/plate-menu-right.png", "mode": "stretch"}},
+
+    "hud.search": {"picture": {"asset": "themes/hellokitty/plate-search.png", "mode": "stretch"}},
+
+    "minimap.frame": {"picture": {"asset": "themes/hellokitty/minimap-frame.png", "mode": "stretch"}},
+
+    "menu": {
+      "font": {"builtin": "sans", "size": 11, "bold": true, "aa": true},
+      "color": {"r": 122, "g": 43, "b": 78}
+    },
+
+    "menu.slot": {"bg": {"asset": "themes/hellokitty/menu-slot.png", "mode": "stretch"}},
+
+    "menu.frame": {"picture": {"asset": "themes/hellokitty/menu-frame.png", "mode": "stretch"}},
+
+    "chat": {"font": {"builtin": "sans", "size": 11, "aa": true}, "color": {"r": 255, "g": 222, "b": 236}},
+
+    "chat.frame": {
+      "bg": {"asset": "themes/hellokitty/wallpaper.png", "mode": "tile"},
+      "border": {
+        "asset": "themes/hellokitty/chat-frame.png",
+        "slice": [8, 14, 8, 6],
+        "mode": "stretch",
+        "parts": [{"asset": "themes/hellokitty/chat-ornament.png", "at": "top"}]
+      }
+    },
+
+    "chat.log": {"bg": {"color": {"r": 58, "g": 14, "b": 38, "a": 210}}, "border": null},
+
+    "chat.system": {"color": {"r": 255, "g": 188, "b": 214}},
+
+    "chat.mine": {"color": {"r": 255, "g": 150, "b": 196}},
+
+    "chat.private": {"color": {"r": 216, "g": 170, "b": 255}},
+
+    "chat.party": {"color": {"r": 170, "g": 240, "b": 200}},
+
+    "chat.urgent": {
+      "color": {
+        "palette": [{"r": 255, "g": 176, "b": 208}, {"r": 255, "g": 110, "b": 162}, {"r": 232, "g": 32, "b": 74}]
+      }
+    },
+
+    "chat.speaker": {"color": {"generate": {"step": 0.37, "saturation": 0.42, "brightness": 1}}},
+
+    "world.nick": {
+      "font": {"builtin": "sans", "size": 11, "bold": true, "aa": true},
+      "color": {"r": 255, "g": 205, "b": 228}
+    },
+
+    "world.speech": {
+      "font": {"builtin": "sans", "size": 10, "aa": true},
+      "border": {"asset": "themes/hellokitty/bubble.png", "slice": [5, 5, 5, 5], "mode": "stretch"}
+    },
+
+    "[name=actionbars/bar]": {
+      "bg": {"color": {"r": 58, "g": 14, "b": 38, "a": 232}},
+      "border": {"asset": "themes/hellokitty/panel.png", "slice": [4, 4, 4, 4], "mode": "stretch"}
+    },
+
+    "[name^=actionbars/slot]": {"bg": {"asset": "themes/hellokitty/menu-slot.png", "mode": "stretch"}}
+  }
+}

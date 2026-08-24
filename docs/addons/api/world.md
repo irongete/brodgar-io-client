@@ -161,7 +161,7 @@ raycast back down returns to it. It answers `nil` before the map view exists, fo
 project, for ground that character has not streamed in — there is no height to project at — for a session
 that is not on screen, and for a place that character cannot locate at all: projecting is a **read**, so an
 alt that has walked into another part of the world, or into a cave or a house, has no pixel here rather than
-a refusal, the same `nil` [`components`](#the-coordinate-spaces) gives for it.
+a refusal, the same `nil` [`components`](#terrain-and-coordinates) gives for it.
 
 **`screenToWorld(pt, fn)` is asynchronous.** It reads the true terrain point from the GPU, the same pass the
 client uses to place a building, so the answer cannot come back inline: it arrives a frame later

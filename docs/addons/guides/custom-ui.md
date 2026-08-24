@@ -2,7 +2,8 @@
 
 Your own pixels: a window the user can drag, a bare rectangle, or a layer painted over the HUD and the 3D
 world. All of it is unprotected, and all of it disappears cleanly when your addon does. To restyle the
-*client's* surfaces instead of drawing your own, see [theming](theming.md).
+*client's* surfaces instead of drawing your own, see [theming](theming.md) — and for the third way, where
+you build the surface and let **somebody else** restyle it, see [below](#let-somebody-else-restyle-it).
 
 ## A window
 
@@ -56,6 +57,34 @@ and blit the handle with `g:image`. `g:resource(name, …)` draws the client's o
 same words in the same font every frame is one rasterisation total; a string whose characters change every
 frame — a clock, a coordinate readout — is a rasterisation every frame. Budget a live readout by how often
 its *text* changes, and round anything you do not need to the digit you do.
+
+## Let somebody else restyle it
+
+**Painting is final; a declared look is a default anybody can beat.** Pixels you lay down in `Draw` are
+yours and no rule can reach into a callback. The *same look* declared as a **stock** renders identically and
+stays replaceable — so the question is not "paint or declare", it is which parts of your surface you want a
+theme to be able to change.
+
+```lua
+local bar = hafen.ui():widget():parent(hud):name("bar")
+bar:stock{ bg = {color = {0, 0, 0, 90}}, border = {box = "gfx/hud/wnd", mode = "tile"} }
+```
+
+- **`:name(s)` is the one that opens the door.** The engine writes your addon's id in front, so a theme
+  names it back as `["[name=youraddon/bar]"]`. Without a name nothing can single your surface out — every
+  bare widget every addon builds looks alike to a selector.
+- **`:stock(t)` only sets the starting point.** It sits at the *bottom* of the
+  [cascade](../api/ui/style/README.md#the-cascade), so every rule beats it, per property. Put your default
+  here rather than in a rule of your own, which would sit above every theme.
+- **Neither is required**, and a surface with neither is exactly the bare rectangle it always was. Name what
+  is part of how your addon *looks*; leave the scaffolding — containers, drag handles, hit areas — unnamed,
+  because a name is a published contract and renaming it breaks somebody's theme.
+- **Widgets built from the client's own pieces need none of this.** `:window()`, `:button()`, `:label()`
+  and the rest *are* client widgets, so a theme's [site keys](../api/ui/style/keys.md#site-keys) already
+  reach them.
+
+The whole of it, with the reads and the refusals, is on
+[custom](../api/ui/custom.md#naming-and-dressing-your-own-surfaces).
 
 ## Overlays
 

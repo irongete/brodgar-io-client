@@ -1,0 +1,185 @@
+{
+  "name": "Default",
+  "author": "brodgar",
+  "description": "This client's own look, key by key and property by property. Installing it changes nothing -- it is the sheet you edit a theme of your own out of.",
+  "about": "Every site key the client draws at (34 of them), in the order docs/addons/api/ui/style/keys.md lists them, and under each one EVERY property that key honours. A value is what the client itself draws with; null means the client sets none here -- write yours in its place. A null property is absent as far as the client is concerned (JSON null parses to nil, and a nil property is a property the rule does not name), so this file installs as the client's own look exactly, at EVERY interface scale: no value in it is a length or an offset, those being the ones a rule counts in design pixels while the client's own constant is device pixels -- see the README for the five that are null for that reason. Distances would be design pixels and colour components are 0..255. Properties a key IGNORES are left out rather than written null: keys.md's tables say which those are per key. The three layout properties are under treeKeys below, not here -- a site key carrying one is an error.",
+  "rules": {
+    "*": {
+      "font": {"builtin": "sans", "size": 10, "aa": false},
+      "color": null,
+      "emboss": null,
+      "glow": null,
+      "bg": null,
+      "border": null,
+      "padding": null,
+      "picture": null
+    },
+
+    "window.title": {
+      "font": {"builtin": "fraktur", "size": 15, "aa": true},
+      "color": null,
+      "emboss": {"texture": {"res": "gfx/hud/fonttex"}},
+      "glow": null,
+      "bg": null,
+      "border": null
+    },
+
+    "window.frame": {
+      "bg": [
+        {"res": "gfx/hud/wnd/lg/bg", "mode": "tile"},
+        {"res": "gfx/hud/wnd/lg/bgl", "at": "left", "mode": "tile"},
+        {"res": "gfx/hud/wnd/lg/bgr", "at": "right", "mode": "tile"}
+      ],
+      "border": null,
+      "padding": null,
+      "caption": null,
+      "sizer": null,
+      "closeButton": {
+        "res": "gfx/hud/wnd/lg/cbtnu",
+        "hover": {"res": "gfx/hud/wnd/lg/cbtnh", "mode": "stretch"},
+        "pressed": {"res": "gfx/hud/wnd/lg/cbtnd", "mode": "stretch"},
+        "at": "topright",
+        "mode": "stretch"
+      }
+    },
+
+    "panel": {"bg": null, "border": null},
+
+    "heading": {
+      "font": {"builtin": "fraktur", "size": 25, "aa": true},
+      "color": null,
+      "emboss": null,
+      "glow": null
+    },
+
+    "button": {
+      "font": {"builtin": "serif", "size": 12, "bold": true, "aa": true},
+      "color": null,
+      "emboss": {"texture": {"res": "gfx/hud/fonttex"}},
+      "glow": null,
+      "bg": null,
+      "border": null
+    },
+
+    "label": {"font": {"builtin": "fraktur", "size": 18, "aa": true}, "color": null},
+
+    "textentry": {
+      "font": {"builtin": "serif", "size": 12, "aa": true},
+      "color": null,
+      "bg": {"res": "gfx/hud/text/m", "mode": "stretch"},
+      "border": null,
+      "padding": null
+    },
+
+    "tooltip": {
+      "font": {"builtin": "sans", "size": 10, "aa": false},
+      "color": null,
+      "bg": null,
+      "border": null,
+      "padding": null
+    },
+
+    "inventory.slot": {"bg": null, "border": null},
+
+    "checkbox": {"bg": null, "border": null},
+
+    "checkbox.mark": {"bg": null, "border": null},
+
+    "scrollbar": {"bg": null, "border": null},
+
+    "scrollbar.knob": {"bg": {"res": "gfx/hud/sflarp", "mode": "stretch"}, "border": null},
+
+    "slider": {"bg": null, "border": null},
+
+    "slider.knob": {"bg": {"res": "gfx/hud/sflarp", "mode": "stretch"}, "border": null},
+
+    "meter": {"bg": null, "border": null, "picture": null},
+
+    "hud.belt": {"picture": {"res": "gfx/hud/hb-main", "mode": "stretch"}},
+
+    "hud.menu.left": {"picture": {"res": "gfx/hud/lbtn-bg", "mode": "stretch"}},
+
+    "hud.menu.right": {"picture": {"res": "gfx/hud/rbtn-bg", "mode": "stretch"}},
+
+    "hud.search": {"picture": {"res": "gfx/hud/csearch-bg", "mode": "stretch"}},
+
+    "minimap.frame": {"picture": {"res": "gfx/hud/blframe", "mode": "stretch"}},
+
+    "menu": {"font": {"builtin": "sans", "size": 12, "aa": false}, "color": null},
+
+    "menu.slot": {"bg": null, "border": null},
+
+    "menu.frame": {"picture": {"res": "gfx/hud/brframe", "mode": "stretch"}},
+
+    "chat": {"font": {"builtin": "sans", "size": 12, "aa": false}, "color": null},
+
+    "chat.frame": {"bg": {"res": "gfx/hud/wnd/lg/bg", "mode": "tile"}, "border": null},
+
+    "chat.log": {"bg": {"color": {"r": 0, "g": 0, "b": 0, "a": 128}}, "border": null},
+
+    "chat.system": {"font": null, "color": null},
+
+    "chat.mine": {"font": null, "color": null},
+
+    "chat.private": {"font": null, "color": null},
+
+    "chat.party": {"font": null, "color": null},
+
+    "chat.urgent": {
+      "color": {
+        "palette": [
+          {"r": 0, "g": 128, "b": 255, "a": 255},
+          {"r": 255, "g": 128, "b": 0, "a": 255},
+          {"r": 255, "g": 0, "b": 0, "a": 255}
+        ]
+      }
+    },
+
+    "chat.speaker": {"color": {"generate": {"step": 0.41421356237309515, "saturation": 0.5, "brightness": 1}}},
+
+    "world.nick": {"font": {"builtin": "sans", "size": 12, "bold": true, "aa": true}, "color": null},
+
+    "world.speech": {
+      "font": {"builtin": "sans", "size": 10, "aa": false},
+      "bg": null,
+      "border": {"box": "gfx/hud/emote", "mode": "stretch"}
+    }
+  },
+
+  "treeKeys": {
+    "_": "Not read by the client -- move an entry into \"rules\" to use it. A tree key selects WIDGETS rather than a place the client draws, so it carries every drawing property above PLUS the three that lay a widget out, which no site key may have. It also reaches text the game's own resource code draws, which no site key can. A rule covers the widget it names and everything drawn inside it.",
+    "window[title=Example]": {
+      "font": null,
+      "color": null,
+      "emboss": null,
+      "glow": null,
+      "bg": null,
+      "border": null,
+      "padding": null,
+      "picture": null,
+      "position": null,
+      "anchor": null,
+      "size": null
+    }
+  },
+
+  "shapes": {
+    "_": "Not read by the client -- what each property's value looks like, so a null above can be filled in without leaving the file. The prose is on the pages named beside each one.",
+    "font": "{ builtin: sans|serif|mono|fraktur, size: n, bold: bool, italic: bool, aa: bool } or { asset: \"fonts/Inter.ttf\", size: n, ... } -- style/text.md#font",
+    "color": "{ r: n, g: n, b: n, a: n } or [r, g, b, a]. On chat.urgent and chat.speaker instead: { palette: [colour, ...] } or { generate: { step: 0..1, saturation: 0..1, brightness: 0..1 } } -- style/text.md#color",
+    "emboss": "false (no relief, which is what lets a colour reach a carved caption) or { texture: <art> } -- style/text.md#emboss",
+    "glow": "{ color: <colour>, radius: n } -- both required, radius 0 is no halo -- style/text.md#glow",
+    "bg": "one <art>, or an array of them in paint order -- style/chrome.md#bg",
+    "border": "{ <art>, slice: [l, t, r, b] } | { box: \"gfx/hud/wnd\", mode: tile|stretch } | { color: <colour>, width: n }, each with an optional parts: [ <art with at>, ... ] -- style/chrome.md#border",
+    "padding": "n, or [l, t, r, b] -- style/chrome.md#padding",
+    "picture": "one <art> -- never an array -- style/chrome.md#picture",
+    "caption": "{ at: <corner>, offset: [dx, dy] } -- style/chrome.md#ornaments",
+    "sizer": "an <art> with an at -- style/chrome.md#ornaments",
+    "closeButton": "an <art> with hover, pressed, at and offset -- style/chrome.md#ornaments",
+    "position": "[x, y] or { x: n, y: n } -- tree keys only -- style/geometry.md",
+    "anchor": "{ to: \"screen\"|<widget>, at: <corner>, offset: [dx, dy] } -- tree keys only -- style/geometry.md",
+    "size": "[w, h] or { w: n, h: n } -- tree keys only -- style/geometry.md",
+    "<art>": "{ color: <colour> } | { res: \"gfx/hud/wnd/lg/bg\" } | { asset: \"img/panel.png\" } | { image: <handle> }, plus at: <corner>, offset: [dx, dy], mode: tile|stretch, and a face per state: hover, pressed, disabled, checked -- style/chrome.md#naming-a-picture",
+    "<corner>": "topleft | top | topright | left | center | right | bottomleft | bottom | bottomright"
+  }
+}
