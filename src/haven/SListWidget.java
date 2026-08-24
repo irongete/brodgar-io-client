@@ -67,16 +67,30 @@ public abstract class SListWidget<I, W extends Widget> extends Widget {
 	    this.item = item;
 	}
 
+	protected boolean toggle() {return(false);}
+
+	protected boolean clicked(MouseDownEvent ev) {
+	    if(toggle() && (list.sel == item))
+		list.change(null);
+	    else
+		list.change(item);
+	    return(true);
+	}
+
 	public boolean mousedown(MouseDownEvent ev) {
 	    if(ev.propagate(this) || super.mousedown(ev))
 		return(true);
-	    // addon: 061 -- the Changed/Selected seam, where the client RECEIVES the click and before its own
-	    // change(): SListWidget.change is overridden by SDropBox and by a menu's inner list without calling
-	    // super, so a seam there is one a subclass can skip. This one site serves all three families.
-	    if(!AddonWidgets.listActivate(list, item))
-		return(true);
-	    list.change(item);
-	    return(true);
+	    if(ev.b == 1) {
+		// addon: 061 -- the Changed/Selected seam, where the client RECEIVES the click and before its
+		// own change(): SListWidget.change is overridden by SDropBox and by a menu's inner list without
+		// calling super, and clicked() is likewise a subclass's to override, so a seam in either is one
+		// a subclass can skip. This one site serves all three families. It sits INSIDE the button gate
+		// because a press that will not change the selection has no Changed to report.
+		if(!AddonWidgets.listActivate(list, item))
+		    return(true);
+		return(clicked(ev));
+	    }
+	    return(false);
 	}
     }
 

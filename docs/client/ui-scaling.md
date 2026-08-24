@@ -4,9 +4,10 @@ One number decides how big the whole 2D interface is drawn. Everything the clien
 **design** size and multiplied by it once, so the source reads in the art's own pixels and the screen gets
 device pixels.
 
-The number is `UI.scalef` — `private static final double`, assigned in `UI`'s static initialiser from
-`UI.loadscale()`. **It is read once, at class load, and never changes for the life of the process**, which
-is why the Options panel's own slider is labelled as requiring a restart.
+The number is `UI.scalef` — `private static double`, filled LAZILY by `UI.scalef()` from `UI.loadscale()`
+on the first conversion that asks for it, under a double-checked `synchronized(UI.class)`. **It is read
+once and never changes for the life of the process**, which is why the Options panel's own slider is
+labelled as requiring a restart. Every converter below goes through `scalef()`, never the bare field.
 
 ## Converting
 
@@ -26,7 +27,7 @@ which is what `scale(Coord)`/`unscale(Coord)` are.
 
 | Step | Member |
 |---|---|
-| The factor in force | `UI.scalef`, via `UI.loadscale()` |
+| The factor in force | `UI.scalef()`, via `UI.loadscale()` |
 | An override, before any preference | `UI.uiscale`, a `Config.Variable` over the `haven.uiscale` property |
 | The stored preference | `Utils.getprefd("uiscale", defscale)`, clamped to `[1.0, UI.maxscale()]` |
 | Where the user sets it | `OptWnd`'s Interface panel — an `HSlider` whose `changed()` calls `Utils.setprefd("uiscale", …)` and nothing else |

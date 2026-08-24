@@ -3783,44 +3783,34 @@ public class MapView extends PView implements DTarget, Console.Directory {
 						   washamt));
 		}
 	    });
-	cmdmap.put("whyload", new Console.Command() {
-		public void run(Console cons, String[] args) throws Exception {
-		    Loading l = lastload;
-		    if(l == null)
-			throw(new Exception("Not loading"));
-		    l.printStackTrace(cons.out);
-		}
-	    });
+	cmdmap.put("whyload", (cons, args) -> {
+	    Loading l = lastload;
+	    if(l == null)
+		throw(new Exception("Not loading"));
+	    l.printStackTrace(cons.out);
+	});
     }
     public Map<String, Console.Command> findcmds() {
 	return(cmdmap);
     }
 
     static {
-	Console.setscmd("placegrid", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if((plobpgran = Double.parseDouble(args[1])) < 0)
-			plobpgran = 0;
-		    Utils.setprefd("plobpgran", plobpgran);
-		}
-	    });
-	Console.setscmd("placeangle", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if((plobagran = Double.parseDouble(args[1])) < 2)
-			plobagran = 2;
-		    Utils.setprefd("plobagran", plobagran);
-		}
-	    });
-	Console.setscmd("clickfuzz", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if((gobclfuzz = Integer.parseInt(args[1])) < 0)
-			gobclfuzz = 0;
-		}
-	    });
-	Console.setscmd("clickdb", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    clickdb = Utils.parsebool(args[1], false);
-		}
-	    });
+	Console.setscmd("placegrid", (cons, args) -> {
+	    if((plobpgran = Double.parseDouble(args[1])) < 0)
+		plobpgran = 0;
+	    Utils.setprefd("plobpgran", plobpgran);
+	});
+	Console.setscmd("placeangle", (cons, args) -> {
+	    if((plobagran = Double.parseDouble(args[1])) < 2)
+		plobagran = 2;
+	    Utils.setprefd("plobagran", plobagran);
+	});
+	Console.setscmd("clickfuzz", (cons, args) -> {
+	    if((gobclfuzz = Integer.parseInt(args[1])) < 0)
+		gobclfuzz = 0;
+	});
+	Console.setscmd("clickdb", (cons, args) -> {
+	    clickdb = Utils.parsebool(args[1], false);
+	});
     }
 }

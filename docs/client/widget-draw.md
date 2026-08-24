@@ -45,7 +45,7 @@ never reaches the widget it starts from.
 
 | What | Where |
 |---|---|
-| **Where the screen `GOut` is built** | `UILoop.display`: `basestate()` (a `BufPipe` + `FragColor.defcolor` + `DepthBuffer.defdepth`) `.prep` blend + `States.Viewport` + `Ortho2D` + `FrameInfo`, `buf.clear(...)`, then `new GOut(buf, base, wnd.sz())` → `ui.draw(g)` under `synchronized(ui)`. **The 3D scene is inside that traversal** (the MapView is a widget), so this ONE `Render` carries the whole frame in order — see [world-3d.md](world-3d.md) for drawing a subtree into a texture instead |
+| **Where the screen `GOut` is built** | `UILoop.display`: `basestate()` (a `BufPipe` `.prep`ped with `wnd.fbstate()` — the framebuffer state the toolkit window itself supplies) `.prep` blend + `States.Viewport` + `Ortho2D` + `FrameInfo`, `buf.clear(...)`, then `new GOut(buf, base, wnd.sz())` → `ui.draw(g)` under `synchronized(ui)`. **The 3D scene is inside that traversal** (the MapView is a widget), so this ONE `Render` carries the whole frame in order — see [world-3d.md](world-3d.md) for drawing a subtree into a texture instead |
 | Clipping a child's target | `GOut.reclip(c, sz)` (strict) / `reclipl` (loose) — the child loop picks by its own `strict` flag, and a strict box is what cuts a child's drawing off at its own edge |
 | 2D drawing itself | `GOut` — image/text/rect/line/prect/chcolor; the overloads and the 9-slice contract are in [widgets.md](widgets.md#core-tree) |
 
