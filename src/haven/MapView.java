@@ -542,16 +542,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
     static {camtypes.put("ortho", SOrthoCam.class);}
 
-    /* rts: the two keys the multi-session mode owns, listed as "Multi session" in the keybind panel.
-     * Both start UNBOUND (KeyMatch.nil, the client's idiom for a remappable id with no default) and the
-     * user assigns them: no default can be conflict-free, since `get` runs none of `set`'s exclusivity
-     * pass, so a default sharing a key with another binding leaves both firing and neither repairable. */
-    // rts: centre the view on the selection -- the RTS gesture, through the client's own rebindable
-    // binding system rather than a hard-wired key.
-    public static KeyBinding kb_rtsfocus = KeyBinding.get("rts-focus", KeyMatch.nil);
-    // rts: hand the screen to the next session -- the only way to reach another character's HUD.
-    public static KeyBinding kb_rtsnext = KeyBinding.get("rts-next-anchor", KeyMatch.nil);
-
     /* rts: (F4, specs/rts/plan.md) the RTS camera, `:cam rts`. It is an SOrthoCam in every respect --
      * the same isometric snap, the same wheel zoom, the same rotation on the arrow keys -- except that
      * it has a centre of its own instead of being bolted to the player. That is the whole difference
@@ -2815,7 +2805,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    undelay(delayed2, g);
 	    poldraw(g);
 	    partydraw(g);
-	    io.brodgar.session.Control.draw(this, g);   // rts: (F3) selection brackets and the marquee
+	    /* rts: nothing of the multi-session layer's is drawn here any more. Which character is on screen
+	     * and where the others are standing is drawn by the ADDON layer, over this very widget, so what
+	     * the marker looks like -- and whether there is one at all -- is the user's file to edit. */
 	    glob.map.reqarea(cc.floor(tilesz).sub(MCache.cutsz.mul(view + 1)),
 			     cc.floor(tilesz).add(MCache.cutsz.mul(view + 1)));
 	} catch(Loading e) {
@@ -3255,12 +3247,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     private class Click extends Hittest {
 	int clickb;
-	
+
 	private Click(Coord c, int b) {
 	    super(c);
 	    clickb = b;
 	}
-	
+
 	protected void hit(Coord pc, Coord2d mc, ClickData inf) {
 	    clickhit(pc, mc, inf, clickb);
 	}
@@ -3287,7 +3279,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Object[] args = {pc, mc.floor(posres), clickb, ui.modflags()};
 	if(inf != null)
 	    args = Utils.extend(args, inf.clickargs());
-	wdgmsg("click", args);
+	/* addon: (105) hand the OBJECT over, not the wire's number. The id inside args is a sign-truncated
+	 * int32 while a gob id is a uint32, so an addon comparing it against gob:id() is right for half the
+	 * id space and wrong for the other half. It is held only for the length of this dispatch. */
+	io.brodgar.addon.AddonManager.clickgob((cg == null) ? -1 : cg.id);
+	try {
+	    wdgmsg("click", args);
+	} finally {
+	    io.brodgar.addon.AddonManager.clickgob(-1);
+	}
     }
     
     /* rts: (F3, specs/rts/plan.md) a move order's destination, resolved by the client's OWN pick pass
@@ -3351,7 +3351,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    if(placing.lastmc != null)
 		wdgmsg("place", placing.rc.floor(posres), (int)Math.round(placing.a * 32768 / Math.PI), ev.b, ui.modflags());
 	} else if((grab != null) && grab.mmousedown(ev.c, ev.b)) {
-	} else if(io.brodgar.session.Control.mousedown(this, ev)) {   // rts: (F3) alt starts a marquee, and a click with units selected is theirs -- everything else falls through to Click below, unchanged
+	} else if(io.brodgar.session.Control.mousedown(this, ev)) {   // rts: (F3) an alt-click that lands ON one of our characters is a selection, and a click with units selected is an order -- everything else, alt-click on the ground included, falls through to Click below unchanged
 	} else {
 	    new Click(ev.c, ev.b).run();
 	}
@@ -3369,7 +3369,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Loader.Future<Plob> placing_l = this.placing;
 	if(camdrag != null) {
 	    camera.drag(ev.c);
-	} else if(io.brodgar.session.Control.mousemove(this, ev)) {   // rts: (F3) the marquee being dragged
 	} else if((placing_l != null) && placing_l.done()) {
 	    Plob placing = placing_l.get();
 	    if((placing.lastmc == null) || !placing.lastmc.equals(ev.c)) {
@@ -3392,8 +3391,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    }
 	} else if(grab != null) {
 	    grab.mmouseup(ev.c, ev.b);
-	} else {
-	    io.brodgar.session.Control.mouseup(this, ev);   // rts: (F3) closes the marquee started above
 	}
 	return(true);
     }
@@ -3462,8 +3459,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    io.brodgar.voice.Voice.setPushToTalk(true);   // brodgar voice: push-to-talk pressed
 	    return(true);
 	}
-	if(io.brodgar.session.Control.keydown(this, ev))   // rts: (F5) the anchor switch, while RTS mode is on
-	    return(true);
 	if(camera.keydown(ev))
 	    return(true);
 	return(super.keydown(ev));

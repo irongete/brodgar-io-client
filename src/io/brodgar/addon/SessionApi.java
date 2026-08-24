@@ -33,8 +33,13 @@ import java.util.List;
  * the collection because there is one screen however many logins there are: {@code :current()} answers which
  * session holds it and {@code :current(s)} hands it to {@code s}. The write goes through
  * {@link io.brodgar.session.Control#take} rather than {@link Sessions#anchor}, so the screen, the RTS
- * selection and the camera move together — the same one gesture {@code :session anchor}, an Alt-click on a
- * character and {@code rts-next-anchor} all spell.
+ * selection and the camera move together — the same one gesture {@code :session anchor} and every way the
+ * switcher window offers spell.
+ *
+ * <p><b>And {@code :current(nil)} is the login screen</b>, the write that answers the read's own nil: the
+ * client's own login screen is live behind every session, so handing it the screen is how an account with
+ * <b>no saved token</b> is logged in — the door {@code :session add} has not got, and what the switcher
+ * window's <i>New session</i> button presses.
  *
  * <p><b>It is unprotected.</b> The protected tier is for an action whose effect leaves the client; taking the
  * screen changes which widget tree is drawn and nothing else, and the server is never told. A consent line
@@ -67,10 +72,22 @@ public final class SessionApi {
             public Varargs invoke(Varargs a) {
                 LuaValue me = a.arg1();
                 LuaCollection.receiver(me, "current");
-                LuaValue want = Args.written(a, 2, "hafen.session():current", "session");
-                if(want == null) {                         // the read arity
+                if(!Args.passed(a, 2)) {                   // the read arity
                     Sessions.Member m = Sessions.anchormember();
                     return (m == null) ? LuaValue.NIL : LuaSession.of(owner, m.user);
+                }
+                LuaValue want = a.arg(2);
+                // THE LOGIN SCREEN (:current(nil)). The explicit nil has a meaning here rather than raising,
+                // the way mouse():cursor(nil) does: it is the write that answers the read's own nil, so the
+                // two arities spell one property between them and there is nothing the screen can hold that
+                // this cannot name. It is also the only door to an account with NO SAVED TOKEN -- the client's
+                // own login screen is live behind every session, and logging in there hands the client another
+                // session like any other -- which is what the switcher window's "New session" button presses.
+                //   It fires no SessionSelected: that family's payload IS a session, and no session was
+                // picked. hafen.session():current() reads nil while the login screen holds the screen.
+                if(want.isnil()) {
+                    Control.take(null);
+                    return me;
                 }
                 // The write. Control.take and never Sessions.anchor: the screen, the selection and the
                 // camera are one gesture, and a switch that left the previous character selected would send
@@ -81,7 +98,8 @@ public final class SessionApi {
                 if(h == null)
                     throw new LuaError("hafen.session():current(session): session must be a Session object"
                         + " — what hafen.session():get(user), :find(filter) and :list() hand back"
-                        + " (got a " + want.typename() + ")");
+                        + " (got a " + want.typename() + "). hafen.session():current(nil) goes to the login"
+                        + " screen, and hafen.session():current() reads who has it");
                 Sessions.Member m = Sessions.byuser(h.user);
                 if(m == null)
                     throw new LuaError("hafen.session():current(session): the client holds no session for"

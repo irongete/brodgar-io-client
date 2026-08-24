@@ -34,6 +34,8 @@ holds reads as 144 empty slots rather than raising.
 | `s:actionbar():list(filter)` | every slot — a 1-based array of `Slot` objects, in game-index order |
 | `s:actionbar():count(filter)` | how many match |
 | `s:actionbar():find(filter)` | the first that matches, or `nil` |
+| `s:actionbar():page()` | which of the twelve pages that character's bar is **showing**, `1..12` |
+| `s:actionbar():page(n)` | turn to that page; chains |
 
 **One number addresses a slot, and it is the position.** `:get(n)` takes the same number
 `slot:index()` answers, so **`s:actionbar():list()[n] == s:actionbar():get(n)`** — the invariant a
@@ -41,6 +43,30 @@ reader assumes on first contact. `:get(0)` raises, naming the change.
 
 The server's own message carries a **raw 0-based** number, and that is `slot:wire()`. You need it only
 to compare against something the server said; every verb here takes the position.
+
+## The page is what the client is drawing, not what the bar is
+
+The client draws **twelve buttons at a time** and pages through the 144: page `p` is slots
+`(p-1)*12+1 .. p*12`, and the client's own `Go to page N` keys turn it. `s:actionbar():page()` is which
+page that character is on, and `:page(n)` turns to one — both 1-based, like every index here.
+
+```lua
+local ab = hafen.session():current():actionbar()
+local first = ((ab:page() - 1) * 12) + 1        -- the slot the leftmost button is showing
+ab:page(3)                                       -- ...and now it is 25
+```
+
+**It changes nothing about the bar.** A slot's address is absolute and stays absolute: `:get(1)` is slot 1
+whatever page is up, `:list()` is all 144 in order, and what a slot holds is untouched. The page says which
+twelve the player is looking at — and therefore which twelve the client's own button keys reach.
+
+**Both arities are unprotected**, and for the same reason: the page is a field of one widget in this client.
+Turning it sends nothing, moves nothing and tells the server nothing, which is why the client's own page keys
+need no permission either. A character whose HUD is not up yet reads page `1`, and a write on one is a silent
+no-op — there is no bar to turn. A page outside `1..12` raises, and so does a non-number.
+
+There is no event for it. Read it where you draw: a page is a thing the player is holding, not a thing that
+happens.
 
 The array is always 144 entries and never sparse. An empty slot is a `Slot` object like any other; it
 just answers `:empty()`. A string [filter](conventions.md#the-filter-argument) matches a slot's
@@ -87,10 +113,11 @@ cooldown ticking, which would be every frame; read `:cooldown()` live off the ob
 |---|---|---|
 | `slot:use(mods)` | `actionbar.use` | activate the slot, exactly as a left-click on that button does |
 | `slot:res(name)` | `actionbar.res` | assign an action to the slot **by resource name**, exactly as dragging it off the menu grid does |
+| `slot:clear()` | `actionbar.clear` | empty the slot, exactly as a right-click on that button does |
 
-Both return the `Slot`, so they chain, and both act on the character whose bar the slot is on, watched or
-not. Each needs its own permission key declared in your manifest — or the group `actionbar.*`, which covers
-both — and called from an addon that did not declare it, each raises an error naming that key; see
+All three return the `Slot`, so they chain, and each acts on the character whose bar the slot is on, watched
+or not. Each needs its own permission key declared in your manifest — or the group `actionbar.*`, which covers
+all three — and called from an addon that did not declare it, each raises an error naming that key; see
 [the permission model](conventions.md#the-permission-model). One key covers every character: see
 [a key names the action, not the target](../guides/permissions.md#a-key-names-the-action-not-the-target).
 `mods` is the optional modifier bitfield — Shift = 1, Ctrl = 2, Alt = 4. Optional is not unchecked: a value
@@ -110,10 +137,21 @@ resource name is **silently ignored** by the server, exactly as dragging somethi
 would be: the slot does not change, and no error comes back. There is no way to assign by pagina id,
 since those are session-local and opaque to addons.
 
-> **The write is asynchronous.** It sends the assignment to the server, which echoes it back before the
-> slot changes — so the very next line still reads the old content, and `:res(name):use()` in one chain
+**`slot:clear()` is `:res(name)`'s opposite, and it takes no arguments** — an argument is an error naming
+both the assignment and `slot:hold(nil)`. It empties the slot whether or not anything is in it: clearing an
+empty slot is a moment rather than a mistake, and nothing comes back to say so. It is the same message a
+right-click on that button sends.
+
+It clears **what the server has**, which is what makes it a separate verb from
+[`slot:hold(nil)`](#hold-a-slot-unprotected). A hold is your entry drawn *over* the server's content;
+releasing one hands that content back untouched, and this takes the content away. Calling it on a slot you
+are holding is legal and does exactly that — a beat later the server's write lands on a held slot, which
+[ends the hold](#when-a-hold-ends) as any server write to one does.
+
+> **The two writes are asynchronous.** Each sends to the server, which echoes it back before the slot
+> changes — so the very next line still reads the old content, and `:res(name):use()` in one chain
 > would activate whatever was there before. React to `ActionbarChanged` on that slot, or wait a beat,
-> when you need the new action.
+> when you need the new content.
 
 ```lua
 local s = hafen.session():current()

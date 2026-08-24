@@ -80,6 +80,8 @@ public enum Permission {
     ACTIONBAR_RES    ("actionbar.res",      "slot:res",                       "assign one of the game's own actions"
                                                                               + " to any of your characters'"
                                                                               + " action-bar buttons"),
+    ACTIONBAR_CLEAR  ("actionbar.clear",    "slot:clear",                     "empty any of your characters'"
+                                                                              + " action-bar buttons"),
     KIN_ADD          ("kin.add",            "session:kin():add",              "add someone to any of your characters' kin lists"),
     KIN_RENAME       ("kin.rename",         "kin:rename",                     "rename someone on any of your characters' kin lists"),
     KIN_GROUP        ("kin.group",          "kin:group",                      "change someone's kin group, on any of your characters"),

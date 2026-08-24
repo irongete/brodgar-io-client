@@ -40,8 +40,9 @@ draw callback that reads them at 60 fps allocates nothing. A session the client 
 > **What belongs to the screen says so** rather than aiming at a scene nobody is looking at:
 > [`worldToScreen` and `screenToWorld`](#the-screen-and-the-world) name a pixel on it, and
 > [`click`](#write-protected), `place` and `select` are gestures with the pointer. Asked of a session that is
-> not on screen, each raises naming `hafen.session():current()`. Walking is the whole of what a character you
-> are not looking at will take — see [`move`](player.md#write-protected).
+> not on screen, the gestures and `screenToWorld` raise naming `hafen.session():current()`, and
+> `worldToScreen` answers `nil` — it is a read, and it has a value shape to say it in. Walking is the whole of
+> what a character you are not looking at will take — see [`move`](player.md#write-protected).
 
 ## Objects
 
@@ -120,6 +121,7 @@ if t then hafen.log():write("standing on " .. (t.name or t.id)) end
 | `s:world():tileToGrid(tx, ty)` | `{x, y}` | tile coord to grid coord |
 | `s:world():worldToScreen(p)` | `{x, y}` \| nil | project a Position to a root [design pixel](ui/pixels.md); the drawn session's only |
 | `s:world():screenToWorld(pt, fn)` | nothing, calls `fn` | raycast the ground under a root design pixel; asynchronous, and the drawn session's only |
+| `s:world():focus(p)` | the world | aim the view at a place; the drawn session's only, and the `rts` camera's |
 | `s:world():snapPlace(p, fine)` | Position | snap a Position to the client's placement grid |
 | `s:world():snapAngle(a, fine)` | number | snap a facing in radians to the client's placement-angle grid |
 
@@ -156,8 +158,10 @@ is not a place in the world, and only the direction that has an answer will type
 
 It projects **at the ground under `p`**, so a point up a hillside answers where that point actually is and a
 raycast back down returns to it. It answers `nil` before the map view exists, for a point the view cannot
-project, for ground that character has not streamed in — there is no height to project at — and for a session
-that is not on screen.
+project, for ground that character has not streamed in — there is no height to project at — for a session
+that is not on screen, and for a place that character cannot locate at all: projecting is a **read**, so an
+alt that has walked into another part of the world, or into a cave or a house, has no pixel here rather than
+a refusal, the same `nil` [`components`](#the-coordinate-spaces) gives for it.
 
 **`screenToWorld(pt, fn)` is asynchronous.** It reads the true terrain point from the GPU, the same pass the
 client uses to place a building, so the answer cannot come back inline: it arrives a frame later
@@ -199,6 +203,27 @@ ghost:position(snapped)                                                      -- 
 finer placement-angle grid (`angGran()` steps). It honours the live setting just as `snapPlace` does, so a
 ghost rotate feels identical to rotating a real building, and the result is normalized to `(-π, π]`. Both
 snappers are pure arithmetic over the client's own settings, so both answer for any session.
+
+### Aiming the view
+
+`s:world():focus(p)` centres the view on a place. It is the third verb of this family and the only one that
+writes: the two above convert between the spaces, this one moves the space itself.
+
+```lua
+local s = hafen.session():current()
+s:world():focus(s:player():gob():position())   -- back onto the character
+```
+
+Nobody walks anywhere and nothing reaches the server — it is where the world is looked **from** that
+changes — so it carries no permission, like everything else that only changes what you are shown.
+
+**It answers on a camera with a centre of its own, which is `rts` alone.** Every other camera the client
+has is bolted to the character and has nothing to aim, so `focus` **raises** under one rather than doing
+nothing: a hotkey that silently did nothing under the wrong camera is the one that gets reported as broken.
+[`hafen.client():options():camera():mode("rts")`](client/README.md#camera) installs it.
+
+Like its two neighbours it is the **drawn** session's — there is one screen — and asking it of another
+raises naming `hafen.session():current()`.
 
 ## Write (protected)
 

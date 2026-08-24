@@ -28,7 +28,8 @@ import org.luaj.vm2.lib.jse.JsePlatform;
  *       the safe stdlib — {@code string}, {@code table}, {@code math}, a trimmed {@code os}
  *       ({@code time}/{@code clock}/{@code date}/{@code difftime} only), and the safe base functions
  *       ({@code pairs}/{@code ipairs}/{@code next}/{@code select}/{@code type}/{@code tostring}/
- *       {@code tonumber}/{@code pcall}/{@code xpcall}/{@code error}/{@code assert}/{@code unpack}/…).
+ *       {@code tonumber}/{@code pcall}/{@code xpcall}/{@code error}/{@code assert}/…). LuaJ is 5.2:
+ *       {@code unpack} is {@code table.unpack}, and there is no base-level alias.
  *       It is built <b>constructively</b> (load only safe libraries) rather than by neutering
  *       {@link JsePlatform#standardGlobals()} — so the dangerous surfaces are <i>absent</i>, not
  *       merely hidden: no {@code io}, no {@code luajava} (the Java-reflection escape hatch, which

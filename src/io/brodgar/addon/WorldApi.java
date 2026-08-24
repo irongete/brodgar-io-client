@@ -243,13 +243,22 @@ final class WorldApi {
         // it takes the height, and MCache.getzp is the same read s:world():height(p) already exposes. Off-
         // stream ground has no height to project at, so it is nil rather than a number measured from
         // somewhere else -- the same nil this verb already answers for a scene nobody is drawing.
+        //   AND A PLACE THAT CHARACTER CANNOT LOCATE IS ONE MORE OF THEM, not a refusal: this is a READ, so
+        // its Position comes through `here` like every other read's here (components, tileCoord, distance) and
+        // answers null where the anchor does not resolve in this session. It used to come through
+        // LuaPosition.worldArg -- the door for verbs that need somewhere to GO -- so an alt walking into
+        // another segment, a cave or a house threw once a frame at whoever was drawing its ground into their
+        // scene, where the honest answer is the nil this verb already has four other reasons to give. Nothing
+        // ELSE moves: a missing p, an explicit nil and a {x, y} table still raise from posArg, word for word,
+        // and every act verb still refuses an unreachable place, which is where getting it wrong costs
+        // something. snapPlace keeps refusing too -- it answers a Position and has no nil to say it in.
         m.set("worldToScreen", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "world", "worldToScreen", W);
-                Coord2d rc = LuaPosition.worldArg(a, 2, W + ":worldToScreen", "p", user);
+                Coord2d rc = here(a, 2, W + ":worldToScreen", user);
                 MapView mv = drawn(user) ? screenView() : null;
                 MCache mc = mcache(user);
-                if((mv == null) || (mc == null))
+                if((rc == null) || (mv == null) || (mc == null))
                     return LuaValue.NIL;
                 try {
                     Coord3f sc = mv.screenxf(mc.getzp(rc));
@@ -316,6 +325,34 @@ final class WorldApi {
                                   (int)Math.round(Px.in(sy)) - rp.y, fn);
                 }
                 return LuaValue.NIL;   // async -- the answer arrives through fn
+            }
+        });
+        // focus(p) -- AIM THE VIEW at a place. The third verb of the screen-and-world family and the only one
+        // that writes: the two above convert between the spaces, this one moves the space itself. Nobody walks
+        // anywhere -- it is where the world is looked FROM that changes -- so it is client-local and carries no
+        // permission, like everything else that only changes what you are shown.
+        //   The DRAWN session's, for the same reason as its two neighbours: there is one screen, and aiming a
+        // scene nobody is looking at is not a thing that can happen.
+        //   It answers on a camera with a CENTRE OF ITS OWN, which is `rts` alone -- every other camera the
+        // client has is bolted to the character and has nothing to aim. That is a refusal rather than a no-op:
+        // a hotkey that silently did nothing under the wrong camera is the one that gets reported as broken.
+        m.set("focus", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                Section.self(self, "world", "focus", W);
+                Coord2d rc = LuaPosition.worldArg(a, 2, W + ":focus", "p", user);
+                if(!drawn(user))
+                    throw new LuaError(W + ":focus: that session is not on screen, and the view is the"
+                        + " screen's. hafen.session():current():world() is the one that can be aimed.");
+                MapView mv = screenView();
+                if(mv == null)
+                    return self;                   // between views: there is nothing to aim this frame
+                if(!(mv.camera instanceof MapView.RTSCam))
+                    throw new LuaError(W + ":focus: the camera in force has no centre of its own to move —"
+                        + " it follows the character. The `rts` camera is the one that can be aimed;"
+                        + " hafen.client():options():camera():mode(\"rts\") installs it.");
+                ((MapView.RTSCam)mv.camera).focus(rc);
+                return self;
             }
         });
         // snapPlace(p [, fine]) — snap a Position to the client's PLACEMENT grid, IDENTICALLY to placing a

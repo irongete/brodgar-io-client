@@ -14,6 +14,7 @@ local m = hafen.ui():mouse()
 m:x()  m:y()                  -- where the cursor is, in root coords (design pixels)
 m:over()                      -- the deepest Widget under it, or nil
 m:shift() m:ctrl() m:alt()    -- the live modifier keys
+m:cursor("hand")              -- the pointer's picture, while a mode of yours wants a click
 ```
 
 ## Read
@@ -25,12 +26,41 @@ Reading the mouse is unprotected client-side data.
 | `m:x()` / `m:y()` | the cursor position, in root coords — [design pixels](pixels.md), like every other coordinate here |
 | `m:over()` | the deepest [Widget](widget.md#read) under the cursor, or `nil` |
 | `m:shift()` / `m:ctrl()` / `m:alt()` | whether that modifier key is down, right now |
+| `m:cursor()` | the cursor name YOU have forced, or `nil` — see [the cursor](#the-cursor) |
 | `m:grab()` | take the pointer — see [the grab](#the-grab) |
 
 `hafen.ui():hit(x, y)` still answers for an arbitrary point; `m:over()` is exactly `hafen.ui():hit(m:x(),
 m:y())`, kept as one call for the case every addon reaches for. The two are the same widget by
 construction, not by coincidence: `m:over()` answers for the point this object *reports*, so the pair you
 read and the pair you hit-test with are one pair.
+
+## The cursor
+
+`m:cursor(name)` forces the pointer's picture, and `m:cursor(nil)` puts it back. Reach for it when a mode of
+yours is waiting for the user to click something: the pointer is where they are looking, so it is where a
+mode says what it wants.
+
+```lua
+local m = hafen.ui():mouse()
+m:cursor("hand")                    -- ...the user now sees a hand wherever they point
+m:cursor()                          -- "hand"
+m:cursor(nil)                       -- and back to whatever the client would have drawn
+```
+
+A short name is one of the client's own under `gfx/hud/curs` — `arw`, `hand`, `flag`, `wrench` — and a name
+with a slash in it is a resource path taken as written. Anything that is not a string raises, naming both
+spellings.
+
+- **It wins over everything.** A forced cursor is the answer wherever the pointer is, over a widget with a
+  cursor of its own included — a targeting mode that lost its picture over the inventory would be saying
+  what it wants everywhere except where the user is aiming.
+- **There is one pointer, so there is one override**, and the last addon to force one holds it. `m:cursor()`
+  answers **yours**: `nil` while you are forcing nothing, whoever else may be. `m:cursor(nil)` drops your own
+  and never somebody else's.
+- **A name that resolves to nothing puts the pointer back** and writes a line, rather than leaving an
+  invisible cursor on screen. A name still loading changes nothing for that frame.
+- **Your teardown drops it.** A `:reload` or disabling your addon in the middle of a mode leaves the user
+  with an ordinary pointer, not a hand nothing answers.
 
 ## The grab
 

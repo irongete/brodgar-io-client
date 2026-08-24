@@ -171,7 +171,32 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	return(new ResBeltSlot(idx, rdt));
     }
 
+    /* addon: THE ACTION BAR'S KEYS, as registry bindings. They were raw `ev.code` tests inside the two
+     * belts' own `globtype` overrides -- a whole key row taken with every modifier state at once, absent
+     * from the keybind panel and unreachable by anything else, so nothing could ever be bound over them.
+     * They are ordinary bindings now: listed in Options, remappable, and unbindable by a player who wants
+     * that row back. The defaults are what the number-key belt always did, and the F-key belt shares them
+     * rather than carrying a second set -- one bar, one set of keys, whichever picture draws it.
+     *
+     * Twelve of each, because a page is twelve slots. The number row reaches ten of them and always did;
+     * the last two start unbound, which is now a thing a player can fix. */
+    public static final KeyBinding[] kb_belt = new KeyBinding[12];
+    public static final KeyBinding[] kb_beltpg = new KeyBinding[12];
+    static {
+	int[] row = {KeyEvent.VK_1, KeyEvent.VK_2, KeyEvent.VK_3, KeyEvent.VK_4, KeyEvent.VK_5,
+		     KeyEvent.VK_6, KeyEvent.VK_7, KeyEvent.VK_8, KeyEvent.VK_9, KeyEvent.VK_0};
+	for(int i = 0; i < kb_belt.length; i++) {
+	    kb_belt[i] = KeyBinding.get("belt/slot" + (i + 1),
+					(i < row.length) ? KeyMatch.forcode(row[i], 0) : KeyMatch.nil);
+	    kb_beltpg[i] = KeyBinding.get("belt/page" + (i + 1),
+					  (i < row.length) ? KeyMatch.forcode(row[i], KeyMatch.M) : KeyMatch.nil);
+	}
+    }
+
     public abstract class Belt extends Widget implements DTarget, DropTarget {
+	/* addon: was declared, identically, in each of the two subclasses beside its own globtype. */
+	public int curbelt = 0;
+
 	public Belt(Coord sz) {
 	    super(sz);
 	}
@@ -200,6 +225,51 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	}
 
 	public abstract int beltslot(Coord c);
+
+	/* addon: the key that fires a button and the key that turns the page, matched against the bindings
+	 * above rather than against a raw key code. The match is EXACT now, so `Ctrl+3` is no longer swallowed
+	 * here -- it reaches whatever the player bound it to, instead of firing button 3 and stopping.
+	 *
+	 * NEITHER SET IS GATED ON VISIBILITY, and the page keys are the ones that make the case.
+	 *
+	 * Gating them reads as obviously right: a page is which twelve of the 144 these squares are showing, so
+	 * with the squares gone, turning it is state nobody can see -- and worse than idle, because it silently
+	 * changes what every button key presses. But look at when that gate can fire AT ALL. This bar is hidden
+	 * only because something else is standing in for it, and a stand-in draws the page: it reads
+	 * {@code curbelt} through {@code s:actionbar():page()} and paints those twelve slots. So the one case
+	 * the gate exists for is the one case where the page IS on screen, and gating it turns twelve bindings
+	 * the keybind panel lists into bindings that do nothing, with nothing in the panel to say so.
+	 *
+	 * With nothing standing in, this bar is visible and the gate would never have fired. It protects no
+	 * reachable state, and it breaks the arrangement it was written to protect.
+	 *
+	 * The button keys were gated once for the same reason and it was wrong for the same reason. They press
+	 * the character's own bar, which is there whether or not this widget draws it. */
+	public boolean globtype(GlobKeyEvent ev) {
+	    for(int i = 0; i < kb_beltpg.length; i++) {
+		if(kb_beltpg[i].key().match(ev)) {
+		    curbelt = i;
+		    return(true);
+		}
+	    }
+	    for(int i = 0; i < kb_belt.length; i++) {
+		if(kb_belt[i].key().match(ev)) {
+		    keyact(i + (curbelt * 12));
+		    return(true);
+		}
+	    }
+	    return(super.globtype(ev));
+	}
+
+	/* addon: what a button prints in its corner -- the key that fires it, or nothing while it has none.
+	 * It was "%d" and "F%d" baked into the two draws, which stopped being true the moment the key became
+	 * something a player could move. */
+	protected String keylabel(int i) {
+	    KeyMatch k = kb_belt[i].key();
+	    if((k == null) || ((k.code == KeyEvent.VK_UNDEFINED) && (k.chr == 0)))
+		return(null);
+	    return(k.name());
+	}
 
 	public boolean mousedown(MouseDownEvent ev) {
 	    int slot = beltslot(ev.c);
@@ -1753,11 +1823,8 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     }
 
     public class FKeyBelt extends Belt implements DTarget, DropTarget {
-	public final int beltkeys[] = {KeyEvent.VK_F1, KeyEvent.VK_F2, KeyEvent.VK_F3, KeyEvent.VK_F4,
-				       KeyEvent.VK_F5, KeyEvent.VK_F6, KeyEvent.VK_F7, KeyEvent.VK_F8,
-				       KeyEvent.VK_F9, KeyEvent.VK_F10, KeyEvent.VK_F11, KeyEvent.VK_F12};
-	public int curbelt = 0;
-
+	/* addon: `beltkeys` and `curbelt` are gone -- the twelve F-keys were this bar's own hardcoded row and
+	 * are now `GameUI.kb_belt`, shared with the other bar and bound in Options. */
 	public FKeyBelt() {
 	    super(UI.scale(new Coord(450, 34)));
 	}
@@ -1783,32 +1850,20 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		    if(belt[slot] != null)
 			belt[slot].draw(g.reclip(c.add(UI.scale(1), UI.scale(1)), invsq.sz().sub(UI.scale(2), UI.scale(2))));
 		} catch(Loading e) {}
-		g.chcolor(156, 180, 158, 255);
-		FastText.aprintf(g, c.add(invsq.sz().sub(UI.scale(2), 0)), 1, 1, "F%d", i + 1);
-		g.chcolor();
-	    }
-	}
-	
-	public boolean globtype(GlobKeyEvent ev) {
-	    boolean M = (ev.mods & KeyMatch.M) != 0;
-	    for(int i = 0; i < beltkeys.length; i++) {
-		if(ev.code == beltkeys[i]) {
-		    if(M) {
-			curbelt = i;
-			return(true);
-		    } else {
-			keyact(i + (curbelt * 12));
-			return(true);
-		    }
+		String kl = keylabel(i);   // addon: the key that fires it, not "F%d"
+		if(kl != null) {
+		    g.chcolor(156, 180, 158, 255);
+		    FastText.aprint(g, c.add(invsq.sz().sub(UI.scale(2), 0)), 1, 1, kl);
+		    g.chcolor();
 		}
 	    }
-	    return(super.globtype(ev));
 	}
     }
     
     private static final Tex nkeybg = Resource.loadtex("gfx/hud/hb-main");
     public class NKeyBelt extends Belt {
-	public int curbelt = 0;
+	/* addon: `curbelt` moved up to Belt with the globtype that drives it; the number row it used to test
+	 * by raw key code is `GameUI.kb_belt` now, and bound in Options. */
 	final Coord pagoff = UI.scale(new Coord(5, 25));
 
 	public NKeyBelt() {
@@ -1873,24 +1928,14 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 			belt[slot].draw(g.reclip(c.add(UI.scale(1), UI.scale(1)), invsq.sz().sub(UI.scale(2), UI.scale(2))));
 		    }
 		} catch(Loading e) {}
-		g.chcolor(156, 180, 158, 255);
-		FastText.aprintf(g, c.add(invsq.sz().sub(UI.scale(2), 0)), 1, 1, "%d", (i + 1) % 10);
-		g.chcolor();
+		String kl = keylabel(i);   // addon: the key that fires it, not the hardcoded digit
+		if(kl != null) {
+		    g.chcolor(156, 180, 158, 255);
+		    FastText.aprint(g, c.add(invsq.sz().sub(UI.scale(2), 0)), 1, 1, kl);
+		    g.chcolor();
+		}
 	    }
 	    super.draw(g);
-	}
-	
-	public boolean globtype(GlobKeyEvent ev) {
-	    if((ev.code < KeyEvent.VK_0) || (ev.code > KeyEvent.VK_9))
-		return(super.globtype(ev));
-	    int i = Utils.floormod(ev.code - KeyEvent.VK_0 - 1, 10);
-	    boolean M = (ev.mods & KeyMatch.M) != 0;
-	    if(M) {
-		curbelt = i;
-	    } else {
-		keyact(i + (curbelt * 12));
-	    }
-	    return(true);
 	}
     }
     

@@ -15,6 +15,7 @@ end
 |---|---|
 | `hafen.session():current()` | the `Session` on screen, or `nil` |
 | `hafen.session():current(s)` | hand the screen to that session |
+| `hafen.session():current(nil)` | hand it to the **login screen**, with every login left running — how another account is logged in |
 | `hafen.session():get(user)` | the `Session` for that **account** — always an object, even for an account nobody is logged in as |
 | `hafen.session():list(filter)` | the sessions the client holds, in the order they joined |
 | `hafen.session():remove(s)` | end that login — the same act as `s:close()`, and protected by the same key |
@@ -142,21 +143,44 @@ for i, s in ipairs(list) do if s == cur then at = i end end
 hafen.session():current(list[(at % #list) + 1])
 ```
 
-It raises, naming what is wrong, on four things: a value that is not a `Session`, an explicit `nil` (arity
-is the verb — call it with no argument to read), a `Session` the client does not hold, and a session with
-**no screen of its own yet**. The third is reachable by construction, since `:get(user)` mints an object for
-any account name, and `s:exists()` is the test that tells it apart.
+It raises, naming what is wrong, on three things: a value that is not a `Session`, a `Session` the client
+does not hold, and a session with **no screen of its own yet**. The second is reachable by construction,
+since `:get(user)` mints an object for any account name, and `s:exists()` is the test that tells it apart.
 
-The fourth is a session the client *does* hold, and `s:exists()` is `true` for it: it is still arriving, or
+The third is a session the client *does* hold, and `s:exists()` is `true` for it: it is still arriving, or
 between the character it left and the one it is taking, so there is nothing to hand the screen to and no
 [`SessionSelected`](event/bus.md#sessions) would follow. Write the screen from that session's
 [`SessionEnteredWorld`](event/bus.md#sessions), which is the moment it has one.
 
+### `hafen.session():current(nil)`
+
+Go to the **login screen** — the write that answers the read's own `nil`, and the one place the explicit
+`nil` means something rather than raising.
+
+```lua
+hafen.session():current(nil)                  -- log another account in
+```
+
+The client's own login screen is live behind every session: the client goes back to waiting on it the
+moment a login it performed becomes a session, so it is a place to go to and not merely where dropping the
+last session leaves you. **Your characters stay logged in** — every session goes on ticking and answering
+the server behind it — and whatever you log in there arrives as a session like any other, takes the screen
+because nothing else is holding it, and appears in `:list()` with its own
+[`SessionAdded`](event/bus.md#sessions). To come back without logging anything in, write the screen to a
+session again.
+
+It is how an account **with no saved token** is logged in, which nothing else here reaches: there is no
+`hafen.session():add`, and `:session add` — the console's own — can only connect an account the login
+screen has already saved a token for.
+
+Going to the login screen fires **no event**: the [session family](event/bus.md#sessions)' payload *is* a
+session, and no session was picked. `hafen.session():current()` reads `nil` while it holds the screen, so a
+handler of your own is what tells anything that is watching.
+
 **The screen needs no permission.** The [protected tier](../guides/permissions.md) is for what an addon
 does whose effect leaves the client, and taking the screen changes which widget tree is drawn and nothing
-else: the server is never told, and nothing about any character is altered. There is no
-`hafen.session():add`, either — a second account is logged in with `:session add`, which is the console's
-own, and this API manages the sessions that exist.
+else: the server is never told, and nothing about any character is altered. Going to the login screen is
+the same act — it logs nobody in and logs nobody out; what happens on it is the player's own doing.
 
 ## Write (protected)
 

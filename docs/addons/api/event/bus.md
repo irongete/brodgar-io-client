@@ -77,9 +77,11 @@ fires `SessionSelected` and nothing else, once per change — whether the player
 wrote the screen with [`hafen.session():current(s)`](../session.md#write-unprotected) — and only on a
 change, so naming the session already drawn fires nothing at all. Ending the session **on screen** hands
 the screen to another one, so that session's `SessionRemoved` comes first and a `SessionSelected` for
-the one taking over follows it. Going to the login screen — which is where dropping your last session
-leaves you — selects nothing, so it fires nothing, and the `SessionRemoved` before it is what says the
-screen emptied.
+the one taking over follows it. Going to the login screen selects nothing, so it fires nothing — whether it
+is where dropping your last session left you, where
+[`hafen.session():current(nil)`](../session.md#hafensessioncurrentnil) put you with every login still
+running, or a login the player performed there. This family's payload **is** a session, and none was
+picked; [`hafen.session():current()`](../session.md), which reads `nil` there, is what answers instead.
 
 **Nor is entering the world being looked at.** A session that reaches the world while another holds the
 screen fires `SessionEnteredWorld` there and then, without ever having been drawn — the four are about

@@ -31,10 +31,18 @@ import java.util.*;
 
 public class KeyBinding {
     private static final Map<String, KeyBinding> bindings = new HashMap<>();
+    // addon: which binding EXPLICITLY holds a given key+modifiers, by keyid(). Guarded by `bindings`, and the
+    // whole of what makes the exclusivity in set() reversible: a claim is dropped the instant its holder is
+    // re-keyed or unbound, and key() reads it live rather than anything having been written into a loser.
+    private static final Map<Long, KeyBinding> claimed = new HashMap<>();
     public final String id;
     public final KeyMatch defkey;
     public final int modign;
     public KeyMatch key;
+
+    static {
+	repair();
+    }
 
     private KeyBinding(String id, KeyMatch defkey, int modign) {
 	this.id = id;
@@ -43,35 +51,48 @@ public class KeyBinding {
     }
 
     public void set(KeyMatch key) {
-	// addon: keybinding exclusivity — a physical key+modifier combo can only be bound to ONE action.
-	// When a real key is assigned, unbind it from any OTHER binding that fires on the same key (WoW-style),
-	// so you can't bind one key to two actions. Reverting-to-default (null) and disabling (nil) never steal.
-	if((key != null) && (key != KeyMatch.nil)) {
-	    synchronized(bindings) {
-		for(KeyBinding other : bindings.values()) {
-		    if((other != this) && sameKey(key, other.key()))
-			other.clear();
-		}
+	// addon: keybinding exclusivity -- a physical key+modifier combo answers to ONE action (WoW-style).
+	// Only an EXPLICIT assignment is ever cleared here. A binding still on its default is never written
+	// to at all: it YIELDS the key for as long as the claim stands (key()) and takes it straight back
+	// when the claim is dropped. Reverting-to-default (null) and disabling (nil) claim nothing.
+	synchronized(bindings) {
+	    unclaim();
+	    if(claimable(key)) {
+		KeyBinding held = claimed.get(keyid(key));
+		if((held != null) && (held != this))
+		    held.clear();
+		claimed.put(keyid(key), this);
 	    }
+	    Utils.setpref("keybind/" + id, KeyMatch.reduce(key));
+	    this.key = key;
 	}
-	Utils.setpref("keybind/" + id, KeyMatch.reduce(key));
-	this.key = key;
     }
 
     // addon: force this binding to "unbound" (nil), distinct from null which means "use the default".
     private void clear() {
-	Utils.setpref("keybind/" + id, KeyMatch.reduce(KeyMatch.nil));
-	this.key = KeyMatch.nil;
+	synchronized(bindings) {
+	    unclaim();
+	    Utils.setpref("keybind/" + id, KeyMatch.reduce(KeyMatch.nil));
+	    this.key = KeyMatch.nil;
+	}
     }
 
-    // addon: do two key-matches fire on the same key+modifiers? Normalizes a char-based match (forchar) and a
-    // code-based one (forcode/forevent) to one keycode, so "Ctrl+G" as a letter or as a VK code still conflict.
-    // "None"/unbound (keycode VK_UNDEFINED) conflicts with nothing.
-    private static boolean sameKey(KeyMatch a, KeyMatch b) {
-	if((a == null) || (b == null) || (a.modmatch != b.modmatch))
-	    return(false);
-	int ca = keycode(a);
-	return((ca != KeyEvent.VK_UNDEFINED) && (ca == keycode(b)));
+    // addon: drop this binding's claim on the key it holds, if it is in fact the holder.
+    private void unclaim() {
+	if(claimable(this.key) && (claimed.get(keyid(this.key)) == this))
+	    claimed.remove(keyid(this.key));
+    }
+
+    // addon: is this a real key, one that can be claimed at all? Null ("use the default") is not, nil
+    // ("unbound") is not, and neither is a match that normalizes to no keycode.
+    private static boolean claimable(KeyMatch k) {
+	return((k != null) && (k != KeyMatch.nil) && (keycode(k) != KeyEvent.VK_UNDEFINED));
+    }
+
+    // addon: the identity of a key+modifiers as one number. Normalizes a char-based match (forchar) and a
+    // code-based one (forcode/forevent) to one keycode, so "Ctrl+G" as a letter and as a VK code are one key.
+    private static long keyid(KeyMatch k) {
+	return(((long)keycode(k) << 8) | (k.modmatch & 0xff));
     }
 
     private static int keycode(KeyMatch k) {
@@ -87,7 +108,20 @@ public class KeyBinding {
     }
 
     public KeyMatch key() {
-	return((key != null) ? key : defkey);
+	if(key != null)
+	    return(key);
+	// addon: a binding still on its DEFAULT yields that key while another binding explicitly holds it.
+	// Read live and never persisted, so clearing the holder hands this one its default straight back --
+	// which is the point: the menu hotkeys (`scm/<res>`) no panel lists are all defaults, and a loss
+	// written into their own pref was a loss with no way back.
+	if(claimable(defkey)) {
+	    synchronized(bindings) {
+		KeyBinding held = claimed.get(keyid(defkey));
+		if((held != null) && (held != this))
+		    return(KeyMatch.nil);
+	    }
+	}
+	return(defkey);
     }
 
     public static KeyBinding get(String id, KeyMatch defkey, int modign) {
@@ -99,6 +133,8 @@ public class KeyBinding {
 		KeyMatch set = KeyMatch.restore(Utils.getpref("keybind/" + id, ""));
 		bindings.put(id, ret = new KeyBinding(id, defkey, modign));
 		ret.key = set;
+		if(claimable(set))   // addon: a stored assignment claims its key as the binding loads
+		    claimed.put(keyid(set), ret);
 	    }
 	    return(ret);
 	}
@@ -121,6 +157,26 @@ public class KeyBinding {
 	synchronized(bindings) {
 	    return(new ArrayList<>(bindings.values()));
 	}
+    }
+
+    // addon: one-time repair of what an EARLIER, destructive form of the rule in set() left behind. It wrote
+    // "unbound" into the loser's own pref, so a menu hotkey -- `scm/<res>`, which no panel lists, and which
+    // is a default rather than an assignment -- lost its letter to an Options binding for good, and clearing
+    // that binding again did not bring it back. Those prefs are dropped once: every menu action nothing has
+    // deliberately re-keyed goes back to the hotkey its own resource names. Assignments are left alone.
+    private static void repair() {
+	if(Utils.getprefb("keybind-repair/menu-hotkeys", false))
+	    return;
+	try {
+	    java.util.prefs.Preferences prefs = Utils.prefs();
+	    for(String nm : prefs.keys()) {
+		if(nm.startsWith("keybind/scm/") && "n".equals(prefs.get(nm, null)))
+		    prefs.remove(nm);
+	    }
+	} catch(Exception e) {
+	    /* A prefs backend that cannot enumerate keeps what it has; nothing here is worth failing over. */
+	}
+	Utils.setprefb("keybind-repair/menu-hotkeys", true);
     }
 
     public static interface Bindable {

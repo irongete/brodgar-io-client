@@ -87,7 +87,9 @@ that by hand. A write on a binding nothing has declared is an error; a read of o
 **A binding has three states, and two of them read as no key.** It is on the client's default, or the user
 has assigned a key, or the user has unbound it — and `key()` collapses the first and the last to `nil`, so
 `assigned()` is what tells them apart. That is also why `key(nil)` exists: without it, an addon that saved a
-key and wrote it back would turn a default into an assignment it could never take off again.
+key and wrote it back would turn a default into an assignment it could never take off again. A default
+another binding currently holds the key for reads as `nil` too, which is what `default()` is for: it
+answers the key that binding fires on again as soon as the other one lets go.
 
 ```lua
 local b = keys:binding():get("toggle")
@@ -98,9 +100,11 @@ local saved = b:assigned() and (b:key() or "None") or nil
 b:key(saved)                              -- restores all three states, the default included
 ```
 
-> Assigning a key takes it off every other binding that fires on it, and there is no undo for the
-> binding you took it from. Reverting runs no such pass, so putting two bindings back on defaults that
-> share a key leaves both firing.
+> Assigning a key takes it off whoever else was **assigned** it, and there is no undo for that binding:
+> it is left unbound, and only the user can key it again. A binding still on the client's own default is
+> not written to at all — it is **shadowed**, reading as `nil` for as long as your key stands and firing
+> again the moment you release the key. Reverting runs no such pass, so putting two bindings back on
+> defaults that share a key leaves both firing.
 
 ## Key strings
 

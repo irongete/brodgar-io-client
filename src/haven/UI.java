@@ -961,6 +961,14 @@ public class UI {
     }
 
     public Object getcurs(Coord c) {
+	/* addon: (105) a cursor an addon has forced (hafen.ui():mouse():cursor(name)) wins over every widget's
+	 * own, and over the default under them. It is the whole point of the verb: a targeting mode says what
+	 * it is waiting for by changing the pointer, and a picture that only held over empty ground would say
+	 * it over exactly the places the user is not aiming at. Null whenever no addon has forced one, which
+	 * is a volatile read and the whole cost. */
+	Object forced = io.brodgar.addon.AddonManager.forcedCursor();
+	if(forced != null)
+	    return(forced);
 	CursorQuery q = new CursorQuery(c);
 	/* addon: spatial UI (spec 044, task 044.5) -- see tooltip() below. */
 	if(!surface(q, c))

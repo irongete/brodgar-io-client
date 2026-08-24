@@ -193,6 +193,8 @@ the write into a read, silently. Every meaning it does carry is here, and anywhe
 | end the hold | `slot:hold(nil)` |
 | none | a [vr entity](vr/README.md)'s `:tint(nil)` |
 | the root screen | `pag:parent(nil)` |
+| the login screen | [`hafen.session():current(nil)`](session.md#hafensessioncurrentnil) |
+| the pointer the client would have drawn | [`m:cursor(nil)`](ui/mouse.md) |
 | everything | a [filter](#the-filter-argument): `coll:list(nil)`, `:count(nil)`, `:find(nil)` |
 
 The bridge separates the two cases by counting arguments, and it is exact for a value you pass

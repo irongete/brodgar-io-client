@@ -30,6 +30,7 @@ reaches the server, which an event on [the bus](bus.md) would arrive too late to
 |---|---|
 | `ev:msg()` | the message name |
 | `ev:widget()` | the [Widget](../ui/widget.md) sending it |
+| `ev:gob()` | the [game object](../gob.md) a map click landed on, or `nil` for ground — see [below](#the-object-a-click-landed-on) |
 | `ev:args()` | a 1-based array snapshot of the raw protocol arguments, in the units the wire carries; a coordinate is `{x=, y=}` |
 | `ev:position(i)` | argument `i` as a [Position](../position.md); throws when that argument is not a coordinate |
 | `ev:pixel(i)` | argument `i` as `{x=, y=}` design pixels in the sending widget's own space; throws when that argument is not a coordinate |
@@ -81,6 +82,23 @@ direction is already said by the stream you subscribed on. Common `msg` names: `
 introduce, and refusing an unknown one would refuse a legitimate one tomorrow — and `*` reaches
 [all of them at once](#the-whole-stream). Two handlers on one `msg` both run; either one calling
 `preventDefault` cancels the send.
+
+### The object a click landed on
+
+`ev:gob()` is the [Gob](../gob.md) a `click` from the `MapView` resolved to, and `nil` for a click on
+ground — or for any action that is not a map click.
+
+```lua
+hafen.event():action():on("click", function(ev)
+  local g = ev:gob()
+  if g then hafen.log():write("clicked " .. (g:name() or "?")) end
+end)
+```
+
+**The id is in `ev:args()` too, and that is the copy not to read.** The wire carries a clicked gob's id as
+a sign-truncated 32-bit number while an id arrives from the server as an unsigned one, so comparing
+`args[6]` against `gob:id()` is right for every id below 2^31 and wrong for every id above it — a bug that
+works until the day it does not. The client knows the object it picked, so it hands the object over.
 
 ## Filtering an inbound update
 

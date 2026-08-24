@@ -3,7 +3,7 @@
   "name": "ClickPath",
   "version": "0.1.0",
   "author": "irongete",
-  "description": "Alt-click queues waypoints, each with a flag, and draws the path over the HUD.",
+  "description": "Alt-click queues waypoints, each with a flag, and draws every logged-in character's path over the map, under the client's windows.",
   "files": ["main.lua"],
   "permissions": ["player.move"]
 }

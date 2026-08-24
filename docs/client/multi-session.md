@@ -13,14 +13,45 @@ screen** and never a game session, so a client with none draws that, `UILoop.lay
 | `:session add USER [CHAR]` | connect and hold a session open. The character name is the **rest of the line**, spaces and all; without one it plays whichever the server offers first. An account already live is refused. A token login does not rotate the token, and a failed add deliberately does not clear it |
 | `:session list` | each session and how far it has got: connecting, character list, loading, or its character and how many grids it has streamed |
 | `:session drop USER\|all` | close a session, **any** session. `Session.close` is what ends it, so `RemoteUI.run` unwinds through its own cleanup instead of being torn out from under itself. Dropping the last one leaves the client on the login screen, which is what logging out does |
-| `:session anchor USER` | go to a character, named by the **account** it logged in as. One of the three spellings of that gesture — with an Alt-click on a character and `rts-next-anchor`, and all three are inputs — and every one of them calls `Control.take` rather than `Sessions.anchor` directly, so the screen and the selection always move together. Everything else in the layer reads `Sessions.anchor()`, so the offsets, the orders and the merged patches follow by themselves |
+| `:session anchor USER` | go to a character, named by the **account** it logged in as. The client's own spelling of that gesture, beside every one the addon layer offers through `hafen.session():current(s)` — a switcher row, a cycle hotkey, a click-a-character hotkey. Every one of them calls `Control.take` rather than `Sessions.anchor` directly, so the screen and the selection always move together. Everything else in the layer reads `Sessions.anchor()`, so the offsets, the orders and the merged patches follow by themselves |
+
+**The login screen is a place to go to, not only where you are left.** `Client.Main.run` builds a fresh
+`Bootstrap` the instant it hands a `RemoteUI` to `Sessions.adopt`, so it is live in `UILoop.ui` behind every
+session — waiting on a login nobody is looking at. `Control.take(null)` gives it the screen, which is
+`hafen.session():current(nil)` and the switcher window's *New session* button, and nothing takes it back on
+its own: `reclaim` returns while it holds the anchor, and `adopt` anchors the session it logs in precisely
+because none does. That makes it the only door for an account with **no saved token** — `Sessions.add`
+reads `Bootstrap.gettoken` and can reach nothing else — and the sessions behind it go on being ticked by
+`Sessions.tick` throughout, since none of them holds the screen. Being nobody, it fires no session event:
+`AddonManager.queueSession` drops a nameless one, and `Sessions.anchor` calls `sessionSelected` only for a
+member.
+
+**One session per account, on that door too.** `Sessions.adopt` refuses a login for an account already
+live — the rule `add` has always held — because the account *is* the address above this layer: two members
+of one name share a row in the switcher and a `Session` object in every addon, and the server ends one of
+the two connections a moment later regardless. It closes the session it refuses and throws, which
+`Client.Main.run` catches to put the login screen back up. The reason travels in `Sessions.denial` and is
+shown by `Bootstrap.run` on the next `LoginScreen`, since `Sessions.say` delivers to the anchor and the
+anchor at that moment is a login screen whose tree answers no notice.
 
 ## The RTS mode
 
-A mode and not a rebinding: a left click on the ground walks you there, and a marquee needs that button.
-Off, the map view behaves as it does without any of this. On, it still does — the mode adds one gesture
-(Alt and the left button picks who is commanded) and one recipient (with something selected, a left click
-walks the selection rather than the character on screen).
+A mode and not a rebinding, and since 105 not a gesture either: the mouse keeps every one of Haven's own
+bindings and this layer claims no button and no modifier over the map. What the mode adds is one
+**recipient** — with somebody other than the drawn character selected, a left click on the ground walks the
+selection rather than the character on screen. Off, and with only the drawn character selected, the map
+view behaves exactly as it does without any of this.
+
+**It owns no input and draws nothing.** Naming a character with the mouse was `Control.mousedown`, showing
+who is named was `Control.draw`, and cycling and centring were `Control.keydown` — all four are the addon
+layer's now, and `session-manager` is what carries them. They reach Java through the API like anything
+else: `hafen.session():current(s)` (which is `Control.take`), `hafen.ui():mouse():cursor(name)`, `ev:gob()`
+and `s:world():focus(p)`. What is left here is the part no addon can hold — the selection, and the one
+click the mode re-addresses.
+
+**That is what makes the modifiers free.** Alt and the left button used to be a selection whatever it
+landed on, so an addon wanting Alt-click on the ground could not have it. Nothing of this layer's reads a
+modifier now.
 
 **The mode has no switch of its own.** `Sessions.tickmode` derives it from the membership —
 `members.size() > 1`, the drawn session being a member too — and calls `Control.mode` on the edge alone,
@@ -29,8 +60,8 @@ is empty and the mode still has to go off.
 
 **The mode installs no camera, ever.** `MapView.RTSCam` — a `FreeCam` with a centre of its own, so that
 panning survives the character moving — is registered under the name `rts` beside every other camera
-([world-3d.md](world-3d.md)) and is installed by hand with `:cam rts`, mode or no mode. It is the mode's
-only dependant: `rts-focus` answers *not on the rts camera* under any other, which has no centre to move.
+([world-3d.md](world-3d.md)) and is installed by hand with `:cam rts`, mode or no mode. It is what
+`s:world():focus(p)` needs: that verb raises under any other camera, none of which has a centre to move.
 
 **There is one camera, not one per character.** A camera is an inner class of the view it draws, so each
 session's `MapView` owns its own and they cannot be shared — what is shared is the state.
@@ -42,22 +73,20 @@ becomes *follow the character*. What is copied is [world-3d.md](world-3d.md).
 
 | Input | Does |
 |---|---|
-| Alt and left click, on a character | **go to it** — its screen, and it alone selected: naming one character on the map is `:session anchor` said with the mouse, so it does the same thing (below). The nearest within 24px counts as clicked |
-| Alt and left click, on nothing; with shift or ctrl | clear the selection; extend it instead of replacing. Neither is naming one character, so neither changes whose screen it is |
-| Alt and left drag | select by box, and nothing more — a box says who is commanded, not whose screen this is. It and the click above project each character with `MapView.screenxf` and test in screen space: only our own characters are ever selected, so no rectangular pick pass exists |
 | Left click, on the ground, with somebody **else** selected | walk the selection there, and nothing else — the only order there is. The destination is resolved by the client's own pick pass (`MapView.ClickOrder extends Hittest`), so it lands where a real click would. The right button is never taken over at all |
 | Left click, on a gob | the click it always was. `ClickOrder` hands it back through `MapView.clickhit`, the same code an ordinary `Click` runs — one press is still one pick pass and one message, only decided a frame later. It cannot be answered in `mousedown`, which is a frame before anything knows what was under the cursor. Interacting with a gob is the drawn character's own business and travels to no other login |
 | Left click, with only the character on screen selected | also the click it always was — `Control.commands` reports nobody to command. Ordering your own character to walk somewhere *is* a left click, and this is not a corner case: `Control.take` makes the drawn character the whole selection on every switch, so without it the first thing a second session costs is the left button |
 | Middle drag; ctrl and middle drag | pan; `FreeCam`'s own rotate and elevate. The pan's pixel delta is solved back into world units through the view's own projection — three `screenxf` probes and a 2×2 inverse — rather than by rebuilding the camera's trigonometry. `RTSCam.click` reads `ui.modflags()` once, at the press, so letting Ctrl go mid-drag does not change what the drag is already doing. No modifier collides: `MapView.mousedown` sends `ev.b == 2` straight to `camera.click` with no modifier branch and no fallthrough |
-| `rts-next-anchor`, `rts-focus` | go to the next session — one flat list, cycled with no distinguished stop, so each is visited once a lap; and centre on the selection, or on everyone when nothing is selected. Both are dispatched by `Control.keydown`, which `MapView.keydown` runs **before** `camera.keydown`, so they are the mode's keys under whatever camera is installed and answer nothing while the mode is off |
 | `cam-reset` (Home), `cam-left`, `cam-right`, `cam-in`, `cam-out` | follow the drawn character again; rotate and zoom, since `FreeCam` has no keyboard of its own. These are the camera's own, so they answer with the mode off too |
 
-**The mode's own two keys ship unbound**, `KeyBinding.get(id, KeyMatch.nil)`, and `OptWnd.BindingPanel`
-lists them by hand under **Multi session** for the user to assign. No default can be conflict-free:
-`KeyBinding.get` runs none of `set`'s exclusivity pass, so two *defaults* sharing a key leave both firing,
-and neither is repairable afterwards ([services.md](services.md)). A modifier cannot be bound at all —
-`KeyMatch.Capture.handle` refuses a bare `VK_SHIFT`/`VK_CONTROL`/`VK_ALT`, which is what holds the key
-grab open across a modifier press — so a hold-while-dragging gesture stays hard-wired.
+**The mode has no keys of its own.** `rts-next-anchor` and `rts-focus` are gone with the gestures: cycling
+and centring are `session-manager` hotkeys, listed in `OptWnd.BindingPanel` under the addon's own name by
+the generic per-addon loop rather than by a hand-written **Multi session** section. An addon hotkey ships
+unbound for the same reason a client one would have to: `KeyBinding.get` runs none of `set`'s exclusivity
+pass, so two *defaults* sharing a key leave both firing, and neither is repairable afterwards
+([services.md](services.md)). A modifier cannot be bound at all — `KeyMatch.Capture.handle` refuses a bare
+`VK_SHIFT`/`VK_CONTROL`/`VK_ALT`, which is what holds the key grab open across a modifier press — so a
+hold-while-dragging gesture cannot be a binding whoever owns it.
 
 ## One loop, several sessions
 
@@ -65,7 +94,7 @@ grab open across a modifier press — so a hold-while-dragging gesture stays har
 |---|---|
 | **The three UIs, and why they are three** | `UILoop.ui` is the runner's — the **login screen**, which `Client.Main` replaces and **destroys** as its chain advances; `UILoop.drawn` is the one actually drawn, dispatched to and `gtick`ed. One field could not be both — destroying the runner's UI must never be able to destroy a session it does not own, and the slot holding no game session is what makes that unreachable. `drawn()` answers the session on screen, or `ui` when none does. `UILoop.layer` is the **addon layer** (fork): built once in the constructor with a null `sess`, never replaced or destroyed, ticked and hovered beside the drawn one, drawn on top of it and offered the input first ([boot-and-loop.md](boot-and-loop.md)) — it holds no `Glob`, so `Sessions.tick` and every count of "how many sessions" pass it by |
 | Building a session's UI | `UILoop.bgui` — `newui` minus the replace and the destroy, and like it built **outside `uilock`**, because `UI`'s constructor runs `Runner.init` and no other lock may be taken underneath that one. The profiling fields are left off: `uprof`/`rprof`/`gprof` describe the frame, and only the anchor has one |
-| Where a session comes from | `Client.Main.run` hands its `RemoteUI` to `Sessions.adopt` instead of running it, and `Sessions.add` connects a saved token; both build with `bgui` on a thread of their own ([boot-and-loop.md](boot-and-loop.md)). A session registers **before** its `UI` exists, because `RemoteUI.init` asks `Sessions.ismember` from inside that constructor |
+| Where a session comes from | `Client.Main.run` hands its `RemoteUI` to `Sessions.adopt` instead of running it — and goes straight back to a fresh `Bootstrap`, so **the login screen is live behind every session** — while `Sessions.add` connects a saved token; both build with `bgui` on a thread of their own ([boot-and-loop.md](boot-and-loop.md)). A session registers **before** its `UI` exists, because `RemoteUI.init` asks `Sessions.ismember` from inside that constructor |
 | Taking one down | `UILoop.bgdestroy` — `bgui`'s counterpart, run from the **session's own** thread (`Sessions.Member.discard`): it takes the screen off that `UI` if the caller has not, waits under `uilock` for any frame still holding it, then `UI.destroy`. So a `UI` can already be destroyed before the loop thread's next tick notices the anchor moved — a relogin destroys the old one and builds the new one inside `Member.run`, which is why anything that must still read a session as it ends has to **hold** what it needs rather than look it up by that `UI` |
 | The anchor's frame | `UILoop.Frame.tick`: dispatch, then `synchronized(layer)` for the layer's `tick`/`gtick`/hover/resize, then `synchronized(ui)` for `glob.ctick`, `glob.gtick`, `ui.tick`, `mousehover`, resize — one monitor at a time, and the session's hover is told the layer took the pointer |
 | Everything not drawn | `Sessions.tick`, called **after** that block closes, each session under its own monitor, and the one holding the screen skipped because the frame above has already ticked it in full. One call and one loop: every game session the client holds is a member of that list |

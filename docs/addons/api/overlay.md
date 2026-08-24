@@ -49,10 +49,13 @@ me:overlay():remove("hp")
 ## What an overlay of yours draws
 
 `:add(key)` attaches a **bare** overlay, and the two setters below say what it draws, at the gob's
-**projected screen point**, just above the head. Each answers the overlay, so one statement configures the
-whole thing — and until it names a kind it draws nothing, so a half-configured overlay never paints. It says
-exactly **one** thing: a second, different kind raises naming the first, because picking a winner is how one
-of them silently stops meaning anything.
+**projected screen point** — **15 world units above the gob**, which is just above the head. That height is
+part of the contract: a painter that wants the ground *under* the gob rather than the air over it comes back
+down the screen by it, and only [the projection](world.md#the-screen-and-the-world) says how many pixels
+that is. Each answers the overlay, so one statement configures the whole thing — and until it names a kind
+it draws nothing, so a half-configured overlay never paints. It says exactly **one** thing: a second,
+different kind raises naming the first, because picking a winner is how one of them silently stops meaning
+anything.
 
 | Setter | Meaning |
 |---|---|

@@ -967,6 +967,19 @@ public final class LuaEvent {
      * handler that re-issues its own action <b>cannot loop</b> — they bypass the stream that called them.
      */
     private static void outbound(LuaTable m) {
+        // gob() — the game OBJECT the click landed on, or nil for ground and for every action that is not a
+        // map click (105). The id is in the arguments already, and it is exactly the thing an addon must not
+        // read: the wire carries a gob id as a SIGN-TRUNCATED int32 (Gob.GobClick.clickargs casts, while an id
+        // arrives over the wire as uint32), so args[6] disagrees with gob:id() for every id past 2^31 and
+        // agrees for every id below it — a comparison that works until one day it does not. The client knows
+        // the object, so it hands the object over: MapView.clickhit holds it for the length of the dispatch.
+        m.set("gob", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaEvent e = self(a.arg1(), Shape.ACTION, "gob");
+                long id = AddonManager.clickGobId();
+                return (id < 0) ? LuaValue.NIL : LuaGob.of(e.owner, id);
+            }
+        });
         // 093.1 (A-095): BOTH are PROTECTED, under the existing widget.send -- the same wire, the same key,
         // and the consent line the user already reads for it ("send any message the client itself could
         // send") is exactly what these do. Two arguments for it, neither covered by conventions.md's old

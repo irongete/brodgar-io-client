@@ -265,7 +265,7 @@ public final class LuaSlot {
                     throw new LuaError("slot:res(resourceName): \"" + rv.tojstring().trim() + "\" is an entry"
                         + " an addon added to the menu, and the server has never heard of it — this verb"
                         + " assigns one of the game's own actions, by the name the server publishes. Hold the"
-                        + " slot for the entry instead: slot:pagina(pag).");
+                        + " slot for the entry instead: slot:hold(pag).");
                 }
                 AddonManager.requirePermission(owner, Permission.ACTIONBAR_RES);
                 LuaSlot h = handle(self, "res");
@@ -281,6 +281,33 @@ public final class LuaSlot {
                 if(g == null)
                     throw new LuaError("slot:res(): no game UI (that character is not in the world yet)");
                 g.wdgmsg("setbelt", Integer.valueOf(h.index), "res", res);
+                return self;
+            }
+        });
+        // clear() — EMPTY the slot: the message a right-click on that button sends (GameUI.Belt.mousedown,
+        // b == 3 -> wdgmsg("setbelt", n, null)). It is res(name)'s pair and its opposite: one puts one of the
+        // game's own actions in a slot, the other takes whatever is there out, and both are the same round
+        // trip, because the server owns the bar and echoes the change back before the slot reads different.
+        //
+        // A slot an ADDON IS HOLDING is not this verb's business, and the split is the same one res(name)
+        // draws: a hold is drawn over the server's content and slot:hold(nil) hands it back untouched, while
+        // this empties what the server has underneath. Clearing a held slot is legal and does exactly that —
+        // the echo ends the hold, as every server write to a held slot does.
+        m.set("clear", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                if(Args.passed(a, 2))
+                    throw new LuaError("slot:clear() takes no arguments — it empties the slot. To put one of"
+                        + " the game's actions in it, slot:res(resourceName); to give back a slot you are"
+                        + " holding for one of your own entries, slot:hold(nil)");
+                AddonManager.requirePermission(owner, Permission.ACTIONBAR_CLEAR);
+                LuaSlot h = handle(self, "clear");
+                // THAT character's own HUD sends it, exactly as res(name) does: the clear lands on the bar
+                // the slot names whether or not it is the one on screen.
+                GameUI g = AddonManager.gameui(h.user);
+                if(g == null)
+                    throw new LuaError("slot:clear(): no game UI (that character is not in the world yet)");
+                g.wdgmsg("setbelt", Integer.valueOf(h.index), (Object)null);
                 return self;
             }
         });
@@ -452,6 +479,53 @@ public final class LuaSlot {
             public String keyName() {
                 return "n";
             }
-        }, null);
+        }, pageVerb(owner, user));
+    }
+
+    /** Buttons on one page of the bar — {@link GameUI.Belt} pages by twelve, so 144 slots are twelve pages. */
+    public static final int PAGE = 12;
+    /** Pages the bar has. */
+    public static final int PAGES = SLOTS / PAGE;
+
+    /**
+     * The section's own verb: {@code s:actionbar():page()} reads which of the twelve pages that character's bar
+     * is showing, and {@code :page(n)} turns to one.
+     *
+     * <p><b>It is a page of the SAME 144 slots, not a second bar.</b> The client draws one bar and pages it:
+     * page {@code p} is slots {@code (p-1)*12+1 .. p*12}, which is the arithmetic {@code GameUI.Belt.keyact}
+     * does. So this changes nothing about what a slot holds and nothing about the address of one — {@code
+     * :get(n)} is the same absolute position it always was — it says which twelve the client is drawing, and
+     * which twelve the client's own {@code Button 1..12} keys reach.
+     *
+     * <p><b>1-based, like every index here.</b> The client's field counts from zero; a verb on this side does
+     * not.
+     *
+     * <p><b>Unprotected, both arities.</b> Turning the page moves no item and sends nothing: {@code curbelt}
+     * is a field of one widget in this client, which is why the client's own page keys need no permission
+     * either. A character whose HUD is not up yet reads page 1 and swallows the write, like every other
+     * placement verb — there is no bar to turn.
+     */
+    private static LuaTable pageVerb(final Addon owner, final String user) {
+        LuaTable t = new LuaTable();
+        t.set("page", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue v = Args.written(a, 2, CharApi.AB + ":page", "n");
+                GameUI g = AddonManager.gameui(user);
+                GameUI.Belt b = (g == null) ? null : g.beltwdg;
+                if(v == null)
+                    return LuaValue.valueOf((b == null) ? 1 : (b.curbelt + 1));
+                Args.num(v, CharApi.AB + ":page", "n", "the page the bar shows, 1.." + PAGES
+                    + "; :page() with no argument reads which one it is on");
+                int n = v.toint();
+                if((n < 1) || (n > PAGES))
+                    throw new LuaError(CharApi.AB + ":page(n): page out of range (1.." + PAGES + "), got " + n
+                        + " — the bar is 144 slots in twelve pages of " + PAGE);
+                if(b != null)
+                    b.curbelt = n - 1;
+                return self;
+            }
+        });
+        return t;
     }
 }

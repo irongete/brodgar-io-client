@@ -221,6 +221,23 @@ public class Sessions {
 
     private static final Queue<String> pending = new ConcurrentLinkedQueue<String>();
 
+    /* rts: why the login the player just performed did not become a session. It cannot be said with
+     * say(): that delivers to the anchor, and the anchor at that moment is the login screen, whose
+     * widget tree answers no notice. So it is left here for the screen the player is about to be handed
+     * back -- Bootstrap.run shows it as it builds the next LoginScreen -- and taken exactly once, because
+     * a reason left lying about is one shown over the login after it. */
+    private static volatile String denial = null;
+
+    /**
+     * rts: the reason the last login was refused, taken and cleared, or null. Read by {@code Bootstrap.run}
+     * as it puts the login screen back up, which is the one place the player is looking when it matters.
+     */
+    public static String takedenial() {
+	String d = denial;
+	denial = null;
+	return(d);
+    }
+
     /* Queued, and drained on the UI thread by tick(), rather than said where it is thought. say() is
      * called from session threads, from the console and from the tick itself, and delivering it means
      * taking the ANCHOR's monitor -- which a member's Loader thread may one day do while holding its
@@ -472,7 +489,9 @@ public class Sessions {
 	 * and the last SessionDestroyed is what says the screen emptied. */
 	if(m != null)
 	    io.brodgar.addon.AddonManager.sessionSelected(m.user);
-	say("anchor: %s", (m == null) ? "the login screen" : m.user);
+	/* rts: the switch says nothing on screen. Which character has it is visible in the character, and
+	 * SessionSelected above is how a layer that cares is told -- a line per switch is noise in a client
+	 * whose whole point is that you switch often. */
     }
 
     /**
@@ -668,6 +687,14 @@ public class Sessions {
     private static List<Placed> buildplaced() {
 	List<Placed> ret = new ArrayList<Placed>();
 	UI an = anchor();
+	/* NOTHING IS PLACED WHILE THE LOGIN SCREEN HOLDS THE SCREEN, members or no members. Every row here
+	 * is located against the anchor's frame, and the login screen has no frame to locate anything in --
+	 * a member's cached offset still names the session that held the screen a moment ago, which is a
+	 * number about nobody now. It became reachable with sessions live when the login screen became a
+	 * place to go to (Control.take with a null); before that it only meant the last session had gone,
+	 * and the list was empty because the membership was. */
+	if((an == null) || (an == loginui()))
+	    return(ret);
 	for(Member m : members) {
 	    UI u = m.ui;
 	    GameUI gui = m.gameui();
@@ -935,12 +962,30 @@ public class Sessions {
      * thread, {@code take} ends in {@link #anchorsess()}, and a {@link #placed()} read off the frame's
      * own thread is exactly what {@link #placedRebuiltOffTick()} counts. There is nothing to select
      * either — the session has not reached the world yet, so there is no character to name.
+     *
+     * <p><b>One session per account</b>, the rule {@link #add} has always held, now held on this door too:
+     * the login screen is somewhere the player can go with sessions running ({@link Control#take} with a
+     * null, which {@code hafen.session():current(nil)} spells), so logging the same account in twice is a
+     * thing they can now do by typing a name they already have live. Two members of one account name is a
+     * state nothing above here can express — the account <em>is</em> the address, so they share a row in the
+     * switcher and a {@code Session} object in every addon, and the server ends one of the two connections
+     * a moment later anyway. Refused before anything is built, and the runner chain the throw unwinds into
+     * puts the player back on the login screen, which is where a login that did not take is retried.
      */
     public static Member adopt(RemoteUI fun) {
 	UILoop lp = loop;
 	if(lp == null)
 	    throw(new IllegalStateException("session: no UI loop yet"));
 	Session sess = fun.sess;
+	for(Member om : members) {
+	    if(om.user.equals(sess.user.name)) {
+		/* Closed here rather than left to the caller: this session is ours the moment we refuse it,
+		 * and a connection nobody holds is one the server keeps open. */
+		sess.close();
+		denial = sess.user.name + " is already logged in";
+		throw(new IllegalStateException("already a live session: " + sess.user.name));
+	    }
+	}
 	Member m = new Member(sess.user.name, null, sess);
 	/* Registered BEFORE the UI exists, for the reason add() gives: UI's constructor runs
 	 * RemoteUI.init, which asks ismember(sess), and the server's first widgets can arrive at once. */
@@ -1204,8 +1249,11 @@ public class Sessions {
 	    offgc = d;
 	    Coord t = d.mul(MCache.cmaps);
 	    offset = Coord2d.of(t.x * MCache.tilesz.x, t.y * MCache.tilesz.y);
-	    say("%s: anchored on %d shared grid%s, offset %s tiles%s", user, n[0], (n[0] == 1) ? "" : "s", t,
-		conflict[0] ? " -- GRIDS DISAGREE, offset is not trustworthy" : "");
+	    /* rts: anchoring itself is silent -- it happens whenever two characters come within sight of one
+	     * another, and saying so is a line per meeting. Only the state that is WRONG is worth a line: with
+	     * the grids disagreeing the offset is a guess, and every order sent through it lands somewhere else. */
+	    if(conflict[0])
+		say("%s: shared grids disagree -- the offset is not trustworthy", user);
 	}
 
 	/** The member's frame relative to the anchor's, in world units, or null while it is unknown. */

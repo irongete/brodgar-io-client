@@ -85,6 +85,34 @@ final class LuaMouse {
                 return LuaValue.valueOf((mods() & UI.MOD_META) != 0);   // MOD_META = Alt in this client (UI.setmods)
             }
         });
+        // cursor() / cursor(name) / cursor(nil) — the pointer's PICTURE. Arity is the verb, and the explicit
+        // nil has a meaning here rather than raising: putting a forced cursor back is the other half of
+        // forcing one, and it is the half a mode that ends has to be able to say.
+        //   There is ONE pointer, so there is one override and the last writer holds it. A read answers what
+        // YOU forced -- nil while you are forcing nothing, whoever else may be -- because the only thing a
+        // caller can act on is its own.
+        //   Unprotected: the picture on the pointer is drawing, and changes nothing the server or another
+        // addon owns. Your own teardown drops it, so a mode left open by a :reload does not strand it.
+        m.set("cursor", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(!Args.passed(a, 2)) {
+                    String nm = UiApi.cursorOf(owner);
+                    return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
+                }
+                LuaValue v = a.arg(2);
+                if(v.isnil()) {
+                    UiApi.setCursor(owner, null);
+                    return a.arg1();
+                }
+                if(!v.isstring())
+                    throw new LuaError("mouse():cursor(name): name must be a cursor name — one of the"
+                        + " client's own under gfx/hud/curs (\"arw\", \"hand\", \"flag\", \"wrench\"), or a"
+                        + " resource path with a slash in it. mouse():cursor(nil) puts the pointer back."
+                        + " Got " + v.typename());
+                UiApi.setCursor(owner, v.tojstring());
+                return a.arg1();
+            }
+        });
         // grab() — take the pointer (spec §2.2). Bare: R4 of design/25 cuts the old {move=,up=} config table,
         // since a grab constructs something with a lifetime and no opts table survives on one of those.
         m.set("grab", new VarArgFunction() {

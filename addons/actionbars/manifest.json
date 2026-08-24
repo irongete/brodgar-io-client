@@ -1,0 +1,11 @@
+{
+  "id": "actionbars",
+  "name": "Actionbars",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Replaces the client's action bar with as many as the game has slots for: one bar per page of the server's 144, twelve buttons each, flat or upright, drag-and-drop from the action menu and a hotkey per slot.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["actionbar.use", "actionbar.res", "actionbar.clear"],
+  "saved_variables": [{ "name": "bars", "scope": "account" }]
+}

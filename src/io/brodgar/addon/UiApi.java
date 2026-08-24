@@ -5,8 +5,10 @@ import haven.Coord;
 import haven.GameUI;
 import haven.Gob;
 import haven.GOut;
+import haven.Indir;
 import haven.Label;
 import haven.Loading;
+import haven.Resource;
 import haven.Text;
 import haven.TextEntry;
 import haven.UI;
@@ -2256,6 +2258,76 @@ final class UiApi {
         if((g != null) && (wdg == g.maininv) && (nativeWin != g.maininv.parent))
             log(owner, "widget:replace(view): internal — the hidden window is not the main inventory's own"
                 + " wrapper, so the client's Tab toggle will not follow this replacement");
+    }
+
+    // ============================================ the forced cursor (hafen.ui():mouse():cursor)
+
+    /* The cursor an addon has forced over the whole client, and who forced it. ONE override, not one per
+     * addon: there is one pointer, so two addons wanting two pictures on it is a conflict rather than a
+     * composition, and the last writer holding it plainly is better than a stack nobody can see the top of.
+     * Volatile: written from Lua on the UI thread, read by UI.getcurs on it too, but through a different
+     * call chain -- and cleared from teardown, which is not always the same thread. */
+    private static volatile Addon cursOwner = null;
+    private static volatile String cursName = null;
+    private static volatile Indir<Resource> cursRes = null;
+
+    /**
+     * The cursor an addon has forced, or {@code null} for "nobody has": the answer {@link UI#getcurs} takes
+     * ahead of every widget's own. A resource still loading answers null — the pointer keeps the picture it
+     * has for that frame rather than blinking to the default and back — and one that cannot load at all drops
+     * the override and says so, because a cursor stuck on a name that resolves to nothing is invisible.
+     */
+    public static Object forcedCursor() {
+        Indir<Resource> ind = cursRes;
+        if(ind == null)
+            return null;
+        try {
+            return ind.get();
+        } catch(Loading l) {
+            return null;
+        } catch(RuntimeException e) {
+            Addon a = cursOwner;
+            String nm = cursName;
+            clearCursor();
+            if(a != null)
+                log(a, "mouse:cursor(\"" + nm + "\"): no such cursor resource — the pointer is back to normal");
+            return null;
+        }
+    }
+
+    /** Drop the override, whoever set it. */
+    private static void clearCursor() {
+        cursOwner = null;
+        cursName = null;
+        cursRes = null;
+    }
+
+    /** The name currently forced by {@code owner}, or null — a read answers only your own. */
+    static String cursorOf(Addon owner) {
+        return (cursOwner == owner) ? cursName : null;
+    }
+
+    /**
+     * {@code m:cursor(name)} — force the pointer's picture, or {@code m:cursor(nil)} to put it back. A short
+     * name is one of the client's own under {@code gfx/hud/curs/}; anything with a slash in it is a resource
+     * path taken as written.
+     */
+    static void setCursor(Addon owner, String name) {
+        if(name == null) {
+            if(cursOwner == owner)     // your own only: dropping somebody else's is not yours to do
+                clearCursor();
+            return;
+        }
+        String res = (name.indexOf('/') >= 0) ? name : ("gfx/hud/curs/" + name);
+        cursOwner = owner;
+        cursName = name;
+        cursRes = Resource.local().load(res);
+    }
+
+    /** Teardown: an addon that has stopped running does not go on holding the pointer. */
+    static void teardownCursor(Addon a) {
+        if(cursOwner == a)
+            clearCursor();
     }
 
     /** Any addon currently has a HUD overlay? (Decides whether to queue the per-frame afterdraw.) */

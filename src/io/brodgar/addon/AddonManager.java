@@ -1668,6 +1668,22 @@ public final class AddonManager {
      * <p><b>Threading.</b> The click hit-test's own thread, under {@link ClickToken}'s monitor. It raises no Lua
      * and allocates one {@link Coord}.
      */
+    /* addon: (105) the gob the click CURRENTLY being dispatched landed on, or -1 for ground. Set by
+     * MapView.clickhit around its own wdgmsg and cleared in a finally, so it is live for exactly the window
+     * in which an action handler can be running, and reads -1 for every other message. UI thread only, and
+     * volatile because reading it is the only thing Lua does with it. */
+    private static volatile long clickGobId = -1;
+
+    /** addon: (105) hold the gob a click resolved to for the length of its dispatch; -1 clears it. */
+    public static void clickgob(long id) {
+        clickGobId = id;
+    }
+
+    /** addon: (105) what {@code ev:gob()} answers — see {@link #clickgob}. */
+    static long clickGobId() {
+        return clickGobId;
+    }
+
     public static void noteClick(Gob g, Coord lcc) {
         ClickToken.note((g == null) ? -1 : g.id, lcc);
     }
@@ -2505,6 +2521,15 @@ public final class AddonManager {
      * a tooltip, a cursor or a hover state resolved on a widget in the world, through the very corner map its
      * clicks already come through. Never throws into the frame loop.
      */
+    /**
+     * addon: (105) the cursor an addon has forced with {@code hafen.ui():mouse():cursor(name)}, or
+     * {@code null} when none is — the seam {@link haven.UI#getcurs} reads ahead of every widget's own.
+     * Public because the engine calls it; the state and the rules are {@link UiApi#forcedCursor}'s.
+     */
+    public static Object forcedCursor() {
+        return UiApi.forcedCursor();
+    }
+
     public static boolean surfaceQuery(Widget.PointerEvent ev, Coord c) {
         try {
             return SurfaceInput.query(ev, c);

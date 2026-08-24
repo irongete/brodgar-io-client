@@ -164,6 +164,13 @@ public class Bootstrap implements UI.Receiver, UI.Runner {
     public UI.Runner run(UI ui) throws InterruptedException {
 	ui.setreceiver(this);
 	ui.newwidgetp(1, ($1, $2) -> new LoginScreen(confname), 0, new Object[] {Coord.z});
+	/* rts: why the LAST login did not take, if it did not. Client.Main hands a login it performed to
+	 * Sessions.adopt, which can refuse it -- an account already live -- and the runner chain then puts
+	 * this screen back up. The reason belongs on it, where the player is looking, rather than in a log:
+	 * the retry below shows every other failed login the same way. */
+	String denial = io.brodgar.session.Sessions.takedenial();
+	if(denial != null)
+	    ui.uimsg(1, "error", denial);
 	String loginname = null;
 	boolean savepw = false;
 	NamedSocketAddress defserv = new NamedSocketAddress(server.host, gameport.get());

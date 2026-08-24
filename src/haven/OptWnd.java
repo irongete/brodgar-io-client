@@ -53,22 +53,38 @@ public class OptWnd extends Window {
     public class PButton extends Button {
 	public final Supplier<Panel> tgt;
 	public final int key;
+	/* addon: rebuild the panel on every press instead of keeping the first one for the rest of the login.
+	 * The keybind panel needs it and nothing else does: its sections are built from the bindings that exist
+	 * AT THAT MOMENT (`AddonManager.describeKeyBinds`), so an addon that declares a hotkey later — which is
+	 * what any addon with a variable number of things to bind does — was invisible in a panel built before
+	 * it spoke. Built once, the panel was a snapshot of the first press. */
+	private final boolean fresh;
 	private Panel actual = null;
 
 	public PButton(int w, String title, int key, Supplier<Panel> tgt) {
+	    this(w, title, key, tgt, false);
+	}
+
+	public PButton(int w, String title, int key, Supplier<Panel> tgt, boolean fresh) {
 	    super(w, title, false);
 	    this.tgt = tgt;
 	    this.key = key;
+	    this.fresh = fresh;
 	}
 
 	public PButton(int w, String title, int key, Panel tgt) {
 	    super(w, title, false);
 	    this.tgt = null;
 	    this.key = key;
+	    this.fresh = false;
 	    this.actual = tgt;
 	}
 
 	public void click() {
+	    if(fresh && (actual != null)) {   // addon: the stale snapshot goes before the new one is built
+		actual.destroy();
+		actual = null;
+	    }
 	    if(actual == null)
 		actual = OptWnd.this.add(tgt.get(), Coord.z);
 	    chpanel(actual);
@@ -690,11 +706,6 @@ public class OptWnd extends Window {
 	    y = addbtn(cont, "Zoom in", MapView.kb_camin, y);
 	    y = addbtn(cont, "Zoom out", MapView.kb_camout, y);
 	    y = addbtn(cont, "Reset", MapView.kb_camreset, y);
-	    // addon: the keys the multi-session (RTS) mode owns. Both ship unbound, so this panel is the only
-	    // way to reach them -- it lists bindings by hand, and an id with no addbtn line is invisible.
-	    y = cont.adda(new Label("Multi session"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
-	    y = addbtn(cont, "Next character", MapView.kb_rtsnext, y);
-	    y = addbtn(cont, "Focus selection", MapView.kb_rtsfocus, y);
 	    y = cont.adda(new Label("Map window"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
 	    y = addbtn(cont, "Reset view", MapWnd.kb_home, y);
 	    y = addbtn(cont, "Place marker", MapWnd.kb_mark, y);
@@ -705,6 +716,13 @@ public class OptWnd extends Window {
 	    y = addbtn(cont, "Decrease speed", Speedget.kb_speeddn, y);
 	    for(int i = 0; i < 4; i++)
 		y = addbtn(cont, String.format("Set speed %d", i + 1), Speedget.kb_speeds[i], y);
+	    // addon: the action bar's own keys. They were raw key codes inside the two belt widgets' globtype
+	    // overrides, so they were in no panel and could not be moved off the row they claimed.
+	    y = cont.adda(new Label("Action bar"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
+	    for(int i = 0; i < GameUI.kb_belt.length; i++)
+		y = addbtn(cont, String.format("Button %d", i + 1), GameUI.kb_belt[i], y);
+	    for(int i = 0; i < GameUI.kb_beltpg.length; i++)
+		y = addbtn(cont, String.format("Go to page %d", i + 1), GameUI.kb_beltpg[i], y);
 	    y = cont.adda(new Label("Combat actions"), cont.sz.x / 2, y + UI.scale(10), 0.5, 0.0).pos("bl").adds(0, 5).y;
 	    for(int i = 0; i < Fightsess.kb_acts.length; i++)
 		y = addbtn(cont, String.format("Combat action %d", i + 1), Fightsess.kb_acts[i], y);
@@ -975,7 +993,8 @@ public class OptWnd extends Window {
 	y = main.add(new PButton(UI.scale(200), "Interface settings", 'v', () -> new InterfacePanel(main)), 0, y).pos("bl").adds(0, 5).y;
 	y = main.add(new PButton(UI.scale(200), "Video settings", 'v', () -> new VideoPanel(ui, main)), 0, y).pos("bl").adds(0, 5).y;
 	y = main.add(new PButton(UI.scale(200), "Audio settings", 'a', () -> new AudioPanel(ui, main)), 0, y).pos("bl").adds(0, 5).y;
-	y = main.add(new PButton(UI.scale(200), "Keybindings", 'k', () -> new BindingPanel(main)), 0, y).pos("bl").adds(0, 5).y;
+	// addon: `true` — rebuilt on every press, so a hotkey an addon declared since the last one is listed.
+	y = main.add(new PButton(UI.scale(200), "Keybindings", 'k', () -> new BindingPanel(main), true), 0, y).pos("bl").adds(0, 5).y;
 	y = main.add(new PButton(UI.scale(200), "Camera", 'm', () -> new CameraPanel(main)), 0, y).pos("bl").adds(0, 5).y;
 	// Extra gap so the Voice Chat Integration panel sits visually separated a bit below the core settings.
 	y += UI.scale(20);

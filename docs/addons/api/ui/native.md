@@ -258,6 +258,13 @@ its place was on screen. Hide something and put nothing there, and it stays hidd
 was not seeing it, and the toggle you get back (below) is what opens it again. A relog correctly skips the
 restore entirely. `w:visible(true)` gives it back yourself and drops the record.
 
+> **A widget with no toggle has no way back, so give it back yourself.** That rule reads "the toggle opens
+> it again", and [the toggle](#hiding-a-native-window-takes-its-toggle) is only there for the windows the
+> client itself can open. Hide anything else — the action bar, a HUD panel, the chat — and teardown leaves
+> it hidden with nothing in the interface to bring it back. Put it back from
+> [`Disable`](../event/bus.md#lifecycle), which fires **before** the teardown: keep the handles you hid and
+> `w:visible(true)` each one.
+
 **One widget, one owner.** A native widget another addon has already hidden is not yours to hide:
 `w:visible(false)` refuses with an error naming the addon that holds it. Its toggle can only drive one
 thing, so two owners would leave the menu tick lying about both. [`replace`](replace.md) meets the same

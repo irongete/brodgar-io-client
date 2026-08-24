@@ -24,6 +24,7 @@
 | **MouseMove** | `MouseMoveEvent.propagation` — **broadcasts to every visible child with NO rect test**, handing each an out-of-box coordinate. That is how a control un-arms/un-hovers when the pointer leaves it (`IButton.mousemove` recomputes `checkhit` and `redraw()`s) |
 | **MouseHover** | `MouseHoverEvent.propagation` — dispatches to **every** child (invisible included) carrying a per-child `hovering` flag; the first that handles it while `hovering` claims it. ⚠️ its `derive` ctor leaves `hovering` **false**, so anything dispatching a derived hover by hand must set it |
 | **Focused key** | see below |
+| **Global key** | `GlobKeyEvent.propagation` — `lchild→prev`, **no rect test and no `visible()` test**, and the first `globtype` that answers `true` stops the walk. A widget's own `globtype` runs **before** its children's, because `Event.dispatch` is `handle` (→ `shandle` → `globtype`) and only then `propagate`. So an invisible widget still eats its key, and hiding one does not free it |
 | **Notice** (not an input event, same machinery) | `UI.NoticeEvent.propagation` — `from.child` **forward**, no rect test and no visibility test, first handler wins. Reached from `UI.msg(Notice)`, which is `dispatch(root, new NoticeEvent(msg))`; `shandle` tries `msg.handle(w)` and then `w instanceof UI.Notice.Handler` |
 
 **A notice off the HUD is shown but never logged, which is not the same as lost.** `UI.root` is a
@@ -48,6 +49,30 @@ A `Deco` is `z(-100)` and the content sits above it, so the topmost-first `lchil
 press to the **content first**: a press inside a `Window`'s content area never reaches the caption drag
 (`DragDeco.mousedown` → `Window.drag` → `ui.grabmouse`), and a press on the caption never reaches the
 content.
+
+**The action bar's keys are registry bindings (fork).** `GameUI.Belt.globtype` matches `GameUI.kb_belt` and
+`kb_beltpg`, twelve each, shared by both bar widgets and defaulting to the number row. `Belt.keylabel`
+prints whichever key is bound rather than a baked-in digit, so the corner of a button cannot disagree with
+the key that fires it.
+
+**It does not test `visible()`, and that is a decision rather than an omission** — for the page keys as
+much as the button keys. The walk above visits invisible widgets, so gating on visibility is one line and
+reads as obviously right: a bar you cannot see stops eating two rows of keys, and a page nobody can see is
+invisible state that silently changes what every button key presses.
+
+The argument that settles it is **when the gate can fire at all**. This bar is hidden only because something
+is standing in for it, and a stand-in draws the page — it reads `curbelt` through `s:actionbar():page()`. So
+the one case the gate exists for is the one case where the page *is* on screen, and gating it turns 24
+bindings the keybind panel lists into bindings that do nothing, with nothing in the panel to say so. With
+nothing standing in, the bar is visible and the gate never fires. A binding that is listed does what it
+says; the way to have a row back is to unbind it.
+
+Upstream this was two hardcoded rows and no bindings at all: `NKeyBelt.globtype` claimed `VK_0..VK_9` and
+`FKeyBelt.globtype` `VK_F1..VK_F12`, each branching on `ev.code` alone and reading `ev.mods` only for the
+Alt bit that turns the page — so `Ctrl+3` did not merely fail to reach anything below, it **fired button 3
+and stopped**. Neither row was in the registry, so no panel listed it and nothing could be bound over it
+(see [services.md](services.md) on the keybind panel). Matching is exact now, and every one of the 24 keys
+is in Options ▸ Keybindings ▸ Action bar.
 
 ## Focus — bookkeeping, and the delivery chain that is NOT the same thing
 

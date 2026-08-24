@@ -105,8 +105,8 @@ game.
 
 **Available**: `string`, `table`, `math`, the clock half of `os` (`time`, `clock`, `date`, `difftime`), and
 the safe base functions — `pairs`, `ipairs`, `next`, `select`, `type`, `tostring`, `tonumber`, `pcall`,
-`xpcall`, `error`, `assert`, `unpack` and their neighbours. Plus the global `hafen` table, which is the
-whole of what reaches the client.
+`xpcall`, `error`, `assert` and their neighbours. LuaJ is 5.2, so `unpack` is `table.unpack` and there is
+no base-level alias for it. Plus the global `hafen` table, which is the whole of what reaches the client.
 
 **Absent**: `io`, the process and filesystem half of `os` (`execute`, `exit`, `getenv`, `remove`, `rename`,
 `tmpname`, `setlocale`), `require`, `package`, `load`, `loadfile`, `dofile`, `loadstring`, `debug`,
