@@ -274,6 +274,22 @@ public final class LuaBinding {
                 return LuaValue.valueOf((b != null) && b.set());
             }
         });
+        // down() — is the key this binding fires on held RIGHT NOW? The one read here that is not about the
+        // registry: everything else on this object is configuration, and this is the keyboard. It exists
+        // because a hotkey is an EDGE and some things a key is used for need the LEVEL -- walking on a held
+        // key, a push-to-talk -- and the desktop's key repeat cannot stand in for it: every desktop repeats
+        // only the key pressed LAST, so two keys at once are invisible to it and the first of them never
+        // repeats again. A bare adjective, because arity is the verb and there is nothing here to set: the
+        // keyboard is the user's. See KeyHeld for what is stored and why an alt-tab lets go of it.
+        //   Unbound reads false, and so does a binding nothing has declared -- neither can fire, so neither
+        // can be held. It answers for the key rather than for the handler, so it is true while a text field
+        // has the focus and the hotkey itself is not firing: the question is which keys are down.
+        m.set("down", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                KeyBinding b = handle(self, "down").binding();
+                return LuaValue.valueOf((b != null) && KeyHeld.matches(b.key()));
+            }
+        });
         // exists() — has anything declared this id yet? The registry fills in as the client's classes load
         // and as addons declare their hotkeys, so an id can be addressed before it is there.
         m.set("exists", new OneArgFunction() {
@@ -293,6 +309,7 @@ public final class LuaBinding {
                 t.set("key", keyName(b.key()));
                 t.set("default", keyName(b.defkey));
                 t.set("assigned", LuaValue.valueOf(b.set()));
+                t.set("down", LuaValue.valueOf(KeyHeld.matches(b.key())));
                 return t;
             }
         });

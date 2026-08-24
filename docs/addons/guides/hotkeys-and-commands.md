@@ -38,10 +38,16 @@ unbound by the user — and `b:key(nil)` is the one that puts it back on the def
 saving and restoring a key safe. The [reference](../api/client/keybindings.md) has the rest of the object,
 the collection verbs and the key-string grammar.
 
+`b:down()` is the other half of a key, and it is a **read**: whether that key is held right now. `on` gives
+you the moment it goes down and has no counterpart for it coming up, so anything a key is *held* for — moving
+on it, a push-to-talk, two keys at once — polls `down()` on a timer instead of counting hotkey fires. The
+[reference](../api/client/keybindings.md#down-the-key-not-the-hotkey) says why the desktop's key repeat
+cannot stand in for it.
+
 > A hotkey runs **after** the client's own bindings, through the same registry. To intercept a mouse event
 > *before* the widget under it sees it, that is [`widget:on(key, fn)`](../api/ui/widget.md#subscribing)
 > and `ev:preventDefault()`, which is a different job with a different cost — keyboard input is not a
-> widget option, so a hotkey is still the only door onto a key.
+> widget option, so a hotkey is still the only door onto a key **event**.
 
 ## A command
 

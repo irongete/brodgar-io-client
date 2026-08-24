@@ -165,6 +165,11 @@ public class Client implements Console.Directory {
 		} else if(ev instanceof Toolkit.KeyDownEvent) {
 		    java.awt.event.KeyEvent awt = AWTCompat.mkawt((Toolkit.KeyEvent)ev);
 		    boolean took;
+		    /* addon: WHICH KEYS ARE DOWN (binding:down()). Both edges of every key pass through
+		     * here and nowhere else, and a hotkey is an edge, so this is the one place the LEVEL
+		     * can be kept. Recorded before the dispatch and for every key, taken or not: a key
+		     * held down is held down whichever tree the press went to. */
+		    io.brodgar.addon.KeyHeld.down(awt);
 		    // addon: (074.1) the layer is offered the FOCUSED key alone -- see UI.keydown(ev, glob)
 		    synchronized(layer) {took = layer.keydown(awt, false);}
 		    if(!took)
@@ -173,6 +178,7 @@ public class Client implements Console.Directory {
 		} else if(ev instanceof Toolkit.KeyUpEvent) {
 		    java.awt.event.KeyEvent awt = AWTCompat.mkawt((Toolkit.KeyEvent)ev);
 		    boolean took;
+		    io.brodgar.addon.KeyHeld.up(awt);          // addon: the other edge of binding:down()
 		    synchronized(layer) {took = layer.keyup(awt);}
 		    if(!took)
 			synchronized(ui) {ui.keyup(awt);}
@@ -219,6 +225,11 @@ public class Client implements Console.Directory {
 	}
 
 	protected void dispatch(UI layer, UI ui) {
+	    /* addon: a key held while the window loses focus has its RELEASE delivered to whatever took
+	     * the focus, so binding:down() would report it down for ever -- and an addon walking a
+	     * character on a held key would walk it away with nothing left to stop it. Alt-tab lets go. */
+	    if(!wnd.focused())
+		io.brodgar.addon.KeyHeld.clear();
 	    cl.queue.dispatch(layer, ui);
 	}
 

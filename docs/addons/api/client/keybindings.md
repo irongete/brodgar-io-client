@@ -75,14 +75,15 @@ back as `addon/<your-addon-id>/<name>`.
 | `key(nil)` | the binding | put it back on the client's own default |
 | `default()` | string \| nil | the key the client gives it, `nil` where that default is unbound |
 | `assigned()` | boolean | whether the current key is the user's choice or the client's default |
+| `down()` | boolean | whether its key is held **right now** |
 | `exists()` | boolean | whether anything has declared this id yet |
-| `info()` | table \| nil | `{id=, key=, default=, assigned=}`, `nil` for an id nothing has declared |
+| `info()` | table \| nil | `{id=, key=, default=, assigned=, down=}`, `nil` for an id nothing has declared |
 
 Writing a key needs the [`client.settings` permission](../../guides/permissions.md), like every other
 setting here, and it persists exactly as the same edit made in Options ▸ Keybindings does — which is why it
 is keyed: `binding:key("Ctrl+I")` on `inv` takes the **client's own** inventory key, and the user has to undo
 that by hand. A write on a binding nothing has declared is an error; a read of one answers `nil`, except
-`id()`, which is what you addressed it by, and the two booleans, which are `false`.
+`id()`, which is what you addressed it by, and the three booleans, which are `false`.
 
 **A binding has three states, and two of them read as no key.** It is on the client's default, or the user
 has assigned a key, or the user has unbound it — and `key()` collapses the first and the last to `nil`, so
@@ -105,6 +106,46 @@ b:key(saved)                              -- restores all three states, the defa
 > not written to at all — it is **shadowed**, reading as `nil` for as long as your key stands and firing
 > again the moment you release the key. Reverting runs no such pass, so putting two bindings back on
 > defaults that share a key leaves both firing.
+
+## `down()`: the key, not the hotkey
+
+`b:down()` is the one read here that is not about the registry. Everything else on a Binding is
+configuration; this is the keyboard.
+
+```lua
+local keys = hafen.client():options():keybindings()
+keys:on("sprint", function() end)                    -- declared, so the user has a row to bind
+
+local sprint = keys:binding():get("sprint")
+hafen.timer():every(0.05, function()
+  if sprint:down() then ... end                      -- every tick it is held, not once when it went down
+end)
+```
+
+**Reach for it when a key means something while it is held** — walking on a key, a push-to-talk, a modifier
+of your own. `on` gives you the **edge**, the moment the key goes down, and there is no counterpart for it
+coming up; `down()` is the **level**.
+
+**The desktop's key repeat is not a substitute, and this is why.** A held key does fire the hotkey again at
+the system's repeat rate, so "fires that keep arriving" looks like a way to spell "still held" — but every
+desktop repeats **only the key pressed last**. Hold `W` and tap `D` and `W` stops repeating and never starts
+again, so two keys at once cannot be seen at all, and the delay before the first repeat is a system setting
+nothing here can read. Ask the keys.
+
+Three things it answers exactly:
+
+- **It answers for the key, not for the handler.** A hotkey does not fire while a text field has the focus;
+  `down()` still reports the key down, because the question is which keys are down. Guard on focus yourself
+  if that matters — starting the poll from the hotkey and stopping it when nothing is held is usually the
+  whole of it.
+- **A binding matches the key as it was pressed.** Taking up or letting go of `Shift` after the key went
+  down neither makes nor breaks the match, so a key held through it goes on reading down.
+- **An unbound binding reads `false`**, and so does one nothing has declared. Neither can fire, so neither
+  can be held.
+
+> **The window losing focus lets go of everything.** A key held through an alt-tab has its release delivered
+> to whatever took the focus, so the client drops the whole set rather than leaving a key stranded down. Come
+> back with the key still physically held and it reads up until you press it again.
 
 ## Key strings
 
