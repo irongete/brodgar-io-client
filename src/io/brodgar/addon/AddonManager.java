@@ -117,7 +117,7 @@ import javax.imageio.ImageIO;
  *
  * <p>All-static facade, mirroring {@code io.brodgar.voice.Voice}. Everything Lua runs on the UI
  * thread (principle P5): the {@link OCache} callback fires on network/loader threads, so it only
- * <em>enqueues</em> deltas that {@link #tick(UI, double)} drains and dispatches on the UI thread.
+ * <em>enqueues</em> deltas that {@link #tick(UI)} drains and dispatches on the UI thread.
  */
 public final class AddonManager {
 
@@ -808,7 +808,7 @@ public final class AddonManager {
      * world", and that is all it does</b> (072.3): capturing the view here is what made the engine's idea of
      * the drawn scene a hand-written copy, and {@link #screenView()} derives it from the session on screen
      * instead. The flag stays because the moment a scene is built is not something the tree can be asked
-     * about afterwards — {@link #tick(UI, double)} turns it into {@code SessionEnteredWorld} once the HUD is up.
+     * about afterwards — {@link #tick(UI)} turns it into {@code SessionEnteredWorld} once the HUD is up.
      *
      * <p><b>It is handed the scene's own {@link Glob}</b> (073.1), because that is what names the session
      * this world came up for. {@code mv.ui} cannot: the seam is the <i>end of the constructor</i>, and a
@@ -942,7 +942,7 @@ public final class AddonManager {
      * however many sessions are up: the clock, {@code Update}, the timers, the CPU budget and a queued
      * {@code :reload}.
      *
-     * <p><b>That second half moved here from {@link #tick(UI, double)}</b> and the move is the feature: a
+     * <p><b>That second half moved here from {@link #tick(UI)}</b> and the move is the feature: a
      * session's step runs once per session, and an addon is the client's now. Left where it was, two sessions
      * would fire two {@code Update}s a frame, run every timer twice and charge each addon's Lua budget twice.
      *
@@ -1147,20 +1147,56 @@ public final class AddonManager {
     private static final Object stepping = new Object();
 
     /**
-     * <b>One session's step</b>, driven by {@link AddonRoot#tick(double)} on the UI thread each frame — every
-     * session's, every frame, and not only the one on screen. Everything is error-isolated so an addon bug
-     * never breaks the frame or another addon.
+     * <b>One session's step</b> — every session's, every frame, and not only the one on screen. Everything is
+     * error-isolated so an addon bug never breaks the frame or another addon.
      *
-     * <p><b>It is told which session it is stepping</b> (073.1): the pump is a widget on one session's root,
-     * so the tree it was reached through is the answer, and what it drains is that session's own queues — its
-     * HUD adapters, its widgets, its world, its store. Its <b>gobs</b> are not among them since 079.4: an
-     * object is the client's and its queue is drained with every other session's, on the layer's tick.
+     * <p><b>NO TREE MONITOR IS HELD HERE</b> (112.4), which is what the drains below are <i>for</i>. It used to
+     * be a widget on that session's root ({@link AddonRoot}), so it ran inside {@link UI#tick()}'s
+     * {@code TickEvent} broadcast — and both drivers hold the tree while they do: {@code UILoop.Frame.tick}'s
+     * {@code synchronized(ui)} for the session on screen, {@code Sessions.tick}'s {@code synchronized(u)} for
+     * every background member. So an {@code s:ui():on(sel, "Removed", fn)} handler began with that tree's
+     * monitor already taken, and building a window or writing another character's widget from it took a second
+     * one under the first — the nesting {@code docs/client/multi-session.md}'s one lock direction forbids and
+     * 112.2 now refuses at the line. Both drivers call this <b>after</b> their own block closes, which also
+     * means a drain reads geometry the frame has already settled.
+     *
+     * <p><b>It is told which session it is stepping</b> (073.1): the driver names the tree, and what it drains
+     * is that session's own queues — its HUD adapters, its widgets, its world, its store. Its <b>gobs</b> are
+     * not among them since 079.4: an object is the client's and its queue is drained with every other
+     * session's, on the layer's tick.
      *
      * <p><b>What is NOT here is what an addon has one of</b> (074.2): {@code Update}, the timers, the Lua
      * budget and the engine clock run on the layer's own pump ({@link #layerTick}), once for the client, so
      * two sessions are two sets of drains and still one addon being stepped.
+     *
+     * <p><b>It raises {@link #stepThread} as the layer's step does</b>, so {@code hafen.client():stepping()}
+     * is one answer for the client rather than one per tree: every seam that reaches Lua with no tree monitor
+     * held answers {@code true}, whichever pump it hangs off. The {@link #stepping} barrier comes with it —
+     * with no tree monitor held here, taking the session's is no longer how {@link #awaitIdle} waits a step
+     * out.
      */
-    static void tick(UI u, double dt) {
+    public static void tick(UI u) {
+        synchronized(stepping) {
+            Thread prev = stepThread;
+            stepThread = Thread.currentThread();
+            try {
+                sessionStep(u);
+            } finally {
+                stepThread = prev;
+            }
+        }
+    }
+
+    /**
+     * {@link #tick(UI)}'s body, inside the barrier.
+     *
+     * <p><b>No delta</b> (112.4). Nothing here has ever read one — the engine clock is the layer's
+     * ({@link #clock}, advanced once a frame however many sessions are up) and the autosave and the
+     * {@code SessionEnteredWorld} gate both measure against it — so the {@code TickEvent}'s {@code dt} was
+     * passed in and dropped. With the {@code TickEvent} gone there is nothing to pass, and computing a
+     * per-tree one off {@link Utils#rtime()} would be a second clock with no reader.
+     */
+    private static void sessionStep(UI u) {
         try {
             if(quiet())
                 return;      // 079.2: ...and so does every session's, for the same reason
@@ -1301,14 +1337,25 @@ public final class AddonManager {
             //    MENU_WAIT seconds it fires anyway, with a log line saying the menu never came, so a session
             //    that has no action menu at all still gets everything else.
             if(st.enterWorldPending) {
-                GameUI hud = gui(st.ui);   // 074.2: THIS session's HUD — every session ticks now, not only the
-                                           //   one on screen, so "the" HUD would be the wrong character's
-                if((hud != null) && (hud.parent != null)) {
+                // 074.2: THIS session's HUD — every session steps, not only the one on screen, so "the" HUD
+                //   would be the wrong character's.
+                // 112.4: the three reads are the tree's — gui() walks child/next, and the two fields are
+                //   written by the Loader thread that placed the HUD and its menu — so they are taken under
+                //   that tree's own monitor and everything below fires outside it. One tree, and the step
+                //   arrives holding none: this is exactly the one monitor the step may take.
+                GameUI hud;
+                boolean up, menu;
+                synchronized(LuaWidget.monitorOf(st.ui)) {
+                    hud = gui(st.ui);
+                    up = (hud != null) && (hud.parent != null);
+                    menu = up && (hud.menu != null);
+                }
+                if(up) {
                     if(st.hudUpSince < 0)
                         st.hudUpSince = clock;
                     boolean late = (clock - st.hudUpSince) >= MENU_WAIT;
-                    if((hud.menu != null) || late) {
-                        if(late && (hud.menu == null))
+                    if(menu || late) {
+                        if(late && !menu)
                             log("SessionEnteredWorld: no action menu after " + MENU_WAIT
                                 + "s — firing without it");
                         st.enterWorldPending = false;
@@ -1467,7 +1514,7 @@ public final class AddonManager {
      * this tap, that read must take the monitor itself or move to the UI-thread drain. Much high-value
      * state (vitals, buffs, FEP, …) lives in widget trees updated by targeted {@code uimsg} (audit B1);
      * this is where the engine learns about it. It must <b>not</b> touch Lua — it only flags the
-     * interested adapter(s) dirty; {@link #tick(UI, double)} drains them and fires the semantic event on the
+     * interested adapter(s) dirty; {@link #tick(UI)} drains them and fires the semantic event on the
      * UI thread (principle P5).
      */
     public static void onUimsg(Widget w, String msg) {
@@ -1650,10 +1697,10 @@ public final class AddonManager {
      * here. Bounded to one step's worth (D-106), the same bound the removal drain keeps and for the same
      * reason: a handler that opens a window whose subtree enters must not spin this step forever.
      *
-     * <p><b>Every tree, not this one</b> — the shape {@link #drainGobEvents} has. A session's own pump
-     * ({@link #tick(UI, double)}) is a widget on that session's root and therefore runs under
-     * {@code synchronized(ui)}, so a drain placed there would hand the handler the very monitor this feature
-     * takes off it.
+     * <p><b>Every tree, not this one</b> — the shape {@link #drainGobEvents} has. A widget entering is one
+     * client's news whichever tree it landed in, and the layer's pump is the one that runs whether or not any
+     * session is up. (A session's own step holds no tree monitor either since 112.4, so either would be legal
+     * now; this one stays because it is the only pump that is always there.)
      *
      * <p><b>Before the removals</b>, so a widget that entered and left inside one frame can never report its
      * {@code Added} after its {@code Removed}. The order is the reason this call sits where it does.
@@ -2620,7 +2667,7 @@ public final class AddonManager {
      *
      * <p><b>Must not touch Lua.</b> {@code remove()} can run on a Loader thread (the server command queue) or
      * the UI thread (a client-side {@code destroy()}) — neither is guaranteed, so this only enqueues; {@link
-     * #tick(UI, double)} drains and dispatches on the UI thread, exactly like the gob and overlay queues
+     * #tick(UI)} drains and dispatches on the UI thread, exactly like the gob and overlay queues
      * beside it in {@link SessionState} (038.3) — and, since 073.1, into the state of the tree the widget
      * was actually in ({@code w.ui}), which on these threads is not the tree on screen.
      */
@@ -2886,7 +2933,7 @@ public final class AddonManager {
      * immediately after {@code belt[slot] = …}, the only place the change happens.
      *
      * <p><b>Must not touch Lua.</b> {@code loader.defer} runs the lambda on a Loader thread, so this only
-     * enqueues; {@link #tick(UI, double)} drains it on the UI thread, exactly like {@link #onWidgetRemoved}.
+     * enqueues; {@link #tick(UI)} drains it on the UI thread, exactly like {@link #onWidgetRemoved}.
      */
     public static void onBeltSet(Widget gui, int slot) {
         SessionState st = queueState((gui == null) ? null : gui.ui);   // 073.1: whose bar the slot is on
@@ -2919,7 +2966,7 @@ public final class AddonManager {
     /**
      * Map marker count changed — the on-disk map DB's {@link haven.MapFile#markerseq} bumped on add/remove/
      * update (UI or processor thread) or segment merge (loader thread). Fire MarkerChanged with the new count
-     * payload. This only enqueues; {@link #tick(UI, double)} drains it on the UI thread, same shape as the other
+     * payload. This only enqueues; {@link #tick(UI)} drains it on the UI thread, same shape as the other
      * marshalled queues (D-106, to avoid deadlock with the map DB's RW lock).
      *
      * <p><b>It is handed the file that bumped</b> (073.4), which is the only thing here that names a session:
@@ -2976,7 +3023,7 @@ public final class AddonManager {
      * — the root is just another resize).
      *
      * <p><b>Must not touch Lua.</b> {@code resize()} is not guaranteed to run on the UI thread (it is reached
-     * from server message application as well as from tick/draw), so this only enqueues; {@link #tick(UI, double)}
+     * from server message application as well as from tick/draw), so this only enqueues; {@link #tick(UI)}
      * drains and dispatches on the UI thread, exactly like {@link #onWidgetRemoved}.
      */
     public static void onWidgetResized(Widget w) {

@@ -248,7 +248,7 @@ final class CharApi {
      * The widget-removal seam's body for the tree adapters (behind {@link AddonManager#onWidgetRemoved}, spec
      * {@code 042-event-driven-reads} M1): offer the just-removed widget to every adapter that has moved its
      * "did a widget disappear" detection off {@code poll()} and onto this seam. Reached from {@link
-     * AddonManager#tick(haven.UI, double)}'s drain of the removal queue, on the UI thread, so firing Lua here is safe.
+     * AddonManager#tick(haven.UI)}'s drain of the removal queue, on the UI thread, so firing Lua here is safe.
      *
      * <p>073.3: it is handed the state whose queue the widget came out of, so a removal is never offered to
      * another session's adapters — {@code w.ui} says the same thing and this says it without a lookup.
@@ -270,7 +270,7 @@ final class CharApi {
      * 042-event-driven-reads} D-178): re-check the one slot whose {@code glob.loader.defer}-red write has
      * now landed — the uimsg tap already re-diffed the whole bar against the OLD value for these two
      * paths, so only {@link ActionbarAdapter} needs to hear this. Reached from {@link
-     * AddonManager#tick(haven.UI, double)}'s drain of the belt-set queue, on the UI thread.
+     * AddonManager#tick(haven.UI)}'s drain of the belt-set queue, on the UI thread.
      *
      * <p>073.3: a slot index names one character's bar, so it is that session's own adapter that re-checks it.
      */

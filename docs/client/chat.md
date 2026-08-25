@@ -40,6 +40,13 @@ The class decides the argument shape of the inbound `"msg"`, the name, and the s
 `GameUI.added`. The other four arrive as server-placed widgets, each optionally carrying an icon resource
 (`Channel.icon(Indir<Resource>)`).
 
+**Every client notice is a `Log` line.** `UI.msg(String)` / `UI.error(String)` wrap the text in a
+`UI.Notice` and dispatch a `UI.NoticeEvent` down the tree; `GameUI` is the `UI.Notice.Handler` that answers
+it, and `GameUI.msg(UI.Notice)` turns the notice into a `Channel.SimpleMessage` (or takes the one a
+`LogMessage` carries) and calls `syslog.append`. So a notice raised anywhere in the client — with no chat
+window open, no server involved and nothing typed — reaches the same `Channel.append` funnel a said line
+does, and anything watching that funnel sees both.
+
 A `MultiChat` mints a colour per speaker in `fromcolor(int)`, walking `nextcol()` and caching in `pc`;
 `PartyChat.uimsg` overrides that with the member's own `Party.Member.col` off `Glob.party`.
 

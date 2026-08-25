@@ -1260,7 +1260,7 @@ final class UiApi {
 
     /**
      * Arm every surface built since the last tick — the "arming tick" of §2.5, called first thing from
-     * {@link AddonManager#tick(haven.UI, double)}. Until this runs, a built widget answers every read and takes every
+     * {@link AddonManager#tick(haven.UI)}. Until this runs, a built widget answers every read and takes every
      * setter, and paints nothing.
      *
      * <p><b>Attached inert, rather than held out of the tree</b> — D-112's answer, one level up. Deferring the
@@ -1495,6 +1495,12 @@ final class UiApi {
      * </ul>
      *
      * <p>Gated so an idle client — or one with no subscription at all — pays two {@code isEmpty()} calls.
+     *
+     * <p><b>The tree is READ under its own monitor and the handler runs outside it</b> (112.4), the shape
+     * {@link #dispatchEntered} took in 112.3. Until the step left {@code synchronized(ui)} both halves were
+     * covered by the caller's monitor; now the reachability test, the subtree walk and the match each take
+     * this one tree's — which is exactly the one monitor a step holding none may take — and the handler is
+     * called with it given up again.
      */
     static void drainSelectorCaptionCheck(SessionState st) {
         if(st.selectorCapChanged.isEmpty())
@@ -1508,31 +1514,46 @@ final class UiApi {
             Widget w = st.selectorCapChanged.poll();
             if(w == null)
                 break;
-            if(w.hasparent(u.root))   // inclusive of the root itself; a window removed before the tick is offered
-                offerSubtree(st, u, w);   //   nothing, because a widget out of the tree matches nothing any more
+            List<Widget> sub = new ArrayList<Widget>();
+            synchronized(LuaWidget.monitorOf(u)) {
+                if(w.hasparent(u.root))   // inclusive of the root itself; a window removed before the step is
+                    collectSubtree(w, sub);   //   offered nothing — out of the tree, it matches nothing any more
+            }
+            for(int i = 0; i < sub.size(); i++)
+                offer(st, u, sub.get(i));
         }
         recheckPending(st, u);
     }
 
     /**
-     * Offer {@code w} and everything below it to every {@code late()} subscription that has not matched it yet —
-     * the caption seam's own re-check (049.3). Inclusive of {@code w} itself, because a one-step
-     * {@code window[title=Cupboard]} is the same event seen at depth zero.
+     * One candidate against every live subscription of its own tree whose refiner could only just have
+     * resolved — <b>matched under the tree's monitor, fired outside it</b> (112.4), the same split
+     * {@link #offerEntered} makes. The re-test is inside with the match, because a handler fired for an
+     * earlier widget of the same subtree may have closed the window a later one sits in.
      */
-    private static void offerSubtree(SessionState st, UI u, Widget w) {
-        offer(st, w, u.widgetid(w));
-        for(Widget c = w.child; c != null; c = c.next)
-            offerSubtree(st, u, c);
-    }
-
-    /** One candidate against every live subscription of its own tree whose refiner could only just have resolved. */
-    private static void offer(SessionState st, Widget wdg, int id) {
-        for(LuaSelectorWatch w : st.selectorWatches) {   // copy-on-write: a handler may subscribe/remove here
-            if(!w.alive || w.matched.containsKey(wdg))
-                continue;
-            if(w.sel.late() && w.sel.matches(wdg))
-                record(w, wdg, id);
+    private static void offer(SessionState st, UI u, Widget wdg) {
+        List<LuaSelectorWatch> fire = null;
+        synchronized(LuaWidget.monitorOf(u)) {
+            if(!wdg.hasparent(u.root))
+                return;
+            int id = u.widgetid(wdg);
+            for(LuaSelectorWatch w : st.selectorWatches) {   // copy-on-write: a handler may subscribe/remove here
+                if(!w.alive || w.matched.containsKey(wdg))
+                    continue;
+                if(w.sel.late() && w.sel.matches(wdg)) {
+                    w.matched.put(wdg, Integer.valueOf(id));   // record: both events track, only one fires
+                    if(w.event == LuaSelectorWatch.ADDED) {
+                        if(fire == null)
+                            fire = new ArrayList<LuaSelectorWatch>();
+                        fire.add(w);
+                    }
+                }
+            }
         }
+        if(fire == null)
+            return;
+        for(LuaSelectorWatch w : fire)
+            callLua(w.owner, Addon.C_WIDGET, w.fn, LuaWidget.of(w.owner, wdg));
     }
 
     /**
@@ -1545,13 +1566,17 @@ final class UiApi {
         if(st.selectorPending.isEmpty())
             return;
         for(PendingMatch p : st.selectorPending) {           // copy-on-write: entries drop out as we go
-            if(!matchLive(u, p.wdg, p.id)) {
+            boolean live;
+            synchronized(LuaWidget.monitorOf(u)) {           // 112.4: the read is the tree's; the offer's fire is not
+                live = matchLive(u, p.wdg, p.id);
+            }
+            if(!live) {
                 st.selectorPending.remove(p);                // it died before its caption arrived
                 continue;
             }
             if(--p.ticks <= 0)
                 st.selectorPending.remove(p);
-            offer(st, p.wdg, p.id);
+            offer(st, u, p.wdg);
         }
     }
 

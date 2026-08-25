@@ -169,6 +169,12 @@ public class Sessions {
 			    u.sess.glob.ctick();
 			u.tick();
 		    }
+		    /* addon: (112.4) this member's addon step, OUTSIDE its own monitor and holding no other --
+		     * the same move UILoop.Frame.tick makes for the session on screen, and for the same reason:
+		     * a drain that fires Lua must be free to reach any tree, and a handler holding this one
+		     * could only take a second. The member the anchor holds never reaches here (it is ticked by
+		     * the frame, in full), so no session is stepped twice. */
+		    io.brodgar.addon.AddonManager.tick(u);
 		    m.autoplay(u);
 		    m.tickoffset(anchorglob());
 		} catch(RuntimeException e) {

@@ -1,0 +1,11 @@
+{
+  "name": "112.4 — the session's own step leaves its tree's monitor",
+  "id": "112-one-tree-monitor-at-a-time.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 112.4: a session's drains fire on the step holding no tree monitor, so a Removed handler, an HTTP callback and a MessageAdded may each build a window and write that character's tree — and the Removed edge still lands in the frame the destroy did.",
+  "api_version": 1,
+  "permissions": ["http.get"],
+  "network": { "hosts": ["127.0.0.1"] },
+  "files": ["main.lua"]
+}

@@ -30,10 +30,13 @@ The frame profiler is the other half of this namespace: [`hafen.client():profili
 
 ## Where your code is running
 
-`hafen.client():stepping()` answers whether the code you are in is running on the client's **step** — the
-once-a-frame pass that fires [`Update`](../event/bus/lifecycle.md), runs your [timers](../timer.md), and
-hands over the widgets and items the client has queued for it. Reading is unprotected, and it takes no
-argument.
+`hafen.client():stepping()` answers whether the code you are in is running on the **step** — the pass that
+fires [`Update`](../event/bus/lifecycle.md), runs your [timers](../timer.md), and hands over everything the
+client has queued for it: a widget that [appeared or went](../ui/selectors.md), an
+[item](../ui/items.md) whose contents changed, an [HTTP](../http.md) reply, a
+[line of chat](../event/bus/chat.md). The client makes one a frame, and each character one of its own, so a
+handler woken by one of them is on the step whichever character it was about. Reading is unprotected, and
+it takes no argument.
 
 ```lua
 if hafen.client():stepping() then

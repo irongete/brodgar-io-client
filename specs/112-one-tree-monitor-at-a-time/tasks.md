@@ -66,7 +66,7 @@ and each later task removes one.
       `[manual]`: open a container and close it once — the `Removed` edge needs a widget only the server
       takes away.
 
-- [ ] **112.4 — the session's own step leaves its tree's monitor, the way the layer's did.**
+- [x] **112.4 — the session's own step leaves its tree's monitor, the way the layer's did.**
       `AddonRoot.tick` calls `AddonManager.tick(ui, dt)`, and that is a `TickEvent` callback: `UI.tick()`
       broadcasts it, and both drivers hold the tree while they do — `UILoop.Frame.tick`'s `synchronized(ui)`
       for the session on screen, `Sessions.tick`'s `synchronized(u)` for every background member. So

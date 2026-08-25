@@ -194,7 +194,15 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
         }
     }
 
-    /** Called from {@code AddonManager.tick()}, right beside {@code UiApi.armPending()} — see the class doc. */
+    /**
+     * Called from {@code AddonManager.tick()}, right beside {@code UiApi.armPending()} — see the class doc.
+     *
+     * <p><b>Under the popup's own tree monitor</b> (112.4). {@code Widget.raise} takes {@code synchronized(ui)}
+     * itself — it is one of the two tree writes upstream that does — but the {@code parent} read deciding
+     * whether to call it does not, and until the step left {@code synchronized(ui)} the caller's monitor
+     * covered the pair. Taking it once here covers both, and takes it through the check rather than around
+     * it. Nothing here calls Lua, so it is given up again before anything could want a second.
+     */
     static void drainRaises(AddonManager.SessionState st) {
         List<Widget> queue = st.dropdownRaises;
         if(queue.isEmpty())
@@ -205,8 +213,10 @@ final class CDropdown extends SDropBox<LuaRows.Row, Widget> implements Owned.Con
             queue.clear();
         }
         for(Widget w : due) {
-            if(w.parent != null)
-                w.raise();
+            synchronized(LuaWidget.monitor(w)) {
+                if(w.parent != null)
+                    w.raise();
+            }
         }
     }
 }

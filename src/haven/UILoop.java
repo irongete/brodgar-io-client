@@ -654,6 +654,14 @@ public abstract class UILoop implements Console.Directory {
 		if(!ui.root.sz.equals(sz))
 		    ui.root.resize(sz);
 	    }
+	    /* addon: (112.4) THIS SESSION'S ADDON STEP, AND NO TREE MONITOR HELD. It used to be a widget on
+	     * ui.root, so it ran inside the ui.tick() broadcast above with synchronized(ui) already taken --
+	     * and an s:ui():on(sel, "Removed") handler that builds a window, or writes another character's
+	     * widget, takes a second tree's monitor under the first. That is the one nesting the rule above
+	     * forbids, so the step is lifted out of the block exactly as the layer's was. AFTER the block and
+	     * not before it: the drains re-derive anchors and read geometry, and here the frame has settled it.
+	     * Still inside the "utick" phase, which is what it always cost. */
+	    io.brodgar.addon.AddonManager.tick(ui);
 	    /* rts: the background sessions (F0, specs/rts/plan.md). OUTSIDE the anchor's monitor,
 	     * and each member under its own, so no two UI monitors are ever held at once -- the Loader
 	     * threads take exactly one, so there is no cycle to make. No gtick and no resize: a member has

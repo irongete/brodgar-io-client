@@ -16,6 +16,7 @@
 | **Server → widget create** | `UI.NewWidget.run`, `newwidgetp`  — it carries no addon seam: the only one it had recorded a server type string nothing reads |
 | **Server → widget place** ← an addon seam | `UI.AddWidget.run` → `pwdg.addchild(...)` → `onWidgetPlaced(id, wdg)`. ⚠️ This is the **server's message handler**, so it sees only what the server places, and it fires the instant the *parent* takes the child — which for a subtree built before it is hung is before the child is in any tree |
 | **Anything → the tree** ← the universal addon seam | `Widget.add0` → `onWidgetEntered(child)` (last statement, `// addon:`). The one point **every** widget passes, whoever added it — the mirror of `remove()` on the way out |
+| Re-order a sibling | `Widget.raise`, `lower` — `unlink()` + `link()`/`linkfirst()`, and **each takes `synchronized(ui)` itself**, unlike the rest of the tree writes, which lean on the caller's. So they are the two a consumer may call holding nothing |
 | HUD placement switch (per type: inv/equ/chr/craft/…) | `GameUI.addchild` |
 | Window chrome / CPU-buffered base | `Window` · `SIWidget` |
 | 2D drawing context | `GOut` (image/text/rect/line/prect/chcolor) |

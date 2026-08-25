@@ -123,8 +123,10 @@ grep -rn "one lock direction\|two UI monitors\|lock direction" docs/client/
 
 - `src/io/brodgar/addon/AddonManager.java` — 1, 2, 3, 5
 - `src/io/brodgar/addon/AddonWidget.java` — 1, 6
-- `src/io/brodgar/addon/AddonRoot.java` — 3 (a session's pump is a WIDGET, so its step holds that tree)
-- `src/io/brodgar/session/Sessions.java` — 3 (`tick()` steps every background member under its own monitor)
+- `src/io/brodgar/addon/AddonRoot.java` — 3 (the hotkey seam, and nothing else since 112.4 took the step
+  off it: `AddonManager.tick(UI)` is called by the two drivers, outside both their blocks)
+- `src/io/brodgar/session/Sessions.java` — 3 (`tick()` ticks every background member under its own monitor,
+  and calls that member's addon step after the block closes)
 - `src/io/brodgar/addon/CharApi.java` — 4 (the tree adapters the placement seam fires)
 - `src/io/brodgar/addon/Selector.java` — 4 (`matches` walks the tree and must hold its monitor)
 - `src/io/brodgar/addon/OptionsHandle.java` — 3, 8 (`hafen.client()`, where `stepping()` hangs)
