@@ -197,6 +197,14 @@ instruction watchdog still applies, so a stray infinite loop aborts instead of f
 Addons add commands of their own with [`hafen.console`](api/console.md); `lua`, `addons` and `reload` are
 reserved and cannot be taken over.
 
+**An addon can also say a line rather than wait for one.**
+[`s:console():run(line)`](api/console.md#run-a-line-protected) runs any of these, and any command the
+client itself has, at the character you address — the colon opening the line is not part of it, so it is
+`run("reload")`. The console a line runs in belongs to a character rather than to the client, which is why
+`run("lo")` logs out the character it was said at, drawn or not. It needs the `console.run`
+[permission](guides/permissions.md), the widest key in the catalogue, because `:lua` is one of the
+commands it reaches.
+
 ## What a reload keeps, and what it drops
 
 `:reload` rebuilds **the addon layer only**, and it is the one thing that does. Every session you have

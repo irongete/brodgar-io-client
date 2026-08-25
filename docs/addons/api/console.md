@@ -1,11 +1,11 @@
-# hafen.console: commands the user types
+# hafen.console: the console command line
 
-Subscribe to a **console command**, so the user can drive your addon by typing at it. That is the
-client's own word for the thing: `:` opens the console line, and everything typed there — `:lua`,
-`:reload`, `:fs`, yours — is a console command, dispatched by the client's console. If you come from
-WoW this is the `SlashCmdList` pattern: the addon names a command, the engine routes it, and your
-function gets the words that followed. `hafen.console()` is **unprotected** — it adds a way to call your
-own code.
+A **console command** is what the user types at the client's command line: `:` opens it, and everything
+typed there — `:lua`, `:reload`, `:fs`, yours — is a console command the client's console dispatches.
+This namespace is both directions onto it. `hafen.console()` **registers** a command, so the user can
+drive your addon by typing at it; if you come from WoW that is the `SlashCmdList` pattern, and it is
+**unprotected**. [`s:console():run(line)`](#run-a-line-protected) **says** a line, at one character's own
+console, and that half is protected.
 
 ```lua
 local cmd = hafen.console():on("greet", function(args)
@@ -14,6 +14,11 @@ end)
 -- in the console:  :greet Alice
 -- later:           cmd:off()
 ```
+
+**Registering is the client's, saying a line is one character's.** A name is routed once for the whole
+client, so a command you register answers from every character — but the console a line runs *in* belongs
+to the character whose widget tree holds it, which is why the verb that says one takes an address. The
+two halves are described in that order below.
 
 ## Subscribe
 
@@ -75,8 +80,72 @@ local greet = hafen.console():get("greet")
 if greet then greet:off() end
 ```
 
+## Run a line (protected)
+
+### `s:console():run(line)`
+
+Run `line` through **that character's** console, exactly as though the user had typed it there — the same
+dispatcher, the same tree walk, the same command resolution. It hands the section back, so lines chain.
+It needs the `console.run` [permission](../guides/permissions.md).
+
+```lua
+hafen.client():options():keybindings():on("logout", function()
+  for _, s in ipairs(hafen.session():list()) do
+    if s ~= hafen.session():current() then s:console():run("lo") end   -- drop the alts, keep this one
+  end
+end)
+```
+
+`line` is the command and the rest of the line, **without the opening colon**: the colon opens the console
+line and the client never sees it as part of one. `run("reload")`, not `run(":reload")`.
+
+**A line belongs to a character.** `:lo` logs out the character it is run at, `:gl` writes that
+character's graphics settings, and `:act`, `:belt`, `:afk`, `:cam` and `:exportmap` each answer for the
+character whose own window registered them — so `s:console():run("lo")` logs out the character `s` names,
+drawn or not. That is the whole reason the verb hangs on a [session](session.md) rather than on `hafen`:
+there is one command line per login, not one per client.
+
+The client's own splitter is what splits the line, so `args` arrive exactly as they do for a typed
+command: `"quoted words"` group into one, `\` escapes the next character, and `:lua` reads the literal
+text back rather than the split words.
+
+```lua
+hafen.session():current():console():run('lua hafen.session():count()')
+```
+
+**A command that fails is not your error.** `run("zzz")` returns normally and writes `zzz: no such
+command` where the console puts a refusal: that character's **System** log, and its own on-screen notice.
+That is the console's own channel and the one the user reads, so nothing is raised for you to catch and
+nothing appears behind your addon's name. Before that character's HUD is up there is nowhere for the log
+half to go and the line is dropped; the notice half still shows.
+
+> Once the HUD is up, those two are one place: the client logs its on-screen notices to the System channel
+> as well, so **one failed command leaves two identical System lines**. Read the newest, and do not count
+> lines to count failures.
+
+`run("reload")` **queues** the reload rather than performing it — your addon is rebuilt at the next safe
+point, so the call returns and the lines after it still run in the layer that made it.
+
+A line runs **synchronously, on your own thread**, exactly as a typed one does, and a command body may run
+a line of its own. A command that runs *itself* recurses until the instruction watchdog cuts it.
+
+**When it fails.** Each raises, naming what is wrong: a missing or non-string `line`; one that is empty or
+only whitespace; one that opens with `:`, which names the spelling without it; and a session the client
+holds no console for — one that has ended, or one between widget trees. [`s:exists()`](session.md#read)
+is the test for the last.
+
+`hafen.console():run(...)` raises too, naming this verb: registering is the client's and saying a line is
+one character's, so the door an author reaches for first says where the other half lives.
+
+**Why it is protected.** The key is `console.run`, and it is the widest in the
+[catalogue](../guides/permissions.md#the-catalogue): one key covers every command the client dispatches,
+on any of your characters. `:lua` is among them, and `:lua` evaluates against the whole standard library
+outside the sandbox your addon runs in — so an addon granted this can do what your own console can. The
+line the user reads when they enable you says exactly that.
+
 ## See also
 
+- [`hafen.session`](session.md) — the address a line is said at, and the rest of what hangs on one
 - [`hafen.event`](event/README.md) — the `Sub` this hands back, and every other subscription in the API
 - [`hafen.log`](log.md) — printing back to the console the command was typed into
 - [`hafen.client():options():keybindings()`](client/keybindings.md) — a hotkey, the other way a user

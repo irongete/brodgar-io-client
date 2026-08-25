@@ -91,6 +91,16 @@ final class Refusal {
                                      "scrollbar", "dropdown", "menu", "listbox", "table", "grid", "image",
                                      "progress", "separator"})
             uiKept(c, "mints a control of YOURS, in the addon layer" + twoTrees);
+        // 111.1: the console splits by DIRECTION rather than by tree. Registering a command is client-wide
+        // (Console.setscmd is static, so one name answers from every character) and stays here; SAYING a line
+        // is one character's, because UI.cons is a WidgetConsole per UI and `:lo` closes the session whose
+        // tree holds it. Nothing moved — this is the half that never existed on this door, and without the
+        // row an author meets `has no verb 'run'`, which says the call is wrong without saying what is right.
+        MISPLACED.put("hafen.console():run",
+                      "hafen.console() has no verb 'run': a console line belongs to a CHARACTER, so"
+                      + " s:console():run(line) is the verb and the session is the address —"
+                      + " hafen.session():current():console():run(\"lo\") says it at the character on screen."
+                      + " hafen.console() is the commands your addon REGISTERS, which are client-wide.");
     }
 
     /**

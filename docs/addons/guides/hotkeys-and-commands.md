@@ -2,6 +2,7 @@
 
 Two ways for the user to invoke your addon by hand: a key they press, and a command they type. Both are
 unprotected, both are subscriptions named with `:on`, and both are cleaned up when your addon reloads.
+The last section goes the other way — a surface of yours doing what one console word already does.
 
 ## A hotkey
 
@@ -70,6 +71,35 @@ addon.
 Both verbs hand back a `Sub`, the one shape every `:on` in this API gives you: `sub:key()` is the name you
 took and `sub:off()` gives it up. You rarely need either — a reload releases both for you — but a hotkey
 your addon stops offering, or a command it hands over, ends that way.
+
+## A button of your own that runs a command
+
+The client has a command for a great many things, and one of your own surfaces — a button, a hotkey, a
+menu entry — can say one rather than reimplementing it.
+[`s:console():run(line)`](../api/console.md#run-a-line-protected) says a line at one character's console,
+exactly as the user typing it would:
+
+```lua
+local win = hafen.ui():window():title("Alts"):position(80, 120)
+local go = hafen.ui():button():text("Log the others out"):parent(win):position(0, 0):size(160)
+win:pack()
+
+go:on("Pressed", function()
+  for _, s in ipairs(hafen.session():list()) do
+    if s ~= hafen.session():current() then s:console():run("lo") end
+  end
+end)
+```
+
+The line goes **without the opening colon** — the colon opens the command line and is never part of one —
+and it runs in the console of the character you addressed, which is why `lo` above logs out the alts and
+not the character on screen. It needs the `console.run` [permission](permissions.md), the widest key in
+the catalogue: it covers every command the client dispatches, `:lua` included.
+
+It reaches your own commands too, so the addon that registered `:scout` can drive it from a button without
+factoring its body out — the handler `:on` took is the one that runs. A command that **fails** is not your
+error: its message goes to that character's System log and its on-screen notice, which is where the console
+puts one, and the call returns.
 
 ## Which to use
 

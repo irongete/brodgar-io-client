@@ -49,6 +49,7 @@ A Session is the **address**, so the reads that are about one character hang off
 | [`s:flowermenu()`](flowermenu.md) | the radial menu it has open, and the petal to pick |
 | [`s:ui()`](ui/README.md) | the widgets the client put up for it: find one, watch for one, read its backpack |
 | [`s:store()`](store.md) | its own saved variables, in its own folder on disk |
+| [`s:console()`](console.md#run-a-line-protected) | its own console command line, and the verb that says one at it |
 
 ```lua
 for _, s in ipairs(hafen.session():list()) do
@@ -65,11 +66,14 @@ character: *the* world, *the* kin roster and *the* action bar are not things a c
 has. The windows among them — a recipe, an action menu — belong to the character that put them up, so they
 are readable and usable on a session you tabbed away from.
 
-**Two of them are half of a namespace rather than all of it.** [`s:ui()`](ui/README.md) is the client's own
+**Three of them are half of a namespace rather than all of it.** [`s:ui()`](ui/README.md) is the client's own
 widgets, which stand in one character's tree; the windows your addon *builds* stand in a layer above every
 session and stay [`hafen.ui():window()`](ui/custom.md), because your window and the client's window are not
 the same thing. [`s:store()`](store.md) is the saved variables of one character, in that character's own
 folder; an account's are your addon's single file and are reached without an address.
+[`s:console()`](console.md#run-a-line-protected) is the command line one character has, so a line said at it
+runs in that character's own console — while the commands your addon *registers* are routed once for the
+whole client and stay [`hafen.console():on()`](console.md#subscribe).
 
 **A read answers for the session you named, whichever one is drawn.** What does not is what belongs to the
 **screen** — there is one screen however many characters are logged in — and each of those says so where

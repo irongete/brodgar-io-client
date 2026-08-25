@@ -107,5 +107,5 @@ of the tree by the time `ChatUI.cdestroy` sees it.
 
 - [the widget system](widgets.md) — `Widget.add` vs `addchild`, and the destroy seams `cdestroy` sits on
 - [text and fonts](text-and-fonts.md) — `RichText.Foundry`, which every chat line is rendered through
-- [services](services.md) — the console, whose output is re-pointed at the System log by `GameUI.added`
+- [the console](console.md) — whose output is re-pointed at the System log by `GameUI.added`
 - [state roots](state.md) — `Glob.party`, which `PartyChat` colours its speakers from

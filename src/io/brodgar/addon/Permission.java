@@ -43,6 +43,13 @@ import java.util.Map;
  * hears about its manifest even when its arguments were wrong too — which is also what lets a suite prove a
  * grant without acting on the world: reaching the argument refusal IS the grant.
  *
+ * <p><b>The widest key here is {@code console.run}</b>, and it is wide for a reason no other entry is:
+ * the console is the client's own command line, so one key covers every command the client dispatches
+ * rather than one action. {@code :lua} is among them, and {@code :lua} evaluates against the full standard
+ * library <i>outside</i> the addon sandbox — so an addon granted this can do anything the client's own
+ * REPL can. Its line says so in the user's words, which is the whole of what a consent dialog can do about
+ * a key whose reach is the vocabulary of another surface.
+ *
  * <p><b>A key names the ACTION, not the target</b> (077.2). A verb addressed at a character the player is not
  * looking at needs no second key: the definition of protection is <i>an action the player could have
  * performed</i>, and the player could have tabbed to that character and performed it. A grant per session
@@ -97,6 +104,11 @@ public enum Permission {
                                                                               + " a field it types into — which the server sees"),
     CLIENT_SETTINGS  ("client.settings",    "hafen.client():options()",       "change your client settings and"
                                                                               + " hotkeys"),
+    CONSOLE_RUN      ("console.run",        "s:console():run",                "run any of the client's console"
+                                                                              + " commands, on any of your"
+                                                                              + " characters, including ones that"
+                                                                              + " run code outside the addon"
+                                                                              + " sandbox"),
     HTTP_GET         ("http.get",           "hafen.http():get",               "fetch data from the servers it lists"),
     HTTP_POST        ("http.post",          "hafen.http():post",              "send data to the servers it lists");
 

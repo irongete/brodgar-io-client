@@ -1,0 +1,10 @@
+{
+  "name": "111.1 — s:console():run(line)",
+  "id": "111-the-command-and-the-line.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 111.1: a console line is run at one character's own console, the two halves of the section meet, the client's own splitter is what splits it, a failing command answers on the console's own channel, and the five refusals say what to write instead.",
+  "api_version": 1,
+  "permissions": ["console.run"],
+  "files": ["main.lua"]
+}

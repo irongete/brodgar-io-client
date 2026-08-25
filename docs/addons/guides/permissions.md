@@ -43,11 +43,19 @@ key. The third column is what the consent dialog tells the user, word for word.
 | `widget.send` | [`widget:send`](../api/ui/widget.md#send-a-message-protected), [`ev:resend`, `ev:send`](../api/event/streams.md#intercepting-an-outbound-action) | send any message the client itself could send |
 | `widget.value` | [`widget:value`](../api/ui/edit.md#driving-one-protected) | flip the client's own controls — a box it ticks, a field it types into — which the server sees |
 | `client.settings` | [every option write](../api/client/README.md) and [`binding:key(k)`](../api/client/keybindings.md) | change your client settings and hotkeys |
+| `console.run` | [`s:console():run`](../api/console.md#run-a-line-protected) | run any of the client's console commands, on any of your characters, including ones that run code outside the addon sandbox |
 | `http.get` | [`hafen.http():get`](../api/http.md) | fetch data from the servers it lists |
 | `http.post` | [`hafen.http():post`](../api/http.md) | send data to the servers it lists |
 
 That is the whole set. Nothing else in the API is protected, and **no key grants the tier as a whole**: an
 addon that declared `gob.click` can click objects and none of the other things on that list.
+
+**`console.run` is the widest key here**, and it is the one to think twice about granting. Every other key
+names one action; this one names a *surface* — the client's own command line — so it covers every command
+the client dispatches, yours and its own alike. `:lua` is one of them, and `:lua` evaluates against the
+whole standard library outside the sandbox an addon runs in, so an addon holding this key can do what the
+user's own console can. That is what its line says, in the user's words, because it is the only honest
+thing a consent dialog can say about a key whose reach is another surface's vocabulary.
 
 **Three of them do not reach the server at all**, and are keyed because a key gates what a verb *does*.
 `map.marker` deletes a pin the player placed, which took real play to make and which no server can restore.
@@ -91,8 +99,8 @@ A `<prefix>.*` entry stands for every key under that prefix, so one line asks fo
 | `widget.*` | `widget.send`, `widget.value` |
 | `http.*` | `http.get`, `http.post` |
 
-Any key's prefix is a legal group, so `gob.*`, `menugrid.*`, `craft.*`, `speed.*`, `map.*`, `client.*` and
-`session.*` parse too — each a longer way of writing the single key it covers.
+Any key's prefix is a legal group, so `gob.*`, `menugrid.*`, `craft.*`, `speed.*`, `map.*`, `client.*`,
+`console.*`, `chat.*` and `session.*` parse too — each a longer way of writing the single key it covers.
 
 The prefix is matched on **whole dot segments**, so a group can never reach a key that merely starts with the
 same letters — and it does reach a nested one. `player.hand.use` is the only nested key: `player.*` covers it

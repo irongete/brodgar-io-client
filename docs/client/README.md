@@ -35,7 +35,8 @@ lookup instead of a search.
 | [text and fonts](text-and-fonts.md) | `Text.Foundry` and every named surface that bakes one, `RichText`, DPI scaling, custom TTF loading |
 | [UI scaling](ui-scaling.md) | the one factor the whole 2D interface is drawn at: `UI.scalef` and its converters, where the number comes from, art that is scaled at load, and the round-trip that is exact in only one direction |
 | [the chat](chat.md) | `ChatUI` and its channels: where a line arrives, the three argument shapes one message name wears, what selects a tab, and what is never trimmed |
-| [services](services.md) | console, keybindings, `Resource` and code adoption, prefs and Options, audio, combat, buffs, kin, vitals, study, quests, crafting, the action menu, minimap icons |
+| [the console](console.md) | the `:` command line: what registers a command, the three tiers a name resolves in, what a command that throws does, and which thread its body runs on |
+| [services](services.md) | keybindings, `Resource` and code adoption, prefs and Options, audio, combat, buffs, kin, vitals, study, quests, crafting, the action menu, minimap icons |
 
 ## Client-wide gotchas
 

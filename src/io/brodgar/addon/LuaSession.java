@@ -52,7 +52,12 @@ import java.util.Map;
  * that character's own folder and are reached here, while an account's are the addon's one file and stay
  * {@code hafen.store()}. 110.2 adds {@code s:chat()}, the channels one character holds: the chat is a window
  * of one login's HUD, so two characters have two Party channels and two private conversations with the same
- * person, and the line {@code ch:send(text)} says goes out of the login it was addressed at.
+ * person, and the line {@code ch:send(text)} says goes out of the login it was addressed at. 111.1 adds
+ * {@code s:console()}, the third half-namespace and the only one whose two halves are one section's two
+ * DIRECTIONS: {@code hafen.console()} is the commands your addon registers, client-wide because
+ * {@code Console.setscmd} is static, while a line SAID is one character's — {@code UI.cons} is a
+ * {@code WidgetConsole} per {@code UI}, so {@code :lo} closes the session whose tree holds it and
+ * {@code s:console():run("lo")} logs out the character {@code s} names, drawn or not.
  * Each is minted once per {@code (addon, session)} and kept on the handle — see
  * {@link #worldObj}. Every verb under them reads the session named rather than the one on
  * screen; the ones that are inherently the screen's say so where they are defined ({@code screenToWorld},
@@ -101,6 +106,8 @@ public final class LuaSession {
     private LuaValue storeObj;
     /** This character's chat (110.2): the channels it holds, and the one it has on screen. */
     private LuaValue chatObj;
+    /** This character's console line (111.1): the one verb that says a line at THIS login's own console. */
+    private LuaValue consoleObj;
 
     private LuaSession(String user) {
         this.user = user;
@@ -450,6 +457,20 @@ public final class LuaSession {
                 if(h.chatObj == null)
                     h.chatObj = ChatApi.chat(owner, h.user);
                 return h.chatObj;
+            }
+        });
+        // console() — the command line THIS character has. A console line belongs to a character rather than
+        // to the client: UI.cons is a WidgetConsole per UI, `:lo` is setcmd on it with sess.close() for a
+        // body, and its findcmd walks THAT tree before any shared table — so `:act`, `:belt`, `:cam` and
+        // `:exportmap` each answer for the character whose widget registered them. The other half of the
+        // section stays client-wide, because Console.setscmd is static: a command an addon REGISTERS answers
+        // from every character, and that half is hafen.console().
+        m.set("console", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "console");
+                if(h.consoleObj == null)
+                    h.consoleObj = HookApi.console(owner, h.user);
+                return h.consoleObj;
             }
         });
         // close() — END this session: the one protected verb a Session carries ("session.close", D-027/D-028),

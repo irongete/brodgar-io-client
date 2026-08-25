@@ -100,6 +100,12 @@ final class HookApi {
      * {@link Addon#consoleSubs}' own live {@link LuaSub}s — a command is a subscription, so what
      * {@code :list()} hands you is the very value {@code :on} handed you — and its key is the command name,
      * which is what {@code :get(name)} addresses and what a string filter matches.
+     *
+     * <p><b>This half is client-wide, and the other half is not</b> (111.1). {@link Console#setscmd} is
+     * static, so a command registered here answers from every character and there is nothing to re-register
+     * on a switch. SAYING a line is one character's — {@link #console(Addon, String)} — so
+     * {@code run} is absent from this door and reading it throws naming {@code s:console():run(line)}
+     * ({@link Refusal}) rather than the generic <i>has no verb</i>.
      */
     static void install(LuaTable hafen, final Addon owner) {
         LuaTable verbs = new LuaTable();
@@ -156,6 +162,91 @@ final class HookApi {
                 return LuaCollection.Missing.NIL;
             }
         }, verbs), null);
+    }
+
+    /** {@code s:console()} — how the section is reached, and so how every one of its messages spells itself. */
+    private static final String CONS = "s:console()";
+    /** Its one verb, as an author writes it — what {@link Args} and the gate open their refusals with. */
+    private static final String RUN = CONS + ":run";
+
+    /**
+     * Build the <b>per-session</b> console section for {@code (owner, user)} — <b>that character's own
+     * command line</b>, reached as {@code s:console()}. Minted once per {@code (addon, session)} and hung on
+     * the interned Session handle, the shape every other session-addressed section has, so
+     * {@code s:console() == s:console()}.
+     *
+     * <p><b>Why a line is one character's.</b> {@code UI.cons} is a {@code WidgetConsole} per {@link UI}:
+     * {@code :lo} is {@code setcmd} on it and its body is {@code sess.close()}, {@code :gl} writes that tree's
+     * own graphics prefs, and its {@code findcmd} walks <b>that</b> {@code UI}'s widget tree before it ever
+     * reaches {@link Console}'s static table — so which {@code UI} a line runs on decides both which commands
+     * resolve and what they act on. A line is therefore said <i>at</i> a login exactly as {@code channel:send}
+     * is, and this section is the address.
+     *
+     * <p><b>The other half of the section stays client-wide</b> ({@link #install}): {@link Console#setscmd} is
+     * static, so a command an addon registers answers from every character. Registering is
+     * {@code hafen.console():on}; running is here, and reading {@code hafen.console():run} throws naming this
+     * verb ({@link Refusal}) rather than the bare <i>has no verb</i>.
+     *
+     * <p><b>A command that fails is not the caller's error.</b> The body mirrors {@code ConsoleHost.done}
+     * exactly — which is copied rather than called, being an instance method of a widget owning a
+     * {@code ReadLine}, and no line is read here: catch {@code Exception}, take {@code getMessage()} with a
+     * {@code toString()} fallback, and write to <b>both</b> of the console's own exits, {@code cons.out} (that
+     * character's System log once its HUD is up) and {@link UI#error} (its on-screen notice). It catches
+     * {@code Exception} and not {@code Throwable}, which is what leaves {@code :die}'s {@code Error}
+     * propagating exactly as it does from a typed line.
+     *
+     * <p><b>No monitor is taken, deliberately.</b> The console already nests them — a typed line runs inside
+     * the drawn {@code UI}'s monitor and reaches into another session's — and anchor-then-member is the only
+     * direction anything in this tree takes. Synchronising on the target would invent a second one.
+     * {@link Console#run(Console.Host, String)} locks nothing, so a line runs on its caller's thread exactly
+     * as a typed one does.
+     */
+    static LuaValue console(final Addon owner, final String user) {
+        LuaTable m = new LuaTable();
+        // run(line) — run one line through THAT character's console, exactly as though the user had typed it
+        // there. The colon is the console's OPENER and is never part of the line. Returns the section, so
+        // writes chain. The gate is the FIRST statement (D-213), so an addon that declared nothing hears about
+        // its manifest even when its argument was wrong too.
+        m.set("run", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                AddonManager.requirePermission(owner, Permission.CONSOLE_RUN);
+                LuaValue self = a.arg1();
+                Section.self(self, "console", "run", CONS);
+                String line = Args.str(a, 2, RUN, "line",
+                                       "the command as it is typed, without the opening colon").tojstring();
+                String cmd = line.trim();
+                String empty = RUN + ": there is no command in that line — line is the word the console"
+                    + " dispatches and the rest of the line, as in " + RUN + "(\"lo\")";
+                if(cmd.isEmpty())
+                    throw new LuaError(empty);
+                if(cmd.charAt(0) == ':') {
+                    String rest = cmd.substring(1).trim();
+                    if(rest.isEmpty())
+                        throw new LuaError(empty);
+                    throw new LuaError(RUN + ": the colon OPENS the console line and is never part of the"
+                        + " line itself — write " + RUN + "(\"" + rest + "\")");
+                }
+                UI u = AddonManager.sessionui(user);
+                if((u == null) || (u.root == null))
+                    throw new LuaError(RUN + ": the client holds no console for the account '" + user
+                        + "' — s:exists() is the test, and a session between trees (connecting, on the"
+                        + " character list, gone) has no widget tree to run a line in");
+                try {
+                    u.cons.run(u.root, line);
+                } catch(Exception e) {
+                    // ConsoleHost.done, verbatim: the console owns a refusal channel and it is the one the
+                    // user reads. Raising here instead would reprint it behind the CALLER's addon tag, so
+                    // `zzz` would read as the addon's mistake rather than the console's answer.
+                    String msg = e.getMessage();
+                    if(msg == null)
+                        msg = e.toString();
+                    u.cons.out.println(msg);
+                    u.error(msg);
+                }
+                return self;
+            }
+        });
+        return Section.object("console", m, CONS);
     }
 
     // ================================================================= (the target tokens are gone, 048.6)
