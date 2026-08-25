@@ -629,6 +629,11 @@ local function build(s, took)
     ev:preventDefault()
   end)
 
+  -- THE SYSTEM TAB IS A CONSOLE LINE, and which line it is is decided by the channel rather than by
+  -- anything the user switches on. The System log is the one channel with no entry line of its own --
+  -- the client writes it and nobody says anything in it, so `ch:send` refuses a `chat.system` channel --
+  -- and it is also exactly where the console prints its answers. A tab that shows what the console says
+  -- and cannot be asked anything is half a tab, so this one is the other half.
   W.entry = hafen.ui():entry():parent(W.panel):position(PAD, ph - PAD - ENTRY_H)
   W.entry:size(math.max(1, w - (PAD * 2)))
   W.entry:on("Submitted", function(text)
@@ -636,7 +641,19 @@ local function build(s, took)
     if (text == nil) or (text == "") then return end
     local ch = selected(W)
     if not ch then return end
-    local ok, err = pcall(function() ch:send(text) end)
+    local ok, err
+    if ch:kind() == "chat.system" then
+      -- The colon OPENS the console line and is never part of it, which is why `run` refuses a line that
+      -- begins with one. Here it is a HABIT, not a second spelling: someone who types `:reload` out of
+      -- years of typing it means `reload`, so one leading colon is dropped on the way through and a line
+      -- that was nothing but a colon is not a command at all. The line goes to THIS window's character --
+      -- a console line belongs to a login, exactly as the channels above it do.
+      local line = text:gsub("^%s*:?%s*", "")
+      if line == "" then return end
+      ok, err = pcall(function() W.s:console():run(line) end)
+    else
+      ok, err = pcall(function() ch:send(text) end)
+    end
     if not ok then hafen.log():write(err) end
     W.scroll = 0
   end)

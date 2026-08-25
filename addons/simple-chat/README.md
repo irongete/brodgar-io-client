@@ -14,6 +14,7 @@ want it.
 | drag the **bottom-right corner**, where the frame is scored | resizes it |
 | turn the wheel over the lines | scrolls back through them |
 | type in the line at the bottom and press Enter | says it in the channel on screen |
+| do the same on the **System** tab | runs it as a console command, no colon needed |
 
 Where you put it and how big you made it are remembered, for every character on the account.
 
@@ -59,6 +60,32 @@ is scored into the frame itself, so nothing standing inside the window has to ke
 **It needs the `chat.send` permission**, which the client asks you to grant the first time it sees this
 addon. Without it the addon still shows everything; only the sending is refused, and the refusal is written
 to the log rather than swallowed.
+
+## The System tab is a console line
+
+On the **System** tab that line is not a thing you say — it is a thing you run. Type `reload` and the
+addons reload; type `lua hafen.session():count()` and the answer comes back on the tab you typed it into.
+There is no colon to type: the colon is what *opens* the client's own command line, and here the line is
+already open. Type one anyway and it is quietly dropped, because a habit is not a mistake.
+
+That is not a mode you switch on, and no other tab behaves this way. The System log is the one channel with
+no line of its own — the client writes it, and nobody says anything in it — and it is also exactly where
+the console prints its answers. A tab that shows you what the console said and cannot be asked anything is
+half a tab.
+
+**The line runs at the character whose window it is.** A console command belongs to a login, exactly as the
+channels above it do: `lo` logs out *this* character, `gl` writes *its* graphics settings. Tab to another
+character and its System tab is its own console.
+
+A command that does not exist, or that fails, answers the way it answers in the client's own console: the
+message appears in the System log, in its own words, with nothing about this addon in front of it. **You
+will see it twice** — the client logs its on-screen notices into the System channel as well — which is the
+client's habit rather than this addon's, and it is the same doubling you get from the `:` line.
+
+**It needs the `console.run` permission**, and that one is worth reading before you grant it: it covers
+every command the client dispatches, `:lua` among them, and `:lua` runs outside the sandbox addons are
+held in. Granting it to this addon is granting it a console, which is precisely what the tab is. Without
+it, the tab still shows everything and only the running is refused.
 
 ## The client's chat comes back
 

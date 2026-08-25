@@ -3,9 +3,9 @@
   "name": "Simple Chat",
   "version": "1.0.0",
   "author": "brodgar",
-  "description": "Replaces the client's chat with a window whose channels are tabs across the top, dragged by its body and resized from the bottom-right corner.",
+  "description": "Replaces the client's chat with a window whose channels are tabs across the top, dragged by its body and resized from the bottom-right corner. Its System tab is a console line.",
   "api_version": 1,
   "files": ["main.lua"],
-  "permissions": ["chat.send"],
+  "permissions": ["chat.send", "console.run"],
   "saved_variables": [{ "name": "window", "scope": "account" }]
 }
