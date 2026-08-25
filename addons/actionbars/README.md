@@ -10,6 +10,7 @@ the other eleven pages on screen at the same time, lying flat or standing uprigh
 | press **Actionbars** in the action menu | opens the panel, or closes it |
 | type `:actionbars` | the same, and it works before you are in the world |
 | press `Add actionbar` | adds the next bar there is room for, one row under the lowest one |
+| press `Reset bars position` | puts every bar back in the middle of the screen, one under the next |
 | press a row's `H` / `V` | rotates that bar: flat becomes upright, upright becomes flat |
 | press a row's `X` | removes that bar. What is in its slots stays on the server, untouched |
 | press `Go to page N` | pages Actionbar1, the way it pages the client's own bar |
@@ -68,6 +69,21 @@ is the drag's loss, and one it leaves alone reaches the drag handle underneath, 
 Bars are independent: a long flat bar under the map and two short upright ones down the side is an ordinary
 arrangement. Rotating keeps the bar's number, its slots and its keys — it is the same twelve buttons, laid
 out the other way.
+
+## When a bar has gone off the edge
+
+`Reset bars position` in the panel puts **every bar back in the middle of the screen**, one under the next
+in the order of their numbers, and saves them there.
+
+It is there because a bar's place is written in the client's own design pixels, and the screen measured in
+those shrinks when you raise the **Interface scale**: the art is drawn larger, so fewer of them fit across
+the window. Everything that was near an edge can end up past it — and a bar past the edge cannot be dragged
+back, since the whole bar is its own handle and none of it is on screen. A smaller window does the same
+thing.
+
+The bars are stacked rather than piled in the same spot, so all of them are visible at once and you can drag
+them back where you want them from there. It needs a character in the world: there is no screen to measure
+from the login screen, and the log says so.
 
 ## Where the bars live, and why
 

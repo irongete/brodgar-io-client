@@ -544,7 +544,7 @@ local function rowText(n)
   return ("Actionbar%d  slots %d-%d"):format(n, ((n - 1) * SLOTS) + 1, n * SLOTS)
 end
 
-local panel, prows, addbtn, hint
+local panel, prows, addbtn, resetbtn, hint
 local refreshPanel                          -- forward: the three writers below rebuild the rows
 
 -- NEXT TICK, not here. All three writers below are reached from a press on one of the panel's own buttons,
@@ -598,6 +598,58 @@ local function rotate(n)
   hafen.store():flush()
 end
 
+-- ---------------------------------------------------------------- putting them back on screen
+--
+-- A bar's place is a pair of design pixels, and the screen measured in design pixels SHRINKS when the user
+-- raises the interface scale: the art gets bigger, so fewer of those pixels fit across the window. A bar
+-- parked near an edge is therefore past it after a scale change or a smaller window, and a bar nobody can
+-- see is a bar nobody can drag back -- the whole bar is its own handle, and none of it is on screen.
+--
+-- So this is the way back, and the only thing in the addon that moves a bar the user did not drag.
+
+-- The screen the bars stand on. It is the HUD they hang off rather than the client window, because that is
+-- what their x/y are measured from; any login's will do, since there is one screen however many characters
+-- are logged in.
+local function screenBox()
+  for _, s in ipairs(hafen.session():list()) do
+    if s:exists() then
+      local hud = s:ui():match("@GameUI")
+      local sz = hud and hud:size()
+      if sz and (sz.w > 0) and (sz.h > 0) then return sz.w, sz.h end
+    end
+  end
+  return nil
+end
+
+-- Every bar to the middle, as ONE BLOCK stacked the way `Add actionbar` stacks them -- not each on top of
+-- the last. Bars sharing a spot would hide one another, and the eleven underneath would have to be dragged
+-- off one at a time to reach the twelfth; centred as a block they are all in the middle and all visible,
+-- which is what "I cannot find my bars" is asking for.
+local function resetBars()
+  local sw, sh = screenBox()
+  if not sw then
+    hafen.log():write("Actionbars: no character is in the world -- there is no screen to measure, and no"
+      .. " bar drawn to put back on it")
+    return
+  end
+
+  local total = 0
+  for i, r in ipairs(saved.list) do
+    local _, h = boxOf(r)
+    total = total + h + ((i > 1) and STEP or 0)
+  end
+
+  local y = math.max(0, math.floor((sh - total) / 2))
+  for _, r in ipairs(saved.list) do
+    local bw, bh = boxOf(r)
+    r.x = math.max(0, math.floor((sw - bw) / 2))
+    r.y = y
+    y = y + bh + STEP
+    place(r.n)                              -- every login's copy of that bar, at once
+  end
+  hafen.store():flush()
+end
+
 -- The rows are rebuilt rather than reused: the panel is opened by hand and changes only when the user
 -- presses one of its own buttons, so there is no flicker to design around and one code path fewer.
 refreshPanel = function()
@@ -637,6 +689,9 @@ refreshPanel = function()
   addbtn:position(PAD, y)
   y = y + BTN_H + GAPY
 
+  resetbtn:position(PAD, y)
+  y = y + BTN_H + GAPY
+
   hint:text((#saved.list >= MAXBARS)
     and ("all " .. MAXBARS .. " bars exist: 144 slots is every one")
     or "drag actions onto a bar from the action menu")
@@ -648,7 +703,7 @@ end
 
 local function shutPanel()
   if panel and panel:exists() then panel:destroy() end
-  panel, prows, addbtn, hint = nil, nil, nil, nil
+  panel, prows, addbtn, resetbtn, hint = nil, nil, nil, nil, nil
 end
 
 local function buildPanel()
@@ -661,10 +716,16 @@ local function buildPanel()
   addbtn = hafen.ui():button():parent(panel):position(PAD, PAD):size(ROW_W):text("Add actionbar")
   addbtn:on("Pressed", addBar)
 
+  resetbtn = hafen.ui():button():parent(panel):position(PAD, PAD):size(ROW_W)
+    :text("Reset bars position")
+    :tooltip("put every bar back in the middle of the screen, stacked -- for when one has ended up past an"
+      .. " edge and there is nothing left to drag")
+  resetbtn:on("Pressed", resetBars)
+
   hint = hafen.ui():label():parent(panel):position(PAD, PAD)
 
   panel:on("Close", function()
-    panel, prows, addbtn, hint = nil, nil, nil, nil
+    panel, prows, addbtn, resetbtn, hint = nil, nil, nil, nil, nil
   end)
 
   refreshPanel()
