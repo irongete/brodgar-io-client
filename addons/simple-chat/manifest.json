@@ -1,0 +1,11 @@
+{
+  "id": "simple-chat",
+  "name": "Simple Chat",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Replaces the client's chat with a window whose channels are tabs across the top, dragged by its body and resized from the bottom-right corner.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["chat.send"],
+  "saved_variables": [{ "name": "window", "scope": "account" }]
+}
