@@ -188,26 +188,31 @@ final class UiApi {
     }
 
     // ===== the widget-placement seam (the body behind AddonManager.onWidgetPlaced) =====
-    // ONE consumer since 032.2: the 030.2 selector subscriptions, which see the LIVE widget itself. The
-    // {id,type,place,caption,parentType} descriptor that used to be built here for hafen.ui.replace went with it —
-    // and with it the NewWidget seam that recorded the server type string, since nothing reads it any more.
-    // Second consumer since 042.1 (dispatchPlaced, added in AddonManager.onWidgetPlaced itself); third since
-    // 042.7's dispatchWidgetSubsPlaced above.
+    // The {id,type,place,caption,parentType} descriptor that used to be built here for hafen.ui.replace went
+    // with 032.2, and with it the NewWidget seam that recorded the server type string.
+    // TWO consumers: 036.2's layout rules and 042.7's dispatchWidgetSubsPlaced above. Neither runs Lua, which
+    // is what keeps this seam legal where it sits — inside AddWidget.run's synchronized(ui), on a Loader
+    // thread. The 030.2 selector subscriptions are NOT here any more (112.3): they are the entry seam's, and
+    // the entry seam fires from the step.
     static void onWidgetPlaced(int id, Widget wdg) {
         // 073.2: whose tree the widget entered is the widget's own question — this seam runs inside
         // AddWidget.run on a Loader thread, which is the thread of the session that sent the message and
         // not of the one on screen, so screen() here could offer another session's placement to these lists.
-        SessionState st = state(wdg.ui);
-        if((st != null) && !st.selectorWatches.isEmpty())
-            offerPlaced(st, wdg, id);
+        // 112.3: the selector offer is GONE from here. It was already a no-op — every widget this seam sees
+        // reached its parent through Widget.add and so passed the entry seam a few instructions earlier, where
+        // `matched` recorded it — and with that seam deferred to the step, an offer left here would be the one
+        // that FIRES, on the placing thread, under the monitor this task takes off the handler. The entry
+        // seam's drain is the one door.
         if(Sheet.anyLayout)               // 036.2: a layout rule reaches a window the moment it opens, not a frame
             Layout.placed(wdg, id);       //   later — and never at the draw (035.1's chdeco lesson)
         dispatchWidgetSubsPlaced(wdg);
     }
 
     /**
-     * The <b>widget-entry seam</b>'s body (behind {@link AddonManager#onWidgetEntered}, called from
-     * {@code Widget.add0}) — the selector subscriptions' real feed, and the mirror of the removal seam.
+     * The <b>widget-entry seam</b>'s tap (behind {@link AddonManager#onWidgetEntered}, called from
+     * {@code Widget.add0}) — the selector subscriptions' real feed, and the mirror of the removal seam. It
+     * <b>records the widget and nothing else</b> (112.3): {@code add0} holds the tree's monitor, so the walk
+     * and the handlers are {@link #dispatchEntered}'s, on the layer's step.
      *
      * <p><b>Two faults it closes, and they are the same fault seen twice.</b> The placement seam above is the
      * server's message handler: it never sees a widget the client mints for itself (every {@code WItem}, the
@@ -217,34 +222,93 @@ final class UiApi {
      * a widget whose chain does not reach the root announces nothing and is announced later, when the ancestor
      * that was missing enters — because that ancestor passes this same seam. There is nothing to re-check.
      *
-     * <p><b>The whole subtree is offered, not just the widget.</b> What was built while its ancestor was
-     * detached said nothing at the time, so the entry of the ancestor is the moment all of it becomes true.
-     * {@link LuaSelectorWatch#matched} is the dedup that keeps the ones already announced from firing twice —
-     * including against the placement seam above, which still offers its own widget and is now, for anything
-     * that reached the tree through {@code add}, a no-op.
-     *
      * <p><b>An uninterested client pays one {@code isEmpty()}</b>, which matters more here than above: this
-     * runs for every widget the client builds, a window's every label and button included.
+     * runs for every widget the client builds, a window's every label and button included, and it is what keeps
+     * the queue below from being handed the whole client.
      */
-    static void onWidgetEntered(Widget wdg) {
+    static void enqueueEntered(Widget wdg) {
         UI u = wdg.ui;
         if((u == null) || (u.root == null))
             return;                            // not in any tree yet — it will pass here again when it is
-        SessionState st = state(u);            // 073.2: the tree the widget entered, and no other
+        SessionState st = AddonManager.queueState(u);   // 073.2: the tree the widget entered, and no other
         if((st == null) || st.selectorWatches.isEmpty())
             return;
         if(!wdg.hasparent(u.root))
             return;                            // hung under something that is not up: announced with it, later
+        st.enteredWidgets.add(wdg);
+    }
+
+    /**
+     * The widget-entry seam's <b>dispatch</b>, from {@code AddonManager.drainEnteredWidgets} on the layer's
+     * step (112.3) — the walk and the offer, with no tree monitor held.
+     *
+     * <p><b>The whole subtree is offered, not just the widget.</b> What was built while its ancestor was
+     * detached said nothing at the time, so the entry of the ancestor is the moment all of it becomes true.
+     * {@link LuaSelectorWatch#matched} is the dedup that keeps the ones already announced from firing twice.
+     *
+     * <p><b>The re-test is here rather than at the tap</b>, and that is the promise this seam makes: the widget
+     * handed to a handler is in the tree at the moment it is handed over. A step later than the placement, that
+     * is a question worth asking again — the widget may have been taken away between the two — and the handler
+     * this loop calls may itself close a window that is further down the list.
+     *
+     * <p><b>The tree is READ under its own monitor and the handler runs outside it</b>, which is the whole
+     * shape of this task. A selector walks parents and a subtree walk follows {@code child}/{@code next}, and a
+     * Loader thread re-links both under {@code synchronized(ui)}; but a handler holding that monitor is the
+     * deadlock. Taking one tree's monitor here is exactly what the step is allowed to do — it arrives holding
+     * none — and giving it up before {@link #offerEntered} calls Lua is what keeps it to one.
+     */
+    static void dispatchEntered(SessionState st, Widget wdg) {
+        UI u = wdg.ui;
+        if((u == null) || (u.root == null) || st.selectorWatches.isEmpty())
+            return;
+        if(AddonManager.state(u) != st)
+            return;                            // re-homed into another tree since the tap: not this queue's
         List<Widget> entered = new ArrayList<Widget>();
-        collectSubtree(wdg, entered);
-        for(Widget w : entered) {
-            // Re-tested per widget, not once for the subtree: a handler this loop calls may close a window, and
-            // what it closes can be further down the list we took before it ran. The promise this seam makes is
-            // that the widget handed over is in the tree NOW, so it is asked about each one at the moment of
-            // handing it over rather than at the moment the walk started.
-            if(w.hasparent(u.root))
-                offerPlaced(st, w, u.widgetid(w));
+        synchronized(LuaWidget.monitorOf(u)) {
+            if(!wdg.hasparent(u.root))
+                return;                        // gone, or hung under something that is not up
+            collectSubtree(wdg, entered);
         }
+        for(Widget w : entered)
+            offerEntered(st, u, w);
+    }
+
+    /**
+     * One entered widget offered to every selector subscription: <b>matched under the tree's monitor, fired
+     * outside it</b> (112.3). The two halves are split rather than folded into {@link #offerPlaced} because
+     * {@code record} calls Lua inline, and Lua called from inside a tree's monitor is the whole defect.
+     *
+     * <p>Per widget rather than per subtree, so the re-test and the match are asked at the moment this widget
+     * is handed over — a handler fired for an earlier one may have closed the window a later one sits in.
+     */
+    private static void offerEntered(SessionState st, UI u, Widget wdg) {
+        List<LuaSelectorWatch> fire = null;
+        synchronized(LuaWidget.monitorOf(u)) {
+            if(!wdg.hasparent(u.root))
+                return;
+            int id = u.widgetid(wdg);
+            boolean recheck = false;
+            for(LuaSelectorWatch w : st.selectorWatches) {   // copy-on-write: a handler may subscribe here
+                if(!w.alive || w.matched.containsKey(wdg))
+                    continue;
+                if(w.sel.matches(wdg)) {
+                    w.matched.put(wdg, Integer.valueOf(id));   // record: both events track, only one fires
+                    if(w.event == LuaSelectorWatch.ADDED) {
+                        if(fire == null)
+                            fire = new ArrayList<LuaSelectorWatch>();
+                        fire.add(w);
+                    }
+                } else if(w.sel.late() && w.sel.matchesStructure(wdg)) {
+                    recheck = true;
+                }
+            }
+            if(recheck)
+                st.selectorPending.add(new PendingMatch(wdg, id));
+        }
+        if(fire == null)
+            return;
+        for(LuaSelectorWatch w : fire)
+            callLua(w.owner, Addon.C_WIDGET, w.fn, LuaWidget.of(w.owner, wdg));
     }
 
     /**

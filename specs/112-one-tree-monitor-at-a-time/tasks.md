@@ -47,7 +47,7 @@ and each later task removes one.
       issued from `Update`, and a write to a surface built but not yet armed. What is refused is the
       nesting, never the crossing.
 
-- [ ] **112.3 — the two seams that ran Lua on a Loader thread queue and drain on the step.**
+- [x] **112.3 — the two seams that ran Lua on a Loader thread queue and drain on the step.**
       `AddonManager.onWidgetEntered` and `onItemInfo` stop calling Lua where they are reached — inside
       `Widget.add0` under `synchronized(w.ui)`, and inside `GItem.info()`'s build, on whichever thread
       asked first. Each enqueues instead: a new `SessionState.enteredWidgets`, and a `GItem` queue, both
@@ -66,7 +66,56 @@ and each later task removes one.
       `[manual]`: open a container and close it once — the `Removed` edge needs a widget only the server
       takes away.
 
-- [ ] **112.4 — an anchor that crosses trees applies one monitor at a time.** `Layout.apply(w, depth)`
+- [ ] **112.4 — the session's own step leaves its tree's monitor, the way the layer's did.**
+      `AddonRoot.tick` calls `AddonManager.tick(ui, dt)`, and that is a `TickEvent` callback: `UI.tick()`
+      broadcasts it, and both drivers hold the tree while they do — `UILoop.Frame.tick`'s `synchronized(ui)`
+      for the session on screen, `Sessions.tick`'s `synchronized(u)` for every background member. So
+      `plan.md`'s family B is true of the **layer's** drains and false of every **session's**:
+      `drainRemovedWidgets`, `drainOverlayEvents`, `drainChatEvents`, `drainBeltSet`, `drainTextRewrites`,
+      `drainResizedWidgets`, `drainMarkerChanges`, `HttpApi.drainHttp`, `CharApi.refreshTreeAdapters` and
+      `UiApi.flushItemWatchers` all begin with that session's monitor held — which is the whole of criterion
+      3's "the drains". 112.3 makes the asymmetry an author can see: an `s:ui():on(sel, "Added")` handler
+      may reach any tree and the `Removed` beside it meets a refusal, for the same line written twice.
+      `AddonRoot` keeps `globtype` — the hotkey seam needs a widget in the tree — and loses `tick`:
+      `Frame.tick` calls `AddonManager.tick(ui, dt)` **after** its `synchronized(ui)` block, so a drain
+      reads geometry the frame has already settled, and `Sessions.tick` calls it for each member after that
+      member's own block closes. Each tree's delta comes off `Utils.rtime()`, as `layerTick`'s does, and the
+      session step raises `AddonManager.stepThread` too, so `hafen.client():stepping()` stays one answer.
+      *Its suite* installs `s:ui():on(sel, "Removed", fn)` and `widget:on("Removed", fn)` on a widget of its
+      own in the character's tree, destroys it, and from inside each handler builds a window and writes a
+      second widget of that session — asserting both land, that neither raised, and that
+      `hafen.client():stepping()` is true in both, which is what the drain's new address buys. It asserts the
+      edge did not move in time: the widget is destroyed from an `Update` handler and its `Removed` is
+      asserted to arrive within one frame, not later. It asserts an `HttpApi` callback and a
+      `MessageAdded` reach another tree from the same freedom, the two other per-session drains an addon
+      meets most.
+      `[manual]`: the HUD keeps drawing and answering the mouse for a few seconds after the run — a session
+      pump that lost its frame is what no assertion running inside that pump could report.
+
+- [ ] **112.5 — the placement seam hands its adapters to the entry seam's drain.**
+      `AddonManager.onWidgetPlaced` is a fourth site of `plan.md`'s family C and the table does not list it:
+      `UI.AddWidget.run` calls it inside `synchronized(UI.this)` on a Loader thread, and
+      `CharApi.dispatchPlaced` runs Lua from there — `MeterAdded`, `BuffAdded` and the study and equipment
+      fires, each through `AddonManager.fireTo`. 112.3 took the selector half off this seam, because
+      deferring the entry seam would otherwise have left this one the call that *fires*; the adapters were
+      not made worse by that and so were left, and nothing else will move them. `dispatchPlaced` is reached
+      from `UiApi.dispatchEntered`'s drain instead, so a `BuffAdded` handler holds no tree and may build a
+      window. Two things follow and both are the task. The tap's guard widens: `enqueueEntered` records a
+      widget when there are selector watches **or** tree adapters, or a client with no `s:ui():on` at all
+      would stop seeing buffs. And the adapters are offered every widget that enters rather than only the
+      server's own, which is more than they had — each already filters by type and dedups on its own cache,
+      so a meter the client mints for itself is seen at last. `Layout.placed` and
+      `dispatchWidgetSubsPlaced` stay where they are: neither runs Lua, which is what keeps that seam legal
+      inside the block.
+      *Its suite* subscribes `hafen.event():on("EquipChanged", fn)` and, from inside the handler, builds a
+      window and writes a widget of the character's tree — asserting both land and that
+      `hafen.client():stepping()` is true, which is the arrow this seam carries today. It registers **no**
+      selector subscription of its own, so a pass is also the widened guard: the adapters fire for an addon
+      that never asked to watch the tree. It retries on a timer over a bounded window and scores over what
+      the run reached.
+      `[manual]`: take one worn item off and put it back — an equipment change is the server's to make.
+
+- [ ] **112.6 — an anchor that crosses trees applies one monitor at a time.** `Layout.apply(w, depth)`
       calls `applyDependents` inside `synchronized(LuaWidget.monitor(w))`, and that recurses into
       `apply(dep)`, taking a second tree's monitor with the first still held — in whichever direction
       the anchor points, so two anchors are enough to build both edges through the public API alone,
@@ -81,7 +130,7 @@ and each later task removes one.
       limit still ends what a cycle would not. It asserts a dependent whose target has been destroyed
       drops out of the cascade instead of throwing.
 
-- [ ] **112.5 — the inbound stream decides before the monitor, and the outbound one is told why it
+- [ ] **112.7 — the inbound stream decides before the monitor, and the outbound one is told why it
       cannot.** `AddonManager.onMessage` is hoisted above `UI.UiMessage.run`'s `synchronized(UI.this)`:
       the handler still answers before the widget applies, so `ev:preventDefault` and `ev:rewrite` are
       untouched, and only `dispatch(wdg, MessageEvent)` stays inside the block. `onWdgmsg` cannot be
@@ -97,11 +146,13 @@ and each later task removes one.
       `[manual]`: click the ground once — nothing in Lua delivers an input event, so the action-stream
       half needs a real gesture.
 
-- [ ] **112.6 — threading becomes a page, and it says which seam runs where.** A new
+- [ ] **112.8 — threading becomes a page, and it says which seam runs where.** A new
       `docs/addons/api/threading.md`: which seam runs on which thread and which of them hold a monitor,
       in the reader's vocabulary rather than the engine's; the one-monitor rule; what the refusal means
-      and the two verbs that answer it; and the one honest remainder — the action stream can still run
-      an addon's Lua beside the pump's, against a single `Globals`. `conventions.md`'s Threading section
+      and the two verbs that answer it; `hafen.client():stepping()`, which says which side of that rule
+      the code you are in is on, and which lives on `api/client/README.md` because that is the section
+      it hangs off; and the one honest remainder — the action stream can still run an addon's Lua beside
+      the pump's, against a single `Globals`. `conventions.md`'s Threading section
       becomes a pointer to it, which also takes that page down toward its own ceiling. `custom.md` says
       `Update` fires from the step and `Draw` from the pass it paints in; `selectors.md`, `streams.md`,
       `runtime.md` and `guides/events-and-timers.md` each say where their own handler runs instead of

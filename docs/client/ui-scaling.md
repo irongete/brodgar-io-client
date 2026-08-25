@@ -92,4 +92,4 @@ every UI scale.
 
 - [text and fonts](text-and-fonts.md) — the font half, and the foundries that bake a size
 - [chrome](ui-chrome.md) — `Window.deco` and the `Deco` contract the margins above belong to
-- [the widget system](widgets.md) — `Widget.c` / `sz` / `resize`, the fields these numbers land in
+- [reading a widget](widget-introspection.md) — `Widget.c` / `sz` / `resize`, the fields these numbers land in

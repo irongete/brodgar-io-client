@@ -1,0 +1,9 @@
+{
+  "name": "112.3 — the two Loader-thread seams queue and drain on the step",
+  "id": "112-one-tree-monitor-at-a-time.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 112.3: the widget-entry and item-info seams deliver on the client's step, holding no tree monitor, so a handler may build a window and write any tree — and one widget's Added never arrives after its Removed.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

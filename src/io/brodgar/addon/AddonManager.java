@@ -396,6 +396,18 @@ public final class AddonManager {
         final Queue<GobEvent> gobEvents = new ConcurrentLinkedQueue<GobEvent>();
         /** 038.3: the same marshalling for the two gob-overlay events. */
         final Queue<OverlayEvent> overlayEvents = new ConcurrentLinkedQueue<OverlayEvent>();
+        // 112.3: the widget-ENTRY seam — Widget.add0 runs under synchronized(w.ui) on whatever thread placed
+        // the widget (a Loader thread applying a server update, the UI thread for a client-side add), so the
+        // tap only enqueues; the LAYER's step drains it (drainEnteredWidgets), holding no tree monitor, which
+        // is what lets an s:ui():on(sel, "Added") handler build a window and write any tree. Drained BEFORE
+        // the removals below, so a widget that came and went in one frame can never report Added after
+        // Removed. Not a per-session drain: this one must run where nothing is held.
+        final Queue<Widget> enteredWidgets = new ConcurrentLinkedQueue<Widget>();
+        // 112.3: the item-info seam — GItem.info()'s build runs on whichever thread asked for the item first,
+        // and the draw that usually asks holds that tree's monitor, so the tap only enqueues and the layer's
+        // step fires item:on("Changed", fn). It also takes the fire-side read of Addon.itemSubs — a plain
+        // WeakHashMap — off whichever thread happened to build the info, and onto the step.
+        final Queue<GItem> itemInfos = new ConcurrentLinkedQueue<GItem>();
         // 042.1: the widget-removal seam (M1) — Widget.remove() runs on whatever thread reached it (a Loader
         // thread under synchronized(ui) from the server command queue, or the UI thread from a client-side
         // destroy()), so the tap only enqueues; tick() drains one frame's worth (D-106) and dispatches to the
@@ -605,7 +617,7 @@ public final class AddonManager {
      * the whole client, and the session that did have the pump drained them and handed another session's
      * widgets to adapters that could only find nothing in them. Dropping them is that outcome, said out loud.
      */
-    private static SessionState queueState(UI u) {
+    static SessionState queueState(UI u) {
         SessionState st = state(u);
         if(st == null)
             return null;
@@ -951,9 +963,30 @@ public final class AddonManager {
      * did in the tree, and the first turn of the client measures nothing.
      */
     public static void layerTick(UI u) {
-        synchronized(stepping) {   // 112.1: what a shutdown waits a step out by, now that no tree monitor is
-            layerStep(u);          //   held here — see the field
+        // 112.1: `stepping` is what a shutdown waits a step out by, now that no tree monitor is held here —
+        // see the field. 112.3: and `stepThread` is what hafen.client():stepping() compares against.
+        synchronized(stepping) {
+            Thread prev = stepThread;
+            stepThread = Thread.currentThread();
+            try {
+                layerStep(u);
+            } finally {
+                stepThread = prev;
+            }
         }
+    }
+
+    /**
+     * <b>The thread running the layer's step, while one is</b> (112.3) — {@code null} between steps, and what
+     * {@code hafen.client():stepping()} compares against. It is the thread and not a boolean because the
+     * question is <i>where is this code running</i>: a flag would read {@code true} on a Loader thread that is
+     * placing a widget while the step runs beside it, which is the exact confusion the verb exists to end.
+     */
+    private static volatile Thread stepThread = null;
+
+    /** Whether the caller is running on the layer's step — {@code hafen.client():stepping()}. @see #stepThread */
+    public static boolean onStep() {
+        return Thread.currentThread() == stepThread;
     }
 
     /** {@link #layerTick}'s body, inside the barrier. */
@@ -999,6 +1032,12 @@ public final class AddonManager {
             //     placed at all.
             UiApi.armPending(st);
             CDropdown.drainRaises(st);    // 040.10: ...and a popup its own window's click-to-raise buried
+            // 112.3: the two seams that used to run Lua on the thread that placed a widget or built an item's
+            // info, each of them holding that tree's monitor. EVERY tree's queue, because this is the one pump
+            // in the frame that holds none, and ENTERED before REMOVED so a widget that came and went inside
+            // one frame never reports its Added after its Removed.
+            drainEnteredWidgets();        // 112.3: s:ui():on(sel, "Added", fn)
+            drainItemInfos();             // 112.3: item:on("Changed", fn)
             drainRemovedWidgets(st);      // 042.1: a widget of ours that left the tree, and what watched it
             drainResizedWidgets(st);      // 042.10: ...and one that changed shape, for whatever is anchored
 
@@ -1585,19 +1624,75 @@ public final class AddonManager {
      * widget whose chain does not reach the root announces nothing, and is announced when its ancestor enters,
      * because that ancestor passes this very seam. Nothing waits, nothing is polled, and nothing re-checks.
      *
-     * <p><b>Threading.</b> {@code add0} runs under {@code synchronized(ui)} whenever the widget has a UI, which
-     * is the same discipline {@link #onWidgetPlaced} keeps. A widget with no UI yet cannot reach the root, so it
-     * returns before touching anything.
+     * <p><b>Threading, and why it only enqueues</b> (112.3). {@code Widget.add} wraps {@code add0} in
+     * {@code synchronized(ui)} whenever the parent has a {@code UI}, on whatever thread placed the widget — a
+     * Loader thread applying a server update as often as the UI thread — so this seam is reached with that
+     * tree's monitor already held. Running a handler here is what the deadlock was: the handler builds a window,
+     * the builder takes the LAYER's monitor under the session's, and the frame holds the two in the other order.
+     * So the tap records the widget and {@link #drainEnteredWidgets} dispatches it on the layer's step, where
+     * no tree monitor is held and a handler may reach any tree. A widget with no {@code UI} yet cannot reach the
+     * root, so it returns before touching anything.
      */
     public static void onWidgetEntered(Widget wdg) {
         // Never throws into `add`. Every other seam guards a path the client takes now and then; this one is on
         // the path the client takes to build ANY widget, its own login screen included, so a fault here would
-        // not break a feature — it would break starting up. A subscription's own Lua is already isolated one
-        // level down (callLua); this catches the dispatch around it.
+        // not break a feature — it would break starting up.
         try {
-            UiApi.onWidgetEntered(wdg);
+            UiApi.enqueueEntered(wdg);
         } catch(RuntimeException e) {
             log("widget-entry seam error: " + e);
+        }
+    }
+
+    /**
+     * Deliver the widget entries captured since the last step, <b>every tree's</b> and on the layer's own pump
+     * (112.3) — the one place in the frame that holds no tree monitor, which is the whole point of moving them
+     * here. Bounded to one step's worth (D-106), the same bound the removal drain keeps and for the same
+     * reason: a handler that opens a window whose subtree enters must not spin this step forever.
+     *
+     * <p><b>Every tree, not this one</b> — the shape {@link #drainGobEvents} has. A session's own pump
+     * ({@link #tick(UI, double)}) is a widget on that session's root and therefore runs under
+     * {@code synchronized(ui)}, so a drain placed there would hand the handler the very monitor this feature
+     * takes off it.
+     *
+     * <p><b>Before the removals</b>, so a widget that entered and left inside one frame can never report its
+     * {@code Added} after its {@code Removed}. The order is the reason this call sits where it does.
+     */
+    private static void drainEnteredWidgets() {
+        for(SessionState st : allStates()) {
+            for(int n = st.enteredWidgets.size(); n > 0; n--) {
+                Widget w = st.enteredWidgets.poll();
+                if(w == null)
+                    break;
+                UiApi.dispatchEntered(st, w);
+            }
+        }
+    }
+
+    /**
+     * Deliver the item-info builds captured since the last step, every tree's, on the layer's pump (112.3) —
+     * {@code item:on("Changed", fn)}. Bounded to one step's worth (D-106) like every other drain here: a
+     * handler that reads a second item's contents builds that item's info and files another entry.
+     *
+     * <p><b>After the entry drain, and that ordering is load-bearing.</b> An item's icon cannot draw before
+     * its widget is in the tree, so the build is never earlier than the entry — and running the entry drain
+     * first means an {@code s:ui():on("item", "Added")} handler that subscribes {@code item:on("Changed")}
+     * on what it was just handed still catches that item's <i>first</i> {@code Changed}, in this same step.
+     *
+     * <p>An item whose widget has left the tree between the build and here is still reported: what the event
+     * says is that the client can now describe the item, which does not stop being true because the icon was
+     * put away — and {@link #drainRemovedWidgets} ends its subscriptions a beat later, in the same frame.
+     */
+    private static void drainItemInfos() {
+        for(SessionState st : allStates()) {
+            for(int n = st.itemInfos.size(); n > 0; n--) {
+                GItem it = st.itemInfos.poll();
+                if(it == null)
+                    break;
+                for(Addon a : addons)
+                    fireItem(a, it);
+                fireItem(consoleOwner, it);
+            }
         }
     }
 
@@ -2106,19 +2201,24 @@ public final class AddonManager {
      * words are the same and a handler re-reading them writes what it wrote before, which is why that is left
      * as an honest extra rather than filtered with a second flag.
      *
-     * <p><b>Threading.</b> The build runs on whichever thread first asks for the item's info — the UI thread
-     * drawing the icon, or an addon's own read, both already under the discipline every other Lua call here
-     * keeps. {@link #callLua} isolates a throwing handler, and a handler that reads the item back re-enters
-     * {@code info()} against a field that is already set, so nothing recurses.
+     * <p><b>Threading, and why it only enqueues</b> (112.3). The build runs on whichever thread first asks for
+     * the item's info, and the two that usually ask are holding a tree monitor when they do: the draw of the
+     * icon, and an addon's own read from a handler that already has one. Both dumps of the freeze this feature
+     * ends run through here — {@code item:contents()} forces the build, the build fires a second addon's
+     * {@code item:on("Changed")}, and that handler writes another tree's widget. So the tap records the item
+     * and {@link #drainItemInfos} fires it on the layer's step, holding nothing.
+     *
+     * <p>It also takes the fire-side read of {@link Addon#itemSubs} — a plain {@code WeakHashMap} — off
+     * whichever thread happened to build the info and onto the step, beside the {@code item:on} that writes it.
      */
     public static void onItemInfo(GItem it) {
         // Never throws into info(). This runs inside the build that WItem.draw asks for, so a fault here would
         // not break a subscription — it would break drawing the icon, and info() already has a meaningful
-        // throw of its own (Loading) that callers handle. A handler's own Lua is isolated one level down.
+        // throw of its own (Loading) that callers handle.
         try {
-            for(Addon a : addons)
-                fireItem(a, it);
-            fireItem(consoleOwner, it);
+            SessionState st = queueState((it == null) ? null : it.ui);   // the tree the item is in, and no other
+            if(st != null)
+                st.itemInfos.add(it);
         } catch(RuntimeException e) {
             log("item-info seam error: " + e);
         }

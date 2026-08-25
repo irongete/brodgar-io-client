@@ -1,7 +1,9 @@
-# The widget system: tree, create and destroy seams, introspection, drops
+# The widget system: the tree, and the create and destroy seams
 
-> Covers: tree, creation + destruction paths, re-homing and focus, introspection, drops. The
-> per-frame tick and draw traversals are [widget-draw.md](widget-draw.md).
+> Covers: tree, creation + destruction paths, re-homing and focus. The per-frame tick and draw
+> traversals are [widget-draw.md](widget-draw.md), and the read-only walk over a live tree —
+> `children`, the hit test, `xlate`/`parentpos` — is
+> [widget-introspection.md](widget-introspection.md).
 
 ## Core tree
 
@@ -37,6 +39,22 @@ never pass it: `Inventory.addchild`/`Equipory.addchild` mint a `WItem` per item 
 mints the cursor's `ItemDrag`, `GItem.addchild` mints a `ContentsWindow`. `Widget.add0` is the one call all of
 them share, and it is where a "a widget entered the tree" signal has to live. Note the asymmetry that made this
 easy to miss: the *removal* signal has always been on `Widget.remove`, which is universal.
+
+**Entry gotcha — `add0` runs with the tree's monitor already held.** `Widget.add` wraps `add0` in
+`synchronized(ui)` whenever the parent has a `UI`, on whatever thread reached it — a Loader thread applying
+a server update as often as the UI thread — so `added()`, `attached()` and anything hooked at the end of
+`add0` all run inside that block. Taking a **second** tree's monitor from there is the ABBA
+`UILoop.Frame.tick` is written to avoid ([multi-session.md](multi-session.md)): the frame takes the layer's
+and the session's one at a time, and this path holds one already. A consumer that has to reach further than
+the tree it was handed records the widget and acts on the tick.
+
+**Item gotcha — `GItem.info()` builds once per arrival, and everything downstream hangs off that build.**
+`ItemInfo.buildinfo` throws `Loading` until the tooltip (`uimsg "tt"`, which nulls the cached list) has
+arrived *and* the resource that renders it has loaded, so `info()` caches into `GItem.info` and enters its
+build block **once per arrival and once per revision, never per draw**. Two consequences. The build runs on
+whichever thread asked first — the UI thread drawing the icon, or any reader — holding whatever that thread
+holds, so it is subject to the entry gotcha above. And `Fonts.gen()` changing nulls the cache (a `Tip` may
+rasterise in its constructor), so a theme change rebuilds the same words.
 
 **Entry gotcha — parented is not the same as up.** A subtree is routinely assembled before it is hung: a chest's
 grid is given to its window and the window is added afterwards. Between the two, `hasparent(root)` is false for
@@ -125,18 +143,3 @@ whose consumers fire a destroy notice, a selector disappearance and the end of a
 `remove(); other.add(w)` pair reports three deaths and un-focuses a widget that is alive one line later. Use the
 re-home row above (plus `delfocusable` if `canfocus`); `ui.removed(w)` is skipped on purpose, since it only drops
 `UI.Grab`s the still-live subtree should keep.
-
-## Introspection and hit-testing (read-only walk)
-
-| What | Where |
-|---|---|
-| Child list (tree order) · finding one by type | `Widget.children()` returns a `Children` view of the **direct** children (copy under `synchronized(ui)`), but `Widget.children(Class)` is **recursive over the whole subtree** despite reading like its sibling — its own comment says it "should be renamed to `rchildren`". A lazy `Set` walking `child`/`next`/`parent`, so `ui.root.children(FlowerMenu.class)` finds the one open menu wherever the server parented it, and the walk is per-iteration rather than cached. It also **excludes the receiver** — the iterator opens by stepping to `child` and only tests `cl.isInstance` on what it stepped to — so a `WItem` asked for `children(WItem.class)` answers **empty** and only the container above it answers for that icon. `findchild(Class)` is the deprecated first-hit form of the same walk |
-| Server id (`-1` = not server-bound) | `Widget.wdgid()` → `UI.widgetid` (looks up `rwidgets`) |
-| Pos/size/visibility/parent/class + root box | `Widget.c`, `sz`, `visible()`, `parent`, `getClass().getSimpleName()`, `rootpos()` |
-| **Text source (best-effort, one switch)** | `Label.texts` (public `String`); button captions / `TextEntry` per type; unknown → none |
-| Why an unbound widget cannot act | `Widget.wdgmsg` bubbles to `UI.wdgmsg`→`rawWdgmsg`; **unbound sender (`id<0`) is dropped** |
-| **Cursor position (root coords)** | `UI.mc` (public `Coord`) |
-| **Hit-test walk (the one to mirror)** | `PointerEvent.propagation` — `lchild→prev` (topmost-first), skip `!visible()`, `parent.xlate(child.c,true)`+rect-isect; leaf uses `checkhit` |
-| **Coord translation (scroll offsets)** | `Widget.xlate` / `rootxlate` — a hit test must respect these, not a naïve rect test |
-| **Parent-relative `c` ⇄ root coords** | `Widget.parentpos(in)` — `parent.xlate(parent.parentpos(in).add(c), true)`, recursing to `in`; `rootpos()` is `parentpos(ui.root)`. Folds every level's `xlate` in, so it is the only correct crossing of a scrolling container. **`c` is relative to the PARENT**: a screen-space answer becomes a `c` by subtracting the parent's own `parentpos(root)`. Prefer `parentpos(u.root)` over `rootpos()` where the `UI` is already in hand — the latter reads the widget's own `ui` field |
-| **The root's size, and who changes it** | `UILoop.Frame.tick` compares `ui.root.sz` with the OS window size **every iteration** and calls `ui.root.resize(sz)` when they differ; `Widget.resize` then cascades `presize()` to the children and notifies `parent.cresize`. **Has an addon seam**: `AddonManager.onWidgetResized(this)`, the last statement of `resize`, after the `Utils.eq` no-op guard and the `presize`/`cresize` cascade — the root resizing is just another resize through this one tap |

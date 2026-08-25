@@ -28,6 +28,25 @@ nothing can be written onto one.
 
 The frame profiler is the other half of this namespace: [`hafen.client():profiling()`](profiling/README.md).
 
+## Where your code is running
+
+`hafen.client():stepping()` answers whether the code you are in is running on the client's **step** — the
+once-a-frame pass that fires [`Update`](../event/bus/lifecycle.md), runs your [timers](../timer.md), and
+hands over the widgets and items the client has queued for it. Reading is unprotected, and it takes no
+argument.
+
+```lua
+if hafen.client():stepping() then
+  hafen.log():write("this is the step")
+end
+```
+
+The step is the one place your code is inside **no** character's tree, so a handler running there may reach
+any of them. Everywhere else you are answering something — a [`Draw`](../ui/custom.md), a control's press,
+a drop, an inbound [message](../event/streams.md) — and you are inside the one tree that dispatched it:
+writing a widget of a *different* character's tree from there is refused, naming both. `stepping()` is how
+a helper called from both places tells which it is in.
+
 ## Reading and writing
 
 **The arity is the verb.** Calling an option with no argument reads it; calling it with one argument writes
@@ -99,11 +118,11 @@ message.
 > inventory key. The consent dialog says *"change your client settings and hotkeys"*. **Reading needs
 > nothing**, so a settings-aware addon that only adapts to what it finds declares no key at all.
 
-**A write reaches every session up.** The renderer keeps its settings per tree, so before this a graphics
-change moved the scene you were looking at and left the others at whatever they loaded — and since all of
-them persist to one file, which value survived a restart was whichever tree wrote last. `hafen.client()` is
-the client rather than a character, so there is one answer here and every scene now holds it. The read is
-the drawn tree's, which after a write is the same as any other's.
+**A write reaches every session up.** The renderer keeps its settings per tree, and all of those trees
+persist to one file — so a per-tree write would move the scene you were looking at, leave the others at
+whatever they loaded, and let whichever wrote last decide what survives a restart. `hafen.client()` is the
+client rather than a character, so there is one answer here and every scene holds it. The read is the drawn
+tree's, which after a write is the same as any other's.
 
 ```lua
 local v = opts:video()

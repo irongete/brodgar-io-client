@@ -92,9 +92,10 @@ none, and what legitimately holds one may reach only into the tree it already ho
 ## Docs impact
 
 Pages written: **`docs/addons/api/threading.md` (new)**, `docs/addons/api/conventions.md`,
-`docs/addons/api/ui/selectors.md`, `docs/addons/api/ui/custom.md`,
-`docs/addons/api/event/streams.md`, `docs/addons/runtime.md`,
-`docs/addons/guides/events-and-timers.md`, `docs/client/widgets.md`.
+`docs/addons/api/ui/selectors.md`, `docs/addons/api/ui/custom.md`, `docs/addons/api/ui/items.md`,
+`docs/addons/api/event/streams.md`, `docs/addons/api/client/README.md`, `docs/addons/runtime.md`,
+`docs/addons/guides/events-and-timers.md`, `docs/client/widgets.md` and the
+**`docs/client/widget-introspection.md` (new)** its own ceiling splits out of it.
 
 Derived impact set — the prose elsewhere this feature makes false. Those claims are written in the
 vocabulary of the *promise* ("the UI thread"), not of the fix, so a grep aimed at the new syntax
@@ -122,6 +123,11 @@ grep -rn "one lock direction\|two UI monitors\|lock direction" docs/client/
 
 - `src/io/brodgar/addon/AddonManager.java` — 1, 2, 3, 5
 - `src/io/brodgar/addon/AddonWidget.java` — 1, 6
+- `src/io/brodgar/addon/AddonRoot.java` — 3 (a session's pump is a WIDGET, so its step holds that tree)
+- `src/io/brodgar/session/Sessions.java` — 3 (`tick()` steps every background member under its own monitor)
+- `src/io/brodgar/addon/CharApi.java` — 4 (the tree adapters the placement seam fires)
+- `src/io/brodgar/addon/Selector.java` — 4 (`matches` walks the tree and must hold its monitor)
+- `src/io/brodgar/addon/OptionsHandle.java` — 3, 8 (`hafen.client()`, where `stepping()` hangs)
 - `src/io/brodgar/addon/LuaWidget.java` — 2, 4
 - `src/io/brodgar/addon/UiApi.java` — 1, 3
 - `src/io/brodgar/addon/Layout.java` — 2, 4
@@ -135,11 +141,14 @@ grep -rn "one lock direction\|two UI monitors\|lock direction" docs/client/
 - `src/haven/Widget.java` — 3
 - `src/haven/GItem.java` — 3
 - `docs/client/multi-session.md` — 1, 2 (read, never written: the rule)
-- `docs/client/widgets.md` — 3
+- `docs/client/widgets.md` — 3 (the entry seam and its monitor; the read-only walk it used to carry
+  is `docs/client/widget-introspection.md`, split out of it when the gotchas hit the 150-line ceiling)
 - `docs/client/widget-draw.md` — 6 (a `tick`/`draw` is a callback with that tree's monitor held)
 - `docs/addons/api/conventions.md` — 2, 6
 - `docs/addons/api/ui/selectors.md` — 3, 6
 - `docs/addons/api/ui/custom.md` — 1, 6
 - `docs/addons/api/event/streams.md` — 5, 6
+- `docs/addons/api/ui/items.md` — 5 (`item:on("Changed")`'s own page: when it fires)
+- `docs/addons/api/client/README.md` — 3, 8 (`hafen.client():stepping()`)
 - `docs/addons/runtime.md`, `docs/addons/guides/events-and-timers.md` — 6
 - `DOCUMENTATION.md` — 6

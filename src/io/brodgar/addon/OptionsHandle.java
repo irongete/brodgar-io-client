@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -60,6 +61,20 @@ public final class OptionsHandle {
                 if(owner.clientProfiling == null)   // per-owner: p:scope()/p:measure() charge the CALLING addon
                     owner.clientProfiling = ProfHandle.create(owner);
                 return owner.clientProfiling;
+            }
+        });
+        // hafen.client():stepping() — WHERE THE CODE YOU ARE IN IS RUNNING (112.3). True on the client's own
+        // step, which is the pump that fires Update, runs the timers and delivers the seams that queue: the one
+        // place in a frame that holds no widget-tree monitor, and therefore the only one from which a handler
+        // may reach a tree other than the one it was given. False everywhere else — a draw, a press, a drop, a
+        // gesture, an inbound message — where a reach across trees is refused. A read, so unprotected.
+        client.set("stepping", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "client", "stepping");
+                if(a.narg() > 1)
+                    throw new LuaError("hafen.client():stepping() takes no arguments — it answers whether the"
+                        + " code you are in is running on the client's step");
+                return LuaValue.valueOf(AddonManager.onStep());
             }
         });
         Section.install(hafen, "client", client,
