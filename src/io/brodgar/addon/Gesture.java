@@ -424,7 +424,9 @@ final class Gesture extends Widget {
             return;
         if(!at.equals(press))
             acted = true;
-        synchronized(u) {
+        // 112.2: through the funnel, not around it — this is one of the two sites in the package that takes a
+        // tree's monitor with no widget in hand, and a gesture is dispatched with its own tree's already held.
+        synchronized(LuaWidget.monitorOf(u)) {
             for(int i = 0, n = moves.size(); i < n; i++) {
                 Move m = moves.get(i);
                 if(!live(u, m))

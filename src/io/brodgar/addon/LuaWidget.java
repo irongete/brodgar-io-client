@@ -130,10 +130,88 @@ public final class LuaWidget {
      * else, no tick walks it and no message is addressed to it. They share {@link #UNATTACHED} rather than each
      * getting a lock no second thread could take, so every site keeps one shape — mutate under a monitor — with
      * no branch and no null.
+     *
+     * <p><b>It refuses a SECOND tree</b> (112.2). This is called immediately before every
+     * {@code synchronized(monitor(w))} in the package, which makes it the one place the client's own rule —
+     * <i>the tick never holds two UI monitors at once, the addon layer's included</i>
+     * ({@code docs/client/multi-session.md}) — can be held to without touching a call site. Where
+     * {@link Thread#holdsLock} says this thread is already inside another live tree's monitor, the call throws
+     * {@link #nested} instead of waiting on the second: the wait is one half of the ABBA the addon layer had,
+     * and a message an addon can {@code pcall} is worth more than a freeze nothing can report. What is refused
+     * is the <b>nesting</b> and never the crossing — a handler holding no monitor at all reaches any tree, which
+     * is what the engine step is for, and {@link #UNATTACHED} is not a tree and never refuses.
      */
     static Object monitor(Widget w) {
         UI u = (w == null) ? null : w.ui;
-        return (u != null) ? (Object)u : UNATTACHED;
+        return (u != null) ? monitorOf(u) : UNATTACHED;
+    }
+
+    /**
+     * <b>The same acquisition, addressed at a tree rather than a widget</b> (112.2) — for the two sites that
+     * take a {@code UI} monitor without a widget in hand ({@code Gesture.write}, {@code Layout.sweep}), so that
+     * nothing in this layer enters a tree's monitor without passing the check above.
+     *
+     * <p>{@link AddonManager#awaitIdle} is deliberately not routed through it: it holds none of its own and
+     * takes each tree's in turn, and it runs on the shutdown's thread, where a thrown refusal would be the hang
+     * that method exists to make impossible.
+     */
+    static Object monitorOf(UI u) {
+        if(u == null)
+            return UNATTACHED;
+        UI held = heldOther(u);
+        if(held != null)
+            throw new LuaError(nested(held, u));
+        return u;
+    }
+
+    /**
+     * <b>A live tree this thread already holds the monitor of, that is not {@code u}</b> — {@code null} when it
+     * holds none, which is the ordinary answer and the whole cost of the check on a good frame.
+     *
+     * <p>The same tree is never reported: {@code synchronized} is re-entrant, and a verb re-entering the tree it
+     * is already inside is correct — a {@code Draw} handler writing its own window, a control's notification
+     * answering on its own widget. What is refused is the <i>second</i> tree.
+     *
+     * <p>Only LIVE trees are walked — the addon layer and every session the engine holds state for. A {@code UI}
+     * the client has already taken down is nobody's tree and cannot be part of a cycle, and the login screen's
+     * is reached by nothing in this layer.
+     */
+    private static UI heldOther(UI u) {
+        UI l = AddonManager.layer();
+        if((l != null) && (l != u) && Thread.holdsLock(l))
+            return l;
+        for(AddonManager.SessionState st : AddonManager.allStates()) {
+            UI t = st.ui;
+            if((t != null) && (t != u) && Thread.holdsLock(t))
+                return t;
+        }
+        return null;
+    }
+
+    /**
+     * The refusal (112.2), and it names the fix rather than the fault: which tree is already held, which one the
+     * call would have taken, and where the same work is done holding neither. The verb is not named because the
+     * error is raised at the acquisition and carries the Lua {@code file:line} of the call that made it, which
+     * is the line the author has to move.
+     */
+    private static String nested(UI held, UI want) {
+        return "one tree monitor at a time: this handler already holds the widget tree of " + treeName(held)
+            + ", and writing a widget of " + treeName(want) + " would take a second one — two trees held at"
+            + " once is the shape this client deadlocks in. A Draw handler, a control's own notification, a"
+            + " gesture, a drop and a console line each run under one tree's monitor and may reach only that"
+            + " tree. Do the work that crosses trees where no monitor is held: widget:on(\"Update\", fn),"
+            + " hafen.event():on(\"Update\", fn) or hafen.timer():after(0, fn), all of which run on the"
+            + " engine step, holding none.";
+    }
+
+    /** How a tree is named to an addon author: the layer, a character by the account it is logged in as. */
+    private static String treeName(UI u) {
+        if(u == null)
+            return "a tree that is gone";
+        if(u == AddonManager.layer())
+            return "the addon layer";
+        String user = io.brodgar.session.Sessions.nameof(u);
+        return (user != null) ? ("the character \"" + user + "\"") : "the login screen";
     }
 
     /** The stand-in monitor for a widget that is in no tree — see {@link #monitor(Widget)}. */

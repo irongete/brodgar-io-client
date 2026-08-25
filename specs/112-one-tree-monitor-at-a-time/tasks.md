@@ -29,7 +29,7 @@ and each later task removes one.
       `[manual]`: the HUD keeps drawing and answering the mouse for a few seconds after the run — a pump
       that lost its frame is exactly what no assertion running inside that pump could report.
 
-- [ ] **112.2 — a second tree monitor is a refusal, not a wait.** `LuaWidget.monitor(Widget)` stops
+- [x] **112.2 — a second tree monitor is a refusal, not a wait.** `LuaWidget.monitor(Widget)` stops
       being a plain accessor. It is called immediately before every `synchronized(monitor(w))` in the
       package — 18 sites in `LuaWidget`, ~40 across it — so guarding it there changes no call site: it
       walks the live trees (`AddonManager.layer()` and each `SessionState.ui`), and where

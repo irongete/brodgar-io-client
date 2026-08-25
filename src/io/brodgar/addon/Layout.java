@@ -629,7 +629,9 @@ final class Layout {
     private static void sweep(UI u) {
         if((u == null) || (u.root == null))
             return;
-        synchronized(u) {
+        // 112.2: through the funnel, so the walk of one tree cannot begin inside another's monitor — the sweep
+        // is reached from a sheet drop, which an addon may make from anywhere.
+        synchronized(LuaWidget.monitorOf(u)) {
             if(u.root == null)
                 return;                               // it went between the check and the monitor
             List<Widget> all = new ArrayList<Widget>();

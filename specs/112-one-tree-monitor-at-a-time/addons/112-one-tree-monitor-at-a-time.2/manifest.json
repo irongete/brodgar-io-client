@@ -1,0 +1,9 @@
+{
+  "name": "112.2 — a second tree monitor is a refusal, not a wait",
+  "id": "112-one-tree-monitor-at-a-time.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 112.2: a seam holding one tree's monitor is refused a second one, the refusal names both trees and the step that holds neither, and the crossing itself is never what is refused.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
