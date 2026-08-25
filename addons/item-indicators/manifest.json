@@ -1,0 +1,9 @@
+{
+  "id": "item-indicators",
+  "name": "Item Indicators",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "Two readings on every item icon: the quality it states, and the durability it has left.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

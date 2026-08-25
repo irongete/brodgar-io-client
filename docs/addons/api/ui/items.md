@@ -335,6 +335,13 @@ What an item holds is what the **server** pushed with it, and it pushes it for t
 stack, a creel, a bucket. An item it sent nothing for reads `nil`, and no message the client can send asks for
 one — a chest standing in the world is opened, and read as the container widget it becomes.
 
+**An item on the cursor is one of those.** The one you are carrying arrives as a widget of its own under the
+HUD rather than as the icon you lifted, and nothing is attached to it: a stack in your hand answers `nil` to
+`:contents()`, and — having no quality of its own, since a stack's quality is its parts' — `nil` to
+`:quality()` as well. Both read again the moment it lands somewhere. So a decoration that reads what an item
+holds shows nothing while it is being carried, and there is nothing to wait for: it is not late, it was never
+sent.
+
 ## See also
 
 - [`Item`](../types.md#item) — the snapshot `:info()` hands back

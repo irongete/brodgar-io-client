@@ -28,11 +28,13 @@ what makes `Window.tick` a legal place to `chdeco` (035).
 
 **`super.draw` gotcha — a subclass decides whether its children are painted at all.** `Widget.draw(GOut)` is
 `draw(g, true)`, which **is** the child loop and nothing else. So a class that overrides `draw(GOut)` without
-calling `super.draw(g)` paints itself and then paints **no child**, and many of the overrides in `src/haven`
-do exactly that — `WItem` among them, which is the one that costs the most time to find, since an item icon
-is the first widget anyone wants to put something on top of. Nothing else about such a widget shows it: its
-children are added, ticked, hit-tested and listed by `children()` as usual, and only the picture is missing.
-Adding a child is therefore not a general way to draw over an arbitrary widget.
+calling `super.draw(g)` paints itself and then paints **no child**, and around forty of the overrides in
+`src/haven` do exactly that — `Buff`, `IMeter`, `MenuGrid`, `FlowerMenu` and `ChatUI` among them. Nothing else
+about such a widget shows it: its children are added, ticked, hit-tested and listed by `children()` as usual,
+and only the picture is missing. Adding a child is therefore not a general way to draw over an arbitrary
+widget. **`WItem` is the exception in this tree**: an item icon is the first widget anyone wants to put
+something on top of, so it chains (`// addon:`, last, over the sprite and its info overlays) and a child built
+into an icon *is* drawn.
 
 **The style frame is per widget and nests.** `Fonts.frame(wdg)` is opened around `wdg.draw(g2)` in the loop
 above, so it covers that widget's own text *and* its whole subtree while its siblings resolve under whatever

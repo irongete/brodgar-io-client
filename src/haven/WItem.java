@@ -171,6 +171,11 @@ public class WItem extends Widget implements DTarget {
 	} else {
 	    g.image(missing.layer(Resource.imgc).tex(), Coord.z, sz);
 	}
+	/* addon: an item icon draws its CHILDREN too. This class overrode draw() and stopped, so a widget an
+	 * addon built into an icon -- a quality label, a count, a mark -- was in the tree, ticked and alive,
+	 * and painted by nobody. A stock icon has no children, so this draws exactly what it always drew; the
+	 * call sits last, over the sprite and its info overlays, which is where a decoration belongs. */
+	super.draw(g);   // addon:
     }
 
     public boolean mousedown(MouseDownEvent ev) {
