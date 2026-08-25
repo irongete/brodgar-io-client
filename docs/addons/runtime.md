@@ -194,6 +194,21 @@ instruction watchdog still applies, so a stray infinite loop aborts instead of f
 :lua hafen.session():current():ui():match("window[title=Inventory]"):size()
 ```
 
+**`print` inside `:lua` answers in the chat too**, in the *System* channel, one line per `print` and
+tab-separated exactly as Lua writes it — the same place the command's own `lua=` result lands and the same
+place `:threads` dumps to, because that is the console's output rather than a notice. The terminal keeps
+its copy, and keeps it whole where a very long line is shortened in game. A line is only shown once it is
+finished, so an `io.write` with no newline waits for the one that ends it.
+
+```text
+:lua for _, s in ipairs(hafen.session():list()) do print(s:user(), s:chat():count()) end
+```
+
+Before a character's HUD is up there is nowhere in the client to put it and the terminal is the whole of
+it — which is what a typed command's output does there too. **In an addon, `print` is not this**: it goes
+to the terminal alone, and [`hafen.log():write`](api/log.md) is the line that reaches the player, tagged
+with your addon's id so they can tell whose it is.
+
 Addons add commands of their own with [`hafen.console`](api/console.md); `lua`, `addons` and `reload` are
 reserved and cannot be taken over.
 

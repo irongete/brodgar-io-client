@@ -79,8 +79,11 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -3997,11 +4000,68 @@ public final class AddonManager {
     private static synchronized Globals console() {
         if(consoleOwner == null) {
             Globals g = Sandbox.consoleGlobals();   // trusted operator console (full stdlib) + watchdog
+            g.STDOUT = consoleStdout();             // ...whose print() lands where the console's output does
             Addon owner = new Addon(Manifest.internal("(console)"), null, g);
             installHafen(g, owner);
             consoleOwner = owner;
         }
         return consoleOwner.env;
+    }
+
+    /**
+     * <b>Where {@code :lua print(...)} goes.</b> LuaJ's {@code print} writes to {@code Globals.STDOUT},
+     * which is {@code System.out} out of the box — so a line printed from the console line the user typed
+     * at went to the terminal alone, while the same command's <i>result</i> was already answered in game as
+     * {@code lua= …}. One command, two destinations, and the half most people reach for was the invisible
+     * one.
+     *
+     * <p><b>It tees to {@code cons.out}, not to {@link UI#msg}.</b> {@code cons.out} <i>is</i> the console's
+     * output stream — the one {@code :threads} dumps to and the one {@code GameUI.added} re-points at the
+     * chat's <i>System</i> channel — so a printed line lands exactly where a command's output belongs. A
+     * notice would also carpet the screen: {@code print} in a loop is normal and ten timed lines over the
+     * world are not. Before the HUD is up, {@code Console.clearout}'s sink swallows it and the terminal
+     * copy is the whole of it, which is what a typed command's output does there too.
+     *
+     * <p><b>Bytes, decoded once per line.</b> LuaJ hands a {@code LuaString}'s raw bytes straight to the
+     * stream, so a UTF-8 source file's accents arrive as UTF-8 and are decoded as such — going through
+     * {@code PrintStream}'s own character encoder instead would re-encode them in the platform charset. The
+     * line is split on {@code \n} and any {@code \r} before it is dropped, because {@code println} ends its
+     * line {@code \r\n} on Windows and a stray CR in a chat line is a box drawn in the text.
+     */
+    private static PrintStream consoleStdout() {
+        return new PrintStream(new OutputStream() {
+            private final ByteArrayOutputStream line = new ByteArrayOutputStream();
+
+            public void write(int b) {
+                if(b == '\n')
+                    emit();
+                else
+                    line.write(b);
+            }
+
+            public void flush() {
+                /* NOT emit(): a flush lands mid-line (print writes each argument separately), and a line
+                 * is what the System log takes. The newline is the only terminator. */
+            }
+
+            private void emit() {
+                byte[] raw = line.toByteArray();
+                line.reset();
+                int n = raw.length;
+                while((n > 0) && (raw[n - 1] == '\r'))
+                    n--;
+                String s = new String(raw, 0, n, StandardCharsets.UTF_8);
+                System.out.println("[console] " + s);   // the terminal keeps the whole of it, unclamped
+                UI u = screen();
+                if(u != null) {
+                    try {
+                        u.cons.out.println(clampMsg(s));
+                    } catch(RuntimeException e) {
+                        /* pre-HUD or no console sink yet; stdout still has it */
+                    }
+                }
+            }
+        }, true);
     }
 
     /** Join console args (skipping the command word at index 0) back into a space-separated string. */
