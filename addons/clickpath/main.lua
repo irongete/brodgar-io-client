@@ -22,7 +22,7 @@ local autoMoving = false         -- true while we issue a queued move ourselves
 local function pathOf(s)
   local p = paths[s]
   if p == nil then
-    p = {queue = {}, stopped = 0}
+    p = {queue = {}, stopped = 0, queued = false}
     paths[s] = p
   end
   return p
@@ -82,13 +82,17 @@ end)
 -- session's -- worldToScreen answers nil for any other -- while the places it projects may belong to anyone,
 -- since a Position carries no session. An alt walking ground this character cannot locate projects nil
 -- and its legs are simply not drawn, which is the honest answer rather than a hole.
+--
+-- ONLY A QUEUED PATH IS DRAWN. A plain click is tracked all the same -- the entry is what the next
+-- alt-click queues behind, and what the stuck poll below drops -- but the client already shows that walk
+-- with its own cursor, so a line over it would be the addon claiming a walk it did not queue.
 local function drawPath(g, ox, oy)
   local cur = hafen.session():current()
   local world = cur and cur:world()
   if not world then return end
 
   for s, path in pairs(paths) do
-    local pl = path.current and s:player()
+    local pl = path.queued and path.current and s:player()
     local mine = pl and pl:gob()
     local from = mine and mine:position()
     if from then
@@ -184,7 +188,15 @@ hafen.event():action():on("click", function(ev)
 
   if hafen.ui():mouse():alt() then
     ev:preventDefault()            -- the queue owns this click
-    local path = pathOf(s)
+    -- The FIRST alt-click starts the queue rather than joining one: a walk we did not queue -- the
+    -- plain click the character may be in the middle of -- is cancelled here, so this point is the
+    -- first leg and not the second. Only a queue of our own is appended to.
+    local path = paths[s]
+    if path == nil or not path.queued then
+      clearPath(s)
+      path = pathOf(s)
+      path.queued = true           -- from here on the path is ours, and drawn
+    end
     local w = waypoint(p, true)    -- a queued point carries a flag until it is reached
     if path.current == nil then
       path.current = w
@@ -195,7 +207,7 @@ hafen.event():action():on("click", function(ev)
     end
   else
     clearPath(s)                   -- a plain click cancels THAT character's path and its flags
-    pathOf(s).current = waypoint(p, false)   -- the client sends this move itself; we only track it
+    pathOf(s).current = waypoint(p, false)   -- the client sends this move itself; we only track it, undrawn
   end
 end)
 
