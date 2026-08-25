@@ -102,8 +102,14 @@ holds across characters, reloads and restarts.
 
 ## What it asks for
 
-One permission: `player.move` — *walk your character to a place*, which is the whole of what this addon
-does. The client asks you to approve it the first time you enable the addon.
+Two permissions. `player.move` — *walk your character to a place* — is the walking itself. `widget.send`
+is the **stop**, and it sends one message and no other: the very `gk` that pressing **Escape** puts on the
+wire, which is how this game stops a character. The client asks you to approve both the first time you
+enable the addon.
+
+A move to your own feet is not a stop, which is why the addon does not use one. The order names the point
+you were standing on when it was written, and you walk on while it travels — so it arrives as an order to
+come back the step you took in between, and the character rocks backwards to a halt instead of pulling up.
 
 ## What it drives
 

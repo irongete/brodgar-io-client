@@ -89,12 +89,19 @@ end
 
 -- ---------------------------------------------------------------- walking, and stopping
 
--- Stop where the character stands. A move to its own feet is what a click on them is, and it is the only
--- halt the protocol has: there is no cancel order, so the walk is replaced by one with nowhere to go.
+-- Stop where the character stands, by sending exactly what ESCAPE sends. The stop is not a widget's
+-- "cancel" and not a click: it is a GLOBAL KEY forwarded to the server. A key no widget claimed reaches
+-- RootWidget.globtype, which puts `gk` on the wire with the character code and the modifiers, and the
+-- server reads 27 -- escape -- as "drop whatever that character is doing", the walk in flight included.
+-- So the root widget is the receiver, `gk` is the message, and 27 and 0 are the key and no modifiers.
+--   A move to the character's own feet is NOT a stop, however much it reads like one. The order carries
+-- the point the gob was AT when it was read, the character keeps walking while the order travels, and it
+-- lands as an order to come BACK the step taken in between -- a halt that visibly rocks backwards.
+local ESC = 27                    -- what the client reads off an Escape keypress, and what `gk` carries
+
 local function halt(s)
-  local me = s and s:exists() and s:player():gob()
-  local p = me and me:position()
-  if p then s:player():move(p) end
+  local root = s and s:exists() and s:ui():match("@RootWidget")
+  if root then root:send("gk", ESC, 0) end
 end
 
 local function unwatch()
