@@ -1,0 +1,9 @@
+{
+  "name": "110.3 — the lines",
+  "id": "110-the-channel-and-the-line.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 110.3: ch:message() is a channel's lines, MessageAdded reports one landing, the payload IS the line :get(i) answers, a System line reads back whole, :time() survives being written down, and :get(0) says where the indices start.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

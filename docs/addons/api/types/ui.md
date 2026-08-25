@@ -1,9 +1,9 @@
 # Data types: the widget layer
 
 The snapshot shapes that come out of the client's own windows: a HUD meter, the recipe one has open, a
-hotbar slot, an entry in the action menu and a chat channel. Each is what `:info()` copies out of a live
-object, so it never updates — the live reads are verbs on that object. The model, and what *optional* means
-on the tables below, is on [the catalogue](README.md).
+hotbar slot, an entry in the action menu, and a chat channel with the lines in it. Each is what `:info()`
+copies out of a live object, so it never updates — the live reads are verbs on that object. The model, and
+what *optional* means on the tables below, is on [the catalogue](README.md).
 
 ## Meter
 
@@ -64,10 +64,29 @@ with nothing unread, and `name` is absent while the client cannot state one, whi
 whose other person this character's kin roster does not carry yet. The live reads are `channel:name()`,
 `:kind()` and `:urgency()`.
 
+## Message
+
+From [`msg:info()`](../chat.md#a-line), the snapshot escape hatch for one line of a chat channel; `nil`
+once that line's channel has gone, because the scrollback goes with the tab.
+
+| Field | Type | Notes |
+|---|---|---|
+| `text` | string | the line as it was written, markup and all; optional (a line whose kind carries none) |
+| `kind` | string | the [site key](../chat.md#the-kind-a-line-wears) it is drawn at — always present |
+| `color` | [colour](../shapes.md#colours) | the colour the line carries of itself; optional |
+| `time` | number | when the client took the line, in epoch **seconds** — always present |
+| `mine` | bool | whether this character said it — always present |
+| `speaker` | number | the **kin id** of whoever said it; optional (most lines name nobody) |
+
+`speaker` is the id [`s:kin():get(id)`](../kin.md) takes, not a name and not the Kin itself — the live
+`msg:speaker()` hands you the object. `time` is a number with a fraction, so `string.format("%d", …)` is
+how it is written down. The other live reads are `msg:text()`, `:kind()`, `:color()`, `:mine()` and
+`:channel()`.
+
 ## See also
 
 - [the catalogue](README.md) — every snapshot shape, and what a snapshot is
-- [`session:chat`](../chat.md) — the live channels these copy, and saying a line in one
+- [`session:chat`](../chat.md) — the live channels and lines these copy, and saying a line
 - [`session:meter`](../meter.md) — the live meter bars these copy
 - [`session:craft`](../craft.md) — the open recipe window, and its Craft button
 - [`session:actionbar`](../actionbar.md) — the hotbar, and holding a slot for an entry of your own

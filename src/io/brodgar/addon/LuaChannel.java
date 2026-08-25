@@ -12,6 +12,8 @@ import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.VarArgFunction;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -106,6 +108,19 @@ public final class LuaChannel {
         return c.name();
     }
 
+    /**
+     * How many lines this channel holds, or {@code 0} once it has gone. Under {@code rmsgs}' own monitor,
+     * which is the list's rather than the tree's: the server's update thread appends under exactly that one.
+     */
+    private static int count(LuaChannel h) {
+        ChatUI.Channel c = live(h);
+        if(c == null)
+            return 0;
+        synchronized(c.rmsgs) {
+            return c.rmsgs.size();
+        }
+    }
+
     /** The site key this channel's lines resolve at — the closed set {@code ch:kind()} answers from. */
     private static String kindOf(ChatUI.Channel c) {
         return (c == null) ? null : c.chanscope();
@@ -191,6 +206,57 @@ public final class LuaChannel {
             public LuaValue call(LuaValue self) {
                 ChatUI.Channel c = live(handle(self, "urgency"));
                 return (c == null) ? LuaValue.NIL : LuaValue.valueOf(c.urgency);
+            }
+        });
+        // message() — this channel's LINES, oldest first and 1-based. A collection rather than a verb per
+        // line: :get(i) is a real address, because the client never trims the scrollback -- what it drops
+        // when a line scrolls away is the raster it drew, and the line keeps its place. :list() therefore
+        // copies a whole login's chat, which is why the page reaches for :count() and :get(i).
+        m.set("message", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                final LuaChannel h = handle(self, "message");
+                return LuaCollection.create("channel:message()", new LuaCollection.Source() {
+                    public List<LuaValue> members() {
+                        List<LuaValue> out = new ArrayList<LuaValue>();
+                        int n = count(h);
+                        for(int i = 0; i < n; i++)
+                            out.add(LuaMessage.of(owner, live(h), i));
+                        return out;
+                    }
+
+                    /** A line is its text, so a string filter is a substring test over what was said. */
+                    public boolean named() {
+                        return true;
+                    }
+
+                    public String needle(LuaValue member) {
+                        return LuaMessage.needle(member);
+                    }
+
+                    public boolean addressable() {
+                        return true;
+                    }
+
+                    public LuaValue getMember(LuaValue key) {
+                        if(key.type() != LuaValue.TNUMBER)
+                            throw new LuaError("channel:message():get(i): the key is a line's position in"
+                                + " the scrollback, oldest first, got " + key.typename());
+                        double d = key.todouble();
+                        int i = (int)d;
+                        if((i != d) || (i < 1))
+                            throw new LuaError("channel:message():get(i): a line's position is a whole"
+                                + " number and the indices start at one — the oldest line this channel"
+                                + " holds is :get(1) and the newest is :get(ch:message():count()), got "
+                                + LuaValue.valueOf(d).tojstring());
+                        ChatUI.Channel c = live(h);
+                        return (i > count(h)) ? LuaValue.NIL : LuaMessage.of(owner, c, i - 1);
+                    }
+
+                    /** The key is a line's 1-based position in the scrollback. */
+                    public String keyName() {
+                        return "i";
+                    }
+                }, null);
             }
         });
         // send(text) — SAY a line in this channel, behind "chat.send" and gated as the first statement

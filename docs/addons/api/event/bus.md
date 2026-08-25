@@ -7,8 +7,8 @@ page is the closed set of keys it accepts.
 ## Whose character it was
 
 Most of the events below are **one character's** — the meters, buffs, food, study slots, equipment, action
-bar, wounds, roster, quests, radial menu and chat channels. Five characters' meters are five different
-facts, so five firings are right, and each of those events hands your handler the
+bar, wounds, roster, quests, radial menu, chat channels and the lines in them. Five characters' meters are
+five different facts, so five firings are right, and each of those events hands your handler the
 [`Session`](../session.md) it was about as its **last** argument: a `MeterChanged` handler written
 `function(m, s)` reads the bar that moved and the character it belongs to, and `s:user()` is the account it
 is on. There is a [worked one](../../guides/events-and-timers.md) in the guide.
@@ -267,15 +267,15 @@ away.
 
 ## Chat
 
-A channel is one character's — the chat is a window of that login's HUD — so each of the three hands your
-handler the [`Channel`](../chat.md#a-channel) it is about and that character's
-[`Session`](../session.md) last.
+A channel is one character's — the chat is a window of that login's HUD — so each of the keys below hands
+your handler the thing it is about and that character's [`Session`](../session.md) last.
 
 | Event | Payload | Fires |
 |---|---|---|
 | `ChannelAdded` | [`Channel`](../chat.md#a-channel) | a channel appears in that character's chat |
 | `ChannelRemoved` | [`Channel`](../chat.md#a-channel) | a channel goes away — the object still keys your table, and every read on it is `nil` |
 | `ChannelSelected` | [`Channel`](../chat.md#a-channel) | that character's chat changed tab |
+| `MessageAdded` | [`Message`](../chat.md#a-line) | a line lands in a channel — any channel, any character |
 
 **A new channel is added before it is selected.** The client puts a tab up and picks it in one motion, so a
 channel arriving fires both, in that order. `ChannelSelected` fires only on a **change**, whether the player
@@ -287,6 +287,11 @@ picked.
 On `ChannelRemoved` the channel is **already gone** — `ch:exists()` is `false` and `ch:name()`, `:kind()`
 and `:urgency()` all read `nil`. The payload is still the object you indexed on `ChannelAdded`, because
 channels are interned, so match on it rather than on a name you can no longer read.
+
+`MessageAdded` fires for every line the client shows, the ones **this character said** included: the client
+draws your own line only once the server has sent it back. Read `msg:mine()` to tell them apart, and
+`msg:channel()` for the channel it landed in — the very object `ChannelAdded` handed you. A line is reported
+after the channel it landed in was reported to arrive.
 
 ## World ghosts and sprites
 

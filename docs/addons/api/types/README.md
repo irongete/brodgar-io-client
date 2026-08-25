@@ -20,7 +20,7 @@ See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
 | [the character sheet](character.md) | attributes, food, learning, movement speed, quests, wounds and buffs |
 | [the fight](fight.md) | a maneuver, a card in the deck, and the deck's totals |
 | [the map](map.md) | a pin on the recorded map, and a minimap icon category |
-| [the widget layer](ui.md) | a HUD meter, the open recipe, a hotbar slot, an action-menu entry and a chat channel |
+| [the widget layer](ui.md) | a HUD meter, the open recipe, a hotbar slot, an action-menu entry, and a chat channel and its lines |
 
 ## Every shape
 
@@ -45,6 +45,7 @@ See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
 | `KinEntry` | [the session and the world](world.md#kinentry) |
 | `Maneuver` | [the fight](fight.md#maneuver-deckcard-fightsummary) |
 | `Marker` | [the map](map.md#marker) |
+| `Message` | [the widget layer](ui.md#message) |
 | `Meter` | [the widget layer](ui.md#meter) |
 | `Pagina` | [the widget layer](ui.md#pagina) |
 | `PartyMember` | [the session and the world](world.md#partymember) |

@@ -822,6 +822,15 @@ public final class Addon {
      */
     final LuaChannel.Cache channels = new LuaChannel.Cache(this);
 
+    /**
+     * This addon's <b>Message interning cache</b> ({@code ch:message()}, spec
+     * {@code 110-the-channel-and-the-line}): the {@code (Channel widget, index) -> Message object} map that
+     * makes {@code ch:message():get(n)} the very object {@code MessageAdded} handed over. Weak on the channel
+     * axis and reference-queue-drained on the index one, because a scrollback is never trimmed and walking
+     * one would otherwise leave a handle per line behind it; see {@link LuaMessage}.
+     */
+    final LuaMessage.Cache messages = new LuaMessage.Cache(this);
+
     final LuaQuest.Cache quests = new LuaQuest.Cache(this);
     final LuaCondition.Cache conditions = new LuaCondition.Cache(this);
     final LuaWound.Cache wounds = new LuaWound.Cache(this);

@@ -243,6 +243,18 @@ public class ChatUI extends Widget {
 	    /** addon: (065.16) the site key this line resolves at — never null once it has been appended. */
 	    public String scope() {return((scope == null) ? "chat" : scope);}
 
+	    /* addon: (110.3) THE LINE'S OWN DATA, for a reader outside this window. Three accessors here
+	     * rather than a subclass ladder in the reader: the subclasses that carry a line are not
+	     * enumerable from outside, and a new one added upstream would read as a line with no text,
+	     * silently, wherever such a ladder ran out. Null is "this kind of line carries none", which is a
+	     * fact about the kind rather than a gap -- an unadorned SimpleMessage has no sender at all. */
+	    /** addon: (110.3) the line as it was written, markup and all, or null where the kind holds none. */
+	    public String text() {return(null);}
+	    /** addon: (110.3) the colour this line carries of itself, before any override, or null for none. */
+	    public Color color() {return(null);}
+	    /** addon: (110.3) the buddy id of whoever said it, or null where the line names no sender. */
+	    public Integer speaker() {return(null);}
+
 	    public abstract Indir<Text> render(int w);
 	    public boolean valid(Indir<Text> prev) {
 		return(true);
@@ -389,6 +401,9 @@ public class ChatUI extends Widget {
 		this.col = col;
 	    }
 
+	    public String text() {return(text);}   // addon: (110.3)
+	    public Color color() {return(col);}    // addon: (110.3)
+
 	    public Indir<Text> render(int w) {
 		if(col == null)
 		    return(() -> fnd(scope()).render(RichText.Parser.quote(text), w));   // addon: this line's own scope (F3d, 065.16)
@@ -411,6 +426,7 @@ public class ChatUI extends Widget {
 	public void append(Message msg, int urgency) {
 	    if(msg.scope == null)   // addon: (065.16) BEFORE the first render below, which reads it
 		msg.scope = (msg.kind() != null) ? msg.kind() : chanscope();
+	    int idx;   // addon: (110.3) the line's own place, read out under the lock that assigned it
 	    synchronized(rmsgs) {
 		RenderedMessage rm = new RenderedMessage(msg, rmsgs.size(), iw());
 		if(rmsgs.isEmpty()) {
@@ -420,11 +436,17 @@ public class ChatUI extends Widget {
 		    rm.y = lm.y + lm.h();
 		}
 		rmsgs.add(rm);
+		idx = rm.idx;   // addon: (110.3)
 		boolean b = sb.val >= sb.max;
 		sb.max = rm.y + rm.h() - ih();
 		if(b)
 		    sb.val = sb.max;
 	    }
+	    /* addon: (110.3) a line landed in this channel. THE one funnel -- every uimsg shape, the client's
+	     * own notices and the console's output all delegate here -- and it runs on the thread that applies
+	     * the server's update, so this only enqueues and the tick fires MessageAdded. Before the notify
+	     * below, which is the popup: the fact is the line, not what the window did about it. */
+	    io.brodgar.addon.AddonManager.chatMessageAdded(this, idx);
 	    getparent(ChatUI.class).notify(this, msg, urgency);
 	    updurgency(Math.max(this.urgency, urgency));
 	}
@@ -1023,6 +1045,10 @@ public class ChatUI extends Widget {
 		this.text = text;
 		this.col = col;
 	    }
+
+	    public String text() {return(text);}        // addon: (110.3)
+	    public Color color() {return(col);}         // addon: (110.3)
+	    public Integer speaker() {return(from);}    // addon: (110.3) the one kind that names one
 
 	    public class Rendered implements Indir<Text> {
 		public final int w;

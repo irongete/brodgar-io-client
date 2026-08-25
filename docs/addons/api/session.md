@@ -40,7 +40,7 @@ A Session is the **address**, so the reads that are about one character hang off
 | [`s:wound()`](wound.md) | its wounds, as the Health and Wounds tab shows them |
 | [`s:kin()`](kin.md) | its kin roster, and the writes that add, rename and re-group |
 | [`s:party()`](party.md) | the party it is in, in party sequence order |
-| [`s:chat()`](chat.md) | its chat channels, the one on screen, and the line it says |
+| [`s:chat()`](chat.md) | its chat channels, the one on screen, their lines, and the line it says |
 | [`s:actionbar()`](actionbar.md) | its hotbar: read a slot, use it, assign one, hold one for an entry of your own |
 | [`s:speed()`](speed.md) | its crawl, walk, run and sprint selector |
 | [`s:craft()`](craft.md) | the recipe window it has open, and its Craft button |

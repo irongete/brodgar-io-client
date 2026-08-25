@@ -59,7 +59,7 @@ RECEIVERS = {
     "buff": "buff", "meter": "meter", "food": "food", "fep": "fep", "hunger": "hunger",
     "wound": "wound", "quest": "quest", "q": "quest", "cond": "condition", "c": None,
     "kin": "kin", "member": "partymember", "slot": None, "card": "deckcard",
-    "channel": "channel",
+    "channel": "channel", "ch": "channel", "msg": "message",
     "sp": "speed", "skill": "skill", "credo": "credo", "attr": "attr", "exp": "experience",
     "pag": "pagina", "item": "item", "contents": "contents", "hand": "hand",
     "w": "widget", "widget": "widget", "win": "widget", "ev": None, "sub": "sub",
@@ -132,6 +132,7 @@ RETURNS = {
     ("marker", "position"): "position",
     ("gob", "position"): "position",
     ("item", "contents"): "contents",
+    ("message", "channel"): "channel",
     ("buff", "widget"): "widget",
     ("meter", "widget"): "widget",
     ("kin", "widget"): "widget",
@@ -153,6 +154,7 @@ RETURNS = {
     ("wound", "children"): "@collection",
     ("pagina", "children"): "@collection",
     ("meter", "segment"): "@collection",
+    ("channel", "message"): "@collection",
     ("fep", "entry"): "@collection",
 }
 

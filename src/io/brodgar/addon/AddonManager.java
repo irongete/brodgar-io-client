@@ -1140,9 +1140,10 @@ public final class AddonManager {
             //          level back on before this one has read what the server actually wrote.
             drainTextRewrites(st);
 
-            // 1b''''''. The chat's three seams (110.2), captured off-thread by ChatUI.add / cdestroy / select
-            //           -> ChannelAdded, ChannelRemoved and ChannelSelected on the UI thread, one frame's
-            //           worth (D-106). This session's own queue, because a chat is one login's HUD.
+            // 1b''''''. The chat's four seams (110.2, 110.3), captured off-thread by ChatUI.add / cdestroy /
+            //           select and Channel.append -> ChannelAdded, ChannelRemoved, ChannelSelected and
+            //           MessageAdded on the UI thread, one frame's worth (D-106). ONE queue, so the order the
+            //           seams recorded holds. This session's own, because a chat is one login's HUD.
             drainChatEvents(st);
 
             // 1c. Replacements (032.1, event-driven since 042.8): the server destroying a window an addon
@@ -1735,7 +1736,7 @@ public final class AddonManager {
         "FepChanged", "StudyChanged", "EquipChanged", "ActionbarChanged", "WoundChanged",
         "KinChanged", "QuestAdded", "QuestCompleted", "QuestFailed", "MarkerChanged",
         "FlowerMenuAdded", "FlowerMenuRemoved",
-        "ChannelAdded", "ChannelRemoved", "ChannelSelected",
+        "ChannelAdded", "ChannelRemoved", "ChannelSelected", "MessageAdded",
         "GhostClicked", "SpriteClicked", "ObjectClicked",
     };
 
@@ -2824,7 +2825,7 @@ public final class AddonManager {
         }
     }
 
-    // ------------------------------------------------------------- the chat's three seams (110.2)
+    // ------------------------------------------------------------- the chat's four seams (110.2, 110.3)
 
     /**
      * <b>A channel appeared in a character's chat</b> — the {@code // addon:} line in {@code ChatUI.add},
@@ -2849,6 +2850,21 @@ public final class AddonManager {
         queueChannel("ChannelSelected", chan);
     }
 
+    /**
+     * <b>A line landed in a channel</b> — the {@code // addon:} line in {@code Channel.append}, which is the
+     * one funnel every message goes through whichever of the three {@code "msg"} shapes it arrived as, and
+     * which runs on the thread that applies the server's update. The line's own index is captured under the
+     * lock that assigned it, so the payload addresses that line and not whatever is last by the time the
+     * tick drains this.
+     */
+    public static void chatMessageAdded(ChatUI.Channel chan, int idx) {
+        if(chan == null)
+            return;
+        SessionState st = queueState(chan.ui);
+        if(st != null)
+            st.chatEvents.add(new Object[] {"MessageAdded", chan, Integer.valueOf(idx)});
+    }
+
     /** Enqueue one chat event against the tree the channel stands in — never {@link #screen()}, which is the
      *  session being drawn rather than the one whose chat moved. */
     private static void queueChannel(String key, ChatUI.Channel chan) {
@@ -2861,8 +2877,9 @@ public final class AddonManager {
 
     /**
      * Deliver one frame's worth of {@link SessionState#chatEvents} on the UI thread (D-106), in the order the
-     * seams recorded them — so a new channel is heard added before it is heard picked, and a tab that goes
-     * away is heard about after whatever selection preceded it.
+     * seams recorded them — so a new channel is heard added before it is heard picked, a tab that goes away
+     * is heard about after whatever selection preceded it, and a line is heard about after the channel it
+     * landed in was heard to arrive. <b>One queue for all four</b>, precisely so that order survives.
      */
     private static void drainChatEvents(SessionState st) {
         String user = userOf(st);
@@ -2871,7 +2888,10 @@ public final class AddonManager {
             if(e == null)
                 break;
             try {
-                fireChannel((String)e[0], (ChatUI.Channel)e[1], user);
+                if(e.length > 2)                // a line carries its index; a channel event carries nothing
+                    fireMessage((ChatUI.Channel)e[1], ((Integer)e[2]).intValue(), user);
+                else
+                    fireChannel((String)e[0], (ChatUI.Channel)e[1], user);
             } catch(RuntimeException ex) {
                 log("chat event dispatch error: " + ex);
             }
@@ -2896,6 +2916,23 @@ public final class AddonManager {
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
             fireTo(c, event, LuaChannel.of(c, chan), sessionArg(c, user));
+    }
+
+    /**
+     * Fire {@code MessageAdded}, whose payload is the <b>Message object</b> for the line at {@code idx} of
+     * {@code chan}, with that character's {@link LuaSession} last. Interned on {@code (channel, index)}, so
+     * the payload is the very object {@code ch:message():get(idx + 1)} answers and a handler may key a table
+     * by it. Minted only for an owner that actually subscribes: a busy Area Chat costs nothing for the
+     * addons that do not listen.
+     */
+    static void fireMessage(ChatUI.Channel chan, int idx, String user) {
+        for(Addon a : addons) {
+            if(hasSub(a, "MessageAdded"))
+                fireTo(a, "MessageAdded", LuaMessage.of(a, chan, idx), sessionArg(a, user));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "MessageAdded"))
+            fireTo(c, "MessageAdded", LuaMessage.of(c, chan, idx), sessionArg(c, user));
     }
 
     // ------------------------------------------------------------- whose character it was (079.4)

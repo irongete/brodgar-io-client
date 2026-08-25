@@ -29,7 +29,7 @@
       take a line.
       `[manual]`: the line reached the game's chat and reads as your own.
 
-- [ ] **110.3 — The lines.** `ch:message()` — `:list`/`:count`/`:find`/`:get(i)`, 1-based, oldest
+- [x] **110.3 — The lines.** `ch:message()` — `:list`/`:count`/`:find`/`:get(i)`, 1-based, oldest
       first — and the Message object: `:text()`, `:kind()`, `:color()`, `:time()`, `:speaker()`,
       `:mine()`, `:channel()`, `:exists()`, `:info()`. Adds `text()`/`color()`/`speaker()` to
       `ChatUI.Message`, overridden in `SimpleMessage` and `NamedMessage`. `MessageAdded` fires off
@@ -57,3 +57,26 @@
       string carrying `$col{…}` measures the same as the same string without the markup — the
       disagreement the plain-text alternative was discarded for. It refuses a `width` of `0`.
       `[manual]`: none.
+
+- [ ] **110.5 — The event catalogue becomes a folder.** `docs/addons/api/event/bus.md` is deleted into
+      `docs/addons/api/event/bus/`, split by subject with a `README.md` hub that carries the model every
+      subject shares — the closed key set, whose character it was, and what is deliberately not an event —
+      over one page per family: the addon's own three and the session's four, the world's, the character's
+      and rosters', and the chat's. It is over the 300-line ceiling and the chat keys are what pushed it
+      there, so the feature that added them closes it. **Priced by its inbound anchors, not by its size**:
+      94 inbound links today, 73 of them anchored, and `#character-and-status` (18), `#sessions` (15) and
+      `#world` (12) are most of that — every one re-pointed in this same task, so the tree is link-clean at
+      the boundary. No key moves and no payload changes.
+      *Its suite* transcribes every key off the new pages and asserts each is one
+      `hafen.event():on(key, fn)` actually accepts — subscribing and ending the subscription, so a key that
+      survived the move onto a page the bridge does not fire fails rather than reads well. It asserts a near
+      miss inside the session family is refused naming all four, which is the one refusal that would go
+      quiet if a page and the bridge drifted apart, and prints the count it walked. The reverse direction is
+      not a program's to check from Lua — there is no verb that enumerates the bus — so this task extends
+      `tools/docverbs.py` with it: every key in the bridge's own `BUS_KEYS` appears on a page under
+      `docs/addons/api/event/`, which is exactly the "a key was dropped in the move" failure the suite
+      cannot see.
+      `[manual]`: none.
+      <!-- extra context: DOCUMENTATION.md §2.3 (a subject directory below the top level of api/) and §9
+           (pricing a split by its inbound anchors); tools/docverbs.py, whose PER_FILE keys by basename and
+           will need the path form — `event/bus/chat.md` is the third `chat.md` in the tree -->

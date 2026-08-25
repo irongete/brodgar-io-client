@@ -16,7 +16,7 @@ client builds the System log itself.
 | The tabs | the private `ChatUI.Selector`, its `chls` list of `DarkChannel`, and `Selector.add`/`rm`/`up`/`down`. Private, so the child walk above is the only reachable enumeration |
 | A channel's lines | `Channel.rmsgs`, a `List<Channel.RenderedMessage>`; `RenderedMessage.msg` is the `Message`, `.idx` its position, `.text()` its raster |
 | Appending | `Channel.append(Message, int urgency)` — the one funnel; `append(Message)` and `append(String, Color)` delegate. It stamps `Message.scope`, links the `RenderedMessage`, moves the scrollbar, calls `ChatUI.notify` and then `updurgency` |
-| A line | `Channel.Message`: `time` (`Utils.ntime()`), `render(int w)`, `valid(Indir<Text>)`, `scope()`/`kind()`, and the three mouse hooks. `SimpleMessage` carries `text`/`col`; `MultiChat.NamedMessage` carries `from`/`text`/`col` |
+| A line | `Channel.Message`: `time` (`Utils.ntime()`), `render(int w)`, `valid(Indir<Text>)`, `scope()`/`kind()`, and the three mouse hooks. What it says is on the subclass — see [the message classes](#the-message-classes) |
 | Unread | `Channel.urgency` and `Channel.updurgency(int)`, which re-folds `ChatUI.urgency` as the max over the selector's channels. `Channel.draw` calls `updurgency(0)` — a channel being drawn is a channel being read |
 | Saying a line | `EntryChannel.send(String)` → `wdgmsg("msg", text)`, plus its own `history`. `EntryChannel` also owns the per-channel `TextEntry` and `ConsoleHost.kb_histprev`/`kb_histnext` |
 | The quick line | the private `ChatUI.QuickLine` (a `ReadLine.Owner`) and `ChatUI.qline`, opened by `ChatUI.globtype` on `kb_quick` while the window is **hidden**, and re-pointed at another channel by `ChatUI.keydown` |
@@ -42,6 +42,24 @@ The class decides the argument shape of the inbound `"msg"`, the name, and the s
 
 A `MultiChat` mints a colour per speaker in `fromcolor(int)`, walking `nextcol()` and caching in `pc`;
 `PartyChat.uimsg` overrides that with the member's own `Party.Member.col` off `Glob.party`.
+
+## The message classes
+
+`Channel.Message` is abstract and holds only `time` and the render hooks: **what a line says lives on the
+subclass**, and which subclass it is is the only thing that says whose line it is. The set is not
+enumerated anywhere, and every one but `SimpleMessage` is an inner class of the channel that mints it.
+
+| Class | Where | Fields | Whose line |
+|---|---|---|---|
+| `Channel.SimpleMessage` | `Channel` | `text`, `col` | nobody's — a line with no sender at all |
+| `MultiChat.NamedMessage` | `MultiChat` | `from`, `text`, `col` | the buddy id in `from`, resolved through `GameUI.buddies` by `nm()` |
+| `MultiChat.MyMessage` | `MultiChat` | `SimpleMessage`'s | **the player's own**, and `kind()` is `"chat.mine"` |
+| `PrivChat.InMessage` | `PrivChat` | `SimpleMessage`'s | the other person's half of a private conversation |
+| `PrivChat.OutMessage` | `PrivChat` | `SimpleMessage`'s | **the player's own** half of it |
+
+`MyMessage`, `InMessage` and `OutMessage` are `SimpleMessage` subclasses, so none of them carries a sender
+field: the class is the fact. `MyMessage` is the only one that overrides `kind()`, so it is the only line
+whose site key differs from its channel's; the rest take `chanscope()`.
 
 ## Threading and lifetime
 
@@ -72,6 +90,10 @@ of the tree by the time `ChatUI.cdestroy` sees it.
 - **`Message.time` is `Utils.ntime()`** — epoch **seconds** as a `double`, not milliseconds and not a frame
   clock. Anything that prints it through a language whose default number formatting is scientific notation
   has to format it as an integer.
+- **A line's place in `rmsgs` is its index and it never moves.** `RenderedMessage.idx` is assigned inside
+  `append`'s `synchronized(rmsgs)` block as `rmsgs.size()`, and nothing else writes it or reorders the list,
+  so `(Channel, idx)` addresses one line for the life of the channel. Reading the index back **outside** that
+  block races the next append; read it inside.
 - **`rmsgs` is never trimmed.** A long login's scrollback grows without bound, so an index into it is stable
   for the life of the channel and a wholesale copy of it is not cheap.
 - **`ChatUI.add` selects the channel it just added**, so one server placement is both an arrival and a
