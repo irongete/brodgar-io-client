@@ -127,7 +127,7 @@ grep -rn "one lock direction\|two UI monitors\|lock direction" docs/client/
   off it: `AddonManager.tick(UI)` is called by the two drivers, outside both their blocks)
 - `src/io/brodgar/session/Sessions.java` — 3 (`tick()` ticks every background member under its own monitor,
   and calls that member's addon step after the block closes)
-- `src/io/brodgar/addon/CharApi.java` — 4 (the tree adapters the placement seam fires)
+- `src/io/brodgar/addon/CharApi.java` — 4 (the tree adapters, fired from the entry seam's drain since 112.5)
 - `src/io/brodgar/addon/Selector.java` — 4 (`matches` walks the tree and must hold its monitor)
 - `src/io/brodgar/addon/OptionsHandle.java` — 3, 8 (`hafen.client()`, where `stepping()` hangs)
 - `src/io/brodgar/addon/LuaWidget.java` — 2, 4
@@ -152,5 +152,7 @@ grep -rn "one lock direction\|two UI monitors\|lock direction" docs/client/
 - `docs/addons/api/event/streams.md` — 5, 6
 - `docs/addons/api/ui/items.md` — 5 (`item:on("Changed")`'s own page: when it fires)
 - `docs/addons/api/client/README.md` — 3, 8 (`hafen.client():stepping()`)
+- `docs/addons/api/event/bus/character.md` — 4 (`MeterAdded`, `BuffAdded`, `StudyChanged`, `EquipChanged`:
+  the four the entry seam's drain now fires)
 - `docs/addons/runtime.md`, `docs/addons/guides/events-and-timers.md` — 6
 - `DOCUMENTATION.md` — 6

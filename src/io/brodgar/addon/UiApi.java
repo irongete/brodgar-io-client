@@ -66,11 +66,13 @@ final class UiApi {
 
     // -- selector subscriptions (030.2): s:ui():on(sel, "Added"|"Removed", fn) — the discovery primitive that
     // replaced onWidgetCreate. A FLAT global list (a subscription watches the whole tree, not one keyed target),
-    // consulted at the placement seam and at the removal seam (dispatchSelectorRemoved, 042.9, event-driven —
-    // no more per-tick poll); globally empty = a near-zero fast path, so a client with no subscription pays one
-    // isEmpty() per widget placement/removal. `pending` is the PLACEMENT-scoped re-check: a widget that matched a
-    // selector's structure (role/class, fixed for its life) but not its [title=]/[res=] refiner may simply not
-    // have its caption or its resource yet, so it is re-offered — since 042.9, whenever a window's caption changes
+    // consulted at the widget-entry seam's drain (112.3 — it was the placement seam until then) and at the
+    // removal seam (dispatchSelectorRemoved, 042.9, event-driven — no more per-tick poll); globally empty = a
+    // near-zero fast path, so a client with no subscription pays one isEmpty() per widget entry/removal
+    // (offerEntered's own, since 112.5: the entry queue itself is filled for the tree adapters too). `pending`
+    // is the ENTRY-scoped re-check: a widget that matched a selector's structure (role/class, fixed for its
+    // life) but not its [title=]/[res=] refiner may simply not have its caption or its resource yet, so it is
+    // re-offered — since 042.9, whenever a window's caption changes
     // rather than on a fixed countdown — for up to RECHECK_TICKS re-checks and then dropped. Since 049.3 it is no
     // longer the only path: the caption seam records the WINDOW (`capChanged`) and the drain re-offers that
     // window's whole SUBTREE, because with the descendant combinator a [title=] sits on an ancestor step and what
@@ -80,20 +82,23 @@ final class UiApi {
     // caption changes, not with frames (a per-tick diff of the whole tree was the discarded alternative). Owned
     // copies live on each Addon for teardown; removing the last subscription (or tearing an addon down) clears
     // both queues, or a stalled entry would outlive every listener with nothing left to drain it. Session-scoped.
-    // THREADING: the placement seam runs on a Loader thread but inside AddWidget.run's synchronized(ui). The
-    // removal seam and the caption re-check both run from AddonManager.tick, on the UI thread under
-    // synchronized(ui) (AddonRoot's class doc) — the caption seam itself (Window.chcap) does NOT hold that monitor
-    // (UI.java:730-732), which is why it only appends a Widget (markCaptionChanged) rather than walking the tree or
-    // calling Lua inline (P5) — so the UI monitor guards every actual reader/writer here and each subscription's
-    // `matched` map needs no lock of its own.
+    // THREADING (112): every reader and writer of these two lists runs on a STEP holding no tree monitor — the
+    // entry drain on the layer's, the removal seam and the caption re-check on the session's — and each of them
+    // takes the tree's monitor itself, for the walk and the match alone, giving it up before any Lua runs
+    // (offerEntered, offer). The taps that feed them hold whatever their caller held and only append: the entry
+    // tap under add0's synchronized(ui), the caption seam (Window.chcap) under nothing at all, which is why it
+    // records a Widget (markCaptionChanged) rather than walking the tree or calling Lua inline (P5). So the tree
+    // monitor still guards every actual reader/writer here and each subscription's `matched` map needs no lock
+    // of its own.
     // 073.2: and BOTH LISTS ARE ONE SESSION'S. They hold widgets of a tree, so they are
     // {@code SessionState.selectorWatches} / {@code .selectorPending}, reached with the ui of the widget the
     // seam was handed — never {@link AddonManager#screen()}, which answers the session on screen and is a
-    // different one at every seam here: the placement seam runs on a Loader thread of whichever session sent
-    // the message, and the teardown below runs from {@code init} once the anchor has ALREADY moved to the
-    // session being switched to. A subscription records the tree it was made against ({@link
-    // LuaSelectorWatch#ui}), which is what lets it be dropped from that tree's list rather than from the
-    // list of whichever session happens to hold the screen when the addon is torn down.
+    // different one at every seam here: the entry tap runs on whichever thread placed the widget — a Loader
+    // thread of whichever session sent the message, as often as the UI thread — and the teardown below runs
+    // from {@code init} once the anchor has ALREADY moved to the session being switched to. A subscription
+    // records the tree it was made against ({@link LuaSelectorWatch#ui}), which is what lets it be dropped from
+    // that tree's list rather than from the list of whichever session happens to hold the screen when the
+    // addon is torn down.
     private static final int RECHECK_TICKS =              // how long a late caption/res has to land (in ticks)
         Integer.getInteger("haven.addon.selrecheck", 20).intValue();
 
@@ -222,16 +227,22 @@ final class UiApi {
      * a widget whose chain does not reach the root announces nothing and is announced later, when the ancestor
      * that was missing enters — because that ancestor passes this same seam. There is nothing to re-check.
      *
-     * <p><b>An uninterested client pays one {@code isEmpty()}</b>, which matters more here than above: this
-     * runs for every widget the client builds, a window's every label and button included, and it is what keeps
-     * the queue below from being handed the whole client.
+     * <p><b>Every widget the client builds passes here, and since 112.5 every one of them is recorded.</b> The
+     * guard used to be "is anybody watching with a selector", and that is no longer the whole question: the
+     * {@link CharApi.TreeAdapter}s read this drain too, and they are nine per session, built with the state and
+     * never absent — so a client with no {@code s:ui():on} at all still has a consumer, and a tap that
+     * fast-pathed on the selector list would have stopped its buffs and meters arriving. What is left to
+     * fast-path on is the state itself: no state, or one whose pump is not running, and there is nothing to
+     * drain into. The bound is the drain's, not the tap's ({@code AddonManager.drainEnteredWidgets} takes one
+     * step's worth), and the per-widget cost on the other side is a subtree walk and an {@code instanceof} per
+     * adapter.
      */
     static void enqueueEntered(Widget wdg) {
         UI u = wdg.ui;
         if((u == null) || (u.root == null))
             return;                            // not in any tree yet — it will pass here again when it is
         SessionState st = AddonManager.queueState(u);   // 073.2: the tree the widget entered, and no other
-        if((st == null) || st.selectorWatches.isEmpty())
+        if(st == null)
             return;
         if(!wdg.hasparent(u.root))
             return;                            // hung under something that is not up: announced with it, later
@@ -256,10 +267,16 @@ final class UiApi {
      * Loader thread re-links both under {@code synchronized(ui)}; but a handler holding that monitor is the
      * deadlock. Taking one tree's monitor here is exactly what the step is allowed to do — it arrives holding
      * none — and giving it up before {@link #offerEntered} calls Lua is what keeps it to one.
+     *
+     * <p><b>Two consumers, in the order the placement seam used to run them</b> (112.5): the 030.2 selector
+     * subscriptions, then {@link CharApi#dispatchPlaced}'s tree adapters. The adapters were the last Lua left
+     * on {@code AddWidget.run}'s thread, and moving them here is what makes {@code BuffAdded} and
+     * {@code MeterAdded} handlers as free as an {@code Added} handler already is — and offers the adapters
+     * every widget that enters, not only the ones the server places.
      */
     static void dispatchEntered(SessionState st, Widget wdg) {
         UI u = wdg.ui;
-        if((u == null) || (u.root == null) || st.selectorWatches.isEmpty())
+        if((u == null) || (u.root == null))
             return;
         if(AddonManager.state(u) != st)
             return;                            // re-homed into another tree since the tap: not this queue's
@@ -269,8 +286,10 @@ final class UiApi {
                 return;                        // gone, or hung under something that is not up
             collectSubtree(wdg, entered);
         }
-        for(Widget w : entered)
+        for(Widget w : entered) {
             offerEntered(st, u, w);
+            CharApi.dispatchPlaced(st, w);
+        }
     }
 
     /**
@@ -280,8 +299,13 @@ final class UiApi {
      *
      * <p>Per widget rather than per subtree, so the re-test and the match are asked at the moment this widget
      * is handed over — a handler fired for an earlier one may have closed the window a later one sits in.
+     *
+     * <p>The empty-list fast path is here rather than at the tap (112.5): the queue is filled for the tree
+     * adapters as well now, so "nobody is watching with a selector" is a question about this half alone.
      */
     private static void offerEntered(SessionState st, UI u, Widget wdg) {
+        if(st.selectorWatches.isEmpty())
+            return;
         List<LuaSelectorWatch> fire = null;
         synchronized(LuaWidget.monitorOf(u)) {
             if(!wdg.hasparent(u.root))
@@ -1313,9 +1337,10 @@ final class UiApi {
 
     /**
      * Register a selector subscription ({@code s:ui():on(selector, "Added"|"Removed", fn)}): parse the selector
-     * ONCE, install the {@link LuaSelectorWatch} in the global list (consulted at the placement seam and the removal
-     * seam, event-driven since 042.9 — no per-tick sweep) and in the addon's owned-resource registry (dropped on
-     * reload/disable, P2), then SCAN the live tree once so an already-open target is not missed. Returns the
+     * ONCE, install the {@link LuaSelectorWatch} in the global list (consulted at the widget-entry seam's drain
+     * and the removal seam, event-driven since 042.9 — no per-tick sweep) and in the addon's owned-resource
+     * registry (dropped on reload/disable, P2), then SCAN the live tree once so an already-open target is not
+     * missed. Returns the
      * {@link LuaSub} — this is a subscription like every other {@code :on} in the API (086.1), keyed by the
      * <b>event</b> it carries, with the {@link LuaSelectorWatch} on {@link LuaSub#tag}.
      */

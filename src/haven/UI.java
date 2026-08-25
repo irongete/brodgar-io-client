@@ -502,7 +502,7 @@ public class UI {
 		if(pwdg == null)
 		    throw(new UIException(String.format("Null parent widget %d for %d (%s)", parent, id, wdg), null, pargs));
 		pwdg.addchild(wdg, pargs);
-		io.brodgar.addon.AddonManager.onWidgetPlaced(id, wdg);   // addon: widget-placement seam — fires s:ui():on(selector, "appear") (030.2)
+		io.brodgar.addon.AddonManager.onWidgetPlaced(id, wdg);   // addon: widget-placement seam — layout rules and the item-watch offer, and no Lua at all since 112.5
 	    }
 	}
 

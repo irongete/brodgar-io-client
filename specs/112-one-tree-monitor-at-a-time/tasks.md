@@ -92,7 +92,7 @@ and each later task removes one.
       `[manual]`: the HUD keeps drawing and answering the mouse for a few seconds after the run — a session
       pump that lost its frame is what no assertion running inside that pump could report.
 
-- [ ] **112.5 — the placement seam hands its adapters to the entry seam's drain.**
+- [x] **112.5 — the placement seam hands its adapters to the entry seam's drain.**
       `AddonManager.onWidgetPlaced` is a fourth site of `plan.md`'s family C and the table does not list it:
       `UI.AddWidget.run` calls it inside `synchronized(UI.this)` on a Loader thread, and
       `CharApi.dispatchPlaced` runs Lua from there — `MeterAdded`, `BuffAdded` and the study and equipment

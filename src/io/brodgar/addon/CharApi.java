@@ -60,16 +60,16 @@ import static io.brodgar.addon.AddonManager.*;
  * reads: the widget-tree reads of character state,
  * plus the change-detection {@link TreeAdapter}s that fire the semantic events (BuffAdded, FepChanged,
  * ...). {@link AddonManager} drives it via {@link #dispatchUimsg} (the onUimsg tap),
- * {@link #refreshTreeAdapters} (the tick), {@link #dispatchPlaced}/{@link #dispatchRemoved} (M1/M3) and
- * {@link #dispatchBeltSet} (D-178). Not instantiable.
+ * {@link #refreshTreeAdapters} (the tick), {@link #dispatchRemoved} (M1) and {@link #dispatchBeltSet}
+ * (D-178); {@link #dispatchPlaced} (M3) comes off {@link UiApi#dispatchEntered} instead since 112.5, which is
+ * the widget-entry seam's drain. Not instantiable.
  *
  * <p><b>The adapters are one session's</b> (073.3). Each of the nine caches the HUD widgets it has seen, as
  * its diff key, and those widgets are <b>one login's</b>, so the set of them lives in {@code SessionState}
  * ({@link #newAdapters}) and every seam reaches it with the {@code ui} of the widget it was handed:
- * {@code w.ui} at the uimsg tap and the placement seam, and the state the tick already holds at the drains.
- * Never {@link AddonManager#screen()}, which answers the session on screen — the uimsg tap runs on a Loader
- * thread of whichever session sent the message, and the placement seam on the thread of whichever session
- * placed the widget.
+ * {@code w.ui} at the uimsg tap, and the state the drain already holds everywhere else. Never
+ * {@link AddonManager#screen()}, which answers the session on screen — the uimsg tap runs on a Loader thread
+ * of whichever session sent the message, and the entry drain walks every tree's queue in turn.
  *
  * <p><b>What an adapter READS is the drawn HUD</b>: an adapter body asks {@link AddonManager#gui()}, which
  * answers the session on screen. Each adapter already knows whose cache it is, so the seam that must hand it
@@ -220,20 +220,28 @@ final class CharApi {
     }
 
     /**
-     * The widget-placement seam's body for the tree adapters (behind {@link AddonManager#onWidgetPlaced}, spec
-     * {@code 042-event-driven-reads} M3): offer the newly-placed widget to every adapter that has moved its
-     * "did a widget appear" detection off {@code poll()} and onto this seam (042.1's {@code MeterAdapter} is
-     * the first). Reached on the same thread and under the same {@code synchronized(ui)} discipline as the
-     * other placement consumer ({@code UiApi}'s selectors), so firing Lua here is safe.
+     * The <b>widget-entry seam</b>'s body for the tree adapters (from {@link UiApi#dispatchEntered}, spec
+     * {@code 042-event-driven-reads} M3): offer the just-entered widget to every adapter that has moved its
+     * "did a widget appear" detection off {@code poll()} and onto a seam (042.1's {@code MeterAdapter} is the
+     * first). {@code MeterAdded}, {@code BuffAdded} and the study and equipment fires all leave from here.
      *
-     * <p>073.3: the adapters offered are the ones of the tree the widget was placed <b>into</b>, which is what
-     * {@code wdg.ui} answers and what {@link AddonManager#screen()} would not.
+     * <p><b>It used to hang off the placement seam, and 112.5 moved it</b> — {@code AddonManager.onWidgetPlaced}
+     * is reached inside {@code UI.AddWidget.run}'s {@code synchronized(ui)}, on a Loader thread, so every one of
+     * those events ran with that tree's monitor held and a handler that built a window took a second. Here it
+     * runs on the layer's step holding none, so a {@code BuffAdded} handler may build a window and write any
+     * tree — and {@code hafen.client():stepping()} says so.
+     *
+     * <p><b>And it is offered more than it was.</b> The placement seam was the server's message handler: it
+     * never saw the widgets the client mints for itself, and it announced a widget the instant its parent took
+     * it, which for a subtree built before it is hung is before the widget is in any tree. The entry seam has
+     * neither fault. Every adapter already opens with an {@code instanceof} and dedups on its own cache, so the
+     * wider offer needs nothing of them.
+     *
+     * <p>073.3: it is handed the state whose queue the widget came out of — the tree the widget entered, which
+     * is what {@link AddonManager#screen()} would not say. {@link #dispatchRemoved} takes it the same way.
      */
-    static void dispatchPlaced(Widget wdg) {
+    static void dispatchPlaced(SessionState st, Widget wdg) {
         if(wdg == null)
-            return;
-        SessionState st = state(wdg.ui);
-        if(st == null)
             return;
         for(TreeAdapter a : st.treeAdapters) {
             try {
@@ -316,13 +324,15 @@ final class CharApi {
      * this adapter's business. The old positional {@code hp}/{@code stamina}/{@code energy} snapshot and its
      * {@code VitalsChanged} event are GONE with that spec's hard cut.
      *
-     * <p><b>Event-driven since 042.1.</b> A meter appearing is the widget-placement seam ({@link #placed},
-     * fired after {@code GameUI.addchild}'s {@code place == "meter"} branch has both positioned the widget
-     * and appended it to {@code meters}) and a meter being destroyed is the removal seam ({@link #removed},
-     * M1) — no more per-tick diff of the HUD's own bars against the cache. Membership is still checked
-     * through {@link LuaMeter#exists} (not a bare {@code instanceof IMeter}), so a widget of this type
-     * placed somewhere other than the HUD meter slot — hypothetical today, since {@code GameUI} is the only
-     * {@code IMeter} placement site — could never be miscounted as a bar. The bar CONTENT is pushed by the
+     * <p><b>Event-driven since 042.1.</b> A meter appearing is the widget-entry seam ({@link #placed}, offered
+     * from that seam's drain on the layer's step since 112.5, which is a whole frame after
+     * {@code GameUI.addchild}'s {@code place == "meter"} branch has positioned the widget and appended it to
+     * {@code meters} — so the membership test below is asked of a bar that is fully placed) and a meter being
+     * destroyed is the removal seam ({@link #removed}, M1) — no more per-tick diff of the HUD's own bars
+     * against the cache. Membership is still checked through {@link LuaMeter#exists} (not a bare
+     * {@code instanceof IMeter}), so a widget of this type placed somewhere other than the HUD meter slot —
+     * hypothetical today, since {@code GameUI} is the only {@code IMeter} placement site — could never be
+     * miscounted as a bar. The bar CONTENT is pushed by the
      * server as a targeted {@code "set"} (values) or {@code "col"} (colours) {@code uimsg}, so <b>refresh</b>
      * (unchanged) re-reads the cached meters and fires {@code MeterChanged} — colour is in the key because it
      * is now in the read surface ({@code meter:color()}), which the old {@code vitalsEqual} deliberately
@@ -410,9 +420,10 @@ final class CharApi {
     /**
      * Buffs — the {@link Buff} widgets under {@link GameUI#buffs} (a {@link Bufflist}).
      *
-     * <p><b>Event-driven since 042.2.</b> A buff appearing is the widget-placement seam ({@link #placed},
-     * fired after {@code Bufflist.addchild} has the child in). A buff's real unlink is a widget
-     * create/{@code cdestroy} that M1 ({@link #removed}) sees — but {@code Bufflist.cdestroy} is one of the
+     * <p><b>Event-driven since 042.2.</b> A buff appearing is the widget-entry seam ({@link #placed}, offered
+     * from that seam's drain on the layer's step since 112.5 — so a {@code BuffAdded} handler holds no tree
+     * monitor and may build a window). A buff's real unlink is a widget create/{@code cdestroy} that M1
+     * ({@link #removed}) sees — but {@code Bufflist.cdestroy} is one of the
      * 9 overrides that skip {@code super} (D-179), which is why M1 (not {@code cdestroy}) is the seam at
      * all — <b>and M1 alone would still fire {@code BuffRemoved} 0.35s late</b>, because
      * {@link Buff#reqdestroy} does not unlink: it sets the protected {@code dest} flag and starts a fade,

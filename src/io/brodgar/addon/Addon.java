@@ -294,11 +294,11 @@ public final class Addon {
     /**
      * Live selector subscriptions owned by this addon ({@code s:ui():on(sel, "Added"|"Removed", fn)}, 030.2 —
      * what replaced {@code hafen.ui.onWidgetCreate} and its descriptor): each watches the whole tree for widgets
-     * matching one {@link Selector}, fired from the placement seam and the removal seam (event-driven since
-     * 042.9). They live in a flat global dispatch list in {@link UiApi} (a subscription watches the whole tree,
-     * not one keyed target); teardown ({@link UiApi#teardownSelectorWatches}) marks each dead and drops both
-     * copies <b>without firing</b> — a {@code :reload}/disable is not a destroy, exactly as for a
-     * {@link WidgetSubs}'s watch-list registration.
+     * matching one {@link Selector}, fired from the widget-entry seam's drain (112.3 — it was the placement
+     * seam until then) and from the removal seam (event-driven since 042.9). They live in a flat global
+     * dispatch list in {@link UiApi} (a subscription watches the whole tree, not one keyed target); teardown
+     * ({@link UiApi#teardownSelectorWatches}) marks each dead and drops both copies <b>without firing</b> — a
+     * {@code :reload}/disable is not a destroy, exactly as for a {@link WidgetSubs}'s watch-list registration.
      * Copy-on-write: a firing handler may subscribe or {@code sub:off()} itself mid-dispatch.
      */
     public final List<LuaSelectorWatch> selectorWatches = new CopyOnWriteArrayList<LuaSelectorWatch>();

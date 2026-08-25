@@ -1630,26 +1630,31 @@ public final class AddonManager {
 
     /**
      * The <b>widget-placement seam</b> — called from the {@code UI.AddWidget.run} core edit, right after
-     * {@code pwdg.addchild(wdg, pargs)}, i.e. the first COMPLETE moment: the widget is in the tree, so a
-     * {@link Selector} can be applied to it. <b>One consumer since 032.2</b>: the 030.2 selector subscriptions
-     * ({@code s:ui():on}), which see the live widget itself. The other two are gone — {@code
-     * hafen.ui.onWidgetCreate} with 030.2, and {@code hafen.ui.replace}'s {@code {id, type, place, caption,
-     * parentType}} descriptor (D-024) with 032.2 — so the seam no longer needs the parent or the placement args,
-     * and the {@code UI.NewWidget.run} edit that recorded the server type string for that descriptor is gone too.
+     * {@code pwdg.addchild(wdg, pargs)}, i.e. the first COMPLETE moment for a widget the SERVER places: it is
+     * in the tree, so a {@link Selector} can be applied to it. The {@code hafen.ui.onWidgetCreate} consumer
+     * went with 030.2 and {@code hafen.ui.replace}'s {@code {id, type, place, caption, parentType}} descriptor
+     * (D-024) with 032.2, so the seam needs neither the parent nor the placement args any more, and the
+     * {@code UI.NewWidget.run} edit that recorded the server type string for that descriptor is gone too.
      *
-     * <p><b>Threading.</b> Reached only from inside {@code AddWidget.run}'s {@code synchronized(ui)} block (on a
-     * Loader thread, under the monitor tick/draw hold), so the Lua raised here never races other Lua — the same
-     * discipline as {@link #onMessage} (no {@code holdsLock} guard needed). The fast path (nobody subscribing)
-     * returns immediately, so an uninterested client is unaffected even though every widget placement passes here.
+     * <p><b>Nothing here runs Lua any more, and that is what keeps the seam where it sits</b> (112.5). It is
+     * reached inside {@code AddWidget.run}'s {@code synchronized(ui)}, on whichever Loader thread applied the
+     * server's message, so a handler raised from here would run with that tree's monitor held — the nesting
+     * this feature removes. Both halves that called Lua have gone to the widget-entry seam's drain, which runs
+     * on the layer's step holding no tree monitor at all: the 030.2 selector subscriptions in 112.3, and the
+     * 042.1 tree adapters ({@link CharApi#dispatchPlaced} — {@code MeterAdded}, {@code BuffAdded} and the study
+     * and equipment fires) in 112.5. What is left is {@link UiApi#onWidgetPlaced}: 036.2's layout rules and
+     * 042.7's {@link UiApi#dispatchWidgetSubsPlaced}, neither of which reaches Lua.
      *
-     * <p><b>Second consumer since 042.1</b>: {@link CharApi#dispatchPlaced}, for the tree adapters that have
-     * moved their "did a widget appear" detection off {@code poll()} and onto this seam (spec {@code
-     * 042-event-driven-reads} M3) — same thread, same monitor, so firing their events here is exactly as safe
-     * as the selector dispatch above.
+     * <p><b>The adapters were not merely moved off a bad thread — they were widened</b> (112.5). This seam is
+     * the server's message handler, so it never saw a widget the client mints for itself (an {@code Inventory}'s
+     * {@code WItem} per item, the {@code ItemDrag} under the cursor, a {@code ContentsWindow}), and it announced
+     * a widget the instant its <i>parent</i> took it — which for a subtree built before it is hung is before the
+     * widget is in any tree. The entry seam has neither fault, so an adapter is now offered every widget that
+     * enters any tree. Each already filters by type and dedups on its own cache, so the wider offer costs them
+     * an {@code instanceof} and buys them the arrivals this seam could not report.
      */
     public static void onWidgetPlaced(int id, Widget wdg) {
         UiApi.onWidgetPlaced(id, wdg);
-        CharApi.dispatchPlaced(wdg);
     }
 
     /**

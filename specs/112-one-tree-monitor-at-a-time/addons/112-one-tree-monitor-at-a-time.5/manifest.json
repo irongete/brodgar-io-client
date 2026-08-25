@@ -1,0 +1,9 @@
+{
+  "name": "112.5 — the placement seam hands its adapters to the entry seam's drain",
+  "id": "112-one-tree-monitor-at-a-time.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 112.5: an equipment change reaches its handler from the widget-entry seam's drain, so the handler runs on the step holding no tree monitor and may build a window and write that character's tree -- and it arrives for an addon that registers no selector subscription of its own.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
