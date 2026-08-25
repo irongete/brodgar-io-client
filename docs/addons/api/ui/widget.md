@@ -198,7 +198,7 @@ provoke the error.
 | `:size(w, h)` | resize the content, chrome repacks around it, and chain | **works**, same |
 | `:size(w)` | set the width and keep the height a [control](controls/README.md#sizing)'s own art gives it | **error** — the client's widget has no art of yours to ask |
 | `:pack()` | size it to what is inside it — a window's chrome or a bare widget alike — and chain | **works on a window** — [it refits, as a level that restores](edit.md#your-own-controls-inside-one-of-the-clients-windows); a control refuses |
-| `:parent(w)` | choose what it hangs under while it is being built — [one of the client's own windows included](edit.md#your-own-controls-inside-one-of-the-clients-windows) | **error** — the client's widgets hang where the client put them |
+| `:parent(w)` | choose what it hangs under while it is being built — [one of the client's own windows included](edit.md#your-own-controls-inside-one-of-the-clients-windows) | **works** — [take it into a surface of yours, and `nil` gives it back](native.md#taking-one-into-a-surface-of-your-own-unprotected) |
 | `:destroy()` | remove it and everything in it, and chain | **error**, same reason |
 | `:revert()` | give back everything your addon holds on it and on what is inside it | **works**, same — [the one undo for a whole edit](edit.md#taking-the-whole-edit-back) |
 | `:text(s)` | write the caption of a [control](controls/README.md) you built | **works** — [a level over what it says, and it restores](edit.md#what-a-window-says) |

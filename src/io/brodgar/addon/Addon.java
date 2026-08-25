@@ -302,6 +302,24 @@ public final class Addon {
      */
     public final List<LuaWidget.Moved> movedNative = new CopyOnWriteArrayList<LuaWidget.Moved>();
     /**
+     * Native widgets this addon has <b>taken into a surface of its own</b> with {@code widget:parent(p)} — the
+     * same shape as the two lists above one property along: <i>which parent it came out of, where in it, and
+     * behind which sibling</i>. One entry per widget, minted at the re-home and dropped by
+     * {@code widget:parent(nil)}.
+     *
+     * <p><b>The sibling is in the record because the child list is a paint order.</b> {@code Widget.add} appends,
+     * so a widget put back by adding alone comes back on top of everything that used to paint over it — the
+     * corner minimap is the case that names it: the client {@code lower()}s it so its own frame paints over the
+     * map, and a map restored by appending would hide the very frame it belongs under.
+     *
+     * <p>The place and the size are <b>not</b> this record's: they are {@link #movedNative}'s, which restores
+     * later in the same teardown and therefore has the last word. This one answers where the widget <i>lives</i>,
+     * that one where it stands. {@link UiApi#teardownRehomed} runs early — before the addon's own surfaces are
+     * destroyed, or a container going down would take the client's widget with it. Copy-on-write like the lists
+     * above.
+     */
+    public final List<LuaWidget.Rehomed> rehomedNative = new CopyOnWriteArrayList<LuaWidget.Rehomed>();
+    /**
      * Widgets this addon has handed to the <b>user</b> to drag or resize ({@code widget:draggable(h)},
      * {@code widget:resizable(h)}, 062) — one entry per (target, mode), since arming a target again in the same
      * mode is a change of handle rather than a second binding, while the two modes are independent. What a

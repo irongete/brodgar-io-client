@@ -47,7 +47,7 @@ size it did not choose — and every property is a setter on the [Widget](widget
 | Setter | Read | Meaning |
 |---|---|---|
 | `:title(s)` | `:title()` | window caption — a bare widget has no chrome to write it on and refuses; it answers on [one of the client's windows](edit.md#what-a-window-says) too |
-| `:parent(w)` | `:parent()` | which widget it hangs under; the default is the layer, and [one of the client's own windows](edit.md#your-own-controls-inside-one-of-the-clients-windows) may be named — which puts it in that character's tree, where it ends with them |
+| `:parent(w)` | `:parent()` | which widget it hangs under; the default is the layer, and [one of the client's own windows](edit.md#your-own-controls-inside-one-of-the-clients-windows) may be named — which puts it in that character's tree, where it ends with them. The same verb says the other direction too: [one of the client's widgets, taken into a surface of yours](native.md#taking-one-into-a-surface-of-your-own-unprotected) |
 | `:position(x, y)` | `:position()` | place within the parent, in [design pixels](pixels.md) |
 | `:size(w, h)` | `:size()` | content size; a window's chrome is fitted around it |
 | `:font(h)` | `:font()` | default font for this widget's `g:text`/`g:atext` draws, not for the title bar |

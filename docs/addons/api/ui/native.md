@@ -1,10 +1,10 @@
 # hafen.ui: placing, hiding and handing over the client's own widgets
 
 These writes answer on a widget you do not own: `:position(x, y)` moves it, `:size(w, h)` resizes it,
-`:visible(false)` takes it off screen, `:draggable(h)` and `:resizable(h)` hand the move and the box to the
-**user**, and `:remember(name)` keeps where they left it. Every one of them is **unprotected** —
-client-side placement, not an action — and every one records what it found, so everything is given back
-when your addon goes away.
+`:parent(p)` takes it into a surface of yours, `:visible(false)` takes it off screen, `:draggable(h)` and
+`:resizable(h)` hand the move and the box to the **user**, and `:remember(name)` keeps where they left it.
+Every one of them is **unprotected** — client-side placement, not an action — and every one records what it
+found, so everything is given back when your addon goes away.
 
 ```lua
 local s = hafen.session():current()                    -- the character whose window it is
@@ -308,6 +308,86 @@ itself.
 **There is no verb for this.** Nothing to register, nothing to release. Ownership follows the hide, and it
 is per window: hiding the inventory leaves equipment, the character sheet, kin, options and the map
 behaving exactly as stock.
+
+## Taking one into a surface of your own (unprotected)
+
+`w:parent(p)` says **this widget of the client's now hangs under that surface of mine**, and `w:parent(nil)`
+gives it back. It is the same verb that chooses where a control of yours is
+[born](custom.md#windows-and-widgets), said in the other direction, and it is the only one here that changes
+what a widget hangs *under* rather than where it stands.
+
+```lua
+local s = hafen.session():current()
+local mmap = s:ui():match("@CornerMap")                    -- the corner minimap: the client's own
+
+local box = hafen.ui():widget():parent(s:ui():match("@GameUI"))    -- a surface of yours, in HER tree
+  :size(mmap:size().w + 16, mmap:size().h + 16):position(300, 200)
+box:stock{bg = {color = {43, 51, 44, 127}}, border = {box = "gfx/hud/wnd", mode = "tile"}}
+
+mmap:parent(box)                                            -- ...and the map is now inside it
+mmap:position(8, 8)
+-- later:  mmap:parent(nil)
+```
+
+| Call | Does |
+|---|---|
+| `w:parent()` | the widget it hangs under, or `nil` at a root — the read, on any widget |
+| `w:parent(p)` | take it into `p`, a surface **your addon built** in that character's tree; chains |
+| `w:parent(nil)` | give it back whole: the parent it came out of, its order among its siblings, and the place and box the client had it at; chains |
+
+**It is a move, not a copy, and nothing is redrawn.** The widget goes on being the client's — it ticks, it
+draws itself, it answers its own clicks and tooltips, a server-bound one is still bound and still filling.
+That is what this reaches and nothing else does: a surface whose value is its **picture** rather than its
+data — the minimap's rendered ground, the portrait's 3D avatar, a meter's server-coloured fill — is one no
+addon can reproduce, so [`replace`](replace.md) has nothing to offer it. Reach for `replace` when you want to
+draw the thing yourself, and for this when you want the client to go on drawing it inside chrome of yours.
+
+**Your surface paints under it, and your frame over both.** A widget draws itself, then its children, and
+[your border goes on last](custom.md#naming-and-dressing-your-own-surfaces) — so a `bg` on your surface is a
+field *under* the client's widget and a `border` is a frame *around* it. That is the whole recipe for putting
+one of the client's pictures in a panel of your own.
+
+**It lands at `0, 0` in your surface**, and [`w:position(x, y)`](#moving-and-resizing-unprotected) places it
+from there, exactly as it would anywhere else. Your surface does not resize itself around it: what box it
+gets is what you gave it.
+
+**Giving it back gives back the whole placement** — the parent, the order, the place *and* the box. While the
+widget is yours, [`:position`](#moving-and-resizing-unprotected) and `:size` place it inside your surface as
+they would anywhere; `w:parent(nil)` ends that layer along with the move, because a place inside a surface
+the widget is leaving means nothing anywhere else.
+
+That order is not a detail: **a parent that packs itself around its children measures each one as it
+arrives**, and derives where it sits on screen from the box that comes out. A widget handed back at your
+size would leave the client's own panel fitted to it, with a gap under it that nothing corrects until the
+next thing is added to it. So the layout goes back first and the widget after.
+
+**The surface has to be in that character's tree.** One of the client's widgets reads the login behind it —
+its session, its HUD, its map — and the [addon layer](custom.md#your-windows-live-in-the-layer) has no
+character behind it at all, so a widget taken there would go dark. Build the surface into the HUD instead —
+`hafen.ui():widget():parent(s:ui():match("@GameUI"))` — and the refusal says so.
+
+**One widget hangs in one place.** A widget another addon is holding is refused, naming that addon, and so is
+one [standing in the 3D world](../vr/widgets.md) — which is this same move to a surface out there, and keeps
+the same kind of record. The refusals are the other way round too: `hafen.vr():widget():add` refuses a widget
+you are holding here.
+
+**The restore puts back the sibling order, not only the parent.** A parent's child list is a paint order and
+the client leans on it — the corner minimap is `lower()`ed so the carved plate above it paints *over* the
+map — so a widget put back by adding alone would come back on top of the very thing that framed it. What
+comes back is where it hung, where it sat, and what it sat behind.
+
+Three things are worth knowing before you build on it:
+
+- **The parent it left keeps the box it had.** A parent that packs itself around its children — the corner
+  panels, a window that fits its content — is not told that a child walked out, and re-packs the next time
+  the client adds one. Nothing moves on its own; the room the widget used to take is simply still reserved.
+- **The client rebuilds its own widgets.** It destroys and re-makes the corner minimap when the map file
+  changes, and a rebuilt widget is a new one that never left home. Take it with
+  [`s:ui():on(sel, "Added", …)`](replace.md#watching-for-a-widget) rather than once at login, and the
+  rebuild is handled by the same line as the first one.
+- **Destroying your surface gives the widget back first.** `w:destroy()` on a panel holding one of the
+  client's widgets sends that widget home before anything is disposed — a `destroy` is recursive, and the
+  client has no way to build another minimap.
 
 ## The client reuses its windows
 

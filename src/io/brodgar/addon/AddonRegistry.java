@@ -131,6 +131,12 @@ public final class AddonRegistry {
                                       //   flat UI. Standing is a re-home, so it has to be undone before anything
                                       //   decides where a widget ends up — the hidden-native restore reads where
                                       //   the widget is, and destroyWidgets disposes what it finds.
+        UiApi.teardownRehomed(a);     // ...and beside it, every widget of the CLIENT's this addon TOOK into a
+                                      //   surface of its own (widget:parent(p)). Same reason as the line above,
+                                      //   and the same order: destroyWidgets below disposes recursively, so a
+                                      //   minimap still inside one of our panels would go down with it. BEFORE
+                                      //   teardownMoved, which restores where it stands: this one only answers
+                                      //   what it hangs under, and that one has to have the last word.
         UiApi.teardownHidden(a);      // 029.2/031.2: give back every native widget the addon hid — and its toggle —
                                       //   under the one rule: the window ends up as the user was seeing it, and a
                                       //   substitution ends whole (the stand-in view dies with it, 032.1). BEFORE

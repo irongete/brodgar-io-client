@@ -87,6 +87,11 @@ control is still being built and refuses on one already on screen, naming `w:pos
 widget the user is looking at is what that verb has always been. You build a control *into* one of the
 client's windows; you do not re-home one that is standing somewhere else.
 
+**The other direction is the same verb**, and it is not build-time: one of the *client's* widgets goes into a
+surface of yours with [`w:parent(p)`](native.md#taking-one-into-a-surface-of-your-own-unprotected), and
+`w:parent(nil)` gives it back. This page is your controls inside their windows; that one is their widgets
+inside your panels.
+
 **A child's place is the content area**, the same space the window's own controls sit in: `(0, 0)` is under
 the caption bar, not the window's outer corner. The window's own height is therefore a place below
 everything it is showing, which is the pair above — put the control there, then `:pack()` to bring the frame

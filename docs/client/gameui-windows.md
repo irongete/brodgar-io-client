@@ -1,7 +1,6 @@
 # GameUI's own windows: wrappers, menu bars, the toggle path and the position store
 
-> Covers the windows **the client itself opens, closes and remembers**. Distinct from [widgets.md](widgets.md) (generic tree + create/place/destroy) and [ui-chrome.md](ui-chrome.md) (`Window.Deco`, `IBox`, the `iresize`/`contarea`/`csz` geometry).
-> The **class + method name is the stable anchor**.
+> Covers the windows **the client itself opens, closes and remembers**. Distinct from [widgets.md](widgets.md) (generic tree + create/place/destroy) and [ui-chrome.md](ui-chrome.md) (`Window.Deco`, `IBox`, the `iresize`/`contarea`/`csz` geometry). The **class + method name is the stable anchor**.
 
 ## The windows GameUI owns — fields on `GameUI`: `invwnd`, `equwnd`, `makewnd`, `srchwnd`, `iconwnd`, `chrwdg`, `zerg`, `opts`, `mapfile`
 
@@ -13,22 +12,20 @@
 | Crafting: an anonymous wrapper the CONTENT ends | `place == "craft"` — `new Window(…, ((Makewindow)child).rcpnm)`, `add(mkwdg)`, `pack()`. Its `cdestroy(w)` runs `ui.destroy(this)` and `makewnd = null` when `w == mkwdg` |
 
 **The crafting pair dies content-first, and only the content dies at once.** The server destroys the
-`Makewindow`, which is a plain `Widget`: `reqdestroy()` is `destroy()`, so it unlinks immediately and
+`Makewindow`, a plain `Widget` whose `reqdestroy()` is `destroy()`: it unlinks immediately and
 `hasparent(root)` goes false on the same call. Its `cdestroy` then destroys the anonymous wrapper, and *that*
-is a `Window`, whose `reqdestroy` starts a fade instead — so for a while the wrapper is still reachable with
-nothing in it. Anything asking "is this recipe still open" must ask the **content** widget, never the wrapper
-and never `makewnd`, which is one field for whichever recipe is newest. See the two-branch liveness rule in
-[widgets.md](widgets.md).
+is a `Window`, whose `reqdestroy` starts a fade — so for a while the wrapper is reachable with nothing in it.
+Ask the **content** widget whether a recipe is open, never the wrapper and never `makewnd`, which is one
+field for whichever recipe is newest. See the two-branch liveness rule in [widgets.md](widgets.md).
 
 **The wrappers are hidden from birth** — `maininv` exists from login, the `Hidewnd` around it does not, so *"put
 the inventory back"* is **never** a blind `show()`. **And only the GRID is the server's**: the wrapper is
 constructed here rather than sent, so `Widget.wdgid()` on it is `-1` and it appears in no `UI.rwidgets` entry —
 address the inventory by id through `maininv` (`GameUI.equwnd`'s `Equipory` likewise), and reserve the wrapper
-for what it is, a frame the client hangs around it. **TRAP — that wrapper
-PACKS AROUND ITS GRID and cannot be resized from outside**: it is anonymous, with
-`cresize(ch) { pack(); }`, and `Widget.resize`
-notifies `parent.cresize(this)` — so `resize2`'s `deco.iresize` makes the deco call back and the window re-packs
-to its content **before your call returns** (`pack()` = `resize(contentsz())`). `equwnd` has none, and resizes.
+for what it is, a frame the client hangs around it. **TRAP — that wrapper PACKS AROUND ITS GRID and cannot be
+resized from outside**: it is anonymous, with `cresize(ch) { pack(); }`, and `Widget.resize` notifies
+`parent.cresize(this)` — so `resize2`'s `deco.iresize` makes the deco call back and the window re-packs to its
+content **before your call returns** (`pack()` = `resize(contentsz())`). `equwnd` has none, and resizes.
 
 ## The HUD itself: seven `Hidepanel`s, and the plates they blit
 
@@ -40,14 +37,23 @@ to its content **before your call returns** (`pack()` = `resize(contentsz())`). 
 | The plates that are **`Img` children** | `gfx/hud/blframe` in `blpanel` (the minimap's frame), `gfx/hud/csearch-bg` and `gfx/hud/brframe` in `brpanel`. Each is a plain `Img`, so it is a widget in the tree rather than a blit |
 | What sits **on** them | `menugridc` is `brframe.c` plus a constant and `menubuttons` places the search button at `rbtnimg.c` — the `Img`'s own box decides, once, at construction. `minimapc` beside them is a bare constant |
 
-**The size of a panel is the size of its plate**: `MainMenu` and `MapMenu` both call `super(<tex>.sz())`,
+**The size of a panel is the size of its plate**: `MainMenu` and `MapMenu` both call `super(<tex>.sz())`
 and `Hidepanel.add` packs around them. Nothing re-measures on a redraw, so a plate painted at another size
 is drawn into the box the client's art gave it.
 
+⚠️ **It re-packs on two events and re-anchors on one**: `add` does `pack()` **and** `move()`, `cresize` (a
+child's `resize`) does `sz = contentsz()` and no `move()`, and a child moved, hidden or unlinked reaches
+neither. `move()` derives `c` from `sz`, so a child resized *after* it was added leaves the panel anchored
+to its old box — a gap at the screen edge — until the next `add` or fold. Size a widget before adding it.
+
+⚠️ **`resetui()` persists the visibility of all seven and every fold click runs it** (`updfold(reset)`): it
+loops `p.cshow(p.tvis)`, and `cshow` writes `<id>-visible` **before** comparing. `toggleui` (`kb_hide`,
+unbound) slides them all off setting `tvis` and writing nothing — so one fold click while the UI is toggled
+off records *all seven hidden*, the next start comes up bare, and cycling `toggleui` back does not undo it.
+
 ⚠️ **`beltwdg` is not in a panel, and there are two of it.** It is `add`ed to `GameUI` itself and placed by
-hand in `resize`/`updfold`; `NKeyBelt` (`super(nkeybg.sz())`) blits that plate, while `FKeyBelt` — the other
-half of the Options belt setting — draws **no background at all**, only its twelve squares. Both blit
-`Inventory.invsq` for those, the same raster the action grid uses, so neither is an `Inventory` draw.
+hand in `resize`/`updfold`; `NKeyBelt` (`super(nkeybg.sz())`) blits that plate, `FKeyBelt` — the Options
+belt setting's other half — draws **no background**, and both blit `Inventory.invsq` for their squares.
 
 ## Where a server-placed HUD widget actually HANGS
 
@@ -131,15 +137,14 @@ client. This one method is the whole of the screen-resize case.
 ## The addon seams (031, 035, 036, 062)
 
 All `// addon:` edits sit **inside existing method bodies** — no visibility change, no new call site — and go
-through `AddonWidgets`, so `haven` keeps one file that knows the addon
-layer exists. `togglewnd` asks `toggleWnd(wnd)` first (`true` = handled), `wndstate` asks `wndState(wnd)` (`null` =
-not owned); ownership is 029's hide record (`Addon.hiddenNative`) by **widget identity**, which also disposes of
-the fading corpse from [widgets.md](widgets.md#core-tree), and that record carries the view, so
-`wndState` answers `view.visible()`. 035's `chrome(wnd)` is in `Window.tick`
-([ui-chrome.md](ui-chrome.md)). **is a SUBSTITUTION, not a call**: every `Utils.setprefc(key, w.c)` in the
-three writers above reads `AddonWidgets.stockc(w)` instead (`stockcsz` for `wndsz-map`) — the widget's own value
-unless an addon's layout stands on it. It substitutes rather than restores because `savewndpos` also runs on that
-60 s tick — putting the widgets back around the write would snap a laid-out HUD once a minute. 062's
-`relayout(this)` is the fourth, and the only one that is a plain **call** rather than a question or a
-substitution: it goes last in `resize` so it overwrites, and it is idempotent so a `resize` it makes
-cannot come back round through the same line.
+through `AddonWidgets`, so `haven` keeps one file that knows the addon layer exists. `togglewnd` asks
+`toggleWnd(wnd)` first (`true` = handled), `wndstate` asks `wndState(wnd)` (`null` = not owned); ownership is
+029's hide record (`Addon.hiddenNative`) by **widget identity**, which also disposes of the fading corpse from
+[widgets.md](widgets.md#core-tree), and that record carries the view, so `wndState` answers `view.visible()`.
+035's `chrome(wnd)` is in `Window.tick` ([ui-chrome.md](ui-chrome.md)). The position store's seam **is a
+SUBSTITUTION, not a call**: every `Utils.setprefc(key, w.c)` in the three writers above reads
+`AddonWidgets.stockc(w)` instead (`stockcsz` for `wndsz-map`) — the widget's own value unless an addon's layout
+stands on it. It substitutes rather than restores because `savewndpos` also runs on that 60 s tick, and putting
+the widgets back around the write would snap a laid-out HUD once a minute. 062's `relayout(this)` is the fourth
+and the only plain **call**: it goes last in `resize` so it overwrites, and it is idempotent so a `resize` it
+makes cannot come back round through the same line.

@@ -399,17 +399,31 @@ public final class LuaWidget {
         // Legal only while the surface is still being BUILT (before its arming tick). Re-homing one the user is
         // already looking at is a capability this API never had, and the honest place to refuse it is here: the
         // message names widget:position(x, y), which is what moving a window on screen has always been.
+        //
+        // ...AND THE OTHER DIRECTION, WHICH IS THE SAME VERB. On a widget the CLIENT built, w:parent(p) takes it
+        // INTO a surface of yours and w:parent(nil) puts it back — the fourth write of the native family
+        // (:position, :size, :visible, and standing one in the world), carrying a restore like every one of
+        // them. It is one verb because it is one operation: "which widget does this hang under". The client's
+        // own drawing comes with it, which is the whole point — a minimap, a portrait, a meter is a picture no
+        // addon can reproduce, and this is the only reach there is to putting one inside chrome of your own.
         m.set("parent", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:parent() → narg 1 · w:parent(p) → narg 2
                 LuaValue self = a.arg1();
                 Widget w = live(handle(self, "parent"));
-                LuaValue v = Args.written(a, 2, "widget:parent", "w");
+                // NOT Args.written: an explicit nil MEANS something here (put a native widget back), and the
+                // read arity is the absent one. The refusal for a nil on one of the addon's OWN surfaces is
+                // written below, where it is true.
+                LuaValue v = Args.passed(a, 2) ? a.arg(2) : null;
                 if(v == null) {
                     Widget p = (w == null) ? null : w.parent;
                     return (p == null) ? LuaValue.NIL : of(owner, p);
                 }
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
+                if(ownedContent(owner, w) == null)        // one of the CLIENT's: the native direction
+                    return rehomeNative(owner, self, w, v);
+                if(v.isnil())
+                    throw Args.nilRefused("widget:parent", "w");
                 Owned c = owned(owner, w, "parent(w)");
                 if(!c.pending())
                     throw new LuaError("widget:parent(w) chooses the parent while the widget is being BUILT, and"
@@ -922,6 +936,9 @@ public final class LuaWidget {
                 Widget w = live(handle(self, "destroy"));
                 if(w != null) {
                     Owned content = owned(owner, w, "destroy()");
+                    // Anything of the CLIENT's that we took into this surface goes home FIRST: kill() disposes
+                    // recursively, so a minimap left inside would be destroyed with the panel around it.
+                    UiApi.homeInside(w);
                     synchronized(monitor(w)) { content.kill(); }
                     UiApi.dropPending(content);   // 039.6: one built and ended in the same statement is never placed
                     owner.widgets.remove(content);
@@ -1782,6 +1799,127 @@ public final class LuaWidget {
             AddonWidget v = view;
             return ((v == null) || v.dead()) ? null : v.rootw();
         }
+    }
+
+    /**
+     * A native widget this addon has taken into a surface of its own with {@code widget:parent(p)} — <b>where it
+     * came from</b>, which is the whole of what {@code widget:parent(nil)} and the teardown need to put it back.
+     *
+     * <p>Three fields say the home, and the third is the one that is easy to leave out. {@link #from} is the
+     * parent, {@link #at} the place in it, and {@link #after} <b>the sibling it followed</b> — because a parent's
+     * child list is a paint order, and {@link Widget#add} appends. The corner minimap is the case that names it:
+     * {@code GameUI} {@code lower()}s it so the carved plate above it paints over the map, so a map put back by
+     * adding alone would come back on top of its own frame.
+     *
+     * <p>Not in the record: the widget's place and size <i>as the user had them</i>. Those are
+     * {@link Moved}'s, which restores later in the same teardown and therefore has the last word; {@link #at} is
+     * only what the widget's own {@code c} was at the moment we took it, which is what an untouched widget goes
+     * back to. And not the visibility either: taking a widget in hides nothing, so what the user was seeing is
+     * what they go on seeing.
+     */
+    static final class Rehomed {
+        final Addon owner;
+        final Widget wdg;
+        final Widget from;
+        final Widget after;      // null ⇒ it was the FIRST child of `from`
+        final Coord at;
+        final UI ui;             // the tree it belongs to: after a relog there is nothing of it to put back
+
+        Rehomed(Addon owner, Widget wdg, Widget from, Widget after, Coord at, UI ui) {
+            this.owner = owner;
+            this.wdg = wdg;
+            this.from = from;
+            this.after = after;
+            this.at = at;
+            this.ui = ui;
+        }
+    }
+
+    /**
+     * Put {@code w} back among its siblings where the record says it stood: first child, or right behind the one
+     * it followed. Called with the widget already re-added to that parent, so the fallbacks are both "leave it
+     * where {@link Widget#add} put it" — the sibling is gone, or it sat in another {@code z} band, where the
+     * client's own ordering rule already decides and ours would break it.
+     */
+    static void relink(Widget w, Widget after) {
+        Widget p = (w == null) ? null : w.parent;
+        if(p == null)
+            return;
+        if(after == null) {                        // the client's own verb for exactly this: unlink + linkfirst
+            w.lower();
+            return;
+        }
+        if((after.parent != p) || (after.z != w.z))
+            return;
+        w.unlink();
+        if((w.next = after.next) != null)
+            w.next.prev = w;
+        else
+            p.lchild = w;
+        (w.prev = after).next = w;
+    }
+
+    /**
+     * {@code widget:parent(p)} / {@code widget:parent(nil)} on one of the CLIENT's widgets — the native half of
+     * the verb (the addon's own half is the builder setter above). Takes it into a surface this addon built, or
+     * puts it back where the client had it.
+     *
+     * <p><b>Why the whole subtree comes with it and nothing is redrawn</b>: this is a tree move, so the widget
+     * goes on being the client's — it ticks, it draws itself, it answers its own clicks, and a server-bound one
+     * is still bound. That is what makes it the only reach there is to a surface an addon <i>cannot</i>
+     * reproduce: the minimap's rendered ground, the portrait's 3D avatar, a meter's server-coloured fill.
+     */
+    private static Varargs rehomeNative(Addon owner, LuaValue self, Widget w, LuaValue v) {
+        if(v.isnil()) {                            // put it back — inert when we are not holding it
+            Rehomed r = UiApi.rehomedIn(owner, w);
+            if(r != null)
+                UiApi.home(r, true);
+            return self;
+        }
+        LuaWidget h = resolve(v);
+        Widget p = (h == null) ? null : live(h);
+        if(p == null)
+            throw new LuaError("widget:parent(p) on one of the client's own widgets expects a surface YOUR addon"
+                + " built to take it into — hafen.ui():widget() or hafen.ui():window(). Got " + v.typename());
+        Owned pc = ownedContent(owner, p);
+        if(pc == null)
+            throw new LuaError("widget:parent(p) — " + typeName(w) + " is the client's own and so is "
+                + typeName(p) + ": moving one of the client's widgets into another of them is not this verb."
+                + " Lay it out where it stands with widget:position(x, y) / widget:size(w, h), or build a"
+                + " surface of your own and name that");
+        Widget dest = pc.widget();
+        if(dest instanceof CScrollport)            // the 040.8 trap: a scrollport's children go in its container
+            dest = ((CScrollport)dest).cont;
+        if(w.parent == null)
+            throw new LuaError("widget:parent(p) — " + typeName(w) + " is the root of its own tree: it hangs"
+                + " under nothing, so there is nothing to take it out of and nothing to put it back into");
+        if((dest == w) || dest.hasparent(w))
+            throw new LuaError("widget:parent(p) — " + typeName(p) + " is inside " + typeName(w) + ", and a"
+                + " widget cannot come to hang under itself. Build the surface outside the widget you are taking");
+        if(w.parent instanceof WidgetSurface)
+            throw new LuaError("widget:parent(p) — " + typeName(w) + " is standing in the 3D world, held by the"
+                + " addon \"" + AddonManager.ownerName(((WidgetSurface)w.parent).owner) + "\"; a widget hangs in"
+                + " one place. Take it back with hafen.vr():widget():remove(x) first");
+        if(w.ui != dest.ui)
+            throw new LuaError("widget:parent(p) — " + typeName(w) + " belongs to a character's tree and reads"
+                + " it: its session, its HUD, its map. " + typeName(p) + " stands in the addon layer, where there"
+                + " is no character behind it, so the widget would go dark there. Build the surface into that"
+                + " character's own tree instead: hafen.ui():widget():parent(s:ui():match(\"@GameUI\"))");
+        Rehomed ex = UiApi.rehomedOwner(w);
+        if((ex != null) && (ex.owner != owner))
+            throw new LuaError("widget:parent(p) — " + typeName(w) + " is already held by the addon \""
+                + AddonManager.ownerName(ex.owner) + "\"; one widget hangs in one place. Disable that addon"
+                + " first, or point at a widget it does not hold");
+        if(w.parent == dest)                       // already there: the write is a chaining no-op
+            return self;
+        if(ex == null)                             // the FIRST touch is what records the home; a later move
+            UiApi.rehomedAdd(new Rehomed(owner, w, w.parent, w.prev, new Coord(w.c), w.ui));   // keeps it
+        // ONE tree, so one monitor, and reparent takes it: the same-session check above is what makes that
+        // true. Widget.remove() is the wrong call here and reparent says why — it would announce a death that
+        // is not happening to widget:on("Removed"), to every selector watch, and to a live substitution.
+        WidgetSurface.reparent(w.ui, w, dest, Coord.z);
+        Layout.apply(w);                           // our own pos/size level, and any rule, re-resolve in the new parent
+        return self;
     }
 
     /**

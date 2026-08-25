@@ -1023,6 +1023,10 @@ final class UiApi {
             if(dead(m.wdg))
                 co.movedNative.remove(m);
         }
+        for(LuaWidget.Rehomed r : co.rehomedNative) {   // ...nor any home to send it back to
+            if(dead(r.wdg))
+                co.rehomedNative.remove(r);
+        }
         for(Gesture.Bind b : co.gestures) {          // 062: ...nor is it left armed for the user
             if(dead(b.target) || dead(b.handle))
                 co.gestures.remove(b);
@@ -1676,6 +1680,128 @@ final class UiApi {
         return null;
     }
 
+    // ---------------------------------------------------------------- taken into a surface of the addon's own
+
+    /** File the home of a widget an addon has just taken ({@code widget:parent(p)}). */
+    static void rehomedAdd(LuaWidget.Rehomed r) {
+        if(r != null)
+            r.owner.rehomedNative.add(r);
+    }
+
+    /** This owner's record for {@code w}, or {@code null} — the read behind {@code widget:parent(nil)}. */
+    static LuaWidget.Rehomed rehomedIn(Addon a, Widget w) {
+        if((a == null) || (w == null))
+            return null;
+        List<LuaWidget.Rehomed> rs = a.rehomedNative;
+        for(int i = 0, n = rs.size(); i < n; i++) {
+            LuaWidget.Rehomed r = rs.get(i);
+            if(r.wdg == w)
+                return r;
+        }
+        return null;
+    }
+
+    /**
+     * <b>Whoever</b> holds {@code w}, across every live owner — the one-widget-one-place refusal, the same shape
+     * as {@link #hiddenOwner}. Off the frame path entirely: only the verb itself asks.
+     */
+    static LuaWidget.Rehomed rehomedOwner(Widget w) {
+        if(w == null)
+            return null;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++) {
+            LuaWidget.Rehomed r = rehomedIn(as.get(i), w);
+            if(r != null)
+                return r;
+        }
+        return rehomedIn(consoleOwner, w);      // the :lua REPL takes widgets too, and owns them the same way
+    }
+
+    /**
+     * Put one taken widget back where the client had it: its parent, its place, and <b>its order among its
+     * siblings</b>. Best-effort by construction — the four guards are the ones {@code LuaWidgetEntity.destroyed}
+     * pays for the same move: the widget must still be live and in a tree, and that tree must still be the one it
+     * came from (after a relog it is not, and the record has nothing to put back), and the recorded parent must
+     * still be in it, or the widget goes to the root rather than into a dead frame.
+     *
+     * <p>What it does <b>not</b> restore is where the widget stands: that is {@link Addon#movedNative}'s, which
+     * runs later in the same teardown and therefore has the last word, and is the record that knows what the
+     * <i>user</i> had. This one only answers what the widget hangs under.
+     */
+    static void home(LuaWidget.Rehomed r, boolean drop) {
+        if(r == null)
+            return;
+        if(drop)
+            r.owner.rehomedNative.remove(r);
+        UI u = r.ui;
+        Widget w = r.wdg;
+        if((u == null) || (u.root == null) || (w == null) || (w.parent == null) || !w.hasparent(u.root))
+            return;
+        Widget np = ((r.from != null) && r.from.hasparent(u.root)) ? r.from : u.root;
+        try {
+            synchronized(u) {
+                // THE BOX GOES BACK BEFORE THE WIDGET DOES, and the order is the whole of it. A parent that
+                // packs itself around its children measures each one AS IT ARRIVES -- every corner Hidepanel
+                // does, in its own `add` -- and it derives its place on screen from the box that comes out.
+                // Restore the size afterwards and the panel is left fitted to OUR box, with a gap under it
+                // that nothing corrects until the next fold. So this addon's whole layout level is given
+                // back first: a place inside a surface it is leaving means nothing anywhere else.
+                LuaWidget.Moved m = LuaWidget.findMoved(r.owner, w);
+                if(m != null) {
+                    restoreMoved(u, m, true, true);
+                    r.owner.movedNative.remove(m);
+                    LuaWidget.recountMoved();
+                }
+                WidgetSurface.reparent(u, w, np, new Coord(r.at));   // a copy: haven.Coord is mutable
+                LuaWidget.relink(w, r.after);
+            }
+            Layout.apply(w);      // a sheet rule that still names it resolves again, now in the home parent
+        } catch(RuntimeException e) {
+            AddonManager.log("a widget could not be put back where the client had it: " + e);
+        }
+    }
+
+    /**
+     * Every widget this addon took, put back — {@code :reload}, disable, and the way out of the client. Runs
+     * <b>early</b> in the teardown, beside the standing-widget sweep and for the identical reason: a surface of
+     * the addon's own is about to be destroyed, and {@code Widget.destroy} disposes recursively, so a client
+     * widget still inside one would go down with it.
+     */
+    static void teardownRehomed(Addon a) {
+        if((a == null) || a.rehomedNative.isEmpty())
+            return;
+        List<LuaWidget.Rehomed> rs = new ArrayList<LuaWidget.Rehomed>(a.rehomedNative);
+        a.rehomedNative.clear();
+        for(int i = 0, n = rs.size(); i < n; i++)
+            home(rs.get(i), false);
+    }
+
+    /**
+     * The same rescue for <b>one</b> surface, before an addon destroys it by hand ({@code widget:destroy()}):
+     * anything of the client's standing inside it goes home first. Without this, destroying your own panel would
+     * take the client's minimap with it — and the client has no way to build another.
+     */
+    static void homeInside(Widget container) {
+        if(container == null)
+            return;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            homeInside(as.get(i), container);
+        homeInside(consoleOwner, container);
+    }
+
+    private static void homeInside(Addon a, Widget container) {
+        if(a == null)
+            return;
+        List<LuaWidget.Rehomed> rs = a.rehomedNative;
+        for(int i = 0, n = rs.size(); i < n; i++) {
+            LuaWidget.Rehomed r = rs.get(i);
+            Widget w = r.wdg;
+            if((w != null) && ((w == container) || w.hasparent(container)))
+                home(r, true);
+        }
+    }
+
     /**
      * {@code GameUI.togglewnd} asks first (031.1, through {@code haven.AddonWidgets}): has an addon taken this
      * window over? Returns whether the toggle was <b>handled</b> — {@code true} stops the client's own
@@ -1934,6 +2060,14 @@ final class UiApi {
             if(e != null)
                 return e.prevPos;
         }
+        // ...and the flat twin of that line, for the same reason: a widget an addon has TAKEN into a surface of
+        // its own (widget:parent(p)) has a `c` in somebody else's coordinate space, and "what the user had" is
+        // not a number from there. Without this the layer's stock is captured wherever the first
+        // widget:position(x, y) happens to be written — inside the addon's panel, if that is where the addon
+        // placed it — and widget:position(nil) then puts the widget back at a place that never existed.
+        LuaWidget.Rehomed r = rehomedOwner(w);
+        if(r != null)
+            return r.at;
         return w.c;
     }
 

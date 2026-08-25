@@ -1790,6 +1790,14 @@ final class VrApi {
                     + " standing, and a surface does not stand on another surface. Two panels in the world are"
                     + " two hafen.vr():widget():add(w, p), each on its own anchor");
         }
+        // ...and the flat twin of that rule: standing is a re-home, and so is taking one of the client's widgets
+        // into a surface of an addon's own. Both keep a record of where the widget came from, and two records on
+        // one widget would each put it somewhere else.
+        LuaWidget.Rehomed held = UiApi.rehomedOwner(w);
+        if(held != null)
+            throw new LuaError("hafen.vr():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is held by the"
+                + " addon \"" + AddonManager.ownerName(held.owner) + "\", which took it into a surface of its"
+                + " own — one widget hangs in one place. widget:parent(nil) gives it back first");
         // ...and the world does not stand inside itself: a surface is drawn from the very frame that then draws
         // the scene the surface is standing in, so a widget with the MapView under it (the HUD, ui.root) would
         // be a picture of the world containing a picture of the world. Point at ONE window.
