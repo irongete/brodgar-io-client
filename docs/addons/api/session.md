@@ -119,7 +119,7 @@ and everything under them then reads `nil`-shaped.
 | `s:character()` | string \| nil | the character this session is playing; `nil` until its HUD is up |
 | `s:exists()` | boolean | whether the client still holds this session |
 | a namespace verb | the section | the namespaces that hang on a session — see [what hangs on a session](#what-hangs-on-a-session); each is the same object every call |
-| `s:info()` | [`Session`](types.md#session) | a plain-table **snapshot**, the escape hatch for logging |
+| `s:info()` | [`Session`](types/world.md#session) | a plain-table **snapshot**, the escape hatch for logging |
 
 **`:get` addresses, it does not search.** The account name is the whole of a Session, so there is
 nothing to miss: a name read out of [saved variables](store.md) hands back an object before that account
@@ -262,4 +262,4 @@ about rather than the one on screen.
 - [`session:player`](player.md) — one character, its Gob, its cursor and the walk
 - [`hafen.store`](store.md) — saved variables, per character and per account
 - [conventions](conventions.md#the-grammar) — collections, interned objects and the filter argument
-- [data types](types.md#session) — the snapshot shape `:info()` returns
+- [the Session snapshot](types/world.md#session) — the snapshot shape `:info()` returns

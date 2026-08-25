@@ -1,7 +1,7 @@
 # Shapes: what a value looks like
 
 The plain tables this API hands back and takes, and what the numbers inside one mean. Every table with a
-name of its own is in [data types](types.md); this page is the anonymous ones, plus the rules that hold
+name of its own is in [data types](types/README.md); this page is the anonymous ones, plus the rules that hold
 wherever a value of that kind turns up — places, colours, ids too big for a number, and units.
 
 ```lua
@@ -87,8 +87,8 @@ them you meant.
 > as well, because loose numbers are the language of every verb on `g` — `g:line(x1, y1, x2, y2)`,
 > `g:frect(x, y, w, h)`. It takes the table too, so `g:color(kin:color())` draws that colour.
 
-The same table is what a snapshot carries under a `color` key — a [party member](types.md#partymember), a
-[kin](types.md#kinentry), a [meter](types.md#meter) and its `segments`, a [marker](types.md#marker) — so a
+The same table is what a snapshot carries under a `color` key — a [party member](types/world.md#partymember), a
+[kin](types/world.md#kinentry), a [meter](types/ui.md#meter) and its `segments`, a [marker](types/map.md#marker) — so a
 colour lifted out of one goes straight into a write.
 
 ## Units
@@ -112,7 +112,7 @@ Two reads that sound like time carry no unit of time at all, and each is stated 
 ## See also
 
 - [conventions](conventions.md) — how the API is spelled, and what a read hands back
-- [data types](types.md) — every named snapshot shape, field by field
+- [data types](types/README.md) — every named snapshot shape, field by field
 - [the Position type](position.md) — the one place type every spatial verb takes
 - [the pixel](ui/pixels.md) — the unit a screen point and a size are counted in
 - [segments and grids](map/grids.md) — where a 64-bit id is the key you look one up by

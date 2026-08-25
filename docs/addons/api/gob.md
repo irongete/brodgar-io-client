@@ -88,7 +88,7 @@ answer. None of them throws.
 | `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if the reading character has them on its roster |
 | `gob:party()` | [`PartyMember`](party.md) \| nil | the party member standing here, in the party of the character that read it |
 | `gob:distance(other)` | number \| nil | world distance to another Gob; defaults to the reading character |
-| `gob:info()` | [`GobInfo`](types.md#gobinfo) \| nil | everything above as one plain snapshot table |
+| `gob:info()` | [`GobInfo`](types/world.md#gobinfo) \| nil | everything above as one plain snapshot table |
 
 > `gob:name()` is the **type** resource — `"gfx/borka/body"` for any player body — not a character's
 > display name. Display names are not available for arbitrary gobs; `gob:player()` is the test for a
@@ -221,5 +221,5 @@ Anything that acts on a gob takes the **Gob object**, not an id: `me:overlay():a
 - [Overlay](overlay.md) — everything drawn at a gob, and the labels and painters you add
 - [`session:kin`](kin.md) — the roster side of `gob:kin()`
 - [`session:player`](player.md#write-protected) — walking to a gob, and the cursor you aim at one
-- [`GobInfo`](types.md#gobinfo) — the shape `:info()` returns
+- [`GobInfo`](types/world.md#gobinfo) — the shape `:info()` returns
 - [events](event/bus.md#world) — reacting to gobs appearing and leaving instead of polling

@@ -85,7 +85,7 @@ literal into your Lua source.
 | `meter:segment()` | collection | the bar, as [Segment](#a-segment) objects in draw order — never `nil`, may be empty |
 | `meter:widget()` | [Widget](ui/widget.md) \| nil | **the widget that draws it** — the crossing from the domain back into the tree |
 | `meter:exists()` | boolean | whether this meter is still in its HUD slot — always answers |
-| `meter:info()` | [`Meter`](types.md#meter) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
+| `meter:info()` | [`Meter`](types/ui.md#meter) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
 
 Every read is guarded and may answer `nil`: a brand-new meter is nameless for a beat and its segments
 stream in after it appears. Only `:exists()` always answers. Nothing throws once you hold a `Meter`.
@@ -153,7 +153,7 @@ exactly the predicate `:list()` filters on.
 
 ## See also
 
-- [`Meter`](types.md#meter) — the snapshot shape `:info()` returns
+- [`Meter`](types/ui.md#meter) — the snapshot shape `:info()` returns
 - [`session:char`](char.md) — `:food()`, the one absolute reading about your character
 - [`session:buff`](buff.md) — the other keyless status collection
 - [events](event/bus.md#character-and-status) — the three meter events

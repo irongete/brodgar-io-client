@@ -66,7 +66,7 @@ typo and nothing else.
 | `attr:name()` | string | which attribute this is |
 | `attr:base()` | number \| nil | the raw base value |
 | `attr:composite()` | number \| nil | the computed value: base plus food, gear and buffs |
-| `attr:info()` | [`Attr`](types.md#attr) \| nil | a plain-table **snapshot** |
+| `attr:info()` | [`Attr`](types/character.md#attr) \| nil | a plain-table **snapshot** |
 
 `:get(name)` always hands back the attribute, whether or not the server has sent anything for it yet; it
 is `:base()` and `:composite()` that answer `nil` until it has, and `:list()` that holds only the
@@ -90,7 +90,7 @@ keeps two strengths from being one number.
 | `skill:cost()` | number \| nil | the learning-point price |
 | `skill:known()` | boolean | learnt, rather than merely buyable |
 | `skill:exists()` | boolean | whether it is still listed |
-| `skill:info()` | [`Skill`](types.md#skill-credo-experience) \| nil | a plain-table **snapshot** |
+| `skill:info()` | [`Skill`](types/character.md#skill-credo-experience) \| nil | a plain-table **snapshot** |
 
 A string [filter](conventions.md#the-filter-argument) matches the display name **and** the resource name.
 `:find(name)` hands back the skill itself, which is truthy, so `if s:char():skill():find("x") then`
@@ -117,7 +117,7 @@ it a different skill: the handle you stashed goes on reading it, and `:known()` 
 | `credo:questsDone()`, `credo:questTotal()` | number \| nil | quest progress within the current level — both are **counts**; `credo:questId()` is the quest itself |
 | `credo:questId()` | number \| nil | the id of the credo quest, for [`session:quest`](quest.md) |
 | `credo:exists()` | boolean | whether it is still listed |
-| `credo:info()` | [`Credo`](types.md#skill-credo-experience) \| nil | a plain-table **snapshot** |
+| `credo:info()` | [`Credo`](types/character.md#skill-credo-experience) \| nil | a plain-table **snapshot** |
 
 The credo being pursued is a member of the collection like any other, so it compares equal to the same
 credo found in `:list()`. The five progress reads answer `nil` on every credo but that one.
@@ -137,7 +137,7 @@ credo found in `:list()`. The five progress reads answer `nil` on every credo bu
 | `exp:score()` | number \| nil | the experience points it is worth |
 | `exp:modified()` | number \| nil | the server's own time field for this entry |
 | `exp:exists()` | boolean | whether it is still listed |
-| `exp:info()` | [`Experience`](types.md#skill-credo-experience) \| nil | a plain-table **snapshot** |
+| `exp:info()` | [`Experience`](types/character.md#skill-credo-experience) \| nil | a plain-table **snapshot** |
 
 A lore entry is addressed by its resource, so it appears in `:list()` once that resource has resolved — a
 beat after the tab builds, like everything else on the sheet.
@@ -160,7 +160,7 @@ character's sheet is up.
 | `food:hunger():label()` | string \| nil | the client's own word for that level |
 | `food:hunger():efficacy()` | number \| nil | the multiplier on what you eat next at this hunger |
 | `food:exists()` | boolean | whether this is still that character's live sheet |
-| `food:info()` | [`Food`](types.md#food) \| nil | a plain-table **snapshot** |
+| `food:info()` | [`Food`](types/character.md#food) \| nil | a plain-table **snapshot** |
 
 Subscribe to [`FepChanged`](event/bus.md#character-and-status), whose payload is the `Food` object itself.
 
@@ -176,5 +176,5 @@ end)
 - [`session:study`](study.md) — the curiosities and their learning-point totals
 - [`session:meter`](meter.md) — the HUD bars, which are fractions rather than numbers
 - [`session:wound`](wound.md) — the other half of the Health and Wounds tab
-- [types](types.md#attr) — `Attr`, `Food`, `Skill`, `Credo` and `Experience`
+- [the character sheet](types/character.md) — `Attr`, `Food`, `Skill`, `Credo` and `Experience`
 - [events](event/bus.md#character-and-status) — `FepChanged`

@@ -55,7 +55,7 @@ just as well as the one on screen.
 | `:slots()` | string[] | the equipment slots it fills, by name; empty for anything not worn |
 | `:handle()` | number \| nil | its server widget id, the number it is addressed by on the wire; `nil` once it is gone |
 | `:exists()` | boolean | is this still a live item |
-| `:info()` | table | the [snapshot](../types.md#item) — every read above in one table |
+| `:info()` | table | the [snapshot](../types/items.md#item) — every read above in one table |
 | `:on("Changed", fn)` | a [subscription](../event/README.md#subscribe) | [what this item says about itself resolved, or was revised](#an-item-arrives-before-it-can-be-described) |
 
 An item is **interned**, so `==` is the identity test and a stashed one keeps answering. It is keyed on
@@ -176,7 +176,7 @@ would answer confidently and wrongly.
 | `contents:text()` | string \| nil | the line the tooltip states about what is inside; `nil` for a container carrying items |
 | `contents:quality()` | number \| nil | the **content's** own quality, which is not `item:quality()`; `nil` when none is stated |
 | `contents:fill()` | table \| nil | the fill meter's `{cur, max}`; `nil` for a container that draws none |
-| `contents:info()` | table | the [snapshot](../types.md#contents), which carries no `items` |
+| `contents:info()` | table | the [snapshot](../types/items.md#contents), which carries no `items` |
 
 Reading is unprotected, and a `Contents` is **interned** like every other object here, so two reads of one
 item's contents are `==`. It answers `nil` while the item's info is still resolving, never a half-built
@@ -344,7 +344,7 @@ sent.
 
 ## See also
 
-- [`Item`](../types.md#item) — the snapshot `:info()` hands back
+- [`Item`](../types/items.md#item) — the snapshot `:info()` hands back
 - [`session:player`](../player.md#the-hand) — the cursor: what it carries, and applying it to something
 - [widget](widget.md) — the object `:items()` is a method on
 - [replace](replace.md#watching-for-a-widget) — waiting for a container to open in the first place

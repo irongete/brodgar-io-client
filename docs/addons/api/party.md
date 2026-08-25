@@ -53,7 +53,7 @@ a party member has nothing to match it against — see below.
 | `member:color()` | [colour](shapes.md#colours) \| nil | the party colour drawn for them |
 | — | — | whether they lead is `s:party():leader() == member`: the members are interned, so the comparison is exact and there is no per-member flag |
 | `member:exists()` | boolean | whether they are still in the party — always answers |
-| `member:info()` | [`PartyMember`](types.md#partymember) \| nil | a plain-table **snapshot** |
+| `member:info()` | [`PartyMember`](types/world.md#partymember) \| nil | a plain-table **snapshot** |
 
 > A party member has **no name**: the client is never sent one. A member is an id, a position, a colour
 > and the leader flag. The name over their head belongs to the creature, so it is `member:gob():name()`.
@@ -82,6 +82,6 @@ when they leave the party and comes back to life if they rejoin, because the id 
 ## See also
 
 - [Gob](gob.md) — what `member:gob()` hands back, and every read on it
-- [`PartyMember`](types.md#partymember) — the snapshot shape `member:info()` returns
+- [`PartyMember`](types/world.md#partymember) — the snapshot shape `member:info()` returns
 - [`session:kin`](kin.md) — the other roster, the one that does carry names
 - [`session:fight`](fight.md) — combat, whose target resolves its gob the same way

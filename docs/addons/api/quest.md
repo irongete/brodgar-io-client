@@ -53,7 +53,7 @@ predicate receives the Quest object.
 | — | — | whether this is the one open in the log is `s:quest():selected() == q`: the quests are interned, so the comparison is exact and there is no per-member flag |
 | `q:conditions()` | collection | its objectives — see below |
 | `q:exists()` | boolean | whether it is still in the log — always answers |
-| `q:info()` | [`Quest`](types.md#quest-and-condition) \| nil | a plain-table **snapshot** |
+| `q:info()` | [`Quest`](types/character.md#quest-and-condition) \| nil | a plain-table **snapshot** |
 
 A quest is interned on its session and its id, so `s:quest():list()[1] == s:quest():get(<that id>)` and
 `seen[q] = true` work, while the same id on two characters is two objects. That is
@@ -74,7 +74,7 @@ already have. A quest the server drops goes `:exists() == false` and every other
 | `c:tooltip()` | string \| nil | the line its tooltip states, when the content publishes one — `c:description()` is the objective itself |
 | `c:quest()` | `Quest` | the quest it belongs to — never `nil` |
 | `c:exists()` | boolean | whether it is still an objective of the open quest |
-| `c:info()` | [`Condition`](types.md#quest-and-condition) \| nil | a plain-table **snapshot** |
+| `c:info()` | [`Condition`](types/character.md#quest-and-condition) \| nil | a plain-table **snapshot** |
 
 An objective is interned on its quest **and its own description**, which is what the client itself
 matches on when it carries an objective across a resend — so `c:status()` flips under a stashed handle,
@@ -101,7 +101,7 @@ Quest itself, so a handler reads it with the verbs above and can hold it afterwa
 
 ## See also
 
-- [`Quest` and `Condition`](types.md#quest-and-condition) — the snapshot shapes
+- [`Quest` and `Condition`](types/character.md#quest-and-condition) — the snapshot shapes
 - [`hafen.map():marker()`](map/markers.md) — the map pins a quest puts down
 - [`session:char`](char.md) — credos, whose own quest carries an id you can look up here
 - [events](event/bus.md#roster-quests-markers) — `QuestAdded`, `QuestCompleted` and `QuestFailed`

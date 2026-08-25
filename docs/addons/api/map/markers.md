@@ -37,7 +37,7 @@ hafen.map():marker():get(1)
 | `marker:distance()` | number \| nil | how far the character **on screen** is from it |
 | `marker:icon()` | string \| nil | system markers only: the icon resource name |
 | `marker:exists()` | bool | is it still in the database? |
-| `marker:info()` | [`Marker` snapshot](../types.md#marker) | the snapshot escape hatch |
+| `marker:info()` | [`Marker` snapshot](../types/map.md#marker) | the snapshot escape hatch |
 
 **`marker:position()` is how a marker leaves this client.** A marker's own coordinates are a segment id
 and a tile inside it — client-local, and re-based by a merge, see
@@ -90,6 +90,6 @@ add, remove or edit, including ones the player makes.
 ## See also
 
 - [segments and grids](grids.md) — `seg:markers()`, and why a Position is what you store
-- [`Marker`](../types.md#marker) — the snapshot `marker:info()` hands back
+- [`Marker`](../types/map.md#marker) — the snapshot `marker:info()` hands back
 - [events](../event/bus.md#roster-quests-markers) — `MarkerChanged`
 - [Position](../position.md) — the place type, and rebuilding one from a stored form

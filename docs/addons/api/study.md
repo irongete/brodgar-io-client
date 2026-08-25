@@ -63,7 +63,7 @@ s:study():curiosity():get("bar")
 | `slot:progress()` | number \| nil | `0..1` study progress; best-effort |
 | `slot:widget()` | [Widget](ui/widget.md) \| nil | **the widget that draws it** — the crossing from the domain back into the tree |
 | `slot:exists()` | boolean | whether it is still in a study window — always answers |
-| `slot:info()` | [`StudySlot`](types.md#studyslot-and-studysummary) \| nil | a plain-table **snapshot** |
+| `slot:info()` | [`StudySlot`](types/character.md#studyslot-and-studysummary) \| nil | a plain-table **snapshot** |
 
 > A slot's `time` is the total study time for that curiosity in seconds, not what is left and not a
 > [fraction](shapes.md#units). The client is not sent a per-item countdown, so there is none to read.
@@ -93,7 +93,7 @@ end)
 | `sum:attention()` | number \| nil | the mental weight they spend |
 | `sum:cost()` | number \| nil | what they cost in experience |
 | `sum:exists()` | boolean | whether that character's study tab is still up |
-| `sum:info()` | [`StudySummary`](types.md#studyslot-and-studysummary) \| nil | a plain-table **snapshot** |
+| `sum:info()` | [`StudySummary`](types/character.md#studyslot-and-studysummary) \| nil | a plain-table **snapshot** |
 
 `sum:attention()` is the numerator the window draws; the cap it is drawn against is that character's
 Intelligence, [`s:char():attr():get("int"):composite()`](char.md#attributes) — a game fact rather than an
@@ -108,5 +108,5 @@ than an empty object while there is no tab.
 ## See also
 
 - [`session:char`](char.md) — attributes, learning points and skills
-- [`StudySlot`](types.md#studyslot-and-studysummary) — the snapshot shape `slot:info()` returns
+- [`StudySlot`](types/character.md#studyslot-and-studysummary) — the snapshot shape `slot:info()` returns
 - [events](event/bus.md#character-and-status) — `StudyChanged`

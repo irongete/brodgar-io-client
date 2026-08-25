@@ -69,7 +69,7 @@ end)
 
 A table that is not a colour raises, naming what one is. A colour a *read* handed you is always one, so a
 value out of [`seg:color()`](../meter.md#a-segment), [`kin:color()`](../kin.md) or a
-[snapshot's `color` key](../types.md) goes straight in.
+[snapshot's `color` key](../types/README.md) goes straight in.
 
 ## Images
 

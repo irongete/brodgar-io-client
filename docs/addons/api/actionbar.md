@@ -95,7 +95,7 @@ At login the occupied slots stream in a beat later, as a burst of `ActionbarChan
 | `slot:res()` | string \| nil | the resource name of the slot's action or item — the identity of the entry, on a [held](#hold-a-slot-unprotected) slot |
 | `slot:name()` | string \| nil | the display name, once the action's data has resolved |
 | `slot:cooldown()` | number \| nil | the meter fraction, `0..1` |
-| `slot:info()` | [`ActionbarSlot`](types.md#actionbarslot) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
+| `slot:info()` | [`ActionbarSlot`](types/ui.md#actionbarslot) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
 
 Every reader except `:index()` and `:empty()` answers `nil` for an empty slot. None of them throws, and
 none is protected.
@@ -277,5 +277,5 @@ One string could never mean both.
 - [session](session.md) — the address every read here goes through
 - [`session:menugrid`](menugrid.md) — where the names the write takes come from, and where your entries live
 - [permissions](../guides/permissions.md) — the permission the two protected writes share
-- [`ActionbarSlot`](types.md#actionbarslot) — the snapshot shape `:info()` returns
+- [`ActionbarSlot`](types/ui.md#actionbarslot) — the snapshot shape `:info()` returns
 - [events](event/bus.md#character-and-status) — `ActionbarChanged`

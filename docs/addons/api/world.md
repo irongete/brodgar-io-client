@@ -109,7 +109,7 @@ if t then hafen.log():write("standing on " .. (t.name or t.id)) end
 |---|---|---|
 | `s:world():position(x, y)` | Position | a place from that session's world components |
 | `s:world():position(saved)` | Position | a place rebuilt from a `{gridId, x, y}` table |
-| `s:world():tile(p)` | [`Tile`](types.md#tile) \| nil | tileset id and resource name at a Position |
+| `s:world():tile(p)` | [`Tile`](types/world.md#tile) \| nil | tileset id and resource name at a Position |
 | `s:world():height(p)` | number \| nil | terrain height there |
 | `s:world():components(p)` | `{x, y}` \| nil | where `p` is, **in this character's frame** |
 | `s:world():tileCoord(p)` | `{x, y}` \| nil | the tile `p` sits in, on this character's lattice |

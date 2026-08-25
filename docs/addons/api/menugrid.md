@@ -91,7 +91,7 @@ The first four are called on the collection, the rest on a `Pagina`.
 | `pag:children()` | collection \| nil | the entries under this one, exactly what the grid shows after clicking it; empty for a leaf |
 | `pag:unseen()` | boolean | whether the entry is still flagged as a new discovery, the grid's highlight |
 | `pag:exists()` | boolean | whether the entry is still in the menu |
-| `pag:info()` | [`Pagina`](types.md#pagina) \| nil | a plain-table **snapshot** of the same fields |
+| `pag:info()` | [`Pagina`](types/ui.md#pagina) \| nil | a plain-table **snapshot** of the same fields |
 
 Every reader except `:res()` and `:exists()` answers `nil` once the entry is gone, and also while its
 resource is still loading. No reader throws, and none is protected.
@@ -296,5 +296,5 @@ display name, and there is no path-shaped way in beside it.
 - [session](session.md) — the address every read here goes through
 - [`session:actionbar`](actionbar.md) — putting a name on the hotbar, and holding a slot for an entry
 - [`hafen.asset`](asset.md) — loading the PNG a custom entry draws
-- [`Pagina`](types.md#pagina) — the snapshot shape `:info()` returns
+- [`Pagina`](types/ui.md#pagina) — the snapshot shape `:info()` returns
 - [`session:craft`](craft.md) — the window a recipe action opens

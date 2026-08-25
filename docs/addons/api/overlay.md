@@ -129,7 +129,7 @@ The reads below answer on every kind; what a kind has nothing to say about comes
 resource, and the resource name is the only part of one a name can address, so they collapse to a single
 Overlay and the multiplicity is published here instead of lost. Yours always count 1.
 (`gob:info().overlays` is the raw list of resource names, one entry per engine overlay, for when you want
-the uncollapsed view — and, like every other [`GobInfo`](types.md#gobinfo) field, it is **absent** rather
+the uncollapsed view — and, like every other [`GobInfo`](types/world.md#gobinfo) field, it is **absent** rather
 than empty when the gob carries none.)
 
 `:info()` is the snapshot escape hatch, and it hands back **two shapes**. Both carry `key`, `native` and

@@ -37,7 +37,7 @@ object every time and `seen[cat] = true` works.
 | `cat:exists()` | bool | is the registry still carrying this resource? |
 | `cat:show()` / `cat:show(on)` | bool \| nil / self | draw it on the minimap — read, or write and chain |
 | `cat:notify()` / `cat:notify(on)` | bool \| nil / self | sound and chat line when one appears |
-| `cat:info()` | [`IconCategory`](../types.md#iconcategory) \| nil | the snapshot escape hatch |
+| `cat:info()` | [`IconCategory`](../types/map.md#iconcategory) \| nil | the snapshot escape hatch |
 
 **Arity is the verb**: no argument reads, an argument writes and returns the category itself, so writes
 chain — `cat:show(true):notify(true)`. A write to a resource the registry does not carry is an error,
@@ -62,7 +62,7 @@ rarely, so there is no `*Changed` event — read it on demand.
 
 ## See also
 
-- [`IconCategory`](../types.md#iconcategory) — what `cat:info()` hands back
+- [`IconCategory`](../types/map.md#iconcategory) — what `cat:info()` hands back
 - [Gob](../gob.md) — `gob:icon()`, the category name on a live object
 - [the map database](README.md) — interning, which is why a stashed category never goes stale
 - [`session:menugrid`](../menugrid.md) — the other registry addressed by resource name

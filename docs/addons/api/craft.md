@@ -43,12 +43,12 @@ end
 | Method | Returns | Description |
 |---|---|---|
 | `s:craft():recipe()` | string \| nil | the recipe's name, as the server titled the window |
-| `s:craft():inputs()` | [`CraftSpec`](types.md#craft-and-craftspec)`[]` | the ingredient slots, in window order |
-| `s:craft():outputs()` | [`CraftSpec`](types.md#craft-and-craftspec)`[]` | the product slots |
-| `s:craft():qualityInputs()` | [`ResRef`](types.md#craft-and-craftspec)`[]` | the ingredients whose quality carries into the product |
-| `s:craft():tools()` | [`ResRef`](types.md#craft-and-craftspec)`[]` | the tools you must have with you |
+| `s:craft():inputs()` | [`CraftSpec`](types/ui.md#craft-and-craftspec)`[]` | the ingredient slots, in window order |
+| `s:craft():outputs()` | [`CraftSpec`](types/ui.md#craft-and-craftspec)`[]` | the product slots |
+| `s:craft():qualityInputs()` | [`ResRef`](types/ui.md#craft-and-craftspec)`[]` | the ingredients whose quality carries into the product |
+| `s:craft():tools()` | [`ResRef`](types/ui.md#craft-and-craftspec)`[]` | the tools you must have with you |
 | `s:craft():exists()` | boolean | whether a recipe is open at all — always answers, drawn or not |
-| `s:craft():info()` | [`Craft`](types.md#craft-and-craftspec) \| nil | a plain-table **snapshot** |
+| `s:craft():info()` | [`Craft`](types/ui.md#craft-and-craftspec) \| nil | a plain-table **snapshot** |
 
 The four list reads are plain arrays of plain tables, and they are empty rather than `nil` when nothing
 is open. A slot is `{res, name, num, opt}`: `res` is the **displayed** resource — the constraint
@@ -76,6 +76,6 @@ One key covers every character: `craft.make` lets you press the Craft button on 
 ## See also
 
 - [session](session.md) — the address every read here goes through
-- [`Craft` and `CraftSpec`](types.md#craft-and-craftspec) — the snapshot shapes
+- [`Craft` and `CraftSpec`](types/ui.md#craft-and-craftspec) — the snapshot shapes
 - [items](ui/items.md#write-protected) — moving the ingredients into the window
 - [`session:menugrid`](menugrid.md) — how a recipe window gets opened in the first place

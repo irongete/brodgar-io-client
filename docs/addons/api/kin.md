@@ -62,7 +62,7 @@ The first three are called on the collection, the rest on a `Kin`.
 | `kin:widget()` | [Widget](ui/widget.md) \| nil | **the list row that draws them**, or `nil` when the Kin window is closed or that row is scrolled out of view |
 | `kin:exists()` | boolean | whether this id is still on that character's roster |
 | `kin:gob()` | [`Gob`](gob.md) \| nil | the kin's gob in the world, their body if it is loaded |
-| `kin:info()` | [`KinEntry`](types.md#kinentry) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
+| `kin:info()` | [`KinEntry`](types/world.md#kinentry) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
 
 Every reader answers `nil` once the kin is off the roster, except `:id()` and `:exists()`. No reader
 throws, and none is protected.
@@ -149,6 +149,6 @@ which is [`s:world():click(gob, 3)`](world.md#write-protected) followed by
 
 - [Gob](gob.md) — the object side of `kin:gob()`
 - [permissions](../guides/permissions.md) — the keys these writes share, and what a key covers
-- [`KinEntry`](types.md#kinentry) — the snapshot shape `:info()` returns
+- [`KinEntry`](types/world.md#kinentry) — the snapshot shape `:info()` returns
 - [`session:party`](party.md) — the other roster, which carries no names
 - [events](event/bus.md#roster-quests-markers) — `KinChanged`

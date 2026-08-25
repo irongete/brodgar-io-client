@@ -57,7 +57,7 @@ reads exactly as it looks, and what it hands back on a hit is the wound itself.
 | `w:children()` | collection | the wounds that complicate **this** one; empty at a leaf |
 | `w:depth()` | number \| nil | how deep the tree draws it; `0` at a root |
 | `w:exists()` | boolean | whether it is still on the character — always answers |
-| `w:info()` | [`Wound`](types.md#wound) \| nil | a plain-table **snapshot** |
+| `w:info()` | [`Wound`](types/character.md#wound) \| nil | a plain-table **snapshot** |
 
 > **A wound's magnitude has two reads.** `w:label()` is the string the client paints beside the wound and
 > `w:severity()` is that string read as a number. The content chooses the string, so nothing guarantees
@@ -87,7 +87,7 @@ compare them with `==` against what you kept last time.
 
 ## See also
 
-- [`Wound`](types.md#wound) — the snapshot shape `w:info()` returns
+- [`Wound`](types/character.md#wound) — the snapshot shape `w:info()` returns
 - [`session:char`](char.md) — the rest of the character sheet
 - [`session:meter`](meter.md) — the HUD bars a wound pulls down
 - [events](event/bus.md#character-and-status) — `WoundChanged`

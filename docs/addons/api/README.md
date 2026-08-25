@@ -9,11 +9,22 @@ you came for from the tables below. Every page in the tree is listed here.
 | [conventions](conventions.md) | the grammar, snapshots vs handles, filters, `nil`, threading, and the permission model |
 | [references](references.md) | every kind of thing a verb takes: a Gob, a kin, a slot, an asset, an item, a widget, a selector |
 | [shapes](shapes.md) | what a plain table of numbers looks like: places, pixels, sizes, spans, colours, ids and units |
-| [data types](types.md) | every snapshot shape a read hands back, field by field |
+| [data types](types/README.md) | every snapshot shape a read hands back, field by field |
 | [`hafen.session`](session.md) | the logins this client holds, the one on screen, the account each is named by, and the world and character that hang off one |
 | [`hafen.event`](event/README.md) | the hub: subscribing, the closed keys and the open ones |
 | [the catalogue](event/bus.md) | every event the client fires, and what each one hands your handler |
 | [the message streams](event/streams.md) | a message on its way to the server, and an update on its way in |
+
+## The snapshot shapes
+
+| Page | What it holds |
+|---|---|
+| [the session and the world](types/world.md) | one login, an object in it, the people beside you, the ground, a place, and your own things standing there |
+| [the item and what holds it](types/items.md) | one item, and what a container states about its inside |
+| [the character sheet](types/character.md) | attributes, food, learning, movement speed, quests, wounds and buffs |
+| [the fight](types/fight.md) | a maneuver, a card in the deck, and the deck's totals |
+| [the map](types/map.md) | a pin on the recorded map, and a minimap icon category |
+| [the widget layer](types/ui.md) | a HUD meter, the open recipe, a hotbar slot and an action-menu entry |
 
 ## Reading the world
 

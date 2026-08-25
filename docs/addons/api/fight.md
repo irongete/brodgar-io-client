@@ -68,7 +68,7 @@ its own `:index()` and `:key()`, so the gap is never ambiguous.
 | `man:dealable()` | number | how many copies of it that character may deal into a deck |
 | `man:used()` | number | how many the loaded school has dealt |
 | `man:exists()` | boolean | whether that character still knows it — always answers |
-| `man:info()` | [`Maneuver`](types.md#maneuver-deckcard-fightsummary) \| nil | a plain-table **snapshot** |
+| `man:info()` | [`Maneuver`](types/fight.md#maneuver-deckcard-fightsummary) \| nil | a plain-table **snapshot** |
 
 ## A deck card
 
@@ -85,7 +85,7 @@ when the hotkey is emptied, while the maneuver half goes `nil` and `:exists()` g
 | `card:name()` | string \| nil | that maneuver's display name |
 | `card:used()` | number \| nil | how many copies the deck holds |
 | `card:exists()` | boolean | whether the slot is filled — always answers |
-| `card:info()` | [`DeckCard`](types.md#maneuver-deckcard-fightsummary) \| nil | a plain-table **snapshot** |
+| `card:info()` | [`DeckCard`](types/fight.md#maneuver-deckcard-fightsummary) \| nil | a plain-table **snapshot** |
 
 ## The summary
 
@@ -97,7 +97,7 @@ when the hotkey is emptied, while the maneuver half goes `nil` and `:exists()` g
 | `sum:saveCount()` | number \| nil | how many saved-school slots that character keeps |
 | `sum:activeSave()` | number \| nil | which of them is loaded, 0-based |
 | `sum:exists()` | boolean | whether that character's tab is still up |
-| `sum:info()` | [`FightSummary`](types.md#maneuver-deckcard-fightsummary) \| nil | a plain-table **snapshot** |
+| `sum:info()` | [`FightSummary`](types/fight.md#maneuver-deckcard-fightsummary) \| nil | a plain-table **snapshot** |
 
 `sum:used()` is the same total the window paints beside the cap, and it is the sum of `man:used()` over
 every maneuver that character knows.
@@ -127,6 +127,6 @@ id, so `s:fight():target() == s:fight():target()` and `seen[target] = true` work
 
 - [`hafen.session`](session.md) — the address every read here is reached through
 - [Gob](gob.md) — what `target:gob()` hands back, and every read on it
-- [types](types.md#maneuver-deckcard-fightsummary) — the snapshot shapes `:info()` returns
+- [the fight](types/fight.md) — the snapshot shapes `:info()` returns
 - [`session:actionbar`](actionbar.md) — the other hotkey surface, which is writable
 - [`session:char`](char.md) — the skills that unlock maneuvers

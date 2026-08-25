@@ -83,7 +83,7 @@ PER_FILE = {
     "player.md": {"gob": None},               # the page discusses gob verbs that deliberately do NOT exist
     "conventions.md": {"gob": None},          # ...and prints a typo on purpose, to show the refusal
     "shapes.md": {"w": None},
-    "types.md":  {"w": None},
+    "types/character.md": {"w": "wound"},   # the Wound snapshot section, where `w:` is a Wound
     # `w:` is the world section on every page that draws in it; `p:` is the profiling handle under
     # client/profiling/ and a progress control on the control pages; `sp:` is a scrollport there too.
     "mouse.md":  {"w": None},

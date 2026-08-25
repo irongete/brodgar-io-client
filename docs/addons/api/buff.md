@@ -67,7 +67,7 @@ arrive in a second server message — so every reader may answer `nil`. That is 
 | `buff:number()` | number \| nil | the integer badge drawn on the icon |
 | `buff:widget()` | [Widget](ui/widget.md) \| nil | **the widget that draws it** — the crossing from the domain back into the tree |
 | `buff:exists()` | boolean | whether this buff is still on its bar — always answers |
-| `buff:info()` | [`Buff`](types.md#buff) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
+| `buff:info()` | [`Buff`](types/character.md#buff) \| nil | a plain-table **snapshot**, the escape hatch for logging and serialising |
 
 Nothing on this page is protected and nothing throws once you hold a `Buff`. There is no write side: the
 buff bar is a display of server state, and clicking a buff icon sends a message no buff is known to act
@@ -94,7 +94,7 @@ end)
 
 ## See also
 
-- [`Buff`](types.md#buff) — the snapshot shape `:info()` returns
+- [`Buff`](types/character.md#buff) — the snapshot shape `:info()` returns
 - [`session:meter`](meter.md) — the HUD bars, read the same way
 - [snapshots vs handles](conventions.md#snapshots-vs-handles) — why a stashed `Buff` stays current
 - [events](event/bus.md#character-and-status) — the three buff events

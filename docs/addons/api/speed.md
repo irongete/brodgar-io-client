@@ -76,7 +76,7 @@ server locking and unlocking it.
 | `sp:name()` | string | the display name, such as `"Run"`; it is known before the selector is |
 | `sp:available()` | boolean | whether it can be picked right now, which is what `s:speed():available()` partitions on |
 | `sp:exists()` | boolean | whether that character's speed selector is up at all |
-| `sp:info()` | [`Speed`](types.md#speed) | a plain-table **snapshot**, the escape hatch for logging |
+| `sp:info()` | [`Speed`](types/character.md#speed) | a plain-table **snapshot**, the escape hatch for logging |
 
 Speed objects are **interned per addon** on the character *and* the index, so
 `s:speed():get(2) == s:speed():get(2)` and one works as a table key — while the same number reached through
@@ -133,7 +133,7 @@ end)
 
 - [session](session.md) — the address every read here goes through
 - [permissions](../guides/permissions.md) — the key this write needs, and how the user grants it
-- [`Speed`](types.md#speed) — the snapshot shape `:info()` returns
+- [`Speed`](types/character.md#speed) — the snapshot shape `:info()` returns
 - [conventions](conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) — the collection verbs
 - [Gob](gob.md) — `gob:speed()`, the speed a body is actually moving at
 - [keybindings](client/keybindings.md) — the client's own speed hotkeys, which you can remap

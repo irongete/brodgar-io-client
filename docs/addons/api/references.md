@@ -137,7 +137,7 @@ combinator*, and you hold your result rather than re-selecting every frame — a
 ## See also
 
 - [conventions](conventions.md) — the grammar, the filter, `nil` and the permission model
-- [data types](types.md) — the plain tables an `:info()` hands back
+- [data types](types/README.md) — the plain tables an `:info()` hands back
 - [Gob](gob.md) — the object every world verb is aimed at
 - [the Widget object](ui/widget.md) — what a widget answers, and what it lets you write
 - [selectors](ui/selectors.md) — the grammar of the string that names a widget

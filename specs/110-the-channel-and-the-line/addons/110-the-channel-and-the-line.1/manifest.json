@@ -1,0 +1,9 @@
+{
+  "name": "110.1 — the snapshot catalogue, split by subject",
+  "id": "110-the-channel-and-the-line.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 110.1: every shape the split catalogue still lists is the shape the client hands back — field for field, type for type.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

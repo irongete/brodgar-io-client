@@ -223,7 +223,7 @@ the same interned objects `s:kin():list()` returns, so `payload[1]` and
 roster changed, not *what* changed: keep your own map of the last state if you want to name who just came
 online, and key it **by the `Kin` itself** rather than by `:name()`, so a rename does not read as one kin
 leaving and another arriving.
-[`kin:info()`](../types.md#kinentry) is there when you want a plain table instead.
+[`kin:info()`](../types/world.md#kinentry) is there when you want a plain table instead.
 
 **The outcome is the key, not a field to check.** `QuestCompleted` fires when the quest is done and
 `QuestFailed` when it is failed, so a handler that only cares about success is one subscription and no
@@ -302,7 +302,7 @@ handler for all of them would have nothing to name the key it was fired on. `*` 
 
 - [`hafen.event()`](README.md) — subscribing, and why the key set is closed
 - [the message streams](streams.md) — the two open-keyed doors, for a message rather than a fact
-- [data types](../types.md) — what `:info()` copies out of a payload, shape by shape
+- [data types](../types/README.md) — what `:info()` copies out of a payload, shape by shape
 - [`hafen.session`](../session.md) — the payload the four hand you, and the collection of the rest
 - [`hafen.timer`](../timer.md) — for what the bus cannot tell you: polling on your own schedule
 - [when your code runs](../../runtime.md) — the whole life of an addon, of which these are the moments

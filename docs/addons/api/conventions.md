@@ -180,7 +180,7 @@ accepted and never firing.
 A read hands back a **live object** rather than a copy. It re-resolves on every call, answers `nil`
 once the thing it names is gone, and reports `:exists()`. Objects are interned per addon, so `==` is
 the identity test and one works as a table key. A point-in-time copy is what `:info()` gives you, and
-nothing else does; every shape it returns is in [data types](types.md).
+nothing else does; every shape it returns is in [data types](types/README.md).
 
 ### nil is an error unless it means something
 
@@ -262,7 +262,7 @@ beside every session the client holds, and nothing of yours is torn down or rebu
 
 - **Snapshots** are plain Lua tables, point-in-time copies from the escape-hatch `:info()` readers
   (`gob:info()`, `item:info()`, …). They do **not** update, so re-read rather than caching one across
-  ticks. Every snapshot shape is in [data types](types.md).
+  ticks. Every snapshot shape is in [data types](types/README.md).
 - **Handles** are live, bridge-owned proxies with methods (`hafen.ui():window()`, `hafen.timer():every`,
   `hafen.event():on`, …), released for you when the addon is disabled or reloaded. So is every **object**
   a read hands you: it re-resolves rather than holding a value, so one you keep tracks what it names.
@@ -344,6 +344,6 @@ observes, or writes **client-local and undoable**, so it says `(unprotected)`.
 
 - [references](references.md) — every kind of thing a verb takes, and how you name one
 - [shapes](shapes.md) — what a plain table of numbers looks like: places, sizes, colours, units
-- [data types](types.md) — every snapshot shape the readers return
+- [data types](types/README.md) — every snapshot shape the readers return
 - [events](event/bus.md) — the bus, and what each event hands your handler
 - [permissions](../guides/permissions.md) — the protected tier in full
