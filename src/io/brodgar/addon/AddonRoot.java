@@ -9,8 +9,9 @@ import haven.Widget;
  * step of the addon engine: its gobs, its HUD adapters, its widgets, its world and its store.
  *
  * <p><b>Not the whole engine</b> (074.2). {@code Update}, the timers, the Lua budget and the engine clock are
- * the <i>client's</i> and run on {@link LayerRoot}, once a frame, because an addon has one of each however
- * many sessions it is watching.
+ * the <i>client's</i> and run on {@link AddonManager#layerTick}, once a frame, because an addon has one of
+ * each however many sessions it is watching. That step is <b>not</b> a widget (112.1): the frame calls it
+ * outside both trees' monitors, so what it drives may reach any tree.
  *
  * <p>This is the <b>zero-core-edit</b> tick pump described in {@code specs/addons/04-engine.md}:
  * {@link haven.UI#tick()} broadcasts a {@code TickEvent} to every widget on the UI thread, under

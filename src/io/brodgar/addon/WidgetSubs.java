@@ -51,6 +51,8 @@ final class WidgetSubs {
     /** The three keys seen at the placement/removal seams (041.4) — §1.1/§1.2's Destroy and the container pair. */
     private static final Set<String> TREE_KEYS = new java.util.HashSet<String>(
         java.util.Arrays.asList("ItemAdded", "ItemRemoved", "Removed"));
+    /** The one key the ENGINE STEP fires (112.1) — see {@link Addon#updateSurfaces}. */
+    private static final String UPDATE_KEY = "Update";
 
     /** Is {@code key} one of the four input keys? */
     private static boolean isInputKey(String key) {
@@ -139,8 +141,21 @@ final class WidgetSubs {
                     deafenKey(key);
                 else if(TREE_KEYS.contains(key) && !anyTreeKeyLive())
                     stopListening();
+                else if(UPDATE_KEY.equals(key))
+                    owner.unwatchUpdate(WidgetSubs.this);   // 112.1: nobody left to step this surface
             }
         });
+    }
+
+    /**
+     * <b>The surface this record is about</b> (112.1), or {@code null} for a widget that is not one of this
+     * addon's own — what the engine step fires {@code Update} on, and where its {@code dead}/{@code pending}
+     * guards are read. It is {@link #inwdg} because that is already the resolved content leaf: for a window
+     * {@link #wdg} is the chrome and the {@link AddonWidget} is one level down, and for a bare surface the two
+     * coincide.
+     */
+    AddonWidget surface() {
+        return (inwdg instanceof AddonWidget) ? (AddonWidget)inwdg : null;
     }
 
     /** {@code widget:on(key, fn)} — register the handler first, then install/start whatever the key needs; a
@@ -157,6 +172,8 @@ final class WidgetSubs {
                 startListening();   // seeds current items itself when this first ask is an item key
             else if(!hadItemInterest && (key.equals("ItemAdded") || key.equals("ItemRemoved")))
                 refreshItems();     // already listening (e.g. via an earlier Destroy sub) — first item-key ask
+        } else if(UPDATE_KEY.equals(key)) {
+            owner.watchUpdate(this);   // 112.1: the engine step fires this one, not the widget's own tick
         }
         return h;
     }
@@ -338,6 +355,7 @@ final class WidgetSubs {
         if(w == wdg) {
             subs.fire("Removed");
             subs.clear();
+            owner.unwatchUpdate(this);   // 112.1: clear() fires no Idle, and a dead surface steps no more
             listening = false;
             items.clear();
             containerOf.clear();
@@ -453,6 +471,7 @@ final class WidgetSubs {
         installed.clear();
         if(listening)
             stopListening();
+        owner.unwatchUpdate(this);   // 112.1: as above — a teardown is a clear, and a clear fires no Idle
         subs.clear();
     }
 }

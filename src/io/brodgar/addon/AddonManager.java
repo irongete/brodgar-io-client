@@ -609,8 +609,9 @@ public final class AddonManager {
         SessionState st = state(u);
         if(st == null)
             return null;
-        // 074.1: the layer's pump is a LayerRoot and it is attached the moment that tree is built, so the
-        // layer is always draining. A session's is attached by init, which is what addonRoot answers.
+        // 074.1: the layer's step is called by the frame itself (112.1) and that tree is built with the
+        // client, so the layer is always draining. A session's pump is a widget attached by init, which is
+        // what addonRoot answers.
         return ((st.addonRoot != null) || (u == layer())) ? st : null;
     }
 
@@ -699,7 +700,9 @@ public final class AddonManager {
      * <b>Wait out the tick or draw that was already inside when {@link #quiesce} ran</b> (079.2) — by taking
      * each tree's monitor once, the layer's and every live session's, <b>one at a time and never nested</b>,
      * which is this client's one lock direction. That is the monitor a frame holds while it runs one
-     * ({@code UILoop.Frame.tick}, {@code UILoop.display}), so holding it for an instant is the whole wait.
+     * ({@code UILoop.Frame.tick}, {@code UILoop.display}), so holding it for an instant is the whole wait for
+     * a tree — and {@link #stepping} is the same instant for the ENGINE STEP, which since 112.1 runs inside no
+     * tree's monitor and would otherwise be the one thing in flight that this waits for and does not find.
      *
      * <p><b>Called on the shutdown's own thread and never on the exit path's</b>, because a monitor cannot be
      * taken with a timeout: a UI thread wedged inside a frame would hold one for ever, and an exit that waited
@@ -707,6 +710,9 @@ public final class AddonManager {
      * the shutdown's budget, after which the flush runs anyway.
      */
     static void awaitIdle() {
+        // 112.1: the engine STEP first, which is no longer inside a tree's monitor and so is no longer waited
+        // out by taking one. Given up again before the first tree's is taken, so the two never nest.
+        synchronized(stepping) { /* a step in flight has finished by the time this is taken */ }
         UI l = layer();
         if(l != null) {
             synchronized(l) { /* a layer tick or draw in flight has finished by the time this is taken */ }
@@ -916,8 +922,8 @@ public final class AddonManager {
     // ------------------------------------------------------------- the tick pump
 
     /**
-     * <b>One step of the addon layer</b> (074.1, and since 074.2 the engine's own step), driven by
-     * {@link LayerRoot#tick(double)} each frame. The layer is where an addon's own windows live and where the
+     * <b>One step of the addon layer</b> (074.1, and since 074.2 the engine's own step), called by
+     * {@code UILoop.Frame.tick} each frame. The layer is where an addon's own windows live and where the
      * addons themselves now live, so this is both: what a <i>tree</i> owes per frame — the surfaces built into
      * it since the last one, the popup a click buried, the removals and resizes its own widgets recorded off
      * the tick — and what the <i>client</i> owes its addons, which is everything that must happen exactly once
@@ -931,9 +937,31 @@ public final class AddonManager {
      * <p>It is also the <b>only</b> pump that is always running — the layer is built with the client and never
      * replaced — which is why the boot below is hung on it: a file body is Lua, Lua runs on this thread (P5),
      * and this is the first turn of it the client has.
+     *
+     * <p><b>NO TREE MONITOR IS HELD HERE</b> (112.1), and that is what the step is <i>for</i>. It used to be a
+     * widget on the layer's root, which meant every handler below it began with {@code synchronized(layer)}
+     * already taken — while most of what an addon does per frame is write a <i>session's</i> widget, which
+     * takes that tree's monitor under the layer's. A Loader thread placing a widget holds the two in the other
+     * order, and the client froze. So the call site moved out of the tree: {@code Frame.tick} calls this
+     * between its input dispatch and its two blocks, and everything reached from here — the drains, the bus
+     * events, the timers and {@code widget:on("Update", fn)} — may reach any tree because it holds none.
+     *
+     * <p><b>It takes its own delta</b> for the same reason: no {@code TickEvent} carries one to it any more.
+     * {@link Utils#rtime()} is the clock {@link UI#tick()} reads too, so a frame measures the same here as it
+     * did in the tree, and the first turn of the client measures nothing.
      */
-    static void layerTick(UI u, double dt) {
+    public static void layerTick(UI u) {
+        synchronized(stepping) {   // 112.1: what a shutdown waits a step out by, now that no tree monitor is
+            layerStep(u);          //   held here — see the field
+        }
+    }
+
+    /** {@link #layerTick}'s body, inside the barrier. */
+    private static void layerStep(UI u) {
         try {
+            double now = Utils.rtime();
+            double dt = (lastStep < 0) ? 0.0 : (now - lastStep);
+            lastStep = now;
             if(quiet())
                 return;      // 079.2: the client is quitting; the layer stops stepping before anything is read
             SessionState st = state(u);
@@ -1037,7 +1065,11 @@ public final class AddonManager {
 
             // Per-frame update, and the due timers behind it. Once per frame for the client — an addon has one
             // Update however many characters it is watching.
-            fire("Update", LuaValue.valueOf(dt));
+            LuaValue dtv = LuaValue.valueOf(dt);
+            fire("Update", dtv);
+            // ...and a SURFACE's own Update, which used to be fired by the widget's tick and is fired here now
+            // (112.1) — after the bus's, exactly the order it had when the tree ticked this pump first.
+            fireSurfaceUpdates(dtv);
             runTimers();
 
             // Custom UI overlays (2b): queue the HUD-overlay afterdraw for THIS frame if any addon has one.
@@ -1057,6 +1089,23 @@ public final class AddonManager {
 
     /** Whether {@link #boot} has run. One client, one boot — see {@link #layerTick}. */
     private static boolean booted = false;
+
+    /** {@link Utils#rtime()} at the previous step, or {@code -1} before the first — {@link #layerTick}'s own
+     *  delta, since nothing hands it one any more (112.1). */
+    private static double lastStep = -1;
+
+    /**
+     * <b>The step's own barrier</b> (112.1) — held for the length of one {@link #layerTick} and taken for an
+     * instant by {@link #awaitIdle}. The step used to run inside {@code synchronized(layer)}, so the layer's
+     * TREE monitor was what a shutdown waited a step out by; it holds no tree monitor at all now, and this is
+     * what says "a step is in flight" in its place.
+     *
+     * <p><b>It guards no state, and nothing else ever takes it</b>, so it adds no direction to the lock graph:
+     * inside the step it sits above every tree monitor the step's own Lua takes, and {@link #awaitIdle} gives
+     * it up before it takes the first tree's. There is no pair of threads that can hold one of these and want
+     * the other.
+     */
+    private static final Object stepping = new Object();
 
     /**
      * <b>One session's step</b>, driven by {@link AddonRoot#tick(double)} on the UI thread each frame — every
@@ -2102,6 +2151,52 @@ public final class AddonManager {
         Addon c = consoleOwner;
         if(c != null)
             fireTo(c, event, args);
+    }
+
+    /**
+     * {@code widget:on("Update", fn)} on every surface that has one, once for this frame (112.1). The
+     * surface's own per-frame notification used to be fired by {@code AddonWidget.tick}, which is a
+     * {@code TickEvent} callback and therefore ran with that tree's monitor held — so the handler that wrote
+     * another tree's widget took a second monitor under the first, which is the deadlock this feature ends.
+     * Firing it from the step instead costs the handler nothing and buys it every tree.
+     *
+     * <p><b>A per-addon list, not a walk of the widgets</b> ({@link Addon#updateSurfaces}). The fire-side
+     * lookup {@code widget:on} is built on ({@link Addon#widgetSubsOrNull}) exists so that a surface nobody
+     * subscribed to costs one map lookup a frame and nothing else; folding over every widget-subs entry here
+     * would spend that saving on behalf of the addons that are not listening. The list holds exactly the
+     * surfaces with a live {@code Update} handler, maintained at {@link WidgetSubs#on} and at the
+     * {@code Subs.Idle} that says the key emptied out.
+     *
+     * <p><b>The two guards came with it.</b> A surface that is {@link AddonWidget#dead() dead} is dropped from
+     * the list here, and one still {@link AddonWidget#pending() pending} is skipped for this frame, exactly as
+     * a half-configured widget paints nothing until its arming tick. The drop is also the list's own sweep: a
+     * surface whose only subscription is {@code Update} joins no removal watch list, so nothing else would
+     * ever tell this list that it is gone. Unlinked counts as gone — {@code Widget.remove()} nulls the parent —
+     * and both the content and the root are asked, since a window's chrome is the half that leaves the tree.
+     */
+    private static void fireSurfaceUpdates(LuaValue dt) {
+        for(Addon a : addons)
+            fireSurfaceUpdates(a, dt);
+        Addon c = consoleOwner;
+        if(c != null)
+            fireSurfaceUpdates(c, dt);
+    }
+
+    /** One addon's surfaces, in the order they subscribed — see {@link #fireSurfaceUpdates(LuaValue)}. */
+    private static void fireSurfaceUpdates(Addon a, LuaValue dt) {
+        if(a.updateSurfaces.isEmpty())
+            return;
+        for(WidgetSubs s : a.updateSurfaces) {   // a snapshot: a handler may subscribe or off() while it runs
+            AddonWidget w = s.surface();
+            if((w == null) || w.dead() || (w.parent == null) || (w.rootw().parent == null)) {
+                a.updateSurfaces.remove(s);
+                continue;
+            }
+            if(w.pending())
+                continue;
+            if(s.subs.has("Update"))
+                s.subs.fire("Update", dt);
+        }
     }
 
     /**

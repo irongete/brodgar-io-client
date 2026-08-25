@@ -26,6 +26,16 @@ hence the cached `next` — and a widget may equally rebuild **its own** child l
 (→`shandle`, the widget itself) runs **before** `propagation`, which then re-reads `from.child` fresh. That is
 what makes `Window.tick` a legal place to `chdeco` (035).
 
+**Monitor gotcha — a `tick` is a callback with that tree's monitor ALREADY HELD, and so is a `draw`.**
+`UILoop.Frame.tick` takes `synchronized(ui)` around `ui.tick()`, and `UILoop.display` takes it around
+`ui.draw(g)` — so every `Widget.tick` and every `Widget.draw` in the tree runs inside it. A widget added to a
+tree purely to get a per-frame callback is therefore a per-frame callback **that starts out holding a lock**,
+which is invisible at the call site: nothing in `tick(double)`'s signature says so, and the traversal that
+reaches it is three classes away. Anything such a callback does that takes a *second* `UI` monitor — and there
+is more than one `UI` in this client ([multi-session.md](multi-session.md)) — nests two, against a Loader
+thread that holds them the other way round in `Widget.add`. Per-frame work that must reach another tree does
+not belong on a widget at all; call it from `Frame.tick`, outside both blocks, where it holds none.
+
 **`super.draw` gotcha — a subclass decides whether its children are painted at all.** `Widget.draw(GOut)` is
 `draw(g, true)`, which **is** the child loop and nothing else. So a class that overrides `draw(GOut)` without
 calling `super.draw(g)` paints itself and then paints **no child**, and around forty of the overrides in

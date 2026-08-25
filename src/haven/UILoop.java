@@ -71,10 +71,10 @@ public abstract class UILoop implements Console.Directory {
 	newui(null);
 	/* addon: (074.1) built exactly as bgui builds one -- no slot, no replace, no destroy, no uilock -- but
 	 * NOT through bgui itself: this runs inside the constructor, where an override of it reaches a subclass
-	 * whose own fields are still unassigned. The tick pump is a widget on its root, the same zero-core-edit
-	 * shape a session's is, so what the layer does each frame is said in the addon layer and not here. */
+	 * whose own fields are still unassigned. What the layer does each frame is said in the addon layer and
+	 * not here: Frame.tick calls its step directly (112.1), because a widget on this root would be a
+	 * callback with this tree's monitor already held. */
 	this.layer = mkui(null);
-	this.layer.root.add(new io.brodgar.addon.LayerRoot(), Coord.z);
 	io.brodgar.session.Sessions.init(this);   // rts: the sessions layer needs the loop to build a UI (F0)
 	this.th = new HackThread(this::run, "Haven UI thread");
     }
@@ -627,6 +627,13 @@ public abstract class UILoop implements Console.Directory {
 	    if(gprof  != null) gprof.part(out, "tick");
 	    loop.dispatch(layer, ui);
 	    CPUProfile.phase(prof, "ltick");
+	    /* addon: (112.1) THE ADDON LAYER'S STEP, AND NO TREE MONITOR HELD. It used to be a widget on the
+	     * layer's root, so it ran inside the broadcast below with synchronized(layer) already taken -- and
+	     * an addon's per-frame work is mostly writing a SESSION's widgets, which takes a second tree's
+	     * monitor under the first. That is the one nesting the rule above forbids, so the step is lifted out
+	     * of the block rather than the writes being forbidden. It keeps the "ltick" phase, which is what it
+	     * always cost, and it takes its own delta: no TickEvent carries one to it any more. */
+	    io.brodgar.addon.AddonManager.layerTick(layer);
 	    synchronized(layer) {
 		layer.tick();
 		layer.gtick(out);

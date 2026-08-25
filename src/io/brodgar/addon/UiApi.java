@@ -753,7 +753,7 @@ final class UiApi {
      *
      * <p><b>Your window and the client's window are not the same thing</b>, which is why this namespace SPLITS
      * rather than moves. {@code hafen.ui():window()}, {@code :widget()}, {@code :overlay()} and the sixteen
-     * constructors build something of <i>yours</i> — parented into {@code LayerRoot} since 074.1, drawn above
+     * constructors build something of <i>yours</i> — parented into the addon layer's own root since 074.1, drawn above
      * every session — and keep their global spelling; {@code :sheet()} is a rule declaration owned by the addon
      * and applies in every session at once; {@code :mouse()}, {@code :hit(x, y)}, {@code :tipAt(x, y)} and
      * {@code :scale()} ask about the screen, and there is one pointer and one coordinate space however many

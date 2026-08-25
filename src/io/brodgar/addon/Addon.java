@@ -152,6 +152,34 @@ public final class Addon {
     }
 
     /**
+     * This addon's surfaces with a live {@code widget:on("Update", fn)} handler, in the order they subscribed
+     * — what the engine step walks each frame (112.1, {@code AddonManager.fireSurfaceUpdates}). The fire used
+     * to be the widget's own {@code tick}, which runs under its tree's monitor; from the step it holds none,
+     * so a handler may write any tree.
+     *
+     * <p><b>A list of exactly the subscribers, never a fold over {@link #widgetSubs}.</b> That map is keyed
+     * per widget so that an unlistened surface costs one lookup and mints nothing; walking all of it once a
+     * frame would spend the saving on the addons that are not listening. Copy-on-write because a handler may
+     * subscribe or {@code sub:off()} from inside the very walk that is firing it.
+     *
+     * <p>Maintained on both edges — {@link WidgetSubs#on} adds, the {@code Subs.Idle} hook removes when the
+     * key's last handler goes, and {@link WidgetSubs#teardown}/{@link WidgetSubs#offerRemoved} remove where a
+     * clear fires no {@code Idle} at all. The walk drops a dead or unlinked surface as a backstop, since a
+     * surface with nothing but an {@code Update} handler joins no removal watch list.
+     */
+    final CopyOnWriteArrayList<WidgetSubs> updateSurfaces = new CopyOnWriteArrayList<WidgetSubs>();
+
+    /** {@code widget:on("Update", fn)} on a surface that had none — join the step's walk (112.1). */
+    void watchUpdate(WidgetSubs s) {
+        updateSurfaces.addIfAbsent(s);
+    }
+
+    /** The last {@code Update} handler on a surface went — leave the walk (112.1). Idempotent. */
+    void unwatchUpdate(WidgetSubs s) {
+        updateSurfaces.remove(s);
+    }
+
+    /**
      * Drop this addon's subscriptions on <b>one</b> widget ({@code widget:revert()}, 061.9) — the same
      * release {@link #teardownWidgetSubs} does for all of them, one widget at a time: every engine listener
      * and watch-list registration goes, and each handler is marked dead so a {@code sub:off()} kept in Lua
@@ -174,6 +202,7 @@ public final class Addon {
         for(WidgetSubs s : widgetSubs.values())
             s.teardown();
         widgetSubs.clear();
+        updateSurfaces.clear();   // 112.1: each teardown() already left, so this is the backstop
     }
 
     /**

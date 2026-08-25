@@ -1,0 +1,9 @@
+{
+  "name": "112.1 — the engine step leaves the tree monitor",
+  "id": "112-one-tree-monitor-at-a-time.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 112.1: the engine step and widget:on(\"Update\") run with no tree monitor held, so one handler reaches the addon layer and a character's tree in the same turn.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
