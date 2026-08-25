@@ -375,6 +375,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
         if(scm == null)
             throw new LuaError(CharApi.MG + ":add(id): the action menu is not up yet — add your entries"
                 + " from SessionEnteredWorld or later, not from Load");
+        reap(owner, user, scm);
         String id = PREFIX + owner.manifest.id + "/" + rel;
         for(AddonPagina p : owner.menuEntries) {
             if(p.id.equals(id) && p.user.equals(user))
@@ -401,6 +402,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
      */
     static void remove(Addon owner, String user, LuaValue x) {
         String id = identity(owner, x);
+        reap(owner, user, LuaPagina.grid(user));
         AddonPagina p = null;
         for(AddonPagina q : owner.menuEntries) {
             if(q.id.equals(id) && q.user.equals(user))
@@ -460,6 +462,40 @@ public final class AddonPagina extends MenuGrid.Pagina {
         }
     }
 
+    /**
+     * <b>Drop the entries this addon left in a menu that is gone.</b> An entry goes into the grid that
+     * character had <i>then</i>, and the list on the {@link Addon} outlives it: a relog to character selection
+     * and back, or a reconnect, tears the HUD down, and the server places a new {@link MenuGrid} in the one it
+     * builds next. What stays on the list is an entry nothing draws and nothing can click, standing in a grid
+     * no screen reaches — so it is taken out here, and the id it held is free again.
+     *
+     * <p>Every lookup by {@code (id, user)} passes through this first, which is what keeps the three of them
+     * saying one thing: {@code :add} refuses a duplicate only where there is one to collide with, a write verb
+     * refuses an entry that has left the menu (as {@code pag:exists()} already reports, since it resolves
+     * through the live grid), and {@code :remove} of one is the inert removal of something already gone.
+     *
+     * <p><b>The placements stand.</b> {@link #detach} gives back every action-bar slot the entry was holding
+     * without forgetting where it belongs, so the {@code :add} the addon makes from its next
+     * {@code SessionEnteredWorld} puts the button straight back on the bar — and the hold records the dead HUD
+     * left behind go with it, which is what stops the next hold on that slot from carrying a displaced
+     * content read off a bar nobody is looking at. No relayout: the grid these entries are leaving is the
+     * torn-down one, and the live grid never had them.
+     *
+     * <p>{@code live} is that account's grid <b>now</b>, and {@code null} means the client cannot tell — that
+     * character has no HUD up — so nothing is reaped. An entry is orphaned by a menu that was <b>replaced</b>,
+     * never by one that is merely not there to ask.
+     */
+    private static void reap(Addon owner, String user, MenuGrid live) {
+        if(live == null)
+            return;
+        for(AddonPagina p : owner.menuEntries) {   // copy-on-write: removing inside the walk is safe
+            if(p.user.equals(user) && (p.scm != live)) {
+                detach(p);
+                owner.menuEntries.remove(p);
+            }
+        }
+    }
+
     // ---- the id ----------------------------------------------------------------------------------------
 
     /**
@@ -472,6 +508,7 @@ public final class AddonPagina extends MenuGrid.Pagina {
      * that wrote it.
      */
     static AddonPagina owned(Addon owner, String user, String res, String call) {
+        reap(owner, user, LuaPagina.grid(user));
         for(AddonPagina p : owner.menuEntries) {
             if(p.id.equals(res) && p.user.equals(user))
                 return p;
@@ -479,7 +516,8 @@ public final class AddonPagina extends MenuGrid.Pagina {
         String mine = PREFIX + owner.manifest.id + "/";
         if(res.startsWith(mine))
             throw new LuaError(call + ": \"" + res + "\" is not in that character's menu — this addon"
-                + " added it and removed it again, or added it on another character (check :exists())");
+                + " added it and removed it again, added it on another character, or added it to the menu a"
+                + " relogin has since replaced (check :exists())");
         if(res.startsWith(PREFIX)) {
             throw new LuaError(call + ": \"" + res + "\" belongs to " + other(res) + ", not to"
                 + " this addon — an addon writes only the entries it added with " + CharApi.MG + ":add(id)");
