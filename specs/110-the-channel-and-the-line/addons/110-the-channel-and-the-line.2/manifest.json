@@ -1,0 +1,10 @@
+{
+  "name": "110.2 — the channels, the one on screen, and saying a line",
+  "id": "110-the-channel-and-the-line.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 110.2: s:chat() is the channels, :selected() reads and writes the one on screen, ChannelSelected reports that write, the kinds are a closed set of four, and the two refusals say what to write instead.",
+  "api_version": 1,
+  "permissions": ["chat.send"],
+  "files": ["main.lua"]
+}

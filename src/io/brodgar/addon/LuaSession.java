@@ -50,7 +50,10 @@ import java.util.Map;
  * the windows an addon BUILDS stay {@code hafen.ui():window()} in the layer above every session. 078.3 adds
  * {@code s:store()}, the second half-namespace and the last of the sequence: a character's saved variables are
  * that character's own folder and are reached here, while an account's are the addon's one file and stay
- * {@code hafen.store()}. Each is minted once per {@code (addon, session)} and kept on the handle — see
+ * {@code hafen.store()}. 110.2 adds {@code s:chat()}, the channels one character holds: the chat is a window
+ * of one login's HUD, so two characters have two Party channels and two private conversations with the same
+ * person, and the line {@code ch:send(text)} says goes out of the login it was addressed at.
+ * Each is minted once per {@code (addon, session)} and kept on the handle — see
  * {@link #worldObj}. Every verb under them reads the session named rather than the one on
  * screen; the ones that are inherently the screen's say so where they are defined ({@code screenToWorld},
  * {@code worldToScreen}) and the ones that <b>send</b> go through {@link AddonManager#sendView}, because a
@@ -96,6 +99,8 @@ public final class LuaSession {
     private LuaValue uiObj;
     /** This character's saved variables (078.3) — the half of {@code store} that names a folder of its own. */
     private LuaValue storeObj;
+    /** This character's chat (110.2): the channels it holds, and the one it has on screen. */
+    private LuaValue chatObj;
 
     private LuaSession(String user) {
         this.user = user;
@@ -432,6 +437,19 @@ public final class LuaSession {
                 if(h.storeObj == null)
                     h.storeObj = StoreApi.store(owner, h.user);
                 return h.storeObj;
+            }
+        });
+        // chat() — the chat THIS character holds. The chat is a window of one login's HUD, so two characters
+        // have two of them: two Party channels, and two private conversations with the same person. A global
+        // would have to answer for whichever session is being DRAWN, which is the wrong character's lines
+        // rather than a labelling problem — so the address goes in the call, as it does for every other
+        // section here. The section object IS the collection of the channels.
+        m.set("chat", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                LuaSession h = handle(self, "chat");
+                if(h.chatObj == null)
+                    h.chatObj = ChatApi.chat(owner, h.user);
+                return h.chatObj;
             }
         });
         // close() — END this session: the one protected verb a Session carries ("session.close", D-027/D-028),

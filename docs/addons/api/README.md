@@ -24,7 +24,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [the character sheet](types/character.md) | attributes, food, learning, movement speed, quests, wounds and buffs |
 | [the fight](types/fight.md) | a maneuver, a card in the deck, and the deck's totals |
 | [the map](types/map.md) | a pin on the recorded map, and a minimap icon category |
-| [the widget layer](types/ui.md) | a HUD meter, the open recipe, a hotbar slot and an action-menu entry |
+| [the widget layer](types/ui.md) | a HUD meter, the open recipe, a hotbar slot, an action-menu entry and a chat channel |
 
 ## Reading the world
 
@@ -50,6 +50,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [`session:char`](char.md) | attributes, learning points, weight, food, skills, credos, lore |
 | [`session:study`](study.md) | the study window: the curiosities in it, and their LP and attention |
 | [`session:party`](party.md) | the party roster, in party sequence order |
+| [`session:chat`](chat.md) | the chat channels, the one on screen, and saying a line in one |
 | [`session:buff`](buff.md) | the buffs on the buff bar |
 | [`session:meter`](meter.md) | the HUD meter bars — health, stamina, energy, and whatever else the server puts there |
 

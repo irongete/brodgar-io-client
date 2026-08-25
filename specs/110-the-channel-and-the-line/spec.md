@@ -74,13 +74,17 @@ Discharged, each already true and unaffected: `api/locale.md`, `api/map/icons.md
 
 ## Context files
 
-- `src/haven/ChatUI.java` — 2, 3
-- `src/io/brodgar/addon/LuaSession.java` — 2
-- `src/io/brodgar/addon/Permission.java` — 2
-- `src/io/brodgar/addon/AddonManager.java` — 2, 3
+- `src/haven/ChatUI.java` — 3
+- `docs/client/chat.md` — 3, the map of that file: the one funnel a line arrives through, the three
+  argument shapes the `"msg"` uimsg wears, and what is never trimmed
+- `src/io/brodgar/addon/LuaChannel.java` — 3, the Channel object `ch:message()` hangs off, and the
+  intern-on-the-widget + no-pin shape a Message interned on `(Channel, idx)` follows
+- `src/io/brodgar/addon/ChatApi.java` — 3, the collection, and the `CH` spelling every message quotes
+- `docs/addons/api/chat.md` — 3, the page the lines are written onto
+- `src/io/brodgar/addon/AddonManager.java` — 3, and its per-session chat queue, which `MessageAdded` joins
 - `src/io/brodgar/addon/LuaKin.java` — 3
-- `docs/addons/api/types/ui.md` — 3, the catalogue page the two chat shapes are filed on
-- `src/io/brodgar/addon/LuaCollection.java` — 2, 3
+- `docs/addons/api/types/ui.md` — 3, where `Message` is filed; `Channel` is already on it
+- `src/io/brodgar/addon/LuaCollection.java` — 3
 - `src/io/brodgar/addon/LuaGOut.java`, `src/io/brodgar/addon/UiApi.java` — 4
 - `src/haven/Text.java`, `src/haven/RichText.java` — 4
-- `DOCUMENTATION.md` — 1, 2, 3, 4
+- `DOCUMENTATION.md` — 3, 4

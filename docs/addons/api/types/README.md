@@ -20,7 +20,7 @@ See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
 | [the character sheet](character.md) | attributes, food, learning, movement speed, quests, wounds and buffs |
 | [the fight](fight.md) | a maneuver, a card in the deck, and the deck's totals |
 | [the map](map.md) | a pin on the recorded map, and a minimap icon category |
-| [the widget layer](ui.md) | a HUD meter, the open recipe, a hotbar slot and an action-menu entry |
+| [the widget layer](ui.md) | a HUD meter, the open recipe, a hotbar slot, an action-menu entry and a chat channel |
 
 ## Every shape
 
@@ -29,6 +29,7 @@ See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
 | `ActionbarSlot` | [the widget layer](ui.md#actionbarslot) |
 | `Attr` | [the character sheet](character.md#attr) |
 | `Buff` | [the character sheet](character.md#buff) |
+| `Channel` | [the widget layer](ui.md#channel) |
 | `Condition` | [the character sheet](character.md#quest-and-condition) |
 | `Contents` | [the item and what holds it](items.md#contents) |
 | `Craft` | [the widget layer](ui.md#craft-and-craftspec) |

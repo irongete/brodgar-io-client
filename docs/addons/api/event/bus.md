@@ -6,12 +6,12 @@ page is the closed set of keys it accepts.
 
 ## Whose character it was
 
-Sixteen of the events below are **one character's** — the meters, buffs, food, study slots, equipment,
-action bar, wounds, roster, quests and radial menu. Five characters' meters are five different facts, so
-five firings are right, and each of the sixteen hands your handler the [`Session`](../session.md) it was
-about as its **last** argument: a `MeterChanged` handler written `function(m, s)` reads the bar that moved
-and the character it belongs to, and `s:user()` is the account it is on. There is a
-[worked one](../../guides/events-and-timers.md) in the guide.
+Most of the events below are **one character's** — the meters, buffs, food, study slots, equipment, action
+bar, wounds, roster, quests, radial menu and chat channels. Five characters' meters are five different
+facts, so five firings are right, and each of those events hands your handler the
+[`Session`](../session.md) it was about as its **last** argument: a `MeterChanged` handler written
+`function(m, s)` reads the bar that moved and the character it belongs to, and `s:user()` is the account it
+is on. There is a [worked one](../../guides/events-and-timers.md) in the guide.
 
 Last, and not first, so a handler that does not care which character an event came from takes no second
 parameter and reads exactly as it did — Lua drops an argument the function did not declare.
@@ -264,6 +264,29 @@ from the payload or from [`s:flowermenu()`](../flowermenu.md), which is the menu
 also names the object it was opened on — and `s` is the session the event carries, so nothing has to be
 looked up. A ring goes up on the character the pointer is on, and it stays up, and readable, if you tab
 away.
+
+## Chat
+
+A channel is one character's — the chat is a window of that login's HUD — so each of the three hands your
+handler the [`Channel`](../chat.md#a-channel) it is about and that character's
+[`Session`](../session.md) last.
+
+| Event | Payload | Fires |
+|---|---|---|
+| `ChannelAdded` | [`Channel`](../chat.md#a-channel) | a channel appears in that character's chat |
+| `ChannelRemoved` | [`Channel`](../chat.md#a-channel) | a channel goes away — the object still keys your table, and every read on it is `nil` |
+| `ChannelSelected` | [`Channel`](../chat.md#a-channel) | that character's chat changed tab |
+
+**A new channel is added before it is selected.** The client puts a tab up and picks it in one motion, so a
+channel arriving fires both, in that order. `ChannelSelected` fires only on a **change**, whether the player
+clicked the tab or an addon wrote it with
+[`s:chat():selected(ch)`](../chat.md#write-unprotected), so naming the tab already on screen fires nothing.
+Losing the selected channel selects nothing and fires nothing: the payload **is** a channel, and none was
+picked.
+
+On `ChannelRemoved` the channel is **already gone** — `ch:exists()` is `false` and `ch:name()`, `:kind()`
+and `:urgency()` all read `nil`. The payload is still the object you indexed on `ChannelAdded`, because
+channels are interned, so match on it rather than on a name you can no longer read.
 
 ## World ghosts and sprites
 

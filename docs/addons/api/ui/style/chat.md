@@ -14,6 +14,10 @@ paints them all alike; the keys below are how a theme keeps them apart.
 | `chat.urgent` | the **unread** indicator: an unread channel's tab, and the glow on the chat button | blue, orange, then red as urgency rises |
 | `chat.speaker` | the colour a **speaker** is given in a multi-person channel | a hue the client walks, one step per new speaker |
 
+**These words are read as well as painted.** A channel answers the key its own lines resolve at as
+[`channel:kind()`](../../chat.md#the-four-kinds), so a rule that colours a kind and an addon that reads one
+name the same thing rather than two vocabularies for one distinction.
+
 ```lua
 local s = hafen.ui():sheet()
 s:rule("chat"):color{180, 190, 200}                     -- everything the four kinds below do not claim
@@ -133,3 +137,4 @@ lands on nothing — accepted and inert, like every other property a surface has
 - [text](text.md#color) — the `color` property itself, and what else wins over it
 - [surfaces](surfaces.md) — the other surfaces the client draws text and boxes at
 - [style](README.md) — installing the sheet these keys go in
+- [`session:chat`](../../chat.md) — the same words from the reading side: the channels, and saying a line

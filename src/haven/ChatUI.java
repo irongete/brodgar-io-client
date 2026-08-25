@@ -1313,6 +1313,11 @@ public class ChatUI extends Widget {
 	    chan.resize(sz.x - marg.x - chan.c.x, sz.y - chan.c.y);
 	    super.add(w);
 	    chansel.add(chan);
+	    /* addon: (110.2) a channel joined this character's chat. BEFORE the select() below, which is this
+	     * method's own: a brand-new tab is picked as it arrives, and an addon hears it added before it hears
+	     * it picked. Queued, never fired here -- the server places a channel on the thread that applies its
+	     * update, and Lua runs on the UI thread. */
+	    io.brodgar.addon.AddonManager.chatChannelAdded(chan);
 	    select(chan, false);
 	    return(w);
 	} else {
@@ -1326,6 +1331,11 @@ public class ChatUI extends Widget {
 	    if(chan == sel)
 		sel = null;
 	    chansel.rm(chan);
+	    /* addon: (110.2) a channel left this character's chat. Widget.remove() unlinks before it calls
+	     * this, so the channel is already out of the tree by the time the queue is drained -- which is what
+	     * the payload's ch:exists() reports. Losing the SELECTED channel picks nothing, so no
+	     * ChannelSelected follows: there is no tab to name. */
+	    io.brodgar.addon.AddonManager.chatChannelRemoved(chan);
 	}
     }
     
@@ -1610,6 +1620,12 @@ public class ChatUI extends Widget {
 	resize(sz);
 	if(focus || hasfocus)
 	    setfocus(chan);
+	/* addon: (110.2) the chat changed tab. THE one funnel -- the selector's click, the hotkeys, the server's
+	 * own "sel" uimsg and add() above all come through here. Only a real change is reported: naming the tab
+	 * that is already up is not a moment, exactly as writing the screen to the session already drawn is not.
+	 * Queued: the uimsg path runs on the thread that applies the server's update. */
+	if(prev != chan)
+	    io.brodgar.addon.AddonManager.chatChannelSelected(chan);
     }
 
     public void select(Channel chan) {

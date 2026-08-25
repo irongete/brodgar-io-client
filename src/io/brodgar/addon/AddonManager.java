@@ -9,6 +9,7 @@ import haven.Buff;
 import haven.Button;
 import haven.Bufflist;
 import haven.CharWnd;
+import haven.ChatUI;
 import haven.Console;
 import haven.Coord;
 import haven.Coord2d;
@@ -410,6 +411,11 @@ public final class AddonManager {
         // that sees it (onUimsg) runs on a Loader thread OUTSIDE the ui monitor, and text rasterisation
         // belongs on the UI thread anyway, so it only records the widget; tick() re-reads and re-applies.
         final Queue<Widget> textRewrites = new ConcurrentLinkedQueue<Widget>();
+        // 110.2: the three chat seams — ChatUI.add, ChatUI.cdestroy and ChatUI.select all run on the thread
+        // that applies this session's server update, so they only enqueue {key, channel} and the tick fires
+        // them. The chat is one login's HUD, so the queue is that login's state and the payload needs no
+        // second lookup to say whose character it was.
+        final Queue<Object[]> chatEvents = new ConcurrentLinkedQueue<Object[]>();
 
         // ---- the widget layer (073.2) ------------------------------------------------------------
         // Every one of these names WIDGETS OF ONE TREE, and each is filled from the widget it is about:
@@ -1134,6 +1140,11 @@ public final class AddonManager {
             //          level back on before this one has read what the server actually wrote.
             drainTextRewrites(st);
 
+            // 1b''''''. The chat's three seams (110.2), captured off-thread by ChatUI.add / cdestroy / select
+            //           -> ChannelAdded, ChannelRemoved and ChannelSelected on the UI thread, one frame's
+            //           worth (D-106). This session's own queue, because a chat is one login's HUD.
+            drainChatEvents(st);
+
             // 1c. Replacements (032.1, event-driven since 042.8): the server destroying a window an addon
             //     replaced with widget:replace(view) is a removal, so it is offered at the removal seam
             //     (drainRemovedWidgets, via UiApi.dispatchReplacedRemoved) — nothing left for the tick to drive
@@ -1724,6 +1735,7 @@ public final class AddonManager {
         "FepChanged", "StudyChanged", "EquipChanged", "ActionbarChanged", "WoundChanged",
         "KinChanged", "QuestAdded", "QuestCompleted", "QuestFailed", "MarkerChanged",
         "FlowerMenuAdded", "FlowerMenuRemoved",
+        "ChannelAdded", "ChannelRemoved", "ChannelSelected",
         "GhostClicked", "SpriteClicked", "ObjectClicked",
     };
 
@@ -2812,11 +2824,85 @@ public final class AddonManager {
         }
     }
 
+    // ------------------------------------------------------------- the chat's three seams (110.2)
+
+    /**
+     * <b>A channel appeared in a character's chat</b> — the {@code // addon:} line in {@code ChatUI.add},
+     * placed <i>before</i> the {@code select(chan, false)} beneath it so a brand-new tab is reported as added
+     * before it is reported as picked. The server places a channel as a widget, on the thread that applies
+     * its update, so this only enqueues.
+     */
+    public static void chatChannelAdded(ChatUI.Channel chan) {
+        queueChannel("ChannelAdded", chan);
+    }
+
+    /** <b>A channel left</b> — the {@code // addon:} line in {@code ChatUI.cdestroy}. Already unlinked when
+     *  this runs ({@code Widget.remove} unlinks first), so the payload reads {@code :exists() == false}. */
+    public static void chatChannelRemoved(ChatUI.Channel chan) {
+        queueChannel("ChannelRemoved", chan);
+    }
+
+    /** <b>The chat changed tab</b> — the {@code // addon:} line in {@code ChatUI.select(Channel, boolean)},
+     *  which every door onto a selection funnels through. Only a real change is queued: naming the tab that
+     *  is already up fires nothing, exactly as writing the screen to the session already drawn does. */
+    public static void chatChannelSelected(ChatUI.Channel chan) {
+        queueChannel("ChannelSelected", chan);
+    }
+
+    /** Enqueue one chat event against the tree the channel stands in — never {@link #screen()}, which is the
+     *  session being drawn rather than the one whose chat moved. */
+    private static void queueChannel(String key, ChatUI.Channel chan) {
+        if(chan == null)
+            return;
+        SessionState st = queueState(chan.ui);
+        if(st != null)
+            st.chatEvents.add(new Object[] {key, chan});
+    }
+
+    /**
+     * Deliver one frame's worth of {@link SessionState#chatEvents} on the UI thread (D-106), in the order the
+     * seams recorded them — so a new channel is heard added before it is heard picked, and a tab that goes
+     * away is heard about after whatever selection preceded it.
+     */
+    private static void drainChatEvents(SessionState st) {
+        String user = userOf(st);
+        for(int n = st.chatEvents.size(); n > 0; n--) {
+            Object[] e = st.chatEvents.poll();
+            if(e == null)
+                break;
+            try {
+                fireChannel((String)e[0], (ChatUI.Channel)e[1], user);
+            } catch(RuntimeException ex) {
+                log("chat event dispatch error: " + ex);
+            }
+        }
+    }
+
+    /**
+     * Fire a chat event ({@code ChannelAdded}/{@code ChannelRemoved}/{@code ChannelSelected}) whose payload is
+     * the <b>Channel object</b>, with that character's {@link LuaSession} last. The {@link #fireQuest} shape:
+     * interning is per-addon (D-045), so each owner gets <i>its</i> handle, minted only for an owner that
+     * actually subscribes.
+     *
+     * <p>On {@code ChannelRemoved} the channel is <b>already out of its tree</b>, so every read on the payload
+     * answers {@code nil} and only its identity is left — which is enough, because the object is interned and
+     * a handler compares it against what it indexed on {@code ChannelAdded}.
+     */
+    static void fireChannel(String event, ChatUI.Channel chan, String user) {
+        for(Addon a : addons) {
+            if(hasSub(a, event))
+                fireTo(a, event, LuaChannel.of(a, chan), sessionArg(a, user));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, event))
+            fireTo(c, event, LuaChannel.of(c, chan), sessionArg(c, user));
+    }
+
     // ------------------------------------------------------------- whose character it was (079.4)
     //
     // THE CHARACTER EVENTS CARRY THEIR SESSION, AND CARRY IT LAST. The meters, buffs, food, study, equipment,
-    // action bar, wounds, roster, quests and radial menu of five characters are five different facts, so five
-    // firings are right and the label is what makes them usable: fn(payload, session).
+    // action bar, wounds, roster, quests, radial menu and chat of five characters are five different facts, so
+    // five firings are right and the label is what makes them usable: fn(payload, session).
     //
     // Last and not first, because an addon that does not care which character an event came from is not wrong.
     // Lua drops a trailing argument a function did not declare, so `function(m) … end` goes on working exactly

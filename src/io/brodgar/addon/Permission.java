@@ -87,6 +87,8 @@ public enum Permission {
     KIN_GROUP        ("kin.group",          "kin:group",                      "change someone's kin group, on any of your characters"),
     KIN_END          ("kin.end",            "kin:endKin",                     "end kinship with someone, on any of your characters"),
     KIN_FORGET       ("kin.forget",         "kin:forget",                     "forget someone from any of your characters' kin lists"),
+    CHAT_SEND        ("chat.send",           "channel:send",                   "say a line in the chat, as any of your"
+                                                                              + " characters"),
     SPEED_SET        ("speed.set",          "session:speed():set",            "change the movement speed of any of"
                                                                               + " your characters"),
     SESSION_CLOSE    ("session.close",      "session:close",                  "log out any of your characters"),

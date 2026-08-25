@@ -14,7 +14,7 @@
       `[manual]`: none.
       <!-- extra context: DOCUMENTATION.md §9 (pricing a split by its inbound anchors) -->
 
-- [ ] **110.2 — `s:chat()`: the channels, the one on screen, and saying a line.** The section, minted
+- [x] **110.2 — `s:chat()`: the channels, the one on screen, and saying a line.** The section, minted
       per session over `GameUI.chat`; `:list`/`:count`/`:find`, `:selected()`/`:selected(ch)`, and no
       `:get`. A channel answers `:name()`, `:kind()`, `:urgency()`, `:exists()`, `:info()`, and
       `:send(text)` behind `chat.send`. `ChannelAdded`, `ChannelRemoved` and `ChannelSelected` fire

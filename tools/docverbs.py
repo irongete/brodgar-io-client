@@ -59,6 +59,7 @@ RECEIVERS = {
     "buff": "buff", "meter": "meter", "food": "food", "fep": "fep", "hunger": "hunger",
     "wound": "wound", "quest": "quest", "q": "quest", "cond": "condition", "c": None,
     "kin": "kin", "member": "partymember", "slot": None, "card": "deckcard",
+    "channel": "channel",
     "sp": "speed", "skill": "skill", "credo": "credo", "attr": "attr", "exp": "experience",
     "pag": "pagina", "item": "item", "contents": "contents", "hand": "hand",
     "w": "widget", "widget": "widget", "win": "widget", "ev": None, "sub": "sub",

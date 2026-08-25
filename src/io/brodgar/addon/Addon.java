@@ -813,6 +813,15 @@ public final class Addon {
      */
     final LuaContents.Cache contents = new LuaContents.Cache(this);
 
+    /**
+     * This addon's <b>Channel interning cache</b> ({@code s:chat()}, spec {@code 110-the-channel-and-the-line}):
+     * the {@code Channel widget -> Channel object} map and the per-addon metatable that make
+     * {@code s:chat():list()[1] == s:chat():selected()} true. Weak on <b>both</b> axes, the
+     * {@link #widgetObjs} shape rather than the strong-key one: a channel holds its whole scrollback, so a
+     * strong key would pin every closed conversation for the life of the addon.
+     */
+    final LuaChannel.Cache channels = new LuaChannel.Cache(this);
+
     final LuaQuest.Cache quests = new LuaQuest.Cache(this);
     final LuaCondition.Cache conditions = new LuaCondition.Cache(this);
     final LuaWound.Cache wounds = new LuaWound.Cache(this);

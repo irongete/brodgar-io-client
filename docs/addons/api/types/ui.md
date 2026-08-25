@@ -1,9 +1,9 @@
 # Data types: the widget layer
 
 The snapshot shapes that come out of the client's own windows: a HUD meter, the recipe one has open, a
-hotbar slot and an entry in the action menu. Each is what `:info()` copies out of a live object, so it
-never updates — the live reads are verbs on that object. The model, and what *optional* means on the
-tables below, is on [the catalogue](README.md).
+hotbar slot, an entry in the action menu and a chat channel. Each is what `:info()` copies out of a live
+object, so it never updates — the live reads are verbs on that object. The model, and what *optional* means
+on the tables below, is on [the catalogue](README.md).
 
 ## Meter
 
@@ -53,9 +53,21 @@ path = string[]?, parent = string?, isnew = bool? }` — `res` is the identity a
 own. Every other field is absent when the menu cannot answer it: the entry is gone, or its resource has
 not loaded. The live reads are `pag:res()`, `:addon()`, `:name()`, `:parent()`, `:unseen()` and the rest.
 
+## Channel
+
+From [`channel:info()`](../chat.md#a-channel), the snapshot escape hatch for one tab of the chat window;
+`nil` once that tab has gone, because there is nothing left to copy.
+
+`{ name = string?, kind = string, urgency = number }` — `kind` is one of the four words
+[`channel:kind()`](../chat.md#the-four-kinds) answers and is always present, `urgency` is `0` for a channel
+with nothing unread, and `name` is absent while the client cannot state one, which is a private conversation
+whose other person this character's kin roster does not carry yet. The live reads are `channel:name()`,
+`:kind()` and `:urgency()`.
+
 ## See also
 
 - [the catalogue](README.md) — every snapshot shape, and what a snapshot is
+- [`session:chat`](../chat.md) — the live channels these copy, and saying a line in one
 - [`session:meter`](../meter.md) — the live meter bars these copy
 - [`session:craft`](../craft.md) — the open recipe window, and its Craft button
 - [`session:actionbar`](../actionbar.md) — the hotbar, and holding a slot for an entry of your own
