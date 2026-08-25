@@ -79,7 +79,7 @@ repeated sweeps without touching ids, and two of your characters looking at one 
 [identity](gob.md#identity).
 
 > For reacting to objects rather than polling, prefer the `GobAdded`/`GobRemoved`
-> [events](event/bus.md#world) over scanning every frame.
+> [events](event/bus/world.md#world) over scanning every frame.
 
 ## The Position type
 

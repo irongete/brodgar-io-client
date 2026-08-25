@@ -136,5 +136,5 @@ saves though it declares nothing at all.
 
 - [`hafen.session`](session.md) — the address a character's saved variables are reached through
 - [`hafen.json`](json.md) — the same serializer, when you want the string yourself
-- [events](event/bus.md#sessions) — `SessionEnteredWorld`, where per-character data becomes readable
+- [events](event/bus/lifecycle.md#sessions) — `SessionEnteredWorld`, where per-character data becomes readable
 - [`hafen.http`](http.md) — fetching what you cache here

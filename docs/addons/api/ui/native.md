@@ -45,8 +45,8 @@ logout *and* while you play. What it writes is always **what the user last place
 put it. So uninstalling your addon leaves the HUD exactly as its owner had arranged it, which is the whole
 point: nothing you do here is a change they have to undo by hand.
 
-**Reading back.** `w:position()` answers within the parent, in widget-local [design pixels](pixels.md) — a window's coordinate is
-relative to whatever contains it, and the HUD is not the root, so use
+**Reading back.** `w:position()` answers within the parent, in widget-local [design pixels](pixels.md) — a
+window's coordinate is relative to whatever contains it, and the HUD is not the root, so use
 [`:rootPos()`](widget.md#read) when you need screen coords. `w:size()` reads a window's **outer** box while
 `w:size(w, h)` sets its **content** size, which is the same asymmetry a window you built has: the chrome is
 derived, not set.
@@ -55,8 +55,8 @@ derived, not set.
 pack themselves around their contents whenever anything resizes them — the main inventory is one — so
 `w:size(w, h)` on those is honoured and then undone by the client before the call returns. That is
 **inert, never an error**, and it leaves nothing behind; read `:size()` back if you need to know which kind
-you are holding. It is the same rule the sheet's [`padding`](style/chrome.md#padding) follows: a size applies where
-the surface can re-lay itself out, and a surface that fixes its own size cannot.
+you are holding. It is the same rule the sheet's [`padding`](style/chrome.md#padding) follows: a size applies
+where the surface can re-lay itself out, and a surface that fixes its own size cannot.
 
 Two addons may each hold a layer over the same widget — unlike
 [hiding](#hiding-a-native-widget-carries-a-restore), a position is not a toggle. The last write wins on
@@ -262,8 +262,8 @@ restore entirely. `w:visible(true)` gives it back yourself and drops the record.
 > it again", and [the toggle](#hiding-a-native-window-takes-its-toggle) is only there for the windows the
 > client itself can open. Hide anything else — the action bar, a HUD panel, the chat — and teardown leaves
 > it hidden with nothing in the interface to bring it back. Put it back from
-> [`Disable`](../event/bus.md#lifecycle), which fires **before** the teardown: keep the handles you hid and
-> `w:visible(true)` each one.
+> [`Disable`](../event/bus/lifecycle.md#lifecycle), which fires **before** the teardown: keep the handles you
+> hid and `w:visible(true)` each one.
 
 **One widget, one owner.** A native widget another addon has already hidden is not yours to hide:
 `w:visible(false)` refuses with an error naming the addon that holds it. Its toggle can only drive one

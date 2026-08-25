@@ -55,8 +55,8 @@ rather than viewings. See [identity](../api/gob.md#identity).
 ## Do not scan every frame
 
 A sweep of every loaded object is cheap once and expensive sixty times a second. Prefer the
-[events](../api/event/bus.md#world) `GobAdded` and `GobRemoved`, which hand you the Gob as it arrives, and
-keep your own index:
+[events](../api/event/bus/world.md#world) `GobAdded` and `GobRemoved`, which hand you the Gob as it arrives,
+and keep your own index:
 
 ```lua
 local boars = {}

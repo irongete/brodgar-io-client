@@ -51,4 +51,4 @@ One page per namespace, and a directory where a namespace is large. The
 The pages every other page assumes are [conventions](api/conventions.md), how the API is spelled and what
 a read gives back, [references](api/references.md), every kind of thing a verb takes,
 [shapes](api/shapes.md), what a plain table of numbers looks like, [data types](api/types/README.md), every
-snapshot shape, and [events](api/event/bus.md), the catalogue of what the client tells you about.
+snapshot shape, and [events](api/event/bus/README.md), the catalogue of what the client tells you about.

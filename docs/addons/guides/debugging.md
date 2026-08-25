@@ -95,14 +95,14 @@ the client sends and receives, which is what makes it a thing you watch with rat
 hearing from it.
 
 The bundled **`eventstack`** addon is that pair of blocks with a window around them, and the
-[event bus](../api/event/bus.md) and the widget tree beside them. `:eventstack` puts up a live log — one
-line per message out, update in, event on the bus, or widget coming and going — with filters over the
-source, the session, the widget and the event name that fill themselves as each value arrives for the
-first time, a word box over the whole line, and a click on any row for the arguments that message actually
-carried. It records from the moment it loads rather than from the moment you open it, so the login you
-wanted to watch is already in it. Reach for it when you do not yet know which of those the thing you are
-watching for comes through, and for the console once you do: a name you can subscribe to by itself is
-cheaper than a window watching everything.
+[event bus](../api/event/bus/README.md) and the widget tree beside them. `:eventstack` puts up a live log —
+one line per message out, update in, event on the bus, or widget coming and going — with filters over the
+source, the session, the widget and the event name that fill themselves as each value arrives for the first
+time, a word box over the whole line, and a click on any row for the arguments that message actually carried.
+It records from the moment it loads rather than from the moment you open it, so the login you wanted to watch
+is already in it. Reach for it when you do not yet know which of those the thing you are watching for comes
+through, and for the console once you do: a name you can subscribe to by itself is cheaper than a window
+watching everything.
 
 ## When the addon does not load
 

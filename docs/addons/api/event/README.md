@@ -42,7 +42,7 @@ fire**, in the order they registered; `off()` on one leaves the other running. A
 isolated: the error is logged and it breaks neither your other handlers nor the client.
 
 **The bus keys are a closed set** — a name that is not one of them throws at the line that wrote it,
-pointing at [the catalogue](bus.md) rather than reading as a subscription that never fires:
+pointing at [the catalogue](bus/README.md) rather than reading as a subscription that never fires:
 
 ```lua
 hafen.event():on("GobAdded ", fn)
@@ -81,7 +81,7 @@ belongs to that widget and is not here; it dies with it.
 
 | Page | What it covers |
 |---|---|
-| [the catalogue](bus.md) | every key `:on` accepts: your addon's own life, the sessions under it, the world, the character, the roster, your own entities |
+| [the catalogue](bus/README.md) | every key `:on` accepts: your addon's own life, the sessions under it, the world, the character, the roster, your own entities |
 | [the message streams](streams.md) | `hafen.event():action()` and `hafen.event():message()` — a message leaving for the server, and an update arriving from it |
 
 ## See also

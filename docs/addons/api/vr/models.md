@@ -81,7 +81,7 @@ An object can be made clickable with `o:clickable(true)`, exactly like a
 [clickable sprite](sprites.md#clickability). Its mesh gains a pick surface, and a click on it is detected
 **client-side** and **consumed** before any server click, so you never walk or interact and nothing reaches
 the server. Both the per-object `:onClick(fn)` and the owner-scoped
-[`ObjectClicked`](../event/bus.md#world-ghosts-and-sprites) event fire, and `ObjectClicked` reaches only
+[`ObjectClicked`](../event/bus/world.md#world-ghosts-and-sprites) event fire, and `ObjectClicked` reaches only
 *your* addon.
 
 An object answers the same `:position`, `:rotate` and `:scale` a ghost or a sprite does, so one code path
@@ -93,4 +93,4 @@ handles all three: click-select, drag on the ground, and persistence through
 - [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [sprites](sprites.md) — an image in the world, and the anchoring both share
 - [`hafen.asset`](../asset.md#mesh) — loading a `.glb`, and what `:bounds()` and `:info()` answer
-- [events](../event/bus.md#world-ghosts-and-sprites) — `ObjectClicked`
+- [events](../event/bus/world.md#world-ghosts-and-sprites) — `ObjectClicked`

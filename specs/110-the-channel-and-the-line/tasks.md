@@ -58,7 +58,7 @@
       disagreement the plain-text alternative was discarded for. It refuses a `width` of `0`.
       `[manual]`: none.
 
-- [ ] **110.5 — The event catalogue becomes a folder.** `docs/addons/api/event/bus.md` is deleted into
+- [x] **110.5 — The event catalogue becomes a folder.** `docs/addons/api/event/bus.md` is deleted into
       `docs/addons/api/event/bus/`, split by subject with a `README.md` hub that carries the model every
       subject shares — the closed key set, whose character it was, and what is deliberately not an event —
       over one page per family: the addon's own three and the session's four, the world's, the character's

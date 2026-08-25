@@ -65,5 +65,5 @@ See [snapshots vs handles](../conventions.md#snapshots-vs-handles).
 
 - [conventions](../conventions.md#snapshots-vs-handles) — why some readers hand back an object instead
 - [shapes](../shapes.md) — the anonymous tables these fields carry: places, sizes, colours, units
-- [events](../event/bus.md) — which of these shapes arrives as an event payload
+- [events](../event/bus/README.md) — which of these shapes arrives as an event payload
 - [the API reference](../README.md) — every namespace, and the live reads these copies come off

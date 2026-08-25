@@ -120,9 +120,9 @@ still knows your real values.
 
 | Event | Payload | Fires |
 |---|---|---|
-| [`MeterAdded`](event/bus.md#character-and-status) | `Meter` | a bar appears in the HUD slot |
-| [`MeterRemoved`](event/bus.md#character-and-status) | `Meter` | a bar goes away; the object still reads, and `:exists()` is false |
-| [`MeterChanged`](event/bus.md#character-and-status) | `Meter` | a bar's value **or** colour changes |
+| [`MeterAdded`](event/bus/character.md#character-and-status) | `Meter` | a bar appears in the HUD slot |
+| [`MeterRemoved`](event/bus/character.md#character-and-status) | `Meter` | a bar goes away; the object still reads, and `:exists()` is false |
+| [`MeterChanged`](event/bus/character.md#character-and-status) | `Meter` | a bar's value **or** colour changes |
 
 The meters stream in a beat after `SessionEnteredWorld`, so `:list()` is legitimately empty for a moment
 and the bars arrive as a burst of `MeterAdded`. Mounting a horse adds two more mid-session and
@@ -156,4 +156,4 @@ exactly the predicate `:list()` filters on.
 - [`Meter`](types/ui.md#meter) — the snapshot shape `:info()` returns
 - [`session:char`](char.md) — `:food()`, the one absolute reading about your character
 - [`session:buff`](buff.md) — the other keyless status collection
-- [events](event/bus.md#character-and-status) — the three meter events
+- [events](event/bus/character.md#character-and-status) — the three meter events

@@ -1764,7 +1764,7 @@ public final class AddonManager {
         else
             hint = "";
         return "hafen.event():on(key, fn): unknown event '" + key + "'" + hint
-            + " — see docs/addons/api/event/bus.md for the catalogue";
+            + " — see docs/addons/api/event/bus/ for the catalogue";
     }
 
     /** Is {@code key} one of the {@link #BUS_KEYS}? (Linear over the constants, once per subscription.) */

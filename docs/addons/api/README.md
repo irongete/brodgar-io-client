@@ -12,7 +12,7 @@ you came for from the tables below. Every page in the tree is listed here.
 | [data types](types/README.md) | every snapshot shape a read hands back, field by field |
 | [`hafen.session`](session.md) | the logins this client holds, the one on screen, the account each is named by, and the world and character that hang off one |
 | [`hafen.event`](event/README.md) | the hub: subscribing, the closed keys and the open ones |
-| [the catalogue](event/bus.md) | every event the client fires, and what each one hands your handler |
+| [the catalogue](event/bus/README.md) | every event the client fires, and what each one hands your handler |
 | [the message streams](event/streams.md) | a message on its way to the server, and an update on its way in |
 
 ## The snapshot shapes
@@ -25,6 +25,15 @@ you came for from the tables below. Every page in the tree is listed here.
 | [the fight](types/fight.md) | a maneuver, a card in the deck, and the deck's totals |
 | [the map](types/map.md) | a pin on the recorded map, and a minimap icon category |
 | [the widget layer](types/ui.md) | a HUD meter, the open recipe, a hotbar slot, an action-menu entry, and a chat channel and its lines |
+
+## The event families
+
+| Page | What it holds |
+|---|---|
+| [your addon and the sessions](event/bus/lifecycle.md) | your addon being loaded, ticked and disabled, and a character connecting, reaching the world, taking the screen and ending |
+| [the world](event/bus/world.md) | a game object coming and going, what is attached to one, and a click on an entity of your own |
+| [the character and the rosters](event/bus/character.md) | the meters, buffs, food, study, equipment, action bar and wounds, the kin roster, the quests, the map's pins, and the radial menu |
+| [the chat](event/bus/chat.md) | a channel appearing, going away or taking the tab, and a line landing in one |
 
 ## Reading the world
 

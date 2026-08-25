@@ -81,13 +81,13 @@ look up. It is `nil` at a root, which is where `:depth()` is `0`.
 
 ## Events
 
-Subscribe to [`WoundChanged`](event/bus.md#character-and-status) to react to a wound being added, healed or
-worsening. Its payload is the new list of Wound objects — the same ones `:list()` hands out, so you can
-compare them with `==` against what you kept last time.
+Subscribe to [`WoundChanged`](event/bus/character.md#character-and-status) to react to a wound being added,
+healed or worsening. Its payload is the new list of Wound objects — the same ones `:list()` hands out, so you
+can compare them with `==` against what you kept last time.
 
 ## See also
 
 - [`Wound`](types/character.md#wound) — the snapshot shape `w:info()` returns
 - [`session:char`](char.md) — the rest of the character sheet
 - [`session:meter`](meter.md) — the HUD bars a wound pulls down
-- [events](event/bus.md#character-and-status) — `WoundChanged`
+- [events](event/bus/character.md#character-and-status) — `WoundChanged`

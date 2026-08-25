@@ -103,7 +103,7 @@ none is protected.
 > A slot's `cooldown` is present only for an ability with a meter, and it is a
 > [`0..1` fraction](shapes.md#units).
 
-Subscribe to [`ActionbarChanged`](event/bus.md#character-and-status), whose payload is the
+Subscribe to [`ActionbarChanged`](event/bus/character.md#character-and-status), whose payload is the
 changed `Slot` itself, to react to a slot being set, cleared or changed. It does **not** fire on a
 cooldown ticking, which would be every frame; read `:cooldown()` live off the object instead.
 
@@ -191,8 +191,8 @@ menu, and holding one for an entry you added on another login is refused naming 
 | `slot:hold(nil)` | the `Slot` | end the hold, whoever took it; inert on a slot nobody is holding |
 
 Nothing reaches the server, so this needs **no permission** and it lands **immediately** — where
-`slot:res(name)` below is a round trip. [`ActionbarChanged`](event/bus.md#character-and-status) fires on both
-edges, taking the hold and ending it.
+`slot:res(name)` below is a round trip. [`ActionbarChanged`](event/bus/character.md#character-and-status)
+fires on both edges, taking the hold and ending it.
 
 While a slot is held it reads as the entry: `slot:res()` is that entry's `addon/…` identity, `slot:name()`
 the name you gave it, `slot:empty()` is false, and pressing the slot — its key, a click, or `slot:use()` —
@@ -278,4 +278,4 @@ One string could never mean both.
 - [`session:menugrid`](menugrid.md) — where the names the write takes come from, and where your entries live
 - [permissions](../guides/permissions.md) — the permission the two protected writes share
 - [`ActionbarSlot`](types/ui.md#actionbarslot) — the snapshot shape `:info()` returns
-- [events](event/bus.md#character-and-status) — `ActionbarChanged`
+- [events](event/bus/character.md#character-and-status) — `ActionbarChanged`

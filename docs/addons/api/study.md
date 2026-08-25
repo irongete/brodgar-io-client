@@ -77,7 +77,8 @@ and **a curiosity taken out of study keeps answering**: `:exists()` is `false` w
 numbers still read what it had. It carries its own character with it, so `:exists()` is about the window
 that curiosity was taken from, whichever session that is.
 
-Subscribe to [`StudyChanged`](event/bus.md#character-and-status), whose payload is the array of slots.
+Subscribe to [`StudyChanged`](event/bus/character.md#character-and-status), whose payload is the array of
+slots.
 
 ```lua
 hafen.event():on("StudyChanged", function(slots)
@@ -109,4 +110,4 @@ than an empty object while there is no tab.
 
 - [`session:char`](char.md) — attributes, learning points and skills
 - [`StudySlot`](types/character.md#studyslot-and-studysummary) — the snapshot shape `slot:info()` returns
-- [events](event/bus.md#character-and-status) — `StudyChanged`
+- [events](event/bus/character.md#character-and-status) — `StudyChanged`

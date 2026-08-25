@@ -86,11 +86,11 @@ Switching character therefore **changes nothing about your addon**. Its Lua envi
 environment, every value it holds is still held, its windows keep their place, their focus and any drag
 still in progress, and its timers keep counting. `Load` fired once and `Disable` has not fired.
 
-What does change is underneath you, and the [session events](api/event/bus.md#sessions) are how you hear
-it: `SessionAdded` when one connects, `SessionEnteredWorld` when its character can be read,
-`SessionSelected` when the screen moves to it, `SessionRemoved` when it ends. Each hands you that
-session's account name. Tabbing between two characters already in the world fires `SessionSelected` and
-nothing else — tabbing is not entering.
+What does change is underneath you, and the [session events](api/event/bus/lifecycle.md#sessions) are how you
+hear it: `SessionAdded` when one connects, `SessionEnteredWorld` when its character can be read,
+`SessionSelected` when the screen moves to it, `SessionRemoved` when it ends. Each hands you that session's
+account name. Tabbing between two characters already in the world fires `SessionSelected` and nothing else —
+tabbing is not entering.
 
 > **Your state survives a character switch, and keeping it valid is therefore yours.** A widget handle
 > you took under one character means nothing under another: it names a widget of that character's own
@@ -216,9 +216,9 @@ your login.
 
 ## What quitting writes
 
-Quitting — by closing the window, or with `:q` — writes your saved variables before the process ends. Every logged-in character's own tables go to their own folder and your account file goes to
-yours, whether or not thirty seconds have passed since the last automatic save and whether or not anything
-called `flush()`.
+Quitting — by closing the window, or with `:q` — writes your saved variables before the process ends. Every
+logged-in character's own tables go to their own folder and your account file goes to yours, whether or not
+thirty seconds have passed since the last automatic save and whether or not anything called `flush()`.
 
 `Disable` fires on the way out as well, and it fires first, so an addon that computes its state at teardown
 rather than keeping it in the store has that write picked up by the flush that follows it.

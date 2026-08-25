@@ -211,8 +211,8 @@ pixels — and nowhere above it. So while yours is installed:
 - `w:text()`, `w:title()` and a `[title=]` or `[text=]` [selector](ui/selectors.md) all answer the client's
   own English, and `w:text(s)` round-trips;
 - an [action's](menugrid.md) name and a [petal's](flowermenu.md) are the client's own words too, so
-  `select(label)` and the [event](event/bus.md) that names a petal go on matching what you wrote before you
-  had a catalogue;
+  `select(label)` and the [event](event/bus/README.md) that names a petal go on matching what you wrote before
+  you had a catalogue;
 - what a **tooltip row** says answers the same way, even though an entry under `tooltip` is what changed it
   on screen: [`item:name()`](ui/items.md#the-item-object) and `item:info().name`, the rows
   [`contents:text()`](ui/items.md#what-an-item-holds) prints, [`buff:name()`](buff.md#read),

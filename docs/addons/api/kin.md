@@ -73,8 +73,8 @@ the liveness test. A **string** is an exact, case-insensitive name and answers `
 roster carries it. `:find` takes the ordinary [filter](conventions.md#the-filter-argument) instead, so a
 *partial* name is `s:kin():find("Bo")`.
 
-Subscribe to [`KinChanged`](event/bus.md#roster-quests-markers) to react to a kin being added, removed,
-renamed, regrouped, or flipping online.
+Subscribe to [`KinChanged`](event/bus/character.md#roster-quests-markers) to react to a kin being added,
+removed, renamed, regrouped, or flipping online.
 
 ### Kin and gob
 
@@ -151,4 +151,4 @@ which is [`s:world():click(gob, 3)`](world.md#write-protected) followed by
 - [permissions](../guides/permissions.md) — the keys these writes share, and what a key covers
 - [`KinEntry`](types/world.md#kinentry) — the snapshot shape `:info()` returns
 - [`session:party`](party.md) — the other roster, which carries no names
-- [events](event/bus.md#roster-quests-markers) — `KinChanged`
+- [events](event/bus/character.md#roster-quests-markers) — `KinChanged`

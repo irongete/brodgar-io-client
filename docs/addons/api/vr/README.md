@@ -84,7 +84,7 @@ hafen.vr():widget():add(win, cupboard):facing("camera")    -- a panel standing o
 
 **An anchored one dies with its gob.** A felled tree takes the thing following it with it, and nothing is
 kept in case the gob comes back: a gob that returns is bare, and re-anchoring is your own call from
-[`GobAdded`](../event/bus.md#world). One standing at a point is untouched by any of that.
+[`GobAdded`](../event/bus/world.md#world). One standing at a point is untouched by any of that.
 
 > **`:add` raises when you are not in the world.** A thing in the 3D scene needs that scene, so placing one
 > before you have entered the world is an error rather than a `nil` you would discover one setter later.
@@ -168,9 +168,9 @@ subscription instead, and `:clickable(b)` there means *does this panel take the 
 
 **A refusal names the kind in hand**, and a standing widget's name is `panel`: a verb none of them has
 answers `ghost`, `sprite`, `object` or `panel` and lists what that kind does answer. So does
-`tostring(e)`, which is the kind and what it is a picture of — `Ghost(gfx/terobjs/arch/logcabin)`. The panel is named for
-what it is rather than for the collection that placed it, because the [widget](../ui/widget.md) inside it
-answers to `widget` and the two need different sentences — out here a place is a
+`tostring(e)`, which is the kind and what it is a picture of — `Ghost(gfx/terobjs/arch/logcabin)`. The panel
+is named for what it is rather than for the collection that placed it, because the [widget](../ui/widget.md)
+inside it answers to `widget` and the two need different sentences — out here a place is a
 [Position](../position.md), in there it is pixels within a parent.
 
 ## The ground under one that stands still
@@ -313,4 +313,5 @@ which also depends on where the camera is pointing.
 - [`gob:overlay()`](../overlay.md) — what is drawn *at* a gob, including these read-only
 - [the Widget object](../ui/widget.md) — what a standing widget goes on answering, unchanged
 - [drawing](../ui/drawing.md) — the same images, drawn on screen instead
-- [events](../event/bus.md#world-ghosts-and-sprites) — `GhostClicked`, `SpriteClicked` and `ObjectClicked`
+- [events](../event/bus/world.md#world-ghosts-and-sprites) — `GhostClicked`, `SpriteClicked` and
+  `ObjectClicked`

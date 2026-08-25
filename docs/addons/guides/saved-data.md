@@ -50,7 +50,7 @@ characters logged in at once, and each of those sessions keeps its own set of pe
 `s:store()` answers about the character that session is playing whether or not you are looking at it, two
 characters write two folders, and a table you cached from one session stays that character's. What raises
 is a session with no character to have variables for — one that has ended, and one that has not reached the
-world yet; the [session events](../api/event/bus.md#sessions) are how you hear about both.
+world yet; the [session events](../api/event/bus/lifecycle.md#sessions) are how you hear about both.
 
 ## Store data, not objects
 

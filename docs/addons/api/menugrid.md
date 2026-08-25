@@ -142,10 +142,10 @@ every character — so each menu is the game's own catalogue again, with nothing
 **A menu goes with the world it was in.** Entering the world again — a relog to character selection and back,
 a reconnect — hands that character a **new** menu, and the entries you put in the old one went with it: they
 are drawn nowhere, `:exists() == false`, and the ids they held are free. So the same
-[`SessionEnteredWorld`](event/bus.md#sessions) handler that added them the first time adds them again, the
-second time and the fifth, and none of them clashes with what a previous login left. The
-[action-bar slot](actionbar.md#a-hold-is-remembered) each one was placed in is remembered
-separately, and the `:add` is what takes it back.
+[`SessionEnteredWorld`](event/bus/lifecycle.md#sessions) handler that added them the first time adds them
+again, the second time and the fifth, and none of them clashes with what a previous login left. The
+[action-bar slot](actionbar.md#a-hold-is-remembered) each one was placed in is remembered separately, and the
+`:add` is what takes it back.
 
 ### `s:menugrid():add(id)`
 
@@ -156,8 +156,8 @@ shape rule as any other resource name, so two addons cannot collide and neither 
 own. It is unique **within a character**: putting the same button on two of your logins is the ordinary
 thing, and adding it twice to one menu — the one that character has *now* — is the clash refused below.
 
-The menu has to exist: add your entries from [`SessionEnteredWorld`](event/bus.md#sessions) or later, not
-from `Load` — and that event hands you the very session to add them to, once per character.
+The menu has to exist: add your entries from [`SessionEnteredWorld`](event/bus/lifecycle.md#sessions) or
+later, not from `Load` — and that event hands you the very session to add them to, once per character.
 
 | What you did | What you get |
 |---|---|

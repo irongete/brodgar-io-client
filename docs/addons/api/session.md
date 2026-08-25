@@ -136,7 +136,7 @@ Session — raises. To search, use the ordinary [filter](conventions.md#the-filt
 Hand the screen to `s`. It is the whole gesture rather than half of one — the RTS selection and the camera
 follow the screen, exactly as they do when the player takes it with `:session anchor` — and it hands the
 collection back, so writes chain. Naming the session **already** on screen changes nothing and fires no
-[`SessionSelected`](event/bus.md#sessions).
+[`SessionSelected`](event/bus/lifecycle.md#sessions).
 
 ```lua
 local list, cur, at = hafen.session():list(), hafen.session():current(), 0   -- go round the logins
@@ -150,8 +150,8 @@ since `:get(user)` mints an object for any account name, and `s:exists()` is the
 
 The third is a session the client *does* hold, and `s:exists()` is `true` for it: it is still arriving, or
 between the character it left and the one it is taking, so there is nothing to hand the screen to and no
-[`SessionSelected`](event/bus.md#sessions) would follow. Write the screen from that session's
-[`SessionEnteredWorld`](event/bus.md#sessions), which is the moment it has one.
+[`SessionSelected`](event/bus/lifecycle.md#sessions) would follow. Write the screen from that session's
+[`SessionEnteredWorld`](event/bus/lifecycle.md#sessions), which is the moment it has one.
 
 ### `hafen.session():current(nil)`
 
@@ -167,16 +167,16 @@ moment a login it performed becomes a session, so it is a place to go to and not
 last session leaves you. **Your characters stay logged in** — every session goes on ticking and answering
 the server behind it — and whatever you log in there arrives as a session like any other, takes the screen
 because nothing else is holding it, and appears in `:list()` with its own
-[`SessionAdded`](event/bus.md#sessions). To come back without logging anything in, write the screen to a
-session again.
+[`SessionAdded`](event/bus/lifecycle.md#sessions). To come back without logging anything in, write the screen
+to a session again.
 
 It is how an account **with no saved token** is logged in, which nothing else here reaches: there is no
 `hafen.session():add`, and `:session add` — the console's own — can only connect an account the login
 screen has already saved a token for.
 
-Going to the login screen fires **no event**: the [session family](event/bus.md#sessions)' payload *is* a
-session, and no session was picked. `hafen.session():current()` reads `nil` while it holds the screen, so a
-handler of your own is what tells anything that is watching.
+Going to the login screen fires **no event**: the [session family](event/bus/lifecycle.md#sessions)' payload
+*is* a session, and no session was picked. `hafen.session():current()` reads `nil` while it holds the screen,
+so a handler of your own is what tells anything that is watching.
 
 **The screen needs no permission.** The [protected tier](../guides/permissions.md) is for what an addon
 does whose effect leaves the client, and taking the screen changes which widget tree is drawn and nothing
@@ -217,8 +217,8 @@ end
 
 **It is asynchronous.** The verb asks the session to close and returns; that login is still in
 `hafen.session():list()` on the next line and leaves a tick or more later, on its own thread. `s:exists()`
-is the read that answers and [`SessionRemoved`](event/bus.md#sessions) is the edge, so poll the one or
-subscribe to the other rather than reading the list again on the line below.
+is the read that answers and [`SessionRemoved`](event/bus/lifecycle.md#sessions) is the edge, so poll the one
+or subscribe to the other rather than reading the list again on the line below.
 
 Closing the session **on screen** is allowed: the screen goes to another live session, or to the login
 screen when that was the last one. `s:user()` answers afterwards, as it does for every `Session` whose
@@ -235,7 +235,7 @@ character it is pointed at.
 
 ## Sessions that come and go
 
-The four [session events](event/bus.md#sessions) are where an addon learns that a session connected,
+The four [session events](event/bus/lifecycle.md#sessions) are where an addon learns that a session connected,
 reached the world, took the screen or ended, and each hands your handler the `Session` it is about. They
 report changes rather than state: an addon loaded while three characters are up hears about none of the
 three, and `hafen.session():list()` is how it learns what is already there.
@@ -253,12 +253,12 @@ object is one addon's handle. Both address the same login.
 **The four are not the only events that name a session.** Everything the bus reports about one
 character — its meters, buffs, food, study, equipment, action bar, wounds, roster, quests and radial
 menu — hands you that character's `Session` as the handler's
-[last argument](event/bus.md#whose-character-it-was), so a handler reads the character the event was
+[last argument](event/bus/README.md#whose-character-it-was), so a handler reads the character the event was
 about rather than the one on screen.
 
 ## See also
 
-- [events](event/bus.md#sessions) — the four moments a session announces
+- [events](event/bus/lifecycle.md#sessions) — the four moments a session announces
 - [`session:world`](world.md) — one character's objects, terrain and coordinates
 - [`session:player`](player.md) — one character, its Gob, its cursor and the walk
 - [`hafen.store`](store.md) — saved variables, per character and per account

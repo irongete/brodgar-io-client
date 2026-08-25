@@ -9,8 +9,8 @@ widget applies it.
 > of the one the widget was about to send. Everything else on this page observes, or cancels the client's
 > own behaviour.
 
-**Both key sets are open**, unlike [the bus catalogue](bus.md): a message name is protocol the server can
-introduce, not a catalogue the client owns, so any string is accepted. One string is reserved: `*` is
+**Both key sets are open**, unlike [the bus catalogue](bus/README.md): a message name is protocol the server
+can introduce, not a catalogue the client owns, so any string is accepted. One string is reserved: `*` is
 [the whole stream](#the-whole-stream), every message on it.
 
 ## Intercepting an outbound action
@@ -24,7 +24,7 @@ introduce, not a catalogue the client owns, so any string is accepted. One strin
 `hafen.event():action():on(msg, fn)` fires when a widget is about to send an action `msg` to the server,
 with the arguments **fully resolved** — for a move `"click"`, that is the destination world coordinate,
 which does not exist yet at input time. This is the door for stopping or rewriting something *before* it
-reaches the server, which an event on [the bus](bus.md) would arrive too late to do.
+reaches the server, which an event on [the bus](bus/README.md) would arrive too late to do.
 
 | `ev` on `action` | Description |
 |---|---|
@@ -78,7 +78,7 @@ end)
 navigates from it. It is one verb on both streams — the widget is the same object either way, and the
 direction is already said by the stream you subscribed on. Common `msg` names: `click` · `itemact` ·
 `drop` · `place` · `sel` · `act` · `use` · `take` · `transfer`. An `action` key is **not** in
-[the closed set](bus.md): any string is accepted, because a message name is protocol the server can
+[the closed set](bus/README.md): any string is accepted, because a message name is protocol the server can
 introduce, and refusing an unknown one would refuse a legitimate one tomorrow — and `*` reaches
 [all of them at once](#the-whole-stream). Two handlers on one `msg` both run; either one calling
 `preventDefault` cancels the send.
@@ -195,8 +195,8 @@ subscription on the same stream firing.
 
 > **`ev:preventDefault()` on an inbound wildcard stops the client.** A named key swallows one update; a
 > wildcard swallows **every** update, so the widget tree stops hearing from the server altogether — and
-> the client's own change detection reads the updates that were applied, so [the bus](bus.md) goes quiet
-> with it. Swallow inside an `if` on `ev:msg()`, never at the top of the handler.
+> the client's own change detection reads the updates that were applied, so [the bus](bus/README.md) goes
+> quiet with it. Swallow inside an `if` on `ev:msg()`, never at the top of the handler.
 
 An inbound handler also runs where the client can feel it. It runs under the very lock the client takes
 to tick and to draw, so the time your handler spends is time the frame is not being drawn — and a
@@ -211,7 +211,7 @@ disables an addon that sustains the overrun rather than letting the client stutt
 ## See also
 
 - [`hafen.event()`](README.md) — subscribing, and the handle that ends one
-- [the catalogue](bus.md) — the closed set of client-wide facts, for what a message is not
+- [the catalogue](bus/README.md) — the closed set of client-wide facts, for what a message is not
 - [the Widget object](../ui/widget.md) — what `ev:widget()` hands you
 - [Position](../position.md) — the place type both streams take and answer with
 - [conventions](../conventions.md#threading) — why a handler must not block

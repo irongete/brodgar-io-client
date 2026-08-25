@@ -103,9 +103,9 @@ hafen.event():on("GhostClicked", function(ev)
 end)
 ```
 
-Both the per-ghost `:onClick` and the [`GhostClicked`](../event/bus.md#world-ghosts-and-sprites) event fire on
-every click, and `GhostClicked` reaches only *your* addon, since a ghost is private to the addon that made
-it.
+Both the per-ghost `:onClick` and the [`GhostClicked`](../event/bus/world.md#world-ghosts-and-sprites) event
+fire on every click, and `GhostClicked` reaches only *your* addon, since a ghost is private to the addon that
+made it.
 
 > **Still unprotected.** Clickability is pure client-side detection: the engine's pick pass returns the ghost
 > and the bridge calls you, and nothing is sent to the server. A **non-clickable** ghost carries no pick
@@ -142,4 +142,4 @@ full.
 - [sprites](sprites.md) — your own image in the world, on the same core
 - [Position](../position.md) — the place an anchor is given, and the durable form it keeps
 - [`session:world():place`](../world.md#write-protected) — committing a real build, protected
-- [events](../event/bus.md#world-ghosts-and-sprites) — `GhostClicked`
+- [events](../event/bus/world.md#world-ghosts-and-sprites) — `GhostClicked`

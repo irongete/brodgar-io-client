@@ -20,6 +20,11 @@ map's own coverage is visible rather than assumed.
 
 Exit code 1 when anything is unresolved, so it can gate a change.
 
+The key passes run in BOTH directions. `key_mentions` resolves a key written in the docs against the set
+the bridge fires; `undocumented_keys` resolves each key the bridge fires against the pages under
+`docs/addons/api/event/`, which is the half no suite can walk -- nothing in Lua enumerates the bus, so a
+key that fell off a page in a move is a row nobody can think to ask about.
+
 WHAT IT CANNOT SEE, stated so the green is not read as more than it is:
 
   * A verb called ON A COLLECTION that is not one of the core six. A collection's `extra` verbs are
@@ -386,6 +391,32 @@ def key_mentions(live):
     return checked, bad
 
 
+# The other direction of the key pass, and the one nothing else can walk: every key the bridge FIRES is
+# written somewhere under docs/addons/api/event/.
+#
+# `key_mentions` above resolves DOCS -> BRIDGE, so a page still teaching a key the client stopped firing
+# fails. The opposite failure had nothing resolving it: a key the client fires that fell OFF a page. That is
+# what splitting the catalogue into a folder of pages can do to one table row, invisibly, inside a diff of
+# three hundred moved lines. A suite in Lua cannot see it either -- there is no verb that enumerates the
+# bus, so a key no page names is a key nothing can think to ask about.
+#
+# The catalogue writes every key in backticks, so that is what is looked for; a key named only in running
+# prose is not documented, it is mentioned.
+def undocumented_keys():
+    """(every BUS_KEY, those no page under docs/addons/api/event/ writes in backticks)."""
+    am = io.open(os.path.join(BRIDGE, "AddonManager.java"), encoding="utf-8", errors="replace").read()
+    m = re.search(r'String\[\]\s+BUS_KEYS\s*=\s*\{(.*?)\}', am, re.S)
+    keys = re.findall(r'"([A-Za-z]+)"', m.group(1)) if m else []
+    written = set()
+    for dirpath, _, files in os.walk(os.path.join(DOCS, "api", "event")):
+        for f in sorted(files):
+            if not f.endswith(".md"):
+                continue
+            text = io.open(os.path.join(dirpath, f), encoding="utf-8", errors="replace").read()
+            written |= set(re.findall(r'`([A-Za-z]+)`', text))
+    return keys, [k for k in keys if k not in written]
+
+
 def main():
     verbose = "--verbose" in sys.argv
     vocab = bridge_vocabularies()
@@ -441,11 +472,20 @@ def main():
     else:
         print("every event key written outside a suite is one the bridge fires")
 
+    keys, missing = undocumented_keys()
+    print("\nchecked %d bus keys the bridge fires against the pages under docs/addons/api/event/" % len(keys))
+    if missing:
+        print("== %d key(s) the client fires that no page of the catalogue writes ==" % len(missing))
+        for k in missing:
+            print("  %s" % k)
+    else:
+        print("every key the bridge fires is written on a page of the catalogue")
+
     if verbose and skipped:
         print("\n== receivers not mapped (add to RECEIVERS to widen coverage) ==")
         for r, n in skipped.most_common(30):
             print("  %-16s %d" % (r, n))
-    return 1 if (bad or arrayish or jbad or kbad) else 0
+    return 1 if (bad or arrayish or jbad or kbad or missing) else 0
 
 if __name__ == "__main__":
     sys.exit(main())

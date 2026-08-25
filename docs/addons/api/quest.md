@@ -93,15 +93,15 @@ end
 
 ## Events
 
-Subscribe to [`QuestAdded`](event/bus.md#roster-quests-markers), a new active quest, and
-[`QuestCompleted`](event/bus.md#roster-quests-markers) and
-[`QuestFailed`](event/bus.md#roster-quests-markers) — the outcome picks the key, so neither handler needs a
-status check. Each carries the
-Quest itself, so a handler reads it with the verbs above and can hold it afterwards.
+Subscribe to [`QuestAdded`](event/bus/character.md#roster-quests-markers), a new active quest, and
+[`QuestCompleted`](event/bus/character.md#roster-quests-markers) and
+[`QuestFailed`](event/bus/character.md#roster-quests-markers) — the outcome picks the key, so neither handler
+needs a status check. Each carries the Quest itself, so a handler reads it with the verbs above and can hold
+it afterwards.
 
 ## See also
 
 - [`Quest` and `Condition`](types/character.md#quest-and-condition) — the snapshot shapes
 - [`hafen.map():marker()`](map/markers.md) — the map pins a quest puts down
 - [`session:char`](char.md) — credos, whose own quest carries an id you can look up here
-- [events](event/bus.md#roster-quests-markers) — `QuestAdded`, `QuestCompleted` and `QuestFailed`
+- [events](event/bus/character.md#roster-quests-markers) — `QuestAdded`, `QuestCompleted` and `QuestFailed`

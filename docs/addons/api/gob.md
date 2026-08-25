@@ -52,7 +52,8 @@ end
 
 It is a **live read**: the object caches are asked at the moment of the call and nothing is remembered, so a
 character that logs out is simply not in the next answer. An object none of your characters can see gives the
-**empty array**, never `nil` — which is what it gives inside a [`GobRemoved`](event/bus.md#world) handler.
+**empty array**, never `nil` — which is what it gives inside a [`GobRemoved`](event/bus/world.md#world)
+handler.
 
 ## Getting a Gob
 
@@ -63,7 +64,7 @@ character that logs out is simply not in the next answer. An object none of your
 | `s:world():gob():list(filter)` | an array of Gobs |
 | `s:world():gob():nearest(filter)` | the nearest Gob to that character, or `nil` |
 | `s:world():gob():within(radius, filter)` | an array of Gobs |
-| a `GobAdded` or `GobRemoved` handler | the Gob that spawned or despawned — see [events](event/bus.md#world) |
+| a `GobAdded` or `GobRemoved` handler | the Gob that spawned or despawned — see [events](event/bus/world.md#world) |
 | `member:gob()` on a [party](party.md) member, `target:gob()` on the [combat](fight.md) target | that creature's Gob |
 
 ## Read
@@ -138,11 +139,11 @@ turns it inside out, so both raise naming the rule; `gob:scale(1)` is the origin
 behind. Once the gob is gone the read answers `nil` and a write does nothing.
 
 > **The size ends with the object, not with a copy of it.** It is dropped when the object leaves its
-> **last** character's view — the moment [`GobRemoved`](event/bus.md#world) fires — so walking far enough
-> away for it to unload and coming back gives the size the game draws it at, while another character still
-> having it in view keeps it. Re-apply it from [`GobAdded`](event/bus.md#world) if you want it kept across
-> the unload — and a `:reload` or a disable puts back everything you resized, in every character's view,
-> so nothing is left distorted behind you anywhere.
+> **last** character's view — the moment [`GobRemoved`](event/bus/world.md#world) fires — so walking far
+> enough away for it to unload and coming back gives the size the game draws it at, while another character
+> still having it in view keeps it. Re-apply it from [`GobAdded`](event/bus/world.md#world) if you want it
+> kept across the unload — and a `:reload` or a disable puts back everything you resized, in every character's
+> view, so nothing is left distorted behind you anywhere.
 
 ## Overlays
 
@@ -222,4 +223,4 @@ Anything that acts on a gob takes the **Gob object**, not an id: `me:overlay():a
 - [`session:kin`](kin.md) — the roster side of `gob:kin()`
 - [`session:player`](player.md#write-protected) — walking to a gob, and the cursor you aim at one
 - [`GobInfo`](types/world.md#gobinfo) — the shape `:info()` returns
-- [events](event/bus.md#world) — reacting to gobs appearing and leaving instead of polling
+- [events](event/bus/world.md#world) — reacting to gobs appearing and leaving instead of polling

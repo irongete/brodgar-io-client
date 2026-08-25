@@ -165,7 +165,7 @@ that covers two outcomes makes the handler that reads its name wrong half the ti
 one failure this whole convention exists to prevent.
 
 **One word per edge, at every level.** A frame passing is `Update` on
-[the bus](event/bus.md#lifecycle) and `Update` on [a surface of yours](ui/custom.md#subscribing),
+[the bus](event/bus/lifecycle.md#lifecycle) and `Update` on [a surface of yours](ui/custom.md#subscribing),
 and both hand your handler the same `dt` — the same edge one object apart is not two words.
 
 The keys of an emitter whose set is **open** are not this: a
@@ -305,7 +305,7 @@ A read returns `nil`, or an empty table for a list verb, when the data is not av
 world loads, before a HUD widget streams in, or while a resource is still resolving. Reads never throw a
 loading error — the bridge swallows it. Much character-sheet data (meters, food, skills, quests, wounds)
 streams in a beat *after* `SessionEnteredWorld`, so read it on a timer or subscribe to its
-[event](event/bus.md).
+[event](event/bus/README.md).
 
 ## Threading
 
@@ -345,5 +345,5 @@ observes, or writes **client-local and undoable**, so it says `(unprotected)`.
 - [references](references.md) — every kind of thing a verb takes, and how you name one
 - [shapes](shapes.md) — what a plain table of numbers looks like: places, sizes, colours, units
 - [data types](types/README.md) — every snapshot shape the readers return
-- [events](event/bus.md) — the bus, and what each event hands your handler
+- [events](event/bus/README.md) — the bus, and what each event hands your handler
 - [permissions](../guides/permissions.md) — the protected tier in full

@@ -162,7 +162,8 @@ character's sheet is up.
 | `food:exists()` | boolean | whether this is still that character's live sheet |
 | `food:info()` | [`Food`](types/character.md#food) \| nil | a plain-table **snapshot** |
 
-Subscribe to [`FepChanged`](event/bus.md#character-and-status), whose payload is the `Food` object itself.
+Subscribe to [`FepChanged`](event/bus/character.md#character-and-status), whose payload is the `Food` object
+itself.
 
 ```lua
 hafen.event():on("FepChanged", function(food)
@@ -177,4 +178,4 @@ end)
 - [`session:meter`](meter.md) — the HUD bars, which are fractions rather than numbers
 - [`session:wound`](wound.md) — the other half of the Health and Wounds tab
 - [the character sheet](types/character.md) — `Attr`, `Food`, `Skill`, `Credo` and `Experience`
-- [events](event/bus.md#character-and-status) — `FepChanged`
+- [events](event/bus/character.md#character-and-status) — `FepChanged`

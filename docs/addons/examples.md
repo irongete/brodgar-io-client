@@ -42,9 +42,9 @@ while you move the mouse to read it.
 The live log. One line per thing the client did, **newest first**, in a mono list: its number, the clock,
 which source it came through, the session it happened on, the widget it was about, its name, and a glimpse
 of what it carried. Every source is a checkbox of its own — every message the client **sends**, every
-update it **receives**, every key on the [event bus](api/event/bus.md) but `Update`, every widget appearing
-and disappearing, and every activation of one of the client's **own controls** — so you can hold them all
-at once and shut off the one that is drowning the rest.
+update it **receives**, every key on the [event bus](api/event/bus/README.md) but `Update`, every widget
+appearing and disappearing, and every activation of one of the client's **own controls** — so you can hold
+them all at once and shut off the one that is drowning the rest.
 
 That last one is the door a wildcard cannot reach. A control's
 [capability key](api/ui/edit.md#taking-over-what-a-control-does) fires only for somebody who subscribed to

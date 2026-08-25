@@ -57,7 +57,7 @@ on screen, and `seen[ch] = true` works as a table key. Two characters' Party cha
 **A channel that has gone answers only its own identity.** The server closes a private conversation by
 taking its tab away: `channel:exists()` goes `false` and every other read above answers `nil`, because there
 is no longer a tab to read. The object stays the key your own table is under — that is what a
-[`ChannelRemoved`](event/bus.md#chat) handler matches on, and why anything you want to know about a channel
+[`ChannelRemoved`](event/bus/chat.md) handler matches on, and why anything you want to know about a channel
 after it goes is indexed while it is there.
 
 `channel:name()` is also `nil` for a moment on a **private** conversation that has just opened: the client
@@ -161,7 +161,7 @@ halves are `"chat.private"`, and `msg:mine()` is what tells them apart.
 
 ## Lines arriving
 
-[`MessageAdded`](event/bus.md#chat) fires for every line that lands in any channel of any character —
+[`MessageAdded`](event/bus/chat.md) fires for every line that lands in any channel of any character —
 your own lines included, because the client shows one only once the server has taken it.
 
 ```lua
@@ -190,7 +190,7 @@ local party = s:chat():find("Party")
 if party then s:chat():selected(party) end
 ```
 
-Naming the channel already on screen changes nothing and fires no [`ChannelSelected`](event/bus.md#chat). It
+Naming the channel already on screen changes nothing and fires no [`ChannelSelected`](event/bus/chat.md). It
 raises, naming what is wrong, on a value that is not a `Channel`, a channel that has gone
 (`channel:exists()` is the test), a character whose HUD is not up yet, and a channel belonging to **another
 character** — a chat belongs to the login it was opened on, so the collection you read it from is the one
@@ -227,7 +227,7 @@ pointed at.
 
 ## Channels coming and going
 
-The three [chat events](event/bus.md#chat) are where an addon learns that a channel was opened, closed or put
+The three [chat events](event/bus/chat.md) are where an addon learns that a channel was opened, closed or put
 on screen. Each hands your handler the `Channel` it is about, and that character's
 [`Session`](session.md) last.
 
@@ -244,7 +244,7 @@ before it is reported selected**, because the client puts a new tab up and picks
 ## See also
 
 - [the `Channel` and `Message` snapshots](types/ui.md#channel) — the shapes `:info()` returns
-- [events](event/bus.md#chat) — `ChannelAdded`, `ChannelRemoved`, `ChannelSelected` and `MessageAdded`
+- [events](event/bus/chat.md) — `ChannelAdded`, `ChannelRemoved`, `ChannelSelected` and `MessageAdded`
 - [the chat's style keys](ui/style/chat.md) — the same four words, from the painting side
 - [`hafen.session`](session.md) — the address a chat is read through
 - [permissions](../guides/permissions.md) — `chat.send`, and the whole catalogue of keys

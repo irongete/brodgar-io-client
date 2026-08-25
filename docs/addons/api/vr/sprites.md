@@ -63,11 +63,11 @@ local c = hafen.vr():sprite():add(icon, prey):facing("camera"):offset(0, 0, 14)
 > camera tilted.
 
 A `"screen"` sprite is the ergonomic, world-anchored version of drawing an image at
-[`s:world():worldToScreen`](../world.md#the-screen-and-the-world) inside a [HUD overlay](../ui/overlay.md). It is drawn
-at the image's own size in [design pixels](../ui/pixels.md), times the scale, and bottom-centred on its world
-point so it "stands" there — and it draws **on top** of the 3D scene, with no depth occlusion. Because it is
-a flat 2D image, `:rotate` is stored but has no visible effect and `:scale` acts as a screen-size
-multiplier. `:alpha` and `:tint` work exactly as they do on a `"fixed"` one.
+[`s:world():worldToScreen`](../world.md#the-screen-and-the-world) inside a [HUD overlay](../ui/overlay.md). It
+is drawn at the image's own size in [design pixels](../ui/pixels.md), times the scale, and bottom-centred on
+its world point so it "stands" there — and it draws **on top** of the 3D scene, with no depth occlusion.
+Because it is a flat 2D image, `:rotate` is stored but has no visible effect and `:scale` acts as a
+screen-size multiplier. `:alpha` and `:tint` work exactly as they do on a `"fixed"` one.
 
 > **`:facing` rebuilds the visual.** It is the one property that decides *which* thing is drawn, so writing
 > it re-mills the sprite in place — same sprite, same position, same look, a different picture. Everything
@@ -79,8 +79,8 @@ A sprite with world geometry — `"fixed"` or `"camera"` — can be made clickab
 exactly like a [ghost](ghosts.md#clickability). It gains a pick surface, and a click on it is detected
 **client-side** and **consumed** before any server click, so you never walk or interact and nothing
 reaches the server. Both the per-sprite `:onClick(fn)` and the owner-scoped
-[`SpriteClicked`](../event/bus.md#world-ghosts-and-sprites) event fire; `SpriteClicked` reaches only *your*
-addon, since a sprite is private to the addon that made it.
+[`SpriteClicked`](../event/bus/world.md#world-ghosts-and-sprites) event fire; `SpriteClicked` reaches only
+*your* addon, since a sprite is private to the addon that made it.
 
 ```lua
 local s = hafen.vr():sprite():add(icon, p)
@@ -124,4 +124,4 @@ drives the other unchanged.
 - [widgets](widgets.md) — the same three facing modes, on a whole window standing in the world
 - [`hafen.asset`](../asset.md) — loading the PNG a sprite takes
 - [drawing](../ui/drawing.md) — the same image drawn on screen instead of in the world
-- [events](../event/bus.md#world-ghosts-and-sprites) — `SpriteClicked`
+- [events](../event/bus/world.md#world-ghosts-and-sprites) — `SpriteClicked`

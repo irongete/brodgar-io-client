@@ -19,7 +19,7 @@ nothing the server, the client or another addon owns — the same footing as
 see the gob draws it, **including one that loads the object afterwards** — so the label is there whichever
 of them you tab to, and one `:remove(key)` takes it off all of them. It ends with the object rather than
 with a copy of it: when the last character loses sight of it the record goes, which is the moment
-[`GobRemoved`](event/bus.md#world) fires.
+[`GobRemoved`](event/bus/world.md#world) fires.
 
 ## The collection
 
@@ -72,10 +72,10 @@ it.
 | `ov:offset(x, y)` | **screen pixels** from the projected anchor point, in [design pixels](ui/pixels.md) |
 
 **`ov:offset` means exactly one thing: pixels.** An overlay is painted at a projected point, so that is the
-only unit it could be in — the same design pixel the `sx, sy` beside it is in — and a third argument raises. There is no `ov:clickable` and no `ov:onClick`:
-the thing under an overlay is the gob, and clicking a gob is
-[`s:world():click`](world.md#write-protected). There is no `ov:move` either: an overlay's position **is**
-its gob's, and what you set is the offset.
+only unit it could be in — the same design pixel the `sx, sy` beside it is in — and a third argument raises.
+There is no `ov:clickable` and no `ov:onClick`: the thing under an overlay is the gob, and clicking a gob is
+[`s:world():click`](world.md#write-protected). There is no `ov:move` either: an overlay's position **is** its
+gob's, and what you set is the offset.
 
 ## A thing you stood at the gob is listed here, read-only
 
@@ -105,9 +105,9 @@ by their **resource name**. An `:add` onto such a key **raises**, so does a `:re
 each setter — always naming the key, never a silent no-op.
 
 An attach raises in one more place, about *when*: a gob the client cannot draw yet takes no overlay at all,
-so attach from [`GobAdded`](event/bus.md#world) or a timer instead. A setter that raises leaves the overlay
-exactly as it was, drawing exactly what it drew before, and a kind that never landed leaves a bare overlay,
-which draws nothing.
+so attach from [`GobAdded`](event/bus/world.md#world) or a timer instead. A setter that raises leaves the
+overlay exactly as it was, drawing exactly what it drew before, and a kind that never landed leaves a bare
+overlay, which draws nothing.
 
 ## The Overlay object
 
@@ -129,8 +129,8 @@ The reads below answer on every kind; what a kind has nothing to say about comes
 resource, and the resource name is the only part of one a name can address, so they collapse to a single
 Overlay and the multiplicity is published here instead of lost. Yours always count 1.
 (`gob:info().overlays` is the raw list of resource names, one entry per engine overlay, for when you want
-the uncollapsed view — and, like every other [`GobInfo`](types/world.md#gobinfo) field, it is **absent** rather
-than empty when the gob carries none.)
+the uncollapsed view — and, like every other [`GobInfo`](types/world.md#gobinfo) field, it is **absent**
+rather than empty when the gob carries none.)
 
 `:info()` is the snapshot escape hatch, and it hands back **two shapes**. Both carry `key`, `native` and
 `count`. **Yours** adds `kind` and `world` — `world` is `true` for a thing standing in the world and `false`
@@ -145,21 +145,20 @@ a `*` in front of the key on the game's own.
 
 **An overlay dies with its gob.** The record lives on the game object, so a felled tree takes yours with
 it and nothing is kept in case it comes back — a gob that returns is bare, and re-attaching is your own
-call from [`GobAdded`](event/bus.md#world). The object leaving one character's view is not that moment: it
-dies when the **last** of your characters that can see it loses it, and that is when
-[`GobOverlayRemoved`](event/bus.md#overlays-coming-and-going) fires. A `:reload` or a disable likewise
+call from [`GobAdded`](event/bus/world.md#world). The object leaving one character's view is not that moment:
+it dies when the **last** of your characters that can see it loses it, and that is when
+[`GobOverlayRemoved`](event/bus/world.md#overlays-coming-and-going) fires. A `:reload` or a disable likewise
 removes every overlay you attached, from every character that can see it, and leaves the game's untouched.
 A thing you stood in the world and anchored here
 [dies with the gob too](vr/README.md#the-anchor-is-an-argument), rather than being left floating where the
 target used to stand.
 
 Both halves of this read are also **events**:
-[`GobOverlayAdded`/`GobOverlayRemoved`](event/bus.md#overlays-coming-and-going) fire for what you attach and
-for what the game attaches, so you can watch a gob become decorated instead of polling it.
+[`GobOverlayAdded`/`GobOverlayRemoved`](event/bus/world.md#overlays-coming-and-going) fire for what you attach
+and for what the game attaches, so you can watch a gob become decorated instead of polling it.
 
-There is no filter form. "Every player gets a label" is a [`GobAdded`](event/bus.md#world) handler plus a
-loop over [`s:world():gob():list()`](world.md#objects) — you name the gob, so nothing is searched
-per frame.
+There is no filter form. "Every player gets a label" is a [`GobAdded`](event/bus/world.md#world) handler plus
+a loop over [`s:world():gob():list()`](world.md#objects) — you name the gob, so nothing is searched per frame.
 
 > A `draw` callback runs inside the client's draw pass, which is **outside** the per-tick CPU budget.
 > Keep it short; a `text` overlay never enters Lua at all and is the cheaper way to put a label up.
@@ -169,5 +168,5 @@ per frame.
 - [Gob](gob.md) — the object an overlay hangs on, and everything else it answers
 - [`hafen.vr`](vr/README.md) — standing a sprite, a model or a ghost at a gob instead
 - [drawing](ui/drawing.md) — the `g` wrapper a `draw` callback paints with
-- [events](event/bus.md#overlays-coming-and-going) — watching one arrive instead of polling for it
+- [events](event/bus/world.md#overlays-coming-and-going) — watching one arrive instead of polling for it
 - [the UI overlays](ui/overlay.md) — the same vocabulary over the screen and over one widget

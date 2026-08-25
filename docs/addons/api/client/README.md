@@ -67,8 +67,9 @@ pass it — an option has no undo for the refusal to cost anything against.
 panel's own slider, and the client picks it up on the next launch. So it is the scale that *will* apply and
 not the one in force — those differ until the next launch, and they differ on a fresh install, where this
 reads `1.0` while the client picks its own starting scale from the display. What the client is drawing at
-right now is [`hafen.ui():scale()`](../ui/pixels.md#read); nothing your addon measures in needs either. `angGran` crosses this API as degrees —
-the value the Options panel displays — not the divisor the client stores internally.
+right now is [`hafen.ui():scale()`](../ui/pixels.md#read); nothing your addon measures in needs either.
+`angGran` crosses this API as degrees — the value the Options panel displays — not the divisor the client
+stores internally.
 
 ```lua
 hafen.log():write("ui scale: " .. opts:interface():scale())
@@ -199,4 +200,5 @@ if shadows ~= nil then hafen.log():write("shadows: " .. tostring(shadows)) end
 - [keybindings](keybindings.md) — declaring your addon's hotkeys, and remapping any binding
 - [profiling](profiling/README.md) — the frame profiler this panel arms
 - [`hafen.sound`](../sound.md) — playing sounds, as opposed to setting levels
-- [events](../event/bus.md#sessions) — `SessionEnteredWorld`, the guard for the options that are not up yet
+- [events](../event/bus/lifecycle.md#sessions) — `SessionEnteredWorld`, the guard for the options that are not
+  up yet

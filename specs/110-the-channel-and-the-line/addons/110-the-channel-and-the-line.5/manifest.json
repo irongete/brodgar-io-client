@@ -1,0 +1,9 @@
+{
+  "name": "110.5 — the event catalogue, split by subject",
+  "id": "110-the-channel-and-the-line.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 110.5: every key the split catalogue still lists is a key the bus actually accepts, and the refusals the hub page promises are the refusals it raises.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

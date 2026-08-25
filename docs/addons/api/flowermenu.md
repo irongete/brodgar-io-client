@@ -156,7 +156,7 @@ connection dropped. The payload is the label on a pick and `nil` on everything e
 
 `FlowerMenuAdded` fires at the one moment the petal set is complete, so the array it carries is the whole
 ring — the same Petals `s:flowermenu():list()` answers with inside the handler, where `s` is the
-[session the event carries](event/bus.md#whose-character-it-was).
+[session the event carries](event/bus/README.md#whose-character-it-was).
 
 Both events cover the menus the **client** puts up as well as the server's. The Kin window's right-click
 menu is one of those: it never reaches the server at all, and it still opens and closes here.
@@ -182,6 +182,8 @@ console command or a hotkey cannot be the thing that reacts to a menu. A handler
 
 - [`hafen.session`](session.md) — the address the section is reached through
 - [Gob](gob.md) — what `:gob()` hands you
-- [`session:world`](world.md#write-protected) — `s:world():click(gob, 3)`, the right-click that puts the ring up
+- [`session:world`](world.md#write-protected) — `s:world():click(gob, 3)`, the right-click that puts the ring
+  up
 - [`session:menugrid`](menugrid.md) — the *other* menu: the catalogue of what a character can do
-- [`hafen.event`](event/bus.md#the-radial-menu) — the bus these two events sit on, and every other key
+- [`hafen.event`](event/bus/character.md#the-radial-menu) — the bus these two events sit on, and every other
+  key

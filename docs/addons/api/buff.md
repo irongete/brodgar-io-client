@@ -82,7 +82,7 @@ on, so there is nothing to expose.
 a buff you stashed, worth holding on to. `:exists()` is exactly the predicate `:list()` filters on.
 
 Subscribe to [`BuffAdded`, `BuffRemoved` and
-`BuffChanged`](event/bus.md#character-and-status); each payload is the `Buff` object
+`BuffChanged`](event/bus/character.md#character-and-status); each payload is the `Buff` object
 itself. The buffs a character already has arrive as a burst of `BuffAdded` shortly after it enters the
 world.
 
@@ -97,4 +97,4 @@ end)
 - [`Buff`](types/character.md#buff) — the snapshot shape `:info()` returns
 - [`session:meter`](meter.md) — the HUD bars, read the same way
 - [snapshots vs handles](conventions.md#snapshots-vs-handles) — why a stashed `Buff` stays current
-- [events](event/bus.md#character-and-status) — the three buff events
+- [events](event/bus/character.md#character-and-status) — the three buff events
