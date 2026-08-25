@@ -665,7 +665,7 @@ public final class ProfHandle {
      * a {@code :reload} builds a fresh {@link Addon} and therefore a fresh cache and a fresh count.
      *
      * <p><b>How to read a miss.</b> A miss is not a fault: it is a string that had never been drawn in that
-     * font at that font generation, and it costs exactly what every draw cost before 026. A line whose text
+     * font, at that wrap width, at that font generation, and it costs exactly what every draw cost before 026. A line whose text
      * changes every frame therefore misses every frame and always will — budget a live readout by how often
      * its <i>text</i> changes, not by how many lines it has.
      */

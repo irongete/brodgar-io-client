@@ -125,8 +125,8 @@ call around it would; omit it and the glyphs are white, tinted by the current `g
 positional, the same as every other [`g:` call](ui/drawing.md) — and so does `g:color` itself, which is
 [the one place](shapes.md#colours) a colour is loose components as well as a table.
 
-The rendered text is [cached per addon](ui/drawing.md#text-is-cached-across-frames), keyed by the string
-*and* the handle, so redrawing the same string in the same font every frame rasterises it once.
+The rendered text is [cached per addon](ui/drawing.md#text-is-cached-across-frames) with the handle in the
+key, so redrawing the same string in the same font every frame rasterises it once.
 
 ### Mix fonts on one line
 

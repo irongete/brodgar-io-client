@@ -425,6 +425,29 @@ final class UiApi {
                 return LuaValue.valueOf(Px.factor());
             }
         });
+        // :measure(s, opts) — 110.4: THE BOX `g:text(s, x, y, opts)` WOULD OCCUPY, {w =, h =} in design pixels,
+        // asked from anywhere and not only from inside a draw. It is not a second opinion about the box: it
+        // rasterises through the very render, the very key and the very cache the draw does, so the measure and
+        // the draw that follows it cost ONE rasterisation between them, and a laid-out line and a drawn one can
+        // never disagree. `opts` is the SAME table g:text takes — { font = h, width = n } — so a wrap measured
+        // here is the wrap drawn there; `color` is accepted and ignored, being a tint over the raster rather
+        // than part of it. Without opts.font it measures the client's stock font: a widget's own :font(h)
+        // default is not this section's to know, so pass the handle you set.
+        //   Read-only and unprotected: it renders into this addon's own cache and touches nothing else.
+        m.set("measure", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                Section.self(a.arg1(), "ui", "measure");
+                String s = Args.str(a, 2, "hafen.ui():measure", "str",
+                                    "the string to lay out, markup and all").tojstring();
+                LuaValue opts = a.arg(3);
+                if(!opts.isnil() && !opts.istable())
+                    throw new LuaError("hafen.ui():measure(str, opts): opts must be a table — the same one"
+                        + " g:text takes, { font = h, width = n } — got " + opts.typename());
+                FontHandle fh = opts.istable() ? FontHandle.resolve(opts.get("font")) : null;
+                int w = LuaGOut.optWidth(opts, "hafen.ui():measure");
+                return LuaWidget.whTable(Px.out(LuaGOut.measure(owner, s, fh, w)));
+            }
+        });
         m.set("tipAt", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "ui", "tipAt");

@@ -369,6 +369,13 @@ public class RichText extends Text {
 		    return(split2(i, i + 1));
 		}
 	    }
+	    /* addon: (110.4) keep at least one character. A width narrower than the FIRST glyph leaves the
+	     * search at l == start with no whitespace behind it, and split2(start, start) then hands back an
+	     * empty head plus a tail identical to this part -- layout() splits it again, forever, and the
+	     * client hangs. One character per line is what a box too narrow to hold a glyph has to do, so a
+	     * raster can come out wider than the width it was given. */
+	    if(l == start)
+		l = Math.min(start + 1, end);
 	    return(split2(l, l));
 	}
 	
@@ -778,13 +785,20 @@ public class RichText extends Text {
 	    for(Part p = fp; p != null; p = p.next) {
 		boolean lb = p instanceof Newline;
 		int pw, ph;
+		/* addon: (110.4) has this part already been split at this x? `split` is a pure function of the
+		 * part and the room left, so a head that STILL overruns cannot be cut any further -- an image
+		 * wider than the wrap width (Part.split hands itself back) or a single glyph that does not fit.
+		 * Splitting it again returns the same head forever and hangs the client, so it is laid out
+		 * overrunning instead, which is the only thing a box too narrow to hold it can do. */
+		boolean split = false;
 		while(true) {
 		    p.x = x;
 		    pw = p.width();
 		    ph = p.height();
 		    if(w > 0) {
-			if(p.x + pw > w) {
+			if((p.x + pw > w) && !split) {
 			    p = p.split(w - x);
+			    split = true;
 			    if(lp == null)
 				fp = p;
 			    else

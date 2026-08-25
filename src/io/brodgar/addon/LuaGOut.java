@@ -185,20 +185,27 @@ final class LuaGOut {
 
     /**
      * A cache key: the string, the {@link FontHandle} it renders through (by IDENTITY — handles are immutable and
-     * interned per load) and the {@link Fonts#gen()} in force at the draw. Whether the string takes the fast or
-     * the rich path is a pure function of {@code (str, font)}, so the path is not a separate component.
+     * interned per load), the <b>wrap width</b> it was laid out at ({@code 0} = one line) and the
+     * {@link Fonts#gen()} in force at the draw. Whether the string takes the fast or the rich path is a pure
+     * function of {@code (str, font, width)}, so the path is not a separate component.
+     *
+     * <p><b>The width has to be in here</b> (110.4). The raster IS the wrap: the same string at two widths is two
+     * different rasters, so a key without the width blits the first one at the second width — the re-wrap that
+     * silently never happens. It is the same one-int argument the generation is, and it costs the same nothing.
      */
     static final class Key {
         private final String str;
         private final FontHandle font;
+        private final int width;
         private final int gen;
         private final int hash;
 
-        Key(String str, FontHandle font, int gen) {
+        Key(String str, FontHandle font, int width, int gen) {
             this.str = str;
             this.font = font;
+            this.width = width;
             this.gen = gen;
-            this.hash = (str.hashCode() * 31 + System.identityHashCode(font)) * 31 + gen;
+            this.hash = ((str.hashCode() * 31 + System.identityHashCode(font)) * 31 + width) * 31 + gen;
         }
 
         public int hashCode() {return hash;}
@@ -206,7 +213,7 @@ final class LuaGOut {
             if(!(o instanceof Key))
                 return false;
             Key k = (Key)o;
-            return (k.hash == hash) && (k.gen == gen) && (k.font == font) && k.str.equals(str);
+            return (k.hash == hash) && (k.gen == gen) && (k.width == width) && (k.font == font) && k.str.equals(str);
         }
     }
 
@@ -294,7 +301,7 @@ final class LuaGOut {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
                 drawText(d, a.arg(2).tojstring(), Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint())),
-                         0.0, 0.0, a.arg(5));
+                         0.0, 0.0, a.arg(5), "g:text");
                 return NIL;
             }
         });
@@ -304,7 +311,7 @@ final class LuaGOut {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
                 drawText(d, a.arg(2).tojstring(), Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint())),
-                         a.arg(5).todouble(), a.arg(6).todouble(), a.arg(7));
+                         a.arg(5).todouble(), a.arg(6).todouble(), a.arg(7), "g:atext");
                 return NIL;
             }
         });
@@ -475,7 +482,7 @@ final class LuaGOut {
      * by inspection. On a miss we render, adopt the {@link Text} into the cache and blit it; on a hit we blit the
      * held {@link Tex}. Nothing else about the call changes — same anchors, same tint, same fallback.
      */
-    private void drawText(GOut d, String str, Coord c, double ax, double ay, LuaValue opts) {
+    private void drawText(GOut d, String str, Coord c, double ax, double ay, LuaValue opts, String verb) {
         if(str == null)
             return;
         boolean hasOpts = (opts != null) && opts.istable();
@@ -490,20 +497,46 @@ final class LuaGOut {
         }
         if((col == null) && (fh != null))
             col = fh.color;
-        draw0(d, str, c, ax, ay, fh, col, null);    // c is already device: converted at the Lua read (058.2)
+        draw0(d, str, c, ax, ay, fh, col, null, optWidth(opts, verb));   // c is already device (058.2)
+    }
+
+    /**
+     * The {@code width} an {@code opts} table carries, in DEVICE pixels, or {@code 0} when it names none —
+     * shared by {@code g:text}/{@code g:atext} and {@code hafen.ui():measure} so that one table means one thing
+     * wherever it is handed in (110.4). A width is a length, so it is read as a design pixel like every other
+     * length here.
+     *
+     * <p><b>A width of {@code 0} is refused rather than read as "one line"</b>, and so is a negative one. Zero is
+     * the engine's own spelling for "do not wrap", but it is also what an addon's own arithmetic produces when it
+     * subtracts a padding from a width it has not measured yet — and a line that silently ran off the end of its
+     * box is exactly the failure a wrap is asked for. Omitting the key entirely is the way to say one line, and
+     * the refusal says so.
+     */
+    static int optWidth(LuaValue opts, String verb) {
+        if((opts == null) || !opts.istable())
+            return 0;
+        LuaValue v = opts.get("width");
+        if(v.isnil())
+            return 0;
+        int w = Args.num(v, verb, "opts.width", "the design-pixel width to wrap at").toint();
+        if(w <= 0)
+            throw new LuaError(verb + ": opts.width must be a positive number of design pixels, got " + w
+                + " — omit width entirely to draw one unwrapped line");
+        return Px.in(w);
     }
 
     /** The cached render-and-blit itself, shared by {@link #drawText} and the Java-side {@link #label}. */
-    private void draw0(GOut d, String str, Coord c, double ax, double ay, FontHandle fh, Color col, Color bg) {
+    private void draw0(GOut d, String str, Coord c, double ax, double ay, FontHandle fh, Color col, Color bg,
+                       int width) {
         Cache cache = (owner != null) ? owner.texts : null;
-        Key k = (cache != null) ? new Key(str, fh, Fonts.gen()) : null;
+        Key k = (cache != null) ? new Key(str, fh, width, Fonts.gen()) : null;
         Tex T = (cache != null) ? cache.get(k) : null;
         if(T != null) {                                    // hit: blit the Text we already hold
             fill(d, T, c, ax, ay, bg);
             blitText(d, T, c, ax, ay, col);
             return;
         }
-        Text t = render(str, fh);                          // miss: rasterise once (fast or rich path, per the key)
+        Text t = render(str, fh, width);                   // miss: rasterise once (fast or rich path, per the key)
         T = t.tex();
         if(cache != null) {
             cache.put(k, t, T);                            // the cache owns it from here — it is the only disposer
@@ -520,6 +553,35 @@ final class LuaGOut {
     }
 
     /**
+     * The box {@code str} occupies, in DEVICE pixels — {@code hafen.ui():measure(s, opts)} (110.4), and the
+     * whole of it: the same {@link #render} at the same {@link Key}, through the same {@link Cache}, outside any
+     * draw callback. What comes back is the <b>drawn</b> box and not a second opinion about it, because it is
+     * measured off the very raster a {@code g:text} of that string in that font at that width would blit — and
+     * because it lands in the cache under that call's own key, the measure and the draw that follows it
+     * rasterise <b>once between them</b>.
+     *
+     * <p>Free of GL: {@link Text#tex()} wraps the AWT raster in a {@code TexI}, which uploads lazily on its first
+     * render, so nothing here needs a bound context and a measure that is never drawn costs a texture that is
+     * never uploaded.
+     */
+    static Coord measure(Addon owner, String str, FontHandle fh, int width) {
+        Cache cache = (owner != null) ? owner.texts : null;
+        Key k = (cache != null) ? new Key(str, fh, width, Fonts.gen()) : null;
+        Tex T = (cache != null) ? cache.get(k) : null;
+        if(T != null)
+            return T.sz();
+        Text t = render(str, fh, width);
+        T = t.tex();
+        if(cache != null) {
+            cache.put(k, t, T);                            // the cache owns it from here, exactly as a draw's does
+            return T.sz();
+        }
+        Coord sz = T.sz();                                 // no owner (defensive): measure and drop it again
+        t.dispose();
+        return sz;
+    }
+
+    /**
      * Draw a plain label from JAVA, through the very cache {@code g:text} uses (038.1). It is the
      * {@code {text = …}} half of {@code gob:overlay}: an engine-drawn overlay never enters Lua, so it cannot
      * call {@code g:text} itself, and {@link GOut#atext} would re-rasterise and re-upload the string every
@@ -527,7 +589,7 @@ final class LuaGOut {
      * a {@code g:text} of the same string in the same addon are ONE entry.
      */
     void label(GOut d, String str, Coord c, double ax, double ay, Color col) {
-        draw0(d, str, c, ax, ay, null, col, null);
+        draw0(d, str, c, ax, ay, null, col, null, 0);   // a client-drawn label is one line: no wrap width
     }
 
     /**
@@ -539,7 +601,7 @@ final class LuaGOut {
      * rasterisation, exactly as the tint does.
      */
     void label(GOut d, String str, Coord c, double ax, double ay, FontHandle fh, Color col, Color bg) {
-        draw0(d, str, c, ax, ay, fh, col, bg);
+        draw0(d, str, c, ax, ay, fh, col, bg, 0);   // one line, as the gob's label above is
     }
 
     /**
@@ -562,20 +624,36 @@ final class LuaGOut {
     }
 
     /**
-     * Rasterise one {@code g:text} string, choosing the path exactly as before (026.1): no font handle and no
-     * {@code $} markup &rarr; the stock {@link Text#render(String)} (the body of {@link GOut#atext}, which routes
-     * through the F1 {@code "default"} provider); otherwise a {@link RichText.Foundry} — the handle's cached one
-     * ({@link FontHandle#rich}; never {@code derive}, see fonts.md) or {@link #stockRich()}. Malformed markup falls
-     * back to the literal string through the stock path, so it lands in the cache under the same key that produced
-     * it and never throws into the render thread.
+     * Rasterise one {@code g:text} string, choosing the path exactly as before (026.1): no font handle, no
+     * {@code $} markup and no wrap width &rarr; the stock {@link Text#render(String)} (the body of
+     * {@link GOut#atext}, which routes through the F1 {@code "default"} provider); otherwise a
+     * {@link RichText.Foundry} — the handle's cached one ({@link FontHandle#rich}; never {@code derive}, see
+     * fonts.md) or {@link #stockRich()}. Malformed markup falls back to the literal string, so it lands in the
+     * cache under the same key that produced it and never throws into the render thread.
+     *
+     * <p><b>A width forces the rich path</b> (110.4), and there is no choice about it: {@link Text.Foundry} can
+     * lay a string out on one line and nothing else, so the client's own wrap
+     * ({@link RichText.Foundry#render(String, int)}, what {@code Text.Foundry.renderwrap} reaches for too) is the
+     * only thing that wraps. The two paths measure a line differently — the stock one takes the font's full line
+     * height, the rich one the glyphs' own bounds — so a wrapped raster is a couple of pixels shorter per line
+     * than the same string unwrapped. That is the drawn raster in both cases, which is what
+     * {@link #measure} has to answer about.
      */
-    private static Text render(String str, FontHandle fh) {
-        if((fh == null) && (str.indexOf('$') < 0))
+    private static Text render(String str, FontHandle fh, int width) {
+        if((width <= 0) && (fh == null) && (str.indexOf('$') < 0))
             return Text.render(str);
         RichText.Foundry f = (fh != null) ? fh.rich(Text.std.font.getSize()) : stockRich();
         try {
-            return f.render(str, 0);                       // width 0 = single line, no wrap ($font/$col/… honoured)
+            return f.render(str, width);                   // width 0 = single line, no wrap ($font/$col/… honoured)
         } catch(RuntimeException e) {                      // malformed markup ($/{}/\) → draw it literally, never throw
+            if(width > 0) {
+                // ...but a WRAPPED call still has to come back inside its box (110.4), so the literal string is
+                // quoted and laid out at the width rather than run off the end of it on one line.
+                try {
+                    return f.render(RichText.Parser.quote(str), width);
+                } catch(RuntimeException e2) {
+                }
+            }
             return Text.render(str);
         }
     }

@@ -44,7 +44,7 @@
       `[manual]`: say a line in Area Chat — the last message reads `:mine()` true and `:kind()`
       `"chat.mine"`; say one to a kin — theirs reads `:speaker()` as that person.
 
-- [ ] **110.4 — Text that wraps, and the box it takes.** `g:text` and `g:atext` take `width` in the
+- [x] **110.4 — Text that wraps, and the box it takes.** `g:text` and `g:atext` take `width` in the
       `opts` they already carry and wrap at it through `RichText.Foundry.render(String, int)`;
       `width` joins `LuaGOut`'s cache key, without which a re-wrap at a new width blits the old
       raster. `LuaGOut`'s render helper is lifted so `hafen.ui():measure(s, opts)` answers

@@ -25,7 +25,7 @@ end)
 
 | Method | Description |
 |---|---|
-| `g:text(str, x, y, opts)` | draw text with its top-left at `(x, y)`; `opts` is an optional `{font, color}` |
+| `g:text(str, x, y, opts)` | draw text with its top-left at `(x, y)`; `opts` is an optional `{font, color, width}` |
 | `g:atext(str, x, y, ax, ay, opts)` | anchored text; `ax`/`ay` `0..1` pick which point of the text sits at `(x, y)` |
 | `g:rect(x, y, w, h)` | a one-pixel outline rectangle |
 | `g:frect(x, y, w, h)` | a filled rectangle |
@@ -38,7 +38,8 @@ end)
 | `g:resource(name, x, y, w, h)` | draw an engine `.res` image **by name**, at native size or scaled |
 
 `g` is valid **only during the draw callback**. Stashing it and drawing later does nothing — it goes inert
-rather than throwing.
+rather than throwing. Nothing on this page is protected: painting your own pixels changes nothing the client
+or the server owns.
 
 `g:rect`'s outline is one **screen** pixel whatever the scale, the way the client's own hairlines are — the
 box it traces is design pixels like everything else. `g:line`'s `width` is a design pixel, so a `4` px rule
@@ -113,19 +114,66 @@ To stand an image in the 3D world rather than on screen, use [`hafen.vr`](../vr/
 
 ## Text
 
-`g:text` and `g:atext` take an optional trailing `{ font = h, color = {r, g, b, a} }`, so one call can be
-rendered in a [loaded font](../font.md) and tinted:
+`g:text` and `g:atext` take an optional trailing `{ font = h, color = {r, g, b, a}, width = n }`, so one
+call can be rendered in a [loaded font](../font.md), tinted, and wrapped to a box:
 
 - **`font`** — a [`FontHandle`](../font.md). It overrides the widget's `font =` default for this call;
   omit it and you get the widget default, else the client's stock font.
 - **`color`** — a [colour](../shapes.md#colours), either spelling. It composes with `g:color` exactly as a
   `g:color` call around it would. Omit it and the glyphs are white, tinted by the current `g:color`.
+- **`width`** — design pixels to **wrap** at. Omit it and the string is one line however long it is; give
+  it and the string is broken at the spaces that fit, top-left still at `(x, y)` and the box growing
+  downwards. A `width` of `0` or less is refused rather than read as "one line", because zero is what your
+  own arithmetic produces when you subtract a padding from a width you have not measured yet.
 
 The string may also carry rich-text markup — `$font[family,size]{…}`, `$col`, `$b`, `$i`, `$u`, `$size` —
 so several fonts can share one line. Feed a handle's `h:family()` to the `$font` tag; see
 [mixing fonts on one line](../font.md#mix-fonts-on-one-line). Plain text with no markup and no font takes
 the stock render path unchanged, and malformed markup falls back to drawing the literal string rather than
 throwing.
+
+### Measuring a line before you draw it
+
+`hafen.ui():measure(s, opts)` answers `{w =, h =}` for the box `g:text(s, x, y, opts)` would occupy, in
+design pixels. `opts` is the very same table — pass the `font` and the `width` you are about to draw with
+and the box you get back is the box you will fill. Unprotected, and callable from anywhere: it is not a
+draw, so it needs no callback and no `g`.
+
+```lua
+local line = "a long line of your own that will not fit across the plate you want to put it on"
+local opts = { width = 160 }                                -- one table, measured and drawn
+
+hafen.ui():overlay():add("panel"):draw(function(g, sw, sh)
+  local box = hafen.ui():measure(line, opts)
+  g:color(0, 0, 0, 160)
+  g:frect(4, 4, box.w + 8, box.h + 8)                       -- a plate exactly around the wrapped text
+  g:color()
+  g:text(line, 8, 8, opts)
+end)
+```
+
+Worth knowing before you lay anything out with it:
+
+- **It measures the raster, not the characters.** Markup is read exactly as the draw reads it, so
+  `$col[255,0,0]{hello} there` measures as `hello there` and not as the twenty-odd characters it is spelled
+  with. That is the whole reason this verb exists rather than a string length and a guess.
+- **It costs a rasterisation the first time and nothing after**, because it renders through the same
+  [cache](#text-is-cached-across-frames) under the same key the draw uses. Measuring a line and then drawing
+  it rasterises it **once between them**, so measuring every frame in a draw callback is free once the text
+  settles.
+- **Without `opts.font` it measures the client's stock font.** A widget's own [`:font(h)`](custom.md)
+  default is not this verb's to know, so pass the handle you set on the widget if you set one.
+
+`measure` refuses a `width` of `0` or less exactly as the draw verbs do, and refuses an `opts` that is not
+a table.
+
+**A wrapped box is a shade shorter per line than an unwrapped one.** Wrapping is rich text, and rich text
+measures a line by the glyphs' own bounds where a plain single line takes the font's full line height — so
+the same string at a `width` wide enough to hold it on one line can answer an `h` a pixel or two under what
+it answers with no `width` at all. Both are the raster that gets drawn. And where the `width` is narrower
+than a single character, that character is kept anyway and the box comes back **wider than the width you
+gave**: a box too narrow to hold one glyph cannot be honoured, and one glyph per line is what it does
+instead.
 
 ### Text is cached across frames
 
@@ -137,9 +185,10 @@ disable.
 
 What that means when you write a draw callback:
 
-- **The cache key is the string plus the font.** Same text, same font is a hit, however many draw sites or
-  frames apart. **Colour is not in the key** — it is applied as a tint over the same raster, so drawing one
-  string in two colours in one frame is *one* entry, and animating a colour costs nothing.
+- **The cache key is the string, the font and the `width`.** Same text, same font, same width is a hit,
+  however many draw sites or frames apart — and the same string at two widths is two entries, because the
+  wrap *is* the raster. **Colour is not in the key** — it is applied as a tint over the same raster, so
+  drawing one string in two colours in one frame is *one* entry, and animating a colour costs nothing.
 - **A string that changes every frame is re-rasterised every frame.** A clock, an FPS readout or a
   coordinate line whose digits move can never hit, and a miss costs exactly what every draw cost before the
   cache existed. **Budget a live readout by how often its *text* changes, not by how many lines it has**:

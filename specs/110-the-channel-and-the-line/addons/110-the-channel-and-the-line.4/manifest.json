@@ -1,0 +1,9 @@
+{
+  "name": "110.4 — text that wraps, and the box it takes",
+  "id": "110-the-channel-and-the-line.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 110.4: hafen.ui():measure answers the box a label actually drew, a width wraps and makes the box taller and no wider, two widths are two rasters rather than one re-blitted, markup measures as what it draws, and a width of zero is refused.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

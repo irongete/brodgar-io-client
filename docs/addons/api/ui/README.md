@@ -45,7 +45,8 @@ Four tracks, each self-contained. Start wherever your task is.
 
 **Draw your own UI** — [custom](custom.md) builds the window, [overlays](overlay.md) paints over the
 screen or over one widget the client already drew instead of building anything,
-[drawing](drawing.md) is the surface both hand you,
+[drawing](drawing.md) is the surface both hand you — and the box a line of text will take before you
+draw it,
 [controls](controls/README.md) puts the client's own buttons in a window of yours rather than painting them,
 and [lists](lists.md) does the same for a listbox, a dropdown or a menu of rows.
 
