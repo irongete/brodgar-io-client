@@ -687,7 +687,13 @@ end)
 
 hafen.event():on("SessionEnteredWorld", function(s)
   local ok, err = pcall(function()
-    local pag = s:menugrid():add("panel"):name("Actionbars")
+    -- The entry is added again on every entry into the world -- a relog to character selection and back, a
+    -- reconnect, another character of the same account -- and the one the previous login left behind is still
+    -- ours, pointing at a menu that is gone. So it is taken out first: a removal of what is not there is
+    -- inert, which makes this the whole of "put my button in this menu", first login or fifth.
+    local mg = s:menugrid()
+    mg:remove("panel")
+    local pag = mg:add("panel"):name("Actionbars")
       :tooltip("add and remove action bars")
     if icon then pag:icon(icon) end
     pag:on("use", togglePanel)
