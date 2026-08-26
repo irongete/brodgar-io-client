@@ -145,10 +145,14 @@ grep -rn "one lock direction\|two UI monitors\|lock direction" docs/client/
 - `docs/client/multi-session.md` — 1, 2 (read, never written: the rule)
 - `docs/client/widgets.md` — 3 (the entry seam and its monitor; the read-only walk it used to carry
   is `docs/client/widget-introspection.md`, split out of it when the gotchas hit the 150-line ceiling)
+- `docs/client/widget-introspection.md` — 7 (`Widget.parentpos`/`rootpos`: what a root coordinate is, and
+  why asking one tree's root about another tree's widget answers nothing at all)
 - `docs/client/widget-draw.md` — 6 (a `tick`/`draw` is a callback with that tree's monitor held)
 - `docs/addons/api/conventions.md` — 2, 6
 - `docs/addons/api/ui/selectors.md` — 3, 6
 - `docs/addons/api/ui/custom.md` — 1, 6
+- `docs/addons/api/ui/style/geometry.md` — 7 (`anchor`'s own page: a target in another tree, and when a
+  follower of one re-derives)
 - `docs/addons/api/event/streams.md` — 5, 6
 - `docs/addons/api/ui/items.md` — 5 (`item:on("Changed")`'s own page: when it fires)
 - `docs/addons/api/client/README.md` — 3, 8 (`hafen.client():stepping()`)

@@ -115,7 +115,7 @@ and each later task removes one.
       the run reached.
       `[manual]`: take one worn item off and put it back — an equipment change is the server's to make.
 
-- [ ] **112.6 — an anchor that crosses trees applies one monitor at a time.** `Layout.apply(w, depth)`
+- [x] **112.6 — an anchor that crosses trees applies one monitor at a time.** `Layout.apply(w, depth)`
       calls `applyDependents` inside `synchronized(LuaWidget.monitor(w))`, and that recurses into
       `apply(dep)`, taking a second tree's monitor with the first still held — in whichever direction
       the anchor points, so two anchors are enough to build both edges through the public API alone,

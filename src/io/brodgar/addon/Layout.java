@@ -217,6 +217,14 @@ final class Layout {
          * <p><b>The answer is DEVICE pixels</b>, because it is a coordinate the client's own {@code c} takes: this
          * is where {@link #offset} — the one design number in the derivation — converts (058.3), and every other
          * term is read off the tree in the space the tree is laid out in.
+         *
+         * <p><b>A WIDGET target is measured in ITS tree, not in {@code w}'s</b> (112.6). An anchor names any
+         * widget and the client holds a tree per session beside the addon layer's, so the two are freely
+         * different trees — and every root in this client is the screen ({@code UILoop.Frame.tick} resizes
+         * both to the same {@code sz}, and the layer draws over the session at the same origin), so a root
+         * coordinate means the same thing in either one. Reading the target through {@code w}'s root instead
+         * made {@code hasparent} false and the whole anchor silently inert, which is a cross-tree anchor that
+         * parses, records a dependency and then never moves anything.
          */
         Coord resolve(UI u, Widget w) {
             Coord off = Px.in(offset);        // design → device, once: everything below is the client's own space
@@ -237,7 +245,7 @@ final class Layout {
                 Widget t = target();
                 if((t == null) || (t == w) || (t.sz == null))
                     return null;                  // gone, or anchored to itself: nothing to derive from
-                tp = rootPos(u, t);
+                tp = rootPos(t.ui, t);            // 112.6: the TARGET's OWN tree, which is not always this one
                 tsz = t.sz;
                 if(tp == null)
                     return null;
@@ -313,22 +321,30 @@ final class Layout {
      * all along. An unattached widget has a null {@code ui} and gets {@link LuaWidget#monitor}'s stand-in,
      * exactly as it did before this task: it still takes its text and its style, and every step of the geometry
      * that needs a tree already guards on {@code u} being null.
+     *
+     * <p><b>The followers are applied below the block, never inside it</b> (112.6). An anchor's target is any
+     * widget, and the layer holds windows beside every session's tree, so a follower is freely in a tree that
+     * is not this one — and applying it under {@code w}'s monitor is the second monitor {@link
+     * LuaWidget#monitor} refuses. The list is collected inside, where it is read against settled geometry, and
+     * spent outside, where each widget takes its own tree's monitor and only its own.
      */
     private static void apply(Widget w, int depth) {
         if(w == null)
             return;
         UI u = w.ui;
+        List<Widget> deps = null;
         synchronized(LuaWidget.monitor(w)) {
             textHalf(w);                              // 061.5: WHAT it says, before the box it says it in
             Sheet.Resolved r = Sheet.styleOf(w);      // ONE fold, read once and used for both halves
             applyHalf(u, w, r, false);
             applyHalf(u, w, r, true);
-            // 036.3: ...and whatever hangs off this widget follows it in the same call, so a move made through
-            // this API has moved its followers by the time it returns. A user's own drag has no such moment —
-            // it is seen instead through the target's own MouseMoveEvent (042.10, installDragListener).
-            if(depth < MAXDEPTH)
-                applyDependents(w, depth);
+            if(depth < MAXDEPTH)                      // 112.6: collected here, spent below the block
+                deps = dependentsOf(w);
         }
+        // 036.3: ...and whatever hangs off this widget follows it in the same call, so a move made through
+        // this API has moved its followers by the time it returns. A user's own drag has no such moment —
+        // it is seen instead through the target's own MouseMoveEvent (042.10, installDragListener).
+        cascade(w, deps, depth + 1);
     }
 
     /**
@@ -336,24 +352,31 @@ final class Layout {
      * directly because nothing is layered over it. Whatever hangs off it still follows, in the same call — an
      * anchor's target is any widget, and a target the API itself just wrote is the one case that has a moment to
      * hang the re-derive on.
+     *
+     * <p><b>It takes no monitor of its own</b> (112.6): the snapshot below takes {@link Layout#class}, and each
+     * follower takes its own tree's inside {@link #apply}. There is nothing left here for {@code w}'s to guard,
+     * and holding it would be the first of the two this feature forbids.
      */
     static void moved(Widget w) {
         if(w == null)
             return;
-        synchronized(LuaWidget.monitor(w)) { applyDependents(w, 0); }
+        cascade(w, dependentsOf(w), 1);
     }
 
     /**
-     * Re-derive every anchor that hangs off {@code w} (036.3). Bounded by {@link #MAXDEPTH} rather than by a
-     * visited set: a chain of anchors is a legitimate thing to write and a cycle is not, so the depth limit ends
-     * the cycle without making the ordinary case carry a set. Caller holds {@code w}'s own monitor
-     * ({@link LuaWidget#monitor}).
+     * <b>Every anchor that hangs off {@code w}</b> (036.3), collected and handed back rather than applied
+     * (112.6): applying one takes ITS tree's monitor, and {@link #apply} calls this holding {@code w}'s. Where
+     * the two trees differ that is a second monitor, which is the shape this client deadlocks in — so the
+     * list crosses the end of that block and {@link #cascade} spends it outside.
+     *
+     * <p>{@link Layout#class} is the only lock it takes, exactly as it always was: reading {@link #derived} is
+     * not a widget write, which is why {@link #moved} can call it holding nothing at all.
      */
-    private static void applyDependents(Widget w, int depth) {
+    private static List<Widget> dependentsOf(Widget w) {
         List<Widget> deps = null;
         synchronized(Layout.class) {
             if(derived.isEmpty())
-                return;
+                return(null);
             for(Map.Entry<Widget, Anchor> e : derived.entrySet()) {
                 if((e.getValue().to != Anchor.WIDGET) || (e.getValue().target() != w) || (e.getKey() == w))
                     continue;
@@ -362,8 +385,38 @@ final class Layout {
                 deps.add(e.getKey());
             }
         }
-        for(int i = 0; (deps != null) && (i < deps.size()); i++)
-            apply(deps.get(i), depth + 1);
+        return(deps);
+    }
+
+    /**
+     * <b>Apply what hangs off {@code from}, one tree monitor at a time</b> (112.6). Bounded by
+     * {@link #MAXDEPTH} rather than by a visited set: a chain of anchors is a legitimate thing to write and a
+     * cycle is not, so the depth limit ends the cycle without making the ordinary case carry a set.
+     *
+     * <p><b>Called with none of this layer's monitors held</b> — {@link #apply} closes its block first, and
+     * so does every verb that writes a level ({@code widget:position}, {@code :size}, {@code :pack},
+     * {@code :remember}, {@code position(nil)}). So the ordinary cascade, made from the engine step, re-derives
+     * a follower in ANY tree within the same call, which is what an anchor across the layer/session boundary
+     * has to mean.
+     *
+     * <p><b>And where a monitor is held anyway, the step re-derives rather than the call refusing.</b> A
+     * gesture, a drop, a control's own notification and the placement seam each run under one tree's monitor by
+     * construction (family A) — the answer they give is owed to the dispatch that raised them, so there is
+     * nowhere to move them to, and a follower of theirs in another tree cannot be applied from here. So
+     * {@code from} goes onto the geometry seam's queue and {@link #dispatchResized} re-derives the whole fan on
+     * the next step, holding none. ONE enqueue covers every follower, because that drain starts from the target
+     * again — and the widget an author sees move a frame later is the one they never asked to move from
+     * there.
+     */
+    private static void cascade(Widget from, List<Widget> deps, int depth) {
+        for(int i = 0; (deps != null) && (i < deps.size()); i++) {
+            Widget dep = deps.get(i);
+            if(LuaWidget.wouldNest(dep)) {
+                AddonManager.onWidgetResized(from);
+                return;
+            }
+            apply(dep, depth);
+        }
     }
 
     /**
@@ -631,14 +684,16 @@ final class Layout {
             return;
         // 112.2: through the funnel, so the walk of one tree cannot begin inside another's monitor — the sweep
         // is reached from a sheet drop, which an addon may make from anywhere.
+        List<Widget> all = new ArrayList<Widget>();
         synchronized(LuaWidget.monitorOf(u)) {
             if(u.root == null)
                 return;                               // it went between the check and the monitor
-            List<Widget> all = new ArrayList<Widget>();
             collect(u.root, all);                     // collected first: applying writes c/sz, never the tree, but
-            for(int i = 0; i < all.size(); i++)       //   a snapshot is what makes that a guarantee rather than a hope
-                apply(all.get(i));
-        }
+        }                                             //   a snapshot is what makes that a guarantee rather than a hope
+        // 112.6: and applied OUTSIDE the walk's monitor - each widget takes its own, and a follower anchored
+        // across the layer/session boundary is a second tree that this block would otherwise still be holding.
+        for(int i = 0; i < all.size(); i++)
+            apply(all.get(i));
     }
 
     private static void collect(Widget w, List<Widget> out) {

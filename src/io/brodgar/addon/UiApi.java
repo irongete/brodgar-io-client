@@ -2079,10 +2079,12 @@ final class UiApi {
                 m.wantPos = null;
             else
                 m.wantSize = null;
-            Layout.apply(w);                     // the fold again, one level shorter
             if(m.idle() && owner.movedNative.remove(m))
                 LuaWidget.recountMoved();
         }
+        // The fold again, one level shorter — and 112.6: below the block, since a follower of this
+        // widget may stand in another tree, which is a second monitor while this one is still held.
+        Layout.apply(w);
     }
 
     /**

@@ -70,7 +70,7 @@ s:install()
 
 | Field | Default | Meaning |
 |---|---|---|
-| `to` | `"screen"` | the screen, or any widget. A widget target is held **weakly**: when it closes the anchor stops resolving and the widget simply stays where it is — inert, never a snap back |
+| `to` | `"screen"` | the screen, or any widget — **a character's, from a window of yours, and the other way about**: every tree in this client covers the same screen, so the two corners mean the same place. A widget target is held **weakly**: when it closes the anchor stops resolving and the widget simply stays where it is — inert, never a snap back |
 | `at` | `"topleft"` | one of nine corners: `topleft`, `top`, `topright`, `left`, `center`, `right`, `bottomleft`, `bottom`, `bottomright`. Anything else is an **error** naming all nine |
 | `offset` | `{0, 0}` | `{dx, dy}`, [design px](../pixels.md), added after the corners meet |
 
@@ -94,6 +94,13 @@ window is resized, the target moves or resizes, the widget itself changes size. 
 API — a verb, a rule — has moved everything hanging off it **by the time the call returns**; a move the
 *user* makes by dragging is picked up on the next tick. Only anchored widgets are re-derived, so a plain
 position costs nothing at rest.
+
+**A follower in another tree can be one frame behind, and only from one place.** Write the move from an
+[`Update` handler](../../../guides/events-and-timers.md), a timer or any bus event and the whole cascade
+lands inside the call, whichever trees it crosses. Write it from a handler the client dispatched *into* a
+tree — a `Draw`, a `Drop`, a control's `Pressed`, a drag armed with [`widget:draggable()`](../native.md)
+— and a follower **in a different tree** re-derives on the next step instead: within that tree the move is
+immediate as ever. Read `:position()` back on the frame after if you need the number from there.
 
 **Off-screen is clamped, by the client's own rule.** A window the HUD or the root holds directly is handed
 to the same clamp the client uses when it places or toggles one, so at least a corner of it stays inside

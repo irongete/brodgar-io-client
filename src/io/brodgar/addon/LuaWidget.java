@@ -165,6 +165,18 @@ public final class LuaWidget {
     }
 
     /**
+     * <b>Would writing {@code w} be the second tree?</b> (112.6) — the question {@link #monitor} answers by
+     * throwing, asked without throwing, for the one caller that has somewhere else to put the work: the anchor
+     * cascade, which hands a follower in another tree to the engine step rather than refusing a write the
+     * author never made. Every other site wants the refusal — there is nothing else it could do with the
+     * answer.
+     */
+    static boolean wouldNest(Widget w) {
+        UI u = (w == null) ? null : w.ui;
+        return((u != null) && (heldOther(u) != null));
+    }
+
+    /**
      * <b>A live tree this thread already holds the monitor of, that is not {@code u}</b> — {@code null} when it
      * holds none, which is the ordinary answer and the whole cost of the check on a good frame.
      *
@@ -577,17 +589,23 @@ public final class LuaWidget {
                 }
                 Coord to = pixels(a, "widget:position", "x", "y");          // DESIGN pixels, as written
                 if(w != null) {
+                    boolean own;
                     synchronized(monitor(w)) {
-                        if(ownedContent(owner, w) == null) {
+                        own = ownedContent(owner, w) != null;
+                        if(!own) {
                             Moved rec = recordMoved(owner, w);     // BORROWED: name the level, then resolve it
                             rec.wantPos = Layout.Anchor.at(to);    // 036.3: the parent's top-left, plus (x, y)
                             rec.posSeq = Layout.nextSeq();         // 058.3: the level speaks the sheet's own space,
-                            Layout.apply(w);                       //   and Anchor.resolve is where it converts
-                        } else {
+                        } else {                                   //   and Anchor.resolve is where it converts
                             w.move(Px.in(to));                     // your own widget: no layer, no cascade...
-                            Layout.moved(w);                       // ...but an anchor may still hang off it (036.3)
                         }
                     }
+                    // 112.6: the fold and the followers BELOW the block — a follower's anchor may point
+                    // into another tree, and that is a second monitor while this one is still held.
+                    if(!own)
+                        Layout.apply(w);
+                    else
+                        Layout.moved(w);                           // ...but an anchor may still hang off it (036.3)
                 }
                 return self;
             }
@@ -635,8 +653,10 @@ public final class LuaWidget {
                         content.widget().resize(Coord.of(Px.in(width), min.y));
                         if(content.widget() != w)         // a control that is a small tree: refit what wraps it
                             w.pack();
-                        Layout.moved(w);                  // 036.3: a corner anchor reads the box that just changed
                     }
+                    // 036.3: a corner anchor reads the box that just changed — and 112.6: below the
+                    // block, since that anchor's own widget may stand in another tree.
+                    Layout.moved(w);
                     return self;
                 }
                 Coord to = pixels(a, "widget:size", "w", "h");              // DESIGN pixels, as written
@@ -660,14 +680,16 @@ public final class LuaWidget {
                             Moved rec = recordMoved(owner, w);
                             rec.wantSize = to;            // 036.2: ...and the resize is the cascade's to make
                             rec.sizeSeq = Layout.nextSeq();   // 058.3: in design px, like the rule beneath it
-                            Layout.apply(w);
                         } else {
                             content.widget().resize(dev);
                             if(content.widget() != w)     // a window: refit the chrome around the resized content
                                 w.pack();
-                            Layout.moved(w);              // 036.3: a corner anchor reads the box that just changed
                         }
                     }
+                    if(content == null)                   // 112.6: below the block — see :position above
+                        Layout.apply(w);
+                    else
+                        Layout.moved(w);                  // 036.3: a corner anchor reads the box that just changed
                 }
                 return self;
             }
@@ -973,8 +995,10 @@ public final class LuaWidget {
                             w.pack();
                             cw.resize(sizeArg(w));
                         }
-                        Layout.moved(w);           // 036.3: a corner anchor reads the box that just changed
                     }
+                    // 036.3: a corner anchor reads the box that just changed — and 112.6: below the
+                    // block, since that anchor's own widget may stand in another tree.
+                    Layout.moved(w);
                 }
                 return self;
             }
@@ -2319,8 +2343,10 @@ public final class LuaWidget {
             w.pack();
             rec.wantSize = Px.out(sizeArg(w));         // ...and what it came out at IS this addon's size level
             rec.sizeSeq = Layout.nextSeq();
-            Layout.apply(w);                           // the fold, so a rule and a second addon still compete
         }
+        // The fold, so a rule and a second addon still compete — and 112.6: below the block, since a
+        // follower of this window may stand in another tree.
+        Layout.apply(w);
     }
 
     // ---- widget:remember(name): the placement that survives the session (062) ----------------------
@@ -2391,8 +2417,8 @@ public final class LuaWidget {
                 rec.wantSize = p.size;
                 rec.sizeSeq = Layout.nextSeq();
             }
-            Layout.apply(w);
         }
+        Layout.apply(w);        // 112.6: below the block — a follower of this window may be another tree's
     }
 
     /** {@code widget:remember(nil)} — drop the name AND delete the record, which is the whole difference. */

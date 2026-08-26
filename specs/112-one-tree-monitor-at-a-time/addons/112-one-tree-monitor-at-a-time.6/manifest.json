@@ -1,0 +1,9 @@
+{
+  "name": "112.6 — an anchor that crosses trees applies one monitor at a time",
+  "id": "112-one-tree-monitor-at-a-time.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 112.6: an anchor whose target stands in another tree re-derives in both directions, from a write that takes one tree monitor at a time and never a second -- and a chain past MAXDEPTH still stops, and a link that was destroyed drops out of the cascade instead of throwing.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
