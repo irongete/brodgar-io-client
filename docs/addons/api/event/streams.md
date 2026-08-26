@@ -160,7 +160,7 @@ name, whatever anyone else subscribed to.
 
 > **A wildcard costs you the whole stream.** Your handler runs on every message the client sends, where a
 > named key runs it on one — so keep the body short, and read
-> [threading](../conventions.md#threading) before you make one wait on anything. An addon that named its
+> [threading](../threading.md) before you make one wait on anything. An addon that named its
 > key pays nothing for someone else's wildcard.
 
 Two sends the `action` stream does not report, and a wildcard is where you would notice:
@@ -169,9 +169,9 @@ Two sends the `action` stream does not report, and a wildcard is where you would
   dispatching, which is what stops a handler recursing on its own traffic — so that send reaches the
   server without being reported to anyone, your own wildcard included. `ev:resend()` and `ev:send(t)`
   bypass the stream for the same reason.
-- **A send made off the UI-locked path.** Handlers run only where the sending code already holds the
-  client's UI lock, which is every player action and every message a widget sends while the client is
-  running. A send from a thread outside it passes straight through.
+- **A send made from outside a character's UI.** An outbound handler runs where the sending code is,
+  inside the tree the message is leaving — which is every player action and every message a widget sends
+  while the client is running. A send from anywhere else passes straight through, unreported.
 
 ### Every update, on the way in
 
@@ -198,14 +198,18 @@ subscription on the same stream firing.
 > the client's own change detection reads the updates that were applied, so [the bus](bus/README.md) goes
 > quiet with it. Swallow inside an `if` on `ev:msg()`, never at the top of the handler.
 
-An inbound handler also runs where the client can feel it. It runs under the very lock the client takes
-to tick and to draw, so the time your handler spends is time the frame is not being drawn — and a
-wildcard spends it on every update the server sends rather than on one name. What stands between a slow
-handler and a visible stutter is the [CPU budget](../../runtime.md#budgets-and-the-watchdog), which
-disables an addon that sustains the overrun rather than letting the client stutter on.
+An inbound handler runs where the update arrived, before the widget applies it — that is what makes
+`ev:preventDefault()` and `ev:rewrite(t)` possible, and it is why the handler cannot be deferred. It holds
+no character's UI, so it may build a window and write any tree; but it is not the [step](../threading.md),
+so it can be running your Lua while the step is running your Lua too. Keep it to reading a field and
+recording what you saw, and do the work from the step. The time it spends is time the client is not
+spending elsewhere, and a wildcard spends it on every update the server sends rather than on one name;
+what stands between a slow handler and a visible stutter is the
+[CPU budget](../../runtime.md#budgets-and-the-watchdog), which disables an addon that sustains the overrun
+rather than letting the client stutter on.
 
 > **Keep an inbound wildcard's body short.** Read a field, count something, append to a table you drain
-> on a [timer](../timer.md) — and read [threading](../conventions.md#threading) before you make one wait
+> on a [timer](../timer.md) — and read [threading](../threading.md) before you make one wait
 > on anything at all.
 
 ## See also
@@ -214,4 +218,4 @@ disables an addon that sustains the overrun rather than letting the client stutt
 - [the catalogue](bus/README.md) — the closed set of client-wide facts, for what a message is not
 - [the Widget object](../ui/widget.md) — what `ev:widget()` hands you
 - [Position](../position.md) — the place type both streams take and answer with
-- [conventions](../conventions.md#threading) — why a handler must not block
+- [threading](../threading.md) — where each of these two handlers runs, and what it may reach

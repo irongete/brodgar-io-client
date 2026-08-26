@@ -6,7 +6,8 @@ you came for from the tables below. Every page in the tree is listed here.
 
 | Page | What it holds |
 |---|---|
-| [conventions](conventions.md) | the grammar, snapshots vs handles, filters, `nil`, threading, and the permission model |
+| [conventions](conventions.md) | the grammar, snapshots vs handles, filters, `nil`, and the permission model |
+| [threading](threading.md) | where each handler runs, which trees it may reach, and the refusal when it reaches too far |
 | [references](references.md) | every kind of thing a verb takes: a Gob, a kin, a slot, an asset, an item, a widget, a selector |
 | [shapes](shapes.md) | what a plain table of numbers looks like: places, pixels, sizes, spans, colours, ids and units |
 | [data types](types/README.md) | every snapshot shape a read hands back, field by field |

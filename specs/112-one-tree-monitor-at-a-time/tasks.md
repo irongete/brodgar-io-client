@@ -146,7 +146,7 @@ and each later task removes one.
       `[manual]`: click the ground once — nothing in Lua delivers an input event, so the action-stream
       half needs a real gesture.
 
-- [ ] **112.8 — threading becomes a page, and it says which seam runs where.** A new
+- [x] **112.8 — threading becomes a page, and it says which seam runs where.** A new
       `docs/addons/api/threading.md`: which seam runs on which thread and which of them hold a monitor,
       in the reader's vocabulary rather than the engine's; the one-monitor rule; what the refusal means
       and the two verbs that answer it; `hafen.client():stepping()`, which says which side of that rule

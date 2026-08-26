@@ -123,12 +123,13 @@ Your addon also gets a global `ADDON` table with two fields: `ADDON.id`, its id,
 absolute path of its folder. Both are informational — reading a file is
 [`hafen.asset`](api/asset.md)'s job.
 
-Everything your addon does runs on the client's one UI thread, in the same frame as the drawing: see
-[threading](api/conventions.md#threading).
+Almost everything your addon does runs on the client's **step**, one callback after another in the same
+frame as the drawing; a draw, a press and the two [message streams](api/event/streams.md) run where the
+thing they answer is. Which is which, and what each may reach, is [threading](api/threading.md).
 
 ## Budgets and the watchdog
 
-Because Lua runs on that thread, an addon that never returns would freeze the client. Two limits make that
+Because your Lua runs inside the client's own frame, an addon that never returns would freeze the client. Two limits make that
 impossible, and neither one is reachable by ordinary code.
 
 - **Per call: ten million instructions.** Every entry into your Lua — a handler, a timer, a draw, a file

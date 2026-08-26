@@ -1,0 +1,9 @@
+{
+  "name": "112.8 — threading becomes a page",
+  "id": "112-one-tree-monitor-at-a-time.8",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 112.8: every refusal the threading page quotes is raised and compared against the page character for character, the three doors it names as safe from a held monitor reach two trees each, and the entry and item seams land on the step after their seam rather than inside it.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

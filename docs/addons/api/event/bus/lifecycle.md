@@ -17,7 +17,7 @@ Your addon's own three, and each is about the addon rather than about a characte
 
 `Load` and `Disable` fire **once each for the client**, whatever happens to the characters underneath —
 one addon, one Lua state, however many sessions are logged in. Keep `Update` handlers cheap: they run on
-the UI thread on every frame, once per frame, and not once per session.
+the [step](../../threading.md) on every frame, once per frame, and not once per session.
 
 ## Sessions
 

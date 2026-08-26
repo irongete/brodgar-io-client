@@ -101,9 +101,9 @@ end)
 - **One key, because the wire has one.** The server resends a whole tooltip rather than the field that
   changed, so a key per field would be a promise nothing can keep. Read what you need in the handler.
 - **The payload is the item**, the same object you subscribed on, so one handler can serve several items.
-- **It fires on the frame after the answer becomes true**, which is the first time the client succeeds in
-  building that item's description — the draw of its icon, or your own read, whichever comes first. An item
-  in a container nobody has drawn yet is described the moment something asks; reading it *is* asking.
+- **It fires on the [step](../threading.md) after the answer becomes true** — the first frame after the
+  client builds that item's description, which is the draw of its icon or your own read. An item nobody
+  has drawn yet is described the moment something asks; reading it *is* asking.
 - **A stale item never fires.** What it was is all it will ever say. Subscribing to one is legal and inert,
   so a handler that outlives its item needs no guard.
 - **The subscription is per item**, and it goes when the item does. Ending one early is `sub:off()`.

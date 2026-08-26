@@ -80,5 +80,5 @@ for _, t in ipairs(hafen.timer():list()) do t:cancel() end
 ## See also
 
 - [events](event/bus/README.md) — the bus, for everything the client can tell you without polling
-- [conventions](conventions.md#threading) — why a timer body must not block
+- [threading](threading.md) — a timer body runs on the step, so it may reach any character
 - [`hafen.time`](time.md) — the *game* clock, which is not what this schedules against

@@ -45,11 +45,13 @@ if hafen.client():stepping() then
 end
 ```
 
-The step is the one place your code is inside **no** character's tree, so a handler running there may reach
-any of them. Everywhere else you are answering something — a [`Draw`](../ui/custom.md), a control's press,
-a drop, an inbound [message](../event/streams.md) — and you are inside the one tree that dispatched it:
-writing a widget of a *different* character's tree from there is refused, naming both. `stepping()` is how
-a helper called from both places tells which it is in.
+On the step your code is inside **no** character's tree, so a handler running there may reach any of them.
+Answering something — a [`Draw`](../ui/custom.md), a control's press, a drop, a line typed at the console —
+you are inside the one tree that dispatched it, and writing a widget of a *different* character's tree from
+there is refused, naming both. `stepping()` is how a helper called from both places tells which it is in.
+The one handler that is in neither is an inbound [message](../event/streams.md): it holds no tree and
+reaches any of them, and `stepping()` answers false in it. The whole of it is
+[threading](../threading.md).
 
 ## Reading and writing
 

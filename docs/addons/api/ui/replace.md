@@ -39,6 +39,9 @@ end)
 
 What is worth knowing:
 
+- **The callback runs on the [step](../threading.md)**, after the widget has arrived or gone — not inside
+  the client's own placing of it. So it holds no character's UI: it may build a window, write the widget it
+  was handed, and reach any other login the client has.
 - **The subscription watches one character's tree**, the one `s` names — so watching two characters is two
   subscriptions, and each callback knows whose window it was handed.
 - **`Added` covers what is already open.** Registering scans that character's live tree once, so an addon

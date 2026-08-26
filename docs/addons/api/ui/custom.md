@@ -158,10 +158,16 @@ it is a surface with content to paint and a lifetime to report:
 
 | Key | handler receives | Cancelable | Fires |
 |---|---|---|---|
-| `Draw` | `ev` — `:g()` `:w()` `:h()` | no | every frame; `:w()`/`:h()` is the box you sized, in [design pixels](pixels.md) — see [the `g` wrapper](drawing.md) |
-| `Update` | `dt` | no | every frame, before `Draw` |
+| `Draw` | `ev` — `:g()` `:w()` `:h()` | no | every frame, in the pass that paints this widget; `:w()`/`:h()` is the box you sized, in [design pixels](pixels.md) — see [the `g` wrapper](drawing.md) |
+| `Update` | `dt` | no | every frame, on the [step](../threading.md), before the pass that draws it |
 | `Drop` | `ev` — `:x()` `:y()` `:thing()` `:preventDefault()` | yes | the client's drag gesture drops something on it |
 | `Close` | — | no | the window's close button; a bare widget has none, so it never fires |
+
+`Update` and `Draw` run in different places, and it matters as soon as you have more than one character
+logged in: `Update` is on the step and may reach any of them, while `Draw` — and every press, drop and
+close beside it — runs inside the tree this widget stands in and may reach only that one. A `Draw` handler
+that has to change something elsewhere records it and lets the step do the work; see
+[threading](../threading.md).
 
 `:on(key, fn)` is its own statement, after the builder chain that made the widget finishes — it hands back
 a subscription, not the widget, so it cannot sit mid-chain or be a chain's last call. Two handlers on

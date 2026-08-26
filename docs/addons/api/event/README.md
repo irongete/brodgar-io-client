@@ -90,4 +90,4 @@ belongs to that widget and is not here; it dies with it.
 - [data types](../types/README.md) — what `:info()` copies out of a payload, shape by shape
 - [`hafen.timer`](../timer.md) — for what the bus cannot tell you: polling on your own schedule
 - [the Widget object](../ui/widget.md) — subscribing on a widget you hold, and the mouse and its grab
-- [conventions](../conventions.md#threading) — why a handler must not block
+- [threading](../threading.md) — where a handler runs, and which trees it may reach

@@ -55,7 +55,8 @@ The rules below make these predictable:
   is a name it cannot act on. Native events broadcast, because a resource name means the same thing to
   everyone.
 - **They arrive on the next frame**, not inside the `:add` itself — the game's own overlays arrive on
-  loader threads, and both halves use one moment. A handler runs on the UI thread and reads the truth:
+  loader threads, and both halves use one moment. A handler runs on the
+  [step](../../threading.md) and reads the truth:
   the overlay is already there on an add, already gone on a removal.
 - **Re-attaching under the same key fires both** — the removal, then the add. The key survives; the thing
   under it does not.

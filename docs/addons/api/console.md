@@ -46,9 +46,11 @@ reassignment — so two addons claiming `:sort` is a first-come, last-served rac
 rather than for a login, so with several characters up it runs from whichever one's console you type it
 into and goes on running as you tab between them. There is nothing to re-subscribe on a switch.
 
-**Where it runs.** The console dispatches on the UI thread, the same thread as everything else your
-addon does, so a command never races your own handlers. It runs under the same watchdog and error
-isolation: an error in it is logged, not propagated.
+**Where it runs.** A command runs inside the UI of the console you typed it into, which is the character on
+screen — so it may read and write that character freely, and reaching a *different* character, or one of
+your own windows, is refused naming both. Do that work from the [step](threading.md): one
+`hafen.timer():after(0, fn)` at the top of the body is the whole of it. It runs under the same watchdog and
+error isolation as everything else: an error in it is logged, not propagated.
 
 ## Read what you registered
 

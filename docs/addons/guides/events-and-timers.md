@@ -71,8 +71,9 @@ hafen.log():write("next poll in " .. poll:due() .. "s")   -- the handle answers 
 poll:cancel()
 ```
 
-`Update` runs on the client's UI thread, in the middle of the frame it is drawing, so what it does you
-pay for sixty times a second. The pattern that keeps it honest is a guard: compute a key, return
+`Update` runs on the client's [step](../api/threading.md), in the middle of the frame it is drawing, so
+what it does you pay for sixty times a second. The step is inside no character's UI, so the handler may
+reach every login the client holds. The pattern that keeps it honest is a guard: compute a key, return
 immediately when it has not changed, and only then do the work — that is how
 [hit-testing](../api/ui/selectors.md#hit-testing) tracks the cursor without walking the tree every frame.
 
