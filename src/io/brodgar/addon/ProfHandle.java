@@ -476,9 +476,13 @@ public final class ProfHandle {
     }
 
     /**
-     * {@code p:render()} — the graphics counters as numbers. {@code stateSlots} is process-wide;
-     * {@code programs} and {@code vram} come from the GL environment; everything else describes the
-     * <b>scene</b> and is therefore absent until a {@code MapView} exists and has drawn once.
+     * {@code p:render()} — the graphics counters as numbers. {@code stateSlots} and {@code gobsHeld} are
+     * process-wide; {@code programs} and {@code vram} come from the GL environment; everything else describes
+     * the <b>scene</b> and is therefore absent until a {@code MapView} exists and has drawn once.
+     *
+     * <p>{@code gobsHeld} is how many times the addon layer has parked a render add waiting for the object's
+     * {@code GobAdded} to fire (114.1) — cumulative since the client started, and zero for as long as no
+     * addon subscribes to that event.
      *
      * <p>{@code drawSlots} is the draw-slot count, the closest thing the tree has to "draw calls this
      * frame"; {@code uniqueInstances} + {@code batches} (holding {@code instances} between them) is the
@@ -489,6 +493,9 @@ public final class ProfHandle {
     @SuppressWarnings("deprecation")
     private static LuaTable render() {
         LuaTable t = new LuaTable();
+        // 114.1: the addon layer's own, and the one number here that describes no scene -- so it is set
+        // before the two returns below and answers on the login screen as readily as in the world.
+        t.set("gobsHeld", LuaValue.valueOf((double)AddonManager.gobsHeld()));
         UI u = AddonManager.screen();
         if(u == null)
             return t;

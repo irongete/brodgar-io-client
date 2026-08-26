@@ -1,0 +1,9 @@
+{
+  "name": "114.1 — GobAdded before the first drawn frame",
+  "id": "114-gob-added-before-render.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 114.1: every object drawn was announced first, exactly once; the hold engaged; a handler reads name, state and footprint at handler time; an overlay attaches there without meeting the renderability refusal; and an object the layer never queued is never held.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

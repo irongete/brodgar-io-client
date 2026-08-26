@@ -55,7 +55,7 @@ emptied never shows up as idle with the work still in flight.
 
 ## `render()`
 
-Describes the **3D scene**, so everything but `stateSlots` is absent before the world is up.
+Describes the **3D scene**, so everything but `stateSlots` and `gobsHeld` is absent before the world is up.
 
 | Key | Description |
 |---|---|
@@ -66,9 +66,16 @@ Describes the **3D scene**, so everything but `stateSlots` is absent before the 
 | `programs` | shader programs the GL environment holds |
 | `vram` | per-pool VRAM, keyed `indices`/`vertices`/`textures`/`vaos`/`fbos`, each `{objects=, bytes=}` |
 | `stateSlots` | render-state slots in use, process-wide rather than per scene |
+| `gobsHeld` | game objects kept out of the scene until their `GobAdded` fired, **cumulative since client start** |
 
 `programs` and `vram` need a GL environment and are absent on any other backend. The counters are written
 on the render side and may be one frame stale.
+
+`gobsHeld` counts the other way round from the rest of this table: it is the addon layer's own tally, not the
+scene's, so it answers on the login screen too. It climbs each time the client holds an object back so that
+[`GobAdded`](../../event/bus/world.md#world) runs before that object's first drawn frame, and it stays at
+zero for as long as no addon subscribes to that event. Like `gcCount` it means something as a **delta between
+two reads**: take one, walk into ground you have not seen this session, take another.
 
 ```lua
 local r = hafen.client():profiling():render()

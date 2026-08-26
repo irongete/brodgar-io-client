@@ -102,6 +102,21 @@ entered twice (tick + syncwait), so any fold over `Part.sub()` must `+=`. (f) `f
 end-of-frame hook lands in **no phase at all** — it is invisible to `uprof`, to `:stats on` and to any
 frame-time comparison, while still delaying the next frame. Time it directly or it does not exist.
 
+## `Loading`: parking, not retrying
+
+A `Loading` **names the thing to wait for**. `waitfor(Runnable, Consumer<Waiting>)` throws
+`Loading.UnwaitableEvent` by default; overriding it turns a throw into a **park** — `Loader.Future.run`
+catches, `boostprio(1)`s it (false by default), calls `waitfor` and re-queues its own task from the callback.
+
+| What | Where |
+|---|---|
+| The condition, and the in-tree precedent | `Waitable.Queue` — `add(Runnable)`/`waitfor` register a waiter, `wnotify()` runs every one and empties the queue; one notify wakes them all, so a woken task re-asks from the top. `Gob.updwait` is such a queue, `Gob.updated()` its `wnotify` and `Gob.DataLoading` the `Loading` over it; `Gob.Placed.Placement` waits on that **and** a resource at once through `Waitable.or` (`Waitable.Disjunction`) |
+| Throwing one out of a render add | `RenderTree.TreeSlot.add` catches any `RuntimeException` out of `n.added(ch)`, calls `ch.remove()` and rethrows, leaving the tree as it was — `Gob.Placed.added` → `curplace()` does exactly this whenever the ground under an object is not in |
+
+⚠️ **The check that decided to throw ran before `waitfor` registers**, so a notify landing in that gap is
+lost and the task parks for ever. Re-ask inside `waitfor` under the monitor the notifier takes, and when it
+is satisfied already call `reg.accept(Waitable.Waiting.dummy)` **then** the callback — `reg` always first.
+
 ## Threading and locks
 
 | Concern | Rule / where |
@@ -112,7 +127,6 @@ frame-time comparison, while still delaying the next frame. Time it directly or 
 | Deferred server widget ops | `UI.CommandQueue`; executed on Loader threads, each under `synchronized(UI.this)` |
 | OCache mutation | net receive on Connection worker (`OCache.receive`); apply on Loader (`GobInfo.apply`); `objs` under `synchronized(OCache)` |
 | MCache mutation | Connection worker (`mapdata`) under `synchronized(grids)`/`synchronized(req)` |
-| `Loading` exception protocol | `Loader.Future.run`; any code touching resources/gobs/grids must tolerate it |
 | **`Defer`'s pool is small, and a worker must never wait on another task** | `Defer.maxthreads` is `max(2, cores - 1)`; a `Worker` exits after 5 s idle and `Defer.later` from inside a worker enqueues onto that **same** group (`getgroup()` reads the thread group). So a task that blocks on a second task's `Future` can consume the whole pool. `Future.get(0)` throws `Defer.NotDoneException` (a `Loading`) rather than waiting — treat that as *ask again next pass* and return, never as something to sleep on |
 | **GPU part nesting + late arrival** | `GPUProfile.Part.part(Render,nm)` hangs the new part **under** the one it is called on and emits **one** timestamp that also closes the parent's previous child (`tfin()`), so opening a sibling **truncates** the part before it — nest, never sit beside. `Part.fin(out)` is the explicit close (idempotent; a later sibling's `tfin()` on a `fin` part is a no-op). `GPUProfile.check()` drains `waiting` **in order** and returns on the first part that is not `done` ⇒ **one unclosed part blocks every later frame's GPU timing, silently**. A consumer hangs its named passes under the frame's `draw` part, captured in `Frame.display`, every seam in `try`/`finally` |
 

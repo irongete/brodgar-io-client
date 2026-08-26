@@ -42,6 +42,13 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     public final Collection<Overlay> ols = new ArrayList<Overlay>();
     public final Collection<RenderTree.Slot> slots = new ArrayList<>(1);
     public int updateseq = 0, lastolid = 0;
+    /* addon: 114.1 -- this copy is queued for the addon layer's GobAdded and has not been announced yet, so
+     * the render tree must not take it. Set in io.brodgar.addon.AddonManager's OCache.ChangeCallback (inside
+     * OCache.add's synchronized(ob), which is the same monitor Gobs.addgob opens with, so it is set before
+     * any render add of this copy can begin) and cleared by that layer's step once the event has fired. Per
+     * COPY and not per gob id: one object is as many Gobs as there are sessions that see it, and a copy the
+     * layer never queued -- a client-only gob, an OCache.Virtual -- is never set and so never held. */
+    public volatile boolean addonpend = false;
     private final Collection<SetupMod> setupmods = new ArrayList<>();
     private final LinkedList<Runnable> deferred = new LinkedList<>();
     private Loader.Future<?> deferral = null;
@@ -768,6 +775,11 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     }
 
     public void added(RenderTree.Slot slot) {
+	// addon: 114.1 -- the gate. While the addon layer still owes this copy a GobAdded, the add throws a
+	//        Loading that Loader.Future.run parks and re-queues on notify, so the object reaches the
+	//        screen only after every handler has seen it. One volatile read when nothing is subscribed.
+	if(addonpend)
+	    io.brodgar.addon.AddonManager.holdRender(this);
 	slot.ostate(curstate());
 	for(Overlay ol : ols) {
 	    if(ol.slots != null)

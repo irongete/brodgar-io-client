@@ -59,6 +59,7 @@ import haven.Text;
 import haven.TextEntry;
 import haven.UI;
 import haven.Utils;
+import haven.Waitable;
 import haven.WItem;
 import haven.Widget;
 import haven.Window;
@@ -103,6 +104,8 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import javax.imageio.ImageIO;
 
@@ -155,6 +158,11 @@ public final class AddonManager {
     // every gob that carries state bytes (most resource-drawn objects, whether or not they ever change),
     // so it must cost one volatile read when nobody listens. Set by a subscription, cleared per reload.
     static volatile boolean sdtSubs;
+    // 114.1: the same fast path, for the render gate in Gob.added -- it sits on every entry into a render
+    // tree, so an object arriving must cost one volatile read when nobody is listening for GobAdded. Set by
+    // a subscription, cleared per reload. A stale `true` (the last subscriber went away) costs a hold that
+    // the very next drain releases, which is the same beat the object would have been drawn on anyway.
+    static volatile boolean gobAddedSubs;
     // 042.1: the Resolve (M2) marshalling queue — a Loading's wnotify() runs on whichever thread finished
     // the load (Loader, Defer pool), so a retry callback never touches Lua directly; it enqueues here and the
     // layer's tick drains it on the UI thread (P5), same shape as the per-session queues in SessionState. A
@@ -928,7 +936,15 @@ public final class AddonManager {
                 // ...and only once this session's own step is up: the layer drains the queue (079.4), but a
                 // state that never finished init is one whose gobs nothing else in this layer knows about,
                 // and its queue would grow for the life of the session.
-                public void added(Gob g)   { if(st.addonRoot != null) st.gobEvents.add(new GobEvent(true, g)); }
+                public void added(Gob g)   {
+                    if(st.addonRoot == null)
+                        return;
+                    // 114.1: hold this copy out of the render tree until the drain below has announced it.
+                    // BEFORE the enqueue -- a drain landing between the two would clear a flag not yet set.
+                    if(gobAddedSubs)
+                        armHold(g);
+                    st.gobEvents.add(new GobEvent(true, g));
+                }
                 public void removed(Gob g) { if(st.addonRoot != null) st.gobEvents.add(new GobEvent(false, g)); }
             };
             oc.callback(cb);
@@ -1004,6 +1020,9 @@ public final class AddonManager {
             lastStep = now;
             if(quiet())
                 return;      // 079.2: the client is quitting; the layer stops stepping before anything is read
+            // 114.1: the deadline under the render hold, before any of the returns below — a step that has
+            // nothing else to do must still be able to let the world be drawn. Free while nothing is held.
+            sweepHolds();
             SessionState st = state(u);
             if(st == null)
                 return;
@@ -1029,6 +1048,8 @@ public final class AddonManager {
                 sessionEvents.clear();          // 074.3: ...and so are the ones these were queued for
                 overlaySubs = false;            //   (the reloaded ones re-subscribe inside reload())
                 sdtSubs = false;                // 113.3: same reset, same reason
+                gobAddedSubs = false;           // 114.1: same reset...
+                releaseAllHolds();              //   ...and nothing is left that could announce what is held
                 AddonRegistry.reload();
                 return;
             }
@@ -2655,6 +2676,134 @@ public final class AddonManager {
     /** The {@link #gobRescans} the drain has already answered. UI thread only. */
     private static int gobRescansSeen = 0;
 
+    // ------------------------------------------------------------- the hold (114.1)
+    //
+    // AN OBJECT REACHES THE SCREEN BEFORE THE EVENT THAT ANNOUNCES IT, and that frame is not an addon's to
+    // close: OCache.add fires its callbacks on a Loader thread, MapView.Gobs.addgob puts the object in the
+    // render tree on that same thread, and the layer's copy of the same news waits in gobEvents for the next
+    // step. So the render add asks one question -- has the layer already drained this object's event? -- and
+    // while the answer is no it throws a Loading, which Loader.Future.run parks and re-queues on notify. The
+    // event is not moved and no Lua runs off the step; the picture waits for it.
+    //
+    // Three releases, and the world is drawable if any one of them fires: the drain clears every copy it
+    // walked, a session dying releases the copies no live session can see any more, and a wall-clock
+    // deadline swept every step releases anything held past it regardless.
+
+    /** How long a copy may be held before it is drawn anyway, seconds of wall clock. The drain runs every
+     *  step, so this is the belt: nothing in this layer can leave the world undrawn for longer. */
+    private static final double HOLD_MAX = 1.0;
+
+    /** <b>How many times the gate has parked a render add</b> — {@code hafen.client():profiling():render()}'s
+     *  {@code gobsHeld}, cumulative since the client started. Counts holds and not objects: a copy released
+     *  and re-parked counts twice, which is what makes it the witness that the gate engaged at all. */
+    private static final AtomicLong gobsHeld = new AtomicLong(0L);
+
+    /** @see #gobsHeld */
+    public static long gobsHeld() {
+        return gobsHeld.get();
+    }
+
+    /** The one queue every parked add waits on. One for the client, not one per gob: the wakeup is a
+     *  re-check, and what it costs is bounded by the objects in flight, which is single digits — a queue per
+     *  arriving object would buy precision with an allocation per object. */
+    private static final Waitable.Queue gobHoldWait = new Waitable.Queue();
+
+    /** Every copy being held, and the wall clock it is released at regardless. Written from the network and
+     *  Loader threads that arm a hold and from the step that releases one, hence concurrent. */
+    private static final Map<Gob, Double> gobHolds = new ConcurrentHashMap<Gob, Double>();
+
+    /**
+     * <b>What the gate throws.</b> The re-check in {@link #waitfor} is the whole of why it is a class of its
+     * own: the gate reads the flag and throws, and only afterwards does {@link haven.Loader.Future} register
+     * a waiter — so a drain landing in that gap would clear the flag and notify an empty queue, and the add
+     * would park for ever. Asking again under the queue's own monitor, which is the monitor the release
+     * takes, closes it. {@code Gob.DataLoading} is the in-tree precedent for the same shape.
+     */
+    private static final class GobHold extends Loading {
+        private final transient Gob gob;
+
+        GobHold(Gob gob) {
+            super("gob held for GobAdded");
+            this.gob = gob;
+        }
+
+        public void waitfor(Runnable callback, Consumer<Waitable.Waiting> reg) {
+            boolean released;
+            synchronized(gobHoldWait) {
+                released = !gob.addonpend;
+                if(released)
+                    reg.accept(Waitable.Waiting.dummy);
+                else
+                    gobHoldWait.waitfor(callback, reg);
+            }
+            if(released)                // outside the monitor: the callback takes the Loader's own
+                callback.run();         //   (boostprio is inherited false -- there is nothing to boost)
+        }
+    }
+
+    /**
+     * Hold this copy out of the render tree until its {@code GobAdded} has fired. Called from the
+     * {@link OCache.ChangeCallback} that queues the event, <b>before</b> the enqueue: a drain that ran
+     * between the two would clear a flag that was then set, and the copy would be held with nothing left to
+     * release it but the deadline.
+     */
+    private static void armHold(Gob g) {
+        g.addonpend = true;
+        gobHolds.put(g, Double.valueOf(Utils.rtime() + HOLD_MAX));
+    }
+
+    /**
+     * <b>The gate</b>, called from {@code Gob.added(RenderTree.Slot)} while {@code addonpend} — throws, every
+     * time, and the caller's own {@code if} is what keeps the disarmed path to one volatile read.
+     */
+    public static void holdRender(Gob g) {
+        gobsHeld.incrementAndGet();
+        throw new GobHold(g);
+    }
+
+    /** Release these copies and wake every parked add. The flags are written under the queue's monitor, which
+     *  is what {@link GobHold#waitfor} re-checks under; the notify is outside it, as {@code Waitable.Queue}
+     *  runs its callbacks outside its own. */
+    private static void releaseHolds(List<Gob> gobs) {
+        if((gobs == null) || gobs.isEmpty())
+            return;
+        synchronized(gobHoldWait) {
+            for(int i = 0, n = gobs.size(); i < n; i++) {
+                Gob g = gobs.get(i);
+                g.addonpend = false;
+                gobHolds.remove(g);
+            }
+        }
+        gobHoldWait.wnotify();
+    }
+
+    /** Everything being held, released — the reload's own case: the addons that armed the gate are being torn
+     *  down, so nothing is left that could ever answer for these copies. */
+    static void releaseAllHolds() {
+        if(!gobHolds.isEmpty())
+            releaseHolds(new ArrayList<Gob>(gobHolds.keySet()));
+    }
+
+    /**
+     * <b>The deadline</b>, swept every step: a copy held past {@link #HOLD_MAX} is drawn anyway. It is the
+     * belt under the drain, so it runs before the step can return early for any other reason — no defect in
+     * this layer may leave the world undrawn. Two reference reads on the steps that hold nothing.
+     */
+    private static void sweepHolds() {
+        if(gobHolds.isEmpty())
+            return;
+        double now = Utils.rtime();
+        List<Gob> late = null;
+        for(Map.Entry<Gob, Double> e : gobHolds.entrySet()) {
+            if(now >= e.getValue().doubleValue()) {
+                if(late == null)
+                    late = new ArrayList<Gob>();
+                late.add(e.getKey());
+            }
+        }
+        releaseHolds(late);
+    }
+
     /**
      * <b>Every session's gob queue, drained together and settled before anything is emitted</b> (079.4) — on
      * the LAYER's tick, because these events are the client's now and there is one edge for the client.
@@ -2668,6 +2817,7 @@ public final class AddonManager {
      */
     private static void drainGobEvents() {
         List<Long> touched = null;
+        List<Gob> held = null;          // 114.1: the copies this drain is releasing, once it has announced them
         for(SessionState st : allStates()) {
             GobEvent ge;
             while((ge = st.gobEvents.poll()) != null) {
@@ -2690,6 +2840,16 @@ public final class AddonManager {
                 // standing on it that survived because ANOTHER character has it in view is re-asked whether
                 // the one on screen does. A flag, and only for the ids something is actually standing on.
                 VrApi.anchorSeen(ge.gob.id);
+                // 114.1: ...and the copy itself, released after the settle below rather than here -- the
+                // event has not fired yet, and a copy let go before it is a copy that can be drawn first.
+                // Per COPY, which is why the queue entry is what carries it: settleGob fires ONE client-wide
+                // event into the first session, so a later session's copy gets no event of its own and this
+                // walk is the only place that ever sees it.
+                if(ge.added && ge.gob.addonpend) {
+                    if(held == null)
+                        held = new ArrayList<Gob>();
+                    held.add(ge.gob);
+                }
                 if(touched == null)
                     touched = new ArrayList<Long>();
                 touched.add(Long.valueOf(ge.gob.id));
@@ -2714,7 +2874,19 @@ public final class AddonManager {
             heldGobs.removeAll(gone);
             for(int i = 0, n = gone.size(); i < n; i++)
                 gobLeft(gone.get(i).longValue());
+            // 114.1: ...and a copy that session was holding is a copy nothing will ever announce -- its queue
+            // went with its state. The ones no live session can see any more are exactly the stranded ones:
+            // an object still in somebody's cache is still on its way to a drain that will release it.
+            for(Gob g : gobHolds.keySet()) {
+                if(!gobHeld(g.id)) {
+                    if(held == null)
+                        held = new ArrayList<Gob>();
+                    held.add(g);
+                }
+            }
         }
+        // 114.1: every copy this drain announced, let into the tree, and every parked add woken to re-ask.
+        releaseHolds(held);
     }
 
     /** One id, settled against the caches: {@code GobAdded} into the first session, {@code GobRemoved} out of
@@ -4047,6 +4219,8 @@ public final class AddonManager {
                     overlaySubs = true;
                 if(key.equals("GobSdtChanged"))    // 113.3: arm the $cres.apply seam (see `sdtSubs`)
                     sdtSubs = true;
+                if(key.equals("GobAdded"))         // 114.1: arm the render gate (see `gobAddedSubs`)
+                    gobAddedSubs = true;
                 return owner.subs.on(key, fn);
             }
         });
