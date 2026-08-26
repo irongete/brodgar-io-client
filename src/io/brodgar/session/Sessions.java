@@ -7,7 +7,6 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -153,6 +152,10 @@ public class Sessions {
 	tickmode();         // rts: (F3) the mode, derived from the membership, outside the branch below
 	if(!members.isEmpty()) {
 	    UI an = anchor();
+	    /* rts: (109.2) the member the offsets are measured against, taken once. Every offset is now the
+	     * difference of two bases and the anchor's is one of them, so the loop below needs the member and
+	     * not merely its Glob. */
+	    Member anm = anchormember();
 	    /* rts: (109.1) the base pass, and a loop of its own precisely because it must reach EVERY member.
 	     * The loop below skips the one holding the screen -- the frame has already ticked that session in
 	     * full -- and the anchor's base is one half of every difference between two frames, so a base
@@ -193,7 +196,7 @@ public class Sessions {
 		     * the frame, in full), so no session is stepped twice. */
 		    io.brodgar.addon.AddonManager.tick(u);
 		    m.autoplay(u);
-		    m.tickoffset(anchorglob());
+		    m.tickoffset(anm);
 		} catch(RuntimeException e) {
 		    new Warning(e, String.format("session: tick failed for %s", m.user)).issue();
 		}
@@ -460,8 +463,8 @@ public class Sessions {
      * <p>Three things move, and nothing else has to: which UI the frame draws and dispatches to, and
      * the dormancy of the two views involved. Everything else in the project reads
      * {@link #anchor()} — the offsets, the orders, the merged patches, the selection — so it all
-     * follows by itself. The offsets in particular are measured <em>against</em> the anchor, and
-     * {@code tickoffset} already drops one whose anchor changed, so they re-derive on their own.
+     * follows by itself. The offsets in particular are measured <em>against</em> the anchor, and each
+     * is the difference of two bases derived again every tick, so they follow the screen by themselves.
      */
     public static synchronized void anchor(Member m) {
 	UILoop lp = loop;
@@ -559,32 +562,6 @@ public class Sessions {
 	    buf.append(m.status());
 	}
 	return(buf.toString());
-    }
-
-    /**
-     * The grid-coordinate difference between two sessions' frames, or null when they share no loaded
-     * ground. Every shared grid must agree -- two frames are rigid translations of one another or they
-     * are not frames -- and disagreement is reported, never averaged away.
-     */
-    static Coord findoffgc(Glob anchor, Glob mine, int[] nshared, boolean[] conflict) {
-	Map<Long, Coord> aids = anchor.map.gridids();
-	if(aids.isEmpty())
-	    return(null);
-	Coord d = null;
-	int n = 0;
-	for(Map.Entry<Long, Coord> e : mine.map.gridids().entrySet()) {
-	    Coord agc = aids.get(e.getKey());
-	    if(agc == null)
-		continue;
-	    Coord cd = e.getValue().sub(agc);
-	    if(d == null)
-		d = cd;
-	    else if(!d.equals(cd))
-		conflict[0] = true;
-	    n++;
-	}
-	nshared[0] = n;
-	return(d);
     }
 
     /**
@@ -1065,15 +1042,16 @@ public class Sessions {
 
 	/* rts: this member's frame, against the anchor's (F1, specs/rts/plan.md). Every session logged in
 	 * somewhere else and every coordinate it reports is relative to that, so the same patch of ground
-	 * has a different number in each. A server grid id does not move: one grid both sessions have
-	 * loaded pins the whole frame, as the difference of its two session-local grid coords. Constant
-	 * for a session pair, so it is found once and kept -- and dropped whole if either side relogs. */
-	private volatile Coord offgc = null;      // in grids
-	private volatile Coord2d offset = null;   // the same, in world units
-	private volatile int offshared = 0;
-	private volatile boolean offconflict = false;
-	private Glob offmine = null, offanchor = null;
-	private double offtry = 0;
+	 * has a different number in each. Both sessions record their ground into one map database, so the
+	 * difference is the difference of their two bases -- which needs no ground in common and is derived
+	 * again every tick, because either base moves the moment the server re-bases that session. */
+	private volatile Coord2d offset = null;   // this session's frame minus the anchor's, in world units
+	/* Why there is no offset, or null while there is one. Held rather than derived at the point of
+	 * printing so that the line and the number can never name different reasons. */
+	private volatile String offwhy = "no proved base yet";
+	/* The reason last said out loud. A reason that holds is not news -- a pair walking in and out of a
+	 * house refuses and relates on every transit, and saying it per tick is a line per frame. */
+	private String offsaid = null;
 
 	/**
 	 * Where this session's own coordinates sit in the map database, and whether that has been
@@ -1381,52 +1359,56 @@ public class Sessions {
 	}
 
 	/**
-	 * Find the offset, once, and keep it. Runs every frame and costs one reference comparison after
-	 * it has succeeded; before that it is throttled, because each attempt snapshots both sessions'
-	 * grid tables.
+	 * Derive this member's offset from the anchor's — the difference between two bases, and nothing
+	 * else. Runs every frame, and needs the two sessions to have no ground whatever in common: a base
+	 * is where a session sits in the map database, so subtracting two of them relates two frames
+	 * across any distance.
 	 *
-	 * <p>Every shared grid must yield the same difference — the two frames are rigid translations of
-	 * one another, or they are not frames at all. Disagreement is reported rather than averaged
-	 * away: it would mean something is wrong with this premise, and quietly picking one answer is
-	 * how that would stay hidden.
+	 * <p>Derived again every tick and never kept. The server re-bases a session's coordinate space
+	 * mid-play — a cave, a house — and a kept offset would go on placing that session's ground and
+	 * objects where they have never been, silently, for the rest of the login.
+	 *
+	 * <p><b>Three refusals, and each is named.</b> Two bases relate or they do not: one of them not
+	 * proved, two different map databases, or two different segments of one. The database is asked
+	 * before the segment because a segment id means nothing outside the file that minted it.
 	 */
-	private void tickoffset(Glob anchor) {
-	    Session s = this.sess;
-	    if((s == null) || (anchor == null))
+	private void tickoffset(Member an) {
+	    if((an == null) || (an == this))
 		return;
-	    Glob mine = s.glob;
-	    if(mine == anchor)
-		return;
-	    if((offmine != mine) || (offanchor != anchor)) {
-		offmine = mine;
-		offanchor = anchor;
-		offgc = null;
+	    Base mine = base();
+	    Base ab = an.base();
+	    String why = refusal(mine, ab);
+	    if(why == null) {
+		/* The two bases say where each session's tile (0, 0) sits in one segment, so the difference
+		 * of the two is the whole translation between the frames. Grid-aligned by construction --
+		 * tickbase refuses a base that is not -- so this is exact. */
+		Coord d = ab.tc.sub(mine.tc);
+		offset = Coord2d.of(d.x * MCache.tilesz.x, d.y * MCache.tilesz.y);
+	    } else {
 		offset = null;
-		offshared = 0;
-		offconflict = false;
-		offtry = 0;
 	    }
-	    if(offset != null)
-		return;
-	    double now = Utils.rtime();
-	    if((offtry != 0) && (now - offtry < 1.0))
-		return;
-	    offtry = now;
-	    int[] n = new int[1];
-	    boolean[] conflict = new boolean[1];
-	    Coord d = findoffgc(anchor, mine, n, conflict);
-	    if(d == null)
-		return;   /* no ground in common: the two are not near each other, which is a state, not a fault */
-	    offshared = n[0];
-	    offconflict = conflict[0];
-	    offgc = d;
-	    Coord t = d.mul(MCache.cmaps);
-	    offset = Coord2d.of(t.x * MCache.tilesz.x, t.y * MCache.tilesz.y);
-	    /* rts: anchoring itself is silent -- it happens whenever two characters come within sight of one
-	     * another, and saying so is a line per meeting. Only the state that is WRONG is worth a line: with
-	     * the grids disagreeing the offset is a guess, and every order sent through it lands somewhere else. */
-	    if(conflict[0])
-		say("%s: shared grids disagree -- the offset is not trustworthy", user);
+	    offwhy = why;
+	    /* Only the reason CHANGING is news. Anchoring itself stays silent, as it always has: it happens
+	     * whenever two characters come to stand in one segment, and saying so is a line per meeting. */
+	    if((why != null) && !why.equals(offsaid))
+		say("%s: no offset -- %s", user, why);
+	    offsaid = why;
+	}
+
+	/**
+	 * Why these two bases cannot be related, or null when they can. The one place that decision is
+	 * made, so that a line and the number beside it can never name different reasons.
+	 */
+	private String refusal(Base mine, Base anchor) {
+	    if(mine == null)
+		return("no proved base of its own");
+	    if(anchor == null)
+		return("the anchor has no proved base");
+	    if(mine.file != anchor.file)
+		return("a different map database from the anchor's");
+	    if(mine.seg != anchor.seg)
+		return("a different segment from the anchor's");
+	    return(null);
 	}
 
 	/** The member's frame relative to the anchor's, in world units, or null while it is unknown. */
@@ -1475,9 +1457,18 @@ public class Sessions {
 	 * computed against the wrong grid.
 	 */
 	public String check() {
+	    /* The screen is asked BEFORE the field, the order {@link #where()} takes and for the same
+	     * reason. {@code tickoffset} returns early for the member holding the screen, so its
+	     * {@code offset} still holds whatever it last measured as somebody else's member — and the
+	     * anchor is at zero by construction, so reading that field here would report a distance for a
+	     * session that has none. {@code placed()} applies the same correction to the same field. */
+	    if(anchormember() == this)
+		return("the anchor");
 	    Coord2d off = this.offset;
-	    if(off == null)
-		return("unanchored");
+	    if(off == null) {
+		String why = this.offwhy;
+		return((why == null) ? "no offset yet" : why);
+	    }
 	    GameUI gui = gameui();
 	    Session s = this.sess;
 	    Glob anchor = anchorglob();
@@ -1488,9 +1479,9 @@ public class Sessions {
 		return("self not in own view");
 	    Gob seen = anchor.oc.getgob(gui.plid);
 	    if(seen == null)
-		return("out of the anchor's range");
+		return(String.format("off %s, out of the anchor's range", grids(off)));
 	    Coord2d predicted = mine.rc.sub(off);
-	    return(String.format("err %.3ft", predicted.dist(seen.rc) / MCache.tilesz.x));
+	    return(String.format("off %s err %.3ft", grids(off), predicted.dist(seen.rc) / MCache.tilesz.x));
 	}
 
 	private UI guifor = null;
@@ -1529,13 +1520,21 @@ public class Sessions {
 	 * read <em>through</em> it. Without a proved base the line ends there, carrying no coordinate at
 	 * all: a place said through a base that has not been proved is a place the character has never
 	 * been, and printing one is how that gets believed.
+	 *
+	 * <p>The refusal is decided <b>once</b>, at the top, and both halves of the line are written from
+	 * that one answer. Asking twice — once for the head and once for the offset — is how a line comes
+	 * to name a refusal and print a number in the same breath.
 	 */
 	public String where() {
 	    Base b = base();
 	    if(b == null)
 		return(String.format("%s: no proved base -- %s", user, baseless));
+	    Member an = anchormember();
+	    boolean isanchor = (an == this);
+	    String why = ((an == null) || isanchor) ? null : refusal(b, an.base());
 	    String head = String.format("%s: base %s tile (%d, %d), proved%s",
-					user, Long.toUnsignedString(b.seg, 16), b.tc.x, b.tc.y, against(b));
+					user, Long.toUnsignedString(b.seg, 16), b.tc.x, b.tc.y,
+					(why == null) ? "" : (", " + why));
 	    GameUI gui = gameui();
 	    Session s = this.sess;
 	    Glob anchor = anchorglob();
@@ -1545,44 +1544,34 @@ public class Sessions {
 	    if(mine == null)
 		return(head + " -- no character gob yet");
 	    String own = tiles(mine.rc);
-	    if(s.glob == anchor)
+	    if(isanchor || (s.glob == anchor))
 		return(String.format("%s -- at %s in its own frame, the anchor", head, own));
 	    Coord2d off = this.offset;
-	    if(off == null)
-		return(String.format("%s -- at %s in its own frame, unanchored (%d grids loaded, none shared with the anchor)",
-				     head, own, s.glob.map.numgrids()));
+	    if((why != null) || (off == null))
+		return(String.format("%s -- at %s in its own frame, no offset", head, own));
 	    Coord2d pred = mine.rc.sub(off);
 	    Gob seen = anchor.oc.getgob(gui.plid);
 	    if(seen == null)
-		return(String.format("%s -- own %s -> anchor %s, %d shared grids -- gob %d is not in the anchor's view, nothing to check against",
-				     head, own, tiles(pred), offshared, gui.plid));
-	    return(String.format("%s -- own %s -> anchor %s, anchor sees %s, err %.3f tiles (%d shared grids%s)",
-				 head, own, tiles(pred), tiles(seen.rc),
-				 pred.dist(seen.rc) / MCache.tilesz.x, offshared,
-				 offconflict ? ", DISAGREEING" : ""));
-	}
-
-	/**
-	 * How this base stands to the anchor's own, said on the base's half of the line because it is a
-	 * property of the two bases and of nothing else. Two characters in one segment of one database can
-	 * be related; two in different ones cannot be, however near they walk.
-	 */
-	private String against(Base b) {
-	    Member an = anchormember();
-	    if((an == null) || (an == this))
-		return("");
-	    Base ab = an.base();
-	    if(ab == null)
-		return(", the anchor has no proved base");
-	    if(ab.file != b.file)
-		return(", a different map database from the anchor's");
-	    if(ab.seg != b.seg)
-		return(", a different segment from the anchor's");
-	    return("");
+		return(String.format("%s -- own %s -> anchor %s, offset %s grids -- gob %d is not in the anchor's view, nothing to check against",
+				     head, own, tiles(pred), grids(off), gui.plid));
+	    return(String.format("%s -- own %s -> anchor %s, anchor sees %s, offset %s grids, err %.3f tiles",
+				 head, own, tiles(pred), tiles(seen.rc), grids(off),
+				 pred.dist(seen.rc) / MCache.tilesz.x));
 	}
 
 	private static String tiles(Coord2d p) {
 	    return(String.format("(%.1f, %.1f)", p.x / MCache.tilesz.x, p.y / MCache.tilesz.y));
+	}
+
+	/**
+	 * The offset in grids, which is the unit it is actually measured in: two bases are grid-aligned,
+	 * so the difference between them is a whole number of grids and a fraction here would mean the
+	 * derivation is wrong rather than merely imprecise.
+	 */
+	private static String grids(Coord2d off) {
+	    return(String.format("(%d, %d)",
+				 Math.round(off.x / (MCache.tilesz.x * MCache.cmaps.x)),
+				 Math.round(off.y / (MCache.tilesz.y * MCache.cmaps.y))));
 	}
     }
 

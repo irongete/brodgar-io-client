@@ -1,0 +1,10 @@
+{
+  "name": "109.2 — the offset is a difference of bases",
+  "id": "109-the-frame-a-session-is-in.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 109.2: two characters far enough apart to share no ground are still related, the offset is the difference of their two proved bases and a whole number of grids, and a session whose line names a refusal reports no offset rather than a stale one.",
+  "api_version": 1,
+  "permissions": ["console.run"],
+  "files": ["main.lua"]
+}

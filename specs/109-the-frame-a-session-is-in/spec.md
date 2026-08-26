@@ -77,11 +77,12 @@ refusal, only those whose sentence stops being true rewritten.
 
 ## Context files
 
-- `src/io/brodgar/session/Sessions.java` — 1, 2 *(`tickoffset`, `findoffgc`, `buildplaced`, `where()`)*
+- `src/io/brodgar/session/Sessions.java` — 1, 2 *(`Member.Base`, `tickbase`, `tickoffset`, `refusal`,
+  `buildplaced`, `where()`)*
 - `src/io/brodgar/session/Recall.java` — 1 *(the base/prove idiom: `Base`, `sweep`)*
 - `src/haven/MiniMap.java` — 1, 3 *(`sessloc`, `Location`, `SessionLocator`, `resolve`)*
 - `src/haven/MapFile.java` — 1 *(`lock`, `Segment.gridid`, `load`'s memoization)*
-- `src/haven/MCache.java` — 1, 2 *(`gridids`, `cmaps`, `trimall`)*
+- `src/haven/MCache.java` — 1, 2 *(`cmaps`, `tilesz`, `trimall`)*
 - `src/haven/AddonWidgets.java` — 1 *(`loadedGrids`)*
 - `src/haven/MapView.java` — 2 *(`sessiontick2`, `SessionView`, `tick`'s grid request)*
 - `src/io/brodgar/addon/MapApi.java` — 3 *(`sessloc(user)`, `gridUL`, `segGridUL`, `recordedGridId`)*

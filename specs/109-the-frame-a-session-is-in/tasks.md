@@ -15,7 +15,7 @@
       It asserts a session that cannot be proved is named as such and reports no coordinate at all.
       `[manual]`: with one character underground, its line reads as a segment refusal.
 
-- [ ] **109.2 — The offset is a difference of bases.** `tickoffset` is rewritten to
+- [x] **109.2 — The offset is a difference of bases.** `tickoffset` is rewritten to
       `anchor.tc.sub(mine.tc)` scaled by `MCache.tilesz`, with three refusals in order and each named —
       neither base proved, `seg` differing, `file` differing — said once when the reason **changes**,
       never per tick. `findoffgc` retires with the `offgc`, `offshared`, `offconflict`, `offmine`,

@@ -13,7 +13,7 @@ screen** and never a game session, so a client with none draws that, `UILoop.lay
 | `:session add USER [CHAR]` | connect and hold a session open. The character name is the **rest of the line**, spaces and all; without one it plays whichever the server offers first. An account already live is refused. A token login does not rotate the token, and a failed add deliberately does not clear it |
 | `:session list` | each session and how far it has got: connecting, character list, loading, or its character and how many grids it has streamed |
 | `:session drop USER\|all` | close a session, **any** session. `Session.close` is what ends it, so `RemoteUI.run` unwinds through its own cleanup instead of being torn out from under itself. Dropping the last one leaves the client on the login screen, which is what logging out does |
-| `:session where` | where each session actually is: the **base** its own corner minimap gives it (segment and segment tile coord), whether that base has been **proved** against a live grid, and what the anchoring rests on. One line per session, the anchor's own among them — its base is one half of every difference between two frames. A session with no proved base is named as such and its line stops there, carrying no coordinate at all: a place said through an unproved base is a place the character has never been |
+| `:session where` | where each session actually is: the **base** its own corner minimap gives it (segment and segment tile coord), whether that base has been **proved** against a live grid, and its **offset from the anchor in grids**. One line per session, the anchor's own among them — its base is one half of every difference between two frames. A session with no proved base is named as such and its line stops there, carrying no coordinate at all: a place said through an unproved base is a place the character has never been. A line that names one of the three refusals says `no offset` rather than the last number that worked |
 | `:session anchor USER` | go to a character, named by the **account** it logged in as. The client's own spelling of that gesture, beside every one the addon layer offers through `hafen.session():current(s)` — a switcher row, a cycle hotkey, a click-a-character hotkey. Every one of them calls `Control.take` rather than `Sessions.anchor` directly, so the screen and the selection always move together. Everything else in the layer reads `Sessions.anchor()`, so the offsets, the orders and the merged patches follow by themselves |
 
 **The login screen is a place to go to, not only where you are left.** `Client.Main.run` builds a fresh
@@ -50,9 +50,8 @@ else: `hafen.session():current(s)` (which is `Control.take`), `hafen.ui():mouse(
 and `s:world():focus(p)`. What is left here is the part no addon can hold — the selection, and the one
 click the mode re-addresses.
 
-**That is what makes the modifiers free.** Alt and the left button used to be a selection whatever it
-landed on, so an addon wanting Alt-click on the ground could not have it. Nothing of this layer's reads a
-modifier now.
+**That is what makes the modifiers free.** Nothing of this layer's reads a modifier at all, so Alt and
+the left button over the map are an addon's to claim.
 
 **The mode has no switch of its own.** `Sessions.tickmode` derives it from the membership —
 `members.size() > 1`, the drawn session being a member too — and calls `Control.mode` on the edge alone,
@@ -69,8 +68,9 @@ session's `MapView` owns its own and they cannot be shared — what is shared is
 `Sessions.anchor` hands the outgoing camera to the incoming view (`MapView.adoptcam`) **before**
 `lp.drawn` and before `invalidate`, while `placed()` still measures every offset against the session that
 has the screen: that is the frame the outgoing pan is named in, so `Placed.offset` is what turns it into
-the new session's. Two too far apart to share a grid have no offset, and a pan that cannot be translated
-becomes *follow the character*. What is copied is [world-3d.md](world-3d.md).
+the new session's. A session with no offset — one of the two bases unproved, or the two in different
+segments — cannot have that pan translated, and it becomes *follow the character*. What is copied is
+[world-3d.md](world-3d.md).
 
 | Input | Does |
 |---|---|
@@ -114,7 +114,7 @@ A session that is not drawn is still whole: a `Session`, a `UI`, a widget tree a
 | Consequence | Where |
 |---|---|
 | **Its terrain is never meshed** | `MapRaster.Grid.tick` returns while its node holds no slot, so a view outside a render tree builds nothing. That one fact is what makes holding several sessions affordable, and it cuts both ways: promoting one re-meshes everything in view, which is the hitch on an anchor switch. `MapView.dormant` is the attach and the detach — and it is **decided once**, in the constructor, which then runs its `if(!dormant)` block or does not, for ever. Promotion calls `attachscene` again; nothing re-enters that block, so whatever is hung inside it never happens **at all** for a view that came up behind another, and a constructor is the wrong place for anything that is not about the drawn scene |
-| It still asks the server for ground | `MapView.tick`'s dormant branch. `MCache.sendreqs` and `reqarea` live in `draw`, so a view that is never drawn would never request a grid — and both the offset below and any order needing a destination rest on the session having loaded the ground it stands on. Throttled: `reqarea` calls `getcut` once per cut of its rectangle, and `sendreqs` already rate-limits each grid to one request a second |
+| It still asks the server for ground | `MapView.tick`'s dormant branch. `MCache.sendreqs` and `reqarea` live in `draw`, so a view that is never drawn would never request a grid — and both the base's proof below and any order needing a destination rest on the session having loaded the ground it stands on. Throttled: `reqarea` calls `getcut` once per cut of its rectangle, and `sendreqs` already rate-limits each grid to one request a second |
 | It takes a full share of the addon engine | Its own tick pump and its own per-session caches, attached from `Sessions.Member.start` the moment its `UI` exists — a session's **arrival** is what drives that, never the screen moving to it, so a session nobody looks at is served exactly like one that is. What is not per session is the addons: they are the client's, loaded once, and each ask names what it is about — `Sessions.byuser(user).ui` for the tree an addon **searches**, `Sessions.anchor()` for the screen, `Sessions.mapview` for the scene and `Sessions.layer()` for the tree its own windows are built into. A search reaches a session whether or not it is drawn; only what is genuinely the screen's follows the anchor, and nothing is torn down when it moves |
 | **Its effects are consumed, not deferred** | An overlay is ticked only once it stands in a render tree, and a dormant view has none — so `Gob.ctick` ticks one whose `slots` are still empty when `Glob.dormant` says nobody is looking, and `Sprite.unheard` ends the sprites whose only other ending is being played through (`AudioSprite.ClipSprite`). Otherwise the sprite never ages, never leaves `ols` and keeps the audio stream it opened at construction: every effect a background session was ever told about piles up, and the whole backlog enters the tree in a single frame when that session takes the screen. `Glob.dormant` is settled once per session per frame because `Gob.ctick` asks it per gob |
 | It is silent | `Sessions.applymute` → `ActAudio.RootChannel.mute` scales the channel's `VolAdjust` and leaves `volume` and its pref alone: going quiet because nobody is looking must not read as the user turning the sound down, nor survive into the next launch. Every live session, every frame, and not through `placed()` — the answer changes when a session **joins**, not only when the anchor moves, and a session still on the character list is already making noise while being absent from `placed()`. What this silences is the whole UI channel, which is most of the game's audio: the server's own sounds (`RootWidget`), the minimap's alerts (`GobIcon`), the chat ping (`ChatUI`). The server tells every session about the same event and each `UI` rate-limits only its own (`UI.lastmsgsfx`), so sessions standing together and left unsilenced play one event as many times over |
@@ -122,18 +122,21 @@ A session that is not drawn is still whole: a `Session`, a `UI`, a widget tree a
 
 ## Aligning two coordinate frames
 
-`Gob.rc` is relative to where its session logged in, so one patch of ground has a different number in
-each session. A grid carries both coordinates it has, and only one of them is shared.
+`Gob.rc` is relative to where its session logged in, so one patch of ground has a different number in each
+session. Every session records its ground into one map database, so **where a session sits in that record
+relates it to any other**: two frames are differenced through their bases, needing no ground in common.
 
 | What | Where |
 |---|---|
-| The two coordinates | `MCache.Grid.gc` is this session's and means nothing in another; `MCache.Grid.id` is the server's and is the same number in every client that has ever loaded that grid |
-| Reading them out | `MCache.gridids` snapshots `id` to `gc` under the grids lock, skipping grids whose `id` has not arrived — `Grid.fill` writes it when the `"m"` layer lands, so a grid exists briefly with none |
+| The base | `Sessions.Member.Base` — the `MapFile`, the segment id, the segment tile coord of that session's tile `(0, 0)`, and whether it has been **proved**. Immutable, replaced whole by `Sessions.Member.tickbase` from `GameUI.mmap.sessloc` and no other `MiniMap`: `MapWnd` carries a second over the same file, and a base taken from that one follows a window the user panned. Derived every tick for **every** member, in a loop of its own ahead of the one that skips the session holding the screen — the anchor's base is one half of every difference |
+| Proving it | `Sessions.Member.prove` — a live `MCache.Grid`'s coord translated by the base must find that grid's own `id` in `Segment.gridid`. `sessloc` goes stale rather than null, so a base that merely exists is not one a place may be read through; [minimap.md](minimap.md) carries the rule, its `tryLock` and its lock-miss verdict |
+| The offset | `Sessions.Member.tickoffset`: `anchor.tc.sub(mine.tc)` scaled by `MCache.tilesz`. A base is grid-aligned or `tickbase` refuses it, so this is a whole number of grids and exact |
+| No offset | three refusals, in this order and each named: one of the two bases is not proved · the two name different `MapFile`s (`chrmap`) · they name different segments of one. The database is asked before the segment because `Segment.id` is `rnd.nextLong()` inside the file that minted it. `Member.offwhy` holds the reason and `Sessions.say` fires only when it **changes**; `Member.offset()`, `toanchor` and `tomember` answer null, and `Sessions.buildplaced` drops the member — a session that cannot be related leaves the merged scene rather than being drawn through a base nobody checked |
 
-Intersecting two sessions' id sets and differencing the `gc`s gives the offset between their frames. It is a
-whole number of grids and constant for a pair of sessions, and **every shared grid must agree**: two frames
-are rigid translations of one another or they are not frames, so a disagreement is worth reporting rather
-than averaging away. No shared grid at all means the two are not near each other, a state and not a fault.
+**Derived again every tick, and never kept.** The server re-bases a session's coordinate space mid-play
+(a cave, a house, `MCache.trimall`) and a `Glob` survives that, so an offset found once and kept goes on
+placing that session's ground and objects where they have never been for the rest of the login. It
+subscribes to nothing: a number derived from scratch each frame needs no event to say the ground moved.
 
 ## Ordering a session that is not drawn
 

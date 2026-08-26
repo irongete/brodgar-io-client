@@ -36,6 +36,10 @@
 
 ## Segments, grids, markers
 
+- **A segment id is minted inside the file that holds it.** `MapFile.update` does
+  `new Segment(rnd.nextLong())` for ground that joins nothing already known, off `MapFile`'s own private
+  `Random`. So an id names a segment only within one `MapFile`, and two databases (`GameUI.chrmap` gives a
+  character its own) are never comparable segment by segment: ask which `MapFile` first.
 - `Segment` is an inner class: `id` plus a **private** `map` (coord ⇄ grid id, `HashBMap`) and
   three weak `CacheMap`s. `map` being private is why there is no "list this segment's grids": the client
   itself never enumerates — `MiniMap.redisplay` walks the coords of the rectangle it draws.
