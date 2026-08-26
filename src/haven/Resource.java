@@ -1232,10 +1232,14 @@ public class Resource implements Serializable {
     public class Neg extends Layer {
 	public Coord cc;
 	public Coord[][] ep;
-		
+	// addon: the click-box corners the wire already carries here, opposite the negative-image origin --
+	// unused by the stock client, and gob:hitbox()'s fallback for a resource with no obst layer reads them
+	public Coord ac, bc;
+
 	public Neg(Message buf) {
 	    cc = cdec(buf);
-	    buf.skip(12);
+	    ac = cdec(buf); bc = cdec(buf);   // addon: was buf.skip(12) whole; skip(4) is what's left unread
+	    buf.skip(4);
 	    ep = new Coord[8][0];
 	    int en = buf.uint8();
 	    for(int i = 0; i < en; i++) {

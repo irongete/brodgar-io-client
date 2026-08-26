@@ -136,10 +136,10 @@ gob is given as well as every one after.
 
 ## The ground it stands on
 
-`gob:hitbox()` answers the collision footprint the **server** collides against — a set of polygons in
-the world, rotated by the object's own facing and placed where the object stands. It is an array of
-polygons, each an array of [Positions](position.md), one ring per shape the resource carries: a tree's
-trunk, a fence's whole run, a building's outline.
+`gob:hitbox()` answers the shape the object occupies on the ground — a set of polygons in the world,
+rotated by the object's own facing and placed where the object stands. It is an array of polygons, each
+an array of [Positions](position.md), **one ring per shape the resource carries and every one of them**:
+a tree's trunk, a fence's whole run, a gate's leaf and its post both.
 
 ```lua
 local wall = hafen.session():current():world():gob():nearest("gfx/terobjs/arch/fencing/wattle")
@@ -155,9 +155,26 @@ object rather than at the frame's origin — a hitbox you draw over the HUD land
 came from.
 
 `gob:hitbox()` is `nil` once the gob is gone, before its resource has resolved, and for a resource that
-carries no collision shape at all — a decoration, most flooring, anything nothing walks into. A
-resource that carries one but authors it with no points at all answers the same `nil`, since an empty
-set of polygons is exactly the fact "nothing here blocks movement".
+carries **neither** shape below — a decoration, most flooring, anything nothing walks into and nothing
+marks the ground under either.
+
+> **Two different facts share this one answer, and the verb does not say which you got.** Usually the
+> rings are the resource's **collision** shapes, what the server collides against. But a resource may
+> carry no collision shape and still carry a plain **click-box**, and a felled log
+> (`gfx/terobjs/log`) is exactly that: nothing stops you walking through one, yet it plainly lies
+> somewhere — an 18×4 rectangle, as it happens. `gob:hitbox()` answers that rectangle rather than
+> `nil`, because the question this verb is asked is *where is this thing*, and a `nil` there only ever
+> meant "we found nothing to draw a box from". **So never read a shape coming back as proof that the
+> object blocks movement.** What the two have in common is the only thing promised: world units, turned
+> by the object's facing, placed where it stands.
+>
+> One ring is left out on purpose — a buildable resource's `build` box, which is the clearance a
+> placement ghost checks before you may put one down, not the footprint of the thing that ends up there.
+
+```lua
+local log = hafen.session():current():world():gob():nearest("gfx/terobjs/log")
+local box = log and log:hitbox()   -- not nil: its click-box, not a collision shape it doesn't have
+```
 
 > **The footprint is not what `gob:scale(k)` draws.** Scale changes how big the object *looks*; the
 > footprint is the game's own and does not move with it — [see below](#size-unprotected). Walk into the

@@ -46,6 +46,7 @@ import haven.Moving;
 import haven.Music;
 import haven.OCache;
 import haven.QuestWnd;
+import haven.RenderLink;
 import haven.ResDrawable;
 import haven.Resource;
 import haven.SAttrWnd;
@@ -5194,7 +5195,7 @@ public final class AddonManager {
         Gob g = getgob(user, id);
         if(g == null)
             return LuaValue.NIL;
-        Resource.Obstacle obst;
+        Coord2d[][] rings;
         Coord2d rc;
         double ra;
         synchronized(g) {
@@ -5209,9 +5210,8 @@ public final class AddonManager {
             }
             if(res == null)
                 return LuaValue.NIL;
-            // "", never null: null matches the FIRST layer of the class whatever its id.
-            obst = res.layer(Resource.obst, "");
-            if((obst == null) || (obst.p.length == 0))
+            rings = hitboxRings(res);
+            if(rings == null)
                 return LuaValue.NIL;
             rc = g.rc;
             ra = g.a;
@@ -5220,8 +5220,8 @@ public final class AddonManager {
             return LuaValue.NIL;
         double s = Math.sin(ra), c = Math.cos(ra);
         LuaTable polys = new LuaTable();
-        for(int i = 0; i < obst.p.length; i++) {
-            Coord2d[] ring = obst.p[i];
+        for(int i = 0; i < rings.length; i++) {
+            Coord2d[] ring = rings[i];
             LuaTable poly = new LuaTable();
             for(int o = 0; o < ring.length; o++) {
                 Coord2d p = ring[o];
@@ -5231,6 +5231,71 @@ public final class AddonManager {
             polys.set(i + 1, poly);
         }
         return polys;
+    }
+
+    /**
+     * {@code gob:hitbox()}'s polygons, model-local and unrotated: every {@code obst} ring the resource
+     * carries bar its {@code build} box, plus a rectangle per {@code neg} layer from that layer's
+     * click-box corners ({@code Resource.Neg.ac}/{@code .bc}).
+     *
+     * <p><b>The two are different facts in the same units,</b> and this verb does not distinguish them --
+     * see {@code docs/addons/api/gob.md}. {@code obst} is what the server collides against; a resource
+     * may carry none and still carry a {@code neg} box, {@code gfx/terobjs/log} being the case in point:
+     * nothing stops you walking through a felled trunk, and it plainly lies somewhere all the same.
+     * Both are world units -- {@code Obstacle} ends each point with {@code .mul(MCache.tilesz)} and a
+     * {@code neg} corner is already on that grid, a tile being 11 units precisely because the old 2D
+     * client drew one as 11 pixels.
+     *
+     * <p>{@code null} where the resource carries neither, which is what a decoration nothing walks into
+     * and nothing marks the ground under -- a sign, a cursor's 0x0 box -- looks like.
+     */
+    private static Coord2d[][] hitboxRings(Resource res) {
+        res = shaperes(res);
+        List<Coord2d[]> rings = new ArrayList<Coord2d[]>();
+        // EVERY obst layer, not the one at id "". A resource may carry several under ids of its own and
+        // the shape is the union of them -- a gate's leaf and its post, a building's wings. Only "build"
+        // is left out, and it is not a footprint at all: it is the box the placement ghost checks for
+        // clearance before you may put one down, and it is larger than the thing that ends up there.
+        for(Resource.Obstacle obst : res.layers(Resource.obst)) {
+            if("build".equals(obst.id))
+                continue;
+            for(Coord2d[] ring : obst.p) {
+                if(ring.length >= 3)
+                    rings.add(ring);
+            }
+        }
+        // And every neg box, which is a DIFFERENT fact in the same units -- see the doc comment.
+        for(Resource.Neg neg : res.layers(Resource.negc)) {
+            if((neg.ac == null) || (neg.bc == null) || neg.ac.equals(neg.bc))
+                continue;
+            Coord a = neg.ac, b = neg.bc;
+            rings.add(new Coord2d[] {
+                Coord2d.of(a.x, a.y), Coord2d.of(b.x, a.y), Coord2d.of(b.x, b.y), Coord2d.of(a.x, b.y)
+            });
+        }
+        return rings.isEmpty() ? null : rings.toArray(new Coord2d[0][]);
+    }
+
+    /**
+     * The resource the SHAPE layers live on. A gob's own resource may be a thin wrapper that render-links
+     * to a shared mesh, and it is the linked mesh that carries the {@code obst}/{@code neg} the wrapper
+     * has none of -- so a reader that stops at {@code Drawable.getres()} finds nothing on exactly the
+     * resources built that way. Returns {@code res} itself when there is no such link, which is the
+     * common case.
+     */
+    private static Resource shaperes(Resource res) {
+        try {
+            for(RenderLink.Res link : res.layers(RenderLink.Res.class)) {
+                if(link.l instanceof RenderLink.MeshMat) {
+                    Resource mesh = ((RenderLink.MeshMat)link.l).mesh.get();
+                    if(mesh != null)
+                        return mesh;
+                }
+            }
+        } catch(RuntimeException e) {
+            /* Loading, or a link to a resource that will not resolve: the wrapper is the honest answer */
+        }
+        return res;
     }
 
     /** Best-effort active-overlay resource names ({@code Gob.ols}); unresolved ones are skipped. */

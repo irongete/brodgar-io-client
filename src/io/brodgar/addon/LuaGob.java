@@ -350,12 +350,16 @@ public final class LuaGob {
                 return AddonManager.gobSdt(AddonManager.anygob(h.id));
             }
         });
-        // hitbox() -- the ground the object stands on (113.2): the collision footprint its resource
-        // carries, as an array of polygons, each an array of Positions, rotated by the object's
-        // facing and anchored at its place -- the same rotation the client already does to place the
-        // object on the terrain. nil once the gob is gone, its resource has not resolved, or it
-        // carries no obst layer. NOT what gob:scale(k) draws: the footprint is the game's own and
-        // does not move when the drawn size does -- see docs/client/resources.md for the obst layer.
+        // hitbox() -- the ground the object stands on (113.2): every obst (collision) ring the resource
+        // carries bar its `build` box, PLUS a rectangle per neg layer (addon: a resource with no obst at
+        // all can still carry one of those -- gfx/terobjs/log among them; the two are different facts in
+        // the same units and this verb does not distinguish them, which is why
+        // docs/addons/api/gob.md#the-ground-it-stands-on says so out loud). An array of polygons, each an
+        // array of Positions, rotated by the object's facing and anchored at its place -- the same
+        // rotation the client already does to place the object on the terrain. nil once the gob is gone,
+        // its resource has not resolved, or it carries neither layer. NOT what gob:scale(k) draws: the
+        // footprint is the game's own and does not move when the drawn size does -- see
+        // docs/client/resources.md for both layers.
         m.set("hitbox", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaGob h = handle(a.arg1(), "hitbox");

@@ -72,6 +72,40 @@ the tile grid under the rotated ring to find the lowest point the object's feet 
 arithmetic a reader placing the footprint in the world repeats — the object's facing turns the shape in
 place, then its position slides the turned shape to where it stands.
 
+## `neg`: a click-box the wire carries and the stock reader throws away
+
+`Resource.Neg` (`@LayerName("neg")`) is read for `cc`, the hotspot a UI icon or a cursor sprite is
+placed by, and the eight `ep` rings a click on a *2D* sprite is tested against — both used elsewhere in
+`haven` (`MiniMap`, `SimpleSprite`, `UILoop`'s cursor hotspot). Between `cc` and `ep` the wire also
+carries two more `Coord`s, opposite corners of a plain click-box — `ac` and `bc` below `cc` in the
+stream — and the stock constructor never names them: `buf.skip(12)` walks past all 12 bytes (`ac`,
+`bc`, and 4 more this client does not decode either) without keeping any of it.
+
+**A mesh resource with no `obst` layer at all may still carry one of these.** `gfx/terobjs/log` — the
+trunk a felled tree becomes — is exactly that: no collision shape, because nothing stops you walking
+through one, and a `neg` layer whose `ac`/`bc` are `(-9, -2)` and `(9, 2)`. `addon: ac, bc` decodes
+those two `Coord`s; `io.brodgar.addon`'s one caller is `AddonManager.hitboxRings`, behind
+`gob:hitbox()`. Nothing upstream reads them, so nothing upstream is at risk: the wire was already being
+parsed correctly, with two fields discarded further in.
+
+**Its units are world units, the same `obst` ends in.** That is easy to doubt, because `cc` beside them
+is a *pixel* hotspot everywhere else it is read (`MiniMap`, `UILoop`'s cursor, and `MiniMap` even wraps
+it in `UI.scale`) — but a tile is 11 world units precisely *because* the old 2D client drew one as 11
+pixels, so the grids coincide. The numbers settle it either way: `18×4` for a log, `6×22` for a drying
+frame, `10×10` for the largest bumling — 1.6, 2 and 0.9 tiles, which is what those objects measure.
+Multiplying by `MCache.tilesz`, as `obst` needs, would make a log 18 **tiles** long.
+
+Reading the layer is not the whole job, and two of the three remaining steps are easy to get wrong:
+
+- **All of them, not the first.** `res.layers(...)` — a resource may carry several `obst` layers under
+  ids of its own and the shape is their union. `res.layer(Resource.obst, "")` finds only the unnamed
+  one, which on such a resource silently answers a fragment of the object, or nothing.
+- **Except `build`.** An `obst` layer under that id is the clearance a placement ghost tests before you
+  may put one down. It is larger than the object, and it is not where the object is.
+- **On the render-linked mesh.** A gob's own resource may be a thin wrapper whose geometry — and whose
+  `obst`/`neg` — lives on a mesh resource it reaches through a `RenderLink.MeshMat` layer. A reader that
+  stops at `Drawable.getres()` finds neither layer on exactly the resources built that way.
+
 ## The gob monitor already guards it
 
 `$cres.apply` runs from `OCache.GobInfo.apply`, which takes `synchronized(gob)` around every pending
