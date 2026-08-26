@@ -3,12 +3,12 @@ package haven;
 import java.util.List;
 
 /**
- * addon: package-scoped accessors for the AddOn widget-tree read adapters
- * ({@code io.brodgar.addon}, spec {@code 14-widget-tree-reads.md}).
+ * addon: package-scoped accessors for the AddOn read adapters ({@code io.brodgar.addon}), for state
+ * that {@code haven} keeps {@code private}/{@code protected} — {@link GameUI} widget trees (spec
+ * {@code 14-widget-tree-reads.md}), and beyond them any other field this package hides that an addon
+ * still needs to read, such as a {@link ResDrawable}'s state bytes.
  *
- * <p>Much high-value client state lives in {@link GameUI} widget trees whose fields are
- * {@code private}/{@code protected} (audit B5), so the bridge cannot read them from its own package.
- * Rather than raw reflection, the adapters go through this single {@code haven}-package helper — the
+ * <p>Rather than raw reflection, the adapters go through this single {@code haven}-package helper — the
  * same trick {@link SpeakerIcon} uses for the buddy label. It localizes the one non-zero-edit read
  * surface in one place: upstream churn breaks this file, not every adapter, and Lua never gets
  * reflection (decision D-017).
@@ -62,6 +62,32 @@ public final class AddonWidgets {
      */
     public static boolean buffDest(Buff b) {
         return (b != null) && b.dest;
+    }
+
+    /**
+     * The state bytes of a gob's resource drawable ({@link ResDrawable#sdt}, package-private) —
+     * backs {@code gob:sdt()}. {@code null} for a gob whose {@link Drawable} is not a
+     * {@link ResDrawable} at all (a player's body is a {@code Composite}), which is a documented
+     * answer rather than a hole; the empty array is a resource-drawn gob the server sent no state
+     * for, and the two are not interchangeable.
+     *
+     * <p>Hands back {@code sdt.clone().bytes()} rather than reading the field's own bytes directly:
+     * a fresh reader off {@link MessageBuf#clone()} leaves the sprite's own cursor untouched, since
+     * the field is shared with whatever {@link haven.Sprite} was built from it.
+     *
+     * <p>Read under the gob monitor, which is the write side's own — {@code ResDrawable.$cres.apply}
+     * reassigns the field from inside {@code OCache.ObjDelta.apply}'s {@code synchronized(gob)} — so
+     * that is the whole of the correctness this needs; no {@code volatile}.
+     */
+    public static byte[] gobSdt(Gob g) {
+        if(g == null)
+            return null;
+        synchronized(g) {
+            Drawable d = g.getattr(Drawable.class);
+            if(!(d instanceof ResDrawable))
+                return null;
+            return ((ResDrawable)d).sdt.clone().bytes();
+        }
     }
 
     /**

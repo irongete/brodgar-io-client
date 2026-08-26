@@ -5048,6 +5048,25 @@ public final class AddonManager {
         return (name != null) && name.equals(PLAYER_RES);
     }
 
+    /**
+     * {@code gob:sdt()} — the state bytes the server sent with the gob's resource, as a 1-based array
+     * of {@code 0..255} numbers: the honest read, since what the bytes mean belongs to that resource's
+     * own published code and never to this client. {@code nil} once the gob is gone or its body is
+     * composed rather than resource-drawn ({@link AddonWidgets#gobSdt} states which); the empty array
+     * for a resource-drawn gob the server sent none for — the two are not the same answer.
+     */
+    static LuaValue gobSdt(Gob g) {
+        if(g == null)
+            return LuaValue.NIL;
+        byte[] b = AddonWidgets.gobSdt(g);
+        if(b == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        for(int i = 0; i < b.length; i++)
+            t.set(i + 1, LuaValue.valueOf(b[i] & 0xff));
+        return t;
+    }
+
     /** Best-effort active-overlay resource names ({@code Gob.ols}); unresolved ones are skipped. */
     static LuaTable overlayNames(Gob g) {
         LuaTable out = new LuaTable();
@@ -5113,6 +5132,9 @@ public final class AddonManager {
                 LuaTable ols = overlayNames(g);
                 if(ols.length() > 0)
                     t.set("overlays", ols);
+                LuaValue sdt = gobSdt(g);
+                if(!sdt.isnil())
+                    t.set("sdt", sdt);
             }
         } catch(RuntimeException e) {
             /* partial snapshot is fine (e.g. world data still resolving) */

@@ -1,9 +1,9 @@
 # Overlay: what is drawn at a gob
 
 `gob:overlay()` answers one question: **what is drawn at this gob?** It is the collection of everything
-painted there — the game's own (a fire's flame, a crop's growth stage), your own screen-space painters,
-and whatever you have [standing in the world](vr/README.md) anchored to it — and the key is your own name
-for one of yours.
+painted there — the game's own (a fire's flame), your own screen-space painters, and whatever you have
+[standing in the world](vr/README.md) anchored to it — and the key is your own name for one of yours.
+A crop's growth stage is not drawn here at all: it is server state, read as [`gob:sdt()`](gob.md#state).
 
 ```lua
 local s = hafen.session():current()      -- the character on screen

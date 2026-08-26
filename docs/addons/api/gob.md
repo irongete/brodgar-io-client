@@ -89,6 +89,7 @@ answer. None of them throws.
 | `gob:kin()` | [`Kin`](kin.md) \| nil | the kin standing here, if the reading character has them on its roster |
 | `gob:party()` | [`PartyMember`](party.md) \| nil | the party member standing here, in the party of the character that read it |
 | `gob:distance(other)` | number \| nil | world distance to another Gob; defaults to the reading character |
+| `gob:sdt()` | number[] \| nil | state bytes the server sent with its resource — [see below](#state) |
 | `gob:info()` | [`GobInfo`](types/world.md#gobinfo) \| nil | everything above as one plain snapshot table |
 
 > `gob:name()` is the **type** resource — `"gfx/borka/body"` for any player body — not a character's
@@ -102,6 +103,26 @@ prefer the methods — they are always fresh, while a snapshot is frozen at the 
 `gob:distance(other)` measures inside **one** character's world. Each character's coordinates are relative to
 where it logged in, so a pair is measured by a character that can see both, and two objects no single
 character of yours can see together answer `nil`.
+
+## State
+
+`gob:sdt()` answers the raw state bytes the **server** sent with the gob's resource — a crop's stage, a
+gate's leaf, a stockpile's count — as a 1-based array of `0..255` numbers. What the bytes *mean* belongs
+to that resource's own published code, so the client never decodes them: the honest read is the bytes
+themselves, and turning one into a name is guessing this API does not do.
+
+```lua
+local crop = hafen.session():current():world():gob():nearest("gfx/terobjs/plants/carrot")
+local bytes = crop and crop:sdt()
+if bytes then
+  hafen.log():write(#bytes .. " state byte(s)")
+end
+```
+
+`gob:sdt()` is `nil` once the gob is gone, and also for a gob whose body is **composed** rather than
+drawn from a resource — a player, most notably, which carries no state bytes at all. A resource-drawn
+gob the server sent no state for answers the **empty array**, not `nil`: the two are different facts,
+and [`gob:info().sdt`](types/world.md#gobinfo) carries whichever the live read does.
 
 ## Size (unprotected)
 

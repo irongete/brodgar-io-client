@@ -1,0 +1,9 @@
+{
+  "name": "113.1 — the state the server sent, as the bytes it sent",
+  "id": "113-the-shape-and-the-state.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 113.1: gob:sdt() answers a dense 1-based 0..255 array for a resource-drawn gob, nil for one that is gone or whose body is composed, matches gob:info().sdt element for element and survives a hafen.json round trip, and gob:sdt(1) raises naming arity.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -335,6 +335,21 @@ public final class LuaGob {
                 return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
             }
         });
+        // sdt() — the state bytes the SERVER sent with the gob's resource (113.1): a crop's stage, a
+        // gate's leaf, a stockpile's count, as the honest 1-based 0..255 read. What the bytes MEAN is
+        // that resource's own published code, never this client's to decode -- see docs/client/resources.md
+        // for the OD_RES -> ResDrawable.$cres -> sdt path. nil once the gob is gone or its body is
+        // COMPOSED rather than resource-drawn (a player); the empty array is a resource-drawn gob the
+        // server sent no state for, and the two are not the same answer.
+        m.set("sdt", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaGob h = handle(a.arg1(), "sdt");
+                if(Args.passed(a, 2))
+                    throw new LuaError("gob:sdt() takes no arguments — arity is the verb here, so call"
+                        + " it with no argument to read the state bytes");
+                return AddonManager.gobSdt(AddonManager.anygob(h.id));
+            }
+        });
         // overlay() — THE ONE WAY to attach anything to a game object, and the one way to read what is already
         // attached (038.1), as the collection of everything on this gob (039.3):
         //   gob:overlay():list(filter)   -- every overlay: yours, then the GAME's own (ov:native())
