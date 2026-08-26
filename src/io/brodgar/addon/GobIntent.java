@@ -10,8 +10,8 @@ import java.util.Map;
 
 /**
  * <b>What an addon has asked to be drawn at one game object</b> (092.7, A-087) &mdash; the intent behind
- * {@code gob:scale(k)} and {@code gob:overlay():add(key)}, held per <b>gob id</b> so a session that loads the
- * object <i>afterwards</i> draws it the same.
+ * {@code gob:scale(k)}, {@code gob:visible(b)} and {@code gob:overlay():add(key)}, held per <b>gob id</b> so a
+ * session that loads the object <i>afterwards</i> draws it the same.
  *
  * <p><b>Why it has to exist.</b> A gob id is the server's and names one object; a {@link Gob} is per
  * {@link haven.OCache}, so one object is as many Gobs as there are characters that can see it. 080.1 made a
@@ -34,22 +34,26 @@ import java.util.Map;
  * {@code GobRemoved} fires and an overlay is reported gone. While any character can still see the object, the
  * object is still loaded, and one object drawn two sizes in two windows is the defect rather than the rule.
  *
- * <p>UI-thread only, like the two writes that fill it and the drain that reads it (P5). {@code HashMap}, and
+ * <p>UI-thread only, like the writes that fill it and the drain that reads it (P5). {@code HashMap}, and
  * keyed by {@code Long}: a gob id is a server id, not an object identity.
  */
 final class GobIntent {
     private GobIntent() {}
 
-    /** What has been asked for at one object. Both halves may be empty; the record goes when both are. */
+    /** What has been asked for at one object. Any part of it may be empty; the record goes when all are. */
     private static final class Record {
         /** The addon that last wrote the size, and what it wrote &mdash; {@code null} for a gob nobody scaled. */
         Addon scaleOwner;
         float scale;
+        /** The addon that hid the object, or {@code null} &mdash; a gob nobody hid is drawn, so there is no
+         *  second field: this one being set IS "hidden", and showing it again forgets rather than recording
+         *  "drawn", exactly as writing {@code gob:scale(1)} forgets a size. */
+        Addon hideOwner;
         /** The overlay records standing on this object, in attach order &mdash; the very objects the copies share. */
         final List<LuaGobOverlay.Attach> overlays = new ArrayList<LuaGobOverlay.Attach>();
 
         boolean empty() {
-            return (scaleOwner == null) && overlays.isEmpty();
+            return (scaleOwner == null) && (hideOwner == null) && overlays.isEmpty();
         }
     }
 
@@ -64,7 +68,7 @@ final class GobIntent {
         return r;
     }
 
-    // ---- what the two writes record ---------------------------------------------------------------
+    // ---- what the writes record -------------------------------------------------------------------
 
     /**
      * {@code gob:scale(k)} was written. <b>One size, last write wins</b>, which is {@link GobScale}'s own rule
@@ -84,6 +88,38 @@ final class GobIntent {
         Record r = record(id, true);
         r.scaleOwner = owner;
         r.scale = k;
+    }
+
+    /**
+     * {@code gob:visible(b)} was written. <b>One object, drawn or not, last write wins</b> &mdash; the same
+     * rule the size above keeps, and for the same reason: an object has one answer, so this records who wrote
+     * it rather than layering two addons' opinions. Writing {@code true} is putting the object back, so it
+     * forgets: being drawn is the absence of this state on the copy, and it is the absence of it here too.
+     */
+    static synchronized void visible(long id, Addon owner, boolean vis) {
+        if(vis) {
+            Record r = record(id, false);
+            if(r != null) {
+                r.hideOwner = null;
+                prune(id, r);
+            }
+            return;
+        }
+        record(id, true).hideOwner = owner;
+    }
+
+    /**
+     * <b>Every object {@code a} is holding hidden</b>, for the teardown sweep that has to put them back in
+     * every session that holds a copy. Read before {@link #dropOwner} forgets who wrote what, because after
+     * it there is nothing left to say which objects those were.
+     */
+    static synchronized List<Long> hiddenBy(Addon a) {
+        List<Long> out = new ArrayList<Long>();
+        for(Map.Entry<Long, Record> e : intents.entrySet()) {
+            if(e.getValue().hideOwner == a)
+                out.add(e.getKey());
+        }
+        return out;
     }
 
     /**
@@ -127,6 +163,8 @@ final class GobIntent {
             Record r = it.next().getValue();
             if(r.scaleOwner == a)
                 r.scaleOwner = null;
+            if(r.hideOwner == a)
+                r.hideOwner = null;
             for(Iterator<LuaGobOverlay.Attach> oi = r.overlays.iterator(); oi.hasNext(); ) {
                 if(oi.next().owner == a)
                     oi.remove();
@@ -174,6 +212,10 @@ final class GobIntent {
                 /* a copy that cannot take it draws its own size: a state, not a fault */
             }
         }
+        /* Before the copy is let into a render tree at all (the drain releases the 114.1 hold below this
+         * walk), so an object arriving hidden is never drawn once and then taken away. */
+        if(r.hideOwner != null)
+            g.addonvisible(false);
         for(int i = 0, n = r.overlays.size(); i < n; i++) {
             try {
                 LuaGobOverlay.ensure(g).put(r.overlays.get(i));

@@ -208,6 +208,7 @@ public final class AddonRegistry {
                                       //   for the same reason, on the state's other half. A gob's size records
                                       //   who wrote it, so another addon's scale is left alone; nothing an
                                       //   addon that stopped running left distorted stays distorted.
+                                      //   114.3: ...and every object it hid is drawn again, in the same walk.
         a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
         LuaWidgetOverlay.teardown(a); // 103.3: ...and every painter this addon hung on a WIDGET comes off the
                                       //   widget as well as off the addon's list — the paint walks the widget's

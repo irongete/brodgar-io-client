@@ -5540,6 +5540,9 @@ public final class AddonManager {
                 LuaValue sdt = gobSdt(g);
                 if(!sdt.isnil())
                     t.set("sdt", sdt);
+                // 114.3: whether the client draws this object at all. Always present, like `moving`: an
+                // object nobody hid answers true, and the two are different facts rather than one absence.
+                t.set("visible", LuaValue.valueOf(!g.addoninvis));
             }
         } catch(RuntimeException e) {
             /* partial snapshot is fine (e.g. world data still resolving) */

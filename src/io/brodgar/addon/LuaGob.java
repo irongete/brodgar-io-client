@@ -397,7 +397,8 @@ public final class LuaGob {
                 return LuaOverlay.collection(owner, h.id);
             }
         });
-        // scale() / scale(k) -- how big the game object is DRAWN, and the handle's one WRITE (046.1). Bare
+        // scale() / scale(k) -- how big the game object is DRAWN (046.1), the elder of this handle's two
+        // writes, the other being visible(b) below. Bare
         // reads the factor (1 for a gob nobody scaled, nil once the gob is gone); one number writes it and
         // hands the GOB back, so gob:scale(2):name() is one chain. It is the read/write pair every hafen.vr()
         // entity answers, on the same footing gob:overlay() stands on: client-local, purely visual, unprotected --
@@ -433,6 +434,43 @@ public final class LuaGob {
                 // who holds it now, which is a snapshot; the intent is recorded against the object's id and
                 // re-applied by the gob drain when another session's copy arrives (GobIntent).
                 GobIntent.scale(h.id, owner, k);
+                return self;
+            }
+        });
+        // visible() / visible(b) -- an object the client DRAWS, or does not (114.3). A boolean property is a
+        // property, so one name carries both directions: bare reads whether it is drawn (nil once the gob is
+        // gone), and true/false writes it and hands the GOB back, so gob:visible(false):name() is one chain.
+        //   IT IS NOT A SIZE OF ZERO. Hiding used to mean gob:scale(0.001) -- a sub-pixel model that is still
+        // in the tree, still ticked and still drawn. This withholds the Drawable itself, so the object has no
+        // geometry at all: nothing is rasterised for it and the pick pass, which tests the drawn scene, cannot
+        // find it either. Everything else about the object is untouched -- it is still placed, still moves,
+        // still answers every read, and what is ATTACHED at it (its own overlays, and yours) still draws.
+        //   The same footing as the size: client-local, purely visual, unprotected. Written to EVERY live
+        // copy of the object (080.1), recorded against the object so a character that loads it later draws it
+        // hidden too (092.7), dropped when the object leaves its last session, and put back in every session
+        // by teardown when the addon goes away (UiApi.teardownGobScales).
+        //   It COMPOSES with gob:scale(k): the size lives on a GobScale attrib and this on the Gob itself, so
+        // hiding an object does not forget how big it was drawn and showing it brings that size back.
+        m.set("visible", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaGob h = handle(self, "visible");
+                LuaValue bv = Args.written(a, 2, "gob:visible", "b");
+                if(bv == null) {
+                    Gob g = gob(self, "visible");
+                    return (g == null) ? LuaValue.NIL : LuaValue.valueOf(!g.addoninvis);
+                }
+                // A bare adjective takes a bare boolean. LuaJ would coerce anything at all through
+                // toboolean(), and 0 is TRUE in Lua -- so gob:visible(0) reading as "show it" is the one
+                // silent wrong answer this verb can give, and it is refused naming the argument instead.
+                if(!bv.isboolean())
+                    throw new LuaError("gob:visible(b): b must be true or false, got " + bv.typename());
+                boolean vis = bv.toboolean();
+                // A gob that is gone takes the write and does nothing with it, like every other verb here:
+                // nobody holds it, so the walk is empty and that IS doing nothing with it.
+                for(Gob g : AddonManager.gobCopies(h.id))
+                    g.addonvisible(vis);
+                GobIntent.visible(h.id, owner, vis);
                 return self;
             }
         });

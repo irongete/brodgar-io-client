@@ -39,7 +39,7 @@
       assertions rather than assuming that suite was ever run.
       `[manual]`: read the three edited passages and confirm each says what the client now does.
 
-- [ ] **114.3 — `gob:visible(b)`: an object the client draws, or does not.** Adds
+- [x] **114.3 — `gob:visible(b)`: an object the client draws, or does not.** Adds
       `Gob.addoninvis` (`volatile boolean`, `// addon:`) read by 114.1's gate, which attaches every
       `RenderTree.Node` attrib **except** the `Drawable` while it is set. Adds the `visible` verb to
       `LuaGob` — `gob:visible()` reads, `gob:visible(b)` writes and hands the Gob back — with the

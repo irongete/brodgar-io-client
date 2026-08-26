@@ -2722,10 +2722,16 @@ final class UiApi {
     }
 
     /**
-     * Put every gob {@code a} resized back to its original size ({@code :reload}/disable) — the twin of
-     * {@link #teardownGobOverlays} and, like it, one walk of the object caches at a rare moment. Nothing an
-     * addon that is no longer running left distorted stays distorted, <b>in any session it is distorted
-     * in</b>, which is what makes a purely visual write on the game's own objects safe to leave unprotected.
+     * Put every gob {@code a} resized back to its original size, and every gob it hid back into the scene
+     * ({@code :reload}/disable) — the twin of {@link #teardownGobOverlays} and, like it, one walk of the
+     * object caches at a rare moment. Nothing an addon that is no longer running left distorted stays
+     * distorted and nothing it left hidden stays hidden, <b>in any session it wrote in</b>, which is what
+     * makes a purely visual write on the game's own objects safe to leave unprotected.
+     *
+     * <p><b>An object the addon hid is put back by id</b>, because that is where the record is: a gob is
+     * drawn or it is not, one object at a time, so who asked for that is held once against the object
+     * ({@link GobIntent}) rather than once per copy. The size goes the other way — {@link GobScale} is an
+     * attrib, so it carries its own owner on each copy — and the two are read in the same walk.
      *
      * <p>Every live session, for its twin's reason (080.1): {@code gob:scale(k)} lands on every copy of the
      * object, so the sweep that undoes it reads every session's cache — the guarantee is about the object,
@@ -2739,6 +2745,7 @@ final class UiApi {
      * because teardown may run off the UI thread (session bind) while {@code ctick} rebuilds the state.
      */
     static void teardownGobScales(Addon a) {
+        List<Long> hidden = GobIntent.hiddenBy(a);   // 114.3: read BEFORE the record is dropped
         GobIntent.dropOwner(a);   // 092.7: ...including at objects no session holds yet — nothing this addon
         for(String user : users()) {   //   asked for is re-applied to a copy that arrives after it is gone
             UI u = sessionui(user);
@@ -2748,6 +2755,14 @@ final class UiApi {
                 try {
                     for(Gob g : allGobs(user))
                         GobScale.revert(g, a);
+                    // 114.3: ...and every object it was holding out of the scene is drawn again. By id and
+                    // not by a mark on the copy: an object is drawn or it is not, so the record of who asked
+                    // lives once against the object rather than once per session that happens to hold it.
+                    for(int i = 0, n = hidden.size(); i < n; i++) {
+                        Gob g = AddonManager.getgob(user, hidden.get(i).longValue());
+                        if(g != null)
+                            g.addonvisible(true);
+                    }
                 } catch(RuntimeException e) {
                     /* best-effort cleanup — a leftover scale is visual only, and dies with the gob anyway */
                 }

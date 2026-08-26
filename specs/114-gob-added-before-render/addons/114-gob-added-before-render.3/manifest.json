@@ -1,0 +1,9 @@
+{
+  "name": "114.3 — gob:visible(b): an object the client draws, or does not",
+  "id": "114-gob-added-before-render.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 114.3: the visible read/write pair round-trips on a live object and chains, it composes with the size, a hidden object is still there, and a non-boolean argument is refused naming it.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

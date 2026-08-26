@@ -49,6 +49,13 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
      * COPY and not per gob id: one object is as many Gobs as there are sessions that see it, and a copy the
      * layer never queued -- a client-only gob, an OCache.Virtual -- is never set and so never held. */
     public volatile boolean addonpend = false;
+    /* addon: 114.3 -- an object the client does not draw. Read by the gate below and by setattr, both of which
+     * attach every RenderTree.Node attrib of this copy EXCEPT its Drawable while it is set, so the object is
+     * still placed, still ticks, still carries its overlays and still answers every read -- it simply has no
+     * geometry in the tree, which is also why the pick pass cannot find it. Written through addonvisible(),
+     * never directly: the flag alone decides an add that has not happened yet, and a copy already in a tree
+     * needs its Drawable taken out of the slots it is standing in. */
+    public volatile boolean addoninvis = false;
     private final Collection<SetupMod> setupmods = new ArrayList<>();
     private final LinkedList<Runnable> deferred = new LinkedList<>();
     private Loader.Future<?> deferral = null;
@@ -646,8 +653,8 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		setupmods.remove(prev);
 	}
 	if(a != null) {
-	    if(a instanceof RenderTree.Node) {
-		try {
+	    if((a instanceof RenderTree.Node) && !addonhidden(a)) {   // addon: 114.3 -- a hidden object's new
+		try {                                                //   model is not drawn either
 		    RUtils.multiadd(this.slots, (RenderTree.Node)a);
 		} catch(Loading l) {
 		    if(prev instanceof RenderTree.Node) {
@@ -786,10 +793,43 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		slot.add(ol);
 	}
 	for(GAttrib a : attr.values()) {
-	    if(a instanceof RenderTree.Node)
+	    if((a instanceof RenderTree.Node) && !addonhidden(a))   // addon: 114.3 -- every attrib but the Drawable
 		slot.add((RenderTree.Node)a);
 	}
 	slots.add(slot);
+    }
+
+    /* addon: 114.3 -- is this the attrib an invisible object withholds? The Drawable is the object's own model
+     * and nothing else is: its overlays are not attribs, and the attribs that are RenderTree.Nodes beside it
+     * (SpeakerIcon, and a Following's transform) say things ABOUT the object rather than draw it. */
+    private boolean addonhidden(GAttrib a) {
+	return(addoninvis && (a instanceof Drawable));
+    }
+
+    /* addon: 114.3 -- draw this copy, or do not. The flag settles an add that has yet to happen; the deferred
+     * half reconciles a copy that is already standing in a tree, using the very helpers setattr uses for the
+     * same surgery. It is deferred rather than done here for two reasons: GAttrib.slots may only be touched
+     * under this gob's own monitor, which the caller (a Lua verb, on the UI thread) does not hold, and adding
+     * a Drawable back can throw Loading when its sprite is still resolving -- Loader.Future parks the deferral
+     * on that and re-runs it, which is the retry this would otherwise have to grow itself. Both directions go
+     * the same way round, so a hide and a show in one tick land in the order they were asked for. */
+    public void addonvisible(boolean vis) {
+	if(addoninvis == !vis)
+	    return;
+	addoninvis = !vis;
+	defer(this::addonsyncvis);
+    }
+
+    private void addonsyncvis() {
+	Drawable d = getattr(Drawable.class);
+	if(d == null)
+	    return;
+	if(addoninvis) {
+	    if(d.slots != null)
+		RUtils.multirem(new ArrayList<>(d.slots));
+	} else if((d.slots == null) || d.slots.isEmpty()) {
+	    RUtils.multiadd(this.slots, d);
+	}
     }
 
     public void removed(RenderTree.Slot slot) {

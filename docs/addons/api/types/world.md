@@ -38,6 +38,7 @@ always fresh. [`session:world`](../world.md) and the `GobAdded`/`GobRemoved` eve
 | `icon` | string | minimap icon category name; optional |
 | `overlays` | string[] | active overlay resource names; optional |
 | `sdt` | number[] | 1-based `0..255` state bytes the resource's own code interprets; optional — present only for a resource-drawn gob, empty array included |
+| `visible` | bool | whether the client draws it, read live as [`gob:visible()`](../gob.md#drawn-or-not-unprotected); `true` for an object nobody hid |
 
 > **Other players' display names are not available**, a limit of the client and the protocol. `name` is
 > the body resource. A name resolves only for a character of your own,

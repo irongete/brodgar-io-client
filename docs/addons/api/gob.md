@@ -34,9 +34,10 @@ The answers do not depend on which one it was. `:name()`, `:health()` and the re
 object, and `:position()` hands back a [Position](position.md) anchored on a **server** grid
 id, so two characters looking at one tree compute the same place out of two different frames.
 
-**The two writes go the other way**: [`gob:scale(k)`](#size-unprotected) and
-[`gob:overlay()`](overlay.md)`:add(key)` change how the object *looks*, and one object looks one way — so
-they are written to every character that can see it, not to the one that would have done a read.
+**The writes go the other way**: [`gob:scale(k)`](#size-unprotected),
+[`gob:visible(b)`](#drawn-or-not-unprotected) and [`gob:overlay()`](overlay.md)`:add(key)` change how the
+object *looks*, and one object looks one way — so they are written to every character that can see it, not
+to the one that would have done a read.
 
 ### `gob:sessions()`
 
@@ -222,6 +223,42 @@ behind. Once the gob is gone the read answers `nil` and a write does nothing.
 > still having it in view keeps it. Re-apply it from [`GobAdded`](event/bus/world.md#world) if you want it
 > kept across the unload — and a `:reload` or a disable puts back everything you resized, in every character's
 > view, so nothing is left distorted behind you anywhere.
+
+## Drawn or not (unprotected)
+
+`gob:visible(b)` says whether the client draws the object at all — the tree standing between you and what
+you are working on, the clutter over a spot you are lining up. It is the read/write pair
+[`gob:scale(k)`](#size-unprotected) is, with a boolean where that one has a number.
+
+| Method | Returns | Description |
+|---|---|---|
+| `gob:visible()` | bool \| nil | whether the client draws it; `true` for an object nobody hid |
+| `gob:visible(b)` | the Gob | draw it, or stop drawing it |
+
+```lua
+local tree = hafen.session():current():world():gob():nearest("terobjs/tree")
+if tree then
+  tree:visible(false)     -- out of the scene, and it hands the Gob back, so this chains
+  tree:visible(true)      -- and back into it, at whatever size it was being drawn
+end
+```
+
+> **An object you hide is not there to be clicked.** A click is resolved against the scene as it is drawn,
+> and an object with no model in it draws nothing — so a click where it stood reaches the ground behind
+> it. That is the verb's whole meaning: it will not hide a model and keep the click.
+
+Hiding withholds the object's own model, and nothing else. It is still where it was, still moving, and it
+still answers every read on this page; what is attached at it goes on drawing — the game's own overlays and
+[the ones you attached](overlay.md) both, standing where the model was. It also composes with the size:
+`boar:scale(2):visible(false):visible(true)` is a boar still twice its size.
+
+`b` must be `true` or `false`, and anything else raises naming the argument — a number most of all, since
+in Lua `0` is a true value and would quietly show an object you meant to hide. Once the gob is gone the
+read answers `nil` and a write does nothing.
+
+Where the write lands and how long it lasts are [a size's rules exactly](#size-unprotected) — the object
+rather than a character, and the loaded object's own lifetime — and a `:reload` or a disable puts back
+everything you hid, so nothing is left missing from the world behind you.
 
 ## Overlays
 
