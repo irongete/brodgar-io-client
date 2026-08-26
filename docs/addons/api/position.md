@@ -67,6 +67,16 @@ coordinate in a given session at all. It keeps its durable form — `:info()` an
 `:x()`, `:y()` and `:tileCoord()` answer `nil`, and the verbs that act on the world refuse it **naming the
 character** it is out of reach for. Another character may well be able to reach it.
 
+**Off the ground a character is streaming, a place resolves through a base that has been proved.** Every
+character logged in somewhere else, so the client keeps, per session, where that session's own coordinates
+sit in the map database — and it checks that base against a live grid's id every frame rather than trusting
+it. The server re-bases a session's coordinate space in the middle of play, stepping into a cave or a house,
+and for a moment afterwards the base still names the ground just left. **In that moment a place off the
+streamed terrain answers `nil` rather than a number**, and so does one asked of a character whose base
+cannot be proved at all. The number it would have answered is a place that character has never been, and
+`nil` is the only honest form of it. Ground the character *is* streaming answers throughout: it is read off
+the terrain itself and needs no base.
+
 **Two Positions are never equal** unless they are literally the same object. A Position is a value, so
 compare what it *names*: `:info()` for the durable form, `:tileCoord()` for the tile, `:distance()` for
 nearness.

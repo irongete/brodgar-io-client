@@ -1064,22 +1064,33 @@ public class Sessions {
 	public static final class Base {
 	    /** Which map database this session names — two characters need not share one ({@code chrmap}). */
 	    public final MapFile file;
-	    /** The segment this session is standing in. */
-	    public final long seg;
-	    /** The segment tile coord of this session's tile {@code (0, 0)}: segment tile = session tile + this. */
-	    public final Coord tc;
+	    /**
+	     * The segment this session is standing in and the segment tile coord of its tile {@code (0, 0)}:
+	     * segment tile = session tile + {@code loc.tc}. The client's own type, held whole rather than
+	     * copied apart, because it is what everything that converts a place converts <em>through</em>.
+	     */
+	    public final MiniMap.Location loc;
 	    /** Whether a live grid's id has been checked against the record through this base. */
 	    public final boolean proven;
 
 	    Base(MapFile file, MiniMap.Location loc, boolean proven) {
 		this.file = file;
-		this.seg = loc.seg.id;
-		this.tc = loc.tc;
+		this.loc = loc;
 		this.proven = proven;
 	    }
 
+	    /** The segment this session is standing in — a segment id means nothing outside {@link #file}. */
+	    public long seg() {
+		return(loc.seg.id);
+	    }
+
+	    /** The segment tile coord of this session's tile {@code (0, 0)}. */
+	    public Coord tc() {
+		return(loc.tc);
+	    }
+
 	    boolean sameas(MapFile file, MiniMap.Location loc) {
-		return((this.file == file) && (this.seg == loc.seg.id) && this.tc.equals(loc.tc));
+		return((this.file == file) && (seg() == loc.seg.id) && tc().equals(loc.tc));
 	    }
 	}
 
@@ -1382,7 +1393,7 @@ public class Sessions {
 		/* The two bases say where each session's tile (0, 0) sits in one segment, so the difference
 		 * of the two is the whole translation between the frames. Grid-aligned by construction --
 		 * tickbase refuses a base that is not -- so this is exact. */
-		Coord d = ab.tc.sub(mine.tc);
+		Coord d = ab.tc().sub(mine.tc());
 		offset = Coord2d.of(d.x * MCache.tilesz.x, d.y * MCache.tilesz.y);
 	    } else {
 		offset = null;
@@ -1406,7 +1417,7 @@ public class Sessions {
 		return("the anchor has no proved base");
 	    if(mine.file != anchor.file)
 		return("a different map database from the anchor's");
-	    if(mine.seg != anchor.seg)
+	    if(mine.seg() != anchor.seg())
 		return("a different segment from the anchor's");
 	    return(null);
 	}
@@ -1533,7 +1544,7 @@ public class Sessions {
 	    boolean isanchor = (an == this);
 	    String why = ((an == null) || isanchor) ? null : refusal(b, an.base());
 	    String head = String.format("%s: base %s tile (%d, %d), proved%s",
-					user, Long.toUnsignedString(b.seg, 16), b.tc.x, b.tc.y,
+					user, Long.toUnsignedString(b.seg(), 16), b.tc().x, b.tc().y,
 					(why == null) ? "" : (", " + why));
 	    GameUI gui = gameui();
 	    Session s = this.sess;

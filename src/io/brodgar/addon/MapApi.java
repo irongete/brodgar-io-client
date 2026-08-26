@@ -14,6 +14,8 @@ import haven.MiniMap;
 import haven.UI;
 import haven.Widget;
 
+import io.brodgar.session.Sessions;
+
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -421,12 +423,11 @@ final class MapApi {
     /**
      * The session location — the segment plus the segment-tile-coord of session tile (0,0): the bridge
      * between session-local WORLD coords and the persistent segment coords markers store (world→segment =
-     * sessloc.tc + floor(world/tilesz), mirroring {@code MapWnd.FindMark.hit}). Resolved live by the
-     * corner minimap; null until the map grid-info has streamed in (a beat after enter-world).
+     * sessloc.tc + floor(world/tilesz), mirroring {@code MapWnd.FindMark.hit}). {@link #sessloc(String)}
+     * for the session on screen.
      */
     static MiniMap.Location sessloc() {
-        MiniMap mm = minimap();
-        return (mm == null) ? null : mm.sessloc;
+        return sessloc(drawnUser());
     }
 
     /**
@@ -434,10 +435,19 @@ final class MapApi {
      * somewhere else, so each has its own bridge between its world coords and the segment coords the database
      * keeps — and reading the screen's would convert one character's coordinate with another's offset, which
      * is a place that is wrong by however far apart the two of them stand.
+     *
+     * <p><b>The PROVED base and nothing else</b> (109.3). The corner minimap's own {@code sessloc} goes
+     * stale rather than null: the server re-bases a session's coordinate space mid-play — a cave, a house —
+     * and for a window afterwards that field still names the segment just left, so a place converted through
+     * it in that window is a place the character has never been. {@link Sessions.Member#base()} answers only
+     * a base a live grid's id has been checked against, so everything that converts through here — every
+     * caller of {@link #gridUL(MapFile.GridInfo, String)}, {@link #segGridUL}, {@link #recordedGridId} and
+     * the {@link LuaPosition} bridge over them — answers nothing rather than somewhere wrong.
      */
     static MiniMap.Location sessloc(String user) {
-        MiniMap mm = minimap(user);
-        return (mm == null) ? null : mm.sessloc;
+        Sessions.Member m = Sessions.byuser(user);
+        Sessions.Member.Base b = (m == null) ? null : m.base();
+        return (b == null) ? null : b.loc;
     }
 
     /**

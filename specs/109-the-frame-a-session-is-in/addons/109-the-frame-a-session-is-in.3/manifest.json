@@ -1,0 +1,10 @@
+{
+  "name": "109.3 — a place resolves through a proved base",
+  "id": "109-the-frame-a-session-is-in.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 109.3: one durable place asked of two sessions answers in both frames, the two bridges differ by exactly the offset `session where` reports, and a session whose base that line calls refused answers nothing rather than a number.",
+  "api_version": 1,
+  "permissions": ["console.run"],
+  "files": ["main.lua"]
+}

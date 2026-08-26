@@ -30,7 +30,7 @@
       behave as they did; and after one of them walks into a house and out again, the pair is related
       again, at the same offset, with nothing drawn through the old base in between.
 
-- [ ] **109.3 — A place resolves through a proved base.** `MapApi.sessloc()` and `sessloc(user)` answer
+- [x] **109.3 — A place resolves through a proved base.** `MapApi.sessloc()` and `sessloc(user)` answer
       the proved base's `Location` or `null` instead of `mm.sessloc` raw, so `gridUL`, `segGridUL`,
       `recordedGridId` and `LuaPosition`'s `anchorAt` / `ulOf` fallbacks — untouched — only ever convert
       through a base that has been proved. `docs/addons/api/position.md` and `world.md` state that a

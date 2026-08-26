@@ -133,9 +133,11 @@ place is that object's, so there is nothing to work out for it.
 | `passes` | times the client has worked out where they all are, **cumulative since client start** |
 
 `placed` and `waiting` are instantaneous counts, never totals. A thing is **waiting** when the place it
-holds is real but has no coordinate here — ground recorded in another part of the world, or, while you are
-underground, every place above at once. It is not lost and it is not an error: it exists, it answers every
-verb, it reports the place it was given, and it stands itself up the moment that ground resolves.
+holds is real but has no coordinate here — ground recorded in another part of the world; while you are
+underground, every place above at once; and, for the moment after the server re-bases you, every place off
+the ground you are streaming, until this session's [base](../../position.md) is proved again. It is not lost
+and it is not an error: it exists, it answers every verb, it reports the place it was given, and it stands
+itself up the moment that ground resolves.
 
 `passes` is the running tally, and it is what makes the cost claim checkable: where those things are gets
 worked out when the world moves under them and at no other time, so `passes` climbs by a handful while you

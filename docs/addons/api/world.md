@@ -141,8 +141,8 @@ tree:position():distance()                -- how far the character ON SCREEN is
 ```
 
 With one login the two agree. With two they do not, and nothing raises, which is why the addressed half
-exists. Each answers `nil` for a place that character cannot locate — recorded in another part of the world,
-or anywhere at all while it is in a cave — the same `nil` `p:x()` gives.
+exists. Each answers the `nil` `p:x()` gives for a place that character cannot locate — recorded in another
+part of the world, or off its streamed ground while the [base](position.md) it resolves through is unproved.
 
 ## The screen and the world
 
