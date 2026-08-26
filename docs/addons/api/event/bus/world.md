@@ -41,7 +41,7 @@ reported gone.
 | `ev:native()` | `false` for one **you** attached, `true` for one the **game** put there |
 
 `native` is `false` for one **you** attached and `true` for one the **game** put there (a lit fire's
-flame, a crop's growth stage), and `key` is then its resource name.
+flame), and `key` is then its resource name.
 
 ```lua
 hafen.event():on("GobOverlayAdded", function(ev)
