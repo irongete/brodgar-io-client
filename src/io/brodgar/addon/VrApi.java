@@ -13,7 +13,6 @@ import haven.MapView;
 import haven.Message;
 import haven.MessageBuf;
 import haven.MCache;
-import haven.MiniMap;
 import haven.Moving;
 import haven.Music;
 import haven.ResDrawable;
@@ -2103,40 +2102,26 @@ final class VrApi {
     }
 
     /**
-     * <b>The session coordinate space itself moved</b> (045.2) — the second of the drain's two sources, and the
-     * one the first cannot cover. A free entity's coordinate is derived through {@code MiniMap.sessloc}, and
-     * that location is re-resolved a frame or more <i>after</i> the terrain's cuts have come back: an entity
-     * whose ground returned while the player stood still would otherwise wait for a cut change that never comes.
+     * <b>The session coordinate space itself moved</b> (109.4) — the second of the drain's two sources, and the
+     * one the first cannot cover. A free entity's coordinate is derived, off the ground the character is
+     * streaming, through that session's <b>base</b>; the base is re-derived and re-proved a frame or more
+     * <i>after</i> the terrain's cuts have come back, so an entity whose ground returned while the player stood
+     * still would otherwise wait for a cut change that never comes.
      *
-     * <p><b>The equality test is the whole of it.</b> {@code MiniMap.tick} mints a fresh {@code Location} every
-     * frame, so notifying on the assignment alone would raise the flag sixty times a second and turn the drain
-     * into the per-frame poll 042 deleted. What matters is the segment and the tile origin, which change only
-     * when the server drops the map — a handful of times an hour. Flag only, drained on the addon tick (D-106).
+     * <p><b>It is the base and not the location</b>, and the difference is a whole edge. {@code MiniMap.sessloc}
+     * moves once, when the server re-bases the session; the base moves then <i>and again</i> when a live grid's
+     * id first agrees with the record through it, which is the moment a place off the streamed ground starts
+     * resolving at all. Hung on the location, this notice missed that second edge entirely, and everything
+     * standing on remembered ground stayed where it was until some later cut change came along.
      *
-     * <p>It listens to <b>one</b> minimap: the very instance {@code MapApi.sessloc()} reads. The map window
-     * carries a second one, ticking the same locator against the same file, and letting both through would let
-     * the earlier of the two consume the change for the later — the memo would already match by the time the
-     * instance the derivation actually reads had been assigned.
-     *
-     * <p><b>The memo is the minimap's own session's</b> (073.4): a segment id and a tile origin are a coordinate
-     * space, and each login has its own — remembering one client-wide would let one session's re-base answer for
-     * another's. The seam is handed the {@code MiniMap}, so {@code mm.ui} is the session and nothing has to be
-     * guessed. The guard above still asks the DRAWN corner minimap, because 073 indexes the caches and changes
-     * no read; what it buys is that when that read takes a session, the state it writes already names one.
+     * <p><b>Drawn session only.</b> A free entity's coordinate is the drawn character's answer to a durable
+     * place, so a background session's base is not a number anything here reads; the screen moving to that
+     * character is the drain's own third source ({@code scene}), which is where that gets picked up. Flag only,
+     * drained on the addon tick (D-106) — and already an edge when it arrives, so there is no memo to keep.
      */
-    static void sessionRebased(MiniMap mm, MiniMap.Location loc) {
-        if((loc == null) || (mm != MapApi.minimap()))
+    static void sessionRebased(UI ui) {
+        if((ui == null) || (ui != screen()))
             return;
-        SessionState st = state(mm.ui);
-        if(st == null)
-            return;
-        synchronized(st.vrSessLock) {
-            if(st.vrSessSeen && (st.vrSessSeg == loc.seg.id) && loc.tc.equals(st.vrSessTc))
-                return;                                // same place, a new object: the frame said nothing
-            st.vrSessSeen = true;
-            st.vrSessSeg = loc.seg.id;
-            st.vrSessTc = loc.tc;
-        }
         groundDirty = true;
     }
 

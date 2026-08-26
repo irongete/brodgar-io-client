@@ -1,0 +1,9 @@
+{
+  "name": "109.4 — the base moving is the event",
+  "id": "109-the-frame-a-session-is-in.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 109.4: the pass that re-homes standing things runs on an edge and not on the frame, a thing at a place this character cannot locate waits without losing anything, and the notice now hangs on the proved base rather than on the session location.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

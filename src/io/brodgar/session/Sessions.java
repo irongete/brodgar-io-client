@@ -1125,7 +1125,7 @@ public class Sessions {
 	 */
 	void tickbase() {
 	    if(dead) {
-		base = null;
+		setbase(null);
 		baseless = "the session has ended";
 		return;
 	    }
@@ -1133,19 +1133,19 @@ public class Sessions {
 	    GameUI gui = gameui();
 	    MiniMap mm = (gui == null) ? null : gui.mmap;
 	    if((s == null) || (mm == null)) {
-		base = null;
+		setbase(null);
 		baseless = "no HUD yet";
 		return;
 	    }
 	    MapFile file = mm.file;
 	    if(file == null) {
-		base = null;
+		setbase(null);
 		baseless = "no map database yet";
 		return;
 	    }
 	    MiniMap.Location loc = mm.sessloc;
 	    if(loc == null) {
-		base = null;
+		setbase(null);
 		baseless = "no session location yet";
 		return;
 	    }
@@ -1153,7 +1153,7 @@ public class Sessions {
 	     * division below is a truncation and everything read through the base lands a fraction of a
 	     * grid out -- so refuse the base rather than answer a place that is nearly right. */
 	    if(!loc.tc.mod(MCache.cmaps).equals(Coord.z)) {
-		base = null;
+		setbase(null);
 		baseless = "the session location " + loc.tc + " is not grid-aligned";
 		return;
 	    }
@@ -1172,7 +1172,28 @@ public class Sessions {
 		baseless = proven ? null : "no live grid's id matches what the record holds through it";
 	    }
 	    if((cur == null) || !cur.sameas(file, loc) || (cur.proven != proven))
-		this.base = new Base(file, loc, proven);
+		setbase(new Base(file, loc, proven));
+	}
+
+	/**
+	 * Replace this session's base, and tell the addon layer when that actually changed anything.
+	 *
+	 * <p>rts: (109.4) <b>the base moving is the event</b>, and it is the only one. A place off the
+	 * ground a character is streaming resolves through this base, so everything holding such a place
+	 * has to be asked again the moment it moves — and the moment it is <em>proved</em>, which is a
+	 * frame or more after the location it was derived from last changed. Hanging that notice on the
+	 * location instead, where it used to hang, missed exactly that second edge: what the server had
+	 * re-based came back unproved, and nothing woke the readers when the record caught up.
+	 *
+	 * <p>The comparison here is what keeps it an event: {@link #tickbase} runs every frame for every
+	 * member and replaces the {@link Base} only when it differs, so the notice fires a handful of
+	 * times an hour rather than sixty times a second.
+	 */
+	private void setbase(Base b) {
+	    if(this.base == b)
+		return;
+	    this.base = b;
+	    io.brodgar.addon.AddonManager.sessionRebased(this.ui);   // addon: (109.4) the frame moved under it
 	}
 
 	/**

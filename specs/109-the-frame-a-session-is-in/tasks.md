@@ -43,3 +43,21 @@
       `nil`, and not a number, for a session whose base that same line calls refused.
       `[manual]`: `chrmap` on one session, that session dropped and added again, and its line reads a
       `MapFile` refusal.
+
+- [x] **109.4 — The base moving is the event.** The notice that a session's coordinate space moved is hung
+      on the **base** rather than on `MiniMap.sessloc`: `Member.setbase` is the one place `base` is written
+      and it calls `AddonManager.sessionRebased(ui)`, which `VrApi` takes for the drawn session alone and
+      turns into `groundDirty`. The `// addon: 045.2` line in `MiniMap.tick` retires with the
+      `vrSessSeg`/`vrSessTc`/`vrSessSeen` memo it fed — `tickbase` replaces the `Base` only when it differs,
+      so the notice arrives as an edge and has nothing left to remember. `sessloc` moves once, when the
+      server re-bases the session; the base moves then **and again** when a live grid's id first agrees with
+      the record through it, and that second edge — the one 109.3 opened and the old tap could not see — is
+      when a place off the streamed ground starts resolving at all. `docs/client/minimap.md` loses the tap
+      from its anchors.
+      *Its suite* stands one entity at a durable place its own character cannot see the ground of, reads
+      `hafen.client():profiling():counters()` for `waiting` and `passes`, and asserts the pass runs on the
+      edge and not on the frame: `passes` holds still across a second of standing, and the entity that is
+      `waiting` reports `:drawn()` false while `:position():info()` answers unchanged.
+      `[manual]`: with something standing on remembered ground, walk into a house and out again **without
+      moving after arriving** — it is drawn again by itself, and `passes` climbed by a handful rather than
+      by a hundred.

@@ -522,13 +522,6 @@ public final class AddonManager {
         // the server's naming of a place. So they are one set for the client, in VrApi: you stand a thing in
         // the world, and it draws for whichever character is looking at that patch of world.
 
-        /** The last session location this session's re-ground let through — the equality memo that keeps that
-         *  drain an event rather than a per-frame poll (045.2). The three below are guarded by it. */
-        final Object vrSessLock = new Object();
-        long vrSessSeg;
-        Coord vrSessTc;
-        boolean vrSessSeen;
-
         /** Has this session been told its marker count once, and at which seq ({@link MapApi}). */
         boolean markersPrimed;
         int lastMarkerSeq;
@@ -851,18 +844,18 @@ public final class AddonManager {
     }
 
     /**
-     * Call site — {@code MiniMap.tick}, where {@code sessloc} is assigned (045.2). That assignment is the
-     * session coordinate space's own mutation point: a free {@code hafen.vr()} entity holds a durable place and
-     * derives its coordinate through this location, so when it moves, every one of those coordinates has moved.
-     * The terrain's cuts (above) say the ground came and went; this says the numbers naming it changed, and the
-     * two are not the same frame.
+     * Call site — {@code Sessions.Member.setbase}, where that session's <b>base</b> is replaced (109.4). The
+     * base is the session coordinate space: a free {@code hafen.vr()} entity holds a durable place and
+     * derives its coordinate through it off the ground the character is streaming, so when the base moves —
+     * or is proved, having moved — every one of those coordinates has moved. The terrain's cuts (above) say
+     * the ground came and went; this says the numbers naming it changed, and the two are not the same frame.
      *
-     * <p><b>Guarded, and that is the point</b>: {@code tick} mints a fresh {@code Location} every frame, so the
-     * work here is an equality test on the segment and tile origin, and the flag is raised only when they
-     * actually differ ({@code VrApi.sessionRebased}). Everything else happens on the addon tick (D-106).
+     * <p><b>Already an edge when it gets here</b>: the base is derived every frame and replaced only when it
+     * differs, so this is called a handful of times an hour and needs no memo of its own. Everything past
+     * the flag happens on the addon tick (D-106).
      */
-    public static void sessionRebased(haven.MiniMap mm, haven.MiniMap.Location loc) {
-        VrApi.sessionRebased(mm, loc);
+    public static void sessionRebased(haven.UI ui) {
+        VrApi.sessionRebased(ui);
     }
 
     /**

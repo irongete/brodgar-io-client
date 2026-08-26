@@ -14,15 +14,11 @@
   never wait for a lock a disk write may be holding. `SessionLocator` derives `sessloc` from any
   live `MCache.Grid` whose `gridinfo` is known; `MapLocator` and `SpecLocator` are the
   other two. `tick` re-resolves `sessloc` every frame and swallows `Loading`.
-- **That assignment is the coordinate space's own mutation point**, and carries the one
-  `// addon:` seam in this file, a call to `AddonManager.sessionRebased(this, sessloc)`: every
-  session world coordinate derived from a durable place goes through `sessloc`, so when it
-  moves, all of them have. Two things make the seam correct rather than a poll. **It is guarded on
-  `(seg.id, tc)`** — `resolve` mints a fresh `Location` object every frame, so identity says nothing and
-  only those two values changing is news. And **it is filtered to `GameUI.mmap`**, the corner minimap,
-  which is the one instance a session's location is read from: the map window carries a second `MiniMap`
-  ticking the same locator against the same file, and accepting either would let whichever ticked first
-  consume the change for the other.
+- **That assignment is the coordinate space's own mutation point, and this file no longer announces it.**
+  `resolve` mints a fresh `Location` every frame, so identity says nothing here and only `(seg.id, tc)`
+  changing is news — and a reader that has to know when the space moved wants the *proved* form of it,
+  which arrives a frame or more later still. `tick` therefore carries no `// addon:` seam: the notice
+  hangs on the base derived from this field, one edge further down.
 - **`sessloc` goes STALE, never null.** `tick`'s `catch(Loading){}` keeps the previous value, and
   `SessionLocator.locate` throws `Loading("No mapped grids found.")` while the new area's grids are not yet
   in `gridinfo` — so for a window after the server drops the map (a cave, a house) `sessloc` still names
