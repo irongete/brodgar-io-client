@@ -43,6 +43,10 @@ always fresh. [`session:world`](../world.md) and the `GobAdded`/`GobRemoved` eve
 > the body resource. A name resolves only for a character of your own,
 > [`s:character()`](../session.md#read), or for a kin, [`session:kin`](../kin.md).
 
+> **`GobInfo` carries no `hitbox`.** A snapshot holds no objects, only plain data, and a footprint
+> rebuilt on every `:info()` call would be paid by every sweep that only wanted a name or a position.
+> Read [`gob:hitbox()`](../gob.md#the-ground-it-stands-on) for the footprint itself.
+
 ## PartyMember
 
 From [`member:info()`](../party.md#a-member), the one snapshot escape hatch. `s:party():list()` hands

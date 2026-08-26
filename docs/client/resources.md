@@ -51,6 +51,27 @@ package-private, so `AddonWidgets.gobSdt(Gob)` is the one non-zero-edit read sur
 D-017); that method clones the field before reading it, since the field is shared with the `Sprite`
 built from it and reading it directly would advance that sprite's own cursor.
 
+## `obst`: the collision footprint
+
+`Resource.Obstacle` (`@LayerName("obst")`) is an `IDLayer<String>`: `Obstacle.id` and `Obstacle.p`, a
+`Coord2d[][]` — one ring of points per shape the resource collides as, **already in world units** —
+`Obstacle`'s constructor ends each point with `.mul(MCache.tilesz)`, so scaling a read of `p` by the
+tile size again inflates every shape elevenfold.
+
+A resource may carry more than one `obst` layer under ids of its own, so `res.layer(Resource.obst, id)`
+is how one is named. **Pass `""`, never `null`, for the collision layer**: `layer(Class, null)` answers
+the *first* layer of that class whatever its id — not "the layer with no id" — so a resource carrying a
+build box and a collision box under two ids would answer whichever loaded first. An unsupported `obst`
+wire version parses to `id = "#"` and an empty `p`, which is a layer that exists but is not found at
+`""` and carries no points either way — never assume a found layer has any.
+
+`Gob.BasePlace`, the placer that sits the object on the terrain, reads the same layer
+(`new BasePlace(map, surf, res, "")`) and rotates each point by the object's own facing before using it
+to probe the ground height: `getz` turns `(x, y)` by `Gob.a` about the origin, adds `Gob.rc`, and walks
+the tile grid under the rotated ring to find the lowest point the object's feet touch. That is the same
+arithmetic a reader placing the footprint in the world repeats — the object's facing turns the shape in
+place, then its position slides the turned shape to where it stands.
+
 ## The gob monitor already guards it
 
 `$cres.apply` runs from `OCache.GobInfo.apply`, which takes `synchronized(gob)` around every pending

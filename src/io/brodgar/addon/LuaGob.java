@@ -350,6 +350,21 @@ public final class LuaGob {
                 return AddonManager.gobSdt(AddonManager.anygob(h.id));
             }
         });
+        // hitbox() -- the ground the object stands on (113.2): the collision footprint its resource
+        // carries, as an array of polygons, each an array of Positions, rotated by the object's
+        // facing and anchored at its place -- the same rotation the client already does to place the
+        // object on the terrain. nil once the gob is gone, its resource has not resolved, or it
+        // carries no obst layer. NOT what gob:scale(k) draws: the footprint is the game's own and
+        // does not move when the drawn size does -- see docs/client/resources.md for the obst layer.
+        m.set("hitbox", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaGob h = handle(a.arg1(), "hitbox");
+                if(Args.passed(a, 2))
+                    throw new LuaError("gob:hitbox() takes no arguments — arity is the verb here, so"
+                        + " call it with no argument to read the collision footprint");
+                return AddonManager.gobHitbox(owner, h.id);
+            }
+        });
         // overlay() — THE ONE WAY to attach anything to a game object, and the one way to read what is already
         // attached (038.1), as the collection of everything on this gob (039.3):
         //   gob:overlay():list(filter)   -- every overlay: yours, then the GAME's own (ov:native())

@@ -90,7 +90,8 @@ answer. None of them throws.
 | `gob:party()` | [`PartyMember`](party.md) \| nil | the party member standing here, in the party of the character that read it |
 | `gob:distance(other)` | number \| nil | world distance to another Gob; defaults to the reading character |
 | `gob:sdt()` | number[] \| nil | state bytes the server sent with its resource — [see below](#state) |
-| `gob:info()` | [`GobInfo`](types/world.md#gobinfo) \| nil | everything above as one plain snapshot table |
+| `gob:hitbox()` | Position[][] \| nil | the ground it stands on — [see below](#the-ground-it-stands-on) |
+| `gob:info()` | [`GobInfo`](types/world.md#gobinfo) \| nil | a plain snapshot of what is read above, **`hitbox` excepted** |
 
 > `gob:name()` is the **type** resource — `"gfx/borka/body"` for any player body — not a character's
 > display name. Display names are not available for arbitrary gobs; `gob:player()` is the test for a
@@ -99,6 +100,10 @@ answer. None of them throws.
 `:info()` is the snapshot escape hatch: use it for logging, serialising, or passing gob data around as
 data, since [`hafen.json`](json.md) can encode a plain table and a Gob object cannot. For reading,
 prefer the methods — they are always fresh, while a snapshot is frozen at the moment you took it.
+
+> `:info()` carries no `hitbox` field. A snapshot holds no objects, only numbers and strings, and a
+> footprint rebuilt on every `:info()` call would be paid by every sweep that only wanted a name or a
+> position. Read `gob:hitbox()` itself when you want the footprint.
 
 `gob:distance(other)` measures inside **one** character's world. Each character's coordinates are relative to
 where it logged in, so a pair is measured by a character that can see both, and two objects no single
@@ -123,6 +128,35 @@ end
 drawn from a resource — a player, most notably, which carries no state bytes at all. A resource-drawn
 gob the server sent no state for answers the **empty array**, not `nil`: the two are different facts,
 and [`gob:info().sdt`](types/world.md#gobinfo) carries whichever the live read does.
+
+## The ground it stands on
+
+`gob:hitbox()` answers the collision footprint the **server** collides against — a set of polygons in
+the world, rotated by the object's own facing and placed where the object stands. It is an array of
+polygons, each an array of [Positions](position.md), one ring per shape the resource carries: a tree's
+trunk, a fence's whole run, a building's outline.
+
+```lua
+local wall = hafen.session():current():world():gob():nearest("gfx/terobjs/arch/fencing/wattle")
+local box = wall and wall:hitbox()
+if box then
+  hafen.log():write(#box .. " polygon(s), " .. #box[1] .. " point(s) in the first")
+end
+```
+
+Every point is a real place in the world: `p:x()`, `p:distance()` and
+[`s:world():worldToScreen(p)`](world.md#the-screen-and-the-world) all answer for it, and it sits on the
+object rather than at the frame's origin — a hitbox you draw over the HUD lands under the object it
+came from.
+
+`gob:hitbox()` is `nil` once the gob is gone, before its resource has resolved, and for a resource that
+carries no collision shape at all — a decoration, most flooring, anything nothing walks into. A
+resource that carries one but authors it with no points at all answers the same `nil`, since an empty
+set of polygons is exactly the fact "nothing here blocks movement".
+
+> **The footprint is not what `gob:scale(k)` draws.** Scale changes how big the object *looks*; the
+> footprint is the game's own and does not move with it — [see below](#size-unprotected). Walk into the
+> boar you doubled and you still collide with the boar's own size.
 
 ## Size (unprotected)
 
@@ -151,8 +185,9 @@ character that loads it later draws it the size you asked for.
 It is **client-local and purely visual**, on the same footing as an [overlay](overlay.md): only you see
 it, the size is applied in place so the object's feet stay where they were, and it still turns, moves
 and takes a click exactly as it did — the pick follows the drawn size. Nothing about what the object
-*is* changes: its footprint, what it collides with and what a click sends are the game's, untouched. A
-few special resource types reset their own transform — the same ones that ignore a ghost's rotation —
+*is* changes: [its footprint](#the-ground-it-stands-on), what it collides with and what a click sends
+are the game's, untouched. A few special resource types reset their own transform — the same ones that
+ignore a ghost's rotation —
 and those ignore scale too.
 
 `k` must be a number greater than zero, and finite. `0` collapses the object to a point and a negative one

@@ -18,7 +18,7 @@
       matches `gob:sdt()` element for element and survives a `hafen.json` round trip; and that
       `gob:sdt(1)` raises, the message naming arity.
 
-- [ ] **113.2 — the ground an object stands on.** Adds `gob:hitbox()`: the collision footprint as an
+- [x] **113.2 — the ground an object stands on.** Adds `gob:hitbox()`: the collision footprint as an
       array of polygons, each an array of Positions, rotated by the object's facing and anchored at
       its place. `AddonManager.gobHitbox` reads `Drawable.getres()`, takes `res.layer(Resource.obst,
       "")` — never `null` for the id — and rotates each `Obstacle.p` point by `Gob.a` about `Gob.rc`

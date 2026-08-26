@@ -5067,6 +5067,60 @@ public final class AddonManager {
         return t;
     }
 
+    /**
+     * {@code gob:hitbox()} — the collision footprint the object's resource carries, as an array of
+     * polygons, each an array of {@link LuaPosition}s, rotated by the object's facing and anchored at
+     * its place. The rotation is the same arithmetic {@link Gob.BasePlace#getz} already does to place
+     * the object on the terrain: each {@code Obstacle.p} point turned by {@code Gob.a} about the
+     * origin, then offset by {@code Gob.rc}. {@code nil} once the gob is gone, its resource has not
+     * resolved, or its resource carries no {@code obst} layer or an empty one.
+     */
+    static LuaValue gobHitbox(Addon owner, long id) {
+        String user = gobUser(id);
+        if(user == null)
+            return LuaValue.NIL;
+        Gob g = getgob(user, id);
+        if(g == null)
+            return LuaValue.NIL;
+        Resource.Obstacle obst;
+        Coord2d rc;
+        double ra;
+        synchronized(g) {
+            Drawable d = g.getattr(Drawable.class);
+            if(d == null)
+                return LuaValue.NIL;
+            Resource res;
+            try {
+                res = d.getres();          // may throw Loading, or be null before it resolves
+            } catch(RuntimeException e) {
+                return LuaValue.NIL;
+            }
+            if(res == null)
+                return LuaValue.NIL;
+            // "", never null: null matches the FIRST layer of the class whatever its id.
+            obst = res.layer(Resource.obst, "");
+            if((obst == null) || (obst.p.length == 0))
+                return LuaValue.NIL;
+            rc = g.rc;
+            ra = g.a;
+        }
+        if(rc == null)
+            return LuaValue.NIL;
+        double s = Math.sin(ra), c = Math.cos(ra);
+        LuaTable polys = new LuaTable();
+        for(int i = 0; i < obst.p.length; i++) {
+            Coord2d[] ring = obst.p[i];
+            LuaTable poly = new LuaTable();
+            for(int o = 0; o < ring.length; o++) {
+                Coord2d p = ring[o];
+                Coord2d wp = Coord2d.of((p.x * c) - (p.y * s), (p.y * c) + (p.x * s)).add(rc);
+                poly.set(o + 1, LuaPosition.of(owner, user, wp));
+            }
+            polys.set(i + 1, poly);
+        }
+        return polys;
+    }
+
     /** Best-effort active-overlay resource names ({@code Gob.ols}); unresolved ones are skipped. */
     static LuaTable overlayNames(Gob g) {
         LuaTable out = new LuaTable();

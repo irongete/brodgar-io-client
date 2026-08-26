@@ -1,0 +1,9 @@
+{
+  "name": "113.2 — the ground an object stands on",
+  "id": "113-the-shape-and-the-state.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 113.2: gob:hitbox() answers a footprint of at least one polygon of at least three Positions sitting on the object, nil for a gone gob or one with no collision footprint, unchanged under gob:scale(k), absent from gob:info(), and gob:hitbox(1) raises naming arity. Paints every visible hitbox on the HUD for twenty seconds.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
