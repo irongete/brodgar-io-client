@@ -88,6 +88,20 @@ is in Options ▸ Keybindings ▸ Action bar.
 nothing ever sets `ui.root.hasfocus` — so it is `false` on almost everything that is in fact typing. Walk the
 path instead.
 
+**`focused` is never checked against the tree that records it.** `Widget.uimsg` hands the server's
+`focus` message to `setfocus(ui.getwidget(id))` — *any* widget in the UI, by id — and `delfocusable`
+only bubbles up the ancestors of the widget that left, which are not the controller's when the focus
+was pointed across a branch. So a controller holds a `focused` that is elsewhere, or nowhere, and
+nothing notices; `FocusedKeyEvent.propagation` goes on delivering to it. Where that costs is the Tab
+cycle in `Widget.keydown`: its walk ends by coming back round to `focused`, which never happens from
+outside, and the frame thread then spins **holding the UI monitor** — no frame is drawn, every
+`Loader` thread queues in `UI.UiMessage`, and a thread dump reads like a deadlock while being a live
+loop. `Widget.keydown` cycles only from a pointer inside its own subtree for that reason; **anything
+else that walks `focused` bounds its own walk.**
+
+⚠️ `Widget.uimsg` with a negative id calls `setfocus(null)`, which NPEs on `w.hasfocus` whenever the
+receiving controller has focus itself.
+
 ## The three per-frame queries AT A POINT
 
 | What | Where |

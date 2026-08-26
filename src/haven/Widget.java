@@ -1523,6 +1523,19 @@ public class Widget {
 	    return(true);
 	if(focusctl && focustab) {
 	    Widget f = focused;
+	    /* addon: THE WALK BELOW ONLY TERMINATES WHILE `focused` IS STILL IN THIS SUBTREE -- it comes back
+	     * round to it, or to a focusable, and to nothing else. Nothing in the client keeps that true:
+	     * uimsg("focus", id) names ANY widget in the UI by id and is never checked against this tree
+	     * again, and delfocusable only bubbles up the ancestors of the widget that left -- which are
+	     * not this one's when the server pointed the focus across a branch. When it is not true the
+	     * loop spins for ever on the frame thread with the UI monitor held, and that is the whole
+	     * client: every Loader thread queues behind it in UI.UiMessage and no frame is ever drawn
+	     * again. Cycling needs somewhere to cycle FROM, so a pointer that is not in here is no
+	     * pointer at all and the key goes on as it does without focustab. The pointer itself is left
+	     * alone: it is still where the keyboard is delivered, and taking it away here would move the
+	     * focus the server asked for on nothing but a Tab. */
+	    if((f != null) && ((f == this) || !f.hasparent(this)))
+		f = null;
 	    if(key_tab.match(ev.awt, KeyMatch.S) && (f != null)) {
 		while(true) {
 		    if((ev.mods & KeyMatch.S) == 0) {
