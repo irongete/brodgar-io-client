@@ -85,7 +85,7 @@ must not write there; if a task finds it must, it splits the page in that task.
 - `src/haven/OCache.java` — 1
 - `src/io/brodgar/addon/AddonManager.java` — 1, 2, 3, 4
 - `src/io/brodgar/addon/GobScale.java`, `GobIntent.java`, `LuaGob.java`, `UiApi.java` — 3
-- `src/io/brodgar/addon/LuaGobOverlay.java` (`ensure`'s refusal text) — 4
+- `src/io/brodgar/addon/LuaGobOverlay.java` (`ensure`'s refusal text), `LuaOverlay.java` (`gob:overlay():add`'s own refusals) — 4
 - `src/io/brodgar/addon/ProfHandle.java` — 2
 - `docs/addons/api/gob.md`, `docs/addons/api/types/world.md` — 3, 4
 - `docs/addons/api/event/bus/world.md`, `docs/addons/api/threading.md` — 4

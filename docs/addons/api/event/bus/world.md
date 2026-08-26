@@ -19,6 +19,44 @@ Prefer these over scanning [`s:world():gob():list`](../../world.md) every frame.
 [Gob object](../../gob.md). On `GobRemoved` the gob is **already gone**, so only `gob:id()` answers there;
 if you need its name, index it on `GobAdded`.
 
+### Before the first drawn frame
+
+> **`GobAdded` runs before the object it announces is drawn.** The client holds a newly arrived object out
+> of the scene until every handler has seen it, so a size or an overlay written in the handler is in force
+> on the object's **first** drawn frame, not one frame late.
+
+That is what makes the handler the place to decide how an object looks:
+
+```lua
+hafen.event():on("GobAdded", function(gob)
+  local name = gob:name()
+  if name and name:find("trees/", 1, true) then
+    gob:overlay():add("tree"):text("tree"):color{200, 210, 220}      -- labelled from the first frame
+  end
+end)
+```
+
+The hold costs the object no data and gains it none. What answers inside the handler is exactly what
+answers a step later — [`gob:name()`](../../gob.md), [`gob:sdt()`](../../gob.md#state) and
+[`gob:hitbox()`](../../gob.md) for a resource-drawn object — and what has not resolved yet answers `nil`
+there as it does anywhere else. An object whose visual is **composed** out of several resources, a
+character or an animal carrying equipment, is one of those: it answers `nil` for a moment longer, and the
+client does not wait for it. It waits for **your handler** and for nothing else, so a handler that needs
+the name of such an object asks again from a [timer](../../timer.md).
+
+The limits below are what keep the world drawable:
+
+- **Only while somebody is listening.** Until an addon subscribes to `GobAdded`, nothing is held and the
+  client draws exactly as it would with no addon loaded at all. The cost begins with the first
+  subscription, not with the first object.
+- **A held object is drawn anyway after a second.** A handler that takes longer than that, or an addon
+  disabled mid-flight, costs a late frame and never a missing object.
+- **Only objects the game sends.** A [ghost, sprite or model](../../vr/README.md) you stood in the world
+  yourself is yours already, fires no `GobAdded`, and is drawn the moment you place it.
+
+`GobRemoved` makes no such promise: it reports an object that has already left, and there is nothing left
+to hold.
+
 **One object, one event.** A tree is one tree however many of your characters are standing in front of
 it, so five characters together produce one `GobAdded` for it and not five. A character walking away from
 an object another one can still see fires nothing at all: [`gob:sessions()`](../../gob.md) reads who can see

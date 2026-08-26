@@ -24,7 +24,7 @@
       ground you have not seen this session — report whether anything appeared at full size, even for
       an instant, and whether the world drew any slower.
 
-- [ ] **114.2 — State the guarantee where an addon reads it.** Writes the promise onto
+- [x] **114.2 — State the guarantee where an addon reads it.** Writes the promise onto
       `docs/addons/api/event/bus/world.md` (`GobAdded` runs before the object's first drawn frame,
       and what is and is not populated by then — a `Composite` still answers `nil`) and onto
       `docs/addons/api/threading.md`, whose step row now carries an ordering promise it did not have.

@@ -73,9 +73,10 @@ on the render side and may be one frame stale.
 
 `gobsHeld` counts the other way round from the rest of this table: it is the addon layer's own tally, not the
 scene's, so it answers on the login screen too. It climbs each time the client holds an object back so that
-[`GobAdded`](../../event/bus/world.md#world) runs before that object's first drawn frame, and it stays at
-zero for as long as no addon subscribes to that event. Like `gcCount` it means something as a **delta between
-two reads**: take one, walk into ground you have not seen this session, take another.
+[`GobAdded`](../../event/bus/world.md#before-the-first-drawn-frame) runs before that object's first drawn
+frame, and it stays at zero for as long as no addon subscribes to that event. Like `gcCount` it means
+something as a **delta between two reads**: take one, walk into ground you have not seen this session, take
+another.
 
 ```lua
 local r = hafen.client():profiling():render()

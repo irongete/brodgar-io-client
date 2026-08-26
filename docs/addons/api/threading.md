@@ -23,7 +23,7 @@ end)
 
 | What you subscribed to | When it runs | Trees it may reach |
 |---|---|---|
-| [`hafen.event():on(key, fn)`](event/bus/README.md) — every event in the catalogue | the step | any |
+| [`hafen.event():on(key, fn)`](event/bus/README.md) — every event in the catalogue | the step, and for `GobAdded` before the object is drawn | any |
 | [`hafen.timer()`](timer.md) — `:after`, `:every` | the step | any |
 | [`widget:on("Update", fn)`](ui/custom.md) | the step | any |
 | [`s:ui():on(sel, "Added"/"Removed", fn)`](ui/replace.md) | the step, after the widget arrived or left | any |
@@ -42,6 +42,13 @@ Everything in the first group runs on the step, and everything in it may build a
 while writing another, and reach across every login the client holds. Everything in the last group is
 answering a thing that is already in progress — a pass that is painting, a press that is waiting for an
 answer, a message on its way out — and each of those is inside one tree and may touch only that one.
+
+**The step is ordered ahead of the client's own drawing, for one event.**
+[`GobAdded`](event/bus/world.md#before-the-first-drawn-frame) runs before the object it announces reaches
+the scene: the client holds a newly arrived object out of the render tree until every handler has seen it,
+so a label or a size written there is in force on that object's **first** drawn frame. Nothing else on the
+step promises that. Every other handler in the first group runs on the next step after the thing it is
+about, and the client has gone on drawing in between.
 
 The inbound message stream is the one row in neither group: it holds no tree, so it reaches any of them,
 but it is not the step. It answers the server's update **before** the widget applies it, which is what makes

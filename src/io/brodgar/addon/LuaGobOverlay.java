@@ -150,7 +150,15 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         return (g == null) ? null : g.getattr(LuaGobOverlay.class);
     }
 
-    /** The overlay attrib on {@code g}, attaching a fresh one if this is the first overlay on that gob. */
+    /**
+     * The overlay attrib on {@code g}, attaching a fresh one if this is the first overlay on that gob.
+     *
+     * <p>{@code setattr} throws {@code Loading} only while the gob already holds slots one of which cannot
+     * take the attrib yet, so the refusal is about the gob's OWN drawing still resolving and a timer is the
+     * retry. 114.2: it names no other escape, because a gob whose {@code GobAdded} is still owed holds no
+     * slots at all -- 114.1's gate keeps it out of every tree until the event has fired, so an attach made
+     * in that handler has nothing to fail against.
+     */
     static LuaGobOverlay ensure(Gob g) {
         LuaGobOverlay ol = g.getattr(LuaGobOverlay.class);
         if(ol != null)
@@ -159,8 +167,8 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         try {
             g.setattr(ol);
         } catch(Loading l) {
-            throw new LuaError("gob:overlay():add(key): that gob is not renderable yet -- attach it from"
-                + " GobAdded or a timer, and read gob:exists() first");
+            throw new LuaError("gob:overlay():add(key): that gob's own drawing is still resolving, so"
+                + " nothing attaches to it this instant -- retry from a timer");
         }
         return ol;
     }
@@ -290,7 +298,7 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
             try {
                 ensure(g).put(rec);
             } catch(RuntimeException e) {
-                /* that copy is not renderable yet: it simply does not draw this one */
+                /* that copy's own drawing is still resolving: it simply does not draw this one */
             }
         }
         return old;

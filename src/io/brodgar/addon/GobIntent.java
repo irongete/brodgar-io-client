@@ -158,8 +158,8 @@ final class GobIntent {
      * {@code GobAdded} handler that reads {@code gob:scale()} back already sees the truth.
      *
      * <p>Free for the client that asks for nothing: one {@code HashMap} miss per object arriving. Never
-     * throws into the drain &mdash; a copy that is not renderable yet simply does not carry the overlay, which
-     * is the same answer {@code LuaGobOverlay.attach} gives for a copy in that state at write time.
+     * throws into the drain &mdash; a copy whose own drawing is still resolving simply does not carry the
+     * overlay, which is the same answer {@code LuaGobOverlay.attach} gives for such a copy at write time.
      */
     static synchronized void applyTo(Gob g) {
         if(g == null)
@@ -178,7 +178,7 @@ final class GobIntent {
             try {
                 LuaGobOverlay.ensure(g).put(r.overlays.get(i));
             } catch(RuntimeException e) {
-                /* not renderable yet (Loading): it simply does not draw this one */
+                /* its own drawing is still resolving (Loading): it simply does not draw this one */
             }
         }
     }

@@ -1,0 +1,9 @@
+{
+  "name": "114.2 — the GobAdded guarantee, where an addon reads it",
+  "id": "114-gob-added-before-render.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 114.2: drives the documented promise -- an overlay attached from a GobAdded handler reads back in that same handler, the reads a handler makes still answer there, and the refusal that is still reachable names the gob rather than its renderability.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

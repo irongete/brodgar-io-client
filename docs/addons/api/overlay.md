@@ -104,10 +104,13 @@ already there **replaces** it, leaving **one** overlay.
 by their **resource name**. An `:add` onto such a key **raises**, so does a `:remove` of one, and so does
 each setter — always naming the key, never a silent no-op.
 
-An attach raises in one more place, about *when*: a gob the client cannot draw yet takes no overlay at all,
-so attach from [`GobAdded`](event/bus/world.md#world) or a timer instead. A setter that raises leaves the
-overlay exactly as it was, drawing exactly what it drew before, and a kind that never landed leaves a bare
-overlay, which draws nothing.
+**An attach from [`GobAdded`](event/bus/world.md#before-the-first-drawn-frame) is never too early, and that
+is the rule rather than a way round anything.** The client holds a newly arrived object out of the scene
+until that handler has run, so the object holds nothing an attach could fail against and the overlay is on
+it before its first drawn frame. Later than that, an attach raises in one more place, about *when*: an
+object whose own drawing is still resolving takes no overlay in that instant, and a timer is the retry. A
+setter that raises leaves the overlay exactly as it was, drawing exactly what it drew before, and a kind
+that never landed leaves a bare overlay, which draws nothing.
 
 ## The Overlay object
 
