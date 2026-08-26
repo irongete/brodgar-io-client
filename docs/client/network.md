@@ -10,6 +10,7 @@
 | The wire connection (worker threads) | `Connection` — receive callbacks land on the **Connection worker** thread (never touch Lua/widgets there; marshal to the UI tick) |
 | Server → client UI messages | `RemoteUI.uimsg` → `UI.uimsg` (queues a `UiMessage` Command, applied on a Loader thread under `synchronized(ui)`) |
 | Client → server | `UI.wdgmsg` → `RemoteUI.rcvmsg` → `Session.queuemsg` |
+| ⚠️ Two updates to **one widget** are ordered; two to different widgets are not | `UI.uimsg` submits each `UiMessage` as a `Command.dep(id, true)` — a dependency **and** a barrier on that widget id — and `UI.CommandQueue.submit` chains a command behind the last one that barred any id it depends on (the `score` map), releasing it in `finish`. So two updates aimed at the same widget never overlap and never re-order, whichever Loader thread each lands on, and anything that must answer *before* a widget applies its update can be done outside `UiMessage.run`'s `synchronized(ui)` and still be ordered against it. Two updates aimed at **different** widgets carry no such edge: they run side by side, on as many Loader threads as the pool has. `UI.wdgbarrier` is the server's own override of the next command's dep/bar set |
 | Relog/session rebind | a new `RemoteUI.init(UI)` per session — session-scoped state resets there |
 
 ## Action channel (client → server)

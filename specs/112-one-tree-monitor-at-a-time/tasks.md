@@ -130,7 +130,7 @@ and each later task removes one.
       limit still ends what a cycle would not. It asserts a dependent whose target has been destroyed
       drops out of the cascade instead of throwing.
 
-- [ ] **112.7 — the inbound stream decides before the monitor, and the outbound one is told why it
+- [x] **112.7 — the inbound stream decides before the monitor, and the outbound one is told why it
       cannot.** `AddonManager.onMessage` is hoisted above `UI.UiMessage.run`'s `synchronized(UI.this)`:
       the handler still answers before the widget applies, so `ev:preventDefault` and `ev:rewrite` are
       untouched, and only `dispatch(wdg, MessageEvent)` stays inside the block. `onWdgmsg` cannot be

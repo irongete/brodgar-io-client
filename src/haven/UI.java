@@ -727,23 +727,24 @@ public class UI {
 	public void run() {
 	    Widget wdg = getwidget(id);
 	    if(wdg != null) {
-		boolean applied = false;
-		synchronized(UI.this) {
-		    // addon: the INBOUND MESSAGE STREAM seam. Every hafen.event():message():on(msg, fn) subscription
-		    // runs here — the ones that named this message, and the ones that took "*", the whole stream —
-		    // BEFORE the widget applies the server update, and may swallow it (ev:preventDefault -> null) or
-		    // rewrite its args (ev:rewrite). onMessage returns the args to apply, or null to swallow. It runs
-		    // Lua under this synchronized(ui) block (the monitor tick/draw hold), so handler Lua never races
-		    // other Lua — and the UI thread waits on that monitor, so a slow handler is a stutter. Near-zero
-		    // when nobody subscribes (uimsg application is hot).
-		    Object[] happly = io.brodgar.addon.AddonManager.onMessage(wdg, msg, args);
-		    if(happly != null) {
+		// addon: the INBOUND MESSAGE STREAM seam, hoisted OUT of the synchronized(UI.this) below (112.7).
+		// Every hafen.event():message():on(msg, fn) subscription runs here — the ones that named this
+		// message, and the ones that took "*", the whole stream — BEFORE the widget applies the server
+		// update, and may swallow it (ev:preventDefault -> null) or rewrite its args (ev:rewrite).
+		// onMessage returns the args to apply, or null to swallow. It runs Lua holding NO tree monitor, so
+		// a handler may reach any tree at all: the one-monitor rule (docs/client/multi-session.md), which a
+		// seam running Lua under this block broke every time a handler wrote another session's widget.
+		// The decision is still made before the apply, and stays ordered against it: the command queue
+		// serializes every UiMessage aimed at one widget id (Command.dep/bar), so no other update to this
+		// widget can slip between this call and the dispatch below. Near-zero when nobody subscribes
+		// (uimsg application is hot).
+		Object[] happly = io.brodgar.addon.AddonManager.onMessage(wdg, msg, args);
+		if(happly != null) {
+		    synchronized(UI.this) {
 			dispatch(wdg, new Widget.MessageEvent(msg, happly));
-			applied = true;
 		    }
-		}
-		if(applied)
 		    io.brodgar.addon.AddonManager.onUimsg(wdg, msg);   // addon: widget-tree read tap (post-apply; enqueues a semantic-event refresh; skipped when a message-stream handler swallowed the update)
+		}
 	    } else {
 		throw(new UIException("Uimsg to non-existent widget " + id, msg, args));
 	    }

@@ -143,6 +143,9 @@ grep -rn "one lock direction\|two UI monitors\|lock direction" docs/client/
 - `src/haven/Widget.java` — 3
 - `src/haven/GItem.java` — 3
 - `docs/client/multi-session.md` — 1, 2 (read, never written: the rule)
+- `docs/client/network.md` — 6 (the inbound message path, and the command queue's per-widget-id
+  ordering, which is what lets the stream decide outside `UiMessage.run`'s block and still be ordered
+  against the apply)
 - `docs/client/widgets.md` — 3 (the entry seam and its monitor; the read-only walk it used to carry
   is `docs/client/widget-introspection.md`, split out of it when the gotchas hit the 150-line ceiling)
 - `docs/client/widget-introspection.md` — 7 (`Widget.parentpos`/`rootpos`: what a root coordinate is, and

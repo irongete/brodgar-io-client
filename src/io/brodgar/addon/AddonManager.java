@@ -1542,13 +1542,24 @@ public final class AddonManager {
      * — from input dispatch and the addon tick (both inside the frame loop's {@code synchronized(ui)}), or from
      * the MapView hit-test callback, which is on the RENDER thread and takes {@code synchronized(ui)} before it
      * sends {@code "click"}. That last one is why the test is {@code holdsLock} and not "am I the UI thread": a
-     * naive thread test would wrongly skip the commonest action in the game. Since the tick and draw also hold
-     * that monitor, holding it here means the handler Lua cannot race any other Lua — and, because we only
-     * <i>test</i> the lock (never acquire a new one), there is no deadlock risk. A rare off-lock sender is
-     * passed straight through. The re-entrancy guard makes a handler body that itself triggers a {@code wdgmsg}
-     * pass through rather than recurse ({@code resend}/{@code send} themselves bypass this via
-     * {@code rawWdgmsg}). Returns {@code true} (proceed) on every fast-path exit, so an unsubscribed action is
-     * unaffected.
+     * naive thread test would wrongly skip the commonest action in the game. A rare off-lock sender is passed
+     * straight through, and — because we only <i>test</i> the lock, never acquire a new one — this seam adds no
+     * edge of its own. The re-entrancy guard makes a handler body that itself triggers a {@code wdgmsg} pass
+     * through rather than recurse ({@code resend}/{@code send} themselves bypass this via {@code rawWdgmsg}).
+     * Returns {@code true} (proceed) on every fast-path exit, so an unsubscribed action is unaffected.
+     *
+     * <p><b>Why this one cannot be hoisted, and what that costs (112.7).</b> Every other seam in this layer that
+     * ran Lua under a tree monitor was moved off it — {@link #onWidgetEntered} and {@link #onItemInfo} queue for
+     * the step (112.3), {@link #onWidgetPlaced}'s adapters fire from that drain (112.5), and {@link #onMessage}
+     * is hoisted clean out of {@code UiMessage.run}'s block (112.7). This one has nowhere to go: it is reached
+     * <i>from</i> input dispatch, which took the monitor before it called anything, and the answer it exists to
+     * give ({@code ev:preventDefault} cancelling the send) has to be given now, on this thread. So it stays in
+     * family A and holds exactly one tree — the sender's own. Two things follow, both by design. A handler here
+     * may read and write the sender's tree freely, and a reach into <b>another</b> tree meets
+     * {@link LuaWidget#monitor}'s refusal (112.2) rather than the deadlock it used to be; the refusal names the
+     * {@code Update} handler or timer that does the same work holding nothing. And the Lua it runs is not
+     * serialized against the engine step, which since 112.4 holds no monitor at all: this is the one remainder
+     * {@code docs/addons/api/threading.md} states.
      */
     public static boolean onWdgmsg(Widget sender, String msg, Object[] args) {
         return dispatchAction(sender, msg, args);
@@ -1566,12 +1577,19 @@ public final class AddonManager {
      * </ul>
      * {@code preventDefault} wins over {@code rewrite} when both are used. The body is {@link #dispatchMessage}.
      *
-     * <p><b>Threading.</b> Called from {@code UiMessage.run} on a Loader thread but always inside that method's
-     * {@code synchronized(ui)} block — the same monitor the tick and draw hold — so the handler Lua cannot race
-     * any other Lua. No {@code holdsLock} guard is needed (unlike {@link #onWdgmsg}, whose senders are not all
-     * UI-locked): this seam is reached only under the lock. The fast path (nobody subscribes to this name)
-     * returns the original args immediately, so an unsubscribed message is unaffected — important, as uimsg
-     * application is hot.
+     * <p><b>Threading (112.7).</b> Called from {@code UiMessage.run} on a Loader thread, <b>above</b> that
+     * method's {@code synchronized(ui)} block rather than inside it: this seam holds <b>no</b> tree monitor, so
+     * a handler may build a window in the layer or write a widget of any session — the one-monitor rule
+     * ({@code docs/client/multi-session.md}), which this seam broke every time a handler reached across trees.
+     * It still decides <i>before</i> the widget applies, and stays ordered against the apply: {@code UI}'s
+     * command queue chains every {@code UiMessage} aimed at one widget id ({@code Command.dep}/{@code bars}),
+     * so no other update to that widget runs between this call and the {@code dispatch} it answers. What the
+     * hoist gives up is the serialization that block bought for free — two updates to <i>different</i> widgets
+     * can now run their handlers side by side on two Loader threads, beside the step's own Lua, which since
+     * 112.4 holds no monitor either. That is the remainder {@code docs/addons/api/threading.md} states, and it
+     * is why a handler here keeps a short body. No {@code holdsLock} guard, unlike {@link #onWdgmsg}: there is
+     * no monitor left to test for. The fast path (nobody subscribes to this name) returns the original args
+     * immediately, so an unsubscribed message is unaffected — important, as uimsg application is hot.
      */
     public static Object[] onMessage(Widget target, String msg, Object[] args) {
         return dispatchMessage(target, msg, args);
@@ -2100,8 +2118,9 @@ public final class AddonManager {
      *
      * <p><b>{@code preventDefault} beats {@code rewrite}</b>, and the last {@code rewrite} of one message
      * wins — the precedence the hook levels had, unchanged. No {@code holdsLock} guard, unlike
-     * {@link #dispatchAction}: this seam is reached only from inside {@code UiMessage.run}'s
-     * {@code synchronized(ui)} block, so the monitor is always already held.
+     * {@link #dispatchAction}: since 112.7 this seam is reached from <i>above</i> {@code UiMessage.run}'s
+     * {@code synchronized(ui)} block, so there is no tree monitor held here to test for — see
+     * {@link #onMessage} for what that buys and what it costs.
      */
     static Object[] dispatchMessage(Widget target, String msg, Object[] args) {
         if(!anyStreamSub(msg, false))

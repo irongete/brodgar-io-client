@@ -1,0 +1,10 @@
+{
+  "name": "112.7 — the inbound stream decides before the monitor",
+  "id": "112-one-tree-monitor-at-a-time.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 112.7: an inbound message handler holds no tree monitor and may build a window in the layer, while preventDefault and rewrite still reach the widget -- and the outbound action stream, which cannot be hoisted, refuses a cross-tree write instead of deadlocking on it.",
+  "api_version": 1,
+  "permissions": ["speed.set"],
+  "files": ["main.lua"]
+}
