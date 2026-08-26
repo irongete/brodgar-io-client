@@ -28,6 +28,21 @@
   in `gridinfo` — so for a window after the server drops the map (a cave, a house) `sessloc` still names
   the segment you left. Anything deriving a coordinate in that window gets an old-frame answer, not a
   refusal; compare the segment rather than testing for null.
+- **So a reader proves it, and the proof is one comparison.** A live `MCache.Grid`'s `id` must equal
+  `Segment.gridid(g.gc.add(sessloc.tc.div(cmaps)))`. A grid id is the **server's** and is the same number in
+  every session and every frame, so asking the record what it holds at a live grid's translated coord is
+  the base checking itself ([mapfile.md](mapfile.md) states it from the record's side). What makes it
+  usable rather than merely correct:
+  - **Nothing recorded near counts as a refusal, not as an unknown.** `GameUI.mapfiletick` records the grid
+    under the player within a second of arriving, so no live grid answering means the record does not know
+    where this session is standing — which is exactly the window a re-base opens.
+  - **Take `file.lock.readLock().tryLock()` and never wait**, `resolve`'s own rule: the processor thread
+    holds the write lock across a segment save. A lock miss is not a failure — keep the previous verdict,
+    or a base flaps on every save and everything derived from it is rebuilt each time it does.
+  - **Snapshot the live grids before taking that lock.** `MapFile`'s own writers walk an `MCache` while
+    holding it, and taking the two in the other order is a deadlock.
+  - **`Segment.gridid` answers from memory and `checklock()`s**; `Segment.grid(sc)` would wait on `Defer`
+    for tiles nobody wants. Take the first and never the second.
 
 ## Drawing a grid
 

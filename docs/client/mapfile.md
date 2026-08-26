@@ -64,7 +64,7 @@
   grid coords **and rewrites every marker's `seg`/`tc` in place**, bumping `markerseq` and firing the same
   notify once if any marker moved. A stored segment coord does not go stale, it points somewhere else. A
   grid id is the server's and never moves.
-- `update(MCache, Coord cgc)` queues the 3×3 grids around a coord; `GameUI.mapfilesave`
+- `update(MCache, Coord cgc)` queues the 3×3 grids around a coord; `GameUI.mapfiletick`
   (`haven/GameUI.java`) calls it whenever the player's grid or its `seq` changes — which is why the
   recorded grid under the player is current.
 

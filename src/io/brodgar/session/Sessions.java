@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
+import haven.AddonWidgets;
 import haven.AuthClient;
 import haven.Bootstrap;
 import haven.Charlist;
@@ -24,7 +25,9 @@ import haven.Glob;
 import haven.Gob;
 import haven.Loading;
 import haven.MCache;
+import haven.MapFile;
 import haven.MapView;
+import haven.MiniMap;
 import haven.OCache;
 import haven.HackThread;
 import haven.NamedSocketAddress;
@@ -150,6 +153,20 @@ public class Sessions {
 	tickmode();         // rts: (F3) the mode, derived from the membership, outside the branch below
 	if(!members.isEmpty()) {
 	    UI an = anchor();
+	    /* rts: (109.1) the base pass, and a loop of its own precisely because it must reach EVERY member.
+	     * The loop below skips the one holding the screen -- the frame has already ticked that session in
+	     * full -- and the anchor's base is one half of every difference between two frames, so a base
+	     * derived inside that loop would be derived for everybody except the session the rest are measured
+	     * against. It runs ahead of the tick rather than after it: a member's own sessloc is then a frame
+	     * old, which only ever lengthens the window in which a base is refused, and the offset the loop
+	     * below derives needs the anchor's base to be there already. */
+	    for(Member m : members) {
+		try {
+		    m.tickbase();
+		} catch(RuntimeException e) {
+		    new Warning(e, String.format("session: base failed for %s", m.user)).issue();
+		}
+	    }
 	    for(Member m : members) {
 		UI u = m.ui;
 		/* The member holding the anchor is ticked by the frame itself, in full. Ticking it again
@@ -1058,6 +1075,156 @@ public class Sessions {
 	private Glob offmine = null, offanchor = null;
 	private double offtry = 0;
 
+	/**
+	 * Where this session's own coordinates sit in the map database, and whether that has been
+	 * <b>proved</b>.
+	 *
+	 * <p>Immutable and replaced whole, {@code Recall}'s shape and for its reason: the tick writes it
+	 * while the console and every reader of a session's place read it, and a half-updated base puts
+	 * ground and objects in a world they are not in.
+	 */
+	public static final class Base {
+	    /** Which map database this session names — two characters need not share one ({@code chrmap}). */
+	    public final MapFile file;
+	    /** The segment this session is standing in. */
+	    public final long seg;
+	    /** The segment tile coord of this session's tile {@code (0, 0)}: segment tile = session tile + this. */
+	    public final Coord tc;
+	    /** Whether a live grid's id has been checked against the record through this base. */
+	    public final boolean proven;
+
+	    Base(MapFile file, MiniMap.Location loc, boolean proven) {
+		this.file = file;
+		this.seg = loc.seg.id;
+		this.tc = loc.tc;
+		this.proven = proven;
+	    }
+
+	    boolean sameas(MapFile file, MiniMap.Location loc) {
+		return((this.file == file) && (this.seg == loc.seg.id) && this.tc.equals(loc.tc));
+	    }
+	}
+
+	/* rts: (109.1) this session's base, and why there is no proved one when there is not. Exactly one
+	 * of the two is null at any moment. Written by tickbase() alone, on the frame's own thread. */
+	private volatile Base base = null;
+	private volatile String baseless = "no HUD yet";
+
+	/**
+	 * This session's <b>proved</b> base, or null while it has none.
+	 *
+	 * <p>A base that has merely been derived is not one that may be read through. {@code sessloc} goes
+	 * stale rather than null, so for a window after the server re-bases the session's coordinate space
+	 * (a cave, a house) it still names the segment just left — and everything converted through it in
+	 * that window is placed somewhere it never was. Nothing gets an unproved base from here.
+	 */
+	public Base base() {
+	    Base b = this.base;
+	    return(((b != null) && b.proven) ? b : null);
+	}
+
+	/**
+	 * Derive this session's base from its own corner minimap and prove it against a live grid. Runs
+	 * every frame, for every member, the anchor included.
+	 *
+	 * <p>The minimap is {@code GameUI.mmap} and no other: {@code MapWnd} carries a second {@link MiniMap}
+	 * over the same database, and a base taken from that one would follow a window the user panned.
+	 *
+	 * <p>Nothing here is cached across a change. The session coordinate space is re-based mid-play and a
+	 * tile coord that meant somewhere before means somewhere else afterwards, so the base is derived
+	 * again every tick and needs no event to tell it that the ground moved.
+	 */
+	void tickbase() {
+	    if(dead) {
+		base = null;
+		baseless = "the session has ended";
+		return;
+	    }
+	    Session s = this.sess;
+	    GameUI gui = gameui();
+	    MiniMap mm = (gui == null) ? null : gui.mmap;
+	    if((s == null) || (mm == null)) {
+		base = null;
+		baseless = "no HUD yet";
+		return;
+	    }
+	    MapFile file = mm.file;
+	    if(file == null) {
+		base = null;
+		baseless = "no map database yet";
+		return;
+	    }
+	    MiniMap.Location loc = mm.sessloc;
+	    if(loc == null) {
+		base = null;
+		baseless = "no session location yet";
+		return;
+	    }
+	    /* sessloc.tc comes off a live grid's GridInfo and is grid-aligned. If it ever is not, the
+	     * division below is a truncation and everything read through the base lands a fraction of a
+	     * grid out -- so refuse the base rather than answer a place that is nearly right. */
+	    if(!loc.tc.mod(MCache.cmaps).equals(Coord.z)) {
+		base = null;
+		baseless = "the session location " + loc.tc + " is not grid-aligned";
+		return;
+	    }
+	    Base cur = this.base;
+	    Boolean v = prove(file, loc, s.glob.map);
+	    boolean proven;
+	    if(v == null) {
+		/* The database is busy. Keep the previous verdict rather than drop it: the processor thread
+		 * holds that lock for as long as a segment save takes, and a base that flapped on every save
+		 * would rebuild the merged scene each time it did. A verdict about a base that has since
+		 * moved is not kept -- sameas is what says so. */
+		proven = (cur != null) && cur.sameas(file, loc) && cur.proven;
+		baseless = proven ? null : "the map database is busy and nothing has proved this base yet";
+	    } else {
+		proven = v.booleanValue();
+		baseless = proven ? null : "no live grid's id matches what the record holds through it";
+	    }
+	    if((cur == null) || !cur.sameas(file, loc) || (cur.proven != proven))
+		this.base = new Base(file, loc, proven);
+	}
+
+	/**
+	 * Does the record agree with the ground the server is streaming? A live grid's coord translated by
+	 * the base must find that same grid's id in the segment. A grid id is the server's and means the
+	 * same thing in every frame, so the comparison is the base checking itself.
+	 *
+	 * <p>{@code true} proved, {@code false} refused, {@code null} the lock was not free. Nothing
+	 * recorded anywhere near counts as a refusal and not as an unknown: the grid the character is
+	 * standing on is recorded within a second of arriving, so nothing to compare against means the
+	 * record does not know where this session is — which is exactly the window a re-base opens.
+	 */
+	private static Boolean prove(MapFile file, MiniMap.Location loc, MCache mc) {
+	    Coord off = loc.tc.div(MCache.cmaps);
+	    /* Snapshot the live grids OUTSIDE the file lock: MapFile's own writers walk a map cache while
+	     * holding it, and taking the two in the other order here is how that becomes a deadlock. */
+	    List<MCache.Grid> live = AddonWidgets.loadedGrids(mc);
+	    /* tryLock and never lock: the processor thread holds the write lock across disk I/O, and the
+	     * frame may not wait for a segment save. Everything under it is an in-memory map lookup --
+	     * Segment.gridid answers from the coord map that arrived with the segment. */
+	    if(!file.lock.readLock().tryLock())
+		return(null);
+	    try {
+		int checked = 0;
+		for(MCache.Grid g : live) {
+		    /* Grid.fill writes the id when the "m" layer lands, so a grid exists briefly with none. */
+		    if(g.id == 0)
+			continue;
+		    Long rid = loc.seg.gridid(g.gc.add(off));
+		    if(rid == null)
+			continue;
+		    checked++;
+		    if(rid.longValue() != g.id)
+			return(Boolean.FALSE);
+		}
+		return((checked > 0) ? Boolean.TRUE : Boolean.FALSE);
+	    } finally {
+		file.lock.readLock().unlock();
+	    }
+	}
+
 	private Member(String user, String chr, Session sess) {
 	    this.user = user;
 	    this.chr = chr;
@@ -1354,30 +1521,64 @@ public class Sessions {
 	    return(String.format("%s:%s(%dg) %s", user, gui.chrid, grids, check()));
 	}
 
-	/** rts: the long form of {@link #check()} — every number the anchoring rests on. */
+	/**
+	 * rts: the long form of {@link #check()} — the base this session stands in, and every number the
+	 * anchoring rests on. One line, and {@code :session where} says one per member.
+	 *
+	 * <p>The base is the head of the line and everything else follows it, because everything else is
+	 * read <em>through</em> it. Without a proved base the line ends there, carrying no coordinate at
+	 * all: a place said through a base that has not been proved is a place the character has never
+	 * been, and printing one is how that gets believed.
+	 */
 	public String where() {
+	    Base b = base();
+	    if(b == null)
+		return(String.format("%s: no proved base -- %s", user, baseless));
+	    String head = String.format("%s: base %s tile (%d, %d), proved%s",
+					user, Long.toUnsignedString(b.seg, 16), b.tc.x, b.tc.y, against(b));
 	    GameUI gui = gameui();
 	    Session s = this.sess;
 	    Glob anchor = anchorglob();
 	    if((gui == null) || (s == null) || (anchor == null))
-		return(user + ": not in the world yet");
+		return(head);
 	    Gob mine = s.glob.oc.getgob(gui.plid);
 	    if(mine == null)
-		return(user + ": no character gob yet");
-	    Coord2d off = this.offset;
+		return(head + " -- no character gob yet");
 	    String own = tiles(mine.rc);
+	    if(s.glob == anchor)
+		return(String.format("%s -- at %s in its own frame, the anchor", head, own));
+	    Coord2d off = this.offset;
 	    if(off == null)
-		return(String.format("%s: at %s in its own frame -- unanchored (%d grids loaded, none shared with the anchor)",
-				     user, own, s.glob.map.numgrids()));
+		return(String.format("%s -- at %s in its own frame, unanchored (%d grids loaded, none shared with the anchor)",
+				     head, own, s.glob.map.numgrids()));
 	    Coord2d pred = mine.rc.sub(off);
 	    Gob seen = anchor.oc.getgob(gui.plid);
 	    if(seen == null)
-		return(String.format("%s: own %s -> anchor %s, %d shared grids -- gob %d is not in the anchor's view, nothing to check against",
-				     user, own, tiles(pred), offshared, gui.plid));
-	    return(String.format("%s: own %s -> anchor %s, anchor sees %s, err %.3f tiles (%d shared grids%s)",
-				 user, own, tiles(pred), tiles(seen.rc),
+		return(String.format("%s -- own %s -> anchor %s, %d shared grids -- gob %d is not in the anchor's view, nothing to check against",
+				     head, own, tiles(pred), offshared, gui.plid));
+	    return(String.format("%s -- own %s -> anchor %s, anchor sees %s, err %.3f tiles (%d shared grids%s)",
+				 head, own, tiles(pred), tiles(seen.rc),
 				 pred.dist(seen.rc) / MCache.tilesz.x, offshared,
 				 offconflict ? ", DISAGREEING" : ""));
+	}
+
+	/**
+	 * How this base stands to the anchor's own, said on the base's half of the line because it is a
+	 * property of the two bases and of nothing else. Two characters in one segment of one database can
+	 * be related; two in different ones cannot be, however near they walk.
+	 */
+	private String against(Base b) {
+	    Member an = anchormember();
+	    if((an == null) || (an == this))
+		return("");
+	    Base ab = an.base();
+	    if(ab == null)
+		return(", the anchor has no proved base");
+	    if(ab.file != b.file)
+		return(", a different map database from the anchor's");
+	    if(ab.seg != b.seg)
+		return(", a different segment from the anchor's");
+	    return("");
 	}
 
 	private static String tiles(Coord2d p) {

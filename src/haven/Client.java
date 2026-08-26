@@ -396,6 +396,17 @@ public class Client implements Console.Directory {
 			    io.brodgar.session.Sessions.say("empty");
 			for(io.brodgar.session.Sessions.Member m : ms)
 			    io.brodgar.session.Sessions.say("%s", m.status());
+		    } else if(sub.equals("where")) {
+			/* rts: (109.1) where each session actually is: its base in the map database, whether
+			 * that base has been proved, and what the anchoring rests on. One line per member and
+			 * the anchor's own among them -- the anchor's base is one half of every difference
+			 * between two frames, so a report that left it out would leave out the one number the
+			 * others are measured against. */
+			List<io.brodgar.session.Sessions.Member> ws = io.brodgar.session.Sessions.members();
+			if(ws.isEmpty())
+			    io.brodgar.session.Sessions.say("empty");
+			for(io.brodgar.session.Sessions.Member m : ws)
+			    io.brodgar.session.Sessions.say("%s", m.where());
 		    } else if(sub.equals("anchor")) {
 			/* rts: (F5) go to another session -- Control.take, the same one gesture the Alt-click
 			 * and the cycle key spell: its screen, its selection alone, its camera. */
@@ -423,7 +434,7 @@ public class Client implements Console.Directory {
 			    for(String u : us)
 			    io.brodgar.session.Sessions.say("saved token for %s", u);
 		    } else {
-			throw(new Exception("usage: session add|drop|list|anchor|users"));
+			throw(new Exception("usage: session add|drop|list|where|anchor|users"));
 		    }
 		}
 	    });

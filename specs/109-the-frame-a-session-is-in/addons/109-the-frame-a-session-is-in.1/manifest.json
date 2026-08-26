@@ -1,0 +1,10 @@
+{
+  "name": "109.1 — one proved base per session, and the verb that reads it",
+  "id": "109-the-frame-a-session-is-in.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 109.1: every session the client holds derives one base from its own minimap and proves it against a live grid, `:session where` reports it, and no line says a place through a base it does not call proved.",
+  "api_version": 1,
+  "permissions": ["console.run"],
+  "files": ["main.lua"]
+}
