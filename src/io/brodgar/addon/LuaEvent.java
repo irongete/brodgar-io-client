@@ -108,6 +108,12 @@ public final class LuaEvent {
          */
         OVERLAY("overlay", "an overlay event"),
         /**
+         * {@code hafen.event():on("GobSdtChanged", fn)} — 113.3's payload, objectified like {@code OVERLAY}:
+         * two things to say, {@code :gob()} the object and {@code :sdt()} the bytes THIS firing made — never
+         * a live re-read, so two deltas landing in one drain cannot make an intermediate stage vanish.
+         */
+        SDT("sdt", "a state-change event"),
+        /**
          * {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked", fn)} — the V2 click payload,
          * objectified (041.7): all three answer the same shape, and only the noun matching {@code clickKey()}
          * (the emitter that actually fired) reads non-nil — the other two read {@code nil} rather than throwing,
@@ -211,6 +217,35 @@ public final class LuaEvent {
         this.gobId = gobId;
         this.key = key;
         this.nat = nat;
+        this.wx = 0;
+        this.wy = 0;
+    }
+
+    /** SDT shape (113.3): {@code hafen.event():on("GobSdtChanged", fn)}'s payload — {@code gobId} the object
+     *  this firing is about, {@code bytes} the 1-based {@code 0..255} array this firing's own state already
+     *  converted to (by the caller, {@link AddonManager#fireGobSdt}, one fresh table per owner — {@code extra}
+     *  is reused rather than a new field, the same slot {@code DROP}'s {@code :thing()} and {@code CELL}'s
+     *  {@code :item()} already carry a payload-specific value in). */
+    private LuaEvent(Addon owner, Shape shape, long gobId, LuaValue bytes) {
+        this.owner = owner;
+        this.shape = shape;
+        this.cancel = null;
+        this.msg = null;
+        this.wdg = null;
+        this.args = null;
+        this.ui = null;
+        this.rewritten = null;
+        this.x = 0;
+        this.y = 0;
+        this.button = null;
+        this.amount = null;
+        this.g = null;
+        this.extra = bytes;
+        this.flag = false;
+        this.mods = 0;
+        this.gobId = gobId;
+        this.key = null;
+        this.nat = false;
         this.wx = 0;
         this.wy = 0;
     }
@@ -431,6 +466,16 @@ public final class LuaEvent {
     }
 
     /**
+     * The {@code ev} for one {@code GobSdtChanged} fire (113.3) — {@code owner} is the one addon this event
+     * is being minted for (per-addon interning, D-045, like every other payload here), {@code bytes} the
+     * already-converted array this firing's own state made ({@link AddonManager#fireGobSdt} builds one per
+     * owner, so no two addons' handlers ever share one mutable table).
+     */
+    static LuaValue sdt(Addon owner, long gobId, LuaValue bytes) {
+        return of(new LuaEvent(owner, Shape.SDT, gobId, bytes));
+    }
+
+    /**
      * The {@code ev} for one {@code GhostClicked}/{@code SpriteClicked}/{@code ObjectClicked} fire (V2 click
      * dispatch, objectified 041.7) — {@code entity} is the already-interned ghost/sprite/object handle,
      * {@code clickKey} which noun answers it ({@link LuaWorldEntity#clickKey()}).
@@ -558,6 +603,8 @@ public final class LuaEvent {
             gesture(m);
         } else if(shape == Shape.OVERLAY) {
             overlay(m);
+        } else if(shape == Shape.SDT) {
+            sdt(m);
         } else if(shape == Shape.CLICKED) {
             clicked(m);
         } else {
@@ -913,6 +960,24 @@ public final class LuaEvent {
         m.set("native", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 return LuaValue.valueOf(self(a.arg1(), Shape.OVERLAY, "native").nat);
+            }
+        });
+    }
+
+    /**
+     * {@code hafen.event():on("GobSdtChanged", fn)} (113.3): two things to say — {@code :gob()} the owner's
+     * own interned handle (minted lazily, like {@code :widget()} and {@code OVERLAY}'s), {@code :sdt()} the
+     * 1-based {@code 0..255} array THIS firing made. Uncancelable, like every other bus payload.
+     */
+    private static void sdt(LuaTable m) {
+        m.set("gob", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return self(a.arg1(), Shape.SDT, "gob").gob();
+            }
+        });
+        m.set("sdt", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return self(a.arg1(), Shape.SDT, "sdt").extra;
             }
         });
     }

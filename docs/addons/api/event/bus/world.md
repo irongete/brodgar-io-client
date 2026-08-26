@@ -13,6 +13,7 @@ one character's, so each fires once however many of your characters are looking.
 | `GobRemoved` | [Gob](../../gob.md) | it leaves the view of the last one that could |
 | `GobOverlayAdded` | `ev` — `:gob()` `:key()` `:native()` | something is attached to a game object — see [`gob:overlay()`](../../overlay.md) |
 | `GobOverlayRemoved` | `ev` — `:gob()` `:key()` `:native()` | something attached to a game object goes away |
+| `GobSdtChanged` | `ev` — `:gob()` `:sdt()` | the state bytes on a resource-drawn object change — see [`gob:sdt()`](../../gob.md#state) |
 
 Prefer these over scanning [`s:world():gob():list`](../../world.md) every frame. `ev:gob()` is a live
 [Gob object](../../gob.md). On `GobRemoved` the gob is **already gone**, so only `gob:id()` answers there;
@@ -68,6 +69,36 @@ When a gob leaves, **yours** on it are reported gone *before* that gob's own `Go
 already reads the truth. The game's are not: the client drops a departing gob whole rather than taking its
 overlays off one by one, and a native removal is reported only while the gob is still there. A `:reload`
 fires neither: the addon that would hear it is the one going away.
+
+### The state changing
+
+`GobSdtChanged` fires when [`gob:sdt()`](../../gob.md#state) changes — a crop advancing a stage, a gate
+swinging open, a stockpile's count moving.
+
+| `ev` on `GobSdtChanged` | Description |
+|---|---|
+| `ev:gob()` | the [Gob](../../gob.md) whose state changed |
+| `ev:sdt()` | the new bytes — the same shape `gob:sdt()` answers |
+
+```lua
+hafen.event():on("GobSdtChanged", function(ev)
+  hafen.log():write(ev:gob():id() .. " now carries " .. #ev:sdt() .. " state byte(s)")
+end)
+```
+
+It fires once for the object, the same rule as `GobAdded`/`GobRemoved` above, and it fires **for the first
+state a gob is given, too** — the moment its resource hands it bytes to report, not only on a later change
+— so a handler never has to poll `gob:sdt()` while a resource is still loading. A gob whose resource
+carries no state at all never fires, on that first delta or any after it: there is nothing to report. It
+arrives on the next frame, like the two overlay events above, and after the `GobAdded` that introduced the
+object if the two land in the same one.
+
+`ev:sdt()` is **that firing's own bytes**, never a fresh `gob:sdt()` read: two changes landing in the same
+frame would otherwise both answer the *last* one, and the state in between would never have happened as
+far as a handler could tell.
+
+Unlike the overlay events, `GobSdtChanged` is never owner-scoped — the state belongs to the server's
+object, not to any one addon's attachment, so every subscriber is told alike.
 
 ## World ghosts and sprites
 

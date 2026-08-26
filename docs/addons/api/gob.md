@@ -129,6 +129,11 @@ drawn from a resource — a player, most notably, which carries no state bytes a
 gob the server sent no state for answers the **empty array**, not `nil`: the two are different facts,
 and [`gob:info().sdt`](types/world.md#gobinfo) carries whichever the live read does.
 
+Reading it on every frame to catch the moment it moves is a sweep —
+[`GobSdtChanged`](event/bus/world.md#the-state-changing) is the edge instead: it fires when the bytes
+actually change, once for the object however many of your characters see it, and for the first state a
+gob is given as well as every one after.
+
 ## The ground it stands on
 
 `gob:hitbox()` answers the collision footprint the **server** collides against — a set of polygons in

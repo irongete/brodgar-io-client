@@ -150,6 +150,10 @@ public final class AddonManager {
     // the drain finds no subscriber and drops the event, which is exactly what hasSub does for every other
     // event here. It ARMS a seam in Gob, which belongs to no session, so it stays one flag for the client.
     static volatile boolean overlaySubs;
+    // 113.3: the same fast path, for the ResDrawable.$cres.apply seam -- it runs on the delta stream for
+    // every gob that carries state bytes (most resource-drawn objects, whether or not they ever change),
+    // so it must cost one volatile read when nobody listens. Set by a subscription, cleared per reload.
+    static volatile boolean sdtSubs;
     // 042.1: the Resolve (M2) marshalling queue — a Loading's wnotify() runs on whichever thread finished
     // the load (Loader, Defer pool), so a retry callback never touches Lua directly; it enqueues here and the
     // layer's tick drains it on the UI thread (P5), same shape as the per-session queues in SessionState. A
@@ -396,6 +400,8 @@ public final class AddonManager {
         final Queue<GobEvent> gobEvents = new ConcurrentLinkedQueue<GobEvent>();
         /** 038.3: the same marshalling for the two gob-overlay events. */
         final Queue<OverlayEvent> overlayEvents = new ConcurrentLinkedQueue<OverlayEvent>();
+        /** 113.3: the same marshalling for a gob's state-byte change ({@code ResDrawable.$cres.apply}'s seam). */
+        final Queue<SdtEvent> sdtEvents = new ConcurrentLinkedQueue<SdtEvent>();
         // 112.3: the widget-ENTRY seam — Widget.add0 runs under synchronized(w.ui) on whatever thread placed
         // the widget (a Loader thread applying a server update, the UI thread for a client-side add), so the
         // tap only enqueues; the LAYER's step drains it (drainEnteredWidgets), holding no tree monitor, which
@@ -1021,6 +1027,7 @@ public final class AddonManager {
                     ss.overlayEvents.clear();   // 038.3: the addons that queued these are being torn down
                 sessionEvents.clear();          // 074.3: ...and so are the ones these were queued for
                 overlaySubs = false;            //   (the reloaded ones re-subscribe inside reload())
+                sdtSubs = false;                // 113.3: same reset, same reason
                 AddonRegistry.reload();
                 return;
             }
@@ -1223,6 +1230,12 @@ public final class AddonManager {
             //     before the gob's own GobRemoved, so an overlay is never reported dying after the thing it
             //     was on.
             drainOverlayEvents(st);
+
+            // 1''. A gob's state bytes changed (113.3), captured on the loader threads inside
+            //      ResDrawable.$cres.apply's own gob-monitor seam. Same reasoning as 1': drained on the
+            //      session that captured it, after the layer's gob drain, so a growing crop's first state
+            //      is reported after the GobAdded that introduced it.
+            drainSdtEvents(st);
 
             // 1a. HTTP results (N2a): a pool worker finished a request → deliver its res table to the addon's
             //     callback on the UI thread (armed + isolated, like every other event). A cancelled/torn-down
@@ -1947,7 +1960,7 @@ public final class AddonManager {
     static final String[] BUS_KEYS = {
         "Load", "Update", "Disable",
         "SessionAdded", "SessionEnteredWorld", "SessionSelected", "SessionRemoved",
-        "GobAdded", "GobRemoved", "GobOverlayAdded", "GobOverlayRemoved",
+        "GobAdded", "GobRemoved", "GobOverlayAdded", "GobOverlayRemoved", "GobSdtChanged",
         "MeterAdded", "MeterRemoved", "MeterChanged",
         "BuffAdded", "BuffRemoved", "BuffChanged",
         "FepChanged", "StudyChanged", "EquipChanged", "ActionbarChanged", "WoundChanged",
@@ -1978,6 +1991,8 @@ public final class AddonManager {
         else if(key.toLowerCase().startsWith("session"))
             hint = " — the session family is SessionAdded, SessionEnteredWorld, SessionSelected and"
                 + " SessionRemoved";
+        else if(key.toLowerCase().contains("sdt"))
+            hint = " — the key is GobSdtChanged";
         else
             hint = "";
         return "hafen.event():on(key, fn): unknown event '" + key + "'" + hint
@@ -2513,6 +2528,95 @@ public final class AddonManager {
         }
     }
 
+    /**
+     * <b>A gob's state bytes changed</b> (113.3) — the {@code // addon:} line at the end of
+     * {@code ResDrawable.$cres.apply}'s body, the one place the wire's {@code OD_RES} delta replaces
+     * them (see {@code docs/client/resources.md}). {@code sdt} is THIS delta's own bytes — read once,
+     * here, into a plain {@code byte[]} rather than kept as the {@link haven.MessageBuf} the sprite still
+     * shares, since that object's cursor is not this seam's to disturb.
+     *
+     * <p>Called from whichever thread applies the delta — a Loader thread as often as not, under
+     * {@code OCache.ObjDelta.apply}'s {@code synchronized(gob)} — so, like {@link #gobOverlayCame}, it
+     * does the least possible: never Lua, never a throw back into the engine's own delta path.
+     */
+    public static void gobSdtChanged(Gob g, MessageBuf sdt) {
+        if(!sdtSubs || (g == null))
+            return;
+        try {
+            queueSdtEvent(g, sdt.clone().bytes());
+        } catch(RuntimeException e) {
+            /* the engine's delta path is not ours to break */
+        }
+    }
+
+    /**
+     * File one sdt-change event under <b>the session the gob is in</b> (073.1) — see
+     * {@link #queueOverlayEvent}, the same reasoning one field over: a {@link Gob}'s own {@link Glob}
+     * names the session this delta belongs to, which is not necessarily the one on screen.
+     */
+    private static void queueSdtEvent(Gob g, byte[] bytes) {
+        SessionState st = queueState(io.brodgar.session.Sessions.uifor(g.glob));
+        if(st != null)
+            st.sdtEvents.add(new SdtEvent(g.id, bytes));
+    }
+
+    /**
+     * Deliver the sdt-change events captured since the last tick, bounded by the queue's size at entry —
+     * see {@link #drainOverlayEvents} for why a handler that reacts by re-reading cannot spin the frame.
+     *
+     * <p><b>The state is a world fact and fires once</b> (113.3), the same shape as the game's own
+     * overlays one section up: the delta stream is per session (two sessions holding one gob each apply
+     * it off their own {@code OCache}), so {@link #sdtEdge} is what settles two reports of one change
+     * into the single fire {@code GobSdtChanged} promises.
+     */
+    private static void drainSdtEvents(SessionState st) {
+        for(int n = st.sdtEvents.size(); n > 0; n--) {
+            SdtEvent se = st.sdtEvents.poll();
+            if(se == null)
+                break;
+            if(sdtEdge(se.gobId, se.sdt))
+                fireGobSdt(se.gobId, se.sdt);
+        }
+    }
+
+    /** The bytes last REPORTED for a gob's state, keyed by id — the fire-once gate {@link #sdtEdge} reads
+     *  and updates, in the shape of {@link #nativeEdge} one level down: not "is a session's copy new" but
+     *  "is this the OBJECT's edge", since two sessions can race to report one delta. Dropped whole with
+     *  the gob in {@link #gobLeft}, like {@link #heldNative}. */
+    private static final Map<Long, byte[]> lastSdt = new HashMap<Long, byte[]>();
+
+    /**
+     * <b>Is {@code bytes} a real change from what was last reported for {@code gobId}?</b> True and
+     * recorded exactly when it differs from the last firing's own bytes — so a second session queuing
+     * the identical delta a moment later finds nothing to report, and a later delta that changes the
+     * bytes again does.
+     */
+    private static boolean sdtEdge(long gobId, byte[] bytes) {
+        Long key = Long.valueOf(gobId);
+        byte[] was = lastSdt.get(key);
+        if(java.util.Arrays.equals(was, bytes))
+            return false;
+        lastSdt.put(key, bytes);
+        return true;
+    }
+
+    /**
+     * Fire {@code GobSdtChanged} (a {@link LuaEvent}, payload {@code :gob()} {@code :sdt()}) — 113.3.
+     * <b>Broadcasts</b>, like {@link #fireGob}: the state is the SERVER's object's, owned by no one
+     * addon, so every subscriber is told alike. {@code bytes} is THIS firing's own, converted fresh per
+     * owner ({@link #sdtTable}) so one addon's handler cannot scribble on another's copy of one event —
+     * never a live re-read, so two deltas landing in one drain cannot make an intermediate stage vanish.
+     */
+    static void fireGobSdt(long gobId, byte[] bytes) {
+        for(Addon a : addons) {
+            if(hasSub(a, "GobSdtChanged"))
+                fireTo(a, "GobSdtChanged", LuaEvent.sdt(a, gobId, sdtTable(bytes)));
+        }
+        Addon c = consoleOwner;
+        if((c != null) && hasSub(c, "GobSdtChanged"))
+            fireTo(c, "GobSdtChanged", LuaEvent.sdt(c, gobId, sdtTable(bytes)));
+    }
+
     // ------------------------------------------------------------- the world's edge (079.4)
     //
     // THE FOUR WORLD EVENTS FIRE ONCE. A gob id is the server's and names one object; five characters standing
@@ -2627,6 +2731,7 @@ public final class AddonManager {
     /** The object left its last session: forget the game's overlays that hung on it, then report it gone. */
     private static void gobLeft(long id) {
         heldNative.remove(Long.valueOf(id));   // the client drops a departing gob whole, decorations and all
+        lastSdt.remove(Long.valueOf(id));      // 113.3: ...and what it last reported for the object's state
         GobIntent.forget(id);                  // 092.7: ...and what was ASKED for at it goes with the object
         fireGob("GobRemoved", id);
     }
@@ -3939,6 +4044,8 @@ public final class AddonManager {
                     throw new LuaError(busKeyRefusal(key));
                 if(key.startsWith("GobOverlay"))   // 038.3: arm the two Gob seams (see `overlaySubs`)
                     overlaySubs = true;
+                if(key.equals("GobSdtChanged"))    // 113.3: arm the $cres.apply seam (see `sdtSubs`)
+                    sdtSubs = true;
                 return owner.subs.on(key, fn);
             }
         });
@@ -5059,8 +5166,13 @@ public final class AddonManager {
         if(g == null)
             return LuaValue.NIL;
         byte[] b = AddonWidgets.gobSdt(g);
-        if(b == null)
-            return LuaValue.NIL;
+        return (b == null) ? LuaValue.NIL : sdtTable(b);
+    }
+
+    /** {@code 0..255} bytes as a 1-based Lua array — the one conversion the live read above and
+     *  {@link #fireGobSdt}'s event payload share. A fresh table every call: a handler must never be able
+     *  to scribble on another owner's copy of one firing, or on what a later live read hands back. */
+    private static LuaTable sdtTable(byte[] b) {
         LuaTable t = new LuaTable();
         for(int i = 0; i < b.length; i++)
             t.set(i + 1, LuaValue.valueOf(b[i] & 0xff));
@@ -5339,6 +5451,19 @@ public final class AddonManager {
             this.key = key;
             this.nat = nat;
             this.owner = owner;
+        }
+    }
+
+    /** A gob state-byte change captured off-thread, awaiting UI-thread dispatch — 113.3. {@code sdt} is
+     *  the delta's OWN bytes, not a live re-read, so a later delta in the same drain cannot overwrite
+     *  the one this event is about. */
+    private static final class SdtEvent {
+        final long gobId;
+        final byte[] sdt;
+
+        SdtEvent(long gobId, byte[] sdt) {
+            this.gobId = gobId;
+            this.sdt = sdt;
         }
     }
 

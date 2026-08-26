@@ -1,0 +1,9 @@
+{
+  "name": "113.3 — the state has a moment, so it has an edge",
+  "id": "113-the-shape-and-the-state.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 113.3: hafen.event():on(\"GobSdtChanged\", fn) fires with a Gob and a state array matching gob:sdt(), never twice for one (id, bytes) pair in one frame, falls silent after sub:off(), and hafen.event():on(\"SdtChanged\", fn) raises naming GobSdtChanged.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -114,12 +114,15 @@ public class ResDrawable extends Drawable implements Sprite.Owner, EquipTarget {
 	    Indir<Resource> res = OCache.Delta.getres(g, resid);
 	    Drawable dr = g.getattr(Drawable.class);
 	    ResDrawable d = (dr instanceof ResDrawable)?(ResDrawable)dr:null;
+	    MessageBuf old = (d != null) ? d.sdt : MessageBuf.nil;
 	    if((d != null) && (d.res == res) && !d.sdt.equals(sdt) && (d.spr != null) && (d.spr instanceof Sprite.CUpd)) {
 		((Sprite.CUpd)d.spr).update(sdt);
 		d.sdt = sdt;
 	    } else if((d == null) || (d.res != res) || !d.sdt.equals(sdt)) {
 		g.setattr(new ResDrawable(g, res, sdt, msg.old));
 	    }
+	    if(!old.equals(sdt))
+		io.brodgar.addon.AddonManager.gobSdtChanged(g, sdt);   // addon: 113.3 -> GobSdtChanged, queued onto the tick
 	}
     }
 }

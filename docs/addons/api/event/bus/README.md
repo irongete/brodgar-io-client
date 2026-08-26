@@ -29,7 +29,7 @@ The rest carry no session, and each group has its own reason:
 
 | Events | Why they carry none |
 |---|---|
-| `GobAdded`, `GobRemoved`, `GobOverlayAdded`, `GobOverlayRemoved` | a game object is the world's rather than a character's, and each of these fires **once** for it — see [the world](world.md) |
+| `GobAdded`, `GobRemoved`, `GobOverlayAdded`, `GobOverlayRemoved`, `GobSdtChanged` | a game object is the world's rather than a character's, and each of these fires **once** for it — see [the world](world.md) |
 | `SessionAdded`, `SessionEnteredWorld`, `SessionSelected`, `SessionRemoved` | the session **is** the payload |
 | `Load`, `Update`, `Disable` | your addon's own, and there is one of it however many characters are up |
 | `MarkerChanged` | the recorded map is one database for the client |

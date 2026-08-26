@@ -39,7 +39,7 @@
       gate, a wall segment, a cupboard) turns the way that object faces.
       <!-- extra context: docs/addons/api/ui/overlay.md, docs/addons/api/ui/drawing.md -->
 
-- [ ] **113.3 — the state has a moment, so it has an edge.** Adds the bus key `GobSdtChanged`,
+- [x] **113.3 — the state has a moment, so it has an edge.** Adds the bus key `GobSdtChanged`,
       payload `:gob()` and `:sdt()`. `ResDrawable.$cres.apply` gains the feature's one upstream edit:
       a local holding `d.sdt` before the branch chain, and a `// addon:` line after it calling
       `AddonManager.gobSdtChanged(g, sdt)` when the bytes differ — queue only, never Lua, never
