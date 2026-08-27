@@ -8,7 +8,6 @@ import haven.HSlider;
 import haven.Label;
 import haven.OptWnd;
 import haven.RichText;
-import haven.Scrollbar;
 import haven.Scrollport;
 import haven.SDropBox;
 import haven.SListWidget;
@@ -41,12 +40,12 @@ import java.util.List;
  * {@code sel} <i>and</i> rebuilding the closed box — {@code super.change(I)} with only this class's own
  * notify wrapper skipped.
  *
- * <p><b>The rows go in a {@link Scrollport}, and the page's box is the port's.</b> How many rows there are
- * is the addon's to choose, so this is the one panel in this window nothing bounds — the shape
- * {@code OptWnd.BindingPanel} wears for exactly the same reason. Without it the page packs to its column,
- * the window packs to the page, and a long enough one is taller than the screen, clipped at both ends by
- * {@code OptWnd.cresize} re-centring it, with no way to reach either. The port is capped at the height of
- * the list beside it and shrinks to fit a page with less in it than that.
+ * <p><b>The rows go in a {@link Scrollport}, and the page is {@code OptWnd.PAGE}.</b> How many rows there
+ * are is the addon's to choose, so this is the one panel in this window whose column nothing bounds — the
+ * shape {@code OptWnd.BindingPanel} wears for exactly the same reason. Without the port the page packs to
+ * its column and a long enough one is taller than the screen, with no way to reach either end of it. The
+ * port is the page box less the heading above it, at every row count: a short page leaves the rest of the
+ * box empty rather than shrinking, because the box is what the window is drawn around.
  *
  * <p>It extends {@code OptWnd.Panel} (a non-static inner class) from this package through the qualified
  * {@code opt.super()} form, and carries <b>no caption</b>: it is drawn inside the settings view's holder, so
@@ -57,8 +56,6 @@ public class AddonOptionsPanel extends OptWnd.Panel {
     private static final int CAPW = UI.scale(150), CTLX = UI.scale(158), CTLW = UI.scale(215);
     /** The gap between two rows, and the room a number row's readout takes beside its slider. */
     private static final int ROWGAP = UI.scale(8), NUMW = UI.scale(44);
-    /** The port's box: the two columns plus the bar's own width, and the height of the list beside it. */
-    private static final int PAGEW = CTLX + CTLW + Scrollbar.width, PAGEH = UI.scale(320);
 
     private final Scrollport port;
     private final Rows rows;
@@ -67,13 +64,17 @@ public class AddonOptionsPanel extends OptWnd.Panel {
 
     public AddonOptionsPanel(OptWnd opt, AddonManager.OptionGroup group) {
         opt.super();
-        Widget prev = add(new Label(group.addon), 0, 0);
-        port = add(new Scrollport(Coord.of(PAGEW, PAGEH)), prev.pos("bl").adds(0, 10));
+        // Wrapped at the page's own width: the heading is the addon's display name, and a long one would
+        // otherwise be the one thing on this page that reaches past the box.
+        Widget prev = add(new Label(group.addon, OptWnd.PAGE.x), 0, 0);
+        Coord pc = prev.pos("bl").adds(0, 10);
+        port = add(new Scrollport(OptWnd.PAGE.sub(0, pc.y)), pc);
         rows = port.cont.add(new Rows(), Coord.z);
         for(AddonManager.OptionEntry e : group.options)
             declared.add(row(e.option));
         layout();
         refit();
+        resize(OptWnd.PAGE);   // the page IS the box, whatever ended up in it
     }
 
     /** One option's row: the caption on the left, the control it is drawn as on the right. */
@@ -119,21 +120,16 @@ public class AddonOptionsPanel extends OptWnd.Panel {
     }
 
     /**
-     * Fit the port to the column and the page to the port. The height is the column's, capped at the list's
-     * own — so a short page is no taller than it needs to be and a long one stops growing here rather than at
-     * the window. {@code bar.max} is computed only in {@code Scrollcont.update()}, which runs on {@code add}
-     * and on nothing else, so it is re-run by hand; {@code ch(0)} then clamps a thumb left past the new end.
+     * Fit the scroll range to the column. The port itself does not move: it is the page box less the heading
+     * above it, whether the column inside it is three rows or forty — so a short page leaves the rest of the
+     * box empty and a long one scrolls, and neither is a size the window follows. {@code bar.max} is computed
+     * only in {@code Scrollcont.update()}, which runs on {@code add} and on nothing else, so it is re-run by
+     * hand; {@code ch(0)} then clamps a thumb left past the new end. A column that fits inside the port
+     * leaves {@code bar.max} at zero and draws no bar at all.
      */
     private void refit() {
-        /* The column plus the ten pixels of slop Scrollcont.update adds to it, so a page that fits leaves
-         * bar.max at zero and draws no bar at all -- without the ten here it would leave exactly ten, and
-         * every short page would carry a draggable thumb with nothing under it. */
-        int h = Math.min(rows.sz.y + 10, PAGEH);
-        if(h != port.sz.y)
-            port.resize(Coord.of(PAGEW, h));
         port.cont.update();
         port.bar.ch(0);
-        pack();
     }
 
     /**

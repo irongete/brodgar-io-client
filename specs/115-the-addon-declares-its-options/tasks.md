@@ -85,3 +85,41 @@
       `[manual]`: drag that scrollbar to the bottom — expect row 40 whole, and the window no taller than
       it is on the Game tab.
       <!-- extra context: src/haven/Scrollport.java, src/haven/Scrollbar.java, src/haven/OptWnd.java (BindingPanel) -->
+
+- [x] **115.5 — The settings window is one box.** Picking a subject changes what is drawn and never how
+      big the window is: today every holder packs to the page in it, so the window is a different width and
+      a different height on each of the nine subjects, and `OptWnd.cresize` re-centres it on every swap.
+      `OptWnd.PAGE` is the box every page is drawn inside — `UI.scale(new Coord(410, 410))`, declared on
+      `OptWnd` itself because a non-static inner class may hold no `Coord` constant of its own at source
+      1.8. `Subject.holder` is built at `PAGE` and never packed, its `cresize` override goes with the
+      packing it existed for, the subject list beside it takes the page's own height, and
+      `SettingsPanel.relayout()` goes entirely — one `tabs.pack()` and one `pack()` at the end of the
+      constructor is the whole layout, because after this nothing in the view has a size that moves. The
+      number is the measured ceiling of what the view can show, in design pixels: `VideoPanel` is the
+      tallest page at 395 and an addon's page the widest at 384 — its two columns plus `Scrollbar.width` —
+      and both hold at 1.0, 1.5 and 2.0 interface scale. The two pages that carry a port of their
+      own then **fill** the box instead of standing in a corner of it. `AddonOptionsPanel`: `PAGEW`/`PAGEH`
+      become `OptWnd.PAGE`, the port is the box less the heading above it, the heading wraps at the box's
+      width so a long addon name cannot push past it, and `refit()` keeps the port where it is and only
+      re-runs `Scrollcont.update()` and `bar.ch(0)`. `BindingPanel`: its port is the box less the
+      `PointBind` under it, which is built before the port so it can be measured, and the rows widen with
+      the port — `addhl` lays each caption and key button across `cont.sz.x`, so the key sits at the right
+      edge of the page rather than 110 pixels short of it.
+      `docs/client/ui-panels.md` says the holder is a declared box, drops the re-fitting row for it and
+      names the shape a page with a port of its own now wears;
+      `docs/addons/api/client/addon.md` re-anchors "past the height of the list beside it" to the page box
+      it now is.
+      *Its suite* declares three rows — a page far shorter than the box, which is what makes the fill
+      visible — and reads the view out of `hafen.ui()`: both tabs' holders are one box and it is 410×410
+      design pixels; both subject lists are one box and it is the page's own height; every panel built
+      under either holder fits inside the box, over however many of the nine the window has been walked
+      through; every page that fills the box is exactly it — its port the page's own width, its content
+      reaching the bottom edge — over the fillers the walk has built, an addon's page being the one that
+      stands with no walking at all; and the view's own box is the tab strip plus the holder, so nothing
+      drawn inside one can push the window. Selecting a row is not automatable — a native list hands
+      out no row for a script to hand back — so the walk is the manual line and the checks score what the
+      walk has built.
+      `[manual]`: open Options, then walk the Game list from `Interface settings` down to `Client` —
+      expect the window's frame never to move.
+      <!-- extra context: src/haven/Tabs.java, src/haven/Scrollport.java, src/haven/Widget.java (resize/pack),
+           src/io/brodgar/addon/ui/AddonOptionsPanel.java -->

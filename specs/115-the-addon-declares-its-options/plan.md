@@ -115,5 +115,11 @@ profiling checkbox has.
 - **Letting an addon reach another addon's options** the way `keybindings():binding()` reaches every
   binding. Remapping any key is something a user asks an addon to do; writing another addon's settings
   behind its back is not.
+- **Every page filling the box, not only the two that carry a port.** The view's pages are all the box
+  (115.5), but a column of controls does not stretch to fill one: Camera draws 122 design pixels of 410 and
+  the client toggles 38. Widening every slider, dropdown, entry and button to the page and spreading the
+  leftover height between the rows would touch all seven of the client's own panels for a look, and the
+  maintainer left it out on that boundary — a short page costs nothing now that the box, and not the page,
+  is what the window is drawn around.
 - **A `client.settings` key on the declaration.** That key guards the *client's* settings; an addon's own
   option is its own, so gating it would teach the wrong thing about what the key means.

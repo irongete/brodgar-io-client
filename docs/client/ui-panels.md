@@ -55,7 +55,9 @@ back to anywhere.
 | Both selections funnel through one method | `PanelList.change(I)` — a row click reaches it through `ItemWidget.mousedown`, and a selection written from anywhere else lands in the same place |
 | No deselect | `PanelList.unselect(int)` returns without clearing, where every other `SListBox` in the client answers a click on empty space with `change(null)` |
 | The holder, and the swap | one plain `Widget` per tab; `SettingsPanel.Subject.show(PanelEntry)` hides what was in it and adds or re-shows the one picked |
-| Re-fitting | `SettingsPanel.relayout()` — every holder, then `Tabs.pack()`, then the panel, then `OptWnd.cresize` |
+| The page box | `OptWnd.PAGE` — the box **every** holder is built at and the height every list is built at. It is a declared constant, not a page's own size, so a panel bigger or smaller than it changes what is drawn and never the window |
+| Laying out | once, at the end of the `SettingsPanel` constructor: `Tabs.pack()` then `pack()`. Nothing in the view has a size that moves afterwards, so no swap re-packs anything |
+| A page with a port of its own | `BindingPanel` builds its `Scrollport` at `OptWnd.PAGE` less the `PointBind` standing under it, so the page fills the box; the rows inside it spread to `Scrollcont.sz.x`, which is what `Widget.addhl` lays each caption and key button across |
 | A tab whose rows are a census | one list is built once and one is re-read — in `SettingsPanel.show()`, and again from `tick` whenever a generation counter it watches moves, because what belongs in it changes while the window sits there |
 | A row's identity across a re-read | `PanelEntry.key`, defaulting to the row's own name. The entries are minted fresh each time, so the selection cannot be remembered by identity |
 | Swapping a whole list | `SettingsPanel.Subject.reset(List)` — destroys every panel the old entries built, swaps the contents of `entries`, then re-picks the row with the same `key`, else the first. The `SListBox` needs no telling: `update()` re-reads `items()` every tick and diffs it by identity |
@@ -71,8 +73,10 @@ back to anywhere.
   and builds a fresh one — so the very checkbox a click just flipped is a **different widget** on the
   next frame. Hold the `VideoPanel`, never anything inside it.
 - **`Widget.cresize(Widget)` is a no-op.** A panel that repacks itself long after it was built tells its
-  parent, and the news stops there — so a container that has to follow a child's box overrides it. That
-  is the one method between `VideoPanel.resetcf` and the window's own re-fit.
+  parent, and the news stops there — so a container that has to follow a child's box overrides it. The
+  settings view deliberately does not: its holder is `OptWnd.PAGE` whatever `VideoPanel.resetcf` does
+  inside it. `OptWnd.cresize` is the override that matters, and it fires for the panel `chpanel` is
+  showing.
 - **A window may carry no caption.** `Window.cap` is nullable, `DefaultDeco.checkcap` nulls its own
   rendered `cap` to match, and `drawframe` guards the blit; the caption plate is still drawn, at the
   `sz.x / 4` minimum `checkcap` computes. Anything reading a window's caption gets `null` there rather

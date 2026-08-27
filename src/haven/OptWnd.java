@@ -37,6 +37,15 @@ public class OptWnd extends Window {
     public final SettingsPanel settings;   // addon: (115.1) the tabbed view the menu's "Options" entry opens
     public Panel current;
 
+    /* addon: (115.5) THE PAGE BOX -- the one box every page of the settings view is drawn inside, so that
+     * picking a subject changes what is drawn and never how big the window is. It is the ceiling of what
+     * the view can show rather than any one page's own size: the tallest page is VideoPanel at 395 design
+     * pixels and the widest an addon's at 384 -- its two columns plus Scrollbar.width -- and a page with
+     * less in it than that leaves the rest of the box empty instead of shrinking the window around itself.
+     * It stands here rather than on SettingsPanel because a non-static inner class may hold no constant
+     * that is not a compile-time one, and a Coord is not. */
+    public static final Coord PAGE = UI.scale(new Coord(410, 410));
+
     public void chpanel(Panel p) {
 	if(current != null)
 	    current.hide();
@@ -687,7 +696,11 @@ public class OptWnd extends Window {
 
 	public BindingPanel() {
 	    super();
-	    Scrollport scroll = add(new Scrollport(UI.scale(new Coord(300, 300))), 0, 0);
+	    /* addon: (115.5) the port is the page box less what stands under it, so this page fills the box
+	     * rather than sitting in a corner of it: the button below is built first to be measured, and the
+	     * rows inside spread to the port's own width, cont.sz.x being what addhl lays each one across. */
+	    PointBind pb = new PointBind(UI.scale(200));
+	    Scrollport scroll = add(new Scrollport(PAGE.sub(0, pb.sz.y + UI.scale(10))), 0, 0);
 	    Widget cont = scroll.cont;
 	    Widget prev;
 	    int y = 0;
@@ -748,7 +761,7 @@ public class OptWnd extends Window {
 		for(io.brodgar.addon.AddonManager.KeyBindEntry e : grp.binds)
 		    y = addbtn(cont, e.name, e.binding, y);
 	    }
-	    prev = adda(new PointBind(UI.scale(200)), scroll.pos("bl").adds(0, 10).x(scroll.sz.x / 2), 0.5, 0.0);
+	    prev = adda(pb, scroll.pos("bl").adds(0, 10).x(scroll.sz.x / 2), 0.5, 0.0);
 	    pack();
 	}
 
@@ -1055,6 +1068,11 @@ public class OptWnd extends Window {
 	     * row is highlighted and the list reads back what is drawn beside it. */
 	    if(!game.entries.isEmpty())
 		game.list.change(game.entries.get(0));
+	    /* addon: (115.5) the whole layout, once. Every box below this is a declared one, so there is
+	     * nothing left that moves for a later pack to follow; Tabs.pack puts both tabs on the union of
+	     * them, which is now the same box twice. */
+	    tabs.pack();
+	    pack();
 	}
 
 	private List<PanelEntry> gamepanels() {
@@ -1091,8 +1109,7 @@ public class OptWnd extends Window {
 	}
 
 	/* Re-read on the way in: the view is opened from the game menu every time, so this is the moment the
-	 * census is worth taking. After super.show(), because relayout() packs the window around whichever
-	 * panel is VISIBLE and this one is not one until then. */
+	 * census is worth taking. */
 	public void show() {
 	    super.show();
 	    refreshAddons();
@@ -1108,16 +1125,6 @@ public class OptWnd extends Window {
 		refreshAddons();
 	}
 
-	/* Every box in the view, bottom up, then the window around it. Called whenever what is in a holder
-	 * changes size -- a swap, and a panel that repacks itself under one. */
-	private void relayout() {
-	    for(Subject s : subjects)
-		s.holder.pack();
-	    tabs.pack();       // every tab to the union of them, so the window does not jump between the two
-	    pack();
-	    OptWnd.this.cresize(this);
-	}
-
 	/* One tab: the list of subjects, and the holder its pick draws in. */
 	public class Subject {
 	    public final Tabs.Tab tab;
@@ -1129,15 +1136,12 @@ public class OptWnd extends Window {
 	    private Subject(Tabs.Tab tab, List<PanelEntry> entries) {
 		this.tab = tab;
 		this.entries.addAll(entries);
-		this.list = tab.add(new PanelList(this, UI.scale(new Coord(190, 320))), Coord.z);
-		this.holder = tab.add(new Widget(Coord.z) {
-			/* A panel inside a holder may repack itself long after it was built -- VideoPanel.resetcf
-			 * throws its whole column away every time a graphics preference moves -- and Widget.cresize
-			 * is a no-op, so without this the window keeps the box the FIRST build came out at. */
-			public void cresize(Widget ch) {
-			    relayout();
-			}
-		    }, list.pos("ur").adds(10, 0));
+		this.list = tab.add(new PanelList(this, Coord.of(UI.scale(190), PAGE.y)), Coord.z);
+		/* addon: (115.5) the holder is the page box and nothing but it. A panel inside one may repack
+		 * itself long after it was built -- VideoPanel.resetcf throws its whole column away every time a
+		 * graphics preference moves -- and that now changes what is drawn in the box rather than the box,
+		 * so nothing here follows it and Widget.cresize's no-op is the right answer. */
+		this.holder = tab.add(new Widget(PAGE), list.pos("ur").adds(10, 0));
 		subjects.add(this);
 	    }
 
@@ -1167,8 +1171,6 @@ public class OptWnd extends Window {
 		list.sel = null;
 		if(pick != null)
 		    list.change(pick);
-		else
-		    relayout();
 	    }
 
 	    private void show(PanelEntry e) {
@@ -1185,7 +1187,6 @@ public class OptWnd extends Window {
 		if(e.actual == null)
 		    e.actual = holder.add(e.tgt.get(), Coord.z);
 		(shown = e.actual).show();
-		relayout();
 	    }
 	}
 

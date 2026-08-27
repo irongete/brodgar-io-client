@@ -1,0 +1,9 @@
+{
+  "name": "115.5 — the settings window is one box",
+  "id": "115-the-addon-declares-its-options.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 115.5: the settings view draws every page inside one declared box, so picking a subject changes what is drawn and never how big the window is. It proves both tabs hold that one box and it is 410x410 design pixels, both subject lists are one box and it is the page's own height, every panel built in a holder fits inside the box, every page that carries a port of its own is exactly the box, its port the page's own width and its content reaching the bottom edge — three rows declared here, which without the fill would be a page a fraction of its height — and the view's own box is its tab strip plus the box, so nothing drawn inside one can push the window.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

@@ -76,8 +76,9 @@ declared them. Your addon appears the moment its first `:add()` runs and is abse
 none, so an addon with nothing to configure never puts an empty page there.
 
 The client draws the control the type names, with `:label(s)` beside it and `:tooltip(s)` on hover. You
-build no widget and choose no file. **Declare as many rows as you have settings**: past the height of the
-list beside it your page scrolls, so the page is the same size whether you declared three rows or forty.
+build no widget and choose no file. **Declare as many rows as you have settings**: the page is a fixed box
+and your rows scroll inside it, so the window is the same size whether you declared three rows or forty —
+and the same size it is on every one of the client's own pages.
 
 > **The page and your value are one thing.** Each control reads its option as it draws, so a `value(v)`
 > from your addon moves an open control with nothing to notify and no listener to register; and the user
