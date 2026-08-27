@@ -8,6 +8,8 @@ import haven.HSlider;
 import haven.Label;
 import haven.OptWnd;
 import haven.RichText;
+import haven.Scrollbar;
+import haven.Scrollport;
 import haven.SDropBox;
 import haven.SListWidget;
 import haven.TextEntry;
@@ -17,6 +19,7 @@ import haven.Widget;
 import io.brodgar.addon.AddonManager;
 import io.brodgar.addon.LuaOption;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -38,6 +41,13 @@ import java.util.List;
  * {@code sel} <i>and</i> rebuilding the closed box — {@code super.change(I)} with only this class's own
  * notify wrapper skipped.
  *
+ * <p><b>The rows go in a {@link Scrollport}, and the page's box is the port's.</b> How many rows there are
+ * is the addon's to choose, so this is the one panel in this window nothing bounds — the shape
+ * {@code OptWnd.BindingPanel} wears for exactly the same reason. Without it the page packs to its column,
+ * the window packs to the page, and a long enough one is taller than the screen, clipped at both ends by
+ * {@code OptWnd.cresize} re-centring it, with no way to reach either. The port is capped at the height of
+ * the list beside it and shrinks to fit a page with less in it than that.
+ *
  * <p>It extends {@code OptWnd.Panel} (a non-static inner class) from this package through the qualified
  * {@code opt.super()} form, and carries <b>no caption</b>: it is drawn inside the settings view's holder, so
  * the window's subject is that view's and not this page's.
@@ -47,33 +57,100 @@ public class AddonOptionsPanel extends OptWnd.Panel {
     private static final int CAPW = UI.scale(150), CTLX = UI.scale(158), CTLW = UI.scale(215);
     /** The gap between two rows, and the room a number row's readout takes beside its slider. */
     private static final int ROWGAP = UI.scale(8), NUMW = UI.scale(44);
+    /** The port's box: the two columns plus the bar's own width, and the height of the list beside it. */
+    private static final int PAGEW = CTLX + CTLW + Scrollbar.width, PAGEH = UI.scale(320);
 
-    /** Built: until then a child's own repack is the page being assembled, not a line an addon rewrote. */
-    private boolean built = false;
+    private final Scrollport port;
+    private final Rows rows;
+    /** Every row, in declaration order — what {@link #layout()} walks when one of them changes height. */
+    private final List<Row> declared = new ArrayList<Row>();
 
     public AddonOptionsPanel(OptWnd opt, AddonManager.OptionGroup group) {
         opt.super();
         Widget prev = add(new Label(group.addon), 0, 0);
-        int y = prev.pos("bl").adds(0, 10).y;
+        port = add(new Scrollport(Coord.of(PAGEW, PAGEH)), prev.pos("bl").adds(0, 10));
+        rows = port.cont.add(new Rows(), Coord.z);
         for(AddonManager.OptionEntry e : group.options)
-            y = row(e.option, y) + ROWGAP;
-        pack();
-        built = true;
+            declared.add(row(e.option));
+        layout();
+        refit();
     }
 
     /** One option's row: the caption on the left, the control it is drawn as on the right. */
-    private int row(LuaOption o, int y) {
-        Widget ctl = add(control(o), new Coord(CTLX, y));
+    private Row row(LuaOption o) {
+        Widget ctl = rows.add(control(o), Coord.z);
         tip(ctl, o);
-        int h = ctl.sz.y;
         // A button carries its caption on its face and a bare label row declares none, so the column stands
         // empty for those two rather than repeating the one and inventing the other.
-        if(!o.label.isEmpty()) {
-            Label cap = new Label(o.label, CAPW);
-            tip(add(cap, new Coord(0, y + Math.max(0, (ctl.sz.y - cap.sz.y) / 2))), o);
-            h = Math.max(h, cap.sz.y);
+        Label cap = null;
+        if(!o.label.isEmpty())
+            tip(cap = rows.add(new Label(o.label, CAPW), Coord.z), o);
+        return new Row(cap, ctl);
+    }
+
+    /** A caption and the control beside it — the pair a row is placed as. */
+    private static final class Row {
+        final Label cap;
+        final Widget ctl;
+
+        Row(Label cap, Widget ctl) {
+            this.cap = cap;
+            this.ctl = ctl;
         }
-        return y + h;
+    }
+
+    /**
+     * Place every row down the column, each caption centred on the control beside it. Run at build, and again
+     * whenever a row changes height: a label row's line is the addon's to rewrite and this one wraps, so a
+     * longer line is a taller widget and every row under it is in the wrong place until this runs.
+     */
+    private void layout() {
+        int y = 0;
+        for(Row r : declared) {
+            r.ctl.c = Coord.of(CTLX, y);
+            int h = r.ctl.sz.y;
+            if(r.cap != null) {
+                r.cap.c = Coord.of(0, y + Math.max(0, (r.ctl.sz.y - r.cap.sz.y) / 2));
+                h = Math.max(h, r.cap.sz.y);
+            }
+            y += h + ROWGAP;
+        }
+        rows.pack();
+    }
+
+    /**
+     * Fit the port to the column and the page to the port. The height is the column's, capped at the list's
+     * own — so a short page is no taller than it needs to be and a long one stops growing here rather than at
+     * the window. {@code bar.max} is computed only in {@code Scrollcont.update()}, which runs on {@code add}
+     * and on nothing else, so it is re-run by hand; {@code ch(0)} then clamps a thumb left past the new end.
+     */
+    private void refit() {
+        /* The column plus the ten pixels of slop Scrollcont.update adds to it, so a page that fits leaves
+         * bar.max at zero and draws no bar at all -- without the ten here it would leave exactly ten, and
+         * every short page would carry a draggable thumb with nothing under it. */
+        int h = Math.min(rows.sz.y + 10, PAGEH);
+        if(h != port.sz.y)
+            port.resize(Coord.of(PAGEW, h));
+        port.cont.update();
+        port.bar.ch(0);
+        pack();
+    }
+
+    /**
+     * The column the rows are placed in, inside the port's {@code cont}. It exists for its {@code cresize}:
+     * {@code Scrollcont} is a plain {@code Widget}, so a row that repacks itself tells its parent and the
+     * news stops there, leaving both the row order below it and the scroll range describing a column that
+     * has moved.
+     */
+    private class Rows extends Widget {
+        private Rows() {
+            super(Coord.z);
+        }
+
+        public void cresize(Widget ch) {
+            layout();
+            refit();
+        }
     }
 
     /** The hover text the row declared, if it declared one. */
@@ -234,13 +311,4 @@ public class AddonOptionsPanel extends OptWnd.Panel {
         }
     }
 
-    /* A control inside this page may repack itself -- a label row's line is the addon's to rewrite, and a
-     * longer one is a taller widget -- and Widget.cresize is a no-op, so without this the page keeps the box
-     * its first build came out at and the window below it never re-fits. */
-    public void cresize(Widget ch) {
-        if(!built || (parent == null))
-            return;
-        pack();
-        parent.cresize(this);
-    }
 }

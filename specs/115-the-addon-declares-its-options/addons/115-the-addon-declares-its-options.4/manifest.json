@@ -1,0 +1,9 @@
+{
+  "name": "115.4 — an addon's options page scrolls",
+  "id": "115-the-addon-declares-its-options.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 115.4: this addon declares forty rows, the page draws a control for every one of them, the row column is taller than the port showing it, the page is shorter than the column so the window stops growing with the rows, the port's scrollbar carries the rest, and the fortieth row answers a write from Lua while nothing is drawing it.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

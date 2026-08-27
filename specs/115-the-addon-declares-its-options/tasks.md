@@ -66,7 +66,7 @@
       `[manual]`: with the panel open, move its slider — expect the number the next `:t115` run prints to be
       the one you left it on.
 
-- [ ] **115.4 — An addon's options page scrolls.** `AddonOptionsPanel` builds its rows into a
+- [x] **115.4 — An addon's options page scrolls.** `AddonOptionsPanel` builds its rows into a
       `Scrollport` rather than into itself: `OptWnd.BindingPanel` one panel up is the shape, and it is
       there for the same reason — a panel whose row count an addon chooses is the one panel in this
       window nothing bounds. The port is the Game list's own height and wide enough for the two columns
