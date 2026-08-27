@@ -838,10 +838,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	if(d == dormant)
 	    return;
 	dormant = d;
-	if(d)
+	if(d) {
+	    endcamdrag();   // rts: the screen changed hands mid-drag -- see endcamdrag
 	    detachscene();
-	else
+	} else {
 	    attachscene();
+	}
     }
     
     protected void envdispose() {
@@ -3329,6 +3331,25 @@ public class MapView extends PView implements DTarget, Console.Directory {
     
     private UI.Grab camdrag = null;
 
+    /* rts: a camera drag is a gesture over ONE camera object. Camera.click is what hands the camera the
+     * screen point every later drag is measured from, and that point is the whole state the gesture has --
+     * so the drag ENDS wherever the camera it was started on stops being this view's camera. Two places do
+     * that: setcam swaps the object outright, and losing the screen hands this camera another session's
+     * state through Camera.restate, which drops exactly that point (it is a PLACE, and places do not cross
+     * sessions) -- and takes the mouse away with it, so the release that would have ended the drag lands on
+     * the view that took the screen instead.
+     *
+     * Left standing, the grab outlives the point it was measured from: MouseMoveEvent is broadcast to every
+     * visible widget with no rect test, so the very next mouse move anywhere on screen drags a camera no
+     * click ever gave a starting point, and the UI thread dies on it. */
+    private void endcamdrag() {
+	if(camdrag != null) {
+	    camera.release();
+	    camdrag.remove();
+	    camdrag = null;
+	}
+    }
+
     public boolean mousedown(MouseDownEvent ev) {
 	// addon: 044.4 spatial UI (hafen.vr():widget()) — a widget standing in the world takes the pointer here,
 	//        before anything of the map view's own, exactly as a window on the flat UI takes it before the map
@@ -3384,11 +3405,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	   && io.brodgar.addon.AddonManager.onSurfaceMouseUp(this, ev))
 	    return(true);
 	if(ev.b == 2) {
-	    if(camdrag != null) {
-		camera.release();
-		camdrag.remove();
-		camdrag = null;
-	    }
+	    endcamdrag();
 	} else if(grab != null) {
 	    grab.mmouseup(ev.c, ev.b);
 	}
@@ -3726,6 +3743,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Class<? extends Camera> ct = camtypes.get(name);
 	if(ct == null)
 	    throw(new IllegalArgumentException("no such camera: " + name + " -- the client has " + String.join(", ", camnames())));
+	endcamdrag();   // the camera being dragged is about to stop existing -- see endcamdrag
 	camera = makecam(ct, args);
 	Utils.setpref("defcam", name);
 	Utils.setprefb("camargs", Utils.serialize(args));
