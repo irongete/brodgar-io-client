@@ -46,7 +46,7 @@ A Session is the **address**, so the reads that are about one character hang off
 | [`s:craft()`](craft.md) | the recipe window it has open, and its Craft button |
 | [`s:menugrid()`](menugrid.md) | its action menu: every action it knows, invoking one, and entries of your own |
 | [`s:fight()`](fight.md) | its combat schools, its maneuver deck, and who it is fighting |
-| [`s:flowermenu()`](flowermenu.md) | the radial menu it has open, and the petal to pick |
+| [`s:flowermenu()`](flowermenu.md) | the radial menu it has open, the petal to pick, and whether it is painted |
 | [`s:ui()`](ui/README.md) | the widgets the client put up for it: find one, watch for one, read its backpack |
 | [`s:store()`](store.md) | its own saved variables, in its own folder on disk |
 | [`s:console()`](console.md#run-a-line-protected) | its own console command line, and the verb that says one at it |

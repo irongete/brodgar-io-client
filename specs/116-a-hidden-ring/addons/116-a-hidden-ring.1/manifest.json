@@ -1,0 +1,10 @@
+{
+  "name": "116.1 — s:flowermenu():visible(b), the ring the client does not paint",
+  "id": "116-a-hidden-ring.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 116.1: the read answers true, false or nil with no menu open; the write takes a bare boolean, hands the section back and stops the client painting the ring. It raises two rings of its own by right-clicking nearby objects. On the first it proves the ring is painted, that hiding reads back false, that :list(), :count() and :gob() answer hidden exactly what they answered painted, that :visible(true) paints it again mid-life, that :visible(0), :visible(\"false\") and :visible(nil) each raise naming b, and that a :select(label) on a hidden ring still picks -- FlowerMenuRemoved carrying that very label. With no menu open :visible() is nil and :visible(false) raises naming the character. The second ring proves nothing is left behind, and is hidden and shown again a beat later.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["gob.click", "flowermenu.select"]
+}

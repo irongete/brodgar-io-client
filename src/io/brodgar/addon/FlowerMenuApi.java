@@ -47,6 +47,13 @@ import java.util.WeakHashMap;
  * a client-side petal keeps handling itself. They are also the one half that <b>throws</b> instead of answering:
  * see {@link #required}.
  *
+ * <p><b>{@code :visible(b)} is the write that is not</b> (116.1). It draws the ring or does not, client-side,
+ * and sends the server nothing, so it sits unprotected beside the reads — the pair {@code gob:visible(b)} is,
+ * with the radial menu where that one has an object. {@link haven.Widget#hide()}/{@link haven.Widget#show()}
+ * under that tree's monitor is the whole of it: the parent's draw walk already honours the flag, and the flag
+ * dies with the ring. A hidden ring is still <i>open</i> — it grabs, it reads, it picks and it closes exactly
+ * as a painted one does.
+ *
  * <p><b>The finder lives here</b>, and since 048.7 it is the only thing that does (D-103, one mechanism one
  * door): that session's open menu is the first {@link FlowerMenu} in a recursive walk of <b>its</b> UI root,
  * which is exact rather than approximate because an open menu grabs mouse <i>and</i> keyboard, so one tree
@@ -135,6 +142,50 @@ final class FlowerMenuApi {
                 AddonManager.requirePermission(owner, Permission.FLOWERMENU_SELECT);
                 select(user, Args.required(a, 2, FM + ":select", "key"));
                 return LuaValue.NIL;
+            }
+        });
+        // visible() / visible(b) — the ring the client PAINTS, or does not (116.1). The pair
+        // gob:visible(b) is, with the radial menu where that one has an object: an addon acting on
+        // FlowerMenuAdded decides before the ring's first frame, and this is the verb that says do not paint
+        // this one. Bare reads whether that character's open ring is drawn (nil with none open); true/false
+        // writes it and hands the SECTION back, so s:flowermenu():visible(false):select("Pick") is one chain.
+        //   UNPROTECTED: it draws or does not draw, client-side, and sends the server nothing. The flag is
+        // Widget.visible itself and the parent's draw walk already honours it, so hide()/show() under that
+        // tree's monitor is the whole of "not painted" — no core edit, and nothing to put back: the flag dies
+        // with the ring, about a second later.
+        //   A HIDDEN RING IS STILL OPEN. It holds the mouse and the keyboard, answers :list(), :count() and
+        // :gob() exactly as a painted one, still picks from :select(), and still ends with FlowerMenuRemoved.
+        // What it may not do is spend a click on a petal nobody could see — the two input guards in
+        // FlowerMenu (116.2).
+        menu.set("visible", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaCollection.receiver(self, "visible");
+                LuaValue bv = Args.written(a, 2, FM + ":visible", "b");
+                if(bv == null) {
+                    // The read is the other two reads' shape: no menu open is the ordinary state of the game
+                    // and answers nil rather than throwing, because nothing was asked to change.
+                    FlowerMenu fm = open(user);
+                    return (fm == null) ? LuaValue.NIL : LuaValue.valueOf(fm.visible());
+                }
+                // A bare adjective takes a bare boolean. LuaJ would coerce anything at all through
+                // toboolean(), and 0 is TRUE in Lua — so :visible(0) reading as "paint it" is the one silent
+                // wrong answer this verb can give, and it is refused naming the argument instead. It comes
+                // BEFORE the menu is looked for: the argument is wrong whether or not a ring is up.
+                if(!bv.isboolean())
+                    throw new LuaError(FM + ":visible(b): b must be true or false, got " + bv.typename());
+                boolean vis = bv.toboolean();
+                // ...and the write cannot answer with no ring up, where the read can: there is nothing to
+                // hide, and silently doing nothing is the failure an automation never notices. Same door
+                // select and cancel take, so "no menu is open" is ONE message on this section.
+                FlowerMenu fm = required(user, FM + ":visible");
+                synchronized(LuaWidget.monitor(fm)) {   // that ring's OWN tree (112.2), never the drawn one
+                    if(vis)
+                        fm.show();
+                    else
+                        fm.hide();
+                }
+                return self;              // the section: a property write chains
             }
         });
         // cancel() — close that character's open menu with nothing chosen, exactly as Esc and a click away

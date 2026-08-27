@@ -86,7 +86,7 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 | Page | What it holds |
 |---|---|
 | [`session:menugrid`](menugrid.md) | the action menu: every action the character knows, invoking one, and entries of your own that run your Lua |
-| [`session:flowermenu`](flowermenu.md) | the radial menu one character has open: its petals, the object it belongs to, picking one, and when one opens and closes |
+| [`session:flowermenu`](flowermenu.md) | the radial menu one character has open: its petals, the object it belongs to, picking one, whether the client paints it, and when one opens and closes |
 
 ## The UI
 

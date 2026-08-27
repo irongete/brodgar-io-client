@@ -2,9 +2,10 @@
 
 The **radial menu** is the ring of petals a right-click puts up: the game's main context gesture, and the
 way almost every interaction with an object starts. `s:flowermenu()` **is** the menu one character has
-open — what it offers, how many petals that is, and which one to pick. You reach it through the
-[session](session.md) whose character you mean, and the writes are protected; their keys are in
-[permissions](../guides/permissions.md).
+open — what it offers, how many petals that is, which one to pick, and whether the client paints it at
+all. You reach it through the [session](session.md) whose character you mean. Picking and dismissing are
+protected and their keys are in [permissions](../guides/permissions.md);
+[painting the ring](#drawn-or-not-unprotected) is not.
 
 ```lua
 hafen.event():on("FlowerMenuAdded", function(petals, s)
@@ -98,7 +99,7 @@ there the catalogue grows as you play, and here the ring is frozen the instant i
 The ring is fixed from the moment it appears and lives about as long as it takes to decide, so a petal is
 worth reading rather than keeping — but it is a handle, so keeping one is safe and says so.
 
-> **The menu answers while it is on screen, closing animation included.** A pick or an Esc starts a
+> **The menu answers while it is open, closing animation included.** A pick or an Esc starts a
 > quarter-to-three-quarter-second fade, and the ring is still there for it — so a `:count()` read from
 > inside a `FlowerMenuRemoved` handler is not yet `0`. Read what you need from the event's own payload.
 
@@ -142,6 +143,47 @@ missed is in the message.
 You can pick from inside a `FlowerMenuAdded` handler, and that is the usual place. The ring is still
 animating open at that moment — the one window a real click cannot use, because the menu swallows mouse
 input until the animation finishes.
+
+## Drawn or not (unprotected)
+
+`s:flowermenu():visible(b)` says whether the client paints that character's open ring. It is the read/write
+pair [`gob:visible(b)`](gob.md#drawn-or-not-unprotected) is, with the radial menu where that one has an
+object — and it is the one verb here that changes something and needs no key: it draws, or does not draw,
+and the server is told nothing.
+
+| Method | Returns | Description |
+|---|---|---|
+| `s:flowermenu():visible()` | bool \| nil | whether the open ring is painted; `nil` when that character has no menu open |
+| `s:flowermenu():visible(b)` | the section | paint it, or stop painting it |
+
+An addon that acts on [`FlowerMenuAdded`](#the-two-events) decides before the ring's first frame, so a ring
+it was always going to pick from need never be painted at all:
+
+```lua
+hafen.event():on("FlowerMenuAdded", function(petals, s)
+  for _, p in ipairs(petals) do
+    if p:label() == "Pick" then
+      s:flowermenu():visible(false):select("Pick")   -- it hands the section back, so this chains
+      return
+    end
+  end
+end)
+```
+
+> **A hidden ring is still open.** It is the same menu on the same character: `:list()`, `:count()` and
+> `:gob()` answer what they answer painted, `:select(label)` still picks from it, and it still ends with a
+> `FlowerMenuRemoved`. What changed is that nothing is drawn for it.
+
+`b` must be `true` or `false`, and anything else raises naming the argument — a number most of all, since in
+Lua `0` is a true value and would quietly paint a ring you meant to hide. The read answers `nil` with no menu
+open; the **write raises** there, naming the character, exactly as [picking and cancelling](#write-protected)
+do — there is nothing to hide, and a write that quietly did nothing is a race an addon never hears about.
+
+`:visible(true)` paints a ring mid-life, from the next frame. The flag is the ring's own and dies with it, so
+there is nothing to put back: the next menu that character opens is painted, and so is every menu on every
+other character. Picking, though, is a message to the server rather than a close, so a ring you picked from
+is still up while that goes out and comes back — `:visible(true)` straight after a `:select()` paints
+exactly that round trip.
 
 ## The two events
 
