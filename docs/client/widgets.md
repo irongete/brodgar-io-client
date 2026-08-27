@@ -121,13 +121,13 @@ consumer that needs the settled result marshals onto the next tick instead of re
 draining after `UILoop.Frame.tick`'s `loop.dispatch(ui)`, the input pass, has already run for that frame.
 
 **Resize gotcha, the same shape as the destroy one.** Nearly every `Widget.resize(Coord)` override calls
-`super.resize(sz)` and so reaches a tap placed in the base method, but **`Window`** (dispatches straight to
-its own `resize2` — deco/chrome sizing) and **`Tabs`** (folds over its own tab list) **do not**, so a seam
-placed only in `Widget.resize` silently misses both. A resize consumer is
-therefore called from TWO sites — `Widget.resize` and
-`Window.resize` (`Tabs` left as a known, narrow gap: no title/res a selector
-would realistically target it by) — the same "a notification a subclass can skip is not a seam" lesson
-`Widget.remove`/`cdestroy` already taught, applied to a second method.
+`super.resize(sz)` and so reaches a tap placed in the base method, but **`Window`** dispatches straight to
+its own `resize2` (deco/chrome sizing) and does **not**, so a seam placed only in `Widget.resize` silently
+misses it. A resize consumer is therefore called from TWO sites — `Widget.resize` and `Window.resize` — the
+same "a notification a subclass can skip is not a seam" lesson `Widget.remove`/`cdestroy` already taught,
+applied to a second method. **`Tabs` is not a `Widget` at all** ([panels](ui-panels.md)): its own
+`resize(Coord)` folds over its tab list and every `Tab` in it *is* a widget that reaches the base method, so
+what carries no seam is the coordinator — which has no place in the tree for a selector to name it by.
 
 ## Re-homing and focus
 

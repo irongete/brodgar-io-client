@@ -126,7 +126,8 @@ Two steps, and the second one is not yours:
    ```
 
 2. The user enables the addon. An addon that declares anything here is **disabled the first time the client
-   sees it**, and enabling it in Options ▸ AddOns raises a consent dialog listing, one plain line each,
+   sees it**, and enabling it in the **AddOns** manager raises a consent dialog listing, one plain line
+   each,
    exactly the entries you wrote.
 
 So a write addon that is running is one the user knowingly turned on — there is no global switch to flip,

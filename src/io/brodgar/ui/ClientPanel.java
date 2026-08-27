@@ -25,7 +25,7 @@ import io.brodgar.prof.Prof;
  * moves an open panel's box with no listener to register and nothing to leak when the panel closes.
  */
 public class ClientPanel extends OptWnd.Panel {
-    public ClientPanel(OptWnd opt, OptWnd.Panel back) {
+    public ClientPanel(OptWnd opt) {
         opt.super();
         Widget prev = add(new Label("Client"), 0, 0);
         prev = add(new CheckBox("Enable profiling") {
@@ -39,7 +39,6 @@ public class ClientPanel extends OptWnd.Panel {
         prev.settip("Arms the client's profiler: frame, CPU, GPU, addon and widget timings, readable from an"
                     + " addon through hafen.client:profiling(). Same switch as the :profile console command."
                     + " Off costs nothing; leave it off unless you are measuring something.", true);
-        add(opt.new PButton(UI.scale(200), "Back", 27, back), prev.pos("bl").adds(0, 30));
         pack();
     }
 }

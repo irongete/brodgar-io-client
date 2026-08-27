@@ -82,7 +82,7 @@ effects. An API over it would answer `nil` forever.
 
 What you hear as "music" in the world is something else: an **ambient loop** published by the world
 resources around you, on the same mechanism as the crickets, and governed by the ambient volume in
-Options ▸ Audio. That is a scene node with a lifetime rather than a clip handle, so it does not fit a
+Options ▸ Game ▸ Audio. That is a scene node with a lifetime rather than a clip handle, so it does not fit a
 Sound; exposing it would be its own section rather than a retrofit here.
 
 ## See also

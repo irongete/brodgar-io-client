@@ -130,7 +130,7 @@ hafen.client():options():keybindings():on("toggle", function()
 end)
 ```
 
-Reload, then open Options ▸ Keybindings: there is a **My Addon** section holding one action, `toggle`.
+Reload, then open Options ▸ Game ▸ Keybindings: there is a **My Addon** section holding one action, `toggle`.
 Assign a key to it, and it hides and shows your window. Because your addon owns the window, both verbs
 answer on it — see [owned vs borrowed](api/ui/widget.md#owned-vs-borrowed).
 

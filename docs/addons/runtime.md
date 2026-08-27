@@ -148,8 +148,9 @@ which is how you find out *before* the engine does.
 
 ## The AddOns panel
 
-**Options ▸ AddOns** lists every addon the client discovered, sorted by id, one row each: a checkbox, the
-name, version and author, and a live status. The description is the row's tooltip.
+**AddOns**, on the game menu that `Ctrl+O` opens, lists every addon the client discovered, sorted by id,
+one row each: a checkbox, the name, version and author, and a live status. The description is the row's
+tooltip.
 
 | Row shows | Meaning |
 |---|---|

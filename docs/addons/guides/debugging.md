@@ -106,8 +106,8 @@ watching everything.
 
 ## When the addon does not load
 
-`:addons` lists every folder the client found with its status, and Options ▸ AddOns says the same thing
-with the error message attached. Work down this list:
+`:addons` lists every folder the client found with its status, and the **AddOns** manager — on the game
+menu, which `Ctrl+O` opens — says the same thing with the error message attached. Work down this list:
 
 | The status says | Look at |
 |---|---|
@@ -128,7 +128,7 @@ Four causes cover almost all of it:
   in for seconds *after* `SessionEnteredWorld`. If a read answers `nil`, ask again from an
   [event or a timer](events-and-timers.md).
 - **The hotkey is unbound.** An addon hotkey starts with no key at all, by design. Look in
-  Options ▸ Keybindings for your addon's section.
+  Options ▸ Game ▸ Keybindings for your addon's section.
 - **The selector matches nothing — or too much.** That is
   [what the two lookups promise](../api/ui/selectors.md#one-or-all-of-them): `nil` when nothing matches, and
   an **error** where two or more do, rather than one picked for you. Try it in `:lua`, name the one you mean
@@ -137,7 +137,7 @@ Four causes cover almost all of it:
 
 ## When it is slow
 
-Arm the client's profiler — the Options ▸ Client checkbox, or
+Arm the client's profiler — the Options ▸ Game ▸ Client checkbox, or
 [`hafen.client():options():client():profiling(true)`](../api/client/README.md#client) — and read
 [`hafen.client():profiling()`](../api/client/profiling/README.md), which reports the frame, the render
 passes, per-widget cost and **what each addon's Lua cost**, most expensive first.

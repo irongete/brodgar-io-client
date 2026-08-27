@@ -73,7 +73,7 @@ Upstream this was two hardcoded rows and no bindings at all: `NKeyBelt.globtype`
 Alt bit that turns the page — so `Ctrl+3` did not merely fail to reach anything below, it **fired button 3
 and stopped**. Neither row was in the registry, so no panel listed it and nothing could be bound over it
 (see [services.md](services.md) on the keybind panel). Matching is exact now, and every one of the 24 keys
-is in Options ▸ Keybindings ▸ Action bar.
+is in Options ▸ Game ▸ Keybindings ▸ Action bar.
 
 ## Focus — bookkeeping, and the delivery chain that is NOT the same thing
 

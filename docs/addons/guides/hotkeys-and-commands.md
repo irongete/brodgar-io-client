@@ -14,15 +14,15 @@ keys:on("toggle", function()
 end)
 ```
 
-Your addon names the **action**; the user assigns the **key**, in Options ▸ Keybindings, where every addon
-that declared one gets a section of its own. `on` takes no default key and cannot: the client gives one key
-to exactly one action, so a default you picked would lose every collision and leave the user with a hotkey
-that silently never fires.
+Your addon names the **action**; the user assigns the **key**, in Options ▸ Game ▸ Keybindings, where every
+addon that declared one gets a section of its own. `on` takes no default key and cannot: the client gives
+one key to exactly one action, so a default you picked would lose every collision and leave the user with a
+hotkey that silently never fires.
 
 So say what you would have claimed, in your addon's own README:
 
 ```text
-Suggested key: Ctrl+H — assign it in Options > Keybindings > My Addon.
+Suggested key: Ctrl+H — assign it in Options > Game > Keybindings > My Addon.
 ```
 
 The assignment is the client's, and it survives `:reload` and restarts. To read it, or to write one, go

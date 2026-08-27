@@ -2,7 +2,7 @@
 
 > The catalogue of interactive widgets `haven` already ships, and what each one's construction and
 > value spine actually does. The tree itself is [the widget system](widgets.md); what draws a window
-> *frame* is [chrome](ui-chrome.md).
+> *frame* is [chrome](ui-chrome.md); the pages `OptWnd` swaps between are [panels](ui-panels.md).
 
 ## The image-backed base: `SIWidget`
 
@@ -85,17 +85,6 @@ Neither subclass extends `SIWidget` — both blit/draw fresh every frame, no `re
 window carries one, which makes it the
 reliable answer to *"find a control this addon did not build"* without depending on which client windows
 happen to be open. The rest of the deco is [ui-chrome.md](ui-chrome.md).
-
-## `OptWnd` — panels built on first visit, and one that rebuilds itself
-
-The other window always reachable, and the one with a control of every kind in it. Two things about it cost
-time before they are known:
-
-| What | Where |
-|---|---|
-| A panel is not in the tree until it is opened | `OptWnd.PButton.click` does `actual = add(tgt.get())` the **first** time and caches it; a panel nobody has visited matches no selector at all, and after one visit it stays added with `visible = false` while another shows |
-| `VideoPanel` throws its whole column away whenever a graphics preference moves | `VideoPanel.draw` runs `if((curcf == null) \|\| (ui.gprefs != curcf.prefs)) resetcf(ui)`, and `resetcf` destroys `curcf` and builds a fresh one — so the very checkbox a click just flipped is a **different widget** on the next frame, and anything held on the old one is holding a widget that has left the tree |
-| Its own controls override the value hook, not the input | e.g. `new CheckBox("Vertical sync") {public void set(boolean val) {…}}` — an anonymous subclass replacing `set`, which is exactly what a seam placed on an overridable hook would have missed |
 
 ## Tree operations a control adapter uses
 

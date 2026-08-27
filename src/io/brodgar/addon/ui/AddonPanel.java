@@ -49,7 +49,9 @@ public class AddonPanel extends OptWnd.Panel {
     private PermissionConsentWnd consent;   // the live enable-time permission consent dialog (4c), or null/destroyed
 
     public AddonPanel(OptWnd opt, OptWnd.Panel back) {
-        opt.super();
+        // addon: (115.1) "AddOns" is this panel's own caption on the window, written by OptWnd.chpanel when it
+        // is swapped in. The game menu that opens it carries none.
+        opt.super("AddOns");
         Widget prev = add(new Label("AddOns"), 0, 0);
         prev = add(new Label("Enable or disable addons. Changes apply on reload."), prev.pos("bl").adds(0, 2));
         // D-027/D-028: the protected verbs are a PER-ADDON permission (no global switch). An addon that declares

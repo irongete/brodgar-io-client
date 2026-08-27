@@ -28,14 +28,14 @@ it, putting it back — lives on the member rather than on this handle.
 ## Addon hotkeys start unbound
 
 `on` takes **no default key**. Your addon names an action; **the user assigns the key** in
-Options ▸ Keybindings, where every addon that declared a hotkey gets its own section, listed by addon
+Options ▸ Game ▸ Keybindings, where every addon that declared a hotkey gets its own section, listed by addon
 name. That is the only model consistent with the client's one-key-one-action exclusivity: an addon-chosen
 default could not claim a key already in use, so it would lose the collision and leave you with a hotkey
 that never fires.
 
 So **advertise a suggested key in your README instead of claiming one**:
 
-> *Suggested key: `Ctrl+H` — assign it in Options ▸ Keybindings ▸ myaddon.*
+> *Suggested key: `Ctrl+H` — assign it in Options ▸ Game ▸ Keybindings ▸ myaddon.*
 
 The user's assignment is persisted by the client and survives `:reload` and restarts; declaring the same
 name again after a reload picks the existing binding back up.
@@ -80,8 +80,9 @@ back as `addon/<your-addon-id>/<name>`.
 | `info()` | table \| nil | `{id=, key=, default=, assigned=, down=}`, `nil` for an id nothing has declared |
 
 Writing a key needs the [`client.settings` permission](../../guides/permissions.md), like every other
-setting here, and it persists exactly as the same edit made in Options ▸ Keybindings does — which is why it
-is keyed: `binding:key("Ctrl+I")` on `inv` takes the **client's own** inventory key, and the user has to undo
+setting here, and it persists exactly as the same edit made in Options ▸ Game ▸ Keybindings does — which is
+why it is keyed: `binding:key("Ctrl+I")` on `inv` takes the **client's own** inventory key, and the user has
+to undo
 that by hand. A write on a binding nothing has declared is an error; a read of one answers `nil`, except
 `id()`, which is what you addressed it by, and the three booleans, which are `false`.
 

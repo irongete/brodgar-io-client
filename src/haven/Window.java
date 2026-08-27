@@ -364,7 +364,12 @@ public class Window extends Widget {
 		    g.image(cm, mdo.add(x, 0), Coord.z, cbr);
 		g.image(cr, Coord.of(cl.sz().x + cmw, 0));
 	    }
-	    g.image(cap.tex(), capc());   // addon: (065.4) capc() -- the stock cpo unless a rule moved it
+	    // addon: (115.1) a window may carry NO caption -- the game menu is one. checkcap already nulls its
+	    // own `cap` when wnd.cap is null (the caption is a Text, and there is no rendering "nothing"), so
+	    // this blit is the one place that had to be told: without the guard a captionless window throws on
+	    // its first frame, from the draw pass, before anything it holds is ever seen.
+	    if(cap != null)
+		g.image(cap.tex(), capc());   // addon: (065.4) capc() -- the stock cpo unless a rule moved it
 	    mdo = Coord.of(cl.sz().x + cmw + cr.sz().x, 0);
 	    cbr = Coord.of(sz.x - tr.sz().x, tm.sz().y);
 	    for(; mdo.x < cbr.x; mdo.x += tm.sz().x)

@@ -69,7 +69,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:stock()` | table \| nil | what a widget **you built** declared its own look to be, or `nil` — [the same page](custom.md#naming-and-dressing-your-own-surfaces) |
 | `:owned()` | boolean | whether **your** addon built it — see [owned vs borrowed](#owned-vs-borrowed) |
 | `:is(sel)` | boolean | whether **this** widget matches that [selector](selectors.md) — the predicate, where [`:match(sel)`](#searching-inside-one-widget) searches below it |
-| `:children()` | array | child Widgets in tree order; empty for a leaf |
+| `:children()` | [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) | child Widgets in tree order; empty for a leaf. `:list()` is the array, and a child has no key, so there is no `:get` |
 | `:parent()` | Widget \| nil | the enclosing widget, or `nil` at the root |
 | `:position()` | `{x=, y=}` | position within the parent, in widget-local [design pixels](pixels.md) — [`:position(x, y)` moves it](native.md) |
 | `:size()` | `{w=, h=}` | size, in [design pixels](pixels.md); for a window its **outer** box. `.x` on one [raises](../shapes.md#the-anonymous-shapes) |
@@ -89,7 +89,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:cellSize()` | `{w=, h=}` \| nil | the cell box of a [grid](lists.md#grid), in [design pixels](pixels.md), or `nil` where a control has no cells — [`:cellSize(w, h)` writes it](lists.md#grid) |
 | `:columns()` | array \| nil | the column descriptors of a [table](lists.md#table), or `nil` where a control has no columns — [`:columns(t)` writes it](lists.md#table) |
 | `:item()` | [`Item`](items.md#the-item-object) \| nil | the item an **icon** draws — `nil` on everything else, where [`:items()`](items.md) is the container's own read |
-| `:items()` | [`Item`](items.md#the-item-object)`[]` | the items inside it — see [items](items.md) |
+| `:items()` | [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) of [`Item`](items.md#the-item-object) | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |
 | `:walk(fn)` | self | depth-first visit — `fn(widget, depth)`; **return `false` to prune** that subtree |

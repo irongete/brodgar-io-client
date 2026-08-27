@@ -162,8 +162,9 @@ governs the world's ambient loops, which is what sounds like background music he
 | `invertVertical()` / `invertVertical(b)` | bool | invert vertical camera drag |
 
 Every option here applies live. The inversions take effect on the very next drag; `mode` installs the
-camera as you write it, and persists it, so the next session comes up on it too — the same act as picking
-one in Options ▸ Camera or typing `:cam <name>`, and the panel shows your camera the next time it is opened.
+camera as you write it, and persists it, so the next session comes up on it too — the same act as picking one
+in Options ▸ Game ▸ Camera or typing `:cam <name>`, and the panel shows your camera the next time it is
+opened.
 
 The names above are the whole set, so there is no list verb to call: a name outside them raises, and the
 message names both what you passed and every camera the client has.
@@ -182,7 +183,7 @@ answers a camera the client has.
 
 ## `client()`
 
-Client-wide toggles, the Options ▸ Client panel.
+Client-wide toggles, the Options ▸ Game ▸ Client panel.
 
 | Method | Type | Description |
 |---|---|---|

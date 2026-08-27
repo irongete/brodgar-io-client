@@ -27,18 +27,25 @@
 package haven;
 
 import haven.render.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.*;
 import java.awt.event.KeyEvent;
 
 public class OptWnd extends Window {
     public final Panel main;
+    public final SettingsPanel settings;   // addon: (115.1) the tabbed view the menu's "Options" entry opens
     public Panel current;
 
     public void chpanel(Panel p) {
 	if(current != null)
 	    current.hide();
 	(current = p).show();
+	/* addon: (115.1) the caption follows the panel -- null on the game menu, which carries none. Behind an
+	 * equality test because chcap is the ONE caption seam ([title=] selectors hang off it), so a swap that
+	 * changes nothing must not re-derive every match on this window and on everything below it. */
+	if(!Utils.eq(this.cap, p.cap))
+	    chcap(p.cap);
 	cresize(p);
     }
 
@@ -100,7 +107,17 @@ public class OptWnd extends Window {
     }
 
     public class Panel extends Widget {
+	/* addon: (115.1) the window's caption while THIS panel is the one showing, or null for a panel that
+	 * carries none. Only the panels chpanel swaps between use it; one drawn inside the settings view's
+	 * holder is never the window's own subject and leaves it null. */
+	public final String cap;
+
 	public Panel() {
+	    this(null);
+	}
+
+	public Panel(String cap) {
+	    this.cap = cap;
 	    visible = false;
 	    c = Coord.z;
 	}
@@ -113,12 +130,10 @@ public class OptWnd extends Window {
     }
 
     public class VideoPanel extends Panel {
-	private final Widget back;
 	private CPanel curcf;
 
-	public VideoPanel(UI ui, Panel prev) {
+	public VideoPanel(UI ui) {
 	    super();
-	    back = add(new PButton(UI.scale(200), "Back", 27, prev));
 	    resetcf(ui);
 	}
 
@@ -415,13 +430,12 @@ public class OptWnd extends Window {
 	    if(curcf != null)
 		curcf.destroy();
 	    curcf = add(new CPanel(ui.gprefs), 0, 0);
-	    back.move(curcf.pos("bl").adds(0, 15));
 	    pack();
 	}
     }
 
     public class AudioPanel extends Panel {
-	public AudioPanel(UI ui, Panel back) {
+	public AudioPanel(UI ui) {
 	    Audio.Root sys = ui.audio.sys;
 	    prev = add(new Label("Master audio volume"), 0, 0);
 	    prev = add(new HSlider(UI.scale(200), 0, 1000, (int)(sys.volume() * 1000)) {
@@ -478,7 +492,6 @@ public class OptWnd extends Window {
 		prev.settip("Sets the size of the audio buffer. Smaller sizes are better, " +
 			    "but larger sizes can fix issues with broken sound.", true);
 	    }
-	    add(new PButton(UI.scale(200), "Back", 27, back), prev.pos("bl").adds(0, 30));
 	    pack();
 	}
     }
@@ -499,7 +512,7 @@ public class OptWnd extends Window {
 		public void onError(String code, String msg, boolean fatal) {lastEvent = "error: " + code;}
 	    };
 
-	public VoiceChatPanel(Panel back) {
+	public VoiceChatPanel() {
 	    Widget prev;
 	    prev = add(new Label("Brodgar.io Proximity Voice Chat"), 0, 0);
 
@@ -554,7 +567,6 @@ public class OptWnd extends Window {
 	    event = add(new Label(""), speaking.pos("bl").adds(0, 6));
 
 	    io.brodgar.voice.Voice.addListener(vl);
-	    add(new PButton(UI.scale(200), "Back", 27, back), event.pos("bl").adds(0, 30));
 	    pack();
 	}
 
@@ -576,7 +588,7 @@ public class OptWnd extends Window {
     }
 
     public class InterfacePanel extends Panel {
-	public InterfacePanel(Panel back) {
+	public InterfacePanel() {
 	    Widget prev = add(new Label("Interface scale (requires restart)"), 0, 0);
 	    {
 		Label dpy = new Label("");
@@ -650,7 +662,6 @@ public class OptWnd extends Window {
 			   dpy);
 		}
 	    }
-	    add(new PButton(UI.scale(200), "Back", 27, back), prev.pos("bl").adds(0, 30).x(0));
 	    pack();
 	}
     }
@@ -674,7 +685,7 @@ public class OptWnd extends Window {
 		   + UI.scale(2));
 	}
 
-	public BindingPanel(Panel back) {
+	public BindingPanel() {
 	    super();
 	    Scrollport scroll = add(new Scrollport(UI.scale(new Coord(300, 300))), 0, 0);
 	    Widget cont = scroll.cont;
@@ -738,7 +749,6 @@ public class OptWnd extends Window {
 		    y = addbtn(cont, e.name, e.binding, y);
 	    }
 	    prev = adda(new PointBind(UI.scale(200)), scroll.pos("bl").adds(0, 10).x(scroll.sz.x / 2), 0.5, 0.0);
-	    prev = adda(new PButton(UI.scale(200), "Back", 27, back), prev.pos("bl").adds(0, 10).x(scroll.sz.x / 2), 0.5, 0.0);
 	    pack();
 	}
 
@@ -962,7 +972,7 @@ public class OptWnd extends Window {
 	    super.show();
 	}
 
-	public CameraPanel(Panel back) {
+	public CameraPanel() {
 	    Widget prev;
 	    prev = add(new Label("Camera"), 0, 0);
 	    cam = add(new CamSelector(), prev.pos("bl").adds(0, 10));
@@ -979,31 +989,179 @@ public class OptWnd extends Window {
 		}, prev.pos("bl").adds(0, 8));
 	    prev.settip("Reverses the vertical mouse-drag direction when tilting the camera. " +
 			"Only affects cameras that support tilting (not the default ortho camera).", true);
-	    add(new PButton(UI.scale(200), "Back", 27, back), prev.pos("bl").adds(0, 30));
 	    pack();
 	}
     }
 
+    /* addon: (115.1) ONE ROW of a settings list -- the name the list draws, and the panel the holder shows
+     * when it is picked. `fresh` is PButton's own flag moved onto the row: a panel built from what exists AT
+     * THAT MOMENT (the keybindings) is rebuilt on every visit, so anything declared since the last one is
+     * listed; everything else is built once and kept, exactly as PButton.click has always done. */
+    public class PanelEntry {
+	public final String name;
+	private final Supplier<Panel> tgt;
+	private final boolean fresh;
+	private Panel actual = null;
+
+	public PanelEntry(String name, Supplier<Panel> tgt, boolean fresh) {
+	    this.name = name;
+	    this.tgt = tgt;
+	    this.fresh = fresh;
+	}
+
+	public PanelEntry(String name, Supplier<Panel> tgt) {
+	    this(name, tgt, false);
+	}
+    }
+
+    /* addon: (115.1) THE SETTINGS VIEW -- a tab strip over a list of subjects on the left and the panel the
+     * picked one draws on the right. It is one of the panels chpanel swaps between, and it carries the
+     * window's whole caption while it shows.
+     *
+     * Nothing in here binds Escape: the list IS the navigation, so no panel carries a Back any more, and
+     * Escape reaches Window.keydown and closes the window as it does on every other window in the client. */
+    public class SettingsPanel extends Panel {
+	private final Tabs tabs;
+	private final List<Subject> subjects = new ArrayList<Subject>();
+
+	public SettingsPanel() {
+	    super("Options");
+	    tabs = new Tabs(Coord.z, Coord.z, this);
+	    Subject game = new Subject(tabs.add(), gamepanels());
+	    // The AddOns tab is the addons that declared an option of their own; it stands empty until one has.
+	    Subject addons = new Subject(tabs.add(), new ArrayList<PanelEntry>());
+	    Widget gb = add(tabs.new TabButton(UI.scale(120), "Game", game.tab), 0, 0);
+	    add(tabs.new TabButton(UI.scale(120), "AddOns", addons.tab), gb.pos("ur").adds(5, 0));
+	    /* The tab bodies go under their buttons, which is why Tabs is built with a placeholder c: a
+	     * TabButton needs its Tab, and a Tab is placed where Tabs was told, so one of the two comes second. */
+	    Coord tc = gb.pos("bl").adds(0, 8);
+	    tabs.c = tc;
+	    for(Subject s : subjects)
+		s.tab.move(tc);
+	    /* The view opens on something rather than on an empty right-hand side. It is a real selection, so the
+	     * row is highlighted and the list reads back what is drawn beside it. */
+	    if(!game.entries.isEmpty())
+		game.list.change(game.entries.get(0));
+	}
+
+	private List<PanelEntry> gamepanels() {
+	    List<PanelEntry> ret = new ArrayList<PanelEntry>();
+	    ret.add(new PanelEntry("Interface settings", () -> new InterfacePanel()));
+	    ret.add(new PanelEntry("Video settings", () -> new VideoPanel(ui)));
+	    ret.add(new PanelEntry("Audio settings", () -> new AudioPanel(ui)));
+	    // addon: `true` — rebuilt on every visit, so a hotkey an addon declared since the last one is listed.
+	    ret.add(new PanelEntry("Keybindings", () -> new BindingPanel(), true));
+	    ret.add(new PanelEntry("Camera", () -> new CameraPanel()));
+	    ret.add(new PanelEntry("Voice Chat Integration", () -> new VoiceChatPanel()));
+	    // addon: client-wide toggles (spec 019, task 019.1) — today just the profiling master switch.
+	    ret.add(new PanelEntry("Client", () -> new io.brodgar.ui.ClientPanel(OptWnd.this)));
+	    return(ret);
+	}
+
+	/* Every box in the view, bottom up, then the window around it. Called whenever what is in a holder
+	 * changes size -- a swap, and a panel that repacks itself under one. */
+	private void relayout() {
+	    for(Subject s : subjects)
+		s.holder.pack();
+	    tabs.pack();       // every tab to the union of them, so the window does not jump between the two
+	    pack();
+	    OptWnd.this.cresize(this);
+	}
+
+	/* One tab: the list of subjects, and the holder its pick draws in. */
+	public class Subject {
+	    public final Tabs.Tab tab;
+	    public final PanelList list;
+	    public final Widget holder;
+	    private final List<PanelEntry> entries;
+	    private Panel shown = null;
+
+	    private Subject(Tabs.Tab tab, List<PanelEntry> entries) {
+		this.tab = tab;
+		this.entries = entries;
+		this.list = tab.add(new PanelList(this, UI.scale(new Coord(190, 320))), Coord.z);
+		this.holder = tab.add(new Widget(Coord.z) {
+			/* A panel inside a holder may repack itself long after it was built -- VideoPanel.resetcf
+			 * throws its whole column away every time a graphics preference moves -- and Widget.cresize
+			 * is a no-op, so without this the window keeps the box the FIRST build came out at. */
+			public void cresize(Widget ch) {
+			    relayout();
+			}
+		    }, list.pos("ur").adds(10, 0));
+		subjects.add(this);
+	    }
+
+	    private void show(PanelEntry e) {
+		if(e == null)
+		    return;
+		if(e.fresh && (e.actual != null)) {   // the stale snapshot goes before the new one is built
+		    if(shown == e.actual)
+			shown = null;
+		    e.actual.destroy();
+		    e.actual = null;
+		}
+		if(shown != null)
+		    shown.hide();
+		if(e.actual == null)
+		    e.actual = holder.add(e.tgt.get(), Coord.z);
+		(shown = e.actual).show();
+		relayout();
+	    }
+	}
+
+	/* The subject list. Its rows are objects rather than strings, because a row IS the panel it names. */
+	public class PanelList extends SListBox<PanelEntry, Widget> {
+	    private final Subject subj;
+
+	    private PanelList(Subject subj, Coord sz) {
+		/* The row height is the item font's own, as a shorter row clips its label rather than shrinking
+		 * it -- the sizing CameraPanel's camera picker uses, one control along. */
+		super(sz, CharWnd.attrf.height() + UI.scale(2));
+		this.subj = subj;
+	    }
+
+	    protected List<PanelEntry> items() {return(subj.entries);}
+
+	    protected Widget makeitem(PanelEntry e, int idx, Coord sz) {
+		/* A Label rather than an SListWidget.TextItem: a navigation row is read back BY NAME -- by the
+		 * eye, and by widget:text() from an addon -- and a TextItem's caption is a private raster with no
+		 * reader at all. A Label says its own text, and re-renders when a font override moves. */
+		ItemWidget<PanelEntry> row = new ItemWidget<PanelEntry>(this, sz, e);
+		Label lbl = new Label(e.name, CharWnd.attrf);
+		row.add(lbl, UI.scale(5), (sz.y - lbl.sz.y) / 2);
+		return(row);
+	    }
+
+	    /* change(I) is where a row click and a programmatic selection BOTH land, so the panel swap hangs off
+	     * it rather than off the mouse. */
+	    public void change(PanelEntry e) {
+		super.change(e);
+		subj.show(e);
+	    }
+
+	    /* A click on empty space below the rows clears the selection on every other list in the client. This
+	     * one is the window's navigation and has no "no subject" to show, so the row you are on stands. */
+	    protected boolean unselect(int button) {
+		return(true);
+	    }
+	}
+    }
+
     public OptWnd(boolean gopts) {
-	super(Coord.z, "Options", true);
+	/* addon: (115.1) NO CAPTION. This window opens on the game menu, which is a menu and not a subject;
+	 * chpanel writes the caption of whichever panel is showing, and the menu's is null. */
+	super(Coord.z, null, true);
 	main = add(new Panel());
+	settings = add(new SettingsPanel());
 
 	int y = 0;
-	Widget prev;
-	y = main.add(new PButton(UI.scale(200), "Interface settings", 'v', () -> new InterfacePanel(main)), 0, y).pos("bl").adds(0, 5).y;
-	y = main.add(new PButton(UI.scale(200), "Video settings", 'v', () -> new VideoPanel(ui, main)), 0, y).pos("bl").adds(0, 5).y;
-	y = main.add(new PButton(UI.scale(200), "Audio settings", 'a', () -> new AudioPanel(ui, main)), 0, y).pos("bl").adds(0, 5).y;
-	// addon: `true` — rebuilt on every press, so a hotkey an addon declared since the last one is listed.
-	y = main.add(new PButton(UI.scale(200), "Keybindings", 'k', () -> new BindingPanel(main), true), 0, y).pos("bl").adds(0, 5).y;
-	y = main.add(new PButton(UI.scale(200), "Camera", 'm', () -> new CameraPanel(main)), 0, y).pos("bl").adds(0, 5).y;
-	// Extra gap so the Voice Chat Integration panel sits visually separated a bit below the core settings.
-	y += UI.scale(20);
-	y = main.add(new PButton(UI.scale(200), "Voice Chat Integration", 'c', () -> new VoiceChatPanel(main)), 0, y).pos("bl").adds(0, 5).y;
+	/* addon: (115.1) THE GAME MENU. Two destinations, the session entries, and the way out -- the client's
+	 * own settings are one entry down, inside the tabbed view, rather than a column of eight buttons with
+	 * the log-out sitting underneath them. */
+	y = main.add(new PButton(UI.scale(200), "Options", 'o', settings), 0, y).pos("bl").adds(0, 5).y;
 	// addon: AddOns manager panel (spec 10 / 1f-3) — the whole panel lives in io.brodgar.addon.ui.
 	y = main.add(new PButton(UI.scale(200), "AddOns", 'd', () -> new io.brodgar.addon.ui.AddonPanel(OptWnd.this, main)), 0, y).pos("bl").adds(0, 5).y;
-	// addon: client-wide toggles (spec 019, task 019.1) — today just the profiling master switch.
-	y = main.add(new PButton(UI.scale(200), "Client", 'l', () -> new io.brodgar.ui.ClientPanel(OptWnd.this, main)), 0, y).pos("bl").adds(0, 5).y;
-	y += UI.scale(60);
+	y += UI.scale(20);
 	if(gopts) {
 	    if((SteamStore.steamsvc.get() != null) && (Steam.get() != null)) {
 		y = main.add(new Button(UI.scale(200), "Visit store", false).action(() -> {

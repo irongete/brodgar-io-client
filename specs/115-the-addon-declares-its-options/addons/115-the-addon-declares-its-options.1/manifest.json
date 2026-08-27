@@ -1,0 +1,9 @@
+{
+  "name": "115.1 — the Options window is a menu and two tabs",
+  "id": "115-the-addon-declares-its-options.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 115.1: the Options window opens on a captionless game menu, its settings view is a Game/AddOns tab strip over a list of the seven client panels, the view opens on the first of them, and no panel carries a Back.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

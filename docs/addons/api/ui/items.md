@@ -23,7 +23,7 @@ just as well as the one on screen.
 
 | Method | Returns | Description |
 |---|---|---|
-| `widget:items()` | [`Item`](#the-item-object)`[]` | the items inside this widget, in the container's own order |
+| `widget:items()` | collection of [`Item`](#the-item-object) | the items inside this widget, in the container's own order — `:list()` is the array |
 | [`s:player():hand():item()`](../player.md#the-hand) | [`Item`](#the-item-object) \| nil | the item on the cursor |
 | [`widget:item()`](widget.md#read) | [`Item`](#the-item-object) \| nil | the item **one icon** draws; `nil` on any other widget |
 
