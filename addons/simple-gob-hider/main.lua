@@ -1,5 +1,12 @@
 -- Simple Gob Hider -- one key takes the objects you named out of the scene and paints the ground each
 -- of them stands on yellow. Assign the key in Options > Keybindings > Simple Gob Hider.
+--
+-- The toggle, the hidden set and the yellow patches are all kept PER SESSION: the client can hold
+-- several logins at once, and a Gob's own position resolves only in the session that is actually
+-- drawn (docs/addons/api/world.md -- worldToScreen is "the drawn session's only"). A single shared
+-- set mixed gobs from every login together, so switching to a session that did not do the hiding
+-- left its trees correctly hidden -- g:visible(false) is a write on the object, and sticks -- but
+-- with no patch, because that gob's ground could never be projected through another login's world.
 
 -- Each entry matches as a plain SUBSTRING of gob:name(), the resource name the server sent, so
 -- "gfx/terobjs/trees/" takes every tree and "trees/fir" only firs. To learn a name, stand next to it:
@@ -16,8 +23,16 @@ local LINE_WIDTH = 1
 local PATCH      = 5.5   -- half-side of the square drawn for an object with no footprint, world units
 local RESCAN     = 2     -- seconds between full re-reads
 
-local active = false
-local hidden = {}        -- the Gobs we are hiding; a Gob is interned, so it keys
+local state = {}   -- [session] = {active = bool, hidden = {[Gob] = true, ...}}; a session's own share
+
+local function stateFor(s)
+  local st = state[s]
+  if not st then
+    st = {active = false, hidden = {}}
+    state[s] = st
+  end
+  return st
+end
 
 local function matches(name)
   for _, entry in ipairs(HIDDEN) do
@@ -28,42 +43,60 @@ end
 
 -- Re-read, never remembered: a felled tree keeps its id and becomes a log, so a verdict reached once
 -- goes stale. A nil name is "not yet" -- a player or an animal resolves its own after it arrives.
-local function consider(g)
+local function consider(st, g)
   local name = g:name()
   if name == nil then return end
   if matches(name) then
-    if not hidden[g] then
-      hidden[g] = true
+    if not st.hidden[g] then
+      st.hidden[g] = true
       g:visible(false)
     end
-  elseif hidden[g] then
-    hidden[g] = nil
+  elseif st.hidden[g] then
+    st.hidden[g] = nil
     g:visible(true)
   end
 end
 
-local function sweep()
-  for _, s in ipairs(hafen.session():list()) do
-    if s:character() then
-      for _, g in ipairs(s:world():gob():list()) do consider(g) end
-    end
-  end
+local function sweep(s, st)
+  if not s:character() then return end
+  for _, g in ipairs(s:world():gob():list()) do consider(st, g) end
 end
 
 hafen.client():options():keybindings():on("toggle", function()
-  if active then
-    for g in pairs(hidden) do g:visible(true) end
-    hidden, active = {}, false
+  local s = hafen.session():current()
+  if not s then return end
+  local st = stateFor(s)
+  if st.active then
+    for g in pairs(st.hidden) do g:visible(true) end
+    st.hidden, st.active = {}, false
   else
-    active = true
-    sweep()
+    st.active = true
+    sweep(s, st)
   end
 end)
 
--- GobAdded runs before the object's first drawn frame, so a match never appears at all.
-hafen.event():on("GobAdded", function(g) if active then consider(g) end end)
-hafen.event():on("GobRemoved", function(g) hidden[g] = nil end)
-hafen.timer():every(RESCAN, function() if active then sweep() end end)
+-- GobAdded runs before the object's first drawn frame, so a match never appears at all. It fires once
+-- per object, whichever of your sessions can see it, so it is offered to each in turn.
+hafen.event():on("GobAdded", function(g)
+  for _, s in ipairs(g:sessions():list()) do
+    local st = state[s]
+    if st and st.active then consider(st, g) end
+  end
+end)
+
+-- The gob is already gone, so g:sessions() answers empty here -- drop it from every session's own set
+-- rather than trying to name the one it belonged to.
+hafen.event():on("GobRemoved", function(g)
+  for _, st in pairs(state) do st.hidden[g] = nil end
+end)
+
+hafen.event():on("SessionRemoved", function(s) state[s] = nil end)
+
+hafen.timer():every(RESCAN, function()
+  for s, st in pairs(state) do
+    if st.active then sweep(s, st) end
+  end
+end)
 
 -- ---------------------------------------------------------------- the yellow, drawn
 
@@ -94,11 +127,14 @@ local function square(p, r)
   if a and b and c and d then return {a, b, c, d} end
 end
 
-local function drawPatches(g, ox, oy)
-  local s = hafen.session():current()
-  local world = s and s:world()
+-- s is the session whose OWN MapView is drawing: its world is the only one that can place its own
+-- hidden set's positions on screen, so both the toggle and the patches stay that session's alone.
+local function drawPatches(g, s, ox, oy)
+  local st = state[s]
+  if not (st and st.active) then return end
+  local world = s:world()
   if not world then return end
-  for gob in pairs(hidden) do
+  for gob in pairs(st.hidden) do
     -- Read every frame: a footprint turns with the object and is replaced when its resource is.
     local box = gob:hitbox()
     if box then
@@ -122,9 +158,8 @@ local function watch(s)
   watched[s] = true
   s:ui():on("@MapView", "Added", function(mv)
     mv:overlay():add("patches"):draw(function(g, w, h)
-      if not active then return end
       local o = mv:rootPos()
-      if o then drawPatches(g, o.x, o.y) end
+      if o then drawPatches(g, s, o.x, o.y) end
     end)
   end)
 end
