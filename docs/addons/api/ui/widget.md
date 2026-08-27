@@ -212,7 +212,7 @@ provoke the error.
 | `:rowHeight(n)` | set a [listbox, dropdown, menu or table](lists.md)'s row height while it is being built | **error**, same reason |
 | `:cellSize(w, h)` | set a [grid](lists.md#grid)'s cell box while it is being built | **error**, same reason |
 | `:columns(t)` | name a [table](lists.md#table)'s columns while it is being built | **error**, same reason |
-| `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore) |
+| `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore), except on a [radial menu](../flowermenu.md#drawn-or-not-unprotected), where both writes refuse naming `s:flowermenu():visible(b)` and the read still answers |
 | `:draggable(h)` | hand the move to the user, by a handle they press | **works** — [and what a drag writes is your position level](native.md#letting-the-user-drag-it-unprotected) |
 | `:resizable(h)` | hand the box to the user, by a handle they press | **works** — [and what a resize writes is your size level](native.md#letting-the-user-resize-it-unprotected) |
 | `:remember(name)` | keep its place and box under a name of yours | **works**, same — [and it puts them back on the call](native.md#remembering-where-the-user-put-it-unprotected) |

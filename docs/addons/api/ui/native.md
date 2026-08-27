@@ -221,10 +221,9 @@ end)
 ```
 
 **It applies on the call, which is why there is nothing to pair it with**: the only correct moment to put a
-place back is the moment you say it is remembered. What it writes is your
-[`:position` and `:size` levels](#moving-and-resizing-unprotected), exactly as those two verbs write them,
-so a `w:position(x, y)` written *after* it wins, being the later write, and `w:position(nil)` still gives
-the stock place back.
+place back is the moment you say it is remembered. What it writes is your [`:position` and `:size`
+levels](#moving-and-resizing-unprotected), exactly as those two verbs write them, so a `w:position(x, y)`
+written *after* it wins, being the later write, and `w:position(nil)` still gives the stock place back.
 
 **What is saved is where your levels stand**, at every write to disk: after a gesture, on the save timer, and
 when the screen moves. **The slot belongs to the tree the widget stands in**: a session's own window — the
@@ -266,10 +265,11 @@ restore entirely. `w:visible(true)` gives it back yourself and drops the record.
 > hid and `w:visible(true)` each one.
 
 **One widget, one owner.** A native widget another addon has already hidden is not yours to hide:
-`w:visible(false)` refuses with an error naming the addon that holds it. Its toggle can only drive one
-thing, so two owners would leave the menu tick lying about both. [`replace`](replace.md) meets the same
-rule from the other side and *logs* it rather than throwing, because it runs on the client's own placement
-path: that one replacement is skipped, naming the addon that got there first.
+`w:visible(false)` refuses with an error naming the addon that holds it. Its toggle can only drive one thing,
+so two owners would leave the menu tick lying about both. [`replace`](replace.md) meets the same rule from the
+other side and *logs* it rather than throwing, because it runs on the client's own placement path: that one
+replacement is skipped, naming the addon that got there first. A [radial
+menu](../flowermenu.md#drawn-or-not-unprotected) refuses both writes, naming its own verb; the read answers.
 
 A hidden server widget stays fully **live** — still bound to its id, still receiving updates, still filling
 with items. That is why you can hide a grid and keep [reading it](items.md).

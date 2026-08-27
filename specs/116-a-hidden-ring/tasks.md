@@ -30,7 +30,7 @@
       `[manual]`: press `1` when asked. `[manual]`: click anywhere when asked. `[manual]`: press Esc
       when asked.
 
-- [ ] **116.3 — the widget door names the ring's own verb.** Refuses `w:visible(true)` and
+- [x] **116.3 — the widget door names the ring's own verb.** Refuses `w:visible(true)` and
       `w:visible(false)` on a `FlowerMenu` receiver in `LuaWidget`'s `visible` write, before the
       borrowed/owner branch, naming `s:flowermenu():visible(b)`; the read still answers. Adds the
       exception as a clause inside the existing sentences of `ui/native.md` and the existing

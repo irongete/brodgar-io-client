@@ -850,7 +850,8 @@ public final class LuaWidget {
         // what replaces hafen.ui.adopt, which used to hide a window just so you could read it. A hidden server
         // widget stays bound to its id (still receiving uimsg/addchild), so it remains a perfectly live model.
         // visible(true) gives it back and drops the record. The write chains; visible(nil) is refused (§2.9 — there
-        // is nothing here to undo, and a nil that silently became a READ is the bug that rule exists for).
+        // is nothing here to undo, and a nil that silently became a READ is the bug that rule exists for). One
+        // receiver refuses the write in BOTH directions and names a verb of its own — the radial menu, below.
         m.set("visible", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:visible() → narg 1 · w:visible(b) → narg 2
                 LuaValue self = a.arg1();
@@ -860,6 +861,19 @@ public final class LuaWidget {
                     return LuaValue.valueOf((w != null) && w.visible());
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
+                // 116.3: THE RING HAS ITS OWN VERB, and this door names it. A FlowerMenu is not a window an
+                // addon keeps: it lives about a second, and the generic write records a restore entry holding
+                // the widget that is pruned only when the whole tree dies — so a ring hidden per right-click
+                // would pile up dead records, under a one-owner rule built for something an addon holds.
+                // BOTH DIRECTIONS are refused, before the borrowed/owner branch, and the READ above still
+                // answers: the two doors agree on the fact and disagree only on who may write it. It is a
+                // refusal written INSIDE the verb, not a Refusal row — the name did not move, one receiver
+                // gained a rule.
+                if(w instanceof FlowerMenu)
+                    throw new LuaError("widget:visible(b): a FlowerMenu is painted or not through its own"
+                        + " verb — " + FlowerMenuApi.FM + ":visible(b). The ring dies about a second after it"
+                        + " opens, and this write keeps a restore record that would outlive it;"
+                        + " widget:visible() still reads.");
                 if(v.toboolean()) {
                     synchronized(monitor(w)) { w.show(); }
                     dropHidden(owner, w);                 // restored by hand: teardown has nothing left to undo

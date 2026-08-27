@@ -1,0 +1,10 @@
+{
+  "name": "116.3 — the widget door names the ring's own verb",
+  "id": "116-a-hidden-ring.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 116.3: w:visible(b) on a matched @FlowerMenu refuses in both directions naming s:flowermenu():visible(b), while w:visible() still reads what the ring's own verb wrote.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["gob.click", "flowermenu.cancel"]
+}
