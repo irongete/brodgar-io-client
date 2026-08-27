@@ -10,7 +10,7 @@
 | What | Where |
 |---|---|
 | Every entry from the OS | `UI.mousedown`/`mouseup`/`mousemove`/`mousewheel` · `keydown`/`keyup` — each builds one `Event` and calls `dispatch(root, ev)`. **`mousedown` sets `lcc` on EVERY press, before dispatching** (`mc` also tracks moves; `lcc` only presses), so `lcc` is an **exact correlator** for "was anything else clicked in between" — `FlowerMenu.added` places a ring at it, and's click token keys on it. ⚠️ `Coord` is **mutable** (`public int x, y`) and `lcc` starts as the shared `Coord.z`: `equals` is by value, but anything you *store* must be `new Coord(c)` |
-| **A grab is checked BEFORE the tree** | `UI.dispatch` walks `grabs` (newest first — `grab` does `add(0, g)`) and returns on the first that handles, so a grabbed pointer **never reaches the root traversal** |
+| **A grab is checked BEFORE the tree** | `UI.dispatch` walks `grabs` (newest first — `grab` does `add(0, g)`) and returns on the first that handles, so a grabbed pointer **never reaches the root traversal**. **Nothing on that path tests `visible()`** — `Event.dispatch` is `handle` then `propagate` — so a grab reaches its owner whatever that widget's own flag says, and hiding a widget takes neither grab off it |
 |...and it reaches its owner by `rootpos` | `PointerGrab` translates by `ev.c.add(ev.target.rootpos()).sub(wdg.rootpos())` ⇒ **`rootpos()` is the address the client uses to talk to a grabbed widget**; overriding `parentpos` on an ancestor redirects it (`xlate` would too, but that one also positions children in the draw loop) |
 | The two grab helpers | `grabmouse` (filters to `MouseDownEvent`/`MouseUpEvent`/`MouseWheelEvent`/`CursorQuery` — **not** `TooltipQuery`/`MouseHoverEvent`) · `grabkeys` |
 | **The listener hook runs BEFORE the widget's own method** | `Widget.handle` walks `listening` (`listen`/`deafen`, a `CopyOnWriteArrayList` of `EventHandler.Listener`) and **returns on the first that answers `true`**, reaching `Event.shandle` — which is what calls `mousedown`/`mouseup`/`mousemove`/`mousewheel` — only when none did |
@@ -21,7 +21,7 @@
 
 | Event | Walk |
 |---|---|
-| **Pointer (down/up/wheel, the queries)** | `PointerEvent.propagation` — `lchild→prev` (topmost-first), **skip `!visible()`**, `parent.xlate(child.c,true)` + rect-isect, leaf uses `checkhit`. Respect `xlate`: a naïve rect test is wrong inside a scrolling container |
+| **Pointer (down/up/wheel, the queries)** | `PointerEvent.propagation` — `lchild→prev` (topmost-first), **skip `!visible()`** (the CHILD's own flag and only its own, so a hidden container's visible children are still walked and a press that reached it lands on them), `parent.xlate(child.c,true)` + rect-isect, leaf uses `checkhit`. Respect `xlate`: a naïve rect test is wrong inside a scrolling container |
 | **MouseMove** | `MouseMoveEvent.propagation` — **broadcasts to every visible child with NO rect test**, handing each an out-of-box coordinate. That is how a control un-arms/un-hovers when the pointer leaves it (`IButton.mousemove` recomputes `checkhit` and `redraw()`s) |
 | **MouseHover** | `MouseHoverEvent.propagation` — dispatches to **every** child (invisible included) carrying a per-child `hovering` flag; the first that handles it while `hovering` claims it. ⚠️ its `derive` ctor leaves `hovering` **false**, so anything dispatching a derived hover by hand must set it |
 | **Focused key** | see below |

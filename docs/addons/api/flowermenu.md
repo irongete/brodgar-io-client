@@ -174,6 +174,17 @@ end)
 > `:gob()` answer what they answer painted, `:select(label)` still picks from it, and it still ends with a
 > `FlowerMenuRemoved`. What changed is that nothing is drawn for it.
 
+What it may not do is spend a click on a petal nobody could see. A hidden ring
+[holds the mouse and the keyboard](#the-two-events) exactly as a painted one does — that is what leaves the
+player their own way out of it — but a click on it can only ever **end** it, never pick from it: the ring
+closes with nothing chosen, as clicking away from a painted one does. Its `1`–`9` keys do nothing at all,
+and Esc is unchanged. So a ring an addon hid and then did not decide is never a trap: the two gestures a
+player would have used anyway still dismiss it, and no click of theirs is spent blind.
+
+That dismissal is not immediate. The ring [swallows mouse input while it animates open](#write-protected),
+hidden or painted, so a click inside the first quarter second of a ring's life does nothing at all — hiding
+one does not make it dismissible any sooner.
+
 `b` must be `true` or `false`, and anything else raises naming the argument — a number most of all, since in
 Lua `0` is a true value and would quietly paint a ring you meant to hide. The read answers `nil` with no menu
 open; the **write raises** there, naming the character, exactly as [picking and cancelling](#write-protected)

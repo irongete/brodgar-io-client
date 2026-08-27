@@ -17,7 +17,7 @@
       `[manual]`: watch the screen while the first ring is raised — expect: no ring at all.
       `[manual]`: watch the screen while the second is raised — expect: the ring appears, a beat late.
 
-- [ ] **116.2 — a hidden ring is one the pointer cannot be over.** Adds the two `// addon:` guards to
+- [x] **116.2 — a hidden ring is one the pointer cannot be over.** Adds the two `// addon:` guards to
       `FlowerMenu`: `mousedown` while `!visible` goes to `choose(null)` instead of propagating into the
       petals, and the `'0'..'9'` branch of `keydown` does nothing while `!visible`, leaving `key_esc`
       alone. States the rule on `flowermenu.md` beside the verb — a hidden ring still holds the mouse

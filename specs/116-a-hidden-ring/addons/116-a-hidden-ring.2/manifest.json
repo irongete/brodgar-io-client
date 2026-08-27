@@ -1,0 +1,10 @@
+{
+  "name": "116.2 — a hidden ring is one the pointer cannot be over",
+  "id": "116-a-hidden-ring.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 116.2: the two input guards on a hidden radial menu. It raises a ring by right-clicking a nearby object, hides it with s:flowermenu():visible(false), and then asks for one gesture at a time, scoring each from FlowerMenuRemoved and :count(). After a 1..9 key the ring is still open, still hidden, with its petals unchanged and nothing chosen; a click anywhere ends it carrying nil; and on a second hidden ring Esc ends it carrying nil.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["gob.click"]
+}

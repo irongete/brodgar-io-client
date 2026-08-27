@@ -281,6 +281,17 @@ public class FlowerMenu extends Widget {
     public boolean mousedown(MouseDownEvent ev) {
 	if(!anims.isEmpty())
 	    return(true);
+	/* addon: (116.2) a hidden ring is one the pointer cannot be over. Nothing above here tests
+	 * visibility: a grab is checked before the tree and reaches its owner whatever that widget's own
+	 * flag says, and only PointerEvent.propagation tests one -- on the CHILD it steps into. The Petals
+	 * are themselves still visible, so without this a press on an unpainted ring's own footprint fires
+	 * whatever petal was under it: an invisible ring spending a click on Chop. choose(null) is the door
+	 * Esc and a click away already share, so a ring an addon hid ends exactly as an unwanted one does,
+	 * and the press is still eaten -- the ring holds the mouse, drawn or not. */
+	if(!visible()) {
+	    choose(null);
+	    return(true);
+	}
 	if(!ev.propagate(this))
 	    choose(null);
 	return(true);
@@ -307,6 +318,12 @@ public class FlowerMenu extends Widget {
 
     public boolean keydown(KeyDownEvent ev) {
 	if((ev.c >= '0') && (ev.c <= '9')) {
+	    /* addon: (116.2) the same rule for the keyboard: a digit picks nothing on a ring nobody can
+	     * see. The key is still eaten, because the ring holds the keyboard hidden or not, and key_esc
+	     * below is deliberately untouched -- it is the player's own way out of a ring an addon hid and
+	     * then did not decide. */
+	    if(!visible())
+		return(true);
 	    int opt = (ev.c == '0') ? 9 : (ev.c - '1');
 	    if(opt < opts.length) {
 		choose(opts[opt]);
