@@ -13,23 +13,24 @@ import org.luaj.vm2.lib.VarArgFunction;
  * {@code video()}, {@code audio()}, {@code camera()}, {@code client()}, {@code keybindings()} — one per OptWnd
  * panel, each returning its own handle
  * whose methods are read/write in one name: {@code scale()} reads, {@code scale(1.2)} writes and returns the
- * subsystem back, so writes chain.
+ * subsystem back, so writes chain. {@code addon()} is the one that is not a panel of the client's: it is the
+ * options the addon itself declares (115.2), which the window draws a page of.
  *
- * <p>Every handle here is a <b>stateless proxy</b> over the client's live preference stores
+ * <p>Every handle here but {@code addon()} is a <b>stateless proxy</b> over the client's live preference stores
  * ({@code Utils.pref*}, {@link haven.GSettings}, the audio roots, the {@link haven.KeyBinding} registry): it
  * holds no value of its own, so a handle stashed by an addon never goes stale and never pins client state.
  * The keybindings subsystem is the one that needs the addon's identity (its hotkeys are namespaced and torn
  * down with it), which is why the whole tree is built per-addon.
  *
- * <p><b>Each of the eight is minted once per addon and handed back by identity</b> — held on the
- * {@link Addon} ({@link Addon#clientOpts} and the seven beside it), built on first use. So
+ * <p><b>Each handle here is minted once per addon and handed back by identity</b> — held on the
+ * {@link Addon} ({@link Addon#clientOpts} and the fields beside it), built on first use. So
  * {@code hafen.client():options() == hafen.client():options()}, {@code opts:video() == opts:video()}, a
  * handle works as a table key, and a HUD reading {@code opts:video():fpsLimit()} every frame allocates
  * nothing — {@link Section}'s contract, which every section in the API keeps. <b>Identity is not
- * caching</b>: a handle carries no value of its own, so every read still goes to the store.
+ * caching</b>: a proxy carries no value of its own, so every read still goes to the store.
  *
- * <p><b>Each of the eight is userdata with a closed vocabulary</b> ({@link #open}/{@link #close}), the one
- * shape every handle in the API has. So {@code opts:vidoe()} raises naming the six panels rather than
+ * <p><b>Each is userdata with a closed vocabulary</b> ({@link #open}/{@link #close}), the one
+ * shape every handle in the API has. So {@code opts:vidoe()} raises naming what the handle answers rather than
  * reading {@code nil} and failing one call later as <i>attempt to call a nil value</i>, {@code opts.video
  * = nil} is refused where a table would have let an addon delete its own way in, and {@code tostring(opts)}
  * is {@code Options} — a log line of an addon's own handles says something.
@@ -82,8 +83,9 @@ public final class OptionsHandle {
     }
 
     /**
-     * The Options handle for {@code owner}: one accessor per Options panel. Called once, from the
-     * {@code options} closure above, which then holds what it built.
+     * The Options handle for {@code owner}: one accessor per Options panel, and {@code addon()} beside them
+     * for the addon's own. Called once, from the {@code options} closure above, which then holds what it
+     * built.
      */
     static LuaValue create(final Addon owner) {
         LuaValue opts = open("Options");
@@ -130,8 +132,19 @@ public final class OptionsHandle {
                 return owner.clientKeybindings;
             }
         });
+        // addon() -- the options THIS addon declares (115.2). The sibling of keybindings(): both are the
+        // addon's own standing in the client's settings window rather than a panel of the client's, which is
+        // why they hang here beside the six panels rather than anywhere else.
+        m.set("addon", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(owner.clientAddonOpts == null)
+                    owner.clientAddonOpts = AddonOptions.create(owner);
+                return owner.clientAddonOpts;
+            }
+        });
         return close(opts, "options", m,
-            "the options handle", "one panel of the client's Options window per verb");
+            "the options handle",
+            "one panel of the client's Options window per verb, plus :addon(), your own");
     }
 
     /**

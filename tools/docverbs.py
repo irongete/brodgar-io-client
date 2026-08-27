@@ -71,7 +71,7 @@ RECEIVERS = {
     "h": None, "asset": "asset", "req": "request", "res": "res", "sheet": "sheet",
     "rule": "rule", "petal": "petal", "spec": "craftspec", "role": "role",
     "binding": "binding", "b": None, "sound": "sound", "timer": "timer",
-    "miss": "miss",
+    "miss": "miss", "opt": "option",
     # A SECTION object, whose verbs are not a closedIndex vocabulary: `hafen.locale()` is the catalogue
     # itself, so its verbs are enumerable only by reading LocaleApi, exactly as `s:char()`'s are.
     "locale": None,
@@ -108,6 +108,12 @@ PER_FILE = {
     # The UI overlays are one page and two receivers -- the HUD painter and a widget's overlay -- both
     # spelled `ov`. The gob's page keeps the bare name, so this one is keyed by its directory too.
     "ui/overlay.md": {"ov": ("uioverlay", "widgetoverlay")},
+    # An addon's own options: the page names each row after what it configures, which is what an author
+    # writes, so the spellings are mapped here rather than the page renaming its variables to suit a tool.
+    # `opts` is the handle itself, whose vocabulary is not a closedIndex one (it is built through
+    # OptionsHandle.close), so it is skipped and counted like every other section object.
+    "client/addon.md": {"opts": None, "show": "option", "size": "option", "mode": "option",
+                        "sort": "option", "title": "option", "state": "option", "o": "option"},
 }
 
 def per_file(rel):

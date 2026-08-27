@@ -26,7 +26,7 @@
       and `Logout`.
       <!-- extra context: src/haven/Window.java (the drawframe guard), src/haven/Scrollport.java -->
 
-- [ ] **115.2 — An addon declares an option.** `hafen.client():options():addon()` — a per-addon singleton
+- [x] **115.2 — An addon declares an option.** `hafen.client():options():addon()` — a per-addon singleton
       wired into `OptionsHandle` and held on `Addon`, closed like its five siblings. Six typed builders, all
       taking `:label` and `:tooltip` and all dispatched by `:add()`. Four carry a value and a
       `:default` — `boolean`, `number` (`:range(lo, hi)`), `choice` (`:choices(t)`) and `text` — and hand

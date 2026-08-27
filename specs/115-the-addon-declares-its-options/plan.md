@@ -100,6 +100,11 @@ profiling checkbox has.
   same reason.
 - **`:declare()` as the dispatch.** It names the API, not where the row lands, which is what `http`'s
   `:send()` and a control's `:parent(w)` both do.
+- **A fractional number row.** A `number` is a **whole** number over `:range(lo, hi)`: the control that
+  draws it is `HSlider`, whose `val` is an `int`, so a double range would have to be mapped onto the
+  slider's steps and read back through that mapping — a second unit for the value to be wrong in, on the
+  one row that already has bounds to be wrong about. An addon that wants a fraction declares `0..100` and
+  divides, which the page says. Raised at 115.2's close and left out on that boundary.
 - **A progress bar row.** `Progress.val(Supplier<Float>)` is re-read every frame, so it is trivial, but it
   displays rather than configures and live state belongs in the addon's own window. Raised by the
   maintainer, left out on that boundary.

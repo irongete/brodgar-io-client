@@ -11,6 +11,7 @@ import org.luaj.vm2.LuaValue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -614,21 +615,49 @@ public final class Addon {
     LuaValue timerMeta;
 
     /**
-     * This addon's <b>client handles</b> ({@link OptionsHandle}) — {@code hafen.client():options()}, its six
-     * subsystem handles ({@code interface} {@code video} {@code audio} {@code camera} {@code client}
-     * {@code keybindings}) and {@code hafen.client():profiling()} — each built on first use and handed back
+     * This addon's <b>client handles</b> ({@link OptionsHandle}) — {@code hafen.client():options()}, the
+     * subsystem handles under it ({@code interface} {@code video} {@code audio} {@code camera}
+     * {@code client} {@code keybindings} {@code addon}) and {@code hafen.client():profiling()} — each built
+     * on first use and handed back
      * <b>by identity</b> ever after, so {@code opts:video() == opts:video()} and a draw callback reading one
      * allocates nothing. That is {@link Section}'s rule, which every other section has kept since it was
      * written; this namespace was converted to the section shape without the identity half.
      *
      * <p>Per addon like every other Lua value here (D-017), and lazily for the same reason as
      * {@link #subMeta}: an addon that never opens the settings never builds them. Unlocked for the same
-     * reason too — two threads racing build two equal handles and one wins. They are <b>stateless proxies</b>
-     * over the client's live preference stores, so there is nothing to invalidate and nothing to tear down:
-     * the fields go with this {@link Addon}.
+     * reason too — two threads racing build two equal handles and one wins. All but one are <b>stateless
+     * proxies</b> over the client's live preference stores, so there is nothing to invalidate and nothing to
+     * tear down: the fields go with this {@link Addon}. The exception is {@code addon()}, whose registry is
+     * {@link #addonOptions} and which dies with the addon in exactly the same way.
      */
     LuaValue clientOpts, clientInterface, clientVideo, clientAudio, clientCamera, clientClient,
-             clientKeybindings, clientProfiling;
+             clientKeybindings, clientAddonOpts, clientProfiling;
+
+    /**
+     * This addon's <b>declared options</b> ({@code hafen.client():options():addon()}, 115.2), keyed by the
+     * addon's own name for the row and held in <b>declaration order</b> — which is the order the client
+     * draws them in, so the registry and the page are one fact. The handle above is the door; this is what
+     * it declared.
+     *
+     * <p>Unlike its siblings on that handle this one holds state, and it holds it for as long as the addon
+     * lives: an {@link LuaOption} carries the value in force, so a read costs a field rather than a
+     * {@code java.util.prefs} lookup on a path the panel walks every frame. There is still nothing to tear
+     * down — a {@code :reload} builds a fresh {@link Addon} and the whole registry goes with the old one,
+     * while the values are the client's and stay in its own preference store, exactly as a re-mapped
+     * keybinding does.
+     *
+     * <p>Locked rather than concurrent: a declaration reads the map and writes it as one act (a name is
+     * taken only if it is free), which no concurrent map makes atomic on its own.
+     */
+    final LinkedHashMap<String, LuaOption> addonOptions = new LinkedHashMap<String, LuaOption>();
+
+    /**
+     * This addon's <b>Option metatables</b> ({@link LuaOption}), one per {@link LuaOption.Kind}, each built
+     * on the first option of that kind. Per addon for the reason every metatable here is (D-017), and per
+     * KIND because the kind is the vocabulary: a button has no value to read and a label has no default, and
+     * a single table would have to answer for verbs half of them have not got.
+     */
+    final LuaValue[] optionMeta = new LuaValue[LuaOption.Kind.values().length];
 
     /**
      * This addon's <b>Binding interning cache</b> ({@code keybindings():binding():get(id)}, 086.3): the

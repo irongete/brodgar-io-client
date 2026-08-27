@@ -1,0 +1,9 @@
+{
+  "name": "115.2 — an addon declares an option",
+  "id": "115-the-addon-declares-its-options.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 115.2: an addon declares a row of each of the six types, the four that carry a value read their defaults, answer what is written to them and fire Changed only on a move, the two that carry none refuse value() naming what they do carry, and a declaration the client cannot honour is refused naming the fix.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

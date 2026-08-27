@@ -82,11 +82,17 @@ grep aimed at the new syntax finds them.
 - `src/haven/SListBox.java`, `src/haven/SListWidget.java`, `src/haven/Scrollport.java` — 1, 3
 - `src/haven/CheckBox.java`, `src/haven/HSlider.java`, `src/haven/SDropBox.java`, `src/haven/TextEntry.java` — 3
 - `src/io/brodgar/addon/ui/AddonPanel.java`, `src/io/brodgar/ui/ClientPanel.java` — 1
+- `src/io/brodgar/addon/AddonOptions.java`, `LuaOption.java` — 2, 3 (the handle, the six builders, and the
+  Option the panel draws a control from and writes through)
 - `src/io/brodgar/addon/OptionsHandle.java`, `KeybindingsOptions.java`, `OptionsMethod.java` — 2
 - `src/io/brodgar/addon/Addon.java`, `Args.java`, `Refusal.java`, `Section.java`, `LuaSub.java` — 2
+- `src/io/brodgar/addon/LuaCollection.java`, `Subs.java` — 2 (`opts:option()`, and the emitter `Changed` fires on)
+- `src/io/brodgar/addon/LuaBinding.java` — 2 (the interned-object-plus-collection shape the Option copies)
+- `src/io/brodgar/addon/HttpApi.java`, `LuaHttpRequest.java` — 2 (the built-bare, dispatched-on-purpose builder)
 - `src/io/brodgar/addon/LuaKeyBind.java`, `HookApi.java` — 2 (the registry this one is modelled on)
 - `src/io/brodgar/addon/AddonManager.java` — 2, 3 (`describeKeyBinds` and its neighbours only)
 - `src/haven/Utils.java` — 2 (`getpref*`/`setpref*`, where the value lands)
+- `docs/addons/api/client/addon.md` — 3 (the reference for what an addon declares)
 - `docs/addons/api/client/README.md`, `docs/addons/api/client/keybindings.md` — 1, 2
 - `docs/addons/api/README.md` — 2 · `docs/addons/guides/hotkeys-and-commands.md` — 1, 3
 - `docs/addons/runtime.md`, `docs/addons/guides/permissions.md`, `docs/addons/guides/debugging.md` — 1

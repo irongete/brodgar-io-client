@@ -58,6 +58,10 @@
   There are no `GSettings.SHADOWS`-style constants — the settings are instance fields with short wire names
   (`"sdw"`, `"rscale"`, `"lighting"`…).
 - **`lightmode` is `simple` / `zoned`** (the `LightMode` enum), *not* "global".
+- **`Utils.setpref*` catches only `SecurityException`.** `Preferences.put*` also throws
+  `IllegalArgumentException` past `MAX_KEY_LENGTH` (80 chars) / `MAX_VALUE_LENGTH` (8192), and that escapes
+  every `setpref*` as a raw Java error from whatever wrote it. A writer minting a key out of names it does
+  not control has to bound the length itself.
 - **A pref-only write is a no-op until restart** for anything mirrored in a static. `OptWnd` always writes both
   in one statement — `Utils.setprefb("invcamx", MapView.invcamx = val)` — and so must any other writer.
 - **`plobagran` is a divisor, not degrees**: the panel displays `180 / plobagran`.

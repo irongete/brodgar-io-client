@@ -1,8 +1,9 @@
 # hafen.client: settings
 
 `hafen.client():options()` opens the settings the client's **Options window** edits, plus the hotkey
-registry. Reach for it to read or change what the user has configured — one handle per Options panel.
-Reading is unprotected; **every write needs `client.settings`**.
+registry and your addon's own options. Reach for it to read or change what the user has configured — one
+handle per Options panel. Reading is unprotected; **every write into the client's own settings needs
+`client.settings`**, and your addon's own options need nothing.
 
 ```lua
 local opts = hafen.client():options()
@@ -13,20 +14,24 @@ opts:audio()          -- volumes and output latency
 opts:camera()         -- the camera in force, and drag inversion
 opts:client()         -- client-wide toggles
 opts:keybindings()    -- declare, inspect and remap hotkeys
+opts:addon()          -- declare options of your own, which the window draws
 ```
 
-Every handle is a **stateless proxy** over the client's live preference stores — it holds no value of its
-own, so a handle you keep in a variable never goes stale, and a write from Lua is indistinguishable from
-the same edit made in the Options window: same stores, same persistence, and the panel shows your value
-the next time it is opened. Each one is also **the same handle every time** you ask for it,
-`opts:video() == opts:video()`, the identity [a section](../conventions.md#sections-you-call-one) has: a
-handle works as a table key, and polling a setting from a draw callback allocates nothing.
+The six client panels are **stateless proxies** over the client's live preference stores — each holds no
+value of its own, so a handle you keep in a variable never goes stale, and a write from Lua is
+indistinguishable from the same edit made in the Options window: same stores, same persistence, and the
+panel shows your value the next time it is opened. Every handle here is also **the same handle every time**
+you ask for it, `opts:video() == opts:video()`, the identity
+[a section](../conventions.md#sections-you-call-one) has: a handle works as a table key, and polling a
+setting from a draw callback allocates nothing.
 
 Each is also a [handle in the API's one shape](../conventions.md#snapshots-vs-handles): a misspelt panel or
 option raises naming what the handle does answer, rather than reading `nil` and failing a call later, and
 nothing can be written onto one.
 
-The frame profiler is the other half of this namespace: [`hafen.client():profiling()`](profiling/README.md).
+[`opts:addon()`](addon.md) is the one that is not a panel of the client's: it is what **your** addon
+declares, which the window draws a page of. The frame profiler is the other half of this namespace:
+[`hafen.client():profiling()`](profiling/README.md).
 
 ## Where your code is running
 
@@ -223,6 +228,7 @@ if shadows ~= nil then hafen.log():write("shadows: " .. tostring(shadows)) end
 
 ## See also
 
+- [your addon's own options](addon.md) — declaring a row the Options window draws, stores and answers reads for
 - [keybindings](keybindings.md) — declaring your addon's hotkeys, and remapping any binding
 - [profiling](profiling/README.md) — the frame profiler this panel arms
 - [`hafen.sound`](../sound.md) — playing sounds, as opposed to setting levels
