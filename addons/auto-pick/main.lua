@@ -19,7 +19,7 @@ hafen.event():on("FlowerMenuAdded", function(petals, s)
   if off[s] then return end
   for _, p in ipairs(petals) do
     if p:label() == PETAL then
-      s:flowermenu():select(PETAL)
+      s:flowermenu():visible(false):select(PETAL)
       return
     end
   end
