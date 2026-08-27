@@ -121,4 +121,5 @@ character is the one **on screen**, because a window stands over whichever sessi
 Neither one gives you a general file system: an addon reads what it ships and writes what it declared, and
 that is the whole of it.
 
-**Next:** [hotkeys and commands](hotkeys-and-commands.md) — letting the user drive what you have built.
+**Next:** [hotkeys, commands and settings](hotkeys-and-commands.md) — letting the user drive what you
+have built.

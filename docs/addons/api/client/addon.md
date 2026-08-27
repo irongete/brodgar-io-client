@@ -3,7 +3,9 @@
 `hafen.client():options():addon()` is where your addon's own settings live. You name a row and its type;
 the client draws the control, stores the value in its own preference store and answers reads — so a setting
 of yours has the standing your [hotkeys](keybindings.md) already have, and the user finds it where they find
-every other setting. Nothing here is protected.
+every other setting. Nothing here is protected. The
+[guide](../../guides/hotkeys-and-commands.md) puts it beside the hotkey and the command, the other two ways
+a user drives an addon by hand.
 
 ```lua
 local opts = hafen.client():options():addon()
@@ -66,6 +68,21 @@ answering `nil` and letting the mistake fail a line later.
 A **number** row is a whole number, because a slider is: `:range(1, 10)`, `:default(5)`, and a fractional
 write is refused. Scale in your own addon if you need fractions — declare `0..100` and divide by a hundred.
 
+## Where the user finds them
+
+Your rows are drawn in **Options ▸ AddOns**, on a page of your addon's own. The list there holds the
+addons that have declared a row, in the order they loaded; a page holds that addon's rows in the order it
+declared them. Your addon appears the moment its first `:add()` runs and is absent while it has declared
+none, so an addon with nothing to configure never puts an empty page there.
+
+The client draws the control the type names, with `:label(s)` beside it and `:tooltip(s)` on hover. You
+build no widget and choose no file.
+
+> **The page and your value are one thing.** Each control reads its option as it draws, so a `value(v)`
+> from your addon moves an open control with nothing to notify and no listener to register; and the user
+> moving that control is a write through the same verb, so it fires the same `Changed`. There is no third
+> place for the value to be, and nothing to keep in step.
+
 ## The Option object
 
 `:add()` hands back the row, and so does `opts:option():get(name)`. It is the **same object** both ways and
@@ -112,6 +129,11 @@ end)
 
 sub:off()                       -- stop listening; the option and its value stay
 ```
+
+The user moving a control moves the value as they move it, not when they are finished: `Changed` on a
+`text` row fires once per keystroke, and on a `number` row once per step of a drag. A handler that does
+something expensive with the new value does it that often, so do the expensive part on a
+[timer](../timer.md) the handler restarts.
 
 **A write of the value already held is not a change**: nothing is stored again and nothing fires. That is
 what lets a control write back what it just read without a loop, and what makes a handler counting edges

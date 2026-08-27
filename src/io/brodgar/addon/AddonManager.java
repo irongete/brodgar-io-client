@@ -5638,6 +5638,78 @@ public final class AddonManager {
             out.add(new KeyBindGroup(e.getKey().manifest.name, e.getValue()));
         return out;
     }
+
+    /**
+     * One addon's declared options, for the <b>AddOns</b> tab of the settings window (spec
+     * {@code 115-the-addon-declares-its-options}). Immutable; built by {@link #describeOptions()}. Its
+     * {@link #addon} is the row the tab's list draws and the heading of the page behind it, and {@link #id}
+     * is what that selection is remembered by across a re-read — the group object itself is minted fresh
+     * every time, so nothing may key on its identity.
+     */
+    public static final class OptionGroup {
+        public final String id;                  // the manifest id — the row's stable key
+        public final String addon;               // the addon's display name — what the list draws
+        public final List<OptionEntry> options;  // its rows, in declaration order
+        OptionGroup(String id, String addon, List<OptionEntry> options) {
+            this.id = id;
+            this.addon = addon;
+            this.options = options;
+        }
+    }
+
+    /**
+     * One option row: the live {@link LuaOption} the panel draws a control from, reads every frame and
+     * writes through. It is the row itself rather than a copy of what it said, because a control that
+     * caches a value is a second place for it to be wrong.
+     */
+    public static final class OptionEntry {
+        public final LuaOption option;
+        OptionEntry(LuaOption option) { this.option = option; }
+    }
+
+    /**
+     * The declared addon options grouped by owning addon, for the AddOns tab of the settings window. Only
+     * addons with at least one <b>live</b> declared option appear — the same WoW-style rule
+     * {@link #describeKeyBinds()} follows, and for the same reason: a row for an addon with nothing to
+     * configure is a page the user opens once. Order is {@link #addons}, which is the order they were
+     * loaded in; within an addon, declaration order.
+     *
+     * <p>Read on the UI thread, when the tab is shown. A disabled or unloaded addon holds no live option, so
+     * it does not appear — its stored values stay in the client's preference store, exactly as a re-mapped
+     * keybinding does.
+     */
+    /**
+     * <b>How many declarations there have been</b> — bumped by every {@code :add()} that takes a name. The
+     * AddOns tab watches it beside {@link AddonRegistry#reloadGen()}, which is what makes its list what the
+     * addons have declared <i>now</i> rather than what they had declared when the window was last opened: an
+     * addon may declare a row at any point in its life, and one that speaks from a console command or a
+     * timer would otherwise be missing from a list built before it spoke.
+     */
+    private static volatile int optionsGen;
+
+    /** {@link #optionsGen} — read by the AddOns tab, once a frame. */
+    public static int optionsGen() {
+        return optionsGen;
+    }
+
+    /** A row was declared. Called from {@code AddonOptions.Builder.add()}, the one place a row is taken. */
+    static void optionDeclared() {
+        optionsGen++;
+    }
+
+    public static List<OptionGroup> describeOptions() {
+        List<OptionGroup> out = new ArrayList<OptionGroup>();
+        for(Addon a : addons) {
+            List<OptionEntry> rows = new ArrayList<OptionEntry>();
+            synchronized(a.addonOptions) {
+                for(LuaOption o : a.addonOptions.values())
+                    rows.add(new OptionEntry(o));
+            }
+            if(!rows.isEmpty())
+                out.add(new OptionGroup(a.manifest.id, a.manifest.name, rows));
+        }
+        return out;
+    }
     /**
      * A HUD overlay ({@code hafen.ui():overlay():add(key)}): a draw fn painted on top of the HUD each frame
      * (2b). Built <b>bare</b> — {@code fn} is installed by {@code :draw(fn)} and is {@code volatile} because

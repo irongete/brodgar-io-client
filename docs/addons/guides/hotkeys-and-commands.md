@@ -1,7 +1,7 @@
-# Hotkeys and commands
+# Hotkeys, commands and settings
 
-Two ways for the user to invoke your addon by hand: a key they press, and a command they type. Both are
-unprotected, both are subscriptions named with `:on`, and both are cleaned up when your addon reloads.
+A key they press, a command they type, a setting they change: the ways a user drives your addon by hand.
+Each is unprotected, each is declared in your file body, and each is cleaned up when your addon reloads.
 The last section goes the other way — a surface of yours doing what one console word already does.
 
 ## A hotkey
@@ -72,6 +72,32 @@ Both verbs hand back a `Sub`, the one shape every `:on` in this API gives you: `
 took and `sub:off()` gives it up. You rarely need either — a reload releases both for you — but a hotkey
 your addon stops offering, or a command it hands over, ends that way.
 
+## A setting of your own
+
+```lua
+local opts = hafen.client():options():addon()
+
+local rows = opts:number("rows"):label("Rows to show"):range(1, 20):default(8):add()
+
+rows:on("Changed", function(n) resize(n) end)
+```
+
+The third way, and the one the user reaches for when they are not in the middle of anything: a row on your
+addon's own page in **Options ▸ AddOns**. You name the row and its type; the client draws the control,
+stores the value and answers reads. A checkbox, a slider, a dropdown, a text field, a button that runs a
+function of yours, a line of text you rewrite — the [reference](../api/client/addon.md) has the builder for
+each and what it takes.
+
+Your page is there from the moment your first `:add()` runs, and your addon is not in that list at all
+while it has declared nothing. Read the value whenever you need it and subscribe to `Changed` for the
+moment it moves; the control the user is looking at and the value you read are the same thing, so neither
+of you has to tell the other.
+
+A value here is the **client's**, not your addon's: it survives `:reload`, a disable and a restart, it is
+one per client rather than one per character, and you write no file for it. Reach for
+[`hafen.store`](../api/store.md) instead for what the user did not choose — a cached list, a window
+position, anything your addon decided for itself.
+
 ## A button of your own that runs a command
 
 The client has a command for a great many things, and one of your own surfaces — a button, a hotkey, a
@@ -107,11 +133,12 @@ puts one, and the call returns.
 |---|---|
 | many times a session, mid-action | a hotkey |
 | occasionally, or with an argument | a command |
-| continuously, while watching something | [a window](custom-ui.md), and neither of these |
+| once, and then leaves it alone | [a setting](#a-setting-of-your-own) |
+| continuously, while watching something | [a window](custom-ui.md), and none of these |
 
-A good default for anything with a UI is both: a hotkey to toggle the window, and a command with
-subcommands for the rest, so nothing needs a key that is only used once. That is the shape the
-[bundled addons](../examples.md) have.
+A good default for anything with a UI is a hotkey to toggle the window and a command with subcommands
+for the rest, so nothing needs a key that is only used once, with anything the user sets and forgets on
+the options page instead. That is the shape the [bundled addons](../examples.md) have.
 
 **Dormant is polite.** An addon that draws nothing and does nothing until its key or command is used costs
 a login nothing, and the user finds out what it does when they ask. Wire the work behind the trigger rather

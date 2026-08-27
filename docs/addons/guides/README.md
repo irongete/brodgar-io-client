@@ -13,7 +13,7 @@ assume you have a folder that loads.
 | [events and timers](events-and-timers.md) | run your code at the right moment, and not on every frame |
 | [custom UI](custom-ui.md) | a window, an overlay, and painting your own pixels |
 | [saved data](saved-data.md) | keep settings and layouts across sessions |
-| [hotkeys and commands](hotkeys-and-commands.md) | let the user invoke your addon by hand |
+| [hotkeys, commands and settings](hotkeys-and-commands.md) | let the user drive your addon by hand |
 | [permissions](permissions.md) | drive the character: the catalogue of keys, and what declaring one costs you |
 | [theming](theming.md) | restyle the client's own surfaces, and ship a theme as a file |
 | [translating](translating.md) | change what the client says, and ship a translation as a file |

@@ -56,6 +56,9 @@ back to anywhere.
 | No deselect | `PanelList.unselect(int)` returns without clearing, where every other `SListBox` in the client answers a click on empty space with `change(null)` |
 | The holder, and the swap | one plain `Widget` per tab; `SettingsPanel.Subject.show(PanelEntry)` hides what was in it and adds or re-shows the one picked |
 | Re-fitting | `SettingsPanel.relayout()` — every holder, then `Tabs.pack()`, then the panel, then `OptWnd.cresize` |
+| A tab whose rows are a census | one list is built once and one is re-read — in `SettingsPanel.show()`, and again from `tick` whenever a generation counter it watches moves, because what belongs in it changes while the window sits there |
+| A row's identity across a re-read | `PanelEntry.key`, defaulting to the row's own name. The entries are minted fresh each time, so the selection cannot be remembered by identity |
+| Swapping a whole list | `SettingsPanel.Subject.reset(List)` — destroys every panel the old entries built, swaps the contents of `entries`, then re-picks the row with the same `key`, else the first. The `SListBox` needs no telling: `update()` re-reads `items()` every tick and diffs it by identity |
 
 ## Gotchas
 

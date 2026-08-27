@@ -79,8 +79,16 @@ grep aimed at the new syntax finds them.
 
 - `src/haven/OptWnd.java` — 1, 3
 - `src/haven/Tabs.java`, `src/haven/GameUI.java`, `src/haven/LoginScreen.java` — 1
-- `src/haven/SListBox.java`, `src/haven/SListWidget.java`, `src/haven/Scrollport.java` — 1, 3
+- `src/haven/SListBox.java`, `src/haven/SListWidget.java` — 1, 3
+- `src/haven/Scrollport.java`, `src/haven/Scrollbar.java` — 1, 4 (the port an unbounded page goes in, and
+  the `Scrollbar.width` its box has to leave room for)
 - `src/haven/CheckBox.java`, `src/haven/HSlider.java`, `src/haven/SDropBox.java`, `src/haven/TextEntry.java` — 3
+- `src/haven/Button.java`, `src/haven/Label.java`, `src/haven/ACheckBox.java` — 3 (the other three controls a
+  row is drawn as; a `CheckBox`'s value spine is on `ACheckBox`, not on it)
+- `src/haven/Widget.java` — 3 (`settip`/`KeyboundTip`, the tooltip a row hangs off)
+- `src/io/brodgar/addon/ui/AddonOptionsPanel.java` — 4 (the page 3 shipped)
+- `src/io/brodgar/addon/LuaWidget.java`, `Selector.java` — 3, 4 (what `w:type()`, `w:value()` and `w:range()`
+  answer, which is how a suite reads the page back)
 - `src/io/brodgar/addon/ui/AddonPanel.java`, `src/io/brodgar/ui/ClientPanel.java` — 1
 - `src/io/brodgar/addon/AddonOptions.java`, `LuaOption.java` — 2, 3 (the handle, the six builders, and the
   Option the panel draws a control from and writes through)
@@ -92,12 +100,12 @@ grep aimed at the new syntax finds them.
 - `src/io/brodgar/addon/LuaKeyBind.java`, `HookApi.java` — 2 (the registry this one is modelled on)
 - `src/io/brodgar/addon/AddonManager.java` — 2, 3 (`describeKeyBinds` and its neighbours only)
 - `src/haven/Utils.java` — 2 (`getpref*`/`setpref*`, where the value lands)
-- `docs/addons/api/client/addon.md` — 3 (the reference for what an addon declares)
+- `docs/addons/api/client/addon.md` — 3, 4 (the reference for what an addon declares)
 - `docs/addons/api/client/README.md`, `docs/addons/api/client/keybindings.md` — 1, 2
 - `docs/addons/api/README.md` — 2 · `docs/addons/guides/hotkeys-and-commands.md` — 1, 3
 - `docs/addons/runtime.md`, `docs/addons/guides/permissions.md`, `docs/addons/guides/debugging.md` — 1
 - `docs/addons/getting-started.md`, `docs/addons/api/sound.md`, `docs/addons/api/ui/edit.md` — 1
-- `docs/client/widget-input.md` — 1
-- `docs/client/ui-panels.md` — 3 (`Tabs` and `OptWnd`'s panel model; the list, the holder and the swap)
+- `docs/client/ui-panels.md` — 3, 4 (`Tabs` and `OptWnd`'s panel model; the list, the holder and the swap)
+- `docs/client/widget-input.md` — 1, 3 (the keybinding navigation, and what `settip` installs)
 - `docs/client/ui-controls.md`, `docs/client/ui-lists.md`, `docs/client/gameui-windows.md` — 3
-- `DOCUMENTATION.md` — 1, 2, 3
+- `DOCUMENTATION.md` — 1, 2, 3, 4

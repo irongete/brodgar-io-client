@@ -114,6 +114,8 @@ PER_FILE = {
     # OptionsHandle.close), so it is skipped and counted like every other section object.
     "client/addon.md": {"opts": None, "show": "option", "size": "option", "mode": "option",
                         "sort": "option", "title": "option", "state": "option", "o": "option"},
+    # ...and the guide that puts a setting beside the hotkey and the command names its one row the same way.
+    "guides/hotkeys-and-commands.md": {"opts": None, "rows": "option"},
 }
 
 def per_file(rel):

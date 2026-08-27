@@ -237,6 +237,65 @@ public final class LuaOption {
         return press;
     }
 
+    // ---- the same value, in Java's words -------------------------------------------------------------
+    //
+    // The panel that draws the row is in another package and has no business holding LuaValues: it reads a
+    // boolean, an int or a String and writes one back. Every write below funnels through value(LuaValue)
+    // above -- THE one write path -- so a control's move and a Lua write are one fact, and the panel gets
+    // Changed and the store for free rather than having a second half to keep in step.
+
+    /** A boolean row's value. */
+    public boolean bool() {
+        return value.toboolean();
+    }
+
+    /** A number row's value, inside the range it declared. */
+    public int num() {
+        return value.toint();
+    }
+
+    /**
+     * A text row's line, or a choice row's pick — and on a choice, the element of {@link #choices}
+     * <b>by identity</b>. {@code SDropBox.change(I)} compares the incoming item against its own {@code sel}
+     * with {@code !=}, so a fresh String equal to the pick would rebuild the closed box on every frame the
+     * panel reads its value.
+     */
+    public String str() {
+        String s = value.tojstring();
+        if(choices != null) {
+            for(String c : choices) {
+                if(c.equals(s))
+                    return c;
+            }
+        }
+        return s;
+    }
+
+    /** Write a boolean row. */
+    public void set(boolean b) {
+        value(LuaValue.valueOf(b));
+    }
+
+    /** Write a number row. */
+    public void set(int n) {
+        value(LuaValue.valueOf(n));
+    }
+
+    /** Write a text or choice row. */
+    public void set(String s) {
+        value(LuaValue.valueOf(s));
+    }
+
+    /**
+     * Run a button row's handler — the client pressing the row on the user's behalf. It goes through
+     * {@link AddonManager#callLua}, the one watchdog-armed, CPU-accounted, error-isolated door into Lua, so
+     * a handler that throws cannot escape into the input pass that pressed it.
+     */
+    public void press() {
+        if(press != null)
+            AddonManager.callLua(owner, Addon.C_HOOK, press);
+    }
+
     /** The list of choices as an English list, for a refusal that has to say what is on offer. */
     private static String list(List<String> l) {
         StringBuilder sb = new StringBuilder();

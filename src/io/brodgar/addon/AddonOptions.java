@@ -371,6 +371,7 @@ public final class AddonOptions {
                 added = true;
                 LuaOption o = new LuaOption(this);
                 owner.addonOptions.put(name, o);
+                AddonManager.optionDeclared();   // the AddOns tab redraws its list from what stands now
                 return o.handle();
             }
         }

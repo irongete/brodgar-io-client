@@ -999,14 +999,23 @@ public class OptWnd extends Window {
      * listed; everything else is built once and kept, exactly as PButton.click has always done. */
     public class PanelEntry {
 	public final String name;
+	/* addon: (115.3) what this row IS, across a re-read of the list -- the addon's id on the AddOns tab,
+	 * and the name itself where the list is fixed. The entry objects are minted fresh every time the
+	 * AddOns list is re-read, so the selection cannot be remembered by identity. */
+	public final String key;
 	private final Supplier<Panel> tgt;
 	private final boolean fresh;
 	private Panel actual = null;
 
-	public PanelEntry(String name, Supplier<Panel> tgt, boolean fresh) {
+	public PanelEntry(String key, String name, Supplier<Panel> tgt, boolean fresh) {
+	    this.key = key;
 	    this.name = name;
 	    this.tgt = tgt;
 	    this.fresh = fresh;
+	}
+
+	public PanelEntry(String name, Supplier<Panel> tgt, boolean fresh) {
+	    this(name, name, tgt, fresh);
 	}
 
 	public PanelEntry(String name, Supplier<Panel> tgt) {
@@ -1023,13 +1032,17 @@ public class OptWnd extends Window {
     public class SettingsPanel extends Panel {
 	private final Tabs tabs;
 	private final List<Subject> subjects = new ArrayList<Subject>();
+	/* addon: (115.3) the addons that declared an option of their own. Unlike the Game tab's fixed seven
+	 * this list is a census of what is loaded and what it has said so far, so it is re-read rather than
+	 * built: on the way in, and on either counter below moving under it. */
+	private final Subject addons;
+	private int builtGen = Integer.MIN_VALUE, builtOpts = Integer.MIN_VALUE;
 
 	public SettingsPanel() {
 	    super("Options");
 	    tabs = new Tabs(Coord.z, Coord.z, this);
 	    Subject game = new Subject(tabs.add(), gamepanels());
-	    // The AddOns tab is the addons that declared an option of their own; it stands empty until one has.
-	    Subject addons = new Subject(tabs.add(), new ArrayList<PanelEntry>());
+	    addons = new Subject(tabs.add(), new ArrayList<PanelEntry>());
 	    Widget gb = add(tabs.new TabButton(UI.scale(120), "Game", game.tab), 0, 0);
 	    add(tabs.new TabButton(UI.scale(120), "AddOns", addons.tab), gb.pos("ur").adds(5, 0));
 	    /* The tab bodies go under their buttons, which is why Tabs is built with a placeholder c: a
@@ -1058,6 +1071,43 @@ public class OptWnd extends Window {
 	    return(ret);
 	}
 
+	/* addon: (115.3) one row per addon holding at least one live declared option, in the order the addons
+	 * were loaded. `fresh` on every one: an addon may declare a row at any point in its life, so the page
+	 * is built from what it has said at the moment it is opened rather than at the moment it was listed. */
+	private List<PanelEntry> addonpanels() {
+	    List<PanelEntry> ret = new ArrayList<PanelEntry>();
+	    for(io.brodgar.addon.AddonManager.OptionGroup g : io.brodgar.addon.AddonManager.describeOptions()) {
+		final io.brodgar.addon.AddonManager.OptionGroup grp = g;
+		ret.add(new PanelEntry(g.id, g.addon,
+					() -> new io.brodgar.addon.ui.AddonOptionsPanel(OptWnd.this, grp), true));
+	    }
+	    return(ret);
+	}
+
+	private void refreshAddons() {
+	    builtGen = io.brodgar.addon.AddonRegistry.reloadGen();
+	    builtOpts = io.brodgar.addon.AddonManager.optionsGen();
+	    addons.reset(addonpanels());
+	}
+
+	/* Re-read on the way in: the view is opened from the game menu every time, so this is the moment the
+	 * census is worth taking. After super.show(), because relayout() packs the window around whichever
+	 * panel is VISIBLE and this one is not one until then. */
+	public void show() {
+	    super.show();
+	    refreshAddons();
+	}
+
+	public void tick(double dt) {
+	    super.tick(dt);
+	    /* Two counters, one compare each. A :reload rebuilds every Addon under this view, so the options a
+	     * page is drawing and writing through belong to objects nothing holds any more; and a declaration
+	     * is a row this list has not got, whenever in an addon's life it was made. */
+	    if((io.brodgar.addon.AddonRegistry.reloadGen() != builtGen)
+	       || (io.brodgar.addon.AddonManager.optionsGen() != builtOpts))
+		refreshAddons();
+	}
+
 	/* Every box in the view, bottom up, then the window around it. Called whenever what is in a holder
 	 * changes size -- a swap, and a panel that repacks itself under one. */
 	private void relayout() {
@@ -1073,12 +1123,12 @@ public class OptWnd extends Window {
 	    public final Tabs.Tab tab;
 	    public final PanelList list;
 	    public final Widget holder;
-	    private final List<PanelEntry> entries;
+	    private final List<PanelEntry> entries = new ArrayList<PanelEntry>();
 	    private Panel shown = null;
 
 	    private Subject(Tabs.Tab tab, List<PanelEntry> entries) {
 		this.tab = tab;
-		this.entries = entries;
+		this.entries.addAll(entries);
 		this.list = tab.add(new PanelList(this, UI.scale(new Coord(190, 320))), Coord.z);
 		this.holder = tab.add(new Widget(Coord.z) {
 			/* A panel inside a holder may repack itself long after it was built -- VideoPanel.resetcf
@@ -1089,6 +1139,36 @@ public class OptWnd extends Window {
 			}
 		    }, list.pos("ur").adds(10, 0));
 		subjects.add(this);
+	    }
+
+	    /* addon: (115.3) put a whole new list of subjects in, keeping the row the user was on where the
+	     * same subject is still there to be on. Every built panel goes first: an SListBox diffs items() by
+	     * identity and rebuilds its rows on its own, but the panels hanging off the old entries are ours,
+	     * and one of them may be drawing an addon that is no longer loaded. */
+	    private void reset(List<PanelEntry> ne) {
+		String cur = (list.sel == null) ? null : list.sel.key;
+		for(PanelEntry e : entries) {
+		    if(e.actual != null) {
+			if(shown == e.actual)
+			    shown = null;
+			e.actual.destroy();
+			e.actual = null;
+		    }
+		}
+		entries.clear();
+		entries.addAll(ne);
+		PanelEntry pick = null;
+		for(PanelEntry e : entries) {
+		    if(e.key.equals(cur))
+			pick = e;
+		}
+		if((pick == null) && !entries.isEmpty())
+		    pick = entries.get(0);
+		list.sel = null;
+		if(pick != null)
+		    list.change(pick);
+		else
+		    relayout();
 	    }
 
 	    private void show(PanelEntry e) {

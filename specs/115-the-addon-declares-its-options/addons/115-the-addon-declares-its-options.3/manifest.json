@@ -1,0 +1,9 @@
+{
+  "name": "115.3 — the AddOns tab draws what was declared",
+  "id": "115-the-addon-declares-its-options.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 115.3: this addon declares a row of each of the six types, the AddOns tab of the settings window lists it and lists no addon that declared none, the page behind that row holds one control of each kind, every control reads back exactly what Lua wrote, and the per-frame re-read fires Changed no second time.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

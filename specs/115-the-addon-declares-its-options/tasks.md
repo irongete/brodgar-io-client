@@ -46,7 +46,7 @@
       `[manual]`: reload and run `:t115` again — expect every value line to read what the previous run wrote,
       not the declared defaults.
 
-- [ ] **115.3 — The AddOns tab draws what was declared.** `AddonManager.describeOptions()` returns
+- [x] **115.3 — The AddOns tab draws what was declared.** `AddonManager.describeOptions()` returns
       `OptionGroup`/`OptionEntry` beside `describeKeyBinds`, one group per addon with at least one live
       declared option, in registration order. The AddOns tab's `SListBox` is that list, re-read on `show()`;
       selecting a row builds `io.brodgar.addon.ui.AddonOptionsPanel`, which draws one row per option in
@@ -65,3 +65,23 @@
       option.
       `[manual]`: with the panel open, move its slider — expect the number the next `:t115` run prints to be
       the one you left it on.
+
+- [ ] **115.4 — An addon's options page scrolls.** `AddonOptionsPanel` builds its rows into a
+      `Scrollport` rather than into itself: `OptWnd.BindingPanel` one panel up is the shape, and it is
+      there for the same reason — a panel whose row count an addon chooses is the one panel in this
+      window nothing bounds. The port is the Game list's own height and wide enough for the two columns
+      plus `Scrollbar.width`; the rows go into a container inside `cont` whose `cresize` repacks it and
+      re-runs `Scrollcont.update()`, because `bar.max` is computed only on `add` and a label row's line
+      is the addon's to rewrite. The page's own box is then the port's, so the window stops growing with
+      the rows and the `cresize` override that followed them goes. `docs/addons/api/client/addon.md`
+      says the page scrolls, which is what makes "declare as many rows as you like" true.
+      *Its suite* declares forty rows of mixed kinds under its own id and asserts through `hafen.ui()`
+      that the page is shorter than its own row column — the one claim that needs no measurement of its
+      own: the page holds one `Scrollport`, the column inside it is taller than the port, the page is
+      shorter than the column, and the port's scrollbar reads a `:range()` with room in it. It then
+      writes the fortieth row from Lua and asserts its control reads the write back, a row nothing is
+      drawing answering exactly as the first one does.
+      `[manual]`: open Options ▸ AddOns and pick this suite — expect a scrollbar down the right of the rows.
+      `[manual]`: drag that scrollbar to the bottom — expect row 40 whole, and the window no taller than
+      it is on the Game tab.
+      <!-- extra context: src/haven/Scrollport.java, src/haven/Scrollbar.java, src/haven/OptWnd.java (BindingPanel) -->

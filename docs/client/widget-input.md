@@ -110,6 +110,14 @@ receiving controller has focus itself.
 | Tooltip + cursor, once per draw | `UILoop.display` → `drawtooltip` → `UI.tooltip` · `drawcursor` → `UI.getcurs` |
 | The query objects | `TooltipQuery` (also carries `last`, the widget that answered on the previous frame) · `CursorQuery`. Both keep a `root` reference through `derive`, so a **derived** query writes `ret`/`from` back on the original — which is what lets a query be re-dispatched from somewhere else and still be read at the call site |
 | Answering one | `Widget.tooltip(TooltipQuery)` — children first, then `checkhit` on itself, so the deepest tip-bearing widget wins |
+| What `settip` installs | `Widget.settip(String, boolean rich)` puts a `Widget.KeyboundTip` on the public `tooltip` field, and `KeyboundTip.get` renders it lazily, re-rendering when `Fonts.gen()` moves or the widget's `kb_gkey` is re-mapped (the shortcut is appended to the tip). **`rich = false` is not "plain text"** — it `RichText.Parser.quote`s the string for you and renders it at width `0`, i.e. **on one unwrapped line**; `rich = true` wraps at `UI.scale(300)` and passes the string through as **markup**, so a `$`, `{` or `}` in it is parsed unless the caller quotes it |
+
+> **A long unwrapped tip is a texture as wide as the string.** `settip(s)` (the one-argument form) renders
+> at width `0`, so a paragraph-length tip becomes a single raster hundreds of times wider than it is tall —
+> past `GL_MAX_TEXTURE_SIZE` the upload fails from the *hover*, on the render thread, with nothing on screen
+> to say which widget it was. Anything setting a tip it did not write short passes `rich = true` and quotes
+> the string itself.
+
 
 ## Popups — three sites, all hard-wired to the flat root
 
