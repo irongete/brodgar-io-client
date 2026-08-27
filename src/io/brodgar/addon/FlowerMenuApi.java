@@ -115,7 +115,7 @@ final class FlowerMenuApi {
         // in, which is the order a petal is addressed by). An empty array when no menu is open.
         menu.set("gob", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "flowermenu", "gob", FM);
+                LuaCollection.receiver(a.arg1(), "gob");
                 if(Args.passed(a, 2))
                     throw new LuaError(FM + ":gob() takes no arguments: there is one open menu"
                         + " and it was opened on one object — to read that object, call it bare");
@@ -131,7 +131,7 @@ final class FlowerMenuApi {
         // The one key is unchanged whichever character it is addressed at (077.4).
         menu.set("select", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "flowermenu", "select", FM);
+                LuaCollection.receiver(a.arg1(), "select");
                 AddonManager.requirePermission(owner, Permission.FLOWERMENU_SELECT);
                 select(user, Args.required(a, 2, FM + ":select", "key"));
                 return LuaValue.NIL;
@@ -142,7 +142,7 @@ final class FlowerMenuApi {
         // picking from it. Its one key is unchanged too.
         menu.set("cancel", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "flowermenu", "cancel", FM);
+                LuaCollection.receiver(a.arg1(), "cancel");
                 AddonManager.requirePermission(owner, Permission.FLOWERMENU_CANCEL);
                 if(Args.passed(a, 2))
                     throw new LuaError(FM + ":cancel() takes no arguments: there is one open"
