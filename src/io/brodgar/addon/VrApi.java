@@ -44,15 +44,16 @@ import static io.brodgar.addon.AddonManager.*;
  * {@code onGhostClick} (called from {@code haven.MapView}) stays a facade in {@link AddonManager} and delegates
  * here; {@link AddonManager} calls the per-kind teardowns on reload/disable.
  *
- * <p><b>Three collections, one entity vocabulary.</b> Each kind is a {@link LuaCollection} — {@code :add(what,
- * p)} places one and hands back its handle, {@code :list(filter)} reads them, and {@code :remove(x)} ends one
- * (R7: the collection placed it, so the collection ends it). Every handle then speaks the same verbs, each a
- * read/write pair on one name: {@code :position(p [, a])}, {@code :rotate}, {@code :scale}, {@code :alpha},
- * {@code :tint}, {@code :visible}, {@code :clickable}, {@code :onClick} — plus the one or two its own kind
- * adds.
+ * <p><b>One collection per kind, one entity vocabulary.</b> Each kind is a {@link LuaCollection} — {@code
+ * :add(what, p)} places one and hands back its handle, {@code :list(filter)} reads them, and {@code :remove(x)}
+ * ends one (R7: the collection placed it, so the collection ends it). Every handle then speaks the same verbs,
+ * each a read/write pair on one name: {@code :position(p [, a])}, {@code :rotate}, {@code :scale},
+ * {@code :alpha}, {@code :tint}, {@code :visible}, {@code :clickable}, {@code :onClick} — plus the one or two
+ * its own kind adds.
  *
  * <p><b>The dispatch is a table of collections, not a branch</b> — {@link #installVr} registers each kind by
- * name, so a fourth ({@code :widget()}, 044) is one more line rather than a shape to re-open.
+ * name, so a further one ({@code :widget()}, 044; {@code :patch()}, 118) is a line rather than a shape to
+ * re-open.
  *
  * <p><b>This is a SCENE section, not a loader</b> (028.1): the addon's own files — images, fonts and meshes
  * alike — come from the one door {@link AssetApi} ({@code hafen.asset():get(path)}), which also owns the D-017
@@ -88,6 +89,8 @@ final class VrApi {
         collection(m, "sprite", spriteCollection(owner));
         collection(m, "object", objectCollection(owner));
         collection(m, "widget", widgetCollection(owner));
+        collection(m, "patch", patchCollection(owner),
+                   "hafen.vr():patch():add(ring, p) lays one on the ground");
         collection(m, "entity", entityCollection(owner),
                    "hafen.vr():entity():list(filter) is everything you have standing");
         // visible() / visible(b) — the section switch, a property like every other: arity is the verb, and the
@@ -143,6 +146,7 @@ final class VrApi {
         collectLive(out, owner.sprites);
         collectLive(out, owner.objects);
         collectLive(out, owner.surfaces);
+        collectLive(out, owner.patches);
         java.util.Collections.sort(out, BY_BIRTH);
         return out;
     }
@@ -402,6 +406,59 @@ final class VrApi {
     }
 
     /**
+     * {@code hafen.vr():patch()} — <b>this addon's own shapes lying on the ground</b> (118). The fifth
+     * collection, and the first whose members lie <b>down</b>: the four before it — a prop, a picture, a model,
+     * a window — all stand up, and nothing lay on the terrain at all.
+     *
+     * <p>{@code :add(ring, anchor)} takes a convex ring of {@link LuaPosition}s and the place to hold it by,
+     * and lays that exact shape on the terrain — occluded by whatever stands on it, and with a one-pixel rim at
+     * every zoom rather than a staircase of square tiles. The ring is what {@code gob:hitbox()} already hands
+     * back, one ring at a time, with no projection and no conversion by the caller: that is the whole reason
+     * this takes a ring of places rather than a named primitive.
+     *
+     * <p><b>The anchor is a Position</b>, read through the very {@link #anchorArg} the other four kinds read,
+     * and the ring is held as offsets from it — so a patch survives the coordinate space being re-based under
+     * it, and one laid at a place this character cannot locate waits whole rather than drawing part of itself.
+     * A Gob is refused by {@link #makePatch}, for the reason written there. Keyless and nameless — a patch is a
+     * shape rather than a picture of anything, so a string filter has nothing to match and says so.
+     */
+    private static LuaValue patchCollection(final Addon owner) {
+        return LuaCollection.create("hafen.vr():patch()", new LuaCollection.Source() {
+            public List<LuaValue> members() {
+                return entityMembers(owner.patches);
+            }
+
+            /** A patch is a shape, not a picture of something: there is no name for a string to match. */
+            public boolean named() {
+                return false;
+            }
+
+            public boolean creatable() {
+                return true;
+            }
+
+            public LuaValue addMember(Varargs a) {
+                List<LuaPosition> ring = ringArg(a, 2, PATCH_ADD);
+                Anchor an = anchorArg(a, PATCH_ADD);
+                return born(makePatch(owner, an, ring), PATCH_ADD);
+            }
+
+            public boolean destroyable() {
+                return true;
+            }
+
+            public void removeMember(LuaValue x) {
+                destroyEntity(memberArg(owner.patches, x, "hafen.vr():patch():remove", "patch"));
+            }
+
+            public String noGet() {
+                return "a patch has no key: hafen.vr():patch():add(ring, anchor) hands you the patch it lays,"
+                    + " and hafen.vr():patch():find(filter) finds one you already put down";
+            }
+        }, null);
+    }
+
+    /**
      * {@code hafen.vr():entity()} — <b>everything this addon has standing, whatever kind</b>: the answer to a
      * question no per-kind collection can be asked, and a {@link LuaCollection} rather than a bare array so that
      * {@code :count()} and {@code :find()} mean here exactly what they mean one verb down. The section itself
@@ -457,6 +514,8 @@ final class VrApi {
             return owner.objects;
         if(owns(owner.surfaces, member))
             return owner.surfaces;
+        if(owns(owner.patches, member))
+            return owner.patches;
         return java.util.Collections.<LuaWorldEntity>emptyList();
     }
 
@@ -1917,6 +1976,198 @@ final class VrApi {
             destroyEntity(we);          // removes each from a.surfaces as it goes (copy-on-write list)
     }
 
+    // ---- shapes lying on the ground (hafen.vr():patch()) ------------------------------------------------
+
+    /** The one spelling of the verb, so every refusal below names it the same way. */
+    private static final String PATCH_ADD = "hafen.vr():patch():add";
+
+    /**
+     * The <b>ring</b> of {@code hafen.vr():patch():add(ring, anchor)}: a 1-based array of {@link LuaPosition}s,
+     * which is exactly what {@code gob:hitbox()} hands back one ring at a time. Positions and not a table of
+     * numbers, for the reason {@link LuaPosition#posArg} states once for the whole API — a plain {@code {x, y}}
+     * is a pair of screen pixels as readily as a place in the world, and the two are not interchangeable.
+     */
+    private static List<LuaPosition> ringArg(Varargs a, int i, String verb) {
+        LuaValue rv = Args.required(a, i, verb, "ring");
+        if(!rv.istable())
+            throw new LuaError(verb + ": ring must be an array of Positions — one of the rings gob:hitbox()"
+                + " hands back, or one you build yourself from a place with p:offset(dx, dy). Got "
+                + rv.typename());
+        int n = rv.length();
+        List<LuaPosition> out = new ArrayList<LuaPosition>(n);
+        for(int k = 1; k <= n; k++) {
+            LuaPosition p = LuaPosition.resolve(rv.get(k));
+            if(p == null)
+                throw new LuaError(verb + ": ring[" + k + "] must be a Position — every point of the ring is"
+                    + " a place in the world (gob:position(), s:world():position(x, y), p:offset(dx, dy)), and"
+                    + " a ring of " + n + " that is missing one is a shape with a hole in it");
+            out.add(p);
+        }
+        return out;
+    }
+
+    /**
+     * <b>The ring as offsets from the place it is held by</b> — what a patch keeps, so that the same ring means
+     * the same shape whether it is anchored to a point or to an object, and so that it survives the coordinate
+     * space being re-based under it.
+     *
+     * <p>A point in <b>the anchor's own grid</b> needs no session at all: the durable form is a grid id plus an
+     * offset within that grid, so the displacement is a subtraction. That is what lets a patch be laid at a
+     * place this character cannot locate — it holds the shape and waits, exactly as every other free entity
+     * holds its place and waits. Anything else falls back to both ends' world coordinates, and a point with
+     * neither route to the anchor is refused rather than dropped, because a ring one point short is the wrong
+     * shape and not a smaller one.
+     */
+    private static Coord2d[] ringLocal(Anchor an, List<LuaPosition> ring, String verb) {
+        Coord2d[] out = new Coord2d[ring.size()];
+        for(int i = 0; i < out.length; i++) {
+            out[i] = localOf(an, ring.get(i));
+            if(out[i] == null)
+                throw new LuaError(verb + ": ring[" + (i + 1) + "] cannot be placed against that anchor — it"
+                    + " is in another grid, and neither it nor the anchor has a coordinate this session, so"
+                    + " there is no way to say how far apart they are. Build the ring from the anchor"
+                    + " (p:offset(dx, dy)), or lay it where the character can see it");
+        }
+        return out;
+    }
+
+    /** One point of {@link #ringLocal}: the grid arithmetic first, the session's coordinates as the fallback. */
+    private static Coord2d localOf(Anchor an, LuaPosition p) {
+        if(an.place != null) {
+            LuaPosition.Anchor pa = p.anchor();
+            if((pa != null) && (pa.id == an.place.id))
+                return Coord2d.of(pa.x - an.place.x, pa.y - an.place.y);
+        }
+        Coord2d here = (an.place != null) ? LuaPosition.worldOf(an.place, null) : an.rc;
+        Coord2d there = p.world();
+        return ((here == null) || (there == null)) ? null : there.sub(here);
+    }
+
+    /**
+     * Build a patch and lay it — the body of {@code hafen.vr():patch():add}. {@code an.tgt != 0} anchors it to
+     * that gob; otherwise it holds the durable place {@code an.place} names. Returns {@code null} when there is
+     * no map view (not in the world), which is {@link #born}'s refusal.
+     *
+     * <p><b>The three ways a ring is not a patch are refused here, by name</b>, because each of them would
+     * otherwise be drawn as a different shape than the one asked for — which is the one outcome a drawing API
+     * must never have. Fewer than three real points is a line; a concave ring's half-planes intersect in its
+     * hull rather than in itself; and a ring longer than the fragment stage's array would be truncated.
+     */
+    private static LuaPatch makePatch(Addon owner, Anchor an, List<LuaPosition> ring) {
+        final MapView mv = screenView();
+        final Glob g = glob();
+        if((mv == null) || (g == null))
+            return null;                               // not in the world yet — no ground to lie on
+        // A patch has no gob, so following one is not a FollowMoving the placement pass evaluates every frame:
+        // it is the ring re-derived and re-laid. The ground pass that re-asks an anchored entity about its
+        // object runs when that object enters or leaves a character's view and not while it walks, so a patch
+        // laid against a gob here would sit where the object WAS. Refused rather than laid wrong.
+        if(an.tgt != 0)
+            throw new LuaError(PATCH_ADD + ": that anchor is a Gob, and a patch is laid at a Position — "
+                + PATCH_ADD + "(ring, p). A ring out of gob:hitbox() takes gob:position() as its place, which"
+                + " puts the shape exactly where that object stands; it holds there rather than following it");
+        if(ring.size() < 3)
+            throw new LuaError(PATCH_ADD + ": a patch needs at least three points — a ring of " + ring.size()
+                + " is a line, and a line has no ground under it");
+        Coord2d[] local = ringLocal(an, ring, PATCH_ADD);
+        List<Coord2d> shape = java.util.Arrays.asList(local);
+        if(!PatchCarve.convex(shape))
+            throw new LuaError(PATCH_ADD + ": that ring is concave, and a patch is convex — the silhouette is"
+                + " carved as the intersection of the ring's edge half-planes, so a concave one would be drawn"
+                + " as its hull rather than as itself. Split it into convex rings and lay one patch each");
+        float[][] e = PatchCarve.of(shape);
+        if(e.length < 3)
+            throw new LuaError(PATCH_ADD + ": a patch needs at least three points that are not the same place"
+                + " — that ring has " + ring.size() + " of them but only " + e.length + " edges, so it"
+                + " encloses no ground");
+        if(PatchCarve.tooMany(e))
+            throw new LuaError(PATCH_ADD + ": that ring has " + e.length + " edges and a patch carries at most "
+                + PatchCarve.EDGES + " — the half-planes are one array uniform, declared at that length in the"
+                + " fragment stage. Refused rather than truncated to the wrong shape");
+        LuaPatch p = new LuaPatch(owner, an.rc, local);   // followTgt stays 0: the anchor above is a place
+        owner.patches.add(p);
+        entityRegister(mv.ui, p, an.place);            // dies with its gob, or holds its own place and waits
+        p.handle = patchHandle(p);
+        synchronized(p) {
+            if(p.dead)
+                return p;                              // ended mid-build (defensive; all UI-thread)
+            p.mv = mv;                                 // which scene's MCache its overlay goes into
+            if(shows(p))                               // hidden, its section off, or its ground not drawn: it waits
+                attachScene(p);
+        }
+        return p;
+    }
+
+    /**
+     * The Lua handle for a {@link LuaPatch}. Userdata over the entity with a closed index, the one shape every
+     * handle in the API has, so an unknown verb names the vocabulary rather than answering nil.
+     */
+    private static LuaValue patchHandle(final LuaPatch p) {
+        LuaTable m = new LuaTable();
+        // exists() -- is it still in the world? False once the collection removed it, and false after a teardown.
+        m.set("exists", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                synchronized(p) { return LuaValue.valueOf(!p.dead); }
+            }
+        });
+        // drawn() -- is it ON THE GROUND right now? Read-only, because a patch is drawn exactly when the ground
+        // under it has resolved in the scene being looked at, and that is the world's answer rather than a
+        // setting. A patch laid at a place this character cannot locate exists and is not drawn -- it waits
+        // whole rather than drawing part of itself.
+        m.set("drawn", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("patch:drawn() reads whether it is on the ground and does not write it"
+                        + " -- a patch is drawn once the ground under it has resolved in the scene being"
+                        + " looked at, which is the world's answer and not a setting");
+                synchronized(p) { return LuaValue.valueOf(p.drawn()); }
+            }
+        });
+        // info() -- the one snapshot escape hatch every live object in the API answers (098). Every key is
+        // spelled the way the verb that reads it is; `ring` is the shape itself, as the durable form each of
+        // its points would answer, because a live object inside a snapshot is not a snapshot.
+        m.set("info", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                if(Args.passed(a, 2))
+                    throw new LuaError("patch:info() takes no arguments -- it IS the whole snapshot, and every"
+                        + " field in it has a verb of its own beside it to read one at a time");
+                LuaTable t = new LuaTable();
+                t.set("kind", LuaValue.valueOf(p.kind()));
+                LuaValue pos = entityPosition(p.owner, p);
+                if(!pos.isnil()) {
+                    LuaValue pi = pos.get("info").call(pos);
+                    if(!pi.isnil())
+                        t.set("position", pi);
+                }
+                synchronized(p) {
+                    t.set("exists", LuaValue.valueOf(!p.dead));
+                    t.set("drawn", LuaValue.valueOf(p.drawn()));
+                }
+                p.infoInto(t);
+                return t;
+            }
+        });
+        LuaValue h = LuaValue.userdataOf(p);
+        LuaTable mt = new LuaTable();
+        mt.set(LuaValue.INDEX, Refusal.closedIndex("patch", m, "a patch lying on the ground"));
+        mt.set("__name", LuaValue.valueOf("Patch"));
+        mt.set("__tostring", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                return LuaValue.valueOf("Patch(" + p.local.length + ")");
+            }
+        });
+        h.setmetatable(mt);
+        return h;
+    }
+
+    /** Tear down every patch this addon owns (reload/disable/relogin, P2): each comes off the ground it lay on. */
+    static void teardownPatches(Addon a) {
+        if(a.patches.isEmpty())
+            return;
+        for(LuaPatch p : new ArrayList<LuaPatch>(a.patches))
+            destroyEntity(p);           // removes each from a.patches as it goes (copy-on-write list)
+    }
+
     /**
      * Toggle an entity's pick surface ({@code g:clickable(bool)}, V2 — ghosts only in R2a). The MapView click-list
      * decides membership <b>at slot-add time</b> — a later ancestor-state change does <i>not</i> re-run its
@@ -2275,6 +2526,21 @@ final class VrApi {
     private static void rehome(LuaWorldEntity e, MapView mv) {
         if(e instanceof LuaWidgetEntity)
             return;
+        if(e instanceof LuaPatch) {
+            // 118: there is nothing to rebuild. A patch has no gob and no visual -- what is per session is
+            // the MCache its overlay is registered in, so it comes off the one it was in and the new scene is
+            // recorded. Laying it in that one is the caller's next step (setGrounded), for the same reason
+            // the gob path leaves it to it: an entity whose ground has gone would be added and taken straight
+            // back out in the same pass.
+            synchronized(e) {
+                if(e.dead)
+                    return;
+                ((LuaPatch)e).lift();
+                e.mv = mv;
+                e.ui = (mv == null) ? null : mv.ui;
+            }
+            return;
+        }
         Gob old; RenderTree.Slot slot; MapView omv;
         synchronized(e) {
             if(e.dead || e.streaming)
@@ -2368,6 +2634,14 @@ final class VrApi {
      * create reads the flags when it does) or when it is already in. Caller holds the entity monitor.
      */
     private static void attachScene(LuaWorldEntity e) {
+        if(e instanceof LuaPatch) {
+            // 118: the one kind that is not a gob. What it enters is the drawn session's MCache rather than
+            // the render tree, so the whole of its add is its own -- and the null-coordinate rule is the same
+            // one stated below: rc == null implies !grounded implies !shows(e), and it is stated here too.
+            if(e.rc != null)
+                ((LuaPatch)e).lay();
+            return;
+        }
         if((e.gob == null) || (e.mv == null) || (e.slot != null) || (e.rc == null))
             return;                                    // 045.1: rc == null ⇒ !grounded ⇒ !shows(e), stated here too
         try {
@@ -2385,6 +2659,10 @@ final class VrApi {
 
     /** Take a live entity's gob out of the scene — the inverse of {@link #attachScene}. Caller holds the monitor. */
     private static void detachScene(LuaWorldEntity e) {
+        if(e instanceof LuaPatch) {
+            ((LuaPatch)e).lift();                      // 118: off the ground, out of that MCache
+            return;
+        }
         if((e.gob == null) || (e.mv == null) || (e.slot == null))
             return;
         try { e.mv.removeClientGob(e.gob, e.slot); }

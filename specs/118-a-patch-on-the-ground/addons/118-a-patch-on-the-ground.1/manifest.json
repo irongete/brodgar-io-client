@@ -1,0 +1,9 @@
+{
+  "name": "118.1 — a patch lies on the ground",
+  "id": "118-a-patch-on-the-ground.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 118.1: hafen.vr():patch() lays a convex ring of Positions on the terrain — the collection holds it, it is drawn once its ground has resolved, one at a place this character cannot locate waits whole, and three bad rings are refused by name.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

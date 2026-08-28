@@ -1961,6 +1961,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		}
 	    };
 
+	/* addon: (118.1) the slot added() put id.mat() into. A uniform is baked at slot construction and never
+	 * re-read, so a material that has changed reaches the screen only as a NEW state pushed through the
+	 * slot it went in by -- and added() is the one place upstream reads id.mat() at all. Kept here so an
+	 * overlay whose material is computed rather than loaded (a hafen.vr() patch, whose carve moves with the
+	 * ring) can re-push without re-cutting a single tile. Null while this overlay is in no scene. */
+	private RenderTree.Slot matslot;
+
 	private Overlay(OverlayInfo id) {
 	    this.id = id;
 	}
@@ -1974,11 +1981,29 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 
 	public void added(RenderTree.Slot slot) {
-	    slot.add(base, id.mat());
+	    matslot = slot.add(base, id.mat());   // addon: (118.1) kept -- see matslot
 	    Material omat = id.omat();
 	    if(omat != null)
 		slot.add(outl, omat);
 	    super.added(slot);
+	}
+
+	/* addon: (118.1) re-read id.mat() and push it through the slot it went in by. */
+	void rematerial() {
+	    if(matslot == null)
+		return;
+	    try {
+		/* cstate, not ostate: this REPLACES what added() put in, rather than layering a second copy of
+		 * the same states over it. */
+		matslot.cstate(id.mat());
+	    } catch(RuntimeException e) {
+		/* the scene went away under it (relog): there is nothing left to push into */
+	    }
+	}
+
+	public void removed(RenderTree.Slot slot) {
+	    matslot = null;   // addon: (118.1)
+	    super.removed(slot);
 	}
 
 	public Loading loading() {
@@ -2040,6 +2065,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 	for(Overlay ol : ols.values())
 	    ol.tick();
+    }
+
+    /* addon: (118.1) an overlay's MATERIAL has changed -- re-push it, without touching a tile. The only way in
+     * from outside `haven`, for the one overlay kind whose material is computed rather than loaded off a .res
+     * (a hafen.vr() patch). A no-op when nothing is drawing that overlay yet, which is the ordinary case for
+     * an overlay registered a frame before oltick next runs: the add reads id.mat() itself. UI thread, like
+     * oltick, and it never mutates `ols`. */
+    public void rematerial(MCache.OverlayInfo id) {
+	Overlay ol = ols.get(id);
+	if(ol != null)
+	    ol.rematerial();
     }
 
     private static final Material gridmat = new Material(new BaseColor(255, 255, 255, 48), States.maskdepth, new MapMesh.OLOrder(null),

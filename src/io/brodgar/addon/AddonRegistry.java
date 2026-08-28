@@ -162,6 +162,7 @@ public final class AddonRegistry {
         VrApi.teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
         VrApi.teardownSprites(a);           // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
         VrApi.teardownObjects(a);           // R3: destroy client-only world objects (remove the slot + free the glTF Models; before the meshes)
+        VrApi.teardownPatches(a);           // 118: take every patch off the ground (its overlay out of the MCache it was registered in)
         MapImages.teardown(a);                  // 037.4: free the map drawings the client rendered for this addon
                                                 //   (grid:image / grid:overlayImage) — they are TexIs like any
                                                 //   other image and ride the same registry, so this only has to

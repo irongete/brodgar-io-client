@@ -467,6 +467,16 @@ public final class Addon {
      */
     public final List<LuaWidgetEntity> surfaces = new CopyOnWriteArrayList<LuaWidgetEntity>();
     /**
+     * Live <b>patches this addon has laid on the ground</b> ({@code hafen.vr():patch()}, 118): each is a convex
+     * ring of Positions drawn through the engine's own ground overlay — the fifth kind on the same client-only
+     * entity core as the four above, and the one that is not a {@link haven.Gob} at all. Unprotected for the
+     * same reason as its siblings: nothing here reaches the server. Teardown
+     * ({@link VrApi#teardownPatches}) destroys each, which takes its overlay back out of the {@code MCache} it
+     * was registered in, so a reload/disable/relogin leaves no shape on the ground and no mesh in the grid.
+     * Copy-on-write: a firing callback may lay or end one.
+     */
+    public final List<LuaPatch> patches = new CopyOnWriteArrayList<LuaPatch>();
+    /**
      * <b>This addon's whole {@code hafen.vr()} is switched off</b> ({@code hafen.vr():visible(false)}, 043.4) — one
      * flag beside the three registries above, because the switch is the SECTION's state and there is exactly one
      * section per addon. It destroys nothing: every entity keeps its gob, its transform and its handle, and only
