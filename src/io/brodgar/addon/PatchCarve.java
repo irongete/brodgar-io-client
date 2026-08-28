@@ -144,11 +144,24 @@ public class PatchCarve extends State {
      */
     static float[][] of(List<Coord2d> ring) {
         int n = ring.size();
-        double cx = 0, cy = 0;
         double[] px = new double[n], py = new double[n];
         for(int i = 0; i < n; i++) {
             px[i] = ring.get(i).x;
             py[i] = -ring.get(i).y;                    /* into map space, once, here */
+        }
+        return planes(px, py, n);
+    }
+
+    /**
+     * <b>The inward half-planes of a convex ring whose points are already in the space they are wanted in</b>
+     * — the body {@link #of} is the map-space caller of, and the one {@link PatchClick} is the SCREEN-space
+     * caller of (118.3). Nothing here knows which space it is in: the inward side is decided per edge by
+     * which side the centroid falls on, so a ring may be wound either way and a space whose {@code y} grows
+     * the other way is simply a ring wound the other way.
+     */
+    static float[][] planes(double[] px, double[] py, int n) {
+        double cx = 0, cy = 0;
+        for(int i = 0; i < n; i++) {
             cx += px[i];
             cy += py[i];
         }
@@ -171,6 +184,21 @@ public class PatchCarve extends State {
             out.add(new float[] {(float)nx, (float)ny, (float)((nx * px[i]) + (ny * py[i])), 0f});
         }
         return out.toArray(new float[0][]);
+    }
+
+    /**
+     * <b>Is {@code (x, y)} inside the ring these half-planes are the intersection of?</b> — the fragment's own
+     * test ({@link #carve}) in Java, without the smoothstep: the polygon's signed distance is the MINIMUM over
+     * the edges, and a point is inside wherever that is not negative. What answers a click is therefore the very
+     * arithmetic that carved what was drawn, run over the ring projected to the screen rather than over the ring
+     * in map space (118.3, {@link PatchClick}).
+     */
+    static boolean inside(float[][] e, double x, double y) {
+        for(float[] p : e) {
+            if((((p[0] * x) + (p[1] * y)) - p[2]) < 0)
+                return false;
+        }
+        return true;
     }
 
     /** Below this a segment is a repeated point rather than an edge, in world units (a tile is 11). */

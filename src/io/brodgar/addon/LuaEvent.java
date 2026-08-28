@@ -114,9 +114,9 @@ public final class LuaEvent {
          */
         SDT("sdt", "a state-change event"),
         /**
-         * {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked", fn)} — the V2 click payload,
-         * objectified (041.7): all three answer the same shape, and only the noun matching {@code clickKey()}
-         * (the emitter that actually fired) reads non-nil — the other two read {@code nil} rather than throwing,
+         * {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked"/"PatchClicked", fn)} — the V2 click payload,
+         * objectified (041.7): all four answer the same shape, and only the noun matching {@code clickKey()}
+         * (the emitter that actually fired) reads non-nil — the other three read {@code nil} rather than throwing,
          * the same "the data decides which field applies" rule {@code Shape.INPUT} already has for its
          * {@code button}/{@code amount} (EXAMPLES.md §1.1).
          */
@@ -173,8 +173,8 @@ public final class LuaEvent {
 
     /** OVERLAY: the gob's id — minted into a handle lazily on first {@code :gob()}, like {@code :widget()}. */
     private final long gobId;
-    /** OVERLAY: the overlay's key. CLICKED: which noun answers — {@code "ghost"}/{@code "sprite"}/{@code "object"}
-     * ({@link LuaWorldEntity#clickKey()}). */
+    /** OVERLAY: the overlay's key. CLICKED: which noun answers —
+     * {@code "ghost"}/{@code "sprite"}/{@code "object"}/{@code "patch"} ({@link LuaWorldEntity#clickKey()}). */
     private final String key;
     /** OVERLAY: whether this is one of the game's own overlays, vs. one the owning addon attached itself. */
     private final boolean nat;
@@ -250,7 +250,7 @@ public final class LuaEvent {
         this.wy = 0;
     }
 
-    /** CLICKED shape (041.7): {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked", fn)}'s
+    /** CLICKED shape (041.7): {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked"/"PatchClicked", fn)}'s
      * payload — {@code entity} is the already-interned handle (V2 click dispatch mints it before this is built,
      * unlike a lazily-minted Gob), {@code key} which noun it answers to. */
     private LuaEvent(Addon owner, Shape shape, LuaValue entity, String key, int button, double wx, double wy) {
@@ -476,7 +476,7 @@ public final class LuaEvent {
     }
 
     /**
-     * The {@code ev} for one {@code GhostClicked}/{@code SpriteClicked}/{@code ObjectClicked} fire (V2 click
+     * The {@code ev} for one {@code GhostClicked}/{@code SpriteClicked}/{@code ObjectClicked}/{@code PatchClicked} fire (V2 click
      * dispatch, objectified 041.7) — {@code entity} is the already-interned ghost/sprite/object handle,
      * {@code clickKey} which noun answers it ({@link LuaWorldEntity#clickKey()}).
      */
@@ -983,12 +983,13 @@ public final class LuaEvent {
     }
 
     /**
-     * {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked", fn)} (041.7): one shape for all
-     * three, since they differ only in which noun answers — {@code :ghost()}/{@code :sprite()}/{@code :object()}
-     * all exist on every CLICKED event, but only the one matching {@link LuaWorldEntity#clickKey()} (the emitter
-     * that actually fired) reads the handle; the other two read {@code nil}, the same "the data decides, not a
-     * typo" rule {@code Shape.INPUT} already has for {@code :button()}/{@code :amount()}. Uncancelable: a click
-     * on a client-only entity is already consumed by the time this fires (no server message was ever sent).
+     * {@code hafen.event():on("GhostClicked"/"SpriteClicked"/"ObjectClicked"/"PatchClicked", fn)} (041.7, 118.3): one shape for
+     * all four, since they differ only in which noun answers —
+     * {@code :ghost()}/{@code :sprite()}/{@code :object()}/{@code :patch()} all exist on every CLICKED event,
+     * but only the one matching {@link LuaWorldEntity#clickKey()} (the emitter that actually fired) reads the
+     * handle; the other three read {@code nil}, the same "the data decides, not a typo" rule
+     * {@code Shape.INPUT} already has for {@code :button()}/{@code :amount()}. Uncancelable: a click on a
+     * client-only entity is already consumed by the time this fires (no server message was ever sent).
      */
     private static void clicked(LuaTable m) {
         m.set("ghost", new VarArgFunction() {
@@ -1007,6 +1008,12 @@ public final class LuaEvent {
             public Varargs invoke(Varargs a) {
                 LuaEvent e = self(a.arg1(), Shape.CLICKED, "object");
                 return "object".equals(e.key) ? e.extra : LuaValue.NIL;
+            }
+        });
+        m.set("patch", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaEvent e = self(a.arg1(), Shape.CLICKED, "patch");
+                return "patch".equals(e.key) ? e.extra : LuaValue.NIL;
             }
         });
         m.set("button", new VarArgFunction() {

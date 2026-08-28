@@ -1,0 +1,9 @@
+{
+  "name": "118.3 — a patch answers a click",
+  "id": "118-a-patch-on-the-ground.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 118.3: :clickable and :onClick on a patch, PatchClicked on the bus beside its three siblings, and a click inside the ring that fires and one outside it that does not.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

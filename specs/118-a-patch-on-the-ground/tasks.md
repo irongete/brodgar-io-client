@@ -32,7 +32,7 @@
       `[manual]`: walk a few steps with one anchored to your character — expect it under the feet the
       whole way, keeping its shape.
 
-- [ ] **118.3 — A patch answers a click.** `:clickable(b)` and `:onClick(fn)` on the patch, and
+- [x] **118.3 — A patch answers a click.** `:clickable(b)` and `:onClick(fn)` on the patch, and
       `PatchClicked` on the bus beside `GhostClicked`, `SpriteClicked` and `ObjectClicked` — an addon
       hears only its own. The hit test projects the ring and solves the point against the same
       half-planes the carve uses, run from `MapView`'s synchronous `// addon:` `mousedown` hook, so it

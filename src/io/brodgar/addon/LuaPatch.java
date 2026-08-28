@@ -42,6 +42,11 @@ import org.luaj.vm2.LuaValue;
  * target's live point on the addon tick and re-lays the ring where it moved — a {@code getgob} and a coordinate
  * compare per follower per frame, and nothing at all while the object stands still.
  *
+ * <p><b>It is clicked without being picked</b> (118.3). The four kinds that are gobs render into the clickmap
+ * and are resolved by {@code MapView.Hittest}, which answers a frame later; a ground overlay renders into no
+ * clickmap at all. So a clickable patch is hit-tested against its own ring, projected, from the {@code // addon:}
+ * branch of {@code MapView.mousedown} — {@link PatchClick} — and answers inside the event that asked.
+ *
  * <p><b>Unprotected</b>, like every other kind here: a patch has no server id, never reaches the wire, and
  * grants nothing. It is drawn on your own screen.
  */
@@ -199,11 +204,6 @@ public final class LuaPatch extends LuaWorldEntity {
         return false;
     }
 
-    /** A patch is in no pick pass: 118.3 hit-tests it against its own ring and gives it the click vocabulary. */
-    boolean clicks() {
-        return false;
-    }
-
     /**
      * A patch has no gob and no scene slot, so what {@code VrApi.destroyEntity} undoes for the other four
      * kinds does nothing here and the whole of the ending is this. Runs on the UI thread, outside the monitor,
@@ -213,8 +213,11 @@ public final class LuaPatch extends LuaWorldEntity {
         synchronized(this) { lift(); }
     }
 
-    /** The map behind a scene, or {@code null} — a view of a tree with no session left in it. */
-    private static MCache mapOf(MapView view) {
+    /**
+     * The map behind a scene, or {@code null} — a view of a tree with no session left in it. Shared with
+     * {@link PatchClick}, which needs the very same map to read the ground its ring is projected at (118.3).
+     */
+    static MCache mapOf(MapView view) {
         if((view == null) || (view.ui == null) || (view.ui.sess == null))
             return null;
         Glob g = view.ui.sess.glob;
@@ -224,7 +227,7 @@ public final class LuaPatch extends LuaWorldEntity {
     /** A patch is not a picture of anything, so it has no name and its collection matches no string filter. */
     String visualName() { return null; }
 
-    /** 118.3 fires this beside {@code GhostClicked}, {@code SpriteClicked} and {@code ObjectClicked}. */
+    /** Fired beside {@code GhostClicked}, {@code SpriteClicked} and {@code ObjectClicked} (118.3). */
     String clickEvent() { return "PatchClicked"; }
 
     String kind() { return "patch"; }

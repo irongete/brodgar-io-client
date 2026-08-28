@@ -199,8 +199,10 @@ public abstract class LuaWorldEntity {
     abstract String visualName();
 
     /**
-     * The owner-scoped event fired when this entity is clicked (V2 pick dispatch, {@link AddonManager#onGhostClick}):
-     * {@code "GhostClicked"} for a ghost, {@code "SpriteClicked"} for a sprite. Paired with {@link #clickKey()}.
+     * The owner-scoped event fired when this entity is clicked: {@code "GhostClicked"} for a ghost,
+     * {@code "SpriteClicked"} for a sprite. Paired with {@link #clickKey()}. <b>Every kind answers the click
+     * vocabulary</b> (118.3) — the four that are gobs through the engine's own pick pass
+     * ({@link AddonManager#onGhostClick}), a patch through its projected ring ({@link PatchClick}).
      */
     abstract String clickEvent();
 
@@ -223,16 +225,6 @@ public abstract class LuaWorldEntity {
      * publishes in {@code :info()} has no {@code z} either.
      */
     boolean height() {
-        return true;
-    }
-
-    /**
-     * <b>Does this kind answer the click vocabulary</b> — {@code :clickable(b)}, {@code :onClick(fn)} and the
-     * {@code clickable} key of {@code :info()}? Every kind that is a gob does: it renders into the clickmap and
-     * the engine's own pick pass reaches it. A patch is not a gob and is in no pick at all; it is hit-tested
-     * against its own ring instead (118.3), which is what lifts this.
-     */
-    boolean clicks() {
         return true;
     }
 

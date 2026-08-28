@@ -3487,6 +3487,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		wdgmsg("place", placing.rc.floor(posres), (int)Math.round(placing.a * 32768 / Math.PI), ev.b, ui.modflags());
 	} else if((grab != null) && grab.mmousedown(ev.c, ev.b)) {
 	} else if(io.brodgar.session.Control.mousedown(this, ev)) {   // rts: (F3) an alt-click that lands ON one of our characters is a selection, and a click with units selected is an order -- everything else, alt-click on the ground included, falls through to Click below unchanged
+	} else if(io.brodgar.addon.AddonManager.onPatchClick(this, ev.c, ev.b)) {
+	    // addon: (118.3) a press inside a CLICKABLE patch (hafen.vr():patch()) is that addon's. A patch is a
+	    //        GROUND OVERLAY and renders into no clickmap, so the pick pass Click starts below has nothing
+	    //        of it to resolve; the test is its own ring projected, run here, so it answers inside this
+	    //        event. Consumed when it hits -- no wdgmsg, no walk -- and a press on no patch falls through
+	    //        to Click completely untouched. Last in the chain on purpose: the plob, the map grab and the
+	    //        RTS layer are the client's own gestures and come first.
 	} else {
 	    new Click(ev.c, ev.b).run();
 	}

@@ -1657,6 +1657,18 @@ public final class AddonManager {
     }
 
     /**
+     * The <b>patch click seam</b> (118.3) — called from {@code haven.MapView.mousedown}, in the branch that
+     * would otherwise have become a {@code Click}. A patch is a ground overlay and renders into no clickmap, so
+     * the pick pass {@link #onGhostClick} answers has nothing of it to resolve; this tests the pointer against
+     * the patch's own ring, projected, and so answers inside the event. {@code true} means a clickable patch
+     * took the press and it is consumed — no {@code wdgmsg}, no walk; {@code false} leaves the map view's own
+     * behaviour completely untouched. Delegates to {@link VrApi}, which owns the world-entity registry.
+     */
+    public static boolean onPatchClick(MapView mv, Coord pc, int button) {
+        return VrApi.onPatchClick(mv, pc, button);
+    }
+
+    /**
      * The <b>spatial-UI pointer seam</b> (044.4) — called from {@code haven.MapView}'s four mouse entries before
      * it does anything of its own, so a widget standing in the world takes the pointer exactly where a window on
      * the flat UI would have taken it: first, and only where it actually is. Each returns {@code true} when a
@@ -1988,7 +2000,7 @@ public final class AddonManager {
         "KinChanged", "QuestAdded", "QuestCompleted", "QuestFailed", "MarkerChanged",
         "FlowerMenuAdded", "FlowerMenuRemoved",
         "ChannelAdded", "ChannelRemoved", "ChannelSelected", "MessageAdded",
-        "GhostClicked", "SpriteClicked", "ObjectClicked",
+        "GhostClicked", "SpriteClicked", "ObjectClicked", "PatchClicked",
     };
 
     /**

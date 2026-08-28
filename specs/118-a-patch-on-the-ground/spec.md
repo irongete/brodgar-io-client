@@ -59,7 +59,8 @@ Pages written: `docs/addons/api/vr/patches.md` (new), `vr/README.md`, `event/bus
 `event/bus/README.md`, `api/README.md`, `api/gob.md`, and `docs/client/world-3d.md` — which is **already
 over its 150-line ceiling**, so the task that adds its gotchas splits it, as `specs/ROADMAP.md` states. Task 1
 also grew `docs/client/render-gl.md` with the shader-state map it leaned on — the DSL's loop, the array
-uniform, and the two states a slot carries — so 118.4 has none of that left to write.
+uniform, and the two states a slot carries — so 118.4 has none of that left to write. Task 3 grew `docs/client/state.md` with the height read a projection
+takes — `getcz`/`getzp` and the `LoadingMap` either throws off-stream — for the same reason.
 
 Derived impact set — what a fifth kind makes false, and what no grep for `patch` would find:
 
@@ -79,14 +80,22 @@ The two anchor links are re-pointed in the task that retitles the heading.
 
 - `src/haven/MCache.java` — `OverlayInfo`, `LocalOverlay`, `add`/`remove`, `olseq`, `tilesz` — 2
 - `src/haven/MapMesh.java` — `makeol`, `OLOrder` — 4
-- `src/haven/MapView.java` — `oltick`, `oltags`, `Overlay.rematerial`, the `// addon:` mouse hooks — 2, 3
+- `src/haven/MapView.java` — `oltick`, `oltags`, `Overlay.rematerial`, the `// addon:` mouse hooks and the
+  `mousedown` else-chain the patch click branch sits last in — 2, 3, 4
 - `src/haven/render/RenderTree.java` — `Slot.add` and the two states it carries (`cstate`/`ostate`) — 2
 - `src/haven/render/BaseColor.java` — the `State` + `Uniform` + `shader()` template — 2
 - `src/haven/render/Homo3D.java` — `fragmapv` — 2
 - `src/haven/render/sl/Cons.java`, `Function.java`, `Uniform.java`, `Array.java`, `Block.java`, `For.java`
   — the shader DSL, and the `Function.Def` a loop has to live in — 2
 - `src/haven/render/gl/UniformApplier.java` — which uniform types map from which Java values — 2
-- `src/io/brodgar/addon/PatchCarve.java` — the half-planes, `convex`, the `EDGES` limit, the carve state — 2, 3
+- `src/io/brodgar/addon/PatchCarve.java` — the half-planes (`planes` builds them in whichever 2D space its
+  points are already in), `convex`, `inside`, the `EDGES` limit, the carve state — 2, 3, 4
+- `src/io/brodgar/addon/PatchClick.java` — the hit test: the ring projected, the front-to-back rule, and the
+  world point a click met the patch's plane at — 4
+- `src/io/brodgar/addon/SurfaceInput.java` — the synchronous pointer test a standing panel already had, and
+  the three pure 3×3 helpers the patch's unprojection reuses — 3, 4
+- `src/io/brodgar/addon/Eye.java` — the `w > 0` guard every projection in this layer goes through — 3, 4
+- `src/io/brodgar/addon/LuaEvent.java` — the CLICKED payload, and the fourth noun `ev:patch()` — 3, 4
 - `src/io/brodgar/addon/PatchOverlay.java` — the tile mask and the material — 2
 - `src/io/brodgar/addon/LuaPatch.java` — the kind: its ring as offsets, `lay`/`lift`, `drawn`, `infoInto` — 2, 3
 - `src/io/brodgar/addon/VrApi.java` — the section, its collections, `makePatch`/`patchHandle`, the three
@@ -99,4 +108,4 @@ The two anchor links are re-pointed in the task that retitles the heading.
 - `src/io/brodgar/addon/AddonManager.java` — `hitboxRings`, and the bus keys — 2, 3
 - `src/io/brodgar/addon/Refusal.java`, `Args.java` — the refusal vocabulary — 2
 - `docs/addons/api/vr/README.md`, `vr/sprites.md`, `api/gob.md`, `event/bus/world.md` — 4
-- `docs/client/world-3d.md`, `docs/client/render-gl.md`, `DOCUMENTATION.md` — 4
+- `docs/client/world-3d.md`, `docs/client/render-gl.md`, `docs/client/state.md`, `DOCUMENTATION.md` — 4

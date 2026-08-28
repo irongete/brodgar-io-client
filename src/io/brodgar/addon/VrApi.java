@@ -964,12 +964,12 @@ final class VrApi {
      * {@code :scale()} reads and {@code :scale(2)} writes and hands back the handle, so a placement is one
      * statement.
      *
-     * <p><b>Three of the shared verbs ask the KIND what it is</b> (118.2), because a fifth kind that lies on the
-     * ground answers two of them differently and answering them the same would be a lie rather than a
-     * uniformity: {@link LuaWorldEntity#drawn()} is a scene slot for a gob and a registered overlay for a patch,
-     * {@link LuaWorldEntity#height()} decides whether an offset is three numbers or two, and
-     * {@link LuaWorldEntity#clicks()} decides whether the click pair is in the vocabulary at all. Everything
-     * else is the same code for every kind.
+     * <p><b>Two of the shared verbs ask the KIND what it is</b> (118.2), because a fifth kind that lies on the
+     * ground answers them differently and answering them the same would be a lie rather than a uniformity:
+     * {@link LuaWorldEntity#drawn()} is a scene slot for a gob and a registered overlay for a patch, and
+     * {@link LuaWorldEntity#height()} decides whether an offset is three numbers or two. Everything else is the
+     * same code for every kind — the click pair included, since 118.3 hit-tests a patch against its own
+     * projected ring ({@link PatchClick}) where the other four are reached by the engine's pick pass.
      *
      * <p>The handle table itself is left <b>empty</b> and every name is answered by the metatable, which is what
      * lets a name this API answers for elsewhere throw saying what to write, instead of reading as plain
@@ -1113,36 +1113,34 @@ final class VrApi {
                 return self;
             }
         });
-        // The click pair, on the kinds that ARE clicked (118.2). The vocabulary is closed, so a kind that
-        // does not answer them says so at the door — which is the whole difference between a verb that is
-        // absent and a verb that is present and does nothing.
-        if(e.clicks()) {
-            m.set("clickable", new VarArgFunction() {   // opt into the client-side pick (never reaches the server)
-                public Varargs invoke(Varargs a) {
-                    LuaValue self = a.arg1();
-                    LuaValue bv = Args.written(a, 2, kind + ":clickable", "b");
-                    if(bv == null) {
-                        synchronized(e) { return LuaValue.valueOf(e.clickable); }
-                    }
-                    setEntityClickable(e, bv.toboolean());
-                    return self;
+        // The click pair, on every kind (118.3). Four of the five are reached by the engine's own pick pass; a
+        // patch is in no pick at all and is hit-tested against its own projected ring (PatchClick), which is
+        // what lets one vocabulary mean one thing across the five rather than be present on some of them.
+        m.set("clickable", new VarArgFunction() {   // opt into the client-side pick (never reaches the server)
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue bv = Args.written(a, 2, kind + ":clickable", "b");
+                if(bv == null) {
+                    synchronized(e) { return LuaValue.valueOf(e.clickable); }
                 }
-            });
-            m.set("onClick", new VarArgFunction() {     // fn(handle, button, x, y) -- the per-entity click callback
-                public Varargs invoke(Varargs a) {
-                    LuaValue self = a.arg1();
-                    LuaValue fn = Args.written(a, 2, kind + ":onClick", "fn");
-                    if(fn == null) {
-                        synchronized(e) { return (e.onClick == null) ? LuaValue.NIL : e.onClick; }
-                    }
-                    if(!fn.isfunction())
-                        throw new LuaError(kind + ":onClick(fn) expects a function fn(" + kind
-                            + ", button, x, y), got " + fn.typename());
-                    synchronized(e) { e.onClick = fn; }
-                    return self;
+                setEntityClickable(e, bv.toboolean());
+                return self;
+            }
+        });
+        m.set("onClick", new VarArgFunction() {     // fn(handle, button, x, y) -- the per-entity click callback
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue fn = Args.written(a, 2, kind + ":onClick", "fn");
+                if(fn == null) {
+                    synchronized(e) { return (e.onClick == null) ? LuaValue.NIL : e.onClick; }
                 }
-            });
-        }
+                if(!fn.isfunction())
+                    throw new LuaError(kind + ":onClick(fn) expects a function fn(" + kind
+                        + ", button, x, y), got " + fn.typename());
+                synchronized(e) { e.onClick = fn; }
+                return self;
+            }
+        });
         // exists() -- is it still in the world? False once the collection removed it, and false after a teardown.
         m.set("exists", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -1193,8 +1191,7 @@ final class VrApi {
                     t.set("scale", LuaValue.valueOf((double)e.scale));
                     t.set("alpha", LuaValue.valueOf((double)e.alpha));
                     t.set("visible", LuaValue.valueOf(!e.hidden && !e.dead));
-                    if(e.clicks())              // a kind with no click verb publishes no key for one either
-                        t.set("clickable", LuaValue.valueOf(e.clickable));
+                    t.set("clickable", LuaValue.valueOf(e.clickable));
                     t.set("exists", LuaValue.valueOf(!e.dead));
                     t.set("drawn", LuaValue.valueOf(e.drawn()));
                     if(e.tint != null) {
@@ -2187,6 +2184,10 @@ final class VrApi {
             if(e instanceof LuaWidgetEntity)
                 return;                                // 044.4: a panel's pointer gate, not a pick surface —
                                                        // nothing in the scene to re-add, so nothing flickers
+            if(e instanceof LuaPatch)
+                return;                                // 118.3: nor is a patch's — it is in no pick pass, and
+                                                       // the flag is read by the hit test alone (PatchClick),
+                                                       // so nothing about what is drawn changes with it
             if(e.gob instanceof GhostGob)
                 ((GhostGob)e.gob).clickable = on;      // read by obstate on the next scene (re)add
             refreshEntityScene(e);
@@ -3048,5 +3049,66 @@ final class VrApi {
         // widget's own. Its quad carries no GobClick, so it cannot reach here — and the same fact is what lets
         // a pointer that missed the panel fall through to whatever is behind it.
         return null;
+    }
+
+    /**
+     * 118.3: <b>a press on the map view, before it becomes a {@code Click}</b> — the {@code // addon:} branch of
+     * {@code MapView.mousedown}. A patch is a ground overlay and renders into no clickmap, so the pick pass that
+     * reaches the other four kinds has nothing of it to resolve: it is hit-tested here instead, against its own
+     * ring projected to the screen ({@link PatchClick}), and answers <b>inside</b> the event rather than a frame
+     * later on the readback thread.
+     *
+     * <p>Fires the frontmost <b>clickable</b> patch's owner-scoped {@code PatchClicked} and its own
+     * {@code onClick(patch, button, x, y)}, then returns {@code true} so the caller consumes the press — no
+     * {@code wdgmsg}, so nothing reaches the server and the character does not walk. A press on no patch of
+     * anybody's returns {@code false} and {@code MapView} does exactly what it always did, which is what makes
+     * "a click that misses still reaches the world beneath it" true by construction.
+     *
+     * <p>Reached on the UI thread under {@code synchronized(ui)}, like {@link #onGhostClick}, so
+     * {@link #callLua} needs no thread guard; the patch's monitor is released before the dispatch so a handler
+     * may re-entrantly move or remove the very patch it was told about.
+     */
+    static boolean onPatchClick(MapView mv, Coord pc, int button) {
+        if((mv == null) || (pc == null))
+            return false;
+        List<LuaPatch> live = new ArrayList<LuaPatch>();
+        for(Addon a : addons)
+            clickablePatches(a, live);
+        clickablePatches(consoleOwner, live);          // the :lua REPL lays patches too, and owns them the same
+        if(live.isEmpty())
+            return false;                              // the whole cost of this seam for a client with none
+        PatchClick.Hit h = PatchClick.hit(mv, pc, live);
+        if(h == null)
+            return false;
+        LuaPatch p = h.patch;
+        LuaValue handle, onClick;
+        synchronized(p) {
+            if(p.dead || !p.clickable)
+                return false;                          // ended or switched off between the test and here
+            handle  = p.handle;
+            onClick = p.onClick;
+        }
+        if(handle == null)
+            return false;
+        LuaValue ev = LuaEvent.clicked(p.owner, handle, p.clickKey(), button, h.at.x, h.at.y);
+        fireTo(p.owner, p.clickEvent(), ev);           // owner-scoped: a patch belongs to exactly one addon
+        if((onClick != null) && onClick.isfunction()) {
+            callLua(p.owner, Addon.C_HOOK, onClick, handle, LuaValue.valueOf(button),
+                LuaValue.valueOf(h.at.x), LuaValue.valueOf(h.at.y));
+        }
+        return true;                                   // consume — client-only detection, no server wdgmsg
+    }
+
+    /** Every patch of {@code a} that has opted into being clicked. The ring test is {@link PatchClick}'s. */
+    private static void clickablePatches(Addon a, List<LuaPatch> out) {
+        if(a == null)
+            return;
+        for(LuaPatch p : a.patches) {
+            synchronized(p) {
+                if(p.dead || !p.clickable)
+                    continue;
+            }
+            out.add(p);
+        }
     }
 }
