@@ -55,7 +55,8 @@ emptied never shows up as idle with the work still in flight.
 
 ## `render()`
 
-Describes the **3D scene**, so everything but `stateSlots` and `gobsHeld` is absent before the world is up.
+Describes the **3D scene**, so everything but `stateSlots`, `gobsHeld` and the two overlay counters is
+absent before the world is up.
 
 | Key | Description |
 |---|---|
@@ -67,6 +68,7 @@ Describes the **3D scene**, so everything but `stateSlots` and `gobsHeld` is abs
 | `vram` | per-pool VRAM, keyed `indices`/`vertices`/`textures`/`vaos`/`fbos`, each `{objects=, bytes=}` |
 | `stateSlots` | render-state slots in use, process-wide rather than per scene |
 | `gobsHeld` | game objects kept out of the scene until their `GobAdded` fired, **cumulative since client start** |
+| `overlayMeshes` / `overlayOutlines` | ground-overlay pieces laid over the terrain, and the outlines over those, **cumulative since client start** |
 
 `programs` and `vram` need a GL environment and are absent on any other backend. The counters are written
 on the render side and may be one frame stale.
@@ -78,8 +80,20 @@ frame, and it stays at zero for as long as no addon subscribes to that event. Li
 something as a **delta between two reads**: take one, walk into ground you have not seen this session, take
 another.
 
+`overlayMeshes` and `overlayOutlines` are counted the same way, outside the scene, and what they count is
+terrain work. The client cuts the ground into squares, and every ground overlay — a
+[patch](../../virtual/patches.md) you lay, a claim or a province the client draws — is laid a second time
+over each cut its shape reaches: once as the sheet, and again as the outline round it where the overlay has
+one. So laying a patch moves `overlayMeshes` by the cuts its ring reaches and no others, and leaves
+`overlayOutlines` where it was, because a patch is drawn without an outline. Taking one up moves neither:
+nothing is built to stop drawing something. Read as a **delta between two reads**, that is what makes the
+cost of a patch a number rather than a feeling — lay one with fifty already on the ground and it moves by
+what one costs.
+
 ```lua
 local r = hafen.client():profiling():render()
+hafen.log():write(string.format("%d overlay pieces laid, %d of them outlines",
+                        r.overlayMeshes, r.overlayOutlines))
 if r.drawSlots then
   hafen.log():write(string.format("%d slots, %d batches, %.1f MB textures",
                           r.drawSlots, r.batches, r.vram.textures.bytes / 1048576))

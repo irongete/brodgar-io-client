@@ -62,7 +62,7 @@
       `[manual]`: with `simple-gob-hider` on, walk into a wood with dozens marked — expect no hitch at all,
       and every mark drawn where its object stands.
 
-- [ ] **119.5 — The pages.** Rewrites both gotchas in `docs/client/world-3d.md`: *registering a
+- [x] **119.5 — The pages.** Rewrites both gotchas in `docs/client/world-3d.md`: *registering a
       `LocalOverlay` is a re-cut of the whole grid* becomes a re-cut of that overlay's own cuts, and the
       advice built on it loses its reason; *the sheet's two hidden costs* loses both halves and keeps what
       is still true, the fixed-enormous-rectangle rule and `makeol` answering `null` on an empty mask.

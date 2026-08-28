@@ -1,0 +1,9 @@
+{
+  "name": "119.5 — the pages",
+  "id": "119-the-overlay-costs-what-it-draws.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 119.5: the counters page's render() example runs as written and prints overlayMeshes and overlayOutlines, and the two claims that page makes about them hold -- laying a patch moves the meshes and leaves the outlines, and taking one up builds nothing.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

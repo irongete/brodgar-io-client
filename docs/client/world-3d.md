@@ -51,12 +51,19 @@ operation on a fragment's own channels against each other, and only the fragment
 | **The recipe** | `extends State` with a `State.Slot`, a `Uniform` reading it, and `shader()` returning `prog -> FragColor.fragcol(prog.fctx).mod(fn, order)` — `fn` is a `UnaryOperator<Expression>` over the fragment colour, built with `haven.render.sl.Cons` (`pick`, `dot`, `mix`, `vec3`, `vec4`). `BaseColor` mods at order **0**, `ColorMask` at **100**; nothing ships above that |
 | What it costs | one program, compiled on the first frame that needs it. No geometry, no draw, no pass. Keeping the amount in the `Uniform` rather than the macro means changing it recompiles nothing either — push a new instance with `Slot.ostate` |
 
-**Gotcha — registering a `LocalOverlay` is a re-cut of the whole grid.** `MCache.add` and `MCache.remove`
-both bump `olseq`, and `Grid.getolcut` reads that as *dispose and rebuild every overlay mesh in this grid*
-— so the pair is the only way to make a changed **mask** take effect and the wrong way to change anything
-else. Move a computed overlay only when it leaves the tiles it already covers, cover it generously so that
-is rare, and let a colour, a shader amount or a turn inside those tiles reach the screen as a state push
-instead.
+**Gotcha — what a re-registration invalidates, and what still means the whole grid.** `MCache.add` and
+`MCache.remove` are the only way to make a changed **mask** take effect, and the wrong way to change
+anything else: a colour, a shader amount or a turn inside the tiles already covered reaches the screen as
+a state push and costs no terrain work. Fork: the pair bumps that `OverlayInfo`'s own sequence
+(`MCache.olseqs`, over `olbump`, read back as `olseq(id)`), and `Grid.getolcut` compares it against the
+`Cut.olstamp` it built that id at — so laying the Nth overlay re-cuts its own cuts and leaves the other
+N-1 standing, where upstream's single `MCache.olseq` had `getolcut` dispose and clear every entry of
+every cut in the grid. Two bumps do still mean everything and keep that grid-wide path: the `mapdata2`
+fill, where the server replaced a grid's recorded masks, and `Grid`'s own `olseq = -1` when a cut's ground
+mesh was rebuilt and its overlays must be re-laid over new vertices. ⚠️ **`remove` disposes nothing by
+itself** — `getolcut` is never asked for that id again, so the id goes on `MCache.oldrops` and the meshes
+go one tick later, in the drain `MCache.ctick` runs over every loaded `Grid` (`Grid.dropols`), on the
+thread that builds cuts.
 
 **Gotcha — an overlay nobody tagged is never added, and nothing says so.** `oltick` adds a scene `Overlay`
 only for an `OverlayInfo` one of whose `tags()` is a key of `oltags`, and there is no error and no log on a
@@ -77,13 +84,12 @@ to the fragment stage. So geometry, a half-plane or any other test built from wo
 compared against `fragmapv` is mirrored about the x axis, and the mirror is invisible on anything
 symmetric — which is every rectangle a first test tends to use.
 
-**Gotcha — the sheet's two hidden costs.** `RectOverlay.update` bumps `MCache.olseq`, which `Grid.getolcut` reads
-as *dispose and rebuild every overlay mesh in this grid* — so a rectangle tracked to the camera rebuilds the whole
-sheet each time it moves, and a mask meaning "everywhere" is a **fixed, enormous** rectangle instead (nothing
-iterates it: `RectOverlay.fill` walks only its overlap with the cut being built). And `getolcut` builds the
-**outline** mesh (`makeolol`) whether or not anything draws it, so an overlay is two full tile-laying passes per
-cut, on the calling thread. Where the mask is empty for a cut `makeol` answers **null**, which is a legal
-`RenderTree` child (`TreeSlot` calls `added` only on a node that is there) and draws nothing.
+**Gotcha — a mask meaning "everywhere" is a fixed, enormous rectangle.** Nothing iterates it —
+`RectOverlay.fill` walks only its overlap with the cut being built — so it is laid once per cut it covers
+and never again, while a rectangle tracked to the camera pays a tile-laying pass for every cut its mask
+reaches, every time it moves: `RectOverlay.update` bumps that rectangle's own sequence, which is every one
+of its cuts out of date at once. Where the mask is empty for a cut `makeol` answers **null**, which is a
+legal `RenderTree` child (`TreeSlot` calls `added` only on a node that is there) and draws nothing.
 
 **Gotcha — a cut can cache an overlay mesh with no outline, and keep it.** `Grid.getolcut` commits the base
 mesh and its `Cut.olstamp` *before* it calls `makeolol`, so a `Loading` out of that second call leaves the
