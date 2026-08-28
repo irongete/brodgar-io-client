@@ -45,7 +45,7 @@
       `[manual]`: turn on Display personal claims where you hold one — expect it drawn exactly as before,
       since a claim's overlay does carry an outline material and must still get one.
 
-- [ ] **119.4 — A mark costs the cuts it covers.** `MapView.Overlay` overrides `MapRaster.skipcut`, so its
+- [x] **119.4 — A mark costs the cuts it covers.** `MapView.Overlay` overrides `MapRaster.skipcut`, so its
       raster asks `getolcut` only for cuts the overlay's mask can reach rather than for every cut of the
       drawn area. `MCache` answers that with `olreaches(id, area)`: true wherever a grid in the area records
       that id — recorded masks cannot be tested cheaply and must answer *maybe* — and otherwise true only

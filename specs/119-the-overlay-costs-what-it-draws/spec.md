@@ -73,12 +73,13 @@ virtual/patches.md:105  "moving one far enough to leave the tiles it covers does
 
 ## Context files
 
-- `src/haven/MCache.java` — `olseqs`/`olbump`/`olseq(id)`, `oldrops` and its drain in `ctick`, `ols`, `add`,
-  `remove`, `RectOverlay.update`, `Grid.getolcut`, `Grid.getololcut`, `Cut.ols`/`Cut.olols`/`Cut.olstamp`,
-  `dropol`/`dropols`, `getols`, `getol`, and the `mapdata2` bump — 1, 2, 3, 4
+- `src/haven/MCache.java` — `olseqs`/`olbump`/`olseq(id)`, `oldrops` and its drain in `ctick`, `ols` and the
+  `olsbyid` index beside it, `add`, `remove`, `RectOverlay.update`, `olreaches`, `Grid.getolcut`,
+  `Grid.getololcut`, `Cut.ols`/`Cut.olols`/`Cut.olstamp`, `dropol`/`dropols`, `getols`, `getol`, and the
+  `mapdata2` bump — 1, 2, 3, 4
 - `src/haven/MapMesh.java` — `makeol`, `makeolol`, `OLOrder` — 1, 3
-- `src/haven/MapView.java` — `oltick`, `oltags`, `Overlay.added` and its `outl` grid, `rematerial`, and
-  `MapRaster`/`MapRaster.Grid.tick`/`skipcut` with `view` — 2, 3, 4
+- `src/haven/MapView.java` — `oltick`, `oltags`, `Overlay.added` and its `outl` grid, `Overlay.skipcut`,
+  `rematerial`, and `MapRaster`/`MapRaster.Grid.tick`/`skipcut` with `view` — 2, 3, 4
 - `src/io/brodgar/addon/ProfHandle.java` — where `render()`'s counters are assembled; the two cumulative
   tallies themselves live in `AddonManager`, beside `gobsHeld` — 1, 5
 - `src/io/brodgar/addon/PatchOverlay.java` — the overlay a patch registers, and its null `omat()` — 2, 3, 4

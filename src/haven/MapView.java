@@ -1972,6 +1972,20 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    this.id = id;
 	}
 
+	/* addon: (119.4) A MARK COSTS THE CUTS IT COVERS. Upstream asks getolcut for every cut of the drawn
+	 * area -- 25 of them, each taking MCache's grids lock -- per overlay, per frame, and getolcut lays a
+	 * mesh for the cuts the mask reaches and caches a null for the rest. A patch covers one or two cuts,
+	 * so the other twenty-odd are a lock and two map lookups to be told there is nothing there, over
+	 * again for every mark that is down. Ask the cache which cuts the mask can reach instead; Grid.tick
+	 * removes the slot of every cut this refuses, exactly as it does for the ground the frustum culls.
+	 *
+	 * The area is the cut's own tiles with a ONE-TILE MARGIN, which is the wider of the two the pair
+	 * reads: makeol reads Area.sized(ul, sz) and makeolol that same area's margin(1). One test serves
+	 * both grids, and it is the outline's, so the base is never skipped where the outline would draw. */
+	boolean skipcut(Coord cc) {
+	    return(!map.olreaches(id, Area.sized(cc.mul(MCache.cutsz), MCache.cutsz).margin(1)));
+	}
+
 	void tick() {
 	    super.tick();
 	    if(area != null) {

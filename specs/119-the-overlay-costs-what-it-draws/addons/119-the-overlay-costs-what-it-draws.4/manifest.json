@@ -1,0 +1,9 @@
+{
+  "name": "119.4 — a mark costs the cuts it covers",
+  "id": "119-the-overlay-costs-what-it-draws.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 119.4: laying one patch builds cut overlay meshes only for the cuts its own mask can reach, not for every cut of the drawn terrain, and one laid outside that terrain builds none at all.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

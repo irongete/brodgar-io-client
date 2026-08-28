@@ -68,6 +68,11 @@ public class MCache implements MapSource {
      * that re-lays a moved mask costs one re-cut rather than a drop and a re-cut. */
     private final Map<OverlayInfo, Integer> olseqs = new ConcurrentHashMap<>();
     private final Queue<OverlayInfo> oldrops = new ConcurrentLinkedQueue<>();
+    /* addon: (119.4) the same members as `ols`, keyed by the id they answer for. olreaches asks that
+     * question per cut, per overlay, per frame, so answering it by walking `ols` would be quadratic in
+     * exactly the number of marks this is meant to make cheap. Mutated beside `ols` in add/remove and read
+     * where `ols` is read, on the UI thread. */
+    private final Map<OverlayInfo, Collection<LocalOverlay>> olsbyid = new HashMap<>();
     Map<Integer, Defrag> fragbufs = new TreeMap<Integer, Defrag>();
 
     public static class LoadingMap extends Loading {
@@ -253,13 +258,18 @@ public class MCache implements MapSource {
     }
 
     public void add(LocalOverlay ol) {
-	ols.add(ol);
+	if(ols.add(ol))
+	    olsbyid.computeIfAbsent(ol.id(), k -> new ArrayList<>(1)).add(ol);   // addon: (119.4)
 	oldrops.remove(ol.id());   // addon: (119.2) it is back before the drain ran: nothing to drop
 	olbump(ol.id());
     }
 
     public void remove(LocalOverlay ol) {
-	ols.remove(ol);
+	if(ols.remove(ol)) {
+	    Collection<LocalOverlay> byid = olsbyid.get(ol.id());   // addon: (119.4)
+	    if((byid != null) && byid.remove(ol) && byid.isEmpty())
+		olsbyid.remove(ol.id());
+	}
 	olbump(ol.id());
 	oldrops.add(ol.id());      // addon: (119.2) ctick() disposes its meshes; see the field
     }
@@ -1167,6 +1177,50 @@ public class MCache implements MapSource {
 		ret.add(lol.id());
 	}
 	return(ret);
+    }
+
+    /* addon: (119.4) CAN THIS OVERLAY'S MASK REACH ANY TILE OF THIS AREA? What a raster asks before it
+     * asks getolcut for a cut -- see MapView.Overlay.skipcut. Conservative in one direction only: it may
+     * answer true for an area the mask misses, and must never answer false for one the mask touches.
+     *
+     * The locals are exact and free: MCache.getol fills from every LocalOverlay whose id() is this one, and
+     * filter(a) is that overlay's own "am I anywhere in there" -- the same test getols already puts the
+     * whole drawn area to, put to one cut instead. `olsbyid` is what makes "whose id() is this one" a
+     * lookup rather than a walk of every mark on the ground.
+     *
+     * A grid's RECORDED masks are not testable at that price: Grid.getol reads one boolean per tile out of
+     * a 100x100 array, which is more work than the getolcut call it would save. So a grid that records this
+     * id answers MAYBE for every tile of it. Only a ResOverlay is ever recorded -- Grid.getol matches
+     * ols[i].get().layer(ResOverlay.class) against the id -- so for every other OverlayInfo, a patch among
+     * them, there is nothing to ask the grids at all and the locals decide alone. A grid still streaming
+     * answers maybe too, and the getcut that follows would throw Loading for it anyway.
+     *
+     * UI thread, like getols: `ols` is a plain HashSet, and MapView.oltick and the verbs that add to it are
+     * both on that thread (see io.brodgar.addon.PatchOverlay). */
+    public boolean olreaches(OverlayInfo id, Area a) {
+	Collection<LocalOverlay> byid = olsbyid.get(id);
+	if(byid != null) {
+	    for(LocalOverlay lol : byid) {
+		if(!lol.filter(a))
+		    return(true);
+	    }
+	}
+	if(!(id instanceof ResOverlay))
+	    return(false);
+	for(Coord gc : a.div(cmaps)) {
+	    try {
+		Grid g = getgrid(gc);
+		if(g.ols == null)
+		    continue;
+		for(Indir<Resource> res : g.ols) {
+		    if(res.get().layer(ResOverlay.class) == id)
+			return(true);
+		}
+	    } catch(Loading l) {
+		return(true);
+	    }
+	}
+	return(false);
     }
 
     public void getol(OverlayInfo id, Area a, boolean[] buf) {

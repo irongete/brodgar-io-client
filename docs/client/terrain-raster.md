@@ -21,6 +21,14 @@ next tick** — it disposes every `Grid` at once, and a raster removed in the sa
 notice, so **the slot comes out first and the dispose follows**; and an incremental `trim`'s kept rectangle
 stays concentric with the drawn `area` and a grid wider, so no pan trims a grid still in `Grid.cuts`.
 
+**Gotcha — `skipcut` runs OUTSIDE `Grid.tick`'s `Loading` guard, and nothing above it catches one
+either.** `Grid.tick` wraps only the `getcut` half in `try`/`catch(Loading)`; the `skipcut` test sits ahead
+of that block, so a `Loading` out of it leaves `tick` altogether. There is no net under it: `MapView.oltick`
+ticks its overlay rasters in a loop *after* its own `catch`, and `MapView.tick` calls `oltick` inside
+`synchronized(glob.map)` with no guard of its own — so the throw takes the whole frame. A `skipcut` that
+consults the cache (`MCache.getgrid`, `Indir.get`) must therefore **swallow `Loading` and answer
+conservatively**: yield nothing, and let the `getcut` that follows throw where it is caught.
+
 ## See also
 
 - [the 3D world](world-3d.md) — the scene these rasters put their cuts into, and the ground overlays over them
