@@ -1,0 +1,9 @@
+{
+  "name": "117.2 — a dropped render add is not for ever",
+  "id": "117-an-object-the-client-has-is-drawn.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 117.2: an object the OCache holds is an object the scene draws, exactly once a frame -- never zero, which is a stranded object, and never twice, which is a double-add -- and the two sets agree both ways.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

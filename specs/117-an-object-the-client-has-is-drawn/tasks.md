@@ -24,7 +24,7 @@ while its gob stands in the render tree — which makes *is this object drawn* a
       for, and the first assertion is the symptom the feature is named after.
       <!-- extra context: docs/addons/api/ui/custom.md (the `Draw` handler, and which thread it is) -->
 
-- [ ] **117.2 — a dropped render add is not for ever.** `MapView.Gobs.addgob` gains a
+- [x] **117.2 — a dropped render add is not for ever.** `MapView.Gobs.addgob` gains a
       `RuntimeException` arm beside its `SlotRemoved` one: it takes the gob out of `adding` and issues
       a `Warning` naming its id and resource, so the Loader thread survives what today it dies of, and
       an object lost to the scene says so instead of simply not being there. `Loading` goes on

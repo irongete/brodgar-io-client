@@ -897,6 +897,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	final Map<Gob, Loader.Future<?>> adding = new HashMap<>();
 	final Map<Gob, RenderTree.Slot> current = new HashMap<>();
 	RenderTree.Slot slot;
+	private double lastrec = 0;   // addon: (117.2) the reconcile's own timer, per instance
 
 	Gobs() {this(glob);}
 
@@ -911,6 +912,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * between two sessions' worlds is rendered once, not twice. */
 	boolean skipgob(Gob ob) {
 	    return(false);
+	}
+
+	/* addon: (117.2) does THIS view hold this object? One predicate, because the reconcile below asks it
+	 * from both halves and a view that answered one rule when adding and another when evicting would add
+	 * and evict the same gob for ever. The base answers with skipgob alone; SessionGobs extends it. */
+	boolean want(Gob ob) {
+	    return(!skipgob(ob));
 	}
 
 	private void addgob(Gob ob) {
@@ -932,6 +940,24 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		} catch(RenderTree.SlotRemoved e) {
 		    /* Ignore here as there is a harmless remove-race
 		     * on disposal. */
+		    return;
+		} catch(Loading l) {
+		    // addon: (117.2) Loading goes on escaping, and it has to leave BEFORE the arm below --
+		    //        it is a RuntimeException itself. Loader.Future catches it, waits on it and re-runs
+		    //        the whole task, so an object whose model is still streaming is parked rather than
+		    //        dropped: that parking IS the retry, and there is no other one.
+		    throw(l);
+		} catch(RuntimeException e) {
+		    // addon: (117.2) ...and anything else is a dropped add, which was for ever. added(Gob) defers
+		    //        through Loader.defer(Runnable, T) -- the capex = false overload -- so a RuntimeException
+		    //        was recorded by the Future and rethrown out of run(), killing the Loader thread with
+		    //        this gob still parked in `adding`. It never reached `current`, nothing retried it and
+		    //        Gobs had no reconcile, so the object stayed in the OCache, unhidden, and out of the
+		    //        scene until the whole set was rebuilt -- the player's own character invisible while
+		    //        everything else drew. Take it out of `adding` so tick()'s reconcile offers it again,
+		    //        and say which object it was rather than letting it be silently missing.
+		    synchronized(this) {adding.remove(ob);}
+		    new Warning(e, String.format("gob %d (%s) could not be added to the scene", ob.id, obres(ob))).issue();
 		    return;
 		}
 		synchronized(this) {
@@ -964,8 +990,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * serializes its subtree on (GobState preps a Monitor of it), so an unsynchronized removal from
 	 * a Loader thread tears the slot out from under a sprite's autotick, and the SlotRemoved that
 	 * escapes TickList.tick kills the UI thread. Every other caller of removed(Gob) already holds
-	 * it: OCache invokes its callbacks inside synchronized(ob), and the reconcile timer runs on the
-	 * tick thread itself. */
+	 * it: OCache invokes its callbacks inside synchronized(ob), and tick()'s reconcile takes it
+	 * around the eviction for the same reason. */
 	void drop(long id) {
 	    Gob ob = oc.getgob(id);
 	    if(ob != null) {
@@ -1031,6 +1057,77 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    /* Ignore here as there is a harmless remove-race
 		     * on disposal. */
 		}
+	    }
+	}
+
+	/* addon: (117.2) the scene against the OCache, both ways, on a slow timer. An object the cache holds
+	 * and the view does not is added; an object the view holds and the cache no longer does is evicted.
+	 *
+	 * Neither half used to exist here, and the first is what turns a dropped add from a permanent loss
+	 * into a quarter second of absence: addgob's new arm takes the gob out of `adding`, and this offers it
+	 * again. The second was missing from SessionGobs too, which evicted on its own culling rule and never
+	 * asked whether the cache still held the gob at all.
+	 *
+	 * Walking pace is the rate this has to keep up with, so 0.25s costs a few hundred map lookups a second
+	 * and no more. The view's own snapshot is taken FIRST: a gob that was in `current` before the cache was
+	 * read and is missing from it either left the cache in between -- where its own callback has already
+	 * evicted it and this is idempotent -- or is genuinely stranded. Taken the other way round, a gob that
+	 * arrived between the two reads would be evicted the moment it landed.
+	 *
+	 * `slot == null` is a view with no scene attached, whose `current` and `adding` were both cleared by
+	 * removed(RenderTree.Slot). Reconciling one would queue a future per gob for addgob to drop on the
+	 * floor, every quarter second, for as long as it stayed detached. */
+	void tick() {
+	    double now = Utils.rtime();
+	    if(now - lastrec < 0.25)
+		return;
+	    lastrec = now;
+	    if(slot == null)
+		return;
+	    List<Gob> mine;
+	    synchronized(this) {
+		mine = new ArrayList<>(current.keySet());
+	    }
+	    List<Gob> all = new ArrayList<>();
+	    synchronized(oc) {
+		for(Gob ob : oc)
+		    all.add(ob);
+	    }
+	    /* Keyed on the Gob object, as `current` is, and never on the id: OCache.objs is a MultiMap, so one
+	     * id can name several gobs, and getgob sees neither the ladd'ed collections nor which of them it
+	     * would have to be. */
+	    Set<Gob> held = new HashSet<>(all);
+	    for(Gob ob : mine) {
+		if(!held.contains(ob) || !want(ob)) {
+		    /* Under the gob's own monitor, like every other caller of removed(Gob): TickList serializes
+		     * a gob's subtree on it, and an unsynchronized slot removal tears it out from under a
+		     * sprite's autotick. Nothing else is held here -- the two snapshots above are finished. */
+		    synchronized(ob) {
+			removed(ob);
+		    }
+		}
+	    }
+	    for(Gob ob : all) {
+		if(!want(ob))
+		    continue;
+		boolean have;
+		synchronized(this) {
+		    have = current.containsKey(ob) || adding.containsKey(ob);
+		}
+		if(!have)
+		    added(ob);
+	    }
+	}
+
+	/* addon: (117.2) what to call an object in the warning above. A gob's only name is its Drawable's
+	 * resource, which throws Loading before it resolves -- the last thing an error path may do. */
+	private String obres(Gob ob) {
+	    try {
+		Drawable d = ob.getattr(Drawable.class);
+		Resource res = (d == null) ? null : d.getres();
+		return((res == null) ? "unnamed" : res.name);
+	    } catch(RuntimeException e) {
+		return("unnamed");
 	    }
 	}
 
@@ -1269,7 +1366,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     private class SessionGobs extends Gobs {
-	private double lastdedupe = 0;
 	private final Coord2d fvoff;
 	SessionView fv;
 
@@ -1318,38 +1414,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
 
 	/* The dedupe boundary moves as the characters walk toward and away from each other, and neither
-	 * OCache fires anything when it does -- a gob the anchor gains was never removed from the
-	 * member. So the two sets are reconciled on a slow timer rather than per frame: the boundary
-	 * moves at walking pace and this is a few hundred map lookups. No two monitors are held at once
-	 * anywhere in here. */
-	void tick() {
-	    double now = Utils.rtime();
-	    if(now - lastdedupe < 0.25)
-		return;
-	    lastdedupe = now;
-	    List<Gob> all = new ArrayList<>();
-	    synchronized(oc) {
-		for(Gob ob : oc)
-		    all.add(ob);
-	    }
-	    List<Gob> mine;
-	    synchronized(this) {
-		mine = new ArrayList<>(current.keySet());
-	    }
-	    for(Gob ob : mine) {
-		if(skipgob(ob) || !vis(ob))
-		    removed(ob);
-	    }
-	    for(Gob ob : all) {
-		if(skipgob(ob) || !vis(ob))
-		    continue;
-		boolean have;
-		synchronized(this) {
-		    have = current.containsKey(ob) || adding.containsKey(ob);
-		}
-		if(!have)
-		    added(ob);
-	    }
+	 * OCache fires anything when it does -- a gob the anchor gains was never removed from the member.
+	 * So the two sets are reconciled on a slow timer rather than per frame: the boundary moves at
+	 * walking pace and this is a few hundred map lookups.
+	 *
+	 * addon: (117.2) that reconcile is Gobs.tick() now, and this is the whole of what a member's view
+	 * adds to it -- its dedupe and its culling, asked in the one place the base asks whether it holds
+	 * an object. The base could not keep a rule of its own here while this class ran a second pass on
+	 * top: the two would disagree, and the merged view would draw the member's entire OCache, which is
+	 * the cost the culling bought back. */
+	boolean want(Gob ob) {
+	    return(super.want(ob) && vis(ob));
 	}
     }
 
@@ -2892,6 +2967,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	updweather();
 	synchronized(glob.map) {
 	    terrain.tick();
+	    // addon: (117.2) the scene against the OCache, both ways. The drawn path only: a dormant view
+	    //        returned above, and it has no scene to reconcile.
+	    gobs.tick();
 	    sessiontick();   // rts: (F7) the members' ground and objects, merged into this scene
 	    oltick();
 	    if(gridlines != null)
