@@ -205,6 +205,38 @@ public abstract class LuaWorldEntity {
     abstract String clickEvent();
 
     /**
+     * <b>Is it in the scene being drawn right now?</b> — what {@code :drawn()} answers and what the {@code drawn}
+     * key of {@code :info()} carries. Four of the five kinds are a client-only {@link Gob} in the render tree, so
+     * the answer is their scene slot; a patch is a ground overlay registered in an {@code MCache}, so the answer
+     * is whether it is registered in the one being drawn. One question with one name, asked of whichever half a
+     * kind is made of. Caller holds the entity monitor.
+     */
+    boolean drawn() {
+        return !dead && (slot != null);
+    }
+
+    /**
+     * <b>Has a place for this kind a HEIGHT?</b> Four of the five stand UP, so where one sits relative to the gob
+     * it follows is three numbers and {@code :offset(x, y, z)} lifts it off the ground. A patch lies ON the
+     * terrain — that is what a patch is, and one held above the ground is the other mechanism entirely (118,
+     * out of scope) — so its offset is two numbers, a {@code z} is refused naming why, and the {@code offset} it
+     * publishes in {@code :info()} has no {@code z} either.
+     */
+    boolean height() {
+        return true;
+    }
+
+    /**
+     * <b>Does this kind answer the click vocabulary</b> — {@code :clickable(b)}, {@code :onClick(fn)} and the
+     * {@code clickable} key of {@code :info()}? Every kind that is a gob does: it renders into the clickmap and
+     * the engine's own pick pass reaches it. A patch is not a gob and is in no pick at all; it is hit-tested
+     * against its own ring instead (118.3), which is what lifts this.
+     */
+    boolean clicks() {
+        return true;
+    }
+
+    /**
      * <b>Which collection of {@code hafen.vr()} this entity belongs to</b> — {@code "ghost"}, {@code "sprite"} or
      * {@code "object"}. One word, three readers: it is the {@code ev} field name its {@link #clickEvent()}
      * delivers the handle under, the {@code ov:kind()} of the read-only entry an anchored entity gets in

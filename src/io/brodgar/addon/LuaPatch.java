@@ -32,8 +32,15 @@ import org.luaj.vm2.LuaValue;
  * places and a place to hold it by; what a patch keeps is {@link #local}, each point as a displacement from
  * that anchor in world units. That is what lets it outlive the coordinate space — it re-derives its place
  * every time the world moves under it ({@code VrApi.reground}) and the ring simply comes along — and it is why
- * a ring straight out of {@code gob:hitbox()} lands exactly on that object's footprint when the object's own
- * {@code gob:position()} is the anchor.
+ * a ring straight out of {@code gob:hitbox()} lands exactly on that object's footprint, whether the anchor it
+ * is held by is that object's own {@code gob:position()} or the object itself.
+ *
+ * <p><b>Following a gob is a poll, and it is the one in this layer</b> (118.2). The four kinds that are gobs
+ * follow through a {@link FollowMoving} the render tree's own placement pass evaluates every frame; a patch has
+ * no gob to hang one off, and the pass that re-asks an anchored entity about its object wakes when that object
+ * enters or leaves a character's view rather than while it walks. So {@code VrApi.followPatches} re-reads the
+ * target's live point on the addon tick and re-lays the ring where it moved — a {@code getgob} and a coordinate
+ * compare per follower per frame, and nothing at all while the object stands still.
  *
  * <p><b>Unprotected</b>, like every other kind here: a patch has no server id, never reaches the wire, and
  * grants nothing. It is drawn on your own screen.
@@ -81,13 +88,25 @@ public final class LuaPatch extends LuaWorldEntity {
      * <b>Where the ring's points are right now</b>, in world coordinates: this patch's place plus each held
      * offset, turned by its facing and taken out to its scale. Caller holds the monitor; {@link #rc} must not
      * be null (nothing is laid without a coordinate).
+     *
+     * <p><b>The four verbs that change the shape all come to here</b> (118.2). {@code :scale(s)} and
+     * {@code :rotate(a)} are read out of the held offsets on the spot, so turning a patch or taking it out
+     * recomputes half-planes and pushes a carve state — no mesh is rebuilt and no tile is re-laid, because the
+     * shape the engine lays is the whole masked box either way. {@code :offset(x, y)} slides the whole ring on
+     * the ground relative to the gob it follows; a free patch is offset from nothing and moves with
+     * {@code :position(p)}, which writes {@link #rc} itself.
      */
     List<Coord2d> worldRing() {
+        double bx = rc.x, by = rc.y;
+        if((followTgt != 0) && (followOff != null)) {
+            bx += followOff.x;                         // on the ground, in world units: a patch has no height
+            by += followOff.y;
+        }
         double s = Math.sin(a), c = Math.cos(a);
         List<Coord2d> out = new ArrayList<Coord2d>(local.length);
         for(Coord2d p : local) {
             double x = p.x * scale, y = p.y * scale;
-            out.add(Coord2d.of(rc.x + ((x * c) - (y * s)), rc.y + ((y * c) + (x * s))));
+            out.add(Coord2d.of(bx + ((x * c) - (y * s)), by + ((y * c) + (x * s))));
         }
         return out;
     }
@@ -162,9 +181,27 @@ public final class LuaPatch extends LuaWorldEntity {
         laid = null;
     }
 
-    /** Is it on the ground of the scene being drawn right now? — what {@code patch:drawn()} answers. */
+    /**
+     * Is it on the ground of the scene being drawn right now? — the patch's half of {@code :drawn()}. A patch has
+     * no scene slot, so what the shared core reads off {@code slot} it reads off {@link #laid} here: the map its
+     * overlay is registered in, or none.
+     */
     boolean drawn() {
         return !dead && (laid != null);
+    }
+
+    /**
+     * <b>A patch has no height.</b> It lies on the terrain — that is what it is — so {@code patch:offset(x, y)}
+     * slides it on the ground and a {@code z} is refused by the shared verb naming why. One held above the
+     * ground is the other mechanism entirely, and 118 puts it out of scope.
+     */
+    boolean height() {
+        return false;
+    }
+
+    /** A patch is in no pick pass: 118.3 hit-tests it against its own ring and gives it the click vocabulary. */
+    boolean clicks() {
+        return false;
     }
 
     /**

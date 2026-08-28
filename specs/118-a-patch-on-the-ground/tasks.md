@@ -17,7 +17,7 @@
       `[manual]`: stand on a slope with one under you — expect the ring's own shape, edge crisp and not a
       staircase of square tiles, lying flush with no gap and no flicker as you zoom in and out.
 
-- [ ] **118.2 — A patch follows, turns and is tinted.** The patch answers the shared `hafen.vr()`
+- [x] **118.2 — A patch follows, turns and is tinted.** The patch answers the shared `hafen.vr()`
       vocabulary: a **Gob** anchor that follows and dies with it, `:offset(x, y)` on the ground,
       `:scale`, `:rotate`, `:tint`, `:alpha`, `:visible`, `:position`. `:scale` and `:rotate` recompute
       the half-planes and push a new carve state through the seam rather than rebuilding a mesh.

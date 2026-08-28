@@ -1110,6 +1110,12 @@ public final class AddonManager {
             // the one they are drawn in. Free when nothing moved: two reference reads.
             VrApi.drainGround();
 
+            // 118.2: and the patches that follow a gob, which is the one thing in this layer that has to be
+            // polled. A patch has no gob of its own, so it has no FollowMoving for the placement pass to
+            // re-evaluate, and the events above fire when an object comes into view rather than while it
+            // walks. Free when nothing follows anything: two reference reads.
+            VrApi.followPatches();
+
             // 079.1: the saved variables of any session that ended since the last frame, written back into
             // that character's own folder — the seam that saw it die runs on the dying session's thread and
             // may only file it, so the write is here, where Lua is read (P5).

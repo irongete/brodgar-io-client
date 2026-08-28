@@ -1,0 +1,9 @@
+{
+  "name": "118.2 — a patch follows, turns and is tinted",
+  "id": "118-a-patch-on-the-ground.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 118.2: a patch answers the shared hafen.vr() vocabulary — every verb round-trips, :info() carries a key per reader, a Gob anchor takes a gob:hitbox() ring unchanged and follows it, and a z on :offset is refused naming that a patch has no height.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
