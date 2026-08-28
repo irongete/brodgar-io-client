@@ -6,7 +6,7 @@ import haven.UI;
 import haven.Widget;
 
 /**
- * <b>Where the pointer lands on a widget standing in the world</b> ({@code hafen.vr():widget()}, 044.4) — the
+ * <b>Where the pointer lands on a widget standing in the world</b> ({@code hafen.virtual():widget()}, 044.4) — the
  * screen-point &rarr; widget-pixel map, the front-to-back resolution between several standing panels, and the
  * four entries {@code haven.MapView} calls before it does anything of its own with a mouse event.
  *
@@ -335,7 +335,7 @@ final class SurfaceInput {
     }
 
     /**
-     * {@code hafen.vr():click(key, x, y [, a])} — the same four entries, entered from Lua at a SCREEN point.
+     * {@code hafen.virtual():click(key, x, y [, a])} — the same four entries, entered from Lua at a SCREEN point.
      * This is the client's own path from the map view inward and nothing more: it never falls through to the
      * world, so it can neither move the character nor reach the server, and a point on no panel is answered by
      * {@code false} — which is precisely the moment {@code MapView} goes on to do what it always did.

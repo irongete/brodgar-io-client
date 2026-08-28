@@ -46,7 +46,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * {@code hafen.asset} image handle (a {@link LuaImage}) and blit its <b>scaled</b> texture
  * ({@link LuaImage#stex}, a {@link haven.ScaledTex} over the raw {@link haven.TexI}), so a 16&times;16 icon
  * covers 16 design pixels beside the client's own 16-design-pixel art at every scale — the rule
- * {@code hafen.vr}'s screen sprites already follow. A nil/typo/disposed image simply draws nothing.
+ * {@code hafen.virtual}'s screen sprites already follow. A nil/typo/disposed image simply draws nothing.
  * {@code g:resource} is the trap in the other direction: an engine {@code .res} texture comes from
  * {@code Resource.Image.scaled()} and is <b>already</b> device-sized, so only its explicit {@code w, h} box
  * converts and the blit itself does not.

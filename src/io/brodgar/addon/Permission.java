@@ -25,13 +25,10 @@ import java.util.Map;
  * enumerates it for the trusted {@code :lua} REPL owner, and the consent dialog renders it. Adding a
  * protected verb is one entry here plus one gate call — nothing else has a list to update.
  *
- * <p><b>It is the WHOLE catalogue since 093</b> (A-098). {@code hafen.http} used to be gated by a second
- * mechanism with none of this one's vocabulary — a {@code network.hosts} block in the manifest, no constant,
- * no {@code <prefix>.*} group, and a consent surface of its own — so a user who had learned that a key is
- * {@code <section>.<verb>} wrote {@code "http.*"} and the addon failed to load. Now {@code http.get} and
- * {@code http.post} are keys like any other and the hosts block is the <b>argument</b> of the key, the shape
- * {@code player.hand.use} already had for a nested one: the allowlist still decides <i>where</i>, and the
- * catalogue decides <i>whether</i>, and the consent dialog says both in one line.
+ * <p><b>It is the WHOLE catalogue</b> (093, A-098): nothing is gated by a second mechanism beside it.
+ * {@code http.get} and {@code http.post} are keys like any other, and an allowlist of hosts is the
+ * <b>argument</b> of the key — the shape {@code player.hand.use} has for a nested one: the allowlist decides
+ * <i>where</i>, the catalogue decides <i>whether</i>, and the consent dialog says both in one line.
  *
  * <p><b>A key gates what a verb DOES, not only what it tells the server</b> (093, A-096/A-097). Two entries
  * here reach nothing outside the client and are protected all the same: {@code map.marker} deletes a pin the

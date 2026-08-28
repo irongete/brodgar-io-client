@@ -27,7 +27,7 @@ import haven.render.VectorFormat;
 
 
 /**
- * <b>The surface a standing widget is drawn on</b> ({@code hafen.vr():widget()}, 044.1) — an offscreen colour
+ * <b>The surface a standing widget is drawn on</b> ({@code hafen.virtual():widget()}, 044.1) — an offscreen colour
  * target, and the widget the target is drawn from. It is a {@link Widget} of its own, attached to
  * {@code ui.root} and <b>invisible</b>, with the standing widget reparented into it: that one arrangement is
  * what the whole feature's transparency rule rests on, because everything the client resolves against a

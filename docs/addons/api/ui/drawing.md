@@ -110,7 +110,7 @@ resource asynchronously and caches it, and it is load-guarded: it draws nothing 
 then blits the resource's default image layer. It draws the **static icon only**, with no live sprite or
 cooldown sweep, and a bad name simply draws nothing.
 
-To stand an image in the 3D world rather than on screen, use [`hafen.vr`](../vr/sprites.md).
+To stand an image in the 3D world rather than on screen, use [`hafen.virtual`](../virtual/sprites.md).
 
 ## Text
 
@@ -215,4 +215,4 @@ addon's cache holds and its hit rate. Rich-text markup is cached on the same ter
 - [`hafen.font`](../font.md) — getting a handle to pass as `font`
 - [`hafen.asset`](../asset.md) — loading the images `g:image` draws
 - [`hafen.client`](../client/profiling/counters.md#textcache) — the cache's own counters
-- [`hafen.vr`](../vr/sprites.md) — standing an image in the world instead of on screen
+- [`hafen.virtual`](../virtual/sprites.md) — standing an image in the world instead of on screen

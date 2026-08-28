@@ -157,7 +157,7 @@ several of them look like writes:
 | [`w:position`, `w:size`, `w:visible`, `w:draggable`, `w:resizable`, `w:remember`](../api/ui/native.md) | where the client's own windows sit and how big they are, whether the user can drag or size one, and whether that lasts |
 | [`w:replace(view)`](../api/ui/replace.md) | which window a client toggle opens |
 | [`hafen.ui():sheet()`](theming.md) | what the client looks like |
-| [`hafen.vr`](../api/vr/README.md) | props only you can see |
+| [`hafen.virtual`](../api/virtual/README.md) | props only you can see |
 | [`hafen.sound`](../api/sound.md) | what you hear |
 | [option **reads**](../api/client/README.md) | nothing — every option write is `client.settings` |
 

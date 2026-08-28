@@ -539,8 +539,8 @@ local function relayoutFrame(W)
   W.panel:position(0, STRIP + SEAT):size(b.w, ph)
   local lx, ly, lw, lh = logBox(W, ph, b.w)
   W.log:position(lx, ly):size(math.max(1, lw), math.max(1, lh))
-  -- The entry runs the whole width the frame leaves, exactly as the lines above it do: the grip it used to
-  -- stand clear of is on the brass now, outside every row.
+  -- The entry runs the whole width the frame leaves, exactly as the lines above it do: the grip is on the
+  -- brass, outside every row, so nothing has to stand clear of it.
   W.entry:position(PAD, ph - PAD - eh):size(math.max(1, b.w - (PAD * 2)))
   W.sizer:position(b.w - SIZER, b.h - SIZER)   -- the root's corner, which is the frame's
   W.sig = nil

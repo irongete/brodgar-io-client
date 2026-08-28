@@ -151,9 +151,10 @@ end
 ```
 
 Every point is a real place in the world: `p:x()`, `p:distance()` and
-[`s:world():worldToScreen(p)`](world.md#the-screen-and-the-world) all answer for it, and it sits on the
-object rather than at the frame's origin. That is what lets a ring go straight into
-[`hafen.vr():patch()`](vr/patches.md), which lays it on the terrain itself under whatever stands there.
+[`s:world():worldToScreen(p)`](world.md#the-screen-and-the-world) all answer for it, and it sits on the object
+rather than at the frame's origin. That is what lets a ring go straight into
+[`hafen.virtual():patch()`](virtual/patches.md), which lays it on the terrain itself under whatever stands
+there.
 
 `gob:hitbox()` is `nil` once the gob is gone, before its resource has resolved, and for a resource that
 carries **neither** shape below — a decoration, most flooring, anything nothing walks into and nothing
@@ -185,7 +186,7 @@ local box = log and log:hitbox()   -- not nil: its click-box, not a collision sh
 
 `gob:scale(k)` draws the object `k` times its size — the herb you keep walking past, the boar you want to
 see coming, the cupboard you are lining up. It is the same read/write pair every
-[thing you stand in the world](vr/README.md) answers, so one number is the whole of it.
+[thing you stand in the world](virtual/README.md) answers, so one number is the whole of it.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -263,7 +264,7 @@ everything you hid, so nothing is left missing from the world behind you.
 ## Overlays
 
 Everything drawn at a gob — the game's own, the labels and painters you attach, and whatever you have
-[stood in the world](vr/README.md) anchored to it — is the collection
+[stood in the world](virtual/README.md) anchored to it — is the collection
 [`gob:overlay()`](overlay.md), and it is unprotected.
 
 An overlay is attached to the **object**, and every character that can see the object draws it: it appears
@@ -329,7 +330,7 @@ it with a colon: `gob:position()`. `tostring(gob)` gives `Gob(<id>)`.
 ## Passing a Gob to the rest of the API
 
 Anything that acts on a gob takes the **Gob object**, not an id: `me:overlay():add("tag"):text("here")`,
-`s:player():hand():use(tree)`, `hafen.vr():sprite():add(icon, me):offset(0, 0, 18)`.
+`s:player():hand():use(tree)`, `hafen.virtual():sprite():add(icon, me):offset(0, 0, 18)`.
 
 ## See also
 

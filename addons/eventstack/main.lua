@@ -65,9 +65,8 @@
 -- worth reading has usually already happened: the tree building itself, the first `set`s that fill the
 -- HUD, SessionEnteredWorld. A tool you have to open BEFORE the thing you are debugging can only ever
 -- show you the second time it happens. So `at login` arms the doors as the addon loads and the window
--- is only a view on to what they caught -- opening and closing it records and loses nothing. Untick it
--- and the old shape is back: the doors open with the window and shut with it, and nothing is subscribed
--- to anything while it is down.
+-- is only a view on to what they caught -- opening and closing it records and loses nothing. Untick it and
+-- the doors open with the window and shut with it: nothing is subscribed to anything while it is down.
 --
 -- NOTHING HERE IS COPYABLE, because the client has no clipboard to offer -- so `log` writes through
 -- hafen.log(), where the console shows it and the terminal keeps it whole: the picked row with its whole

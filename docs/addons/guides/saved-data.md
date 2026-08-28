@@ -66,7 +66,7 @@ you can draw again. Rebuild the live objects from that on load.
 hafen.event():on("SessionEnteredWorld", function(s)
   for _, prop in ipairs(s:store():get("settings").props or {}) do
     local p = s:world():position(prop.at)          -- :x() is nil until that grid is reachable
-    if p then hafen.vr():ghost():add(prop.res, p) end
+    if p then hafen.virtual():ghost():add(prop.res, p) end
   end
 end)
 ```

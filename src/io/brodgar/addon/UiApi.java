@@ -193,8 +193,6 @@ final class UiApi {
     }
 
     // ===== the widget-placement seam (the body behind AddonManager.onWidgetPlaced) =====
-    // The {id,type,place,caption,parentType} descriptor that used to be built here for hafen.ui.replace went
-    // with 032.2, and with it the NewWidget seam that recorded the server type string.
     // TWO consumers: 036.2's layout rules and 042.7's dispatchWidgetSubsPlaced above. Neither runs Lua, which
     // is what keeps this seam legal where it sits — inside AddWidget.run's synchronized(ui), on a Loader
     // thread. The 030.2 selector subscriptions are NOT here any more (112.3): they are the entry seam's, and
@@ -227,15 +225,14 @@ final class UiApi {
      * a widget whose chain does not reach the root announces nothing and is announced later, when the ancestor
      * that was missing enters — because that ancestor passes this same seam. There is nothing to re-check.
      *
-     * <p><b>Every widget the client builds passes here, and since 112.5 every one of them is recorded.</b> The
-     * guard used to be "is anybody watching with a selector", and that is no longer the whole question: the
-     * {@link CharApi.TreeAdapter}s read this drain too, and they are nine per session, built with the state and
-     * never absent — so a client with no {@code s:ui():on} at all still has a consumer, and a tap that
-     * fast-pathed on the selector list would have stopped its buffs and meters arriving. What is left to
-     * fast-path on is the state itself: no state, or one whose pump is not running, and there is nothing to
-     * drain into. The bound is the drain's, not the tap's ({@code AddonManager.drainEnteredWidgets} takes one
-     * step's worth), and the per-widget cost on the other side is a subtree walk and an {@code instanceof} per
-     * adapter.
+     * <p><b>Every widget the client builds passes here, and every one of them is recorded</b> (112.5). "Is
+     * anybody watching with a selector" is not the whole question: the {@link CharApi.TreeAdapter}s read this
+     * drain too, and they are nine per session, built with the state and never absent — so a client with no
+     * {@code s:ui():on} at all still has a consumer, and a tap that fast-pathed on the selector list would
+     * stop its buffs and meters arriving. What is left to fast-path on is the state itself: no state, or one
+     * whose pump is not running, and there is nothing to drain into. The bound is the drain's, not the tap's
+     * ({@code AddonManager.drainEnteredWidgets} takes one step's worth), and the per-widget cost on the other
+     * side is a subtree walk and an {@code instanceof} per adapter.
      */
     static void enqueueEntered(Widget wdg) {
         UI u = wdg.ui;
@@ -984,10 +981,10 @@ final class UiApi {
 
     /**
      * {@code session:ui():match(selector)} — <b>THE</b> widget matching {@code sel} in {@code u}, or {@code nil},
-     * and (049.2) a <b>refusal</b> when two or more match. It used to be "the first in tree order", which is a
-     * wrong answer in place of no answer the moment a second window matches: an addon that reached the Close
-     * button of "the" Foo window kept working right up to the day the player opened a second Foo, and then
-     * quietly clicked the other one. So the walk does not short-circuit — it collects every match and says how
+     * and (049.2) a <b>refusal</b> when two or more match. "The first in tree order" would be a wrong answer
+     * in place of no answer the moment a second window matches: an addon that reached the Close button of
+     * "the" Foo window would keep working right up to the day the player opened a second Foo, and then quietly
+     * click the other one. So the walk does not short-circuit — it collects every match and says how
      * many there were, which is the rule {@link LuaWidget#role} beside it has always followed.
      *
      * <p><b>{@code u} is the tree the caller named</b> (078.2), that session's own and not the drawn one, so a
@@ -2697,7 +2694,7 @@ final class UiApi {
      * A session whose {@code UI} has gone is skipped, not a reason to run unguarded.
      *
      * <p>Since 043.3 a record owns nothing but itself — the world kinds left {@code gob:overlay()}, so dropping
-     * it from the map IS its end, and what stands in the 3D scene is freed by {@code VrApi}'s own per-kind
+     * it from the map IS its end, and what stands in the 3D scene is freed by {@code VirtualApi}'s own per-kind
      * teardowns like any other entity this addon placed.
      */
     static void teardownGobOverlays(Addon a) {

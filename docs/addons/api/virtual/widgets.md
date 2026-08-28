@@ -1,7 +1,7 @@
-# hafen.vr: a widget standing in the world
+# hafen.virtual: a widget standing in the world
 
-`hafen.vr():widget():add(w, anchor)` takes a [Widget](../ui/widget.md) off the flat UI and stands it **in the
-3D world** — a window of your own, a control you built, or one of the client's own windows — on the same
+`hafen.virtual():widget():add(w, anchor)` takes a [Widget](../ui/widget.md) off the flat UI and stands it **in
+the 3D world** — a window of your own, a control you built, or one of the client's own windows — on the same
 client-only world-entity core a [sprite](sprites.md) uses. It is the fourth collection of the section, and it
 is the one that is not a picture.
 
@@ -11,7 +11,7 @@ local cupboard = hafen.session():current():world():gob():nearest("cupboard")
 local win = hafen.ui():window():title("Cupboard"):size(128, 96)
 win:on("Draw", function(ev) ev:g():text("4 / 16 slots", 8, 8) end)
 
-hafen.vr():widget():add(win, cupboard):facing("camera"):offset(0, 0, 12)
+hafen.virtual():widget():add(win, cupboard):facing("camera"):offset(0, 0, 12)
 ```
 
 The shape that pays for itself is entirely event-driven:
@@ -53,7 +53,8 @@ The [shared vocabulary](README.md#one-vocabulary-every-kind) — `:position`, `:
 | `panel:screen(wx, wy)` | where a pixel of the panel is drawn, as two screen [design pixels](../ui/pixels.md), or `nil` — see [clicks](#clicks-are-the-widgets-own) |
 
 `panel:widget()` is read-only, like a ghost's resource and an object's mesh: standing another widget is
-another `hafen.vr():widget():add(w, anchor)`, and taking this one back is `hafen.vr():widget():remove(x)`.
+another `hafen.virtual():widget():add(w, anchor)`, and taking this one back is
+`hafen.virtual():widget():remove(x)`.
 
 **The panel and the widget inside it are two objects, and a refusal names which one you are holding.** A
 mistyped verb on the panel answers `panel has no verb '…'` and lists what a thing in the world answers; the
@@ -123,11 +124,11 @@ is my button on screen* and *what did the player click* can never disagree:
 | Call | Returns | Description |
 |---|---|---|
 | `panel:screen(wx, wy)` | `x, y` \| `nil` | where widget-local pixel `wx, wy` is drawn, in screen coordinates |
-| `hafen.vr():click(key, x, y [, a])` | boolean | put the pointer on whatever is standing at screen point `x, y` |
+| `hafen.virtual():click(key, x, y [, a])` | boolean | put the pointer on whatever is standing at screen point `x, y` |
 
 Both pairs are [design pixels](../ui/pixels.md): the widget-local one is what `:size()` and `ev:x()` speak,
 the screen one what [`hafen.ui():mouse()`](../ui/mouse.md) reports. So the two calls compose — feed
-`panel:screen(wx, wy)` to `hafen.vr():click` and the panel's own `MouseDown` lands back on `wx, wy`.
+`panel:screen(wx, wy)` to `hafen.virtual():click` and the panel's own `MouseDown` lands back on `wx, wy`.
 
 `key` is one of `"MouseDown"`, `"MouseUp"`, `"MouseMove"` or `"Wheel"` — the same four keys
 [`widget:on`](../ui/widget.md#subscribing) answers to, so there is one input vocabulary and not two. `a` is
@@ -165,8 +166,8 @@ unprotected for the same reason: the clicks that reach the server are the ones t
 hand, and only where the button is drawn has changed.
 
 **One rule covers both provenances: standing a widget records where it was, and removing it puts it back
-there.** `hafen.vr():widget():remove(x)` does it, and so do `:reload` and disabling your addon. A window of
-the client's returns to the flat UI; a window of yours goes back to its default parent, visible, which is
+there.** `hafen.virtual():widget():remove(x)` does it, and so do `:reload` and disabling your addon. A window
+of the client's returns to the flat UI; a window of yours goes back to its default parent, visible, which is
 where an unstood window of yours belongs — hide or destroy it yourself if that is not what you want.
 
 What the record does **not** carry is visibility, and that is what makes it one rule rather than two:
@@ -231,7 +232,7 @@ uploads-against-frames pair that says whether one is repainting.
 
 ## See also
 
-- [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
+- [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [the Widget object](../ui/widget.md) — everything a standing widget still answers, unchanged
 - [custom](../ui/custom.md) — building the window you stand, and its `Draw` and `Update` callbacks
 - [controls](../ui/controls/README.md) — the client's own controls, which work on a panel in the world

@@ -238,8 +238,8 @@ the font are, so changing either rasterises once more and then settles again.
 To paint over a **game object** rather than over the screen or a widget, the verb is on the object:
 [`gob:overlay()`](../overlay.md). You name the gob it hangs on, so nothing is searched per frame and the
 decoration follows the object with no projection to do. To stand something **in** the world rather than
-over it, use [`hafen.vr`](../vr/README.md) — your own images and models, the game's own props, or
-[a window of yours](../vr/widgets.md), out there instead of on the screen. To paint inside a surface you
+over it, use [`hafen.virtual`](../virtual/README.md) — your own images and models, the game's own props, or
+[a window of yours](../virtual/widgets.md), out there instead of on the screen. To paint inside a surface you
 built, the door is [that widget's own `Draw`](custom.md#subscribing) — the callback that draws the widget,
 where an overlay draws over it.
 
@@ -249,4 +249,4 @@ where an overlay draws over it.
 - [custom](custom.md) — the windows and bare rectangles you build, and the callbacks they answer
 - [drawing](drawing.md) — what `g` can do, and the cache text goes through
 - [Overlay](../overlay.md) — the same vocabulary at a game object
-- [`hafen.vr`](../vr/README.md) — standing a thing in the world instead of drawing over it
+- [`hafen.virtual`](../virtual/README.md) — standing a thing in the world instead of drawing over it

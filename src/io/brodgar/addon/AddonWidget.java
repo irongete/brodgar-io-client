@@ -19,7 +19,7 @@ import org.luaj.vm2.LuaValue;
  * {@code "Draw"} on this widget's own {@link WidgetSubs} (041.4) — the SAME address every
  * OTHER key answers, {@code widget:on(key, fn)}, over {@link AddonManager#callLua} underneath, so every
  * forward is <b>watchdog-armed</b> (D-018 layer 1), <b>error-isolated</b> (a Lua error is logged, never
- * thrown into the render/tick loop), CPU-accounted, and — unlike the single slot this used to be — answers
+ * thrown into the render/tick loop), CPU-accounted, and — unlike a single callback slot — answers
  * N SUBSCRIBERS, in registration order (R1). <b>Mouse input is not one of these keys either</b> (041.3):
  * {@code MouseDown}/{@code MouseUp}/{@code MouseMove}/{@code Wheel} reach an AddonWidget the same way they
  * reach any other widget, through the {@link Widget#listen} pre-hook {@link WidgetSubs} installs — one door
@@ -70,9 +70,9 @@ import org.luaj.vm2.LuaValue;
  * a later task in this feature puts it on the mouse entity instead, readable at any time rather than only
  * from inside a callback that happened to be handed it.
  *
- * <p><b>{@link Owned} since 040.1, and nothing here changed to say so.</b> Provenance used to be <i>is this
- * widget an {@code AddonWidget} of mine?</i>; it is now <i>does this widget carry the ownership contract?</i>,
- * and this class already had every method the contract asks for. What that buys is a second kind of owned
+ * <p><b>It carries {@link Owned}</b> (040.1), and needed no method to do it. Provenance asks <i>does this
+ * widget carry the ownership contract?</i> rather than <i>is this widget an {@code AddonWidget} of mine?</i>,
+ * and this class already answers everything the contract requires. What that buys is a second kind of owned
  * widget — a {@code haven} control an addon built ({@link CtlButton} and its siblings) — answering the owned
  * verbs without this one growing a wrapper role it should not have.
  */

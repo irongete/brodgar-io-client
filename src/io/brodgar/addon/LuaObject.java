@@ -4,7 +4,7 @@ import haven.Coord2d;
 
 /**
  * A client-only world <b>3D object</b> (spec {@code 18-custom-models-gltf.md}, R3a) — the Java half of
- * {@code hafen.vr():object():add(asset, p)}. A {@link LuaWorldEntity} whose visual is a custom glTF model (an
+ * {@code hafen.virtual():object():add(asset, p)}. A {@link LuaWorldEntity} whose visual is a custom glTF model (an
  * addon's own {@code .glb}/{@code .gltf}, parsed to baked geometry by {@link Gltf} and loaded via
  * {@code hafen.asset}) standing in the 3D world — the mesh sibling of a {@link LuaSprite} (a PNG quad) and
  * of a {@link LuaGhost} (a {@code .res} game model). Client-only ⇒ <b>SAFE-tier, NOT protected</b> (D-034): it never
@@ -52,5 +52,5 @@ public final class LuaObject extends LuaWorldEntity {
     void infoInto(org.luaj.vm2.LuaTable t) {   // :mesh()
         if(meshName != null)
             t.set("mesh", org.luaj.vm2.LuaValue.valueOf(meshName));
-    }          // the hafen.vr() collection this one belongs to
+    }          // the hafen.virtual() collection this one belongs to
 }

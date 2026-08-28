@@ -582,9 +582,9 @@ public final class ProfHandle {
      */
     private static LuaTable entities() {
         LuaTable t = new LuaTable();
-        t.set("placed", LuaValue.valueOf(VrApi.freeCount()));
-        t.set("waiting", LuaValue.valueOf(VrApi.waitingCount()));
-        t.set("passes", LuaValue.valueOf((double)VrApi.regroundPasses()));
+        t.set("placed", LuaValue.valueOf(VirtualApi.freeCount()));
+        t.set("waiting", LuaValue.valueOf(VirtualApi.waitingCount()));
+        t.set("passes", LuaValue.valueOf((double)VirtualApi.regroundPasses()));
         return t;
     }
 

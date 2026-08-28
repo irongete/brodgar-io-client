@@ -1,6 +1,6 @@
-# hafen.vr: a glTF model in the world
+# hafen.virtual: a glTF model in the world
 
-`hafen.vr():object():add(asset, anchor)` stands a glTF model **in the 3D world** — the mesh sibling of a
+`hafen.virtual():object():add(asset, anchor)` stands a glTF model **in the 3D world** — the mesh sibling of a
 [sprite](sprites.md) and a [ghost](ghosts.md), on the same client-only world-entity core: a game object with
 no server id, so nothing reaches the server and nothing here is protected.
 
@@ -12,7 +12,7 @@ end)
 
 -- later, in the world:
 local p = hafen.session():current():player():gob():position()
-local o = hafen.vr():object():add(mdl, p)
+local o = hafen.virtual():object():add(mdl, p)
 o:rotate(math.pi / 4):scale(1.5)                   -- face 45 degrees, 1.5 times bigger; chained
 ```
 
@@ -90,7 +90,7 @@ handles all three: click-select, drag on the ground, and persistence through
 
 ## See also
 
-- [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
+- [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [sprites](sprites.md) — an image in the world, and the anchoring both share
 - [`hafen.asset`](../asset.md#mesh) — loading a `.glb`, and what `:bounds()` and `:info()` answer
 - [events](../event/bus/world.md#world-ghosts-and-sprites) — `ObjectClicked`

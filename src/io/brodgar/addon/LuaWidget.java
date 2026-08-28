@@ -75,8 +75,8 @@ import java.util.WeakHashMap;
  * BORROWED widget is exactly what it is for, since only a server-bound one has anywhere to send. Provenance is <b>derived from the tree</b> ({@link #ownedContent}), never stored on the
  * handle, because the cache below may collect and re-mint an entity at any moment. A write on a BORROWED widget
  * records what it was first — {@code :hide()} on {@link Addon#hiddenNative}, a move or a resize on
- * {@link Addon#movedNative} — and teardown gives it back; that, and not a separate handle type, is what
- * {@code hafen.ui.adopt} used to be for.
+ * {@link Addon#movedNative} — and teardown gives it back. That, and not a separate handle type, is the whole
+ * of taking a borrowed widget over.
  *
  * <p><b>Liveness is {@code hasparent(ui.root)}</b> (the node rule, not the model's {@code getwidget(id) != wdg},
  * which only covers server-bound widgets). A widget detached from the tree is stale: every read answers
@@ -1062,11 +1062,10 @@ public final class LuaWidget {
                 return self;              // the receiver: every ending chains
             }
         });
-        // send(msg, ...) — 048.6: send an arbitrary wdgmsg FROM this widget. The escape hatch that used to be
-        // hafen.act():raw(target, msg, ...), and the move deletes an address space rather than relocating it: the
-        // RECEIVER is the target now, so `raw`'s private target vocabulary — a numeric server widget id, or the
-        // tokens "mapview" / "gameui" / "root" — has nothing left to address. Every one of them is an ordinary
-        // handle already: s:ui():node(id) for an id, s:ui():match("@MapView") for the map view and
+        // send(msg, ...) — 048.6: send an arbitrary wdgmsg FROM this widget. The escape hatch, and the
+        // RECEIVER is the target, so there is no private target vocabulary beside it — no numeric server
+        // widget id, and no "mapview" / "gameui" / "root" tokens. Every one of those is an ordinary handle
+        // already: s:ui():node(id) for an id, s:ui():match("@MapView") for the map view and
         // s:ui():match("@GameUI") for the HUD (@Class resolves through typeName, and MapView is not
         // subclassed in this fork). The trailing args marshal exactly as the two message streams do
         // (LuaMarshal.toJava: a {x=,y=} table becomes a Coord; numbers, strings and booleans pass through).
@@ -2015,7 +2014,7 @@ public final class LuaWidget {
         if(w.parent instanceof WidgetSurface)
             throw new LuaError("widget:parent(p) — " + typeName(w) + " is standing in the 3D world, held by the"
                 + " addon \"" + AddonManager.ownerName(((WidgetSurface)w.parent).owner) + "\"; a widget hangs in"
-                + " one place. Take it back with hafen.vr():widget():remove(x) first");
+                + " one place. Take it back with hafen.virtual():widget():remove(x) first");
         if(w.ui != dest.ui)
             throw new LuaError("widget:parent(p) — " + typeName(w) + " belongs to a character's tree and reads"
                 + " it: its session, its HUD, its map. " + typeName(p) + " stands in the addon layer, where there"

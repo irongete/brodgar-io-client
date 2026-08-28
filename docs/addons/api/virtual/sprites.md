@@ -1,16 +1,16 @@
-# hafen.vr: an image in the world
+# hafen.virtual: an image in the world
 
-`hafen.vr():sprite():add(asset, anchor)` stands a PNG **in the 3D world**, on the same client-only
+`hafen.virtual():sprite():add(asset, anchor)` stands a PNG **in the 3D world**, on the same client-only
 world-entity core a [ghost](ghosts.md) uses: a game object with no server id, so nothing reaches the server
 and nothing here is protected.
 
 ```lua
 local icon = hafen.asset():get("icon.png")
-local s = hafen.session():current()                      -- the character on screen
+local s = hafen.session():current()                           -- the character on screen
 local p = s:player():gob():position()
-local sprite = hafen.vr():sprite():add(icon, p):scale(3) -- ~3 tiles tall, at its feet
-sprite:rotate(math.pi / 2):alpha(0.8)                    -- face 90 degrees, slightly translucent
-hafen.vr():sprite():remove(sprite)                       -- or let reload or disable clean it up
+local sprite = hafen.virtual():sprite():add(icon, p):scale(3) -- ~3 tiles tall, at its feet
+sprite:rotate(math.pi / 2):alpha(0.8)                         -- 90 degrees, slightly translucent
+hafen.virtual():sprite():remove(sprite)                       -- or let reload or disable clear it
 ```
 
 `asset` is a [`hafen.asset`](../asset.md) **image handle** —
@@ -52,8 +52,8 @@ wherever you are looking without giving up its world size or its place in the de
 `:rotate` is stored but unused while it does. Any other mode raises, naming the three.
 
 ```lua
-local b = hafen.vr():sprite():add(icon, p):facing("screen"):scale(2)
-local c = hafen.vr():sprite():add(icon, prey):facing("camera"):offset(0, 0, 14)
+local b = hafen.virtual():sprite():add(icon, p):facing("screen"):scale(2)
+local c = hafen.virtual():sprite():add(icon, prey):facing("camera"):offset(0, 0, 14)
 ```
 
 > **A camera-facing quad rises along the camera's own *up* axis.** Tilt all the way to a top-down view and
@@ -83,7 +83,7 @@ reaches the server. Both the per-sprite `:onClick(fn)` and the owner-scoped
 *your* addon, since a sprite is private to the addon that made it.
 
 ```lua
-local s = hafen.vr():sprite():add(icon, p)
+local s = hafen.virtual():sprite():add(icon, p)
   :clickable(true)
   :onClick(function(s, button, x, y)     -- 1 = left, 3 = right; x, y = the world point
     hafen.log():write(("clicked my sprite (button %d)"):format(button))
@@ -105,7 +105,7 @@ local icon = hafen.asset():get("marker.png")
 local w = hafen.session():current():world()
 local prey = w:gob():nearest(function(g) return (g:name() or ""):find("rabbit") end)
 if prey then
-  hafen.vr():sprite():add(icon, prey):scale(1.5):offset(0, 0, 14)
+  hafen.virtual():sprite():add(icon, prey):scale(1.5):offset(0, 0, 14)
 end
 ```
 
@@ -119,7 +119,7 @@ drives the other unchanged.
 
 ## See also
 
-- [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
+- [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [models](models.md) — the same thing with a glTF mesh instead of an image
 - [widgets](widgets.md) — the same three facing modes, on a whole window standing in the world
 - [`hafen.asset`](../asset.md) — loading the PNG a sprite takes

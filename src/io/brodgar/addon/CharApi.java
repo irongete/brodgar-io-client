@@ -130,9 +130,9 @@ final class CharApi {
      * login's HUD rather than of "the" HUD.
      *
      * <p>Fixed once built, so there is nothing to copy on write and nothing to synchronize: the list is
-     * published through a {@code final} field of the state and never mutated again. The
-     * {@code CopyOnWriteArrayList} it used to be was carrying the rebuild {@code resetSession} did on every
-     * {@code init}, and that rebuild is gone.
+     * published through a {@code final} field of the state and never mutated again. A
+     * {@code CopyOnWriteArrayList} here would be paying for a rebuild on every {@code init} that no longer
+     * happens.
      */
     static List<TreeAdapter> newAdapters(SessionState st) {
         List<TreeAdapter> l = new ArrayList<TreeAdapter>(9);

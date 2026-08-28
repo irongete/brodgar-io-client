@@ -42,7 +42,7 @@ import haven.render.States;
  *
  * <p><b>UI thread only.</b> {@code MCache.ols} is a plain {@code HashSet} that {@code getols} and
  * {@code getol} walk without a lock, from {@code MapView.oltick} and from the overlay cut build — both on the
- * UI thread, which is also where every caller here runs (the addon tick and the {@code hafen.vr()} verbs).
+ * UI thread, which is also where every caller here runs (the addon tick and the {@code hafen.virtual()} verbs).
  */
 final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
     /** The tiles the mask marks: the ring's bounding box, one tile proud on each side. */

@@ -9,7 +9,7 @@ import haven.SprDrawable;
 import haven.Sprite;
 
 /**
- * The <b>camera-facing world quad</b> ({@code hafen.vr():sprite()} / {@code hafen.vr():widget()} with
+ * The <b>camera-facing world quad</b> ({@code hafen.virtual():sprite()} / {@code hafen.virtual():widget()} with
  * {@code :facing("camera")}, 044.3) — the same resource-free {@link SprDrawable} the {@code "fixed"} mode
  * uses, over the same {@link SpriteQuad} / {@link SurfaceQuad} geometry, differing in <b>one</b> thing: where
  * its rotation comes from. It is still world geometry, so it keeps its world size, is drawn in the 3D pass,

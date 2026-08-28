@@ -15,7 +15,7 @@ import haven.render.VectorFormat;
 import haven.render.VertexArray;
 
 /**
- * The <b>fixed world-quad</b> visual behind a {@link LuaSprite} ({@code hafen.vr():sprite() with :facing("fixed")},
+ * The <b>fixed world-quad</b> visual behind a {@link LuaSprite} ({@code hafen.virtual():sprite() with :facing("fixed")},
  * spec {@code 17-custom-rendering.md} §5, R2a) — a resource-free {@link Sprite} that stands a custom PNG upright
  * in the 3D world. It builds the substrate the engine's own {@code .res} art already runs on, directly from a
  * {@link TexI}, skipping the {@code .res} container:

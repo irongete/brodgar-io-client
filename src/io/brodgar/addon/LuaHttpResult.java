@@ -13,16 +13,16 @@ import java.util.Map;
  * <b>What a request came back with</b> (095, A-117) &mdash; the {@code res} an
  * {@code req:on("done", fn)} handler is handed.
  *
- * <p><b>It used to be a plain Lua table</b>, and it was the only callback payload in the API that was not an
- * object: {@code ev:x()}, {@code ev:args()}, {@code gob:name()}, {@code w:title()} are all colon verbs, and
- * this one alone answered {@code res.status}. So it taught the dot habit, and the dot habit is a trap
- * everywhere else &mdash; a field read on any of the closed entity types hands back the <b>method</b>, so
- * {@code if gob.name then} is always true and {@code item.quantity > 5} fails as "attempt to compare function
- * with number" a line away from the mistake.
+ * <p><b>An object, not a plain Lua table</b>, because every other callback payload in the API is one:
+ * {@code ev:x()}, {@code ev:args()}, {@code gob:name()}, {@code w:title()} are all colon verbs, and a lone
+ * {@code res.status} beside them would teach the dot habit. The dot habit is a trap everywhere else &mdash; a
+ * field read on any of the closed entity types hands back the <b>method</b>, so {@code if gob.name then} is
+ * always true and {@code item.quantity > 5} fails as "attempt to compare function with number" a line away
+ * from the mistake.
  *
- * <p><b>{@code :header(name)} is why the object earns its keep</b> rather than merely matching the grammar.
- * The table's {@code headers} keys were lower-cased, which is a fact the reader had to carry; the verb does
- * the same case-insensitive match {@code req:header(name)} already does, and the rule disappears.
+ * <p><b>{@code :header(name)} is why the object earns its keep</b> rather than merely matching the grammar. A
+ * raw {@code headers} map lower-cases its keys, which is a fact the reader has to carry; the verb does the
+ * same case-insensitive match {@code req:header(name)} already does, and the rule disappears.
  *
  * <p><b>A value, not an entity.</b> A result is delivered once and named by nothing, so it is not interned:
  * two deliveries are two objects and there is no key for identity to buy. Immutable &mdash; the worker built

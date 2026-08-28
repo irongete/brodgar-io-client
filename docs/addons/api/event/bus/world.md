@@ -51,8 +51,9 @@ The limits below are what keep the world drawable:
   subscription, not with the first object.
 - **A held object is drawn anyway after a second.** A handler that takes longer than that, or an addon
   disabled mid-flight, costs a late frame and never a missing object.
-- **Only objects the game sends.** A [thing of your own](../../vr/README.md) — a ghost, a sprite, a model,
-  a standing widget, a patch — is yours already, fires no `GobAdded`, and is drawn the moment you place it.
+- **Only objects the game sends.** A [thing of your own](../../virtual/README.md) — a ghost, a sprite, a
+  model, a standing widget, a patch — is yours already, fires no `GobAdded`, and is drawn the moment you place
+  it.
 
 `GobRemoved` makes no such promise: it reports an object that has already left, and there is nothing left
 to hold.
@@ -142,10 +143,10 @@ object, not to any one addon's attachment, so every subscriber is told alike.
 
 | Event | Payload | Fires |
 |---|---|---|
-| `GhostClicked` | `ev` — `:ghost()` `:button()` `:x()` `:y()` | a **clickable** [ghost](../../vr/ghosts.md) of *your* addon is clicked |
-| `SpriteClicked` | `ev` — `:sprite()` `:button()` `:x()` `:y()` | a **clickable** [sprite](../../vr/sprites.md#clickability) of *your* addon is clicked |
-| `ObjectClicked` | `ev` — `:object()` `:button()` `:x()` `:y()` | a **clickable** [glTF object](../../vr/models.md#clickability) of *your* addon is clicked |
-| `PatchClicked` | `ev` — `:patch()` `:button()` `:x()` `:y()` | a **clickable** [patch](../../vr/patches.md#clickability) of *your* addon is clicked |
+| `GhostClicked` | `ev` — `:ghost()` `:button()` `:x()` `:y()` | a **clickable** [ghost](../../virtual/ghosts.md) of *your* addon is clicked |
+| `SpriteClicked` | `ev` — `:sprite()` `:button()` `:x()` `:y()` | a **clickable** [sprite](../../virtual/sprites.md#clickability) of *your* addon is clicked |
+| `ObjectClicked` | `ev` — `:object()` `:button()` `:x()` `:y()` | a **clickable** [glTF object](../../virtual/models.md#clickability) of *your* addon is clicked |
+| `PatchClicked` | `ev` — `:patch()` `:button()` `:x()` `:y()` | a **clickable** [patch](../../virtual/patches.md#clickability) of *your* addon is clicked |
 
 Each of them is **owner-scoped**: it fires only to the addon that owns the clicked entity, unlike the
 world events above and the roster's, which broadcast. That is because a thing you put in the world is
@@ -153,7 +154,7 @@ private to your addon and its handle never leaves it.
 
 | `ev` on the four | Description |
 |---|---|
-| `ev:ghost()` / `ev:sprite()` / `ev:object()` / `ev:patch()` | the clicked [entity](../../vr/README.md#one-vocabulary-every-kind) — only the one matching the event fires reads non-nil |
+| `ev:ghost()` / `ev:sprite()` / `ev:object()` / `ev:patch()` | the clicked [entity](../../virtual/README.md#one-vocabulary-every-kind) — only the one matching the event fires reads non-nil |
 | `ev:button()` | 1 for left, 3 for right |
 | `ev:x()` `ev:y()` | the world point the click resolved to |
 
@@ -170,5 +171,5 @@ pass and so answer only where they are visible.
 - [the catalogue](README.md) — the other families, and whose character an event was
 - [the Gob object](../../gob.md) — what the payload of the first two answers
 - [`gob:overlay()`](../../overlay.md) — the collection the two overlay events report on
-- [the world entities](../../vr/README.md) — the ghosts, sprites, models and patches these clicks are about
+- [the world entities](../../virtual/README.md) — the ghosts, sprites, models and patches a click lands on
 - [`s:world()`](../../world.md) — reading the world on demand instead of listening to it

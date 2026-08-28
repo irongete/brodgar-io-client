@@ -26,13 +26,12 @@ import java.util.Map;
  * <b>player</b> marker (your own, with a colour) or a <b>system</b> marker (a server or quest pin, with an
  * icon). The same markers the map window shows. Spec {@code 037-map-database}, task 037.2.
  *
- * <p><b>{@code marker:position()} is the whole point of the entity, and it is now just the type.</b> A
+ * <p><b>{@code marker:position()} is the whole point of the entity, and it is just the type.</b> A
  * marker's own coordinates are {@code seg}&nbsp;+&nbsp;{@code tc} — a segment id this client invented and a
  * tile coord inside it — and a segment merge <b>rewrites both in place</b>. So that pair cannot be saved or
  * sent: after a merge it would not go nil, it would point at the wrong place. What comes back instead is a
- * {@link LuaPosition}, which is durable by construction because it holds the server's grid id. The
- * conversion that used to be a second verb beside {@code :pos()} is therefore gone: one place type, one
- * position verb, and nothing to convert.
+ * {@link LuaPosition}, which is durable by construction because it holds the server's grid id. So there is no
+ * conversion verb beside it: one place type, one position verb, and nothing to convert.
  *
  * <p><b>The collection is {@code hafen.map():marker()}</b> — {@code :list} / {@code :count} / {@code :find}
  * over the canonical filter, {@code :nearest(filter)}, and the two unprotected writes {@code :add(name, p)} /
@@ -258,12 +257,11 @@ public final class LuaMarker {
                 return (mk == null) ? LuaValue.NIL : AddonManager.xy(mk.tc.x, mk.tc.y);
             }
         });
-        // position() — the marker's place, as a Position, at the CENTRE of the tile it names. It IS the old
-        // :anchor(): a Position is durable by construction, so the conversion that used to be a second verb
-        // is now the type. A marker in the player's own segment answers from sessloc arithmetic; one in
-        // another explored area has no world coord this session, so it comes back holding its anchor — it
-        // still saves, still names a tile, and :x() reports nil. Nil only for ground the database has no
-        // grid id for at all.
+        // position() — the marker's place, as a Position, at the CENTRE of the tile it names. A Position is
+        // durable by construction, so the type IS the conversion and there is no second verb for it. A marker
+        // in the player's own segment answers from sessloc arithmetic; one in another explored area has no
+        // world coord this session, so it comes back holding its anchor — it still saves, still names a tile,
+        // and :x() reports nil. Nil only for ground the database has no grid id for at all.
         m.set("position", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 return positionOf(owner, marker(self, "position"));

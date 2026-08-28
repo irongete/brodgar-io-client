@@ -10,11 +10,11 @@ import haven.Widget;
  *
  * <p>029.2 decided <i>is this widget mine?</i> is <b>derived from the tree and never stored</b>, because the
  * Widget entity's intern cache is weak on both axes and a flag on a handle would silently be lost. That
- * reasoning is untouched here; what changes is the <b>type</b> the test is written against. It used to be
- * {@link AddonWidget} — the addon's own painted surface — and a {@code haven.Button} an addon builds is not
- * one, so under the old test every control this feature ships would have read as <b>borrowed</b> and
- * {@code :destroy()}, the builder setters and the whole owned half would have refused on the addon's own
- * button. The test is now {@code instanceof Owned}: the same test, against a wider type, in one file.
+ * reasoning stands; what this interface widens is the <b>type</b> the test is written against. Against
+ * {@link AddonWidget} — the addon's own painted surface — a {@code haven.Button} an addon builds is not
+ * one, so every control this feature ships would read as <b>borrowed</b> and {@code :destroy()}, the
+ * builder setters and the whole owned half would refuse on the addon's own button. The test is
+ * {@code instanceof Owned}: the same test, against a wider type, in one file.
  *
  * <p><b>Eight methods, and each is a thing the bridge already does to an owned widget.</b> The first three are
  * the provenance triple {@code isOwn} asks for; {@link #kill()} is what teardown does to every entry of

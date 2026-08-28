@@ -126,23 +126,23 @@ public final class AddonRegistry {
             /* isolation is per-handler in callLua; this is just a backstop */
         }
         StoreApi.flush(a);                     // ...then persist them (spec 05: flushed at Disable)
-        VrApi.teardownSurfaces(a);    // 044.1: take every widget this addon stood in the world back OUT of its
-                                      //   surface first, so the two teardowns below see an ordinary widget on the
-                                      //   flat UI. Standing is a re-home, so it has to be undone before anything
-                                      //   decides where a widget ends up — the hidden-native restore reads where
-                                      //   the widget is, and destroyWidgets disposes what it finds.
-        UiApi.teardownRehomed(a);     // ...and beside it, every widget of the CLIENT's this addon TOOK into a
-                                      //   surface of its own (widget:parent(p)). Same reason as the line above,
-                                      //   and the same order: destroyWidgets below disposes recursively, so a
-                                      //   minimap still inside one of our panels would go down with it. BEFORE
-                                      //   teardownMoved, which restores where it stands: this one only answers
-                                      //   what it hangs under, and that one has to have the last word.
-        UiApi.teardownHidden(a);      // 029.2/031.2: give back every native widget the addon hid — and its toggle —
-                                      //   under the one rule: the window ends up as the user was seeing it, and a
-                                      //   substitution ends whole (the stand-in view dies with it, 032.1). BEFORE
-                                      //   destroyWidgets: the rule reads the view's visibility, and a destroyed
-                                      //   view stands for nothing.
-        destroyWidgets(a);            // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
+        VirtualApi.teardownSurfaces(a);  // 044.1: take every widget this addon stood in the world back OUT of its
+                                         //   surface first, so the two teardowns below see an ordinary widget on the
+                                         //   flat UI. Standing is a re-home, so it has to be undone before anything
+                                         //   decides where a widget ends up — the hidden-native restore reads where
+                                         //   the widget is, and destroyWidgets disposes what it finds.
+        UiApi.teardownRehomed(a);        // ...and beside it, every widget of the CLIENT's this addon TOOK into a
+                                         //   surface of its own (widget:parent(p)). Same reason as the line above,
+                                         //   and the same order: destroyWidgets below disposes recursively, so a
+                                         //   minimap still inside one of our panels would go down with it. BEFORE
+                                         //   teardownMoved, which restores where it stands: this one only answers
+                                         //   what it hangs under, and that one has to have the last word.
+        UiApi.teardownHidden(a);         // 029.2/031.2: give back every native widget the addon hid — and its toggle —
+                                         //   under the one rule: the window ends up as the user was seeing it, and a
+                                         //   substitution ends whole (the stand-in view dies with it, 032.1). BEFORE
+                                         //   destroyWidgets: the rule reads the view's visibility, and a destroyed
+                                         //   view stands for nothing.
+        destroyWidgets(a);               // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
         a.teardownWidgetSubs();           // 041.3/041.4: deafen every widget:on() listener + drop every poll
                                           //   registration (engine widgets outlive a :reload — must detach before
                                           //   the Lua layer that owns them rebuilds)
@@ -159,10 +159,10 @@ public final class AddonRegistry {
                                           //   of the grid. BEFORE the asset teardown below: an entry draws one of
                                           //   the addon's images, and a cell must stop being laid out before the
                                           //   texture under it is disposed
-        VrApi.teardownGhosts(a);            // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
-        VrApi.teardownSprites(a);           // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
-        VrApi.teardownObjects(a);           // R3: destroy client-only world objects (remove the slot + free the glTF Models; before the meshes)
-        VrApi.teardownPatches(a);           // 118: take every patch off the ground (its overlay out of the MCache it was registered in)
+        VirtualApi.teardownGhosts(a);       // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
+        VirtualApi.teardownSprites(a);      // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
+        VirtualApi.teardownObjects(a);      // R3: destroy client-only world objects (remove the slot + free the glTF Models; before the meshes)
+        VirtualApi.teardownPatches(a);      // 118: take every patch off the ground (its overlay out of the MCache it was registered in)
         MapImages.teardown(a);                  // 037.4: free the map drawings the client rendered for this addon
                                                 //   (grid:image / grid:overlayImage) — they are TexIs like any
                                                 //   other image and ride the same registry, so this only has to
@@ -375,10 +375,10 @@ public final class AddonRegistry {
     /**
      * Queue a full addon-layer reload; applied on the next UI-thread tick (see {@link #tick}).
      *
-     * <p><b>Queued against the addon layer</b> (074.2), which is what a reload rebuilds. It used to be queued
-     * against the session on screen, because that is where the addons lived; now they are the client's, so a
-     * {@code :reload} typed on the login screen is as real as one typed in the world, and the pump that drains
-     * it is the one that is always running.
+     * <p><b>Queued against the addon layer</b> (074.2), which is what a reload rebuilds — not against the
+     * session on screen, because the addons are the client's rather than a character's. So a {@code :reload}
+     * typed on the login screen is as real as one typed in the world, and the pump that drains it is the one
+     * that is always running.
      */
     static void queueReload() {
         AddonManager.SessionState st = AddonManager.state(AddonManager.layer());

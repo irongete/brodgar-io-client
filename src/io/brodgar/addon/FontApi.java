@@ -181,9 +181,9 @@ final class FontApi {
         FontHandle h = FontHandle.resolve(v);
         if(h != null) {                     // handed over: a built-in, a file, or a :derive()d variant of one
             // ...and if it carries a colour, it is refused for the same reason a NAMED face carrying one is
-            // (084.5). It used to be accepted and the colour dropped on the floor: h:color() went on reading
-            // back the value that was set, the surface was drawn in the client's own colour, and nothing said
-            // which of the two was the answer. The colour of a client surface is the rule's own property.
+            // (084.5). Accepting it would drop the colour on the floor: h:color() would go on reading back the
+            // value that was set, the surface would be drawn in the client's own colour, and nothing would say
+            // which of the two is the answer. The colour of a client surface is the rule's own property.
             if(h.color != null)
                 throw new LuaError(what + ": this font carries a colour, and a font's colour never styles a"
                     + " client surface — it is for your OWN drawing (g:text and widget:font). The colour of a"

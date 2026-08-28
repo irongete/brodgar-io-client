@@ -25,8 +25,8 @@ either — you, or the person playing. Changing what
 one of them *says* or *does* — a caption, a control of your own inside one of its windows, or taking over
 a button of the client's own — is [editing](edit.md).
 
-[Standing one in the 3D world](../vr/widgets.md) is a fourth write of the same family, restoring under the
-same rule.
+[Standing one in the 3D world](../virtual/widgets.md) is a fourth write of the same family, restoring under
+the same rule.
 
 ## Moving and resizing (unprotected)
 
@@ -367,9 +367,9 @@ character behind it at all, so a widget taken there would go dark. Build the sur
 `hafen.ui():widget():parent(s:ui():match("@GameUI"))` — and the refusal says so.
 
 **One widget hangs in one place.** A widget another addon is holding is refused, naming that addon, and so is
-one [standing in the 3D world](../vr/widgets.md) — which is this same move to a surface out there, and keeps
-the same kind of record. The refusals are the other way round too: `hafen.vr():widget():add` refuses a widget
-you are holding here.
+one [standing in the 3D world](../virtual/widgets.md) — which is this same move to a surface out there, and
+keeps the same kind of record. The refusals are the other way round too: `hafen.virtual():widget():add`
+refuses a widget you are holding here.
 
 **The restore puts back the sibling order, not only the parent.** A parent's child list is a paint order and
 the client leans on it — the corner minimap is `lower()`ed so the carved plate above it paints *over* the

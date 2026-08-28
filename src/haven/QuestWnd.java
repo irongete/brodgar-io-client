@@ -84,8 +84,8 @@ public class QuestWnd extends Widget {
 	    }
 	}
 
-	// addon: the popup's heading + banner render through the "heading" scope provider (F3e, D-043); they
-	// used to be class-init `static final Tex`, which can never follow a font override.
+	// addon: the popup's heading + banner render through the "heading" scope provider (F3e, D-043) rather
+	// than a class-init `static final Tex`, which can never follow a font override.
 	public void done(GameUI parent) {
 	    parent.add(new Widget() {
 		    double a = 0.0;

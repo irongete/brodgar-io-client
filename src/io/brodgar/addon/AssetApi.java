@@ -29,11 +29,9 @@ import javax.imageio.ImageIO;
  * <b>The loader for the files an addon ships</b> (spec {@code 028-asset-loader}): the {@code hafen.asset()}
  * collection, the D-017 sandbox resolver, and the one per-addon intern cache behind them.
  *
- * <p>Three entry points across two namespaces used to load an addon-relative file — {@code hafen.font.load},
- * {@code hafen.render.image}, {@code hafen.render.model} — each with its own cache (and, for fonts, none at
- * all). They collapse into <b>one door</b>: {@code hafen.asset():get(path)} returns a typed, <b>interned</b>
- * handle and {@code hafen.asset():list()} is this addon's live assets. The three old loaders are a hard cut
- * ([D-013]).
+ * <p><b>One door.</b> {@code hafen.asset():get(path)} returns a typed, <b>interned</b> handle and {@code
+ * hafen.asset():list()} is this addon's live assets. There is no second loader and no per-type cache: one
+ * sandbox resolver and one intern table serve every kind the dispatch below names.
  *
  * <p><b>The loader takes a path and nothing else.</b> There is no per-type options table: loading a file is
  * expensive and happens once, configuring a <i>use</i> of it is cheap and happens many times — so a font's
@@ -319,7 +317,7 @@ final class AssetApi {
      * while an internal {@code a/../b} is allowed; the two messages only say which shape got caught. Never
      * returns a path outside {@link Addon#dir}.
      *
-     * <p>Moved here verbatim from {@code VrApi} (028.1): it is the loader's own boundary, and it was already
+     * <p>Moved here verbatim from {@code VirtualApi} (028.1): it is the loader's own boundary, and it was already
      * the single check — {@code FontApi} called it too.
      */
     static Path resolveAddonAsset(Addon owner, String name, String ctx) {
@@ -375,7 +373,7 @@ final class AssetApi {
      * teardown walks) and in the intern cache (which makes the next load of the same path the same handle).
      *
      * <p>The handle is <b>userdata over the {@link LuaImage} itself</b>, wearing this addon's {@link Kind#IMAGE}
-     * metatable — so {@code g:image}, {@code hafen.vr():sprite()} and a rule's {@code bg} resolve the record
+     * metatable — so {@code g:image}, {@code hafen.virtual():sprite()} and a rule's {@code bg} resolve the record
      * straight off the value ({@link LuaImage#resolve}), and there is no table around it to scribble on, to
      * delete {@code dispose} from, or to copy into a look-alike that lies about its size.
      */
@@ -936,7 +934,7 @@ final class AssetApi {
     /**
      * Dispose every asset this addon loaded (reload/disable/relogin, P2). <b>The cache is unified; the teardown
      * is not</b>: the typed owned-resource lists are walked in the order R3b requires — images, then meshes,
-     * whose shared {@link TexI}s the addon's {@link LuaObject}s sample and which {@code VrApi.teardownObjects}
+     * whose shared {@link TexI}s the addon's {@link LuaObject}s sample and which {@code VirtualApi.teardownObjects}
      * (called <b>before</b> this, from {@link AddonRegistry#teardown}) has already freed their {@code Model}s
      * for. Font assets own nothing releasable, so dropping the cache is their whole teardown. Leaves no GL
      * resource behind.

@@ -59,9 +59,9 @@ public final class Addon {
      * {@link Subs} for the whole bus, because a bus event is addon-wide and has no object to hang off. Every
      * key it carries charges {@link #C_EVENT}, which is what a bus handler has always cost.
      *
-     * <p>It replaced the flat list of subscription records this field used to be: one emitter owns one
-     * {@code Subs}, and {@link LuaSub} is both the Lua handle and the entry, so there is nothing to keep in
-     * step. Teardown drops it wholesale ({@link Subs#clear}), so an addon never unsubscribes by hand.
+     * <p><b>One emitter owns one {@code Subs}</b>, and {@link LuaSub} is both the Lua handle and the entry, so
+     * there is nothing to keep in step — no flat list of subscription records beside it to fall out of date.
+     * Teardown drops it wholesale ({@link Subs#clear}), so an addon never unsubscribes by hand.
      */
     public final Subs subs = new Subs(this, Addon.C_EVENT);
     /** Live timers owned by this addon (see {@link AddonManager.Timer}). */
@@ -378,11 +378,11 @@ public final class Addon {
      * {@code <genus>_<char>} for a widget standing in that session's own tree, and {@code "account"} for one
      * standing in the addon's layer.
      *
-     * <p><b>Which is the whole of A-087's fix.</b> There used to be one set here, holding the character on
-     * SCREEN — so a widget of a background session's own tree ({@code s:ui():find("@ChatUI")}, the case
-     * {@code native.md} documents) had where the user dragged it written into another character's folder and
-     * read back out of it, silently and in both directions. Every saved variable beside it was addressed by
-     * the session it belonged to; this one set was addressed by the screen.
+     * <p><b>Which is the whole of A-087's fix.</b> A single set keyed by the character on SCREEN is the wrong
+     * address: a widget of a background session's own tree ({@code s:ui():find("@ChatUI")}, the case
+     * {@code native.md} documents) would have where the user dragged it written into another character's
+     * folder and read back out of it, silently and in both directions. Every saved variable beside it is
+     * addressed by the session it belongs to, and so is this one.
      *
      * <p>A scope's set is loaded from disk the first time something in it is touched, and every loaded set is
      * written by each flush — so a remembered placement still needs no {@code saved_variables} declaration and
@@ -402,7 +402,7 @@ public final class Addon {
      */
     public final List<LuaConsoleCommand> consoleCommands = new CopyOnWriteArrayList<LuaConsoleCommand>();
     /**
-     * Live client-only world ghosts owned by this addon ({@code hafen.vr():ghost():add}, V1): each is a virtual
+     * Live client-only world ghosts owned by this addon ({@code hafen.virtual():ghost():add}, V1): each is a virtual
      * {@link haven.Gob} (no server id) rendered in the MapView's {@code basic} scene via
      * {@link haven.MapView#addClientGob} — a SAFE-tier visualization, never sent to the server (D-029). Unlike
      * the hook lists there is <b>no</b> global dispatch/poll list: a ghost is a passive render node driven by the
@@ -413,12 +413,12 @@ public final class Addon {
      */
     public final List<LuaGhost> ghosts = new CopyOnWriteArrayList<LuaGhost>();
     /**
-     * Live client-only world sprites owned by this addon ({@code hafen.vr():sprite()}, R2): each is a custom PNG
+     * Live client-only world sprites owned by this addon ({@code hafen.virtual():sprite()}, R2): each is a custom PNG
      * (an {@link #images} texture) standing in the 3D world as a {@link haven.Gob} with no server id — the
      * non-{@code .res} sibling of a {@link #ghosts ghost}, on the same virtual-entity core (spec
      * {@code 17-custom-rendering.md} §2, SAFE-tier, D-034). Like ghosts there is no global dispatch/poll list (a
      * passive render node driven by the render tree's own tick); it lives only here. Teardown
-     * ({@link VrApi#teardownSprites}) destroys each — removes its scene slot + disposes the quad geometry
+     * ({@link VirtualApi#teardownSprites}) destroys each — removes its scene slot + disposes the quad geometry
      * (the shared {@code TexI} is freed by {@link AssetApi#teardownAssets}) — so a reload/disable/relogin
      * leaks nothing. Copy-on-write: a firing callback may create or destroy a sprite.
      */
@@ -445,39 +445,39 @@ public final class Addon {
      */
     public final List<LuaMesh> meshes = new CopyOnWriteArrayList<LuaMesh>();
     /**
-     * Live client-only world 3D objects owned by this addon ({@code hafen.vr():object()}, R3): each is a custom
+     * Live client-only world 3D objects owned by this addon ({@code hafen.virtual():object()}, R3): each is a custom
      * glTF model (a {@link #meshes} mesh) standing in the 3D world as a {@link haven.Gob} with no server id — the
      * mesh sibling of a {@link #sprites sprite} and a {@link #ghosts ghost}, on the same virtual-entity core (spec
      * {@code 18-custom-models-gltf.md}, SAFE-tier, D-034). Like ghosts/sprites there is no global dispatch/poll
      * list (a passive render node driven by the render tree's own tick); it lives only here. Teardown
-     * ({@link VrApi#teardownObjects}) destroys each — removes its scene slot + disposes its engine
+     * ({@link VirtualApi#teardownObjects}) destroys each — removes its scene slot + disposes its engine
      * {@code Model}s (the shared mesh is freed by {@link AssetApi#teardownAssets}) — so a reload/disable/relogin
      * leaks nothing. Copy-on-write: a firing callback may create or destroy an object.
      */
     public final List<LuaObject> objects = new CopyOnWriteArrayList<LuaObject>();
     /**
-     * Live <b>widgets this addon has stood in the 3D world</b> ({@code hafen.vr():widget()}, 044): each is one of
+     * Live <b>widgets this addon has stood in the 3D world</b> ({@code hafen.virtual():widget()}, 044): each is one of
      * the addon's own UI surfaces drawn into an offscreen texture and hung on a virtual {@link haven.Gob} — the
      * fourth kind on the same client-only entity core as {@link #ghosts}, {@link #sprites} and {@link #objects},
      * and unprotected for the same reason (nothing here reaches the server; only where a button is drawn changed).
-     * Teardown ({@link VrApi#teardownSurfaces}) destroys each, which puts the widget back where it stood from
+     * Teardown ({@link VirtualApi#teardownSurfaces}) destroys each, which puts the widget back where it stood from
      * (D-070's rule for the borrowed case, the default parent for an owned one) and frees the surface's texture,
      * so a reload/disable/relogin leaves neither an orphaned widget nor GPU memory. Copy-on-write: a firing
      * callback may stand or end one.
      */
     public final List<LuaWidgetEntity> surfaces = new CopyOnWriteArrayList<LuaWidgetEntity>();
     /**
-     * Live <b>patches this addon has laid on the ground</b> ({@code hafen.vr():patch()}, 118): each is a convex
+     * Live <b>patches this addon has laid on the ground</b> ({@code hafen.virtual():patch()}, 118): each is a convex
      * ring of Positions drawn through the engine's own ground overlay — the fifth kind on the same client-only
      * entity core as the four above, and the one that is not a {@link haven.Gob} at all. Unprotected for the
      * same reason as its siblings: nothing here reaches the server. Teardown
-     * ({@link VrApi#teardownPatches}) destroys each, which takes its overlay back out of the {@code MCache} it
+     * ({@link VirtualApi#teardownPatches}) destroys each, which takes its overlay back out of the {@code MCache} it
      * was registered in, so a reload/disable/relogin leaves no shape on the ground and no mesh in the grid.
      * Copy-on-write: a firing callback may lay or end one.
      */
     public final List<LuaPatch> patches = new CopyOnWriteArrayList<LuaPatch>();
     /**
-     * <b>This addon's whole {@code hafen.vr()} is switched off</b> ({@code hafen.vr():visible(false)}, 043.4) — one
+     * <b>This addon's whole {@code hafen.virtual()} is switched off</b> ({@code hafen.virtual():visible(false)}, 043.4) — one
      * flag beside the three registries above, because the switch is the SECTION's state and there is exactly one
      * section per addon. It destroys nothing: every entity keeps its gob, its transform and its handle, and only
      * its scene slot goes.
@@ -493,7 +493,7 @@ public final class Addon {
      * publishes, which include a ghost's deferred create on a loader thread. Reset with the addon object itself on
      * {@code :reload}, so a reloaded addon starts visible.
      */
-    public volatile boolean vrHidden;
+    public volatile boolean virtualHidden;
     /**
      * Live modal mouse-drag captures owned by this addon ({@code hafen.ui():mouse():grab()}, 041.5 — before,
      * {@code hafen.hook():grab}): each is a {@link LuaMouseGrab} widget on {@code ui.root} that forwards mouse
@@ -985,8 +985,8 @@ public final class Addon {
      * (D-017) and the whole cache dies with this {@link Addon} on {@code :reload}/disable.
      *
      * <p>Nothing to tear down: the entries are weak and a handle holds only ids. The <b>overlays themselves</b>
-     * are not here at all — they live on the gob (see the note where {@code gobOverlays} used to be), which is
-     * what makes an Overlay object a view of engine state rather than a record of ours.
+     * are not here at all — they live on the gob, which is what makes an Overlay object a view of engine state
+     * rather than a record of ours.
      */
     final LuaOverlay.Cache gobOverlayObjs = new LuaOverlay.Cache(this);
 

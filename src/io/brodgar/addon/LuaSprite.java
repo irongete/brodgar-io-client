@@ -4,7 +4,7 @@ import haven.Coord2d;
 
 /**
  * A client-only world <b>sprite</b> (spec {@code 17-custom-rendering.md}, R2) — the Java half of
- * {@code hafen.vr():sprite():add(asset, p)}. A {@link LuaWorldEntity} whose visual is a custom PNG (an
+ * {@code hafen.virtual():sprite():add(asset, p)}. A {@link LuaWorldEntity} whose visual is a custom PNG (an
  * addon's own file, decoded to a {@link haven.TexI} by {@code hafen.asset}) standing in the 3D world as a
  * textured quad — the non-{@code .res} sibling of a {@link LuaGhost}. Client-only ⇒ <b>SAFE-tier, NOT protected</b>
  * (D-034), like a HUD overlay or a ghost: it never reaches the server and grants no gameplay advantage.
@@ -46,11 +46,11 @@ public final class LuaSprite extends LuaWorldEntity {
      * third gives that up for constant pixels.
      */
     haven.Drawable visual(haven.Gob gob, String mode) {
-        if(VrApi.SCREEN.equals(mode))
+        if(VirtualApi.SCREEN.equals(mode))
             return new LuaSpriteBillboard(gob, img);
-        float[] wh = VrApi.spriteWorldDims(img.sz);
+        float[] wh = VirtualApi.spriteWorldDims(img.sz);
         haven.Sprite.Mill<SpriteQuad> mill = SpriteQuad.mill(img.tex, wh[0], wh[1]);
-        return VrApi.CAMERA.equals(mode) ? new CameraFacing(gob, mill) : new haven.SprDrawable(gob, mill);
+        return VirtualApi.CAMERA.equals(mode) ? new CameraFacing(gob, mill) : new haven.SprDrawable(gob, mill);
     }
 
     String visualName() { return imgName; }
@@ -62,5 +62,5 @@ public final class LuaSprite extends LuaWorldEntity {
         if(imgName != null)
             t.set("image", org.luaj.vm2.LuaValue.valueOf(imgName));
         synchronized(this) { t.set("facing", org.luaj.vm2.LuaValue.valueOf(facing)); }
-    }          // the hafen.vr() collection this one belongs to
+    }          // the hafen.virtual() collection this one belongs to
 }

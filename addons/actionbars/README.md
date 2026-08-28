@@ -42,8 +42,8 @@ having both: one bar that follows the page the way the game's own always did, an
 as you want beside it.
 
 **Actionbar1 cannot be removed** either, and its row in the panel has no `X`. It is the page you are on, and
-the client's own bar — the one that used to show it — is put away by this addon. A screen with neither would
-leave the current page with no way to be pressed.
+the client's own bar — the one that otherwise shows it — is put away by this addon. A screen with neither
+would leave the current page with no way to be pressed.
 
 ## The bar is the handle
 
@@ -117,10 +117,9 @@ back gets the same keys — and a `:reload` never costs you an assignment.
 
 ### Nothing is reserved
 
-**No key is claimed by hardcoding any more, so bind whatever you like.** The client's bar used to take a
-whole row — `1` through `0` — by raw key code, with every modifier at once: `Ctrl+3` did not merely fail to
-reach anything, it fired button 3 and stopped. That row is now twelve ordinary bindings, listed in
-**Options ▸ Keybindings ▸ Action bar** with the twelve page keys beside them, and matching is exact.
+**No key is claimed by hardcoding, so bind whatever you like.** The row `1` through `0` is twelve ordinary
+bindings, listed in **Options ▸ Keybindings ▸ Action bar** with the twelve page keys beside them, and matching
+is exact: `Ctrl+3` is a binding of its own rather than button 3 with a modifier ignored.
 `F1`–`F12` are free too, with all three modifiers — nothing in the client defaults to a function key.
 
 ### Two sections, and which to use

@@ -244,4 +244,4 @@ nothing to draw for it: read the entry and ask it what it looks like.
 - [overlays](overlay.md) — painting over the screen, or over one widget, without owning either
 - [`hafen.font`](../font.md) — the handle `:font(h)` takes
 - [style](style/README.md) — restyling the client's surfaces rather than drawing your own
-- [`hafen.vr`](../vr/README.md) — the same idea in the 3D world
+- [`hafen.virtual`](../virtual/README.md) — the same idea in the 3D world

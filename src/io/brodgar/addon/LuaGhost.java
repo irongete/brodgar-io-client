@@ -7,7 +7,7 @@ import haven.Resource;
 
 /**
  * A client-only world <b>ghost</b> (spec {@code 16-virtual-entities.md}, V1) — the Java half of
- * {@code hafen.vr():ghost():add(res, p)}. A {@link LuaWorldEntity} whose visual is a {@code .res} <b>game model</b>
+ * {@code hafen.virtual():ghost():add(res, p)}. A {@link LuaWorldEntity} whose visual is a {@code .res} <b>game model</b>
  * ({@code ResDrawable}), added to the MapView's {@code basic} scene via {@link haven.MapView#addClientGob} —
  * exactly what the engine's own placement preview ({@code MapView.Plob}) does. Because it never reaches the
  * server (no {@code wdgmsg}) and is invisible to {@code OCache} and every read API, it is <b>SAFE-tier, NOT
@@ -64,5 +64,5 @@ public final class LuaGhost extends LuaWorldEntity {
     void infoInto(org.luaj.vm2.LuaTable t) {   // :res()
         if(resName != null)
             t.set("res", org.luaj.vm2.LuaValue.valueOf(resName));
-    }          // the hafen.vr() collection this one belongs to
+    }          // the hafen.virtual() collection this one belongs to
 }

@@ -1,22 +1,22 @@
-# hafen.vr: everything of yours standing in the world
+# hafen.virtual: everything of yours standing in the world
 
-`hafen.vr()` is the one section for **client-only things of yours in the 3D world** — a translucent copy of
-one of the game's own props, your addon's own PNG, your addon's own glTF model, a whole window drawn out
-there instead of on the screen, and a shape lying flat on the terrain under all of them. What separates one
-of these from a real game object is not where it is, since both are in the world, but **whose** it is:
-nothing here ever reaches the server, so nothing here is protected.
+`hafen.virtual()` is the one section for **client-only things of yours in the 3D world** — a translucent copy
+of one of the game's own props, your addon's own PNG, your addon's own glTF model, a whole window drawn out
+there instead of on the screen, and a shape lying flat on the terrain under all of them. What separates one of
+these from a real game object is not where it is, since both are in the world, but **whose** it is: nothing
+here ever reaches the server, so nothing here is protected.
 
 ```lua
 local s = hafen.session():current()                        -- the character on screen
 local p = s:player():gob():position()
-hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)     -- the game's own prop, at a point
-hafen.vr():sprite():add(hafen.asset():get("icon.png"), p)  -- your own image
-hafen.vr():object():add(chair, p)                          -- your own glTF model
-hafen.vr():widget():add(win, p)                            -- a window, drawn in the world
-hafen.vr():patch():add(ring, p)                            -- a shape lying on the ground
+hafen.virtual():ghost():add("gfx/terobjs/arch/logcabin", p)     -- the game's own prop, at a point
+hafen.virtual():sprite():add(hafen.asset():get("icon.png"), p)  -- your own image
+hafen.virtual():object():add(chair, p)                          -- your own glTF model
+hafen.virtual():widget():add(win, p)                            -- a window, drawn in the world
+hafen.virtual():patch():add(ring, p)                            -- a shape lying on the ground
 
 local rabbit = s:world():gob():nearest("rabbit")
-hafen.vr():sprite():add(icon, rabbit)                      -- following a game object
+hafen.virtual():sprite():add(icon, rabbit)                      -- following a game object
 ```
 
 > **Unprotected.** These are visualizations with no server id: the server never learns one exists and none of
@@ -31,12 +31,12 @@ disable and relogin, leaking neither a scene slot nor a GPU texture.
 
 | Call | What it holds |
 |---|---|
-| `hafen.vr():ghost()` | the game's `.res` props this addon has stood — see [ghosts](ghosts.md) |
-| `hafen.vr():sprite()` | its own images — see [sprites](sprites.md) |
-| `hafen.vr():object()` | its own glTF models — see [models](models.md) |
-| `hafen.vr():widget()` | the UI it has standing out there — see [widgets](widgets.md) |
-| `hafen.vr():patch()` | its own shapes lying on the terrain — see [patches](patches.md) |
-| `hafen.vr():entity()` | every kind at once — see [the whole section](#the-whole-section-at-once) |
+| `hafen.virtual():ghost()` | the game's `.res` props this addon has stood — see [ghosts](ghosts.md) |
+| `hafen.virtual():sprite()` | its own images — see [sprites](sprites.md) |
+| `hafen.virtual():object()` | its own glTF models — see [models](models.md) |
+| `hafen.virtual():widget()` | the UI it has standing out there — see [widgets](widgets.md) |
+| `hafen.virtual():patch()` | its own shapes lying on the terrain — see [patches](patches.md) |
+| `hafen.virtual():entity()` | every kind at once — see [the whole section](#the-whole-section-at-once) |
 
 Each is a [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) with the
 verbs below, and each is the same object every call, so you can keep it in an upvalue.
@@ -49,15 +49,15 @@ verbs below, and each is the same object every call, so you can keep it in an up
 | `:find(filter)` | entity \| nil | the first one that matches |
 | `:remove(x)` | the collection | end one now; also automatic on reload, disable and relogin |
 
-`hafen.vr():entity()` has no `:add`: what a thing is decides what standing it takes, so it is stood by the
-collection of its kind. Everything else it answers, `:remove(x)` included.
+`hafen.virtual():entity()` has no `:add`: what a thing is decides what standing it takes, so it is stood by
+the collection of its kind. Everything else it answers, `:remove(x)` included.
 
 `filter` is the canonical [filter](../conventions.md#the-filter-argument): `nil` is all of them, a **string**
 is a substring match on what the thing draws — a ghost's resource name, a sprite's or an object's
 addon-relative path, a standing widget's caption — and a **function** is called with the entity, a truthy
 return keeping it. A [patch](patches.md) is a shape and is a picture of nothing, so it has no such name:
-`hafen.vr():patch()` refuses a string filter naming the two forms that work, and no patch ever matches one
-passed to `hafen.vr():entity()`.
+`hafen.virtual():patch()` refuses a string filter naming the two forms that work, and no patch ever matches
+one passed to `hafen.virtual():entity()`.
 
 ## The anchor is an argument
 
@@ -81,9 +81,9 @@ stand something on a number that will stop meaning anywhere. `p:durable()` is th
 of time.
 
 ```lua
-hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)     -- a plan on the ground
-hafen.vr():sprite():add(icon, prey):offset(0, 0, 14)       -- a marker floating over a creature
-hafen.vr():widget():add(win, cupboard):facing("camera")    -- a panel standing on a game object
+hafen.virtual():ghost():add("gfx/terobjs/arch/logcabin", p)     -- a plan on the ground
+hafen.virtual():sprite():add(icon, prey):offset(0, 0, 14)       -- a marker floating over a creature
+hafen.virtual():widget():add(win, cupboard):facing("camera")    -- a panel standing on a game object
 ```
 
 **An anchored one dies with its gob.** A felled tree takes the thing following it with it, and nothing is
@@ -144,7 +144,7 @@ plain table, for logging or serialising. Every key is spelled the way the verb t
 is nothing to translate:
 
 ```lua
-local e = hafen.vr():sprite():list()[1]
+local e = hafen.virtual():sprite():list()[1]
 local i = e:info()
 hafen.log():write(i.kind .. " alpha=" .. i.alpha .. " drawn=" .. tostring(i.drawn))
 
@@ -223,7 +223,7 @@ whole section is off, while its visual is still streaming in, and while a free o
 
 ```lua
 local home = hafen.store():get("spot").home            -- a place saved in an earlier session
-local e = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", home)
+local e = hafen.virtual():ghost():add("gfx/terobjs/arch/logcabin", home)
 
 e:exists()             --> true    it is yours and it is placed
 e:visible()            --> true    you never hid it
@@ -271,23 +271,23 @@ cross-kind set has a name of its own.
 
 | Call | Returns | Description |
 |---|---|---|
-| `hafen.vr():entity()` | collection | everything this addon has standing, across the kinds, in the order it was stood |
-| `hafen.vr():visible()` | bool | is the section on screen? |
-| `hafen.vr():visible(b)` | the section | take the whole section off screen, or put it back |
-| `hafen.vr():click(key, x, y [, a])` | bool | put the pointer on whatever is standing at a screen point — see [clicks](widgets.md#clicks-are-the-widgets-own) |
+| `hafen.virtual():entity()` | collection | everything this addon has standing, across the kinds, in the order it was stood |
+| `hafen.virtual():visible()` | bool | is the section on screen? |
+| `hafen.virtual():visible(b)` | the section | take the whole section off screen, or put it back |
+| `hafen.virtual():click(key, x, y [, a])` | bool | put the pointer on whatever is standing at a screen point — see [clicks](widgets.md#clicks-are-the-widgets-own) |
 
-`hafen.vr():entity()` is a collection like the per-kind ones above, over all of them at once: it takes the
-same canonical filter, and hands back the same entities those collections do — a ghost, a sprite, an object
-and a standing widget side by side, in **creation order**, which is the order you placed them. So *how many
-things have I got standing* is `:count()`, the same question a per-kind collection answers.
+`hafen.virtual():entity()` is a collection like the per-kind ones above, over all of them at once: it takes
+the same canonical filter, and hands back the same entities those collections do — a ghost, a sprite, an
+object and a standing widget side by side, in **creation order**, which is the order you placed them. So *how
+many things have I got standing* is `:count()`, the same question a per-kind collection answers.
 
 ```lua
-for _, e in ipairs(hafen.vr():entity():list()) do
+for _, e in ipairs(hafen.virtual():entity():list()) do
   hafen.log():write(tostring(e:position()))
 end
-hafen.log():write(hafen.vr():entity():count() .. " standing")
-hafen.vr():visible(false)          -- the lot, off screen
-hafen.vr():visible(true)           -- back exactly as it was
+hafen.log():write(hafen.virtual():entity():count() .. " standing")
+hafen.virtual():visible(false)          -- the lot, off screen
+hafen.virtual():visible(true)           -- back exactly as it was
 ```
 
 **`:visible(false)` destroys nothing.** Every entity keeps its gob, its transform and its handle, so
@@ -300,7 +300,7 @@ beside each entity's own, never a write over it, so:
 - an `e:visible(b)` written while the section is off is remembered and takes effect when it returns;
 - one placed while the section is off is created and listed, and waits.
 
-`e:visible()` and `hafen.vr():visible()` are therefore different questions — *is this one hidden* and *is
+`e:visible()` and `hafen.virtual():visible()` are therefore different questions — *is this one hidden* and *is
 the section switched off* — and `e:drawn()` is a third: what those two and
 [the ground](#the-ground-under-one-that-stands-still) come to. None of them is "is it on screen right now",
 which also depends on where the camera is pointing.

@@ -284,7 +284,7 @@ reversible to the pixel; and since a rule is only values, a whole look can
   persists
   tables — and an addon ships the experience.
 - **The 3D world.** The sheet is the UI. Terrain, objects, animations and their materials are game
-  resources; what an addon adds there is [`hafen.vr`](../../vr/README.md), not a rule.
+  resources; what an addon adds there is [`hafen.virtual`](../../virtual/README.md), not a rule.
 - **Text the client baked at class-load**, and `$col[…]` markup inside a string — both
   [in the key table](keys.md#what-each-key-accepts), and both structural rather than missing.
 

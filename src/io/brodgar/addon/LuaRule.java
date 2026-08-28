@@ -15,9 +15,8 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * A <b>Rule object</b> — one level of the styling cascade, and the whole of what used to be a Lua table of
- * properties (spec {@code 039-uniform-api} §5.4, task 039.7). Its properties are <b>setters</b>, each
- * returning the rule so a level is one expression:
+ * A <b>Rule object</b> — one level of the styling cascade (spec {@code 039-uniform-api} §5.4, task 039.7).
+ * Its properties are <b>setters</b>, each returning the rule so a level is one expression:
  *
  * <pre>
  *   hafen.ui():sheet():rule("chat"):font(mono):color({200, 210, 200})

@@ -9,7 +9,7 @@ import haven.render.Model;
 import haven.render.RenderTree;
 
 /**
- * The <b>world quad a standing widget is drawn on</b> ({@code hafen.vr():widget()}, 044.1) — the visual half of
+ * The <b>world quad a standing widget is drawn on</b> ({@code hafen.virtual():widget()}, 044.1) — the visual half of
  * a {@link LuaWidgetEntity}, and {@link SpriteQuad}'s twin: the same resource-free upright 4-vertex
  * {@code TRIANGLE_STRIP} (it reuses that class's own geometry, so the two cannot drift apart in orientation or
  * winding), textured from a {@link WidgetSurface}'s offscreen colour target instead of from a PNG.

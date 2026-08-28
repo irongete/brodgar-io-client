@@ -52,8 +52,8 @@ public final class KeybindingsOptions {
         // steal a key anyway (KeyBinding.get never runs set()'s unbind pass) — it would simply lose the
         // collision, since the addon root is walked last, leaving a dead hotkey with nothing to explain it.
         // It is a SUBSCRIPTION like every other :on in the API (086.1): the Sub it hands back answers
-        // :key() (the name it was registered under) and :off(), which is what unregister used to be. The
-        // KeyBinding registry entry survives that ending, so the user's remap outlives a :reload.
+        // :key() (the name it was registered under) and :off(), which is the whole of the ending. The
+        // KeyBinding registry entry survives it, so the user's remap outlives a :reload.
         m.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 // a.arg(1) = self (colon call); the arguments start at 2. One argument at a time, through the
@@ -73,7 +73,7 @@ public final class KeybindingsOptions {
         // binding() — the collection of every KeyBinding the client knows: this addon's hotkeys, other
         // addons' and the client's own, ordered by id. It IS the address (b:key() reads, b:key(k) writes,
         // b:key(nil) reverts), so there is no address-plus-value verb beside it: one collection and one
-        // object where a get/set pair and a map-shaped list used to be.
+        // object, rather than a get/set pair and a map-shaped list.
         m.set("binding", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 if(Args.passed(a, 2))

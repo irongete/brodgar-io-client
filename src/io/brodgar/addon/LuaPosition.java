@@ -229,8 +229,8 @@ public final class LuaPosition {
 
     /**
      * A <b>required</b> Position argument. A plain {@code {x, y}} table is the mistake this message exists for:
-     * screen pixels and world coordinates used to be the same shape, and a widget's position walked you
-     * somewhere wrong instead of failing.
+     * screen pixels and world coordinates have the same shape, so a widget's position handed to a world verb
+     * would walk the character somewhere wrong instead of failing.
      */
     static LuaPosition posArg(Varargs a, int i, String verb, String param) {
         LuaValue v = Args.required(a, i, verb, param);

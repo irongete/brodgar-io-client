@@ -400,7 +400,7 @@ public final class LuaGob {
         // scale() / scale(k) -- how big the game object is DRAWN (046.1), the elder of this handle's two
         // writes, the other being visible(b) below. Bare
         // reads the factor (1 for a gob nobody scaled, nil once the gob is gone); one number writes it and
-        // hands the GOB back, so gob:scale(2):name() is one chain. It is the read/write pair every hafen.vr()
+        // hands the GOB back, so gob:scale(2):name() is one chain. It is the read/write pair every hafen.virtual()
         // entity answers, on the same footing gob:overlay() stands on: client-local, purely visual, unprotected --
         // nothing goes on the wire and nothing about what the gob IS changes. The size is applied in place
         // (T·R·S), so the object's feet stay where they were and it still turns and moves normally, and it
@@ -557,7 +557,7 @@ public final class LuaGob {
      * The factor of a {@code gob:scale(k)} write, or a refusal that names the rule it broke. Three rules, and
      * each one is a different way to lose the object: a non-number is not a size at all, a non-finite one has
      * no matrix, {@code 0} collapses the model to a point and a negative mirrors it (flipping every triangle's
-     * winding, so the thing renders inside out). The vr siblings clamp the same range because their factor
+     * winding, so the thing renders inside out). The virtual siblings clamp the same range because their factor
      * arrives inside an options table where a refusal has nowhere to land; here it is a direct argument on a
      * direct verb, and the loudest failure is the one at the call site that caused it.
      */

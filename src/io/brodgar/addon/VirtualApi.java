@@ -36,9 +36,9 @@ import io.brodgar.addon.AddonManager.SessionState;
 import static io.brodgar.addon.AddonManager.*;
 
 /**
- * {@code hafen.vr()} — <b>the one section for client-only things standing in the 3D world</b> (043): the
- * {@code .res} props {@code hafen.ghost()} used to be, and the custom PNG + glTF props {@code hafen.render()}
- * used to be, under one name. What separates these from the gobs in {@code s:world()} is not where they
+ * {@code hafen.virtual()} — <b>the one section for client-only things standing in the 3D world</b> (043): the
+ * game's own {@code .res} props, the addon's own PNGs and glTF models, its own widgets, and the shapes it lays
+ * on the ground, under one name. What separates these from the gobs in {@code s:world()} is not where they
  * are — both are in the world — but <b>whose</b> they are: nothing here ever reaches the server. Owns the
  * world-entity lifecycle (create/transform/follow/click/teardown) over {@link LuaWorldEntity}. The click seam
  * {@code onGhostClick} (called from {@code haven.MapView}) stays a facade in {@link AddonManager} and delegates
@@ -51,7 +51,7 @@ import static io.brodgar.addon.AddonManager.*;
  * {@code :alpha}, {@code :tint}, {@code :visible}, {@code :clickable}, {@code :onClick} — plus the one or two
  * its own kind adds.
  *
- * <p><b>The dispatch is a table of collections, not a branch</b> — {@link #installVr} registers each kind by
+ * <p><b>The dispatch is a table of collections, not a branch</b> — {@link #installVirtual} registers each kind by
  * name, so a further one ({@code :widget()}, 044; {@code :patch()}, 118) is a line rather than a shape to
  * re-open.
  *
@@ -61,14 +61,14 @@ import static io.brodgar.addon.AddonManager.*;
  * world kinds are gone, so every client-only thing standing in the world is created here, listed here and ended
  * here — a gob it is anchored to shows it read-only ({@link #anchoredMembers}) and nothing more. Not instantiable.
  */
-final class VrApi {
-    private VrApi() {}
+final class VirtualApi {
+    private VirtualApi() {}
 
     /**
-     * Build {@code hafen.vr()} for {@code owner}: a section whose verbs are its <b>collections</b>, each minted
-     * once and handed back by identity (§2.3). {@code hafen.vr():ghost():add(res, p)} places a client-only
+     * Build {@code hafen.virtual()} for {@code owner}: a section whose verbs are its <b>collections</b>, each minted
+     * once and handed back by identity (§2.3). {@code hafen.virtual():ghost():add(res, p)} places a client-only
      * {@code .res} prop and hands back the Ghost, {@code :list(filter)} reads this addon's, and
-     * {@code hafen.vr():ghost():remove(g)} ends one — the collection owns it, so R7 puts the ending there rather
+     * {@code hafen.virtual():ghost():remove(g)} ends one — the collection owns it, so R7 puts the ending there rather
      * than on a {@code :destroy()} of its own; {@code :sprite()} and {@code :object()} answer the same verbs over
      * the addon's own PNGs and glTF models.
      *
@@ -78,30 +78,30 @@ final class VrApi {
      * <p><b>A fifth collection and a switch read the section as a whole</b> (043.4), and both are the answer to
      * a question a per-kind collection cannot be asked: {@code :entity()} is <i>everything you have stood in the
      * world</i>, across the kinds and in the order you stood it, carrying the collection quartet and
-     * {@code :remove(x)} over the lot — so {@code hafen.vr():entity():count()} answers, where the section itself
+     * {@code :remove(x)} over the lot — so {@code hafen.virtual():entity():count()} answers, where the section itself
      * cannot be a collection: it holds the kinds and its own switch besides. {@code :visible(b)} takes the lot
      * off screen and puts it back. Both span the registered kinds through {@link #allEntities}, so a further
      * kind joins them for free.
      */
-    static void installVr(LuaTable hafen, final Addon owner) {
+    static void installVirtual(LuaTable hafen, final Addon owner) {
         LuaTable m = new LuaTable();
         collection(m, "ghost", ghostCollection(owner));
         collection(m, "sprite", spriteCollection(owner));
         collection(m, "object", objectCollection(owner));
         collection(m, "widget", widgetCollection(owner));
         collection(m, "patch", patchCollection(owner),
-                   "hafen.vr():patch():add(ring, p) lays one on the ground");
+                   "hafen.virtual():patch():add(ring, p) lays one on the ground");
         collection(m, "entity", entityCollection(owner),
-                   "hafen.vr():entity():list(filter) is everything you have standing");
+                   "hafen.virtual():entity():list(filter) is everything you have standing");
         // visible() / visible(b) — the section switch, a property like every other: arity is the verb, and the
         // write hands back the section so it chains. It is this ADDON's section; nobody else's entities move.
         m.set("visible", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                Section.self(self, "vr", "visible");
-                LuaValue bv = Args.written(a, 2, "hafen.vr():visible", "b");
+                Section.self(self, "virtual", "visible");
+                LuaValue bv = Args.written(a, 2, "hafen.virtual():visible", "b");
                 if(bv == null)
-                    return LuaValue.valueOf(!owner.vrHidden);
+                    return LuaValue.valueOf(!owner.virtualHidden);
                 setSectionVisible(owner, bv.toboolean());
                 return self;
             }
@@ -118,21 +118,21 @@ final class VrApi {
         // unprotected like the rest of the section.
         m.set("click", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "vr", "click");
-                String key = pointerKey(Args.required(a, 2, "hafen.vr():click", "key"));
-                int x = (int)Math.round(number(a, 3, "hafen.vr():click", "x"));
-                int y = (int)Math.round(number(a, 4, "hafen.vr():click", "y"));
-                int arg = Args.passed(a, 5) ? (int)Math.round(number(a, 5, "hafen.vr():click", "a")) : 1;
+                Section.self(a.arg1(), "virtual", "click");
+                String key = pointerKey(Args.required(a, 2, "hafen.virtual():click", "key"));
+                int x = (int)Math.round(number(a, 3, "hafen.virtual():click", "x"));
+                int y = (int)Math.round(number(a, 4, "hafen.virtual():click", "y"));
+                int arg = Args.passed(a, 5) ? (int)Math.round(number(a, 5, "hafen.virtual():click", "a")) : 1;
                 Coord p = Px.in(Coord.of(x, y));       // design → device, at the edge (058.2)
                 return LuaValue.valueOf(SurfaceInput.pointer(key, p.x, p.y, arg));
             }
         });
-        Section.install(hafen, "vr", m);
+        Section.install(hafen, "virtual", m);
     }
 
     /**
      * <b>Everything this addon has standing in the world</b>, whatever kind — the one walk behind
-     * {@code hafen.vr():entity()} and {@code hafen.vr():visible(b)}. It reads the registered kinds' registries and
+     * {@code hafen.virtual():entity()} and {@code hafen.virtual():visible(b)}. It reads the registered kinds' registries and
      * nothing else, so 044's fourth collection is covered by both verbs the moment its registry is added here.
      *
      * <p><b>In creation order</b>, by {@link LuaWorldEntity#eid} — the serial every entity already carries for its
@@ -168,7 +168,7 @@ final class VrApi {
         };
 
     /**
-     * {@code hafen.vr():visible(b)} — take this addon's whole section off screen, or put it back. <b>Destroys
+     * {@code hafen.virtual():visible(b)} — take this addon's whole section off screen, or put it back. <b>Destroys
      * nothing</b>: each entity keeps its gob, its transform and its handle, and only its scene slot goes, so
      * {@code :exists()} stays true and every verb still answers throughout.
      *
@@ -180,9 +180,9 @@ final class VrApi {
      * one entity at a time.
      */
     private static void setSectionVisible(Addon owner, boolean on) {
-        if(owner.vrHidden == !on)
+        if(owner.virtualHidden == !on)
             return;                                    // already there: a no-op write touches no scene
-        owner.vrHidden = !on;                          // set FIRST, so an entity published mid-loop reads it
+        owner.virtualHidden = !on;                     // set FIRST, so an entity published mid-loop reads it
         for(LuaWorldEntity e : allEntities(owner)) {
             synchronized(e) {
                 if(e.dead || e.hidden)
@@ -195,9 +195,9 @@ final class VrApi {
         }
     }
 
-    /** {@code hafen.vr():ghost()} — this addon's client-only world props, keyless (a ghost has no name of its own). */
+    /** {@code hafen.virtual():ghost()} — this addon's client-only world props, keyless (a ghost has no name of its own). */
     private static LuaValue ghostCollection(final Addon owner) {
-        return LuaCollection.create("hafen.vr():ghost()", new LuaCollection.Source() {
+        return LuaCollection.create("hafen.virtual():ghost()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return entityMembers(owner.ghosts);
             }
@@ -216,13 +216,13 @@ final class VrApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue rv = Args.required(a, 2, "hafen.vr():ghost():add", "res");
+                LuaValue rv = Args.required(a, 2, "hafen.virtual():ghost():add", "res");
                 if(!rv.isstring() || rv.isnumber())
-                    throw new LuaError("hafen.vr():ghost():add(res, p) expects a resource NAME string (e.g."
+                    throw new LuaError("hafen.virtual():ghost():add(res, p) expects a resource NAME string (e.g."
                         + " \"gfx/terobjs/arch/logcabin\"), got " + rv.typename() + " — an image or a model this"
-                        + " addon ships is hafen.vr():sprite():add(asset, p) / :object():add(asset, p)");
-                Anchor an = anchorArg(a, "hafen.vr():ghost():add");
-                return born(makeGhost(owner, an.spec(), rv.tojstring(), an.tgt, an.place), "hafen.vr():ghost():add");
+                        + " addon ships is hafen.virtual():sprite():add(asset, p) / :object():add(asset, p)");
+                Anchor an = anchorArg(a, "hafen.virtual():ghost():add");
+                return born(makeGhost(owner, an.spec(), rv.tojstring(), an.tgt, an.place), "hafen.virtual():ghost():add");
             }
 
             public boolean destroyable() {
@@ -230,23 +230,23 @@ final class VrApi {
             }
 
             public void removeMember(LuaValue x) {
-                destroyEntity(memberArg(owner.ghosts, x, "hafen.vr():ghost():remove", "ghost"));
+                destroyEntity(memberArg(owner.ghosts, x, "hafen.virtual():ghost():remove", "ghost"));
             }
 
             public String noGet() {
-                return "a ghost has no key: hafen.vr():ghost():add(res, p) hands you the ghost it stands,"
-                    + " and hafen.vr():ghost():find(filter) finds one you already put up";
+                return "a ghost has no key: hafen.virtual():ghost():add(res, p) hands you the ghost it stands,"
+                    + " and hafen.virtual():ghost():find(filter) finds one you already put up";
             }
         }, null);
     }
 
     /**
-     * Register one kind under {@code hafen.vr()}: the verb hands back <b>the collection itself</b>, never a
-     * per-call view, so {@code hafen.vr():ghost() == hafen.vr():ghost()} and a section called in a draw callback
+     * Register one kind under {@code hafen.virtual()}: the verb hands back <b>the collection itself</b>, never a
+     * per-call view, so {@code hafen.virtual():ghost() == hafen.virtual():ghost()} and a section called in a draw callback
      * allocates nothing. Every kind goes through here, which is what keeps the section open to a fourth.
      */
     private static void collection(LuaTable m, final String nm, final LuaValue coll) {
-        collection(m, nm, coll, "hafen.vr():" + nm + "():add(what, p) stands one in the world");
+        collection(m, nm, coll, "hafen.virtual():" + nm + "():add(what, p) stands one in the world");
     }
 
     /**
@@ -258,18 +258,18 @@ final class VrApi {
     private static void collection(LuaTable m, final String nm, final LuaValue coll, final String reach) {
         m.set(nm, new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Section.self(a.arg1(), "vr", nm);
+                Section.self(a.arg1(), "virtual", nm);
                 if(Args.passed(a, 2))
-                    throw new LuaError("hafen.vr():" + nm + "() takes no arguments — it IS the collection,"
+                    throw new LuaError("hafen.virtual():" + nm + "() takes no arguments — it IS the collection,"
                         + " and " + reach);
                 return coll;
             }
         });
     }
 
-    /** {@code hafen.vr():sprite()} — this addon's custom-PNG world sprites. */
+    /** {@code hafen.virtual():sprite()} — this addon's custom-PNG world sprites. */
     private static LuaValue spriteCollection(final Addon owner) {
-        return LuaCollection.create("hafen.vr():sprite()", new LuaCollection.Source() {
+        return LuaCollection.create("hafen.virtual():sprite()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return entityMembers(owner.sprites);
             }
@@ -288,11 +288,11 @@ final class VrApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue img = Args.required(a, 2, "hafen.vr():sprite():add", "image");
-                Anchor an = anchorArg(a, "hafen.vr():sprite():add");
+                LuaValue img = Args.required(a, 2, "hafen.virtual():sprite():add", "image");
+                Anchor an = anchorArg(a, "hafen.virtual():sprite():add");
                 LuaTable spec = an.spec();
                 spec.set("image", img);
-                return born(makeSprite(owner, spec, an.tgt, an.place), "hafen.vr():sprite():add");
+                return born(makeSprite(owner, spec, an.tgt, an.place), "hafen.virtual():sprite():add");
             }
 
             public boolean destroyable() {
@@ -300,19 +300,19 @@ final class VrApi {
             }
 
             public void removeMember(LuaValue x) {
-                destroyEntity(memberArg(owner.sprites, x, "hafen.vr():sprite():remove", "sprite"));
+                destroyEntity(memberArg(owner.sprites, x, "hafen.virtual():sprite():remove", "sprite"));
             }
 
             public String noGet() {
-                return "a sprite has no key: hafen.vr():sprite():add(image, p) hands you the sprite it stands,"
-                    + " and hafen.vr():sprite():find(filter) finds one you already put up";
+                return "a sprite has no key: hafen.virtual():sprite():add(image, p) hands you the sprite it stands,"
+                    + " and hafen.virtual():sprite():find(filter) finds one you already put up";
             }
         }, null);
     }
 
-    /** {@code hafen.vr():object()} — this addon's glTF world models. */
+    /** {@code hafen.virtual():object()} — this addon's glTF world models. */
     private static LuaValue objectCollection(final Addon owner) {
-        return LuaCollection.create("hafen.vr():object()", new LuaCollection.Source() {
+        return LuaCollection.create("hafen.virtual():object()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return entityMembers(owner.objects);
             }
@@ -331,11 +331,11 @@ final class VrApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue mdl = Args.required(a, 2, "hafen.vr():object():add", "model");
-                Anchor an = anchorArg(a, "hafen.vr():object():add");
+                LuaValue mdl = Args.required(a, 2, "hafen.virtual():object():add", "model");
+                Anchor an = anchorArg(a, "hafen.virtual():object():add");
                 LuaTable spec = an.spec();
                 spec.set("model", mdl);
-                return born(makeObject(owner, spec, an.tgt, an.place), "hafen.vr():object():add");
+                return born(makeObject(owner, spec, an.tgt, an.place), "hafen.virtual():object():add");
             }
 
             public boolean destroyable() {
@@ -343,18 +343,18 @@ final class VrApi {
             }
 
             public void removeMember(LuaValue x) {
-                destroyEntity(memberArg(owner.objects, x, "hafen.vr():object():remove", "object"));
+                destroyEntity(memberArg(owner.objects, x, "hafen.virtual():object():remove", "object"));
             }
 
             public String noGet() {
-                return "an object has no key: hafen.vr():object():add(model, p) hands you the object it stands,"
-                    + " and hafen.vr():object():find(filter) finds one you already put up";
+                return "an object has no key: hafen.virtual():object():add(model, p) hands you the object it stands,"
+                    + " and hafen.virtual():object():find(filter) finds one you already put up";
             }
         }, null);
     }
 
     /**
-     * {@code hafen.vr():widget()} — <b>this addon's own UI surfaces, standing in the world</b> (044). The fourth
+     * {@code hafen.virtual():widget()} — <b>this addon's own UI surfaces, standing in the world</b> (044). The fourth
      * collection, and the one that is not a picture: what it stands is a {@link haven.Widget} the addon already
      * has, so its {@code Draw}, its controls, its stylesheet rules and its callbacks are the ones it always had
      * — only where they are drawn changes. Keyed by nothing, filtered by the widget's caption (or its type when
@@ -366,7 +366,7 @@ final class VrApi {
      * second form by passing {@code an.tgt} on.
      */
     private static LuaValue widgetCollection(final Addon owner) {
-        return LuaCollection.create("hafen.vr():widget()", new LuaCollection.Source() {
+        return LuaCollection.create("hafen.virtual():widget()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return entityMembers(owner.surfaces);
             }
@@ -385,9 +385,9 @@ final class VrApi {
             }
 
             public LuaValue addMember(Varargs a) {
-                LuaValue wv = Args.required(a, 2, "hafen.vr():widget():add", "w");
-                Anchor an = anchorArg(a, "hafen.vr():widget():add");
-                return born(makeWidget(owner, an.spec(), wv, an.tgt, an.place), "hafen.vr():widget():add");
+                LuaValue wv = Args.required(a, 2, "hafen.virtual():widget():add", "w");
+                Anchor an = anchorArg(a, "hafen.virtual():widget():add");
+                return born(makeWidget(owner, an.spec(), wv, an.tgt, an.place), "hafen.virtual():widget():add");
             }
 
             public boolean destroyable() {
@@ -395,18 +395,18 @@ final class VrApi {
             }
 
             public void removeMember(LuaValue x) {
-                destroyEntity(memberArg(owner.surfaces, x, "hafen.vr():widget():remove", "panel"));
+                destroyEntity(memberArg(owner.surfaces, x, "hafen.virtual():widget():remove", "panel"));
             }
 
             public String noGet() {
-                return "a panel has no key: hafen.vr():widget():add(w, p) hands you the panel it stands,"
-                    + " and hafen.vr():widget():find(filter) finds one you already put up";
+                return "a panel has no key: hafen.virtual():widget():add(w, p) hands you the panel it stands,"
+                    + " and hafen.virtual():widget():find(filter) finds one you already put up";
             }
         }, null);
     }
 
     /**
-     * {@code hafen.vr():patch()} — <b>this addon's own shapes lying on the ground</b> (118). The fifth
+     * {@code hafen.virtual():patch()} — <b>this addon's own shapes lying on the ground</b> (118). The fifth
      * collection, and the first whose members lie <b>down</b>: the four before it — a prop, a picture, a model,
      * a window — all stand up, and nothing lay on the terrain at all.
      *
@@ -423,7 +423,7 @@ final class VrApi {
      * shape rather than a picture of anything, so a string filter has nothing to match and says so.
      */
     private static LuaValue patchCollection(final Addon owner) {
-        return LuaCollection.create("hafen.vr():patch()", new LuaCollection.Source() {
+        return LuaCollection.create("hafen.virtual():patch()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return entityMembers(owner.patches);
             }
@@ -448,21 +448,21 @@ final class VrApi {
             }
 
             public void removeMember(LuaValue x) {
-                destroyEntity(memberArg(owner.patches, x, "hafen.vr():patch():remove", "patch"));
+                destroyEntity(memberArg(owner.patches, x, "hafen.virtual():patch():remove", "patch"));
             }
 
             public String noGet() {
-                return "a patch has no key: hafen.vr():patch():add(ring, anchor) hands you the patch it lays,"
-                    + " and hafen.vr():patch():find(filter) finds one you already put down";
+                return "a patch has no key: hafen.virtual():patch():add(ring, anchor) hands you the patch it lays,"
+                    + " and hafen.virtual():patch():find(filter) finds one you already put down";
             }
         }, null);
     }
 
     /**
-     * {@code hafen.vr():entity()} — <b>everything this addon has standing, whatever kind</b>: the answer to a
+     * {@code hafen.virtual():entity()} — <b>everything this addon has standing, whatever kind</b>: the answer to a
      * question no per-kind collection can be asked, and a {@link LuaCollection} rather than a bare array so that
      * {@code :count()} and {@code :find()} mean here exactly what they mean one verb down. The section itself
-     * cannot be the collection — it holds four kinds and its own visibility switch — which is why the cross-kind
+     * cannot be the collection — it holds five kinds and its own visibility switch — which is why the cross-kind
      * set carries a name of its own.
      *
      * <p><b>It creates nothing and destroys anything.</b> A thing is stood by the collection of its kind, which
@@ -470,7 +470,7 @@ final class VrApi {
      * any entity this addon placed. The members are {@link #allEntities}, in creation order.
      */
     private static LuaValue entityCollection(final Addon owner) {
-        return LuaCollection.create("hafen.vr():entity()", new LuaCollection.Source() {
+        return LuaCollection.create("hafen.virtual():entity()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 return entityMembers(allEntities(owner));
             }
@@ -489,12 +489,12 @@ final class VrApi {
             }
 
             public void removeMember(LuaValue x) {
-                destroyEntity(memberArg(anyRegistry(owner, x), x, "hafen.vr():entity():remove", "thing"));
+                destroyEntity(memberArg(anyRegistry(owner, x), x, "hafen.virtual():entity():remove", "thing"));
             }
 
             public String noGet() {
-                return "nothing standing in the world has a key: hafen.vr():entity():find(filter) searches"
-                    + " everything this addon has standing, and hafen.vr():entity():list()[n] takes a"
+                return "nothing standing in the world has a key: hafen.virtual():entity():find(filter) searches"
+                    + " everything this addon has standing, and hafen.virtual():entity():list()[n] takes a"
                     + " position in the order you stood them";
             }
         }, null);
@@ -519,7 +519,7 @@ final class VrApi {
         return java.util.Collections.<LuaWorldEntity>emptyList();
     }
 
-    /** Is {@code member} one of {@code reg}'s handles? The one test {@link #anyRegistry} is four of. */
+    /** Is {@code member} one of {@code reg}'s handles? The one test {@link #anyRegistry} is five of. */
     private static boolean owns(List<? extends LuaWorldEntity> reg, LuaValue member) {
         for(LuaWorldEntity e : reg) {
             if(e.handle == member)
@@ -672,7 +672,7 @@ final class VrApi {
     //
     // The anchored map was written for one reader, anchorGone: D-102 says the end of a derived thing rides the
     // event its source already raises, and the client already raises GobRemoved — but the record that made that
-    // O(1) for a gob:overlay() lived ON THE GOB, and an entity hafen.vr():sprite():add(img, gob) placed has no
+    // O(1) for a gob:overlay() lived ON THE GOB, and an entity hafen.virtual():sprite():add(img, gob) placed has no
     // such record. One id->entities map restores the O(1) without restoring the thing D-100 deleted: it is
     // written only when an anchored entity is created or destroyed, and read only on an event about that one
     // gob. 043.3 gave it a second reader of exactly the same shape (anchoredMembers), and neither walks it per
@@ -789,7 +789,7 @@ final class VrApi {
      * overlay records are not: a collection is per addon, all the way down.
      *
      * <p>"What is at this gob?" therefore keeps ONE complete answer even though the thing itself now lives in
-     * {@code hafen.vr()} — you read it there and you address it through the collection that owns it.
+     * {@code hafen.virtual()} — you read it there and you address it through the collection that owns it.
      */
     static List<LuaWorldEntity> anchoredMembers(Addon owner, Gob g) {
         List<LuaWorldEntity> out = new ArrayList<LuaWorldEntity>();
@@ -857,10 +857,10 @@ final class VrApi {
         return null;
     }
 
-    // ---------------------------------------------------------- world ghosts (hafen.vr():ghost())
+    // ---------------------------------------------------------- world ghosts (hafen.virtual():ghost())
 
     /**
-     * Build a ghost and publish it — the body of {@code hafen.vr():ghost():add}. {@code tgt != 0} anchors it to
+     * Build a ghost and publish it — the body of {@code hafen.virtual():ghost():add}. {@code tgt != 0} anchors it to
      * that gob id (a {@link FollowMoving}, applied at publish so a still-streaming visual is anchored the moment
      * it lands); {@code tgt == 0} stands it where it was put. Since 043.2 the anchor is an ARGUMENT, and since
      * 043.3 that is the only way one is anchored at all — {@code gob:overlay()}'s world kinds are gone, so there
@@ -979,10 +979,10 @@ final class VrApi {
      * <p><b>The receiver and the collection are two names, not one</b> (084.6). For the three picture kinds
      * they are the same word; a standing widget is spelled {@code panel} as a receiver — so its refusals are its
      * own and not the flat {@link LuaWidget}'s, which answers to {@code widget} — while the collection that
-     * placed it is still {@code hafen.vr():widget()}. Every sentence naming the collection therefore takes
+     * placed it is still {@code hafen.virtual():widget()}. Every sentence naming the collection therefore takes
      * {@code sect}, and every sentence naming the thing in hand takes {@code kind}.
      *
-     * @param sect       the collection verb that placed it: {@code hafen.vr():<sect>()}.
+     * @param sect       the collection verb that placed it: {@code hafen.virtual():<sect>()}.
      * @param extraVocab the kind's own verbs, spelled as the tail of the shared sentence the refusal carries —
      *                   written here beside the {@code extra} table it describes, so the two cannot drift apart.
      */
@@ -1006,7 +1006,7 @@ final class VrApi {
                         + " that gob's and setting it would be undone on the next frame. Where it sits RELATIVE"
                         + " to that gob is " + kind + ":offset" + offsetArgs(e) + "; its own facing is"
                         + " still " + kind + ":rotate(a); a " + kind + " that stands still is placed with"
-                        + " hafen.vr():" + sect + "():add(what, p)");
+                        + " hafen.virtual():" + sect + "():add(what, p)");
                 // 045.1: the SECOND of the two doors that ask for a durable place — a thing is moved to a
                 // place it can go on holding, or it is not moved. The coordinate follows from the anchor,
                 // and since 045.2 it may not be here yet: the same door :add uses, so moving something to
@@ -1020,18 +1020,18 @@ final class VrApi {
             }
         });
         // offset() / offset(x, y, z) -- where an ANCHORED thing sits relative to the gob it follows, in world
-        // units with z up (so 18 floats it about 1.6 tiles over the head). It is the world half of what
-        // ov:offset(x, y, z) used to be: 043.3 took the world kinds out of gob:overlay(), and this is the verb
-        // they brought with them, on the handle that owns the thing rather than on a record about it. Refused on
-        // a FREE one naming :position(p) -- an offset from nothing is not a place, and the pair mirrors
-        // :position's own refusal so each of the two anchors has exactly one verb that means "where".
+        // units with z up (so 18 floats it about 1.6 tiles over the head). The world kinds live here rather
+        // than in gob:overlay() (043.3), so the verb sits on the handle that owns the thing rather than on a
+        // record about it. Refused on a FREE one naming :position(p) -- an offset from nothing is not a
+        // place, and the pair mirrors :position's own refusal so each of the two anchors has exactly one verb
+        // that means "where".
         m.set("offset", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 if(e.followTgt == 0)
                     throw new LuaError(kind + ":offset(): this " + kind + " stands where it was put, so it is"
                         + " offset from nothing -- its place is " + kind + ":position(p). An offset is what a "
-                        + kind + " placed with hafen.vr():" + sect + "():add(what, gob) sits at relative to that"
+                        + kind + " placed with hafen.virtual():" + sect + "():add(what, gob) sits at relative to that"
                         + " gob");
                 if(!Args.passed(a, 2)) {
                     Coord3f off;
@@ -1148,7 +1148,7 @@ final class VrApi {
             }
         });
         // drawn() -- is it IN THE SCENE right now? Read-only, because every way of writing it already has a
-        // name: :visible(b) is yours, hafen.vr():visible(b) is your section, and the ground under a free one
+        // name: :visible(b) is yours, hafen.virtual():visible(b) is your section, and the ground under a free one
         // is the world's (044.9). This is what those three come to, plus the moment before a visual has
         // finished streaming in -- the one honest answer to "why can I not see it?". It says nothing about
         // where the camera is pointing: a panel standing behind you is drawn and merely culled, which is a
@@ -1163,7 +1163,7 @@ final class VrApi {
             }
         });
         // info() -- THE ONE SNAPSHOT ESCAPE HATCH (098). Every other live object in the API answers it and
-        // conventions.md states the rule universally; the vr entities were the one family that did not, so
+        // conventions.md states the rule universally; the virtual entities were the one family that did not, so
         // logging what an addon has standing cost ten calls per entity and the profiler paid it.
         //
         // Every key here is spelled the way the verb that reads it is, and carries the same value, so the
@@ -1266,15 +1266,15 @@ final class VrApi {
     /** The four input keys, in the one spelling {@code widget:on(key, fn)} already uses (044.4). */
     private static final String POINTER_KEYS = "\"MouseDown\", \"MouseUp\", \"MouseMove\" or \"Wheel\"";
 
-    /** The {@code key} of {@code hafen.vr():click(key, x, y)}, refused by name rather than ignored. */
+    /** The {@code key} of {@code hafen.virtual():click(key, x, y)}, refused by name rather than ignored. */
     private static String pointerKey(LuaValue kv) {
         if(!kv.isstring())
-            throw new LuaError("hafen.vr():click(key, x, y): key is one of " + POINTER_KEYS + ", got "
+            throw new LuaError("hafen.virtual():click(key, x, y): key is one of " + POINTER_KEYS + ", got "
                 + kv.typename());
         String s = kv.tojstring();
         if(s.equals("MouseDown") || s.equals("MouseUp") || s.equals("MouseMove") || s.equals("Wheel"))
             return s;
-        throw new LuaError("hafen.vr():click(\"" + s + "\", x, y): the pointer says one of " + POINTER_KEYS
+        throw new LuaError("hafen.virtual():click(\"" + s + "\", x, y): the pointer says one of " + POINTER_KEYS
             + " — the same four keys widget:on(key, fn) answers to");
     }
 
@@ -1338,8 +1338,7 @@ final class VrApi {
 
     /**
      * The Lua handle for a {@link LuaGhost}: the shared entity verbs plus {@code :res()} / {@code :res(name
-     * [, spawnData])} — one name for the read and the write of the {@code .res} model it draws, where a
-     * {@code :res()} read and a {@code setRes} write used to be two.
+     * [, spawnData])} — one name for the read and the write of the {@code .res} model it draws, arity apart.
      */
     private static LuaValue ghostHandle(final LuaGhost gh) {
         LuaTable x = new LuaTable();
@@ -1462,10 +1461,10 @@ final class VrApi {
             destroyEntity(sp);          // removes each from a.sprites as it goes (copy-on-write list)
     }
 
-    // ---- custom 3D models in the world (hafen.vr():object()) -------------------------------------------
+    // ---- custom 3D models in the world (hafen.virtual():object()) -------------------------------------------
 
     /**
-     * Build an object and publish it — the body of {@code hafen.vr():object():add}. {@code tgt != 0} anchors it to
+     * Build an object and publish it — the body of {@code hafen.virtual():object():add}. {@code tgt != 0} anchors it to
      * that gob id; {@code 0} stands it where it was put (043.2). Returns {@code null} when there is no map view
      * (not in the world).
      */
@@ -1515,7 +1514,7 @@ final class VrApi {
     /**
      * The Lua handle for a {@link LuaObject}: the shared entity verbs plus {@code :mesh()}, its model's
      * addon-relative path. There is no write half — an object's geometry is milled at create, and swapping it is
-     * {@code hafen.vr():object():add(other)} on a fresh one.
+     * {@code hafen.virtual():object():add(other)} on a fresh one.
      */
     private static LuaValue objectHandle(final LuaObject ob) {
         LuaTable x = new LuaTable();
@@ -1524,7 +1523,7 @@ final class VrApi {
                 if(Args.passed(a, 2))
                     throw new LuaError("object:mesh() reads the model path and does not write it — an object's"
                         + " geometry is milled when it is placed, so another model is another object:"
-                        + " hafen.vr():object():add(asset)");
+                        + " hafen.virtual():object():add(asset)");
                 return (ob.meshName == null) ? LuaValue.NIL : LuaValue.valueOf(ob.meshName);
             }
         });
@@ -1540,15 +1539,15 @@ final class VrApi {
      */
     private static LuaMesh resolveObjectMesh(LuaValue modelv) {
         if(modelv.isstring() && !modelv.isnumber())    // in LuaJ a number IS a string — that one is just a wrong type
-            throw new LuaError("hafen.vr():object():add(model): the argument is a hafen.asset mesh HANDLE, not a path string — load it"
+            throw new LuaError("hafen.virtual():object():add(model): the argument is a hafen.asset mesh HANDLE, not a path string — load it"
                 + " once with hafen.asset():get(\"" + modelv.tojstring() + "\") and pass the handle (it is interned, so"
                 + " repeating the load is free)");
         LuaMesh lm = LuaMesh.resolve(modelv);          // the handle, and nothing shaped like one
         if(lm == null)
-            throw new LuaError("hafen.vr():object():add(model): the argument must be a hafen.asset mesh handle"
+            throw new LuaError("hafen.virtual():object():add(model): the argument must be a hafen.asset mesh handle"
                 + " (hafen.asset():get(\"chair.glb\")), got " + modelv.typename());
         if(lm.dead)
-            throw new LuaError("hafen.vr():object():add(model): that mesh has been freed — after"
+            throw new LuaError("hafen.virtual():object():add(model): that mesh has been freed — after"
                 + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
         return lm;
     }
@@ -1561,10 +1560,10 @@ final class VrApi {
             destroyEntity(ob);          // removes each from a.objects as it goes (copy-on-write list)
     }
 
-    // ---- custom world sprites (hafen.vr():sprite()) ------------------------------------------------------
+    // ---- custom world sprites (hafen.virtual():sprite()) ------------------------------------------------------
 
     /**
-     * Build a sprite and publish it — the body of {@code hafen.vr():sprite():add}. {@code tgt != 0} anchors it to
+     * Build a sprite and publish it — the body of {@code hafen.virtual():sprite():add}. {@code tgt != 0} anchors it to
      * that gob id (a {@link FollowMoving} applied before the gob enters the scene); {@code tgt == 0} stands it
      * where it was put (043.2). Returns {@code null} when there is no map view (not in the world).
      */
@@ -1623,7 +1622,7 @@ final class VrApi {
                 if(Args.passed(a, 2))
                     throw new LuaError("sprite:image() reads the image path and does not write it — the texture"
                         + " is sampled when the sprite is placed, so another image is another sprite:"
-                        + " hafen.vr():sprite():add(asset)");
+                        + " hafen.virtual():sprite():add(asset)");
                 return (sp.imgName == null) ? LuaValue.NIL : LuaValue.valueOf(sp.imgName);
             }
         });
@@ -1713,15 +1712,15 @@ final class VrApi {
      */
     private static LuaImage resolveSpriteImage(LuaValue imgv) {
         if(imgv.isstring() && !imgv.isnumber())        // in LuaJ a number IS a string — that one is just a wrong type
-            throw new LuaError("hafen.vr():sprite():add(image): the argument is a hafen.asset image HANDLE, not a path string — load it"
+            throw new LuaError("hafen.virtual():sprite():add(image): the argument is a hafen.asset image HANDLE, not a path string — load it"
                 + " once with hafen.asset():get(\"" + imgv.tojstring() + "\") and pass the handle (it is interned, so"
                 + " repeating the load is free)");
         LuaImage li = LuaImage.resolve(imgv);          // the handle, and nothing shaped like one
         if(li == null)
-            throw new LuaError("hafen.vr():sprite():add(image): the argument must be a hafen.asset image handle"
+            throw new LuaError("hafen.virtual():sprite():add(image): the argument must be a hafen.asset image handle"
                 + " (hafen.asset():get(\"icon.png\")), got " + imgv.typename());
         if(li.dead)
-            throw new LuaError("hafen.vr():sprite():add(image): that image has been freed — after"
+            throw new LuaError("hafen.virtual():sprite():add(image): that image has been freed — after"
                 + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
         return li;
     }
@@ -1738,10 +1737,10 @@ final class VrApi {
         return new float[] { w, base };
     }
 
-    // ---- widgets standing in the world (hafen.vr():widget()) ---------------------------------------------
+    // ---- widgets standing in the world (hafen.virtual():widget()) ---------------------------------------------
 
     /**
-     * Build a standing widget and publish it — the body of {@code hafen.vr():widget():add}. Three things happen,
+     * Build a standing widget and publish it — the body of {@code hafen.virtual():widget():add}. Three things happen,
      * and only the third is new: the widget is <b>re-homed</b> into a {@link WidgetSurface} (an invisible root
      * under {@code ui.root}, so it keeps ticking, keeps existing and stops being hit-tested on the flat UI); a
      * virtual gob is stood at the anchor with a {@link SurfaceQuad} sampling that surface; and the entity that
@@ -1808,7 +1807,7 @@ final class VrApi {
      * {@code :mesh()}) — and the shared {@code :facing(mode)}, because a surface is flat and so meets the
      * viewer one of the same three ways a sprite does (044.3). There is no write half to {@code :widget()},
      * for the same reason an object's mesh has none: standing another widget is another
-     * {@code hafen.vr():widget():add(w, p)}.
+     * {@code hafen.virtual():widget():add(w, p)}.
      *
      * <p><b>Its receiver is {@code panel}, and the flat one's is {@code widget}</b> (084.6). Two types cannot
      * share a receiver spelling and keep {@link Refusal}'s promise, because the twenty-odd rows keyed
@@ -1816,7 +1815,7 @@ final class VrApi {
      * {@code widget:pos} says a widget lives on the screen and this is not a Position, which is the wrong fix
      * for a thing standing in the world, whose {@code :position()} <b>is</b> a Position. So the panel answers
      * to a name of its own, the rows that mean the flat widget stay where they are, and the rows that mean
-     * both are stated twice. The collection is untouched: {@code hafen.vr():widget()} still places it.
+     * both are stated twice. The collection is untouched: {@code hafen.virtual():widget()} still places it.
      */
     private static LuaValue widgetHandle(final LuaWidgetEntity we) {
         LuaTable x = new LuaTable();
@@ -1824,8 +1823,8 @@ final class VrApi {
             public Varargs invoke(Varargs a) {
                 if(Args.passed(a, 2))
                     throw new LuaError("panel:widget() reads the Widget that is standing and does not write it"
-                        + " — standing another one is hafen.vr():widget():add(w, p), and taking this one back is"
-                        + " hafen.vr():widget():remove(x)");
+                        + " — standing another one is hafen.virtual():widget():add(w, p), and taking this one back is"
+                        + " hafen.virtual():widget():remove(x)");
                 return LuaWidget.of(we.owner, we.content);
             }
         });
@@ -1835,7 +1834,7 @@ final class VrApi {
         // "where is my OK button on screen" and "what did the player click" can never disagree. Two numbers,
         // like every screen point in this API; nil when the panel is not being drawn or is behind the camera.
         // Both pairs are DESIGN pixels (058.2) — the widget-local one is what widget:size() and ev:x() speak,
-        // the screen one what hafen.ui():mouse() and hafen.vr():click() do — and the map between them stays
+        // the screen one what hafen.ui():mouse() and hafen.virtual():click() do — and the map between them stays
         // device, so the conversion is the two edges of this verb and nothing in between.
         x.set("screen", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -1864,7 +1863,7 @@ final class VrApi {
     }
 
     /**
-     * The widget a {@code hafen.vr():widget():add(w, p)} names, or a refusal that says which of the four things
+     * The widget a {@code hafen.virtual():widget():add(w, p)} names, or a refusal that says which of the four things
      * went wrong: it is not a Widget at all, it is already standing (naming the addon that holds it), it is
      * inside something that is already standing, or it is (or contains) the 3D view itself. The last two are
      * one refusal in two spellings — a surface within a surface, which the spec refuses outright rather than
@@ -1884,27 +1883,27 @@ final class VrApi {
         LuaWidget lw = LuaWidget.resolve(wv);
         Widget w = (lw == null) ? null : LuaWidget.live(lw);
         if(w == null)
-            throw new LuaError("hafen.vr():widget():add(w, anchor) expects a Widget — one you built"
+            throw new LuaError("hafen.virtual():widget():add(w, anchor) expects a Widget — one you built"
                 + " (hafen.ui():window(), hafen.ui():widget(), or a control builder), or one of the client's"
                 + " own (s:ui():match(…), s:ui():inventory(), …). Got " + wv.typename());
         if(w.parent instanceof WidgetSurface)
-            throw new LuaError("hafen.vr():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is already"
+            throw new LuaError("hafen.virtual():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is already"
                 + " standing in the world, held by the addon \""
                 + AddonManager.ownerName(((WidgetSurface)w.parent).owner) + "\" — one widget stands in one"
-                + " place. Take it back with hafen.vr():widget():remove(x) first. One standing at a point"
+                + " place. Take it back with hafen.virtual():widget():remove(x) first. One standing at a point"
                 + " moves with widget:position(p); one standing on a gob is where that gob is");
         for(Widget a = w.parent; a != null; a = a.parent) {
             if(a instanceof WidgetSurface)
-                throw new LuaError("hafen.vr():widget():add(w, anchor): that widget is INSIDE one that is already"
+                throw new LuaError("hafen.virtual():widget():add(w, anchor): that widget is INSIDE one that is already"
                     + " standing, and a surface does not stand on another surface. Two panels in the world are"
-                    + " two hafen.vr():widget():add(w, p), each on its own anchor");
+                    + " two hafen.virtual():widget():add(w, p), each on its own anchor");
         }
         // ...and the flat twin of that rule: standing is a re-home, and so is taking one of the client's widgets
         // into a surface of an addon's own. Both keep a record of where the widget came from, and two records on
         // one widget would each put it somewhere else.
         LuaWidget.Rehomed held = UiApi.rehomedOwner(w);
         if(held != null)
-            throw new LuaError("hafen.vr():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is held by the"
+            throw new LuaError("hafen.virtual():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is held by the"
                 + " addon \"" + AddonManager.ownerName(held.owner) + "\", which took it into a surface of its"
                 + " own — one widget hangs in one place. widget:parent(nil) gives it back first");
         // ...and the world does not stand inside itself: a surface is drawn from the very frame that then draws
@@ -1912,7 +1911,7 @@ final class VrApi {
         // be a picture of the world containing a picture of the world. Point at ONE window.
         MapView mv = screenView();
         if((mv != null) && ((w == mv) || mv.hasparent(w)))
-            throw new LuaError("hafen.vr():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is (or"
+            throw new LuaError("hafen.virtual():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is (or"
                 + " contains) the 3D view itself, and the world cannot stand inside itself — the panel is"
                 + " drawn from the same frame that draws the scene it stands in. Stand one window, not the"
                 + " whole interface");
@@ -2027,13 +2026,13 @@ final class VrApi {
             destroyEntity(we);          // removes each from a.surfaces as it goes (copy-on-write list)
     }
 
-    // ---- shapes lying on the ground (hafen.vr():patch()) ------------------------------------------------
+    // ---- shapes lying on the ground (hafen.virtual():patch()) ------------------------------------------------
 
     /** The one spelling of the verb, so every refusal below names it the same way. */
-    private static final String PATCH_ADD = "hafen.vr():patch():add";
+    private static final String PATCH_ADD = "hafen.virtual():patch():add";
 
     /**
-     * The <b>ring</b> of {@code hafen.vr():patch():add(ring, anchor)}: a 1-based array of {@link LuaPosition}s,
+     * The <b>ring</b> of {@code hafen.virtual():patch():add(ring, anchor)}: a 1-based array of {@link LuaPosition}s,
      * which is exactly what {@code gob:hitbox()} hands back one ring at a time. Positions and not a table of
      * numbers, for the reason {@link LuaPosition#posArg} states once for the whole API — a plain {@code {x, y}}
      * is a pair of screen pixels as readily as a place in the world, and the two are not interchangeable.
@@ -2095,7 +2094,7 @@ final class VrApi {
     }
 
     /**
-     * Build a patch and lay it — the body of {@code hafen.vr():patch():add}. {@code an.tgt != 0} anchors it to
+     * Build a patch and lay it — the body of {@code hafen.virtual():patch():add}. {@code an.tgt != 0} anchors it to
      * that gob; otherwise it holds the durable place {@code an.place} names. Returns {@code null} when there is
      * no map view (not in the world), which is {@link #born}'s refusal.
      *
@@ -2154,7 +2153,7 @@ final class VrApi {
      * {@link LuaWorldEntity#drawn()} and {@link LuaWorldEntity#height()}, inside those shared verbs — and the
      * one thing only a patch has, its ring, reaches {@code :info()} through {@link LuaPatch#infoInto}. There is
      * no {@code :ring()} verb beside it: the ring is what a patch was made from and cannot be changed without
-     * laying another one, so {@code hafen.vr():patch():add(ring, anchor)} is the only place it is written.
+     * laying another one, so {@code hafen.virtual():patch():add(ring, anchor)} is the only place it is written.
      */
     private static LuaValue patchHandle(final LuaPatch p) {
         return entityHandle(p, "patch", "patch", null, "");
@@ -2246,13 +2245,13 @@ final class VrApi {
     /**
      * <b>Should this entity be in the scene right now?</b> Three independent booleans, ANDed: what the entity
      * itself was told ({@code <entity>:visible(b)}), what its whole section was told
-     * ({@code hafen.vr():visible(b)}, 043.4), and whether the ground under a free one is drawn at all (044.9).
+     * ({@code hafen.virtual():visible(b)}, 043.4), and whether the ground under a free one is drawn at all (044.9).
      * Keeping them apart is the restore rule — neither of the other two overwrites the entity's own answer, so
      * showing the section back puts back exactly what was visible, and a walk to the far side of the map changes
      * nothing the addon wrote. Read by every publish, by both switches and by the ground drain; never at draw time.
      */
     private static boolean shows(LuaWorldEntity e) {
-        return !e.hidden && !e.owner.vrHidden && e.grounded;
+        return !e.hidden && !e.owner.virtualHidden && e.grounded;
     }
 
     // ---- THE GROUND UNDER A FREE ENTITY (044.9) --------------------------------------------------------------
@@ -2582,7 +2581,7 @@ final class VrApi {
      * <p><b>A standing widget does not travel</b>, and is the one kind that does not: its picture is a widget in
      * one session's tree, drawn by that tree's own offscreen pass and hit-tested through it, so a panel handed
      * to another character's scene would be a frozen texture nothing could click. It stays where it was stood
-     * and is drawn while that character is on screen — see {@code docs/addons/api/vr/widgets.md}.
+     * and is drawn while that character is on screen — see {@code docs/addons/api/virtual/widgets.md}.
      *
      * <p>{@code mv} may be {@code null} — the login screen, or a session whose world has not come up. Then the
      * entity simply has no visual until one is: it goes on holding its place, and the next pass builds it.
@@ -2753,7 +2752,7 @@ final class VrApi {
      * (Re)add the entity to the scene ({@code <entity>:visible(true)}, V3) — the inverse of {@link #hideEntity}.
      * No-op if not hidden/dead. <b>Independent of the section switch</b> (043.4): the entity's own answer is
      * recorded either way, and it only enters the scene if its section is showing too — so this verb keeps working
-     * while {@code hafen.vr():visible(false)} is in force, and what it wrote is what the section restores.
+     * while {@code hafen.virtual():visible(false)} is in force, and what it wrote is what the section restores.
      * Under the entity monitor.
      */
     private static void showEntity(LuaWorldEntity e) {

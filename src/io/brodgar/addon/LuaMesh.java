@@ -6,7 +6,7 @@ import org.luaj.vm2.LuaValue;
 
 /**
  * A loaded, bridge-owned custom <b>3D model</b> (spec {@code 18-custom-models-gltf.md}, R3a) — the Java half of
- * {@code hafen.asset("chair.glb")} (028.1; was {@code hafen.render.model}). A <b>glTF 2.0 static mesh</b> ({@code .glb}/{@code .gltf}) read from the
+ * {@code hafen.asset("chair.glb")} (028.1). A <b>glTF 2.0 static mesh</b> ({@code .glb}/{@code .gltf}) read from the
  * addon's own folder and parsed by {@link Gltf} into baked, H&amp;H-local geometry — the mesh-data sibling of a
  * {@link LuaImage} (which wraps a PNG in a {@code TexI}). Because it is client-side geometry that never reaches the
  * server and grants no gameplay advantage, it is <b>SAFE-tier, NOT protected</b> (D-034) — like a world ghost.
@@ -15,7 +15,7 @@ import org.luaj.vm2.LuaValue;
  * this object itself, crossing into Lua as {@code LuaValue.userdataOf(this, mt)} with this addon's
  * {@link AssetApi.Kind#MESH} metatable, exposing the shared asset verbs, {@code :bounds()} &rarr;
  * {@code {min={x,y,z}, max={x,y,z}, extent={x,y,z}}} (world units) and {@code :info()}.
- * {@code hafen.vr():object():add(asset, p)} {@link #resolve}s the value back to the parsed {@link #mesh}. Same
+ * {@code hafen.virtual():object():add(asset, p)} {@link #resolve}s the value back to the parsed {@link #mesh}. Same
  * facade-safe round-trip as {@link LuaImage} (principle P1): no Java method is reachable through the
  * vocabulary, the value cannot be written to from Lua, and it cannot be forged (the sandbox omits
  * {@code luajava}).
@@ -62,7 +62,7 @@ public final class LuaMesh implements AssetApi.Loaded {
     }
 
     /**
-     * Resolve a Lua value passed to {@code hafen.vr():object():add(asset, p)} back to its {@link LuaMesh}: a
+     * Resolve a Lua value passed to {@code hafen.virtual():object():add(asset, p)} back to its {@link LuaMesh}: a
      * mesh handle. {@code null} for anything else (a nil, a typo, a foreign value — a hand-built table
      * included).
      */

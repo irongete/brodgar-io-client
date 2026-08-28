@@ -14,7 +14,7 @@ import haven.TexRender;
 import haven.render.Pipe;
 
 /**
- * The <b>constant-size blit</b> of a standing widget ({@code hafen.vr():widget()} with
+ * The <b>constant-size blit</b> of a standing widget ({@code hafen.virtual():widget()} with
  * {@code :facing("screen")}, 044.3) — {@link LuaSpriteBillboard} with a render target in place of a PNG, and
  * the third of the three ways a surface can meet the viewer. The widget is drawn into its
  * {@link WidgetSurface} exactly as in the other two modes (nothing about the offscreen pass changes); only

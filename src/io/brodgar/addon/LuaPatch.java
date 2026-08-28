@@ -13,9 +13,9 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /**
- * A client-only <b>patch</b> (118) — the Java half of {@code hafen.vr():patch():add(ring, anchor)}: a convex
+ * A client-only <b>patch</b> (118) — the Java half of {@code hafen.virtual():patch():add(ring, anchor)}: a convex
  * ring of {@link LuaPosition}s lying exactly on the terrain, occluded by whatever stands on it. The fifth kind
- * of {@code hafen.vr()}, and the first that lies <b>down</b>: the four before it — a prop, a picture, a model,
+ * of {@code hafen.virtual()}, and the first that lies <b>down</b>: the four before it — a prop, a picture, a model,
  * a window — all stand up.
  *
  * <p><b>It is the one kind that is not a {@link haven.Gob}.</b> The drawn terrain surface cannot be reproduced
@@ -31,14 +31,14 @@ import org.luaj.vm2.LuaValue;
  * <p><b>The ring is held as offsets, not as points.</b> What {@code :add(ring, anchor)} is given is a ring of
  * places and a place to hold it by; what a patch keeps is {@link #local}, each point as a displacement from
  * that anchor in world units. That is what lets it outlive the coordinate space — it re-derives its place
- * every time the world moves under it ({@code VrApi.reground}) and the ring simply comes along — and it is why
+ * every time the world moves under it ({@code VirtualApi.reground}) and the ring simply comes along — and it is why
  * a ring straight out of {@code gob:hitbox()} lands exactly on that object's footprint, whether the anchor it
  * is held by is that object's own {@code gob:position()} or the object itself.
  *
  * <p><b>Following a gob is a poll, and it is the one in this layer</b> (118.2). The four kinds that are gobs
  * follow through a {@link FollowMoving} the render tree's own placement pass evaluates every frame; a patch has
  * no gob to hang one off, and the pass that re-asks an anchored entity about its object wakes when that object
- * enters or leaves a character's view rather than while it walks. So {@code VrApi.followPatches} re-reads the
+ * enters or leaves a character's view rather than while it walks. So {@code VirtualApi.followPatches} re-reads the
  * target's live point on the addon tick and re-lays the ring where it moved — a {@code getgob} and a coordinate
  * compare per follower per frame, and nothing at all while the object stands still.
  *
@@ -69,7 +69,7 @@ public final class LuaPatch extends LuaWorldEntity {
      * The map {@link #ol} is registered in right now, or {@code null} while it is registered in none — which
      * is what {@code patch:drawn()} reads. It is the drawn session's {@code MCache}: a patch holds a place in
      * the world rather than a session, so the screen moving to another character re-registers it in that
-     * character's map ({@code VrApi.rehome}). Guarded by {@code this}.
+     * character's map ({@code VirtualApi.rehome}). Guarded by {@code this}.
      */
     private MCache laid;
 
@@ -134,7 +134,7 @@ public final class LuaPatch extends LuaWorldEntity {
     /**
      * <b>Put this patch on the ground of the scene being drawn</b>, or bring what is already there up to date.
      * Idempotent, and the one place a patch reaches {@code MCache}. Caller holds the monitor;
-     * {@code VrApi.attachScene} has already established that it shows and has a coordinate.
+     * {@code VirtualApi.attachScene} has already established that it shows and has a coordinate.
      *
      * <p>Three outcomes, and only the middle one is expensive. A patch registered in another session's map
      * moves; a patch whose <b>mask</b> moved is removed and re-added, which bumps {@code MCache.olseq} and so
@@ -205,7 +205,7 @@ public final class LuaPatch extends LuaWorldEntity {
     }
 
     /**
-     * A patch has no gob and no scene slot, so what {@code VrApi.destroyEntity} undoes for the other four
+     * A patch has no gob and no scene slot, so what {@code VirtualApi.destroyEntity} undoes for the other four
      * kinds does nothing here and the whole of the ending is this. Runs on the UI thread, outside the monitor,
      * on a patch that is already {@link #dead}.
      */

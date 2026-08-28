@@ -7,7 +7,7 @@ import haven.Moving;
 /**
  * A client-side {@link Moving} that anchors a client-only world entity (a {@link LuaGhost}, {@link LuaSprite} or
  * {@link LuaObject}) to a <b>target gob</b>, so it <b>follows that gob automatically</b>. Since 043.2 it is what
- * {@code hafen.vr():<kind>():add(what, gob)} builds — the anchor is an ARGUMENT of the placement, because an
+ * {@code hafen.virtual():<kind>():add(what, gob)} builds — the anchor is an ARGUMENT of the placement, because an
  * anchor is half of where a thing is rather than a property set afterwards — and since 043.3 that is its one
  * caller: {@code gob:overlay()}'s world kinds, which used to build it too, are gone. Attach once and it tracks
  * the gob every frame, with no per-tick polling in Lua.
@@ -15,7 +15,7 @@ import haven.Moving;
  * <p><b>A lost target is a MOMENT, not a state</b> (plan §2b). {@link #getc()} holds at the entity's last
  * position when the target has left {@code OCache} — which, under the old {@code follow=} option, was forever: a
  * sprite following a felled tree floated there with no owner. It is now at most one frame, because
- * {@code VrApi.anchorGone} destroys every entity anchored to that gob from the same tick that dispatches the
+ * {@code VirtualApi.anchorGone} destroys every entity anchored to that gob from the same tick that dispatches the
  * client's own {@code GobRemoved}, found in O(1) through the by-target index (D-185). Reporting the loss from
  * here instead would need someone to report it TO, and the only such someone is a sweep — which is the thing
  * this feature deleted.

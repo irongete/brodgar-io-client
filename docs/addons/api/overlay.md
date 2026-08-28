@@ -2,7 +2,7 @@
 
 `gob:overlay()` answers one question: **what is drawn at this gob?** It is the collection of everything
 painted there — the game's own (a fire's flame), your own screen-space painters, and whatever you have
-[standing in the world](vr/README.md) anchored to it — and the key is your own name for one of yours.
+[standing in the world](virtual/README.md) anchored to it — and the key is your own name for one of yours.
 A crop's growth stage is not drawn here at all: it is server state, read as [`gob:sdt()`](gob.md#state).
 
 ```lua
@@ -84,22 +84,22 @@ gob's, and what you set is the offset.
 
 ## A thing you stood at the gob is listed here, read-only
 
-Anything you [stood in the world](vr/README.md) anchored to this gob — a
-[sprite](vr/sprites.md), an [object](vr/models.md), a [ghost](vr/ghosts.md) — is drawn at the gob, so it is
-listed here too, under a generated key. It is **read-only from here**: every setter above raises on such an
-entry, naming the collection that owns it.
+Anything you [stood in the world](virtual/README.md) anchored to this gob — a
+[sprite](virtual/sprites.md), an [object](virtual/models.md), a [ghost](virtual/ghosts.md) — is drawn at the
+gob, so it is listed here too, under a generated key. It is **read-only from here**: every setter above raises
+on such an entry, naming the collection that owns it.
 
 ```lua
-hafen.vr():sprite():add(icon, tree):offset(0, 0, 20)     -- stood in the world, anchored to the gob
+hafen.virtual():sprite():add(icon, tree):offset(0, 0, 20)    -- stood in the world, at the gob
 for _, ov in ipairs(tree:overlay():list()) do
-  hafen.log():write(ov:key() .. " " .. tostring(ov:kind()))   -- ... and listed here: "vr#7 sprite"
+  hafen.log():write(ov:key() .. " " .. tostring(ov:kind()))  -- ...and here: "virtual#7 sprite"
 end
 ```
 
 That keeps **one complete answer** to "what is drawn at this gob?" without a second door onto the same
-thing: you read it here, and you address it through `hafen.vr():sprite()` / `:object()` / `:ghost()` — the
-handle `:add` gave you, or one out of that collection's `:list()`. Its `:native()` is `false`, because it is
-yours; it is simply not written from here.
+thing: you read it here, and you address it through `hafen.virtual():sprite()` / `:object()` / `:ghost()` —
+the handle `:add` gave you, or one out of that collection's `:list()`. Its `:native()` is `false`, because it
+is yours; it is simply not written from here.
 
 **Keys are per addon.** Two addons using `"tag"` on one gob do not collide, and neither can see the
 other's — the collection answers yours and the game's, never a third party's. `:add` on a key that is
@@ -158,8 +158,8 @@ it dies when the **last** of your characters that can see it loses it, and that 
 [`GobOverlayRemoved`](event/bus/world.md#overlays-coming-and-going) fires. A `:reload` or a disable likewise
 removes every overlay you attached, from every character that can see it, and leaves the game's untouched.
 A thing you stood in the world and anchored here
-[dies with the gob too](vr/README.md#the-anchor-is-an-argument), rather than being left floating where the
-target used to stand.
+[dies with the gob too](virtual/README.md#the-anchor-is-an-argument), rather than being left floating where
+the target used to stand.
 
 Both halves of this read are also **events**:
 [`GobOverlayAdded`/`GobOverlayRemoved`](event/bus/world.md#overlays-coming-and-going) fire for what you attach
@@ -174,7 +174,7 @@ a loop over [`s:world():gob():list()`](world.md#objects) — you name the gob, s
 ## See also
 
 - [Gob](gob.md) — the object an overlay hangs on, and everything else it answers
-- [`hafen.vr`](vr/README.md) — standing a sprite, a model or a ghost at a gob instead
+- [`hafen.virtual`](virtual/README.md) — standing a sprite, a model or a ghost at a gob instead
 - [drawing](ui/drawing.md) — the `g` wrapper a `draw` callback paints with
 - [events](event/bus/world.md#overlays-coming-and-going) — watching one arrive instead of polling for it
 - [the UI overlays](ui/overlay.md) — the same vocabulary over the screen and over one widget

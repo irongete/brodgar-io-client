@@ -12,7 +12,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  *
  * <p><b>Why it is an object.</b> {@code s:flowermenu():list()} was the only {@code :list()} in the API whose
  * members could not be passed back to anything: to pick one you re-spelled its caption or counted its
- * position, where {@code s:speed():set(sp)} and {@code hafen.vr():ghost():remove(g)} both take the member.
+ * position, where {@code s:speed():set(sp)} and {@code hafen.virtual():ghost():remove(g)} both take the member.
  * The page defended it &mdash; the ring is fixed the instant it opens and lives about a second, so there is
  * nothing for a handle to track. The counter-evidence is that a {@code Buff} and a {@code Craft} are both
  * objects and both shorter-lived than a menu: "too short-lived for a handle" is not a rule this API keeps.

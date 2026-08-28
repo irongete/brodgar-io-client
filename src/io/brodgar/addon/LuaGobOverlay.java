@@ -94,7 +94,7 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
      * from this attrib's own draw pass — {@code :draw(fn)} or {@code :text(s)}, and nothing else. The three
      * world kinds ({@code :image}/{@code :model}/{@code :ghost}) are gone: what they built was never an engine
      * overlay but a client gob of its own standing in the scene, so it is created, listed and ended in
-     * {@code hafen.vr()}, which is where such a thing lives. A record therefore owns no entity, which is why
+     * {@code hafen.virtual()}, which is where such a thing lives. A record therefore owns no entity, which is why
      * there is no {@code dispose} here any more and why {@code :offset} means exactly one thing (pixels).
      *
      * <p><b>Mutable, and read from the draw pass</b>, so every configured field is {@code volatile}: the writes
@@ -221,8 +221,8 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
      *
      * <p>Since 043.3 that is bookkeeping and a report, nothing more: the attrib goes when the {@link Gob} does,
      * and a record no longer owns a client-only entity in the scene. The thing that DOES have to be ended with
-     * the gob — an entity {@code hafen.vr():sprite():add(img, gob)} anchored there — is ended by
-     * {@code VrApi.anchorGone}, off the same drain, through its own by-target index (D-185). Two mechanisms, one
+     * the gob — an entity {@code hafen.virtual():sprite():add(img, gob)} anchored there — is ended by
+     * {@code VirtualApi.anchorGone}, off the same drain, through its own by-target index (D-185). Two mechanisms, one
      * moment, and neither of them a sweep.
      */
     static void gobGone(Gob g) {
@@ -232,7 +232,7 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         // 080.1: one copy of the object left, and a record stands on every copy -- so this copy's records go
         // with it, and the REPORT waits for the last one. An overlay another character can still see has not
         // been removed, and saying it was is the removal an addon's own set would never get back. Same shape
-        // and same moment as VrApi.anchorGone's "another character still has that object in view".
+        // and same moment as VirtualApi.anchorGone's "another character still has that object in view".
         boolean last = AddonManager.gobUsers(g.id).isEmpty();
         for(Attach a : ol.removeAll()) {
             if(!last)

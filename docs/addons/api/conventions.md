@@ -191,7 +191,7 @@ the write into a read, silently. Every meaning it does carry is here, and anywhe
 |---|---|
 | undo your layer, back to the client's own | `w:position(nil)`, `w:size(nil)`, `w:text(nil)`, `w:title(nil)`, `w:replace(nil)`; a [font](font.md) variant's `h:size(nil)` and `h:aa(nil)` |
 | end the hold | `slot:hold(nil)` |
-| none | a [vr entity](vr/README.md)'s `:tint(nil)` |
+| none | a [virtual entity](virtual/README.md)'s `:tint(nil)` |
 | the root screen | `pag:parent(nil)` |
 | the login screen | [`hafen.session():current(nil)`](session.md#hafensessioncurrentnil) |
 | the pointer the client would have drawn | [`m:cursor(nil)`](ui/mouse.md) |
@@ -226,8 +226,8 @@ ordinary Lua tables you index normally.
 document rather than a call, so `{asset = "img/panel.png"}` and `{asset = "fonts/Inter.ttf", size = 12}`
 name a file your addon ships and load it through [`hafen.asset()`](asset.md)'s own door, interning to the
 very object `:get(path)` hands you. That is the one place a path string stands for a file: everywhere else
-— a [sprite](vr/sprites.md), an [object](vr/models.md), a [draw verb](ui/drawing.md) — a path is refused
-and the handle is what goes in.
+— a [sprite](virtual/sprites.md), an [object](virtual/models.md), a [draw verb](ui/drawing.md) — a path is
+refused and the handle is what goes in.
 
 ### A name that moved says where it went, and an unknown one says what exists
 

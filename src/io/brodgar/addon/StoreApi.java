@@ -488,11 +488,11 @@ final class StoreApi {
      * layer's own tick and from {@link #enterWorld}. When the screen still holds what it held last tick this
      * is one map read and one string compare.
      *
-     * <p><b>It used to be a swap</b>, and that was the defect: one set of placements followed the screen, so
-     * a tab wrote the outgoing character's set back and read the incoming character's in — over widgets that
-     * might be standing in neither of their trees. Now every set is filed under its own tree's folder and
-     * nothing has to move when the player tabs; what is left is that a tab is a <i>good moment to write</i>,
-     * since it is often followed by that session being closed and the auto-save runs every 30 seconds.
+     * <p><b>It is not a swap</b>, and that is the point: one set of placements following the screen would make
+     * a tab write the outgoing character's set back and read the incoming character's in — over widgets that
+     * might be standing in neither of their trees. Every set is filed under its own tree's folder and nothing
+     * has to move when the player tabs; what is left is that a tab is a <i>good moment to write</i>, since it
+     * is often followed by that session being closed and the auto-save runs every 30 seconds.
      *
      * <p><b>Derived, not notified</b>, and that is still deliberate: the screen changes for four different
      * reasons — a tab, a session reaching the world, a session ending, a relogin replacing a {@code UI} under

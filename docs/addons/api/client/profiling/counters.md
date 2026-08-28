@@ -88,7 +88,7 @@ end
 
 ## `surfaces()`
 
-The [widgets standing in the 3D world](../../vr/widgets.md), and what drawing them costs. It counts every
+The [widgets standing in the 3D world](../../virtual/widgets.md), and what drawing them costs. It counts every
 addon's, not only your own — a panel is a texture and a widget subtree wherever it came from.
 
 | Key | Description |
@@ -122,9 +122,9 @@ end)
 
 ## `entities()`
 
-The client-only things you have [standing at a point in the world](../../vr/README.md) — a ghost, a sprite,
-a model or a panel — and what keeping them there costs. One standing on a game object is not counted: its
-place is that object's, so there is nothing to work out for it.
+The client-only things you have [standing at a point in the world](../../virtual/README.md) — a ghost, a
+sprite, a model or a panel — and what keeping them there costs. One standing on a game object is not counted:
+its place is that object's, so there is nothing to work out for it.
 
 | Key | Description |
 |---|---|
@@ -258,5 +258,5 @@ hafen.log():write(string.format("%d entries / %.2f MiB, %.1f%% hit rate (%d evic
 - [profiling](README.md) — the handle, `frame()`, `history()` and what the switch changes
 - [attribution](attribution.md) — the armed-only half: who spent the frame
 - [drawing](../../ui/drawing.md#text-is-cached-across-frames) — the cache `textcache()` describes
-- [widgets in the world](../../vr/widgets.md) — what `surfaces()` counts, and when one stops drawing
-- [things in the world](../../vr/README.md) — what `entities()` counts, and what a place that waits is
+- [widgets in the world](../../virtual/widgets.md) — what `surfaces()` counts, and when one stops drawing
+- [things in the world](../../virtual/README.md) — what `entities()` counts, and what a place that waits is

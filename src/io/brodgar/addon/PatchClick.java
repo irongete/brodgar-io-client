@@ -13,7 +13,7 @@ import haven.MapView;
  * resolution between several patches lying over one another, and the world point the click met the ground at.
  * The patch's half of what {@link SurfaceInput} is for a widget standing in the world.
  *
- * <p><b>Synchronous, because a patch is not in any pick pass at all.</b> The four kinds of {@code hafen.vr()}
+ * <p><b>Synchronous, because a patch is not in any pick pass at all.</b> The four kinds of {@code hafen.virtual()}
  * that are gobs render into the clickmap and are resolved by {@code MapView.Hittest}, which answers a frame
  * later on a callback thread of its own; a patch is a ground overlay ({@link PatchOverlay}) and renders into no
  * clickmap, so there is nothing there to resolve. It is hit-tested here instead, from the {@code // addon:}

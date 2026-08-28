@@ -1964,7 +1964,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	/* addon: (118.1) the slot added() put id.mat() into. A uniform is baked at slot construction and never
 	 * re-read, so a material that has changed reaches the screen only as a NEW state pushed through the
 	 * slot it went in by -- and added() is the one place upstream reads id.mat() at all. Kept here so an
-	 * overlay whose material is computed rather than loaded (a hafen.vr() patch, whose carve moves with the
+	 * overlay whose material is computed rather than loaded (a hafen.virtual() patch, whose carve moves with the
 	 * ring) can re-push without re-cutting a single tile. Null while this overlay is in no scene. */
 	private RenderTree.Slot matslot;
 
@@ -2069,7 +2069,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 
     /* addon: (118.1) an overlay's MATERIAL has changed -- re-push it, without touching a tile. The only way in
      * from outside `haven`, for the one overlay kind whose material is computed rather than loaded off a .res
-     * (a hafen.vr() patch). A no-op when nothing is drawing that overlay yet, which is the ordinary case for
+     * (a hafen.virtual() patch). A no-op when nothing is drawing that overlay yet, which is the ordinary case for
      * an overlay registered a frame before oltick next runs: the add reads id.mat() itself. UI thread, like
      * oltick, and it never mutates `ols`. */
     public void rematerial(MCache.OverlayInfo id) {
@@ -2856,7 +2856,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     // addon: 044.3 — the camera's view matrix (render space -> eye space). A camera-facing world quad
-    // (hafen.vr():*():facing("camera")) is turned in Gob.Placer.getr, which runs on the render tree's
+    // (hafen.virtual():*():facing("camera")) is turned in Gob.Placer.getr, which runs on the render tree's
     // per-frame placement tick and has no Pipe to read the camera from; Camera.view is protected and this
     // is the only thing outside the client that needs it. Null before a camera exists.
     public Matrix4f camview() {
@@ -2899,7 +2899,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Loader.Future<Plob> placing = this.placing;
 	if((placing != null) && placing.done())
 	    placing.get().gtick(g.out);
-	// addon: gtick the client-only ghost gobs (hafen.vr()) — not in OCache, like the Plob above.
+	// addon: gtick the client-only ghost gobs (hafen.virtual()) — not in OCache, like the Plob above.
 	for(Gob gob : clientGobs) {
 	    try {
 		gob.gtick(g.out);
@@ -3024,7 +3024,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		ob.ctick(dt);
 	    }
 	}
-	// addon: ctick the client-only ghost gobs (hafen.vr()) — not in OCache, like the Plob above.
+	// addon: ctick the client-only ghost gobs (hafen.virtual()) — not in OCache, like the Plob above.
 	for(Gob gob : clientGobs) {
 	    try {
 		synchronized(gob) {
@@ -3048,7 +3048,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     // addon: shared placement-snap math (spec 16-virtual-entities §4.1, D-033) — factored verbatim out of
-    //        StdPlace.adjust so the hafen.vr():ghost() gizmo (hafen.map.snapPlace) snaps client ghosts through the
+    //        StdPlace.adjust so the hafen.virtual():ghost() gizmo (hafen.map.snapPlace) snaps client ghosts through the
     //        EXACT same code the client uses to place a building, honouring the live :placegrid setting with no
     //        drift. modflags = UI.MOD_* bits; SHIFT selects the sub-tile placegrid, otherwise the tile centre.
     //        Pure + static (no MapView instance needed), so the bridge can reuse it directly.
@@ -3138,7 +3138,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
 
-    // addon: V1 virtual entities (hafen.vr()) — CLIENT-ONLY Gobs in the 3D `basic` scene. addClientGob
+    // addon: V1 virtual entities (hafen.virtual()) — CLIENT-ONLY Gobs in the 3D `basic` scene. addClientGob
     //        does the exact operation Plob.place() does (`basic.add(placed)`), but `basic` (PView) and
     //        Gob.placed live in package `haven`, so this centralizes the scene mutation behind one public
     //        seam for `io.brodgar.addon` (spec 16 §6, option A — smallest, clearest, mirrors Plob). A ghost
@@ -3379,7 +3379,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * never an order and has to be dispatched exactly as this one is -- through this very code, not
      * through an imitation of it. */
     private void clickhit(Coord pc, Coord2d mc, ClickData inf, int clickb) {
-	// addon: V2 virtual entities (hafen.vr()) — a click that resolved to a CLICKABLE client ghost is
+	// addon: V2 virtual entities (hafen.virtual()) — a click that resolved to a CLICKABLE client ghost is
 	//        dispatched to the addon and CONSUMED here, BEFORE wdgmsg (the same choke point the voice
 	//        feature hooks below): the ghost is a virtual Gob with no server id, so a "click" send would be
 	//        bogus, and client-only detection means no server contact ⇒ this stays SAFE-tier (D-032). Fast
@@ -3465,7 +3465,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
 
     public boolean mousedown(MouseDownEvent ev) {
-	// addon: 044.4 spatial UI (hafen.vr():widget()) — a widget standing in the world takes the pointer here,
+	// addon: 044.4 spatial UI (hafen.virtual():widget()) — a widget standing in the world takes the pointer here,
 	//        before anything of the map view's own, exactly as a window on the flat UI takes it before the map
 	//        view ever sees it. The test is the standing quad's own projected corners, so it answers inside
 	//        THIS event rather than a frame later like the pick pass — which is what lets the press, the drag
@@ -3488,7 +3488,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	} else if((grab != null) && grab.mmousedown(ev.c, ev.b)) {
 	} else if(io.brodgar.session.Control.mousedown(this, ev)) {   // rts: (F3) an alt-click that lands ON one of our characters is a selection, and a click with units selected is an order -- everything else, alt-click on the ground included, falls through to Click below unchanged
 	} else if(io.brodgar.addon.AddonManager.onPatchClick(this, ev.c, ev.b)) {
-	    // addon: (118.3) a press inside a CLICKABLE patch (hafen.vr():patch()) is that addon's. A patch is a
+	    // addon: (118.3) a press inside a CLICKABLE patch (hafen.virtual():patch()) is that addon's. A patch is a
 	    //        GROUND OVERLAY and renders into no clickmap, so the pick pass Click starts below has nothing
 	    //        of it to resolve; the test is its own ring projected, run here, so it answers inside this
 	    //        event. Consumed when it hits -- no wdgmsg, no walk -- and a press on no patch falls through

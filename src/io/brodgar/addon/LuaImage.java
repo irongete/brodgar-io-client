@@ -8,7 +8,7 @@ import org.luaj.vm2.LuaValue;
 
 /**
  * A loaded, bridge-owned custom <b>image</b> (spec {@code 17-custom-rendering.md}, R1) — the Java half of
- * {@code hafen.asset("icon.png")} (028.1; was {@code hafen.render.image}). A PNG (or any {@code ImageIO}-decodable image) read from the addon's own
+ * {@code hafen.asset("icon.png")} (028.1). A PNG (or any {@code ImageIO}-decodable image) read from the addon's own
  * folder and wrapped in a {@link TexI} — the very substrate the engine's {@code .res} images already run on
  * ({@code Resource.Image} does {@code new TexI(ImageIO.read(...))}), exposed directly without the {@code .res}
  * container. Because it is a client-side texture that never reaches the server and grants no gameplay
@@ -19,7 +19,7 @@ import org.luaj.vm2.LuaValue;
  * {@link AssetApi.Kind}'s per-addon metatables ({@code __index} = the shared methods table, so the handle
  * costs a userdata and no closures), exposing the shared asset verbs and {@code :size()} &rarr;
  * {@code {w,h}}. The {@code g} draw wrapper ({@link LuaGOut}'s {@code g:image}/{@code g:aimage}) and
- * {@code hafen.vr():sprite()} {@link #resolve} the value straight back to its {@link #tex}. It is
+ * {@code hafen.virtual():sprite()} {@link #resolve} the value straight back to its {@link #tex}. It is
  * facade-safe (principle P1): no Java method is reachable through the vocabulary, the value cannot be
  * written to from Lua, and it cannot be forged — the sandbox omits {@code luajava}, so the only such
  * userdata in existence are the ones the bridge created.
@@ -46,7 +46,7 @@ public final class LuaImage implements AssetApi.Loaded {
      * at {@code UI.scale(sz)}. An addon's PNG is authored for the client's own design pixels, so {@link #sz} —
      * the raster's own size — <i>is</i> the size {@code img:size()} answers and the size {@code g:image} covers,
      * and the UI scale is applied on the way to the screen exactly as it is for the client's own art — the same
-     * rule {@code hafen.vr}'s {@code "screen"} sprites are drawn by ({@link LuaSpriteBillboard}).
+     * rule {@code hafen.virtual}'s {@code "screen"} sprites are drawn by ({@link LuaSpriteBillboard}).
      *
      * <p>Built once, here, rather than per draw: {@code UI.scalef} is read once at class init and never moves,
      * so the wrapper is as constant as the texture it wraps — and a {@code g:image} in a draw callback runs

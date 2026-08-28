@@ -16,20 +16,20 @@ and [`:list(filter)`](#the-collection) is all of them.
 
 There is exactly **one flow** for a local file: load, then draw or decorate or stand or read. Load it once,
 keep the handle, hand the *handle* to whatever uses it. The use sites take a handle and nothing else —
-passing a path string to a [sprite](vr/sprites.md) or an [object](vr/models.md) is an error that
+passing a path string to a [sprite](virtual/sprites.md) or an [object](virtual/models.md) is an error that
 points you back here.
 
 > **Unprotected.** An asset is a client-side file *you shipped*: it never reaches the server and grants no
 > gameplay advantage, so it needs no permission at all, like a [HUD overlay](ui/overlay.md) or a
-> [ghost](vr/ghosts.md).
+> [ghost](virtual/ghosts.md).
 
 ## The types
 
 | Extensions | `a:type()` | What you get | Use it with |
 |---|---|---|---|
-| `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture, alpha preserved | [`g:image`/`g:aimage`](ui/drawing.md), [a sprite](vr/sprites.md), [a button's face](ui/controls/interactive.md#a-caption-or-a-picture), [a menu entry's icon](menugrid.md#what-an-entry-draws) |
+| `.png` `.jpg` `.jpeg` `.gif` `.bmp` | `"image"` | a GPU texture, alpha preserved | [`g:image`/`g:aimage`](ui/drawing.md), [a sprite](virtual/sprites.md), [a button's face](ui/controls/interactive.md#a-caption-or-a-picture), [a menu entry's icon](menugrid.md#what-an-entry-draws) |
 | `.ttf` `.otf` | `"font"` | a [`FontHandle`](font.md) whose family is registered, so `$font[…]` works | [`font =`](font.md#draw-with-it), [`rule:font`](ui/style/README.md), [`widget:rule()`](ui/style/README.md#restyle-one-widget) |
-| `.glb` `.gltf` | `"mesh"` | parsed glTF 2.0 static geometry and its textures | [an object](vr/models.md) |
+| `.glb` `.gltf` | `"mesh"` | parsed glTF 2.0 static geometry and its textures | [an object](virtual/models.md) |
 | `.json` `.txt` | `"data"` | the file's **text**, read as UTF-8 | [`hafen.json():parse`](json.md), and anything else that takes a string |
 
 PNG is the recommended image format, for transparency, and `.glb` the recommended model format, being a
@@ -143,7 +143,7 @@ under the same [path exception](conventions.md#a-table-is-a-value-never-named-ar
 | `mdl:bounds()` | `{min={x=,y=,z=}, max={x=,y=,z=}, extent={x=,y=,z=}}` — axis-aligned bounds in **world units**; the span is `extent`, because a [size](shapes.md#the-anonymous-shapes) is two numbers |
 | `mdl:info()` | `{prims, textured, lit, textures, verts, tris}` — what the parser produced |
 
-The supported glTF subset is documented in [`hafen.vr`](vr/models.md#the-gltf-subset). A malformed
+The supported glTF subset is documented in [`hafen.virtual`](virtual/models.md#the-gltf-subset). A malformed
 file, or one using an unsupported feature, raises a clear error that **names** the feature.
 
 > **Disposing a mesh an object is still standing does not break that object.** The object keeps drawing,
@@ -240,7 +240,7 @@ namespace is *your files*; the table below is *the game's*.
 | a `.res` image as a theme's own art | `{res = name}` in a [rule](ui/style/chrome.md#naming-a-picture)'s `bg`, `border` or `picture` |
 | a minimap drawing of ground you explored | [`grid:image(lvl)`](map/drawings.md) |
 | a `.res` sound | [`hafen.sound():get(name)`](sound.md) |
-| a `.res` prop in the world | [`hafen.vr`](vr/ghosts.md) |
+| a `.res` prop in the world | [`hafen.virtual`](virtual/ghosts.md) |
 | a built-in font | [`hafen.font():get(name)`](font.md#the-built-ins) |
 
 ## Example
@@ -265,13 +265,13 @@ end)
 
 hafen.console():on("stand", function()
   local p = hafen.session():current():player():gob():position()
-  hafen.vr():object():add(chair, p)               -- the handle, again
+  hafen.virtual():object():add(chair, p)               -- the handle, again
 end)
 ```
 
 ## See also
 
-- [`hafen.vr`](vr/README.md) — stand an image or a mesh **in the world**
+- [`hafen.virtual`](virtual/README.md) — stand an image or a mesh **in the world**
 - [drawing](ui/drawing.md) — `g:image` and `g:aimage` draw an image asset on screen
 - [`hafen.font`](font.md) — what a font asset does once you have it, and the built-ins that are not assets
 - [`hafen.json`](json.md) — turning a data asset's `:text()` into a table

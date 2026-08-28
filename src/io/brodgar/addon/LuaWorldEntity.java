@@ -18,8 +18,8 @@ import org.luaj.vm2.LuaValue;
  * the generalization of the V-series ghost core (spec {@code 16-virtual-entities.md}) into a reusable placement
  * engine (spec {@code 17-custom-rendering.md} §2, R-series): only the visual differs between subclasses —
  * <ul>
- *   <li>{@link LuaGhost} — a {@code .res} game model ({@code ResDrawable}), {@code hafen.vr():ghost()} (V1–V6);</li>
- *   <li>{@link LuaSprite} — a custom PNG as a world quad ({@code SprDrawable}), {@code hafen.vr():sprite()} (R2).</li>
+ *   <li>{@link LuaGhost} — a {@code .res} game model ({@code ResDrawable}), {@code hafen.virtual():ghost()} (V1–V6);</li>
+ *   <li>{@link LuaSprite} — a custom PNG as a world quad ({@code SprDrawable}), {@code hafen.virtual():sprite()} (R2).</li>
  * </ul>
  * Everything else — the transform ({@link #rc}/{@link #a}), the look ({@link #alpha}/{@link #tint}/{@link #scale}),
  * pick-selectability ({@link #clickable}/{@link #onClick}), scene add/hide/show/destroy, the deferred-vs-immediate
@@ -39,7 +39,7 @@ import org.luaj.vm2.LuaValue;
  * time — so a verb that lands <i>before</i> the visual streams in still takes effect.
  *
  * <p><b>{@link #grounded} is not one of them</b> (044.9) — it is what the WORLD says rather than what the addon
- * asked for, and it is the third boolean {@code VrApi.shows} ANDs: an entity is in the scene only while the
+ * asked for, and it is the third boolean {@code VirtualApi.shows} ANDs: an entity is in the scene only while the
  * character on screen can see the place it stands in. Nothing the addon writes ever touches it, which is why
  * {@code :visible()} keeps reading back exactly what it was told while the thing itself waits out a walk to the
  * far side of the map. Since 045.1 it is false whenever there is no coordinate at all ({@link #rc} null) — the
@@ -68,7 +68,7 @@ public abstract class LuaWorldEntity {
      * (every overworld place, while the player is in a cave). Since 045.2 it may be null <b>from birth</b>: a
      * place that has not been reached is a legal place to stand something, and the entity simply waits for it.
      * For an anchored one it is the target's point at create and is never null. <b>The invariant is {@code rc == null ⇒ !grounded}</b> (see {@link #grounded}),
-     * which is what makes the null safe: nothing on a scene path is reached without {@code VrApi.shows}, and
+     * which is what makes the null safe: nothing on a scene path is reached without {@code VirtualApi.shows}, and
      * that is false the moment the coordinate is gone. Guarded by {@code this}.
      */
     Coord2d rc;
@@ -102,12 +102,12 @@ public abstract class LuaWorldEntity {
      * 044.3: <b>how this entity meets the viewer</b> — {@code "fixed"} (a world quad at {@link #a}),
      * {@code "camera"} (a world quad turned to the screen plane) or {@code "screen"} (a constant-size blit).
      * On the SHARED core because the two flat kinds — a sprite and a standing widget — pick between the same
-     * three modes with the same machinery ({@link #visual}, {@code VrApi.setEntityFacing}); special-casing
+     * three modes with the same machinery ({@link #visual}, {@code VirtualApi.setEntityFacing}); special-casing
      * either would be the larger change. A ghost and an object are models, so they carry the default and
      * expose no {@code :facing} verb at all. Guarded by {@code this}; a MODE string rather than a flag, so a
      * fourth would be a value and not a shape (D-190).
      */
-    String facing = VrApi.FIXED;
+    String facing = VirtualApi.FIXED;
 
     /**
      * This entity's identity <b>as seen from the gob it is anchored to</b> (043.3): an anchored entity is
@@ -125,7 +125,7 @@ public abstract class LuaWorldEntity {
      * <b>The tree whose scene it is standing in right now</b> — the {@code ui} of the {@link MapView} its gob
      * was added to. An entity IS a client-only gob in one scene, so this is not a guess about which session it
      * belongs to but the thing itself. <b>It is not where the entity belongs</b> (075.3): the entity belongs to
-     * the world, and this follows the screen — rewritten every time {@code VrApi.rehome} rebuilds the visual for
+     * the world, and this follows the screen — rewritten every time {@code VirtualApi.rehome} rebuilds the visual for
      * the character now looking, and {@code null} while it stands in no scene at all.
      */
     UI ui;
@@ -161,7 +161,7 @@ public abstract class LuaWorldEntity {
 
     /**
      * <b>What this kind has to undo when it ends</b>, beyond the scene slot and the gob every kind shares —
-     * called by {@code VrApi.destroyEntity} once the entity is out of the scene, on the UI thread and outside
+     * called by {@code VirtualApi.destroyEntity} once the entity is out of the scene, on the UI thread and outside
      * the entity monitor. Nothing for the three kinds whose whole existence is their visual; a
      * {@link LuaWidgetEntity} puts its widget back where it stood from and frees its surface.
      */
@@ -181,7 +181,7 @@ public abstract class LuaWorldEntity {
     /**
      * <b>Build this entity's visual on a fresh gob</b> (075.3) — the same picture, in another character's
      * scene. An entity holds a place in the world rather than a session, so the screen moving to a character
-     * who can see that place rebuilds it there ({@code VrApi.rehome}); a {@code Gob} carries the {@code Glob}
+     * who can see that place rebuilds it there ({@code VirtualApi.rehome}); a {@code Gob} carries the {@code Glob}
      * it asks for the tile under itself, so a rebuild is what "the same thing, drawn from over there" is.
      * Defaults to the facing form, which is the one the two flat kinds already answer; the two model kinds
      * override it with the one visual they have. May throw {@link haven.Loading} — a resource that is not in
@@ -229,7 +229,7 @@ public abstract class LuaWorldEntity {
     }
 
     /**
-     * <b>Which collection of {@code hafen.vr()} this entity belongs to</b> — {@code "ghost"}, {@code "sprite"} or
+     * <b>Which collection of {@code hafen.virtual()} this entity belongs to</b> — {@code "ghost"}, {@code "sprite"} or
      * {@code "object"}. One word, three readers: it is the {@code ev} field name its {@link #clickEvent()}
      * delivers the handle under, the {@code ov:kind()} of the read-only entry an anchored entity gets in
      * {@code gob:overlay():list()} (043.3), and the collection every refusal on that entry names.
@@ -238,7 +238,7 @@ public abstract class LuaWorldEntity {
 
     /**
      * <b>This kind's own contribution to {@code e:info()}</b> (098). The ten readers every entity shares are
-     * written by {@code VrApi.entityHandle}; each subclass adds the one or two verbs only it answers, under
+     * written by {@code VirtualApi.entityHandle}; each subclass adds the one or two verbs only it answers, under
      * the key its verb is spelled with, so the snapshot and the vocabulary can never name a thing differently.
      *
      * <p>Only READERS belong here. {@code panel:screen(x, y)} is a projection that takes a point, so it has
@@ -260,6 +260,6 @@ public abstract class LuaWorldEntity {
      * mistaken for (or collide with) a key an addon chose for one of its own overlays.
      */
     final String overlayKey() {
-        return "vr#" + Long.toString(eid);
+        return "virtual#" + Long.toString(eid);
     }
 }

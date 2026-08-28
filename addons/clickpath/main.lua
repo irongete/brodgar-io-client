@@ -38,20 +38,20 @@ end)
 -- A waypoint is its place plus the flag standing on it, so the two can never drift apart: the flag
 -- is planted when the point is queued and struck when it is reached, dropped or replaced.
 --
--- The flag needs no session: hafen.vr() takes a Position, and a Position carries no session, so one
+-- The flag needs no session: hafen.virtual() takes a Position, and a Position carries no session, so one
 -- planted by any character stands in whichever world is drawn. Ground the drawn character cannot locate
 -- is a legal place to stand one -- the entity exists and simply is not drawn -- which is the same answer
 -- the lines below give for that place, by construction rather than by agreement.
 local function waypoint(p, flagged)
   local w = {pos = p}
   if flagged and flagIcon then
-    w.flag = hafen.vr():sprite():add(flagIcon, p):facing("fixed"):scale(FLAG_SCALE)
+    w.flag = hafen.virtual():sprite():add(flagIcon, p):facing("fixed"):scale(FLAG_SCALE)
   end
   return w
 end
 
 local function strike(w)
-  if w and w.flag then hafen.vr():sprite():remove(w.flag) end
+  if w and w.flag then hafen.virtual():sprite():remove(w.flag) end
 end
 
 local function clearPath(s)
@@ -68,8 +68,8 @@ end)
 
 -- ---------------------------------------------------------------- the paths, drawn
 
--- hafen.vr() has no line primitive -- its four collections are props, images, glTF meshes and
--- widgets, and :scale is uniform, so a sprite cannot be stretched into a segment. The path is
+-- hafen.virtual() has no line primitive -- its five collections are props, images, glTF meshes, widgets
+-- and ground patches, and :scale is uniform, so a sprite cannot be stretched into a segment. The path is
 -- therefore drawn from the projected world points, which is what worldToScreen is for.
 
 -- The RECEIVER picks the layer, and there is no switch to set: hafen.ui():overlay() paints after the

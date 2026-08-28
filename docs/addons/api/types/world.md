@@ -91,7 +91,7 @@ is not durable, and it is what `s:world():position(saved)` rebuilds from.
 
 ## WorldEntity
 
-From [`e:info()`](../vr/README.md#the-snapshot), the snapshot escape hatch for a ghost, sprite, object or
+From [`e:info()`](../virtual/README.md#the-snapshot), the snapshot escape hatch for a ghost, sprite, object or
 panel you have standing in the world. The live reads are `e:position()`, `:alpha()`, `:drawn()` and the
 rest, each spelled the way its field here is.
 

@@ -627,12 +627,12 @@ public abstract class UILoop implements Console.Directory {
 	    if(gprof  != null) gprof.part(out, "tick");
 	    loop.dispatch(layer, ui);
 	    CPUProfile.phase(prof, "ltick");
-	    /* addon: (112.1) THE ADDON LAYER'S STEP, AND NO TREE MONITOR HELD. It used to be a widget on the
-	     * layer's root, so it ran inside the broadcast below with synchronized(layer) already taken -- and
-	     * an addon's per-frame work is mostly writing a SESSION's widgets, which takes a second tree's
-	     * monitor under the first. That is the one nesting the rule above forbids, so the step is lifted out
-	     * of the block rather than the writes being forbidden. It keeps the "ltick" phase, which is what it
-	     * always cost, and it takes its own delta: no TickEvent carries one to it any more. */
+	    /* addon: (112.1) THE ADDON LAYER'S STEP, AND NO TREE MONITOR HELD. It is NOT a widget on the layer's
+	     * root: one would run inside the broadcast below with synchronized(layer) already taken -- and an
+	     * addon's per-frame work is mostly writing a SESSION's widgets, which takes a second tree's monitor
+	     * under the first. That is the one nesting the rule above forbids, so the step sits outside the block
+	     * rather than the writes being forbidden. It is in the "ltick" phase, which is what it costs, and it
+	     * takes its own delta: no TickEvent carries one to it. */
 	    io.brodgar.addon.AddonManager.layerTick(layer);
 	    synchronized(layer) {
 		layer.tick();
@@ -654,13 +654,13 @@ public abstract class UILoop implements Console.Directory {
 		if(!ui.root.sz.equals(sz))
 		    ui.root.resize(sz);
 	    }
-	    /* addon: (112.4) THIS SESSION'S ADDON STEP, AND NO TREE MONITOR HELD. It used to be a widget on
-	     * ui.root, so it ran inside the ui.tick() broadcast above with synchronized(ui) already taken --
-	     * and an s:ui():on(sel, "Removed") handler that builds a window, or writes another character's
-	     * widget, takes a second tree's monitor under the first. That is the one nesting the rule above
-	     * forbids, so the step is lifted out of the block exactly as the layer's was. AFTER the block and
-	     * not before it: the drains re-derive anchors and read geometry, and here the frame has settled it.
-	     * Still inside the "utick" phase, which is what it always cost. */
+	    /* addon: (112.4) THIS SESSION'S ADDON STEP, AND NO TREE MONITOR HELD. It is NOT a widget on ui.root:
+	     * one would run inside the ui.tick() broadcast above with synchronized(ui) already taken -- and an
+	     * s:ui():on(sel, "Removed") handler that builds a window, or writes another character's widget, takes
+	     * a second tree's monitor under the first. That is the one nesting the rule above forbids, so the step
+	     * sits outside the block exactly as the layer's does. AFTER the block and not before it: the drains
+	     * re-derive anchors and read geometry, and here the frame has settled it. Still inside the "utick"
+	     * phase, which is what it costs. */
 	    io.brodgar.addon.AddonManager.tick(ui);
 	    /* rts: the background sessions (F0, specs/rts/plan.md). OUTSIDE the anchor's monitor,
 	     * and each member under its own, so no two UI monitors are ever held at once -- the Loader

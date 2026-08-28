@@ -75,7 +75,7 @@ final class HttpApi {
         // 095 (A-118): the section IS the collection of this addon's live requests. The set is bounded and
         // hard-capped -- 6 in flight, 64 pending, past which the call raises -- and it was the one bounded
         // set in the API you could not look at: hafen.timer(), hafen.sound(), hafen.asset() and
-        // hafen.vr():ghost() all answer "what of mine is live", so an addon that hit the cap got a raise it
+        // hafen.virtual():ghost() all answer "what of mine is live", so an addon that hit the cap got a raise it
         // could not have seen coming and no way to cancel its own backlog but to have kept every handle.
         LuaTable extra = new LuaTable();
         // request(url) -- 095 (A-115): a BARE request. Nothing is sent, so every setter is legal until

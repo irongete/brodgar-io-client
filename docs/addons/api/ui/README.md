@@ -87,6 +87,6 @@ and layout.
 - [`hafen.font`](../font.md) — the handles a `font` property and a `g:text` call take
 - [`hafen.asset`](../asset.md) — the images and fonts your addon ships
 - [the Widget object](widget.md#send-a-message-protected) — sending a message from a bound widget
-- [widgets in the world](../vr/widgets.md) — any of this, drawn in the 3D scene instead of on the screen
+- [widgets in the world](../virtual/widgets.md) — any of this, drawn in the 3D scene instead of on the screen
 - [references](../references.md#widget-a-piece-of-the-ui) — where a Widget sits among the other references
 - [events](../event/bus/README.md) — the bus, for everything that is not a widget subscription

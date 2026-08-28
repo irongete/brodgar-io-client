@@ -1,4 +1,4 @@
-# hafen.vr: a shape lying on the ground
+# hafen.virtual: a shape lying on the ground
 
 A **patch** is a convex ring of places drawn flat on the terrain — a highlighted field, an object's own
 footprint, the reach of something you are about to build. It is the one kind here that lies **down**: a
@@ -9,8 +9,8 @@ It lies on the ground **exactly**: over a slope, a ridge or a tile boundary it f
 float, no gap and no shimmer, and whatever stands on that ground occludes it, your own character included.
 Its edge is the ring's own shape at every zoom, one pixel wide, rather than a staircase of square tiles.
 
-`hafen.vr():patch()` **is the collection** of the patches your addon has laid: `:add(ring, anchor)` lays one
-and hands it back, `:list(filter)` reads them, `:remove(p)` takes one up — the whole
+`hafen.virtual():patch()` **is the collection** of the patches your addon has laid: `:add(ring, anchor)` lays
+one and hands it back, `:list(filter)` reads them, `:remove(p)` takes one up — the whole
 [collection shape](README.md#the-collections-unprotected).
 
 ```lua
@@ -18,7 +18,7 @@ local s = hafen.session():current()
 local here = s:player():gob():position()
 local ring = { here:offset(-6, -6), here:offset(6, -6),      -- a 12x12 square, in world units
                here:offset(6, 6),   here:offset(-6, 6) }     -- a tile is 11 of them
-local patch = hafen.vr():patch():add(ring, here):tint{40, 200, 120}
+local patch = hafen.virtual():patch():add(ring, here):tint{40, 200, 120}
 ```
 
 A patch is **client-only**: it has no server id, is never sent, and grants nothing — see
@@ -33,7 +33,7 @@ a real place in the world, so the rings [`gob:hitbox()`](../gob.md#the-ground-it
 ```lua
 local me = hafen.session():current():player():gob()
 for _, ring in ipairs(me:hitbox() or {}) do            -- nil until the object's resource resolves
-  hafen.vr():patch():add(ring, me):tint{255, 80, 80}   -- lit up on that object's own footprint
+  hafen.virtual():patch():add(ring, me):tint{255, 80, 80}   -- lit up on that object's own footprint
 end
 ```
 
@@ -63,7 +63,7 @@ into convex rings and lay one patch each; that is also the answer for a concave 
 
 ```lua
 local ok, err = pcall(function()
-  hafen.vr():patch():add({ here, here:offset(6, 0) }, here)   -- two points
+  hafen.virtual():patch():add({ here, here:offset(6, 0) }, here)   -- two points
 end)
 hafen.log():write(tostring(err))                              -- ...says a line has no ground under it
 ```
@@ -126,13 +126,13 @@ hafen.log():write(i.kind .. ": " .. #i.ring .. " point(s), alpha " .. i.alpha)
 ## Naming and filtering
 
 **A patch is a shape, not a picture of something, so it has no name.** A string
-[filter](README.md#the-collections-unprotected) on `hafen.vr():patch()` therefore *raises* rather than
-matching nothing, and says to pass a function or nothing at all. `hafen.vr():entity()` does take a string,
-since it is over the kinds that have names, and no patch ever matches one.
+[filter](README.md#the-collections-unprotected) on `hafen.virtual():patch()` therefore *raises* rather than
+matching nothing, and says to pass a function or nothing at all. `hafen.virtual():entity()` does take a
+string, since it is over the kinds that have names, and no patch ever matches one.
 
 ```lua
-hafen.vr():patch():list()                                  -- all of them
-hafen.vr():patch():find(function(one) return one:drawn() end)  -- the first one on drawn ground
+hafen.virtual():patch():list()                                  -- all of them
+hafen.virtual():patch():find(function(one) return one:drawn() end)  -- the first one on drawn ground
 ```
 
 `tostring(patch)` is `Patch`, and a verb no patch has answers naming `patch` and listing what it does have.
@@ -145,13 +145,13 @@ and
 character does not walk. A click outside the ring passes straight through to whatever is behind it.
 
 ```lua
-local patch = hafen.vr():patch():add(ring, here)
+local patch = hafen.virtual():patch():add(ring, here)
   :clickable(true)
   :onClick(function(patch, button, x, y)  -- 1 = left, 3 = right; x, y = the clicked world point
     hafen.log():write("clicked my patch with button " .. button)
   end)
 hafen.event():on("PatchClicked", function(ev)
-  hafen.vr():patch():remove(ev:patch())   -- ev:patch() ev:button() ev:x() ev:y()
+  hafen.virtual():patch():remove(ev:patch())   -- ev:patch() ev:button() ev:x() ev:y()
 end)
 ```
 
@@ -166,7 +166,7 @@ addon that laid it.
 
 ## See also
 
-- [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
+- [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [`gob:hitbox()`](../gob.md#the-ground-it-stands-on) — the rings this collection takes unchanged
 - [Position](../position.md) — the place every point of a ring is, and the offset verb that builds one
 - [ghosts](ghosts.md) — the same core, standing up instead

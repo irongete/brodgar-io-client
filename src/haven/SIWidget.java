@@ -56,7 +56,7 @@ public abstract class SIWidget extends Widget {
 	surf = null;
     }
 
-    // addon: 044.4 spatial UI (hafen.vr():widget()) — has this widget thrown away its cached face, i.e. will its
+    // addon: 044.4 spatial UI (hafen.virtual():widget()) — has this widget thrown away its cached face, i.e. will its
     //        next draw rasterize a new picture? On the flat UI nobody needs to ask: the screen is redrawn every
     //        frame regardless. A widget standing in the WORLD is drawn into a texture that is re-uploaded only
     //        when its content changed, and redraw() is the client's own statement that it did — a button

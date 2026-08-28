@@ -1,17 +1,17 @@
-# hafen.vr: one of the game's own props
+# hafen.virtual: one of the game's own props
 
 A **ghost** is one of the game's own `.res` props rendered at a place you choose — a log cabin, a timber
 house, a fence — with a facing, a translucency, a colour tint and a scale of its own. Reach for it to lay
 something out over the real terrain before you build it. To stand your *own* image or model there instead,
 use [sprites](sprites.md) and [models](models.md).
 
-`hafen.vr():ghost()` **is the collection** of the ghosts your addon has placed: `:add(res, anchor)` places
-one and hands it back, `:list(filter)` reads them, `:remove(g)` ends one — the whole
+`hafen.virtual():ghost()` **is the collection** of the ghosts your addon has placed: `:add(res, anchor)`
+places one and hands it back, `:list(filter)` reads them, `:remove(g)` ends one — the whole
 [collection shape](README.md#the-collections-unprotected).
 
 ```lua
 local p = hafen.session():current():player():gob():position()
-local g = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p):alpha(0.5)
+local g = hafen.virtual():ghost():add("gfx/terobjs/arch/logcabin", p):alpha(0.5)
 g:position(p:offset(33, 0))                 -- 3 tiles east; a tile is 11 world units
 g:rotate(math.pi)
 ```
@@ -49,7 +49,7 @@ change only how it looks, and all of them are safe to set before the prop has fi
 value is applied the moment it appears.
 
 ```lua
-local g = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)
+local g = hafen.virtual():ghost():add("gfx/terobjs/arch/logcabin", p)
   :rotate(math.pi / 4)                        -- rotated 45 degrees
   :alpha(0.5)                                 -- half-translucent: the ghost look
   :tint{120, 180, 255}                        -- bluish overlay
@@ -76,7 +76,7 @@ place**: the model grows and shrinks around its own footprint, keeping its posit
 are clamped to a sane positive range.
 
 ```lua
-local g = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p):scale(1.5)
+local g = hafen.virtual():ghost():add("gfx/terobjs/arch/logcabin", p):scale(1.5)
 g:scale(0.5)                                  -- now half size, live
 local k = g:scale()                           -- reads back what the last write set
 ```
@@ -92,14 +92,14 @@ only in an edit mode. A clickable ghost gains a pick surface, so a click on it i
 and **consumed** — it fires your handlers and the character does **not** walk or interact.
 
 ```lua
-local g = hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)
+local g = hafen.virtual():ghost():add("gfx/terobjs/arch/logcabin", p)
   :clickable(true)
   :onClick(function(g, button, x, y)     -- 1 = left, 3 = right; x, y = the clicked world point
     hafen.log():write("clicked my ghost with button " .. button)
   end)
 -- or globally, for every clickable ghost this addon owns:
 hafen.event():on("GhostClicked", function(ev)
-  hafen.vr():ghost():remove(ev:ghost())  -- ev:ghost() ev:button() ev:x() ev:y()
+  hafen.virtual():ghost():remove(ev:ghost())  -- ev:ghost() ev:button() ev:x() ev:y()
 end)
 ```
 
@@ -138,7 +138,7 @@ full.
 
 ## See also
 
-- [`hafen.vr`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
+- [`hafen.virtual`](README.md) — the section: the anchor, the shared verbs, and the whole-section switch
 - [sprites](sprites.md) — your own image in the world, on the same core
 - [Position](../position.md) — the place an anchor is given, and the durable form it keeps
 - [`session:world():place`](../world.md#write-protected) — committing a real build, protected

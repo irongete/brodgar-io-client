@@ -225,9 +225,9 @@ final class WorldApi {
         // at a time.
 
         // worldToScreen(p) -- project a PLACE IN THE WORLD to a SCREEN POINT. It takes a Position (SS2.7) and
-        // answers a plain {x, y} in px, which is deliberately NOT one: the two spaces have the same shape and
-        // used to be the same type, so a widget's pixel position walked the character somewhere wrong instead
-        // of failing. Now only the direction that has an answer type-checks.
+        // answers a plain {x, y} in px, which is deliberately NOT one: the two spaces have the same shape, so
+        // one type for both would let a widget's pixel position walk the character somewhere wrong instead of
+        // failing. Only the direction that has an answer type-checks.
         //   067.1: it answers ROOT DESIGN pixels -- the space hafen.ui():hit(), the mouse, widget:rootPos() and a
         // HUD overlay's painter already share, and the space Px exists to name. MapView.screenxf answers
         // VIEW-LOCAL DEVICE pixels (it ends in HomoCoord4f.toview over Area.sized(this.sz)), so two things are

@@ -20,13 +20,13 @@
 -- this one's index among them. The bottom line is ready to paste into `:lua`.
 --   * 049.4 -- THE GRAMMAR IS CSS, so an attribute tests the widget its step is WRITTEN ON: [title=] is a WINDOW's
 --     own caption (and is a parse error anywhere else), [text=] is the words any other widget displays. Reaching
---     the enclosing window -- what [title=] used to do by walking UP the tree -- is now a step of its own in front,
---     separated by a space: the descendant combinator. So the panel builds CHAIN candidates
---     (`window[title=Cupboard] button[text=Close]`), which is what names ONE widget while two Cupboards are open.
---   * The operators come with it. [res=] is EXACT now (it used to be an implicit substring), so the panel offers
---     [res*=<last path segment>] beside it -- that is the migration form. And where a value has a stable stem
---     before its first digit ("Hunger: 87%"), it offers [text^=Hunger:], the form that keeps matching when the
---     tail moves; the walk below decides which of the two is actually true.
+--     the enclosing window is a step of its own in front, separated by a space: the descendant combinator. So the
+--     panel builds CHAIN candidates (`window[title=Cupboard] button[text=Close]`), which is what names ONE widget
+--     while two Cupboards are open.
+--   * The operators come with it. [res=] is EXACT, so the panel offers [res*=<last path segment>] beside it -- the
+--     contains form. And where a value has a stable stem before its first digit ("Hunger: 87%"), it offers
+--     [text^=Hunger:], the form that keeps matching when the tail moves; the walk below decides which of the two
+--     is actually true.
 --   * The list is SELF-VALIDATING: each candidate is resolved with s:ui():matchAll() and kept only if the hovered
 --     widget is in the result. So nothing is ever offered that does not resolve -- which is exactly the claim
 --     the offered line makes. A candidate that does not even PARSE is dropped by the same pcall.
@@ -123,9 +123,8 @@ local function attrForms(key, val, wgt)
   return forms
 end
 
--- [res=] is EXACT since 049.1 (it was an implicit substring), which is the one migration nothing can catch: the
--- old spelling still parses and simply stops matching. So the contains form is offered by name, on the last path
--- segment -- that is the shape the old substring behaviour actually had.
+-- [res=] is EXACT (049.1): a selector that means a substring has to say so, because [res=<partial>] parses and
+-- simply matches nothing. So the contains form is offered by name, on the last path segment.
 local function resForms(res)
   local forms = { { s = ("[res=%s]"):format(res), wgt = 8 } }   -- the stable key (D-063): most specific
   local tail = writable(res:match("([^/]+)$"))
@@ -136,8 +135,7 @@ local function resForms(res)
 end
 
 -- THE ANCHOR STEP (049.4): the nearest enclosing window that has a caption to be named by, written as a step of
--- its own to go in FRONT of the target's, separated by a space. This is what [title=] used to say by walking up
--- the tree; the combinator says it honestly, and it is what tells two open Cupboards apart.
+-- its own to go in FRONT of the target's, separated by a space. That is what tells two open Cupboards apart.
 --   Strictly enclosing: a window's OWN caption is its own step's [title=], not a chain in front of itself. An
 -- uncaptioned window is skipped rather than ending the search -- the space is descendant at ANY depth, so a
 -- window further up still anchors the chain.

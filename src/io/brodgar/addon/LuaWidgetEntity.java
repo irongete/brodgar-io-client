@@ -7,7 +7,7 @@ import haven.Widget;
 
 /**
  * A <b>widget standing in the 3D world</b> (spec {@code 044-spatial-ui}, task 044.1) — the Java half of
- * {@code hafen.vr():widget():add(w, p)}, and the fourth kind on the client-only world-entity core beside a
+ * {@code hafen.virtual():widget():add(w, p)}, and the fourth kind on the client-only world-entity core beside a
  * {@link LuaGhost}, a {@link LuaSprite} and a {@link LuaObject}. Client-only ⇒ <b>unprotected</b> like its three
  * siblings: standing a widget changes where it is drawn and nothing else — the clicks that reach the server
  * are still the ones the user makes with their own hand.
@@ -73,14 +73,14 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
      * same panel whichever way it meets the viewer.
      */
     haven.Drawable visual(haven.Gob gob, String mode) {
-        if(VrApi.SCREEN.equals(mode))
+        if(VirtualApi.SCREEN.equals(mode))
             return new LuaSurfaceBillboard(gob, surface);
         // 058.2: measured in DESIGN pixels, so a panel is the same size in the world on every client — the world
         // is not the HUD, and how big the user likes their interface is not a fact about a thing standing in it.
         // The "screen" facing is untouched: a blit IS the HUD, and it stays 1:1 with the surface's own texture.
-        float[] wh = VrApi.surfaceWorldDims(Px.out(surface.sz));
+        float[] wh = VirtualApi.surfaceWorldDims(Px.out(surface.sz));
         haven.Sprite.Mill<SurfaceQuad> mill = SurfaceQuad.mill(surface.texture(), wh[0], wh[1]);
-        return new SurfaceDrawable(gob, mill, surface, wh[0], wh[1], VrApi.CAMERA.equals(mode));
+        return new SurfaceDrawable(gob, mill, surface, wh[0], wh[1], VirtualApi.CAMERA.equals(mode));
     }
 
     /**
@@ -103,7 +103,7 @@ public final class LuaWidgetEntity extends LuaWorldEntity {
         return "WidgetClicked";
     }
 
-    /** The {@code hafen.vr()} collection this one belongs to. */
+    /** The {@code hafen.virtual()} collection this one belongs to. */
     String kind() {
         return "widget";
     }

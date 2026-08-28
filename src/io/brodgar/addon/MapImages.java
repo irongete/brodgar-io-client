@@ -24,7 +24,7 @@ import java.util.Map;
  * The <b>minimap drawings</b> of the recorded map — {@code grid:image(lvl)} and {@code grid:overlayImage(tag)},
  * spec {@code 037-map-database}, task 037.4. The one place the map database produces a <i>picture</i> rather
  * than a number, and the picture is an ordinary {@link LuaImage} handle: whatever draws
- * {@code hafen.asset("icon.png")} draws a grid ({@code g:image}, {@code hafen.vr():sprite()}, and a
+ * {@code hafen.asset("icon.png")} draws a grid ({@code g:image}, {@code hafen.virtual():sprite()}, and a
  * stylesheet's {@code bg = {image = …}} — which is the one way to put a map on the screen with <b>no Lua
  * running at the draw at all</b>).
  *
@@ -301,7 +301,7 @@ final class MapImages {
 
     /**
      * This addon's metatable for a rendered map image. It is an <b>image handle</b> — userdata over the same
-     * {@link LuaImage} {@code g:image}, {@code hafen.vr():sprite()} and the stylesheet's
+     * {@link LuaImage} {@code g:image}, {@code hafen.virtual():sprite()} and the stylesheet's
      * {@code bg = {image = …}} resolve — answering {@code :size()}, {@code :type()}, {@code :path()},
      * {@code :info()} and {@code :dispose()}. It is its own {@link AssetApi.Kind} rather than a loaded image's,
      * for the two verbs a loaded image has not got: a picture of the database can say what ground it is of, and

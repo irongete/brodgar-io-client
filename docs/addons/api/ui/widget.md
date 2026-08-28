@@ -246,7 +246,7 @@ answer.
 verb is the same word because the question is the same one — *where is this thing, in the space it lives in*
 — and the object says which space, so [`s:player():move`](../player.md#write-protected) refuses a widget's
 coordinates instead of walking a character somewhere that merely has the same two numbers. It holds out in
-the world too: the [**panel**](../vr/widgets.md) standing there is a second object, answering to `panel`,
+the world too: the [**panel**](../virtual/widgets.md) standing there is a second object, answering to `panel`,
 whose place is a Position — so a typo on either is answered in the vocabulary of the one in hand.
 
 ## Send a message (protected)
@@ -289,7 +289,7 @@ if from then hafen.log():write(from:tooltip()) end
 ```
 
 `hafen.ui():hit(x, y)` answers *what is under the point*; `hafen.ui():tipAt(x, y)` answers *who would speak
-for it*. Both resolve the way the client itself does, [panels standing in the 3D world](../vr/widgets.md)
+for it*. Both resolve the way the client itself does, [panels standing in the 3D world](../virtual/widgets.md)
 included, so a tooltip over a standing widget is that widget's and not the map's behind it.
 
 `w:focused()` asks whether a keystroke would reach a widget. The client resolves the keyboard down a chain

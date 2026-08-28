@@ -519,7 +519,7 @@ public final class AddonManager {
         // "means a different object in the next session" and that a free entity stands "in one session's
         // coordinate frame" — both wrong. A gob id is the server's, one object observed by two sessions
         // (docs/client/multi-session.md), and a free entity holds a grid id and an offset within it, which is
-        // the server's naming of a place. So they are one set for the client, in VrApi: you stand a thing in
+        // the server's naming of a place. So they are one set for the client, in VirtualApi: you stand a thing in
         // the world, and it draws for whichever character is looking at that patch of world.
 
         /** Has this session been told its marker count once, and at which seq ({@link MapApi}). */
@@ -798,9 +798,9 @@ public final class AddonManager {
      * <p><b>Derived, not counted</b>, which is what makes it a check rather than a claim. The layer is built
      * exactly twice as often as it is torn down and rebuilt: once at boot, and once per reload the user asked
      * for. So every load beyond {@code 1 + <reloads the user asked for>} is one the engine performed behind
-     * their back — which used to be one per character switch, at 11 ms and every Lua value an addon held, and
-     * is now nothing at all. A counter incremented at a site that no longer exists would read zero for the
-     * wrong reason; this reads zero because the arithmetic says so, and climbs the moment it stops being true.
+     * their back, which is nothing at all: the layer outlives a character switch. A counter incremented at a
+     * site that does not exist would read zero for the wrong reason; this reads zero because the arithmetic
+     * says so, and climbs the moment it stops being true.
      */
     public static int engineReloads() {
         int n = AddonRegistry.loadGen() - 1 - AddonRegistry.reloadGen();
@@ -834,18 +834,18 @@ public final class AddonManager {
 
     /**
      * Call site — both mutation points of MapView's terrain cut map (044.9). A cut entering or leaving the
-     * scene is the one event that says the ground under a free {@code hafen.vr()} entity has come or gone;
+     * scene is the one event that says the ground under a free {@code hafen.virtual()} entity has come or gone;
      * nothing else would, because a client-only gob is in no {@code OCache}. Raises a flag and returns — the
-     * work happens on the addon tick ({@code VrApi.drainGround}), which is where every other tap in this layer
+     * work happens on the addon tick ({@code VirtualApi.drainGround}), which is where every other tap in this layer
      * puts it (D-106).
      */
     public static void groundChanged() {
-        VrApi.groundChanged();
+        VirtualApi.groundChanged();
     }
 
     /**
      * Call site — {@code Sessions.Member.setbase}, where that session's <b>base</b> is replaced (109.4). The
-     * base is the session coordinate space: a free {@code hafen.vr()} entity holds a durable place and
+     * base is the session coordinate space: a free {@code hafen.virtual()} entity holds a durable place and
      * derives its coordinate through it off the ground the character is streaming, so when the base moves —
      * or is proved, having moved — every one of those coordinates has moved. The terrain's cuts (above) say
      * the ground came and went; this says the numbers naming it changed, and the two are not the same frame.
@@ -855,7 +855,7 @@ public final class AddonManager {
      * the flag happens on the addon tick (D-106).
      */
     public static void sessionRebased(haven.UI ui) {
-        VrApi.sessionRebased(ui);
+        VirtualApi.sessionRebased(ui);
     }
 
     /**
@@ -966,11 +966,11 @@ public final class AddonManager {
      * replaced — which is why the boot below is hung on it: a file body is Lua, Lua runs on this thread (P5),
      * and this is the first turn of it the client has.
      *
-     * <p><b>NO TREE MONITOR IS HELD HERE</b> (112.1), and that is what the step is <i>for</i>. It used to be a
-     * widget on the layer's root, which meant every handler below it began with {@code synchronized(layer)}
+     * <p><b>NO TREE MONITOR IS HELD HERE</b> (112.1), and that is what the step is <i>for</i>. It is NOT a
+     * widget on the layer's root, which would mean every handler below it began with {@code synchronized(layer)}
      * already taken — while most of what an addon does per frame is write a <i>session's</i> widget, which
      * takes that tree's monitor under the layer's. A Loader thread placing a widget holds the two in the other
-     * order, and the client froze. So the call site moved out of the tree: {@code Frame.tick} calls this
+     * order, and the client freezes. So the call site sits outside the tree: {@code Frame.tick} calls this
      * between its input dispatch and its two blocks, and everything reached from here — the drains, the bus
      * events, the timers and {@code widget:on("Update", fn)} — may reach any tree because it holds none.
      *
@@ -1108,13 +1108,13 @@ public final class AddonManager {
             // there is ONE set of entities for the client and one scene being drawn: run per session it would
             // walk the same entities once per login and re-derive their coordinates against a map that is not
             // the one they are drawn in. Free when nothing moved: two reference reads.
-            VrApi.drainGround();
+            VirtualApi.drainGround();
 
             // 118.2: and the patches that follow a gob, which is the one thing in this layer that has to be
             // polled. A patch has no gob of its own, so it has no FollowMoving for the placement pass to
             // re-evaluate, and the events above fire when an object comes into view rather than while it
             // walks. Free when nothing follows anything: two reference reads.
-            VrApi.followPatches();
+            VirtualApi.followPatches();
 
             // 079.1: the saved variables of any session that ended since the last frame, written back into
             // that character's own folder — the seam that saw it die runs on the dying session's thread and
@@ -1134,8 +1134,8 @@ public final class AddonManager {
             // Update however many characters it is watching.
             LuaValue dtv = LuaValue.valueOf(dt);
             fire("Update", dtv);
-            // ...and a SURFACE's own Update, which used to be fired by the widget's tick and is fired here now
-            // (112.1) — after the bus's, exactly the order it had when the tree ticked this pump first.
+            // ...and a SURFACE's own Update, fired from the step rather than from the widget's tick (112.1) —
+            // after the bus's, which is the order a surface handler sees.
             fireSurfaceUpdates(dtv);
             runTimers();
 
@@ -1590,7 +1590,7 @@ public final class AddonManager {
      * give ({@code ev:preventDefault} cancelling the send) has to be given now, on this thread. So it stays in
      * family A and holds exactly one tree — the sender's own. Two things follow, both by design. A handler here
      * may read and write the sender's tree freely, and a reach into <b>another</b> tree meets
-     * {@link LuaWidget#monitor}'s refusal (112.2) rather than the deadlock it used to be; the refusal names the
+     * {@link LuaWidget#monitor}'s refusal (112.2) rather than a deadlock; the refusal names the
      * {@code Update} handler or timer that does the same work holding nothing. And the Lua it runs is not
      * serialized against the engine step, which since 112.4 holds no monitor at all: this is the one remainder
      * {@code docs/addons/api/threading.md} states.
@@ -1650,10 +1650,10 @@ public final class AddonManager {
     /**
      * The V2 ghost/entity click seam — called from {@code haven.MapView} when a virtual (client-only) gob is
      * clicked. Finds the owning addon world-entity and fires its {@code onClick} + the owner-scoped event.
-     * Delegates to {@link VrApi}, which owns the world-entity registry.
+     * Delegates to {@link VirtualApi}, which owns the world-entity registry.
      */
     public static boolean onGhostClick(Gob cg, int button, Coord2d mc) {
-        return VrApi.onGhostClick(cg, button, mc);
+        return VirtualApi.onGhostClick(cg, button, mc);
     }
 
     /**
@@ -1662,10 +1662,10 @@ public final class AddonManager {
      * the pick pass {@link #onGhostClick} answers has nothing of it to resolve; this tests the pointer against
      * the patch's own ring, projected, and so answers inside the event. {@code true} means a clickable patch
      * took the press and it is consumed — no {@code wdgmsg}, no walk; {@code false} leaves the map view's own
-     * behaviour completely untouched. Delegates to {@link VrApi}, which owns the world-entity registry.
+     * behaviour completely untouched. Delegates to {@link VirtualApi}, which owns the world-entity registry.
      */
     public static boolean onPatchClick(MapView mv, Coord pc, int button) {
-        return VrApi.onPatchClick(mv, pc, button);
+        return VirtualApi.onPatchClick(mv, pc, button);
     }
 
     /**
@@ -2373,11 +2373,10 @@ public final class AddonManager {
     }
 
     /**
-     * {@code widget:on("Update", fn)} on every surface that has one, once for this frame (112.1). The
-     * surface's own per-frame notification used to be fired by {@code AddonWidget.tick}, which is a
-     * {@code TickEvent} callback and therefore ran with that tree's monitor held — so the handler that wrote
-     * another tree's widget took a second monitor under the first, which is the deadlock this feature ends.
-     * Firing it from the step instead costs the handler nothing and buys it every tree.
+     * {@code widget:on("Update", fn)} on every surface that has one, once for this frame (112.1). It is NOT
+     * fired from {@code AddonWidget.tick}: that is a {@code TickEvent} callback and runs with that tree's
+     * monitor held, so a handler writing another tree's widget would take a second monitor under the first —
+     * the deadlock this feature ends. Firing it from the step costs nothing and buys it every tree.
      *
      * <p><b>A per-addon list, not a walk of the widgets</b> ({@link Addon#updateSurfaces}). The fire-side
      * lookup {@code widget:on} is built on ({@link Addon#widgetSubsOrNull}) exists so that a surface nobody
@@ -2835,11 +2834,11 @@ public final class AddonManager {
                 // 038.2: an overlay dies with its gob. Done BEFORE the event reaches Lua, so a GobRemoved
                 // handler already reads the truth — and it is what a world-space overlay costs: its visual is
                 // a client-only gob of its own, which nothing disposes just because the target left OCache.
-                // 043.2: the same is true of a hafen.vr() entity that :add(what, gob) anchored, which has no
-                // record on the gob to be found through — VrApi's by-target index is what makes that O(1) too.
+                // 043.2: the same is true of a hafen.virtual() entity that :add(what, gob) anchored, which has no
+                // record on the gob to be found through — VirtualApi's by-target index is what makes that O(1) too.
                 if(!ge.added) {
                     LuaGobOverlay.gobGone(ge.gob);
-                    VrApi.anchorGone(ge.gob.id);   // 075.3: the client's one index, and only if no session still sees it
+                    VirtualApi.anchorGone(ge.gob.id);   // 075.3: the client's one index, and only if no session still sees it
                 }
                 // 092.7 (A-087): a copy of the object just arrived in THIS session, and a visual write made
                 // before it did landed only on the copies that existed then. The per-session edge the ROADMAP
@@ -2850,7 +2849,7 @@ public final class AddonManager {
                 // 075.3: ...and either way, which characters can see that object just changed — so a thing
                 // standing on it that survived because ANOTHER character has it in view is re-asked whether
                 // the one on screen does. A flag, and only for the ids something is actually standing on.
-                VrApi.anchorSeen(ge.gob.id);
+                VirtualApi.anchorSeen(ge.gob.id);
                 // 114.1: ...and the copy itself, released after the settle below rather than here -- the
                 // event has not fired yet, and a copy let go before it is a copy that can be drawn first.
                 // Per COPY, which is why the queue entry is what carries it: settleGob fires ONE client-wide
@@ -2994,7 +2993,7 @@ public final class AddonManager {
         // would put a dead widget back on the flat UI, where nothing owns it and no teardown collects it.
         // Marking here makes "it is on its way out" true for every door at once. Flag-only, so it is safe on
         // whatever thread reached remove().
-        VrApi.markContentGone(w);
+        VirtualApi.markContentGone(w);
         if(st != null)
             st.removedWidgets.add(w);
     }
@@ -3169,7 +3168,7 @@ public final class AddonManager {
      * safe as the tree-adapter dispatch above. <b>Third since 042.8</b>: {@link UiApi#dispatchReplacedRemoved},
      * for the {@code widget:replace(view)} substitution's own death test — the server destroying a window an
      * addon replaced is a removal like any other. <b>Fifth since 044.6</b>:
-     * {@link VrApi#dispatchStandingRemoved}, for a widget standing in the 3D world — the same removal, one
+     * {@link VirtualApi#dispatchStandingRemoved}, for a widget standing in the 3D world — the same removal, one
      * subsystem along, and the two meet where a replaced stand-in is also a standing panel.
      */
     private static void drainRemovedWidgets(SessionState st) {
@@ -3180,7 +3179,7 @@ public final class AddonManager {
             CharApi.dispatchRemoved(st, w);
             UiApi.dispatchWidgetSubsRemoved(st, w);
             UiApi.dispatchReplacedRemoved(w);
-            VrApi.dispatchStandingRemoved(w);             // addon: 044.6 — a widget standing in the 3D world whose
+            VirtualApi.dispatchStandingRemoved(w);        // addon: 044.6 — a widget standing in the 3D world whose
                                                           //   content was destroyed (the server closing a container,
                                                           //   a replaced stand-in dying with its substitution) ends
                                                           //   its entity and frees its surface
@@ -3504,7 +3503,7 @@ public final class AddonManager {
     // as it did and one that cares writes `function(m, s) … end`.
     //
     // The world events grow none of this: a gob is one object and there is no character it belongs to. Nor do
-    // Load, Update, Disable, MarkerChanged or the three vr click events, which are the client's or the
+    // Load, Update, Disable, MarkerChanged or the three virtual click events, which are the client's or the
     // addon's own — see BUS_KEYS.
 
     /**
@@ -4092,31 +4091,32 @@ public final class AddonManager {
         // hafen.asset(path) — the ONE loader for the files THIS addon ships (spec 028-asset-loader). A CALLABLE
         // namespace (D-056): hafen.asset(path) is one interned, typed handle; hafen.asset() is the array of the
         // addon's live assets. Dispatch is by EXTENSION — .png/.jpg/.jpeg/.gif/.bmp = an image (draw it with
-        // g:image / stand it with hafen.vr():sprite()), .ttf/.otf = a font (hafen.font.setFont / window{font=} /
-        // g:text{font=}), .glb/.gltf = a glTF mesh (hafen.vr():object()) — and anything else errors listing them.
+        // g:image / stand it with hafen.virtual():sprite()), .ttf/.otf = a font (hafen.font.setFont / window{font=} /
+        // g:text{font=}), .glb/.gltf = a glTF mesh (hafen.virtual():object()) — and anything else errors listing them.
         // Paths are addon-relative and SANDBOXED (absolute paths and ".." escapes are rejected, D-017; the one
         // containment check lives here now). It takes a PATH AND NOTHING ELSE: loading a file is expensive and
         // happens once, configuring a use of it is cheap and happens many times, so a font's size/style is
         // h:derive{size=12} — AWT's own split, and what keeps == free of an options table. Interned per (addon,
         // resolved path), so repeating the load costs nothing and identity is stable WHILE ALIVE: a remove
         // drops the entry, so the next load of that path is a NEW object. Every asset answers :type()/:path()/
-        // :dispose() on top of its own verbs. hafen.font.load / hafen.render.image / hafen.render.model are a
-        // HARD CUT (D-013) and read as nil; the client's four BUILT-IN fonts are engine-owned, so they are
+        // :dispose() on top of its own verbs. The client's four BUILT-IN fonts are engine-owned, so they are
         // addressed rather than loaded: hafen.font("sans"|"serif"|"mono"|"fraktur").
         AssetApi.install(hafen, owner);
 
-        // hafen.vr() — the ONE section for CLIENT-ONLY things standing in the 3D world (043; specs
-        // 16-virtual-entities + 17-custom-rendering). Three collections: :ghost() places a `.res` game model,
-        // :sprite() one of the addon's own PNGs, :object() one of its glTF models — each :add(what, p) standing
-        // it at a Position and handing back a bridge-owned handle (D-030) that speaks one vocabulary
+        // hafen.virtual() — the ONE section for CLIENT-ONLY things standing in the 3D world (043; specs
+        // 16-virtual-entities + 17-custom-rendering). Five collections, one per kind: :ghost() places a `.res`
+        // game model, :sprite() one of the addon's own PNGs, :object() one of its glTF models, :widget() one of
+        // its UI surfaces (044) and :patch() a shape lying on the ground (118) — each :add(what, p) standing it
+        // at a Position and handing back a bridge-owned handle (D-030) that speaks one vocabulary
         // (:position/:rotate/:scale/:alpha/:tint/:visible/:clickable/:onClick), each :list([filter]) reading
-        // THIS addon's (canonical filter: nil=all / a string matched against the visual's name / a predicate).
+        // THIS addon's (canonical filter: nil=all / a string matched against the visual's name / a predicate),
+        // and :entity() the same collection shape over all five at once.
         // None of it is a Gob the server knows: no wdgmsg, invisible to OCache and every read API, so it grants
         // no gameplay advantage — a visualization, like a HUD overlay (SAFE-tier, NOT protected; D-029/D-034). The
         // motivating use is city/base planning: lay ghost buildings over the real terrain. Everything here is
         // torn down on reload/disable/relogin (P2). It is a SCENE section only: the addon's own files come from
         // hafen.asset (028.1).
-        VrApi.installVr(hafen, owner);
+        VirtualApi.installVirtual(hafen, owner);
 
         // hafen.console (the client's own :name console commands) — L1 input, L2 action, L3 message and V5 grab have all
         // moved off hafen.hook() onto widgets/the bus/the mouse entity, and hook() itself is deleted (041.5).
@@ -4777,7 +4777,7 @@ public final class AddonManager {
 
     /**
      * Parse a Lua colour table (0..255 components) into a {@link java.awt.Color}, or {@code dflt}. Shared by
-     * map-marker pins (MapApi), ghost/entity {@code tint} (VrApi), the {@code g:text} draw
+     * map-marker pins (MapApi), ghost/entity {@code tint} (VirtualApi), the {@code g:text} draw
      * wrapper and the stylesheet's {@code color} property (033.2) — a hub color util.
      *
      * <p><b>Two spellings, one shape.</b> The KEYED form {@code {r=,g=,b=[,a=]}} is what every reader in this API
@@ -5564,10 +5564,10 @@ public final class AddonManager {
     // ------------------------------------------------------------- owned-resource records
 
     /*
-     * The event-subscription record used to be here, beside the Timer below. It is gone (041.1): a
-     * subscription is an entry in the emitter's own Subs and the LuaSub handle Lua holds is that entry, so
-     * there is no second object to keep in step — and no `Sub` sitting one character away from `Subs` in the
-     * same package for a later reader to confuse.
+     * There is no event-subscription record here, beside the Timer below (041.1): a subscription is an entry
+     * in the emitter's own Subs and the LuaSub handle Lua holds is that entry, so there is no second object to
+     * keep in step — and no `Sub` sitting one character away from `Subs` in the same package for a later
+     * reader to confuse.
      */
 
     /** A live timer: {@code due} is engine-clock seconds, {@code secs} is what was asked for. */
