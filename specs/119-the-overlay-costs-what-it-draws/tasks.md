@@ -30,7 +30,7 @@
       no hitch as objects appear, none that grows the more of them are already marked, and the marks
       drawn normally on the ground that streamed in while you walked.
 
-- [ ] **119.3 — Nobody pays for an outline nobody draws.** `getolcut` builds `makeolol(id)` only when
+- [x] **119.3 — Nobody pays for an outline nobody draws.** `getolcut` builds `makeolol(id)` only when
       `id.omat() != null`, which is the same condition `MapView.Overlay.added` already uses to decide
       whether the `outl` grid is in the tree at all — so an overlay without an outline material stops
       paying a full tile-laying pass per cut for a mesh that was never reachable. `getololcut` then

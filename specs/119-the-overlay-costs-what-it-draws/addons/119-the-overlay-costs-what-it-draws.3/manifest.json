@@ -1,0 +1,9 @@
+{
+  "name": "119.3 — nobody pays for an outline nobody draws",
+  "id": "119-the-overlay-costs-what-it-draws.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 119.3: laying a patch moves overlayMeshes and does not move overlayOutlines by one, then or several ticks later, because a patch carries no outline material.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

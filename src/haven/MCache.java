@@ -654,8 +654,15 @@ public class MCache implements MapSource {
 		dropol(cut, id);
 		cut.ols.put(id, ol);
 		cut.olstamp.put(id, idseq);
-		cut.olols.put(id, m.makeolol(id));
-		io.brodgar.addon.AddonManager.overlayOutlineBuilt();  // addon: 119.1 -- ...and the outline over it
+		/* addon: (119.3) NOBODY PAYS FOR AN OUTLINE NOBODY DRAWS. MapView.Overlay.added puts the
+		 * outl grid in the tree only when omat() != null, so for every other overlay -- a patch
+		 * among them -- makeolol laid a full tile pass per cut for a mesh no slot could ever
+		 * reach. Under the same condition it is not built, and getololcut answers null there,
+		 * which is a legal absent child and a branch added() never gets to anyway. */
+		if(id.omat() != null) {
+		    cut.olols.put(id, m.makeolol(id));
+		    io.brodgar.addon.AddonManager.overlayOutlineBuilt();  // addon: 119.1 -- ...and the outline over it
+		}
 	    }
 	    return(cut.ols.get(id));
 	}
@@ -1140,20 +1147,23 @@ public class MCache implements MapSource {
 	return(cut.getsurf(id, t).getnorm(pc));
     }
 
+    /* addon: (119.3) a LinkedHashSet, where upstream re-scanned an ArrayList with contains() per
+     * candidate. Called once per frame from MapView.oltick over every overlay in the drawn area, so
+     * it was quadratic in exactly the number an addon laying a patch per object grows. Insertion
+     * order is the order the list gave, and oltick reads it in order. */
     public Collection<OverlayInfo> getols(Area a) {
-	Collection<OverlayInfo> ret = new ArrayList<>();
+	Collection<OverlayInfo> ret = new LinkedHashSet<>();
 	for(Coord gc : a.div(cmaps)) {
 	    Grid g = getgrid(gc);
 	    if(g.ols == null)
 		continue;
 	    for(Indir<Resource> res : g.ols) {
 		OverlayInfo id = res.get().flayer(ResOverlay.class);
-		if(!ret.contains(id))
-		    ret.add(id);
+		ret.add(id);
 	    }
 	}
 	for(LocalOverlay lol : ols) {
-	    if(!lol.filter(a) && !ret.contains(lol.id()))
+	    if(!lol.filter(a))
 		ret.add(lol.id());
 	}
 	return(ret);
