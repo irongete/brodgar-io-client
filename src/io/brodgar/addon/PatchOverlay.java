@@ -36,9 +36,10 @@ import haven.render.States;
  * <p><b>One overlay per patch, for the life of the patch</b>, because its identity is what
  * {@code MapView.ols}, {@code MCache.Grid.Cut.ols} and {@code MapMesh.OLOrder.equals} all key on. It is
  * mutable instead: {@link #set} re-derives both halves and says whether the <i>mask</i> moved, which is the
- * only change that costs a re-cut ({@code MCache.add}/{@code remove} bump {@code MCache.olseq}, and that
- * disposes and rebuilds every overlay mesh in the grid). A patch that merely changed colour, or turned inside
- * the tiles it already covers, pushes the new material through the slot instead.
+ * only change that costs a re-cut ({@code MCache.add}/{@code remove} bump this overlay's own sequence, and
+ * {@code Grid.getolcut} re-lays the cuts of <i>this</i> overlay and no other one's — 119.2). A patch that
+ * merely changed colour, or turned inside the tiles it already covers, pushes the new material through the
+ * slot instead.
  *
  * <p><b>UI thread only.</b> {@code MCache.ols} is a plain {@code HashSet} that {@code getols} and
  * {@code getol} walk without a lock, from {@code MapView.oltick} and from the overlay cut build — both on the

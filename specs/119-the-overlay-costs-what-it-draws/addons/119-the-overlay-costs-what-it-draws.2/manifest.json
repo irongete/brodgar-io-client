@@ -1,0 +1,9 @@
+{
+  "name": "119.2 — registering one overlay re-cuts one overlay",
+  "id": "119-the-overlay-costs-what-it-draws.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 119.2: laying one more patch costs the same whether five or twenty-six are already down, taking one up builds nothing at all, and the patch surface is untouched by either.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

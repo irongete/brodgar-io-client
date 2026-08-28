@@ -27,6 +27,7 @@
 package haven;
 
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.*;
 import java.lang.ref.*;
 import haven.render.*;
@@ -52,6 +53,21 @@ public class MCache implements MapSource {
     Session sess;
     Set<LocalOverlay> ols = new HashSet<>();
     public volatile int olseq = 0, chseq = 0;
+    /* addon: (119.2) ONE SEQUENCE PER OVERLAY, where `olseq` above was one for all of them. `olseq` is
+     * still what means "everything in this grid changed" -- the mapdata2 fill and Grid's own olseq = -1
+     * on a rebuilt cut mesh -- and these are what mean "this one overlay changed": add, remove and
+     * RectOverlay.update bump the id they concern, and Grid.getolcut compares one id's number against
+     * the Cut.olstamp it built that id at. Concurrent because the bumping side is a caller of add(),
+     * which arrives on the UI thread, while the reading side is the tick thread inside getolcut -- and
+     * a caller of add() still touches no Cut, which is the rule the old volatile int bought.
+     *
+     * `oldrops` is the second half of it: after remove(), nothing ever asks getolcut for that id again,
+     * so its meshes would sit in every cut undisposed forever -- the grid-wide flush used to dispose
+     * them by accident. remove() enqueues the id here and ctick() drains it across every loaded grid,
+     * on the thread that builds cuts. add() takes an id back OUT of the queue, so the remove/add pair
+     * that re-lays a moved mask costs one re-cut rather than a drop and a re-cut. */
+    private final Map<OverlayInfo, Integer> olseqs = new ConcurrentHashMap<>();
+    private final Queue<OverlayInfo> oldrops = new ConcurrentLinkedQueue<>();
     Map<Integer, Defrag> fragbufs = new TreeMap<Integer, Defrag>();
 
     public static class LoadingMap extends Loading {
@@ -238,12 +254,26 @@ public class MCache implements MapSource {
 
     public void add(LocalOverlay ol) {
 	ols.add(ol);
-	olseq++;
+	oldrops.remove(ol.id());   // addon: (119.2) it is back before the drain ran: nothing to drop
+	olbump(ol.id());
     }
 
     public void remove(LocalOverlay ol) {
 	ols.remove(ol);
-	olseq++;
+	olbump(ol.id());
+	oldrops.add(ol.id());      // addon: (119.2) ctick() disposes its meshes; see the field
+    }
+
+    /* addon: (119.2) this overlay changed, and no other one did. @see #olseqs */
+    private void olbump(OverlayInfo id) {
+	olseqs.merge(id, 1, (a, b) -> a + b);
+    }
+
+    /* addon: (119.2) what Grid.Cut.olstamp is compared against. Zero for an id never bumped, which is
+     * every recorded overlay a grid was filled with: those change with the grid and nothing else. */
+    int olseq(OverlayInfo id) {
+	Integer seq = olseqs.get(id);
+	return((seq == null) ? 0 : seq.intValue());
     }
 
     public class RectOverlay implements LocalOverlay {
@@ -272,7 +302,7 @@ public class MCache implements MapSource {
 	public void update(Area a) {
 	    if(!a.equals(this.a)) {
 		this.a = a;
-		olseq++;
+		olbump(id);   // addon: (119.2) this rectangle's own cuts, not the whole grid's
 	    }
 	}
     }
@@ -281,13 +311,11 @@ public class MCache implements MapSource {
     public class Overlay extends RectOverlay {
 	public Overlay(Area a, OverlayInfo id) {
 	    super(id, a);
-	    ols.add(this);
-	    olseq++;
+	    MCache.this.add(this);      // addon: (119.2) one door in, so one door bumps
 	}
 
 	public void destroy() {
-	    ols.remove(this);
-	    olseq++;
+	    MCache.this.remove(this);   // addon: (119.2) ...and one door out, so its meshes are dropped
 	}
     }
 
@@ -402,6 +430,10 @@ public class MCache implements MapSource {
 	    public final Deferred<Flavobjs> fo;
 	    public final Map<OverlayInfo, RenderTree.Node> ols = new HashMap<>();
 	    public final Map<OverlayInfo, RenderTree.Node> olols = new HashMap<>();
+	    /* addon: (119.2) which MCache.olseq(id) each pair above was built at. Its presence is the
+	     * "already built" test, because makeol answers null for a cut the mask does not reach and that
+	     * null is a legal, cached answer. It is dropped wherever the pair it stamps is dropped. */
+	    public final Map<OverlayInfo, Integer> olstamp = new HashMap<>();
 
 	    public Cut(Coord cc) {
 		this.cc = cc;
@@ -449,6 +481,7 @@ public class MCache implements MapSource {
 			    ((Disposable)r).dispose();
 		    }
 		    olols.clear();
+		    olstamp.clear();   // addon: (119.2)
 		}
 	    }
 	}
@@ -578,6 +611,11 @@ public class MCache implements MapSource {
 	    return(geticut(cc).mesh.get());
 	}
 	
+	/* addon: (119.2) one cut's mesh for ONE overlay. The grid-wide flush below still answers what
+	 * genuinely means "everything here changed" -- the mapdata2 fill, and this grid's own olseq = -1
+	 * when a cut's ground mesh was rebuilt and its overlays must be re-laid over new vertices. What
+	 * registering, unregistering or moving a single overlay means is the per-id sequence under it, so
+	 * laying the Nth overlay no longer rebuilds the other N-1. */
 	public RenderTree.Node getolcut(OverlayInfo id, Coord cc) {
 	    int nseq = MCache.this.olseq;
 	    if(this.olseq != nseq) {
@@ -592,17 +630,58 @@ public class MCache implements MapSource {
 		    }
 		    cuts[i].ols.clear();
 		    cuts[i].olols.clear();
+		    cuts[i].olstamp.clear();   // addon: (119.2) a stamp outlives its pair by nothing
 		}
 		this.olseq = nseq;
 	    }
 	    Cut cut = geticut(cc);
-	    if(!cut.ols.containsKey(id)) {
-		cut.ols.put(id, getcut(cc).makeol(id));
+	    int idseq = MCache.this.olseq(id);
+	    Integer stamp = cut.olstamp.get(id);
+	    if((stamp == null) || (stamp.intValue() != idseq)) {
+		/* addon: (119.2) THE STAMP IS WRITTEN WITH THE BASE MESH, and the outline is stored after
+		 * it exactly as upstream stored it. makeolol reads its mask one tile into the neighbouring
+		 * grid, so it throws Loading for a neighbour still streaming -- which is what walking into
+		 * new ground IS. Were the stamp written after that call instead, every tick would rebuild
+		 * the pair for every border cut of every overlay until the neighbour arrived. So the
+		 * outline that Loading costs is missed, once, and is upstream's own trap (see the map's
+		 * page); what is fixed here is the breadth of the invalidation and nothing else.
+		 *
+		 * makeol runs BEFORE the previous pair is dropped, though: its own Loading then leaves
+		 * what is already cached whole and in its slot, rather than disposing it for nothing. */
+		MapMesh m = getcut(cc);
+		RenderTree.Node ol = m.makeol(id);
 		io.brodgar.addon.AddonManager.overlayMeshBuilt();     // addon: 119.1 -- one cut's overlay mesh, laid
-		cut.olols.put(id, getcut(cc).makeolol(id));
+		dropol(cut, id);
+		cut.ols.put(id, ol);
+		cut.olstamp.put(id, idseq);
+		cut.olols.put(id, m.makeolol(id));
 		io.brodgar.addon.AddonManager.overlayOutlineBuilt();  // addon: 119.1 -- ...and the outline over it
 	    }
 	    return(cut.ols.get(id));
+	}
+
+	/* addon: (119.2) this one overlay's pair, gone from this one cut. */
+	private void dropol(Cut cut, OverlayInfo id) {
+	    RenderTree.Node r = cut.ols.remove(id);
+	    if(r instanceof Disposable)
+		((Disposable)r).dispose();
+	    r = cut.olols.remove(id);
+	    if(r instanceof Disposable)
+		((Disposable)r).dispose();
+	    cut.olstamp.remove(id);
+	}
+
+	/* addon: (119.2) the drain's half in a grid: overlays that were taken up, gone from every cut of
+	 * it. Called from MCache.ctick, on the same thread getolcut runs on. */
+	private void dropols(Collection<OverlayInfo> ids) {
+	    for(Cut cut : cuts) {
+		if(cut.olstamp.isEmpty())
+		    continue;   // addon: (119.2) a cut nothing was ever laid over -- most of a streamed grid
+		synchronized(cut) {
+		    for(OverlayInfo id : ids)
+			dropol(cut, id);
+		}
+	    }
 	}
 	
 	public RenderTree.Node getololcut(OverlayInfo id, Coord cc) {
@@ -879,6 +958,19 @@ public class MCache implements MapSource {
 	}
 	for(Grid g : copy)
 	    g.tick(dt);
+	/* addon: (119.2) the overlays taken up since the last tick, disposed across every loaded grid.
+	 * Here because this is already the once-per-tick walk of every grid, on the thread that builds
+	 * cuts -- and because getolcut is never asked for a removed id again, so this is the only place
+	 * its meshes can be reached. The sequence goes with them, which is what bounds the map. */
+	if(!oldrops.isEmpty()) {
+	    Collection<OverlayInfo> drop = new ArrayList<>();
+	    for(OverlayInfo id = oldrops.poll(); id != null; id = oldrops.poll())
+		drop.add(id);
+	    for(Grid g : copy)
+		g.dropols(drop);
+	    for(OverlayInfo id : drop)
+		olseqs.remove(id);
+	}
 	for(LocalOverlay lol : new ArrayList<>(ols))
 	    lol.tick();
     }
@@ -1121,7 +1213,7 @@ public class MCache implements MapSource {
 			grids.put(c, g = new Grid(c));
 		    g.fill(msg);
 		    req.remove(c);
-		    olseq++;
+		    olseq++;   // addon: (119.2) grid-wide, and rightly: the server replaced its recorded masks
 		    chseq++;
 		    gridwait.wnotify();
 		}

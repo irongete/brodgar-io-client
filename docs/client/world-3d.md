@@ -43,6 +43,7 @@ operation on a fragment's own channels against each other, and only the fragment
 | **Which tiles it covers** | `MCache.getol(id, area, buf)` — the grid's own recorded masks (`Grid.ols`/`Grid.ol`, filled by `mapdata2`) first, then every `MCache.LocalOverlay` the cache holds. `MCache.RectOverlay(id, Area)` is the ready-made one, registered with `MCache.add`; on a grid with no recorded masks it is the only thing that makes the mask answer at all |
 | Into a scene | `MCache.getolcut(id, cc)`, cached per `Grid.Cut`; `MapView.Overlay extends MapRaster` is one raster per `OverlayInfo`, colour applied at the slot as `slot.add(base, id.mat())` |
 | **A mask the client computes, rather than one a grid recorded** | `MCache.LocalOverlay` is a plain interface beside `RectOverlay` — `id()`, `fill(Area, boolean[])`, and the two defaults `filter(Area)` and `tick()`. `MCache.add`/`remove` register and unregister one. `MCache.getols` skips an overlay whose `filter(a)` answers **true** for the area being built, and the default answers `false`, i.e. *ask me about every cut*; `fill` then marks each tile of `a` the overlay covers, indexed `a.ri(lc)` |
+| **The once-per-tick walk of the whole map** | `MCache.ctick(dt)` — every loaded `Grid`'s `tick`, then every `LocalOverlay`'s. Called from `Glob.ctick`, i.e. the `stick` phase, so it runs **before** `ui.tick` reaches `MapView.oltick` in the same frame and long before anything is drawn ([boot-and-loop.md](boot-and-loop.md)). It is the one place per tick that reaches every `Grid.Cut` on the thread that builds them |
 
 | The shader | Where |
 |---|---|
@@ -84,13 +85,16 @@ iterates it: `RectOverlay.fill` walks only its overlap with the cut being built)
 cut, on the calling thread. Where the mask is empty for a cut `makeol` answers **null**, which is a legal
 `RenderTree` child (`TreeSlot` calls `added` only on a node that is there) and draws nothing.
 
-**Gotcha — a cut can cache an overlay mesh with no outline, and keep it.** `Grid.getolcut` gates both meshes
-on one key (`cut.ols.containsKey(id)`) and stores `makeol`'s result *before* it calls `makeolol`, so a
-`Loading` out of the second call leaves the pair half built. That throw is ordinary rather than rare:
-`makeolol` reads its mask over `Area.sized(ul, sz).margin(1)`, one tile into the neighbouring grid, and
-`MCache.getol` → `getgrid` throws `LoadingMap` for a neighbour not streamed in yet. The retry finds the key
-present, skips the build, and `getololcut` answers `null` for that cut from then on — its outline is missing
-until something disposes that grid's overlay meshes wholesale.
+**Gotcha — a cut can cache an overlay mesh with no outline, and keep it.** `Grid.getolcut` commits the base
+mesh and its `Cut.olstamp` *before* it calls `makeolol`, so a `Loading` out of that second call leaves the
+pair half built. The throw is ordinary rather than rare: `makeolol` reads its mask over
+`Area.sized(ul, sz).margin(1)`, one tile into the neighbouring grid, and `MCache.getol` → `getgrid` throws
+`LoadingMap` for a neighbour not streamed in yet — which is what walking into new ground is. The retry
+finds the stamp current, skips the build, and `getololcut` answers `null` for that cut until something
+invalidates it. **Committing the stamp after both instead is worse, not better:** the pair is then rebuilt
+for every border cut of every overlay on every tick until the neighbour arrives. And that `Loading` is the
+one reason `MCache.getol`'s multi-grid branch is reached at all — a fresh `boolean[10000]` and a 100×100
+scan per neighbouring grid, per cut, per overlay, which is where an overlay's real cost is.
 
 ## Textures and materials (no `.res` required)
 

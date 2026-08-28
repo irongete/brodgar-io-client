@@ -73,13 +73,16 @@ virtual/patches.md:105  "moving one far enough to leave the tiles it covers does
 
 ## Context files
 
-- `src/haven/MCache.java` — `olseq`, `ols`, `add`, `remove`, `RectOverlay.update`, `Grid.getolcut`,
-  `Grid.getololcut`, `Cut.ols`/`Cut.olols`, `getols`, `getol`, and the `mapdata2` bump — 1, 2, 3
+- `src/haven/MCache.java` — `olseqs`/`olbump`/`olseq(id)`, `oldrops` and its drain in `ctick`, `ols`, `add`,
+  `remove`, `RectOverlay.update`, `Grid.getolcut`, `Grid.getololcut`, `Cut.ols`/`Cut.olols`/`Cut.olstamp`,
+  `dropol`/`dropols`, `getols`, `getol`, and the `mapdata2` bump — 1, 2, 3, 4
 - `src/haven/MapMesh.java` — `makeol`, `makeolol`, `OLOrder` — 1, 3
-- `src/haven/MapView.java` — `oltick`, `oltags`, `Overlay.added` and its `outl` grid, `rematerial` — 2, 3
+- `src/haven/MapView.java` — `oltick`, `oltags`, `Overlay.added` and its `outl` grid, `rematerial`, and
+  `MapRaster`/`MapRaster.Grid.tick`/`skipcut` with `view` — 2, 3, 4
 - `src/io/brodgar/addon/ProfHandle.java` — where `render()`'s counters are assembled; the two cumulative
-  tallies themselves live in `AddonManager`, beside `gobsHeld` — 1, 4
-- `src/io/brodgar/addon/PatchOverlay.java` — the overlay a patch registers, and its null `omat()` — 2, 3
-- `docs/client/world-3d.md` — 4
-- `docs/addons/api/client/profiling/counters.md`, `docs/addons/api/virtual/patches.md` — 4
-- `DOCUMENTATION.md` — 4
+  tallies themselves live in `AddonManager`, beside `gobsHeld` — 1, 5
+- `src/io/brodgar/addon/PatchOverlay.java` — the overlay a patch registers, and its null `omat()` — 2, 3, 4
+- `src/io/brodgar/addon/LuaPatch.java` — `lay`/`lift`, the `remove`/`add` pair that re-lays a moved mask — 2, 4
+- `docs/client/world-3d.md` — 4, 5
+- `docs/addons/api/client/profiling/counters.md`, `docs/addons/api/virtual/patches.md` — 5
+- `DOCUMENTATION.md` — 5

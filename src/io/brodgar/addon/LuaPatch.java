@@ -137,10 +137,10 @@ public final class LuaPatch extends LuaWorldEntity {
      * {@code VirtualApi.attachScene} has already established that it shows and has a coordinate.
      *
      * <p>Three outcomes, and only the middle one is expensive. A patch registered in another session's map
-     * moves; a patch whose <b>mask</b> moved is removed and re-added, which bumps {@code MCache.olseq} and so
-     * disposes and rebuilds every overlay mesh in that grid; anything else — a colour, a turn inside the tiles
-     * it already covers — is a new material pushed through the slot the {@code // addon:} seam on
-     * {@code MapView.Overlay} keeps.
+     * moves; a patch whose <b>mask</b> moved is removed and re-added, which bumps <i>this</i> overlay's own
+     * sequence and so re-lays the cuts it covers and nobody else's (119.2); anything else — a colour, a turn
+     * inside the tiles it already covers — is a new material pushed through the slot the {@code // addon:}
+     * seam on {@code MapView.Overlay} keeps.
      */
     void lay() {
         MapView view = this.mv;
@@ -169,7 +169,8 @@ public final class LuaPatch extends LuaWorldEntity {
             laid = map;
         } else if(moved) {
             map.remove(ol);                            // the mask left its tiles: this pair IS the re-cut,
-            map.add(ol);                               //   because MCache.add/remove bump MCache.olseq
+            map.add(ol);                               //   and add() takes the drop back (119.2), so it
+                                                       //   costs this overlay's cuts and nothing more
         }
         // ...and the material changed on every path, because the carve is derived from the very ring above.
         // A uniform is baked at slot construction and never re-read, so this is the only way a changed one

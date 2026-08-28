@@ -12,7 +12,7 @@
       because that is the property the whole feature's proof rests on.
       `[manual]`: none — every claim here is a number the suite reads back.
 
-- [ ] **119.2 — Registering one overlay re-cuts one overlay.** Replaces the single `MCache.olseq` for the
+- [x] **119.2 — Registering one overlay re-cuts one overlay.** Replaces the single `MCache.olseq` for the
       three bumps that concern one id — `add`, `remove`, `RectOverlay.update` — with a sequence per
       `OverlayInfo` in a concurrent map, plus a `Cut.olstamp` per cached entry that `getolcut` compares.
       `remove` enqueues its id for a drop that **`MCache.ctick` drains** across every loaded grid, on the
@@ -45,7 +45,24 @@
       `[manual]`: turn on Display personal claims where you hold one — expect it drawn exactly as before,
       since a claim's overlay does carry an outline material and must still get one.
 
-- [ ] **119.4 — The pages.** Rewrites both gotchas in `docs/client/world-3d.md`: *registering a
+- [ ] **119.4 — A mark costs the cuts it covers.** `MapView.Overlay` overrides `MapRaster.skipcut`, so its
+      raster asks `getolcut` only for cuts the overlay's mask can reach rather than for every cut of the
+      drawn area. `MCache` answers that with `olreaches(id, area)`: true wherever a grid in the area records
+      that id — recorded masks cannot be tested cheaply and must answer *maybe* — and otherwise true only
+      where some `LocalOverlay` with that id does not `filter` the area out. The area tested is the cut's own
+      tiles with a one-tile margin, which is what `makeolol` reads. It is the second half of *a patch costs
+      its own cuts*: 119.2 stopped one overlay paying for another's, and this stops one paying for ground its
+      own mask never touches — 25 cuts per mark where a mark covers two, and 25 × N `getolcut` calls every
+      frame with N marks down, each taking `synchronized(grids)`.
+      *Its suite* lays one patch under the character, settles, and asserts the delta is **below** the cuts
+      the ring's own bounding box spans with its margin, which it computes from the ring it passed. It then
+      lays one whose ring is far outside the drawn terrain and asserts `overlayMeshes` **did not move at
+      all**. It re-asserts `:exists()`, `:drawn()` and a `:tint` on the near one, because a mark skipped
+      where it should be drawn is the one way this goes wrong.
+      `[manual]`: with `simple-gob-hider` on, walk into a wood with dozens marked — expect no hitch at all,
+      and every mark drawn where its object stands.
+
+- [ ] **119.5 — The pages.** Rewrites both gotchas in `docs/client/world-3d.md`: *registering a
       `LocalOverlay` is a re-cut of the whole grid* becomes a re-cut of that overlay's own cuts, and the
       advice built on it loses its reason; *the sheet's two hidden costs* loses both halves and keeps what
       is still true, the fixed-enormous-rectangle rule and `makeol` answering `null` on an empty mask.
