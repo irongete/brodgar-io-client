@@ -744,7 +744,40 @@ final class Sheet {
             stocks.put(w, new Stock(owner, p));
         else if(!had)
             return;                                       // dropping what was never there changes nothing
-        rulesChanged();
+        stockChanged(w);
+    }
+
+    /**
+     * One widget's stock moved — and <b>only</b> that widget's resolution with it, which is the whole of what
+     * this method does that {@link #rulesChanged} does not.
+     *
+     * <p><b>Why the narrow path exists.</b> A stock is the bottom of the fold for one widget, read by
+     * {@link #fold} as {@code stocks.get(w)} and from nowhere else: no other widget's answer can change
+     * because this one declared a default, and a stock is not a selector attribute, so it cannot start or
+     * stop a chain rule matching anything below it either. So the entry that goes stale is {@code w}'s, and
+     * {@code treegen} — which invalidates <i>every</i> cached entry — has nothing to say here. Nor has
+     * {@link #specs}, which is a lookup-or-create interning of styles rather than a cache of answers.
+     *
+     * <p><b>And it owes {@link Fonts} nothing</b>, which is the half that matters: {@link #rulesChanged}
+     * ends in {@code Fonts.treeActive(draw || !skins.isEmpty())}, an expression {@code anyStock} is
+     * deliberately absent from — a stock answers {@link #styleOf} but does not open the client's own
+     * draw-pass frame, so it is not in the font chain and no raster anywhere is resolved through it. Raising
+     * the generation counter for one would tell all thirty of the client's cache sites that the fonts moved,
+     * and each would be right to rebuild: an item's whole {@code ItemInfo} list ({@code GItem.info}), the
+     * number overlay rasterised on every icon, every {@code Label}'s text. A surface built widget by widget —
+     * one per item in a container — would pay that once per widget. <b>If a stock is ever put into the font
+     * chain, it is that {@code treeActive} argument that changes, and this method that has to change with
+     * it</b>; what it would then owe is a re-render of {@code w}'s subtree, not a global generation.
+     *
+     * <p>Caller holds {@code Sheet.class}.
+     */
+    private static void stockChanged(Widget w) {
+        anyStock = !stocks.isEmpty();
+        anyStyle = anyTree || !skins.isEmpty() || anyStock;
+        if(anyStyle)
+            cache.remove(w);
+        else
+            cache.clear();       // the last style left: hold nothing, exactly as rulesChanged() would have
     }
 
     /** Drop every stock {@code owner} declared (its teardown). Caller holds {@code Sheet.class}. */
@@ -998,10 +1031,14 @@ final class Sheet {
     }
 
     /**
-     * Recompute the fast-path flags and invalidate every cached entry — the one place a change to <b>any</b> level
-     * of the per-widget cascade lands, a sheet's tree rules and a {@code widget:rule()} alike. A level touches one
-     * widget, so invalidating all of them is broader than it needs to be: it is also what a sheet does, it costs one
-     * re-fold per widget on its next draw, and one rule for "the cascade changed" cannot drift from itself.
+     * Recompute the fast-path flags and invalidate every cached entry — where a change to a level of the
+     * per-widget cascade that can reach <b>many</b> widgets lands: a sheet's tree rules and a
+     * {@code widget:rule()} alike. A {@code widget:rule()} touches one widget, so invalidating all of them is
+     * broader than it needs to be: it is also what a sheet does, it costs one re-fold per widget on its next
+     * draw, and one rule for "the cascade changed" cannot drift from itself.
+     *
+     * <p><b>A widget's own stock does not come through here</b> — {@link #stockChanged} is its path, and that
+     * method says why. Teardown does ({@link #forget}), because it drops rules and stocks together and is rare.
      * Caller holds {@code Sheet.class}.
      */
     private static void rulesChanged() {
@@ -1034,6 +1071,9 @@ final class Sheet {
             cache.clear();       // the last style left: hold nothing, so a stock client carries no state at all
         // 034.2: and the provider stops (or starts) asking us at the draw — on the DRAWING half alone (036.2), so
         // a sheet that only lays widgets out never opens a frame, never bumps a stamp and costs the draw nothing.
+        //   `anyStock` IS ABSENT FROM THIS EXPRESSION ON PURPOSE, and stockChanged() rests on that: a stock is
+        // not in the font chain, so declaring one owes the provider no generation. Putting one in here is what
+        // would make a stock write owe an invalidation again — and stockChanged() is where that lands.
         Fonts.treeActive(draw || !skins.isEmpty());
     }
 
