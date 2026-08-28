@@ -208,11 +208,20 @@ local function decorateIcon(icon)
   -- Built into the icon, so both die with it and there is nothing to release: an icon is destroyed and
   -- rebuilt every time its item moves, and the one that replaces it arrives here on its own. Adoption is a
   -- build-time verb, so the parent is named in the chain that builds each.
+  --
+  -- THE ICON MAY DIE UNDER THIS FUNCTION. A handler is called with the tree's monitor released, so the
+  -- widget it was handed is alive when it is handed over and not necessarily a statement later -- and moving
+  -- items about destroys and rebuilds icons continuously. A write on a stale widget chains as a no-op, but
+  -- the two verbs that cannot say nothing raise: adopting into a widget that has left the tree, and
+  -- subscribing on one. So each is asked whether it still has a parent before the next one is spoken, and an
+  -- icon that lost the race is simply left alone -- it is on its way out, and its replacement arrives here.
   local plate = hafen.ui():widget():parent(icon):name(PLATE_NAME):stock(PLATE_STOCK)
+  if not plate:exists() then return end
   -- :position(0, 0) is not decoration: a widget is BORN at the client's default place (100, 100) and
   -- :parent(w) keeps the place it was given, so a label never positioned sits far outside a plate this size
   -- and is clipped away -- present, sized, and invisible.
   local label = hafen.ui():label():parent(plate):position(0, 0):name(LABEL_NAME):stock(LABEL_STOCK)
+  if not label:exists() then return end
 
   -- A Label's box is exactly the text it renders, so writing a new number resizes it -- and the plate is
   -- that box, or the two-digit floor, whichever is wider. The number is centred in what is left over, so a
@@ -221,41 +230,26 @@ local function decorateIcon(icon)
     if minWidth == nil then                              -- once, on the first label there ever is
       local written = label:text()
       label:text(MIN_DIGITS)
-      minWidth = label:size().w
+      local floor = label:size()
       label:text(written or "")
+      if floor == nil then return end                    -- ...unless that label is already gone; the next one
+      minWidth = floor.w                                 --    measures it instead
     end
 
-    local box = label:size()
+    -- A READ ON A STALE WIDGET ANSWERS NIL, and any of these three can go stale between two lines here for
+    -- the reason decorateIcon states. There is nothing to lay out then: the icon is on its way out and its
+    -- replacement is already on its way in.
+    local box, within = label:size(), icon:size()
+    if (box == nil) or (within == nil) then return end
     local width = math.max(box.w, minWidth)
     plate:size(width, box.h)
-    plate:position(PLATE_LEFT, icon:size().h - labelLift(occupied) - box.h)
+    plate:position(PLATE_LEFT, within.h - labelLift(occupied) - box.h)
     label:position(math.floor((width - box.w) / 2), 0)
-  end
-
-  -- A part of a stack resolves on its own clock and revises on its own, and neither is the stack's own
-  -- Changed, so the mean is followed part by part. Subscribing to one already subscribed would double the
-  -- work for nothing, and a part that has left the stack is not this icon's business any more.
-  local partRevisions = {}
-  local refresh                                            -- ...defined below, and followParts calls it
-
-  local function followParts()
-    for part, subscription in pairs(partRevisions) do
-      if not part:exists() then
-        subscription:off()
-        partRevisions[part] = nil
-      end
-    end
-    local held = item:contents()
-    for _, part in ipairs(held and held:items():list() or {}) do
-      if partRevisions[part] == nil then
-        partRevisions[part] = part:on("Changed", function() refresh() end)
-      end
-    end
   end
 
   -- Read on the tooltip's arrival rather than in the painter: these numbers change once in a while and the
   -- painter runs sixty times a second.
-  function refresh()
+  local function refresh()
     if not icon:exists() then return end                   -- the item outlived this icon by a frame
 
     -- No number, no plate. A label with nothing in it is still a box once the plate has a floor under its
@@ -266,8 +260,6 @@ local function decorateIcon(icon)
     local quality = qualityOf(item)
     label:text((quality ~= nil) and tostring(math.floor(quality + 0.5)) or "")
     plate:visible(quality ~= nil)
-
-    followParts()
 
     -- A bar down there is the label's business as well: it is drawn in the same corner, so the label goes
     -- above whichever bars the icon carries -- ours, the client's own fill meter, or both stacked.
@@ -293,17 +285,27 @@ local function decorateIcon(icon)
   end
 
   refresh()                                                -- an icon the tooltip beat here
-  local revisions = item:on("Changed", refresh)            -- ...and every icon, a moment later
+  if not icon:exists() then return end                     -- ...or an icon that did not outlive its own build
 
   -- The item outlives the icon: moving it to another slot destroys this widget and builds another, which
   -- arrives here on its own. This one's listener would otherwise go on writing to overlays nobody draws.
+  --
+  -- THE ICON'S SUBSCRIPTION IS TAKEN FIRST and reads the item's out of an upvalue, because the icon is the
+  -- one that can still refuse: it is the one that may have left the tree since the line above. Taking the
+  -- item's first would leave, on that refusal, a listener with nothing holding the end of it.
+  local revisions
   icon:on("Removed", function()
-    revisions:off()
-    for part, subscription in pairs(partRevisions) do
-      subscription:off()
-      partRevisions[part] = nil
+    if revisions ~= nil then
+      revisions:off()
     end
   end)
+
+  -- ONE listener covers the stack's parts as well, and the client is what makes that true: a part's tooltip
+  -- bumps the part's own revision, the stack sees it on its next tick, drops the info it had built, and the
+  -- rebuild that follows IS this Changed. A part leaving arrives the same way, by the contents' child count.
+  -- So the mean is a frame behind the part and no more, and a stack of eight costs what a stack of one does
+  -- -- where a listener per part would cost a refresh per part, each one re-reading every other.
+  revisions = item:on("Changed", refresh)                  -- ...and every icon, a moment later
 end
 
 -- ------------------------------------------------------------------ lifecycle
