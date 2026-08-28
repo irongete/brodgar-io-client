@@ -1,0 +1,9 @@
+{
+  "name": "118.4 — the pages",
+  "id": "118-a-patch-on-the-ground.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 118.4: every example block docs/addons/api/vr/patches.md ships, run verbatim, each asserted to have produced the patch the page claims — plus the refusals its own table states.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

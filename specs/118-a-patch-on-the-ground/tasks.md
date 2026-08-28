@@ -45,7 +45,7 @@
       `[manual]`: click inside the patch — expect one `[click] inside` line. Then click a hand's width
       outside its edge — expect no line at all.
 
-- [ ] **118.4 — The pages.** Writes `docs/addons/api/vr/patches.md`; adds the fifth collection to
+- [x] **118.4 — The pages.** Writes `docs/addons/api/vr/patches.md`; adds the fifth collection to
       `vr/README.md` and takes the count out of its `## One vocabulary, four kinds` heading,
       **re-pointing the two links into that anchor** (`vr/ghosts.md`, `event/bus/world.md`) in this same
       task; adds `PatchClicked` and its `ev` reads to `event/bus/world.md` and `event/bus/README.md`;

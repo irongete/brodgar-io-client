@@ -43,7 +43,7 @@ answers with it while it stands.
 
 ## The standing widget
 
-The [shared vocabulary](README.md#one-vocabulary-four-kinds) — `:position`, `:offset`, `:rotate`, `:scale`,
+The [shared vocabulary](README.md#one-vocabulary-every-kind) — `:position`, `:offset`, `:rotate`, `:scale`,
 `:alpha`, `:tint`, `:visible`, `:clickable`, `:exists` — plus the three verbs only a standing widget has.
 
 | Method | Description |

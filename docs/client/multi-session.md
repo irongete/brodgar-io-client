@@ -60,7 +60,7 @@ is empty and the mode still has to go off.
 
 **The mode installs no camera, ever.** `MapView.RTSCam` — a `FreeCam` with a centre of its own, so that
 panning survives the character moving — is registered under the name `rts` beside every other camera
-([world-3d.md](world-3d.md)) and is installed by hand with `:cam rts`, mode or no mode. It is what
+([camera.md](camera.md)) and is installed by hand with `:cam rts`, mode or no mode. It is what
 `s:world():focus(p)` needs: that verb raises under any other camera, none of which has a centre to move.
 
 **There is one camera, not one per character.** A camera is an inner class of the view it draws, so each
@@ -70,7 +70,7 @@ session's `MapView` owns its own and they cannot be shared — what is shared is
 has the screen: that is the frame the outgoing pan is named in, so `Placed.offset` is what turns it into
 the new session's. A session with no offset — one of the two bases unproved, or the two in different
 segments — cannot have that pan translated, and it becomes *follow the character*. What is copied is
-[world-3d.md](world-3d.md).
+[camera.md](camera.md).
 
 | Input | Does |
 |---|---|
@@ -145,7 +145,7 @@ camera, no click-map and no scene — which is why a session obeys while invisib
 
 | What | Where |
 |---|---|
-| The message | `MapView.Click.hit` sends `wdgmsg("click", pc, mc.floor(posres), btn, modflags)`. `pc` is a screen coord the protocol carries and **not** what picks the destination, so any plausible value serves. It is `Widget.MouseButtonEvent.c` handed straight through `Hittest` to `checkmapclick`, so it is **map-view-local DEVICE pixels** — the space [world-3d.md](world-3d.md) gives that whole path, and a `Widget.rootpos()` away from a root coordinate. `mc` is world units, and `floor(posres)` is the **only** scaling in the pair: argument 1 and argument 2 are the same `{x, y}` shape in two different spaces |
+| The message | `MapView.Click.hit` sends `wdgmsg("click", pc, mc.floor(posres), btn, modflags)`. `pc` is a screen coord the protocol carries and **not** what picks the destination, so any plausible value serves. It is `Widget.MouseButtonEvent.c` handed straight through `Hittest` to `checkmapclick`, so it is **map-view-local DEVICE pixels** — the space [map-click.md](map-click.md) gives that whole path, and a `Widget.rootpos()` away from a root coordinate. `mc` is world units, and `floor(posres)` is the **only** scaling in the pair: argument 1 and argument 2 are the same `{x, y}` shape in two different spaces |
 | Getting it there | `UI.rawWdgmsg` resolves the widget id from **that** UI's own `rwidgets` and hands it to that UI's receiver. Raw rather than `wdgmsg` for a session that is not drawn: the action-hook chain belongs to the anchor and knows nothing about the session it would be walking for |
 | Ground, and only ever ground | `Sessions.send` builds those four arguments and **no fifth**: a gob's `Gob.GobClick.clickargs` is never appended and never relayed. Not because it could not be spelled — a target could travel as an id and be rebuilt from each recipient's own `OCache` — but because a walk is the whole of what one session says to another. Everything else a click can mean stays with the character the player is looking at |
 
@@ -161,7 +161,7 @@ one session's ground and objects are drawn into the anchor's scene under a singl
 | **One object, several `Gob`s** | `skipgob` asks `glob.oc.getgob(ob.id)` of every other session, so **`Gob.id` is the server's** and names the same object in each of them. The object is not shared: every `OCache` holds its own `Gob`, and `Gob.glob` is **`final`** — a gob is placed against the map of the session that built it (`Gob.placer` &rarr; `glob.map.mapplace`, `Gob.getmapstate` &rarr; `glob.map.tiler`), so drawing a thing in another session's scene means **building another `Gob`**, never adding one to two views. ⚠️ `Gob.rc` is that session's frame too, so a gob handed across without the offset above is placed where nothing is. ⚠️ **`OCache.ChangeCallback` has `added` and `removed` and no third**: `OCache.add`/`remove`/`ladd`/`lrem` are its only call sites and nothing disposes a cache, so a session ending drops everything it held **in silence** — a consumer that tracks which objects exist has to re-ask on its own when a `UI` dies. `OCache.cbs` is a `WeakList`, so a callback also needs a strong reference somewhere or it is collected and simply stops arriving |
 | The one window that leaves | `SessionGobs.tick` reconciles the two sets on a 0.25s timer, which suits geometry — the boundary walks — but not an object the anchor has **just** learned about: another session's copy is already in the tree, so both are drawn and both tick until the timer runs, and an effect firing in that window is played twice. `Gobs.dedupe` evicts the copies at the moment the anchor's own enters the tree — at the end of `addgob` and not when the add was merely promised, or the object blinks out for as long as its model takes to build |
 | Clickability | the pick pass tests `MapView.clmaptree` alone, so merged ground absent from it is scenery. `MapView.checkmapclick` then derives its coordinate from `cut.ul`, in the frame of whichever session's map produced that cut — the translation above it never enters that arithmetic. `MapMesh.map` says whose, and the answer is corrected once, at the source |
-| Cost | `ShadowMap.maskshadow` keeps a patch out of `ShadowMap.ShadowList`, which is a second full render of every triangle it holds; the shadow map is a 750-unit box around the anchor's character, so a patch far enough away to need merging contributes nothing to it. Each patch is also frustum-tested per cut and per gob, because [nothing in the render path culls](world-3d.md) |
+| Cost | `ShadowMap.maskshadow` keeps a patch out of `ShadowMap.ShadowList`, which is a second full render of every triangle it holds; the shadow map is a 750-unit box around the anchor's character, so a patch far enough away to need merging contributes nothing to it. Each patch is also frustum-tested per cut and per gob, because [nothing in the render path culls](map-click.md) |
 
 ## Gotchas
 

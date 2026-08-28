@@ -107,5 +107,11 @@ The two anchor links are re-pointed in the task that retitles the heading.
 - `src/io/brodgar/addon/LuaPosition.java` — the durable place a ring is made of — 2
 - `src/io/brodgar/addon/AddonManager.java` — `hitboxRings`, and the bus keys — 2, 3
 - `src/io/brodgar/addon/Refusal.java`, `Args.java` — the refusal vocabulary — 2
-- `docs/addons/api/vr/README.md`, `vr/sprites.md`, `api/gob.md`, `event/bus/world.md` — 4
-- `docs/client/world-3d.md`, `docs/client/render-gl.md`, `docs/client/state.md`, `DOCUMENTATION.md` — 4
+- `docs/addons/api/vr/README.md`, `vr/patches.md`, `vr/ghosts.md`, `vr/models.md`, `vr/sprites.md`,
+  `vr/widgets.md`, `api/README.md`, `api/gob.md`, `event/bus/world.md`, `event/bus/README.md` — 4
+- `docs/client/world-3d.md` — split by 118.4 into itself (the scene, the ground overlays, materials)
+  plus `docs/client/map-click.md`, `docs/client/terrain-raster.md` and `docs/client/camera.md`; the
+  four are indexed in `docs/client/README.md`, and `mapfile.md`, `multi-session.md` and `services.md`
+  link into them — 4
+- `docs/client/render-gl.md`, `docs/client/state.md`, `DOCUMENTATION.md` — 4
+- `tools/docverbs.py` — its `RECEIVERS` map, where `patch` is registered as a vr kind — 4

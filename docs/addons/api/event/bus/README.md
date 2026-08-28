@@ -33,7 +33,7 @@ The rest carry no session, and each group has its own reason:
 | `SessionAdded`, `SessionEnteredWorld`, `SessionSelected`, `SessionRemoved` | the session **is** the payload |
 | `Load`, `Update`, `Disable` | your addon's own, and there is one of it however many characters are up |
 | `MarkerChanged` | the recorded map is one database for the client |
-| `GhostClicked`, `SpriteClicked`, `ObjectClicked` | a thing you stood in the world stands in it once, for whichever character looks at it |
+| `GhostClicked`, `SpriteClicked`, `ObjectClicked`, `PatchClicked` | a thing you put in the world is in it once, for whichever character looks at it |
 
 ## Widgets appearing and disappearing
 

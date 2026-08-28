@@ -1,7 +1,7 @@
 # hafen.event: the world
 
 A game object coming into view and leaving it, what the game or your addon attaches to one, and a click on
-an entity you stood in the world yourself. None of these carries a session: the world is the client's, not
+an entity you put in the world yourself. None of these carries a session: the world is the client's, not
 one character's, so each fires once however many of your characters are looking. Everything here is part of
 [the catalogue](README.md), so `hafen.event():on(key, fn)` is the door.
 
@@ -51,8 +51,8 @@ The limits below are what keep the world drawable:
   subscription, not with the first object.
 - **A held object is drawn anyway after a second.** A handler that takes longer than that, or an addon
   disabled mid-flight, costs a late frame and never a missing object.
-- **Only objects the game sends.** A [ghost, sprite or model](../../vr/README.md) you stood in the world
-  yourself is yours already, fires no `GobAdded`, and is drawn the moment you place it.
+- **Only objects the game sends.** A [thing of your own](../../vr/README.md) — a ghost, a sprite, a model,
+  a standing widget, a patch — is yours already, fires no `GobAdded`, and is drawn the moment you place it.
 
 `GobRemoved` makes no such promise: it reports an object that has already left, and there is nothing left
 to hold.
@@ -145,14 +145,15 @@ object, not to any one addon's attachment, so every subscriber is told alike.
 | `GhostClicked` | `ev` — `:ghost()` `:button()` `:x()` `:y()` | a **clickable** [ghost](../../vr/ghosts.md) of *your* addon is clicked |
 | `SpriteClicked` | `ev` — `:sprite()` `:button()` `:x()` `:y()` | a **clickable** [sprite](../../vr/sprites.md#clickability) of *your* addon is clicked |
 | `ObjectClicked` | `ev` — `:object()` `:button()` `:x()` `:y()` | a **clickable** [glTF object](../../vr/models.md#clickability) of *your* addon is clicked |
+| `PatchClicked` | `ev` — `:patch()` `:button()` `:x()` `:y()` | a **clickable** [patch](../../vr/patches.md#clickability) of *your* addon is clicked |
 
-All three are **owner-scoped**: they fire only to the addon that owns the clicked entity, unlike the
-world events above and the roster's, which broadcast. That is because a ghost, sprite or object is private
-to its addon and its handle never leaves it.
+Each of them is **owner-scoped**: it fires only to the addon that owns the clicked entity, unlike the
+world events above and the roster's, which broadcast. That is because a thing you put in the world is
+private to your addon and its handle never leaves it.
 
-| `ev` on `GhostClicked`/`SpriteClicked`/`ObjectClicked` | Description |
+| `ev` on the four | Description |
 |---|---|
-| `ev:ghost()` / `ev:sprite()` / `ev:object()` | the clicked [entity](../../vr/README.md#one-vocabulary-four-kinds) — only the one matching the event fires reads non-nil |
+| `ev:ghost()` / `ev:sprite()` / `ev:object()` / `ev:patch()` | the clicked [entity](../../vr/README.md#one-vocabulary-every-kind) — only the one matching the event fires reads non-nil |
 | `ev:button()` | 1 for left, 3 for right |
 | `ev:x()` `ev:y()` | the world point the click resolved to |
 
@@ -160,10 +161,14 @@ The click is **consumed** — no server click, no character walk. An entity fire
 clickable; a non-clickable one is click-through and silent, and a sprite facing `"screen"` has no
 world mesh, so it is never picked at all.
 
+**A patch is hit-tested rather than picked**, against the ring it was laid as, so it answers whether or not
+you can see that ground — behind a hill, under a house. The other three are found by the engine's own pick
+pass and so answer only where they are visible.
+
 ## See also
 
 - [the catalogue](README.md) — the other families, and whose character an event was
 - [the Gob object](../../gob.md) — what the payload of the first two answers
 - [`gob:overlay()`](../../overlay.md) — the collection the two overlay events report on
-- [the world entities](../../vr/README.md) — the ghosts, sprites and models the three click events are about
+- [the world entities](../../vr/README.md) — the ghosts, sprites, models and patches these clicks are about
 - [`s:world()`](../../world.md) — reading the world on demand instead of listening to it

@@ -1,10 +1,10 @@
 # hafen.vr: everything of yours standing in the world
 
-`hafen.vr()` is the one section for **client-only things standing in the 3D world** — a translucent copy of
+`hafen.vr()` is the one section for **client-only things of yours in the 3D world** — a translucent copy of
 one of the game's own props, your addon's own PNG, your addon's own glTF model, a whole window drawn out
-there instead of on the screen. What separates one of these from a real game object is not where it is,
-since both are in the world, but **whose** it is: nothing here ever reaches the server, so nothing here is
-protected.
+there instead of on the screen, and a shape lying flat on the terrain under all of them. What separates one
+of these from a real game object is not where it is, since both are in the world, but **whose** it is:
+nothing here ever reaches the server, so nothing here is protected.
 
 ```lua
 local s = hafen.session():current()                        -- the character on screen
@@ -13,6 +13,7 @@ hafen.vr():ghost():add("gfx/terobjs/arch/logcabin", p)     -- the game's own pro
 hafen.vr():sprite():add(hafen.asset():get("icon.png"), p)  -- your own image
 hafen.vr():object():add(chair, p)                          -- your own glTF model
 hafen.vr():widget():add(win, p)                            -- a window, drawn in the world
+hafen.vr():patch():add(ring, p)                            -- a shape lying on the ground
 
 local rabbit = s:world():gob():nearest("rabbit")
 hafen.vr():sprite():add(icon, rabbit)                      -- following a game object
@@ -34,6 +35,7 @@ disable and relogin, leaking neither a scene slot nor a GPU texture.
 | `hafen.vr():sprite()` | its own images — see [sprites](sprites.md) |
 | `hafen.vr():object()` | its own glTF models — see [models](models.md) |
 | `hafen.vr():widget()` | the UI it has standing out there — see [widgets](widgets.md) |
+| `hafen.vr():patch()` | its own shapes lying on the terrain — see [patches](patches.md) |
 | `hafen.vr():entity()` | every kind at once — see [the whole section](#the-whole-section-at-once) |
 
 Each is a [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) with the
@@ -53,7 +55,9 @@ collection of its kind. Everything else it answers, `:remove(x)` included.
 `filter` is the canonical [filter](../conventions.md#the-filter-argument): `nil` is all of them, a **string**
 is a substring match on what the thing draws — a ghost's resource name, a sprite's or an object's
 addon-relative path, a standing widget's caption — and a **function** is called with the entity, a truthy
-return keeping it.
+return keeping it. A [patch](patches.md) is a shape and is a picture of nothing, so it has no such name:
+`hafen.vr():patch()` refuses a string filter naming the two forms that work, and no patch ever matches one
+passed to `hafen.vr():entity()`.
 
 ## The anchor is an argument
 
@@ -96,19 +100,22 @@ An [image](sprites.md) or a [model](models.md) is passed as a [`hafen.asset`](..
 a path string; a path raises an error naming `hafen.asset` as the way in. There is nothing to save by
 allowing one, since assets are [interned](../asset.md#interning) and loading the same path again is free.
 
-## One vocabulary, four kinds
+## One vocabulary, every kind
 
 Every entity of every kind answers the same verbs, each a read/write pair on one name: calling it bare
 **reads**, calling it with a value **writes** and hands the entity back, so a whole placement is one chain.
 Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the-ghost),
 [`s:image`](sprites.md#the-sprite) and [`s:facing`](sprites.md#facing), [`o:mesh`](models.md#the-object),
-[`panel:widget`, `panel:facing` and `panel:screen`](widgets.md#the-standing-widget).
+[`panel:widget`, `panel:facing` and `panel:screen`](widgets.md#the-standing-widget). A
+[patch](patches.md) adds none: it is the shape it was laid as, and the ring it holds is read from
+`:info()`.
 
 | Method | Description |
 |---|---|
 | `e:position()` | where it actually is, as a [Position](../position.md) |
 | `e:position(p, a)` | stand it at `p`, optionally setting facing — **for one that stands still** |
 | `e:offset()` / `e:offset(x, y, z)` | where it sits relative to the gob it follows, world units, `z` up — **for one that follows** |
+| `p:offset(x, y)` | the same for a [patch](patches.md), which lies on the ground and takes no `z` |
 | `e:rotate()` / `e:rotate(a)` | its own facing in radians, keeping position |
 | `e:scale()` / `e:scale(k)` | uniform scale, `1` being original size |
 | `e:alpha()` / `e:alpha(a)` | opacity `0..1`, where `1` is opaque |
@@ -151,7 +158,7 @@ end
 [colour](../shapes.md#colours). **A key is absent when the thing it names is** — no `tint` when none is
 laid over it, and no `anchor`/`offset` for one that stands still, exactly as `:offset()` itself raises
 there. Each kind adds its own: `res` for a ghost, `mesh` for an object, `image` and `facing` for a sprite,
-`facing` for a panel.
+`facing` for a panel, `ring` for a patch.
 
 It is a **snapshot**, so nothing in it goes on updating and nothing in it is a live object — that is what
 the verbs beside it are for. `panel:screen(x, y)` has no entry: it projects a point you pass in, so there
@@ -162,13 +169,14 @@ so `:scale(0)` gives the smallest size these take rather than an error. Resizing
 [`gob:scale(k)`](../gob.md#size-unprotected), and that one refuses a `0` or a negative instead of clamping it.
 
 **A [standing widget](widgets.md) is the one kind that is not a picture, so it answers a click as a widget.**
-Three kinds have `:onClick(fn)`, because "it was clicked" is the whole of what a picture has to say; a panel
+The kinds that are have `:onClick(fn)`, because "it was clicked" is the whole of what a picture has to say; a panel
 fires its own `MouseDown` at the pixel the pointer landed on, so `:onClick` on one raises naming that
 subscription instead, and `:clickable(b)` there means *does this panel take the pointer at all*.
 
 **A refusal names the kind in hand**, and a standing widget's name is `panel`: a verb none of them has
-answers `ghost`, `sprite`, `object` or `panel` and lists what that kind does answer. So does
-`tostring(e)`, which is the kind and what it is a picture of — `Ghost(gfx/terobjs/arch/logcabin)`. The panel
+answers `ghost`, `sprite`, `object`, `panel` or `patch` and lists what that kind does answer. So does
+`tostring(e)`, which is the kind and what it is a picture of — `Ghost(gfx/terobjs/arch/logcabin)`, and the
+bare `Patch` for the one that is a picture of nothing. The panel
 is named for what it is rather than for the collection that placed it, because the [widget](../ui/widget.md)
 inside it answers to `widget` and the two need different sentences — out here a place is a
 [Position](../position.md), in there it is pixels within a parent.
@@ -305,6 +313,7 @@ which also depends on where the camera is pointing.
 | [sprites](sprites.md) | an image in the world: its facing modes, clicks |
 | [models](models.md) | glTF: the supported subset, the object's verbs, clicks |
 | [widgets](widgets.md) | a window standing in the world: its facing, its clicks, and the client's own |
+| [patches](patches.md) | a convex ring lying flat on the terrain: what a ring may be, and clicks |
 
 ## See also
 
@@ -313,5 +322,5 @@ which also depends on where the camera is pointing.
 - [`gob:overlay()`](../overlay.md) — what is drawn *at* a gob, including these read-only
 - [the Widget object](../ui/widget.md) — what a standing widget goes on answering, unchanged
 - [drawing](../ui/drawing.md) — the same images, drawn on screen instead
-- [events](../event/bus/world.md#world-ghosts-and-sprites) — `GhostClicked`, `SpriteClicked` and
-  `ObjectClicked`
+- [events](../event/bus/world.md#world-ghosts-and-sprites) — `GhostClicked`, `SpriteClicked`,
+  `ObjectClicked` and `PatchClicked`

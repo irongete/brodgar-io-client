@@ -31,7 +31,7 @@ before the prop is visible simply sets where it will appear.
 
 ## The ghost
 
-The [shared vocabulary](README.md#one-vocabulary-four-kinds) — `:position`, `:offset`, `:rotate`, `:scale`,
+The [shared vocabulary](README.md#one-vocabulary-every-kind) — `:position`, `:offset`, `:rotate`, `:scale`,
 `:alpha`, `:tint`, `:visible`, `:clickable`, `:onClick`, `:exists` — plus the two verbs only a ghost has.
 
 | Method | Description |

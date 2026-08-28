@@ -152,8 +152,8 @@ end
 
 Every point is a real place in the world: `p:x()`, `p:distance()` and
 [`s:world():worldToScreen(p)`](world.md#the-screen-and-the-world) all answer for it, and it sits on the
-object rather than at the frame's origin — a hitbox you draw over the HUD lands under the object it
-came from.
+object rather than at the frame's origin. That is what lets a ring go straight into
+[`hafen.vr():patch()`](vr/patches.md), which lays it on the terrain itself under whatever stands there.
 
 `gob:hitbox()` is `nil` once the gob is gone, before its resource has resolved, and for a resource that
 carries **neither** shape below — a decoration, most flooring, anything nothing walks into and nothing

@@ -138,6 +138,7 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 | [sprites](vr/sprites.md) | a PNG in the world: its facing modes, clicks, following a gob |
 | [models](vr/models.md) | a glTF model: the subset that loads, the object's verbs, and clicks |
 | [widgets](vr/widgets.md) | a window standing in the world: its facing, its clicks, and standing the client's own |
+| [patches](vr/patches.md) | a convex ring lying flat on the terrain: what a ring may be, and clicks |
 
 ## The client itself
 

@@ -75,6 +75,10 @@ RECEIVERS = {
     # A SECTION object, whose verbs are not a closedIndex vocabulary: `hafen.locale()` is the catalogue
     # itself, so its verbs are enumerable only by reading LocaleApi, exactly as `s:char()`'s are.
     "locale": None,
+    # A vr KIND. Every one of them is handed out by VrApi.entityHandle, whose closedIndex is built from
+    # a `kind` VARIABLE rather than a literal, so no vocabulary is extractable for any of them and the
+    # whole family is skipped here. `patch` is spelled out because `p` is a Position everywhere else.
+    "patch": None,
     "seg2": None, "g": None, "s": None, "t": None, "v": None, "x": None,
 }
 

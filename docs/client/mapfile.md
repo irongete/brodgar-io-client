@@ -86,7 +86,7 @@
 
 A recorded `Grid` and an `MCache.Grid` hold the same picture in the same layout — a `cmaps`-sized `int[]` of
 tile indices and a `float[]` of heights — so the record is rasterizable by the terrain machinery in
-[world-3d.md](world-3d.md), once these four differences are paid.
+[terrain-raster.md](terrain-raster.md), once these four differences are paid.
 
 | The record | The live cache | What has to happen |
 |---|---|---|

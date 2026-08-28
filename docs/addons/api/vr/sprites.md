@@ -22,7 +22,7 @@ one chain. A new sprite has scale `1`, full opacity, no tint, faces `"fixed"` an
 
 ## The sprite
 
-The [shared vocabulary](README.md#one-vocabulary-four-kinds) — `:position`, `:offset`, `:rotate`, `:scale`,
+The [shared vocabulary](README.md#one-vocabulary-every-kind) — `:position`, `:offset`, `:rotate`, `:scale`,
 `:alpha`, `:tint`, `:visible`, `:clickable`, `:onClick`, `:exists` — plus the two verbs only a sprite has.
 
 | Method | Description |
