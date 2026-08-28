@@ -163,6 +163,14 @@ that is not on screen, and for a place that character cannot locate at all: proj
 alt that has walked into another part of the world, or into a cave or a house, has no pixel here rather than
 a refusal, the same `nil` [`components`](#terrain-and-coordinates) gives for it.
 
+**A place behind the camera is one the view cannot project**, and it is the one worth naming, because the
+projective divide the conversion ends in answers a *plausible* pixel for it — mirrored through the middle of
+the view, so a place thirty tiles behind you names one thirty tiles in front. Pulled all the way in on the
+`bad` camera the eye sits beside the character looking flat along the ground, and then everything behind them
+is behind the camera. A painter that projects several corners of one shape drops the **whole** shape as soon
+as one of them answers `nil` — half a ring placed and half of it mirrored is the artifact this `nil` exists to
+let you avoid.
+
 **`screenToWorld(pt, fn)` is asynchronous.** It reads the true terrain point from the GPU, the same pass the
 client uses to place a building, so the answer cannot come back inline: it arrives a frame later
 through `fn`, as a Position. Leaving `fn` out raises and says so.

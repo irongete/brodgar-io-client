@@ -10,7 +10,6 @@ import haven.GOut;
 import haven.Gob;
 import haven.PView;
 import haven.Resource;
-import haven.render.Homo3D;
 import haven.render.Pipe;
 
 /**
@@ -18,7 +17,7 @@ import haven.render.Pipe;
  * spec {@code 17-custom-rendering.md} §5, R2b) — a custom PNG standing in the world that always faces the camera,
  * the odd sibling of the fixed {@link SpriteQuad}. It is a screen-space blit anchored at the entity's projected
  * world point, exactly the {@code haven.SpeakerIcon} / {@link LuaGobOverlay} pattern: a {@link PView.Render2D}
- * node whose {@code draw(GOut, Pipe)} projects the gob's origin to the screen (via {@link Homo3D#obj2view}) and
+ * node whose {@code draw(GOut, Pipe)} projects the gob's origin to the screen (via {@link Eye#view}) and
  * blits the {@link haven.TexI} there. Because the gob's {@code Placed} slot supplies the world transform, moving
  * the entity (or a followed gob) moves the anchor — so <b>position and gizmo-move apply</b>; <b>world-rotate and
  * world-scale do not</b> (it is a flat 2D image, always squarely facing the viewer). It draws in the 2D overlay
@@ -74,9 +73,9 @@ public final class LuaSpriteBillboard extends Drawable implements PView.Render2D
             return;                                  // disposed image → draw nothing
         Coord sc;
         try {
-            Coord3f v = Homo3D.obj2view(new Coord3f(0f, 0f, 0f), state, Area.sized(g.sz()));
+            Coord3f v = Eye.view(new Coord3f(0f, 0f, 0f), state, Area.sized(g.sz()));
             if(v == null)
-                return;                              // not projectable this frame
+                return;                              // behind the eye, or not projectable -- see Eye
             sc = v.round2();
         } catch(RuntimeException e) {
             return;                                  // never throw into the render pass (mirrors LuaGobOverlay)

@@ -32,7 +32,13 @@ public class Info extends GAttrib implements RenderTree.Node, PView.Render2D {
 	    fontgen = fgen;
 	    dirty();
 	}
-	Coord sc = Homo3D.obj2view(new Coord3f(0, 0, 15), state, Area.sized(g.sz())).round2();
+	/* addon: the divide obj2view ends in answers a pixel for a point BEHIND THE EYE too -- a mirrored one,
+	 * through the centre of the view, which passes the isect() test below and names a place the gob is not.
+	 * Zoomed in on the "bad" camera the eye looks flat along the ground, so every name behind the player drew
+	 * in front of them. io.brodgar.addon.Eye has no point to give where there is none; the compose above still
+	 * runs, and an unplaceable label is simply not `seen`. */
+	Coord3f v = io.brodgar.addon.Eye.view(new Coord3f(0, 0, 15), state, Area.sized(g.sz()));
+	Coord sc = (v == null) ? null : v.round2();
 	if(dirty) {
 	    RenderContext ctx = state.get(RenderContext.slot);
 	    CompImage cmp = new CompImage();
@@ -50,7 +56,7 @@ public class Info extends GAttrib implements RenderTree.Node, PView.Render2D {
 	    }
 	    rend = cmp.sz.equals(Coord.z) ? null : new TexI(cmp.compose());
 	}
-	if((rend != null) && sc.isect(Coord.z, g.sz())) {
+	if((rend != null) && (sc != null) && sc.isect(Coord.z, g.sz())) {   // addon: (sc != null) -- see above
 	    double now = Utils.rtime();
 	    if(seen == 0)
 		seen = now;

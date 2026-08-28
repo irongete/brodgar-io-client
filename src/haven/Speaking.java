@@ -129,8 +129,14 @@ public class Speaking extends GAttrib implements RenderTree.Node, PView.Render2D
     }
 
     public void draw(GOut g, Pipe state) {
-	Coord sc = Homo3D.obj2view(new Coord3f(0, 0, zo), state, Area.sized(g.sz())).round2();
-	draw(g, sc.add(sx, 0));
+	// addon: the divide obj2view ends in answers a pixel for a point BEHIND THE EYE too -- a mirrored one,
+	//        through the centre of the view, which is on screen and means nothing. Zoomed in on the "bad"
+	//        camera the eye looks flat along the ground, so a speaker behind you had their bubble drawn in
+	//        front of you. io.brodgar.addon.Eye has no point to give where there is none.
+	Coord3f v = io.brodgar.addon.Eye.view(new Coord3f(0, 0, zo), state, Area.sized(g.sz()));
+	if(v == null)
+	    return;
+	draw(g, v.round2().add(sx, 0));
     }
 
     @OCache.DeltaType(OCache.OD_SPEECH)

@@ -11,7 +11,6 @@ import haven.Gob;
 import haven.PView;
 import haven.Resource;
 import haven.TexRender;
-import haven.render.Homo3D;
 import haven.render.Pipe;
 
 /**
@@ -66,10 +65,10 @@ public final class LuaSurfaceBillboard extends Drawable implements PView.Render2
         }
         Coord sc;
         try {
-            Coord3f v = Homo3D.obj2view(new Coord3f(0f, 0f, 0f), state, view);
+            Coord3f v = Eye.view(new Coord3f(0f, 0f, 0f), state, view);
             if(v == null) {
                 surf.corners(null, 0f, null);
-                return;                              // not projectable this frame
+                return;                              // behind the eye, or not projectable -- see Eye
             }
             sc = v.round2();
         } catch(RuntimeException e) {

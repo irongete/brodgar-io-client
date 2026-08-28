@@ -1,0 +1,9 @@
+{
+  "id": "immersion",
+  "name": "Immersion",
+  "version": "0.1.0",
+  "author": "irongete",
+  "description": "Labels the nearest game object within a 180-degree cone in front of the character on screen with a floating \"this\", following it as you move and clearing it when nothing qualifies. A hotkey (Options > Keybindings > Immersion) right-clicks the labelled object.",
+  "files": ["main.lua"],
+  "permissions": ["gob.click"]
+}

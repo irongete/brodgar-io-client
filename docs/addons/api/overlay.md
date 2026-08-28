@@ -57,6 +57,11 @@ it draws nothing, so a half-configured overlay never paints. It says exactly **o
 different kind raises naming the first, because picking a winner is how one of them silently stops meaning
 anything.
 
+**Neither runs for a gob behind the camera**, because there is no screen point to run them at: the projection
+would answer one mirrored through the middle of the view, and a label thirty tiles behind you would draw
+thirty tiles in front of you. Pulled all the way in on the `bad` camera that is every gob behind the
+character, so an overlay is painted exactly while the camera can see the thing it is attached to.
+
 | Setter | Meaning |
 |---|---|
 | `ov:draw(fn)` | `fn(g, gob, sx, sy)` runs every frame at that point, painting with [`g`](ui/drawing.md); `sx, sy` is in [design pixels](ui/pixels.md), like everything `g` takes |

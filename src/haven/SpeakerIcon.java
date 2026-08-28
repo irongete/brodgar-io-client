@@ -1,8 +1,8 @@
 package haven;
 
-import haven.render.Homo3D;
 import haven.render.Pipe;
 import haven.render.RenderTree;
+import io.brodgar.addon.Eye;
 import io.brodgar.voice.Voice;
 
 import java.awt.BasicStroke;
@@ -72,7 +72,11 @@ public final class SpeakerIcon extends GAttrib implements RenderTree.Node, PView
         if (col == null) {
             return; // not a voice participant right now: draw nothing
         }
-        Coord sc = Homo3D.obj2view(new Coord3f(0, 0, NAME_Z), state, Area.sized(g.sz())).round2();
+        Coord3f v = Eye.view(new Coord3f(0, 0, NAME_Z), state, Area.sized(g.sz()));
+        if (v == null) {
+            return; // behind the eye: the icon would draw mirrored onto the screen (see Eye)
+        }
+        Coord sc = v.round2();
         Tex name = nameTex(gob);
         Coord pos;
         if (name != null) {

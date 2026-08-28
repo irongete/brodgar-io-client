@@ -252,6 +252,13 @@ final class WorldApi {
         // ELSE moves: a missing p, an explicit nil and a {x, y} table still raise from posArg, word for word,
         // and every act verb still refuses an unreachable place, which is where getting it wrong costs
         // something. snapPlace keeps refusing too -- it answers a Position and has no nil to say it in.
+        //   AND A PLACE BEHIND THE EYE IS ONE MORE OF THEM. The projective divide MapView.screenxf ends in
+        // answers a pixel for a point behind the camera plane too -- a MIRRORED one, through the centre of the
+        // view, which is on screen and means nothing (Eye). Zoomed all the way in on the "bad" camera
+        // the eye sits beside the character looking flat along the ground, so everything behind the player is
+        // behind it, and an addon tracing a footprint drew its ring across the whole screen instead of dropping
+        // it. The projection goes through Eye, which has no point to give where there is none, and this verb
+        // says so with the nil it already had four reasons to say.
         m.set("worldToScreen", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "world", "worldToScreen", W);
@@ -261,9 +268,9 @@ final class WorldApi {
                 if((rc == null) || (mv == null) || (mc == null))
                     return LuaValue.NIL;
                 try {
-                    Coord3f sc = mv.screenxf(mc.getzp(rc));
+                    Coord3f sc = Eye.view(mv, mc.getzp(rc));
                     if(sc == null)
-                        return LuaValue.NIL;
+                        return LuaValue.NIL;         // behind the eye -- no pixel to name (see Eye)
                     Coord rp = mv.rootpos();         // view-local -> root, in the view's own device pixels
                     return xy(Px.out(sc.x + rp.x), Px.out(sc.y + rp.y));
                 } catch(RuntimeException e) {

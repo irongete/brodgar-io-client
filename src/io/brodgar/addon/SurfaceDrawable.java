@@ -68,12 +68,11 @@ final class SurfaceDrawable extends SprDrawable implements PView.Render2D {
         }
     }
 
-    /** One corner, in the map view's own pixels; {@code false} when it is behind the eye. */
+    /** One corner, in the map view's own pixels; {@code false} when it is behind the eye ({@link Eye}). */
     private static boolean project(float[] out, int i, float x, float y, float z, Pipe state, Area a) {
-        HomoCoord4f c = Homo3D.obj2clip(new Coord3f(x, y, z), state);
-        if((c == null) || !(c.w > 1e-4f))
+        Coord3f v = Eye.view(new Coord3f(x, y, z), state, a);
+        if(v == null)
             return false;
-        Coord3f v = c.toview(a);
         out[i] = v.x;
         out[i + 1] = v.y;
         return true;

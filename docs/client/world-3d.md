@@ -121,7 +121,7 @@ cut, on the calling thread. Where the mask is empty for a cut `makeol` answers *
 | PNG → GPU texture (no `.res`) | `new TexI(BufferedImage)`; GPU upload lazy/thread-safe in `TexI.st()` → a `ColorTex` |
 | **2D screen blit** | `GOut.image(Tex,Coord)` / scaled `(Tex,Coord,Coord)` / `aimage(Tex,Coord,ax,ay)` |
 | Bare-`TexI` blit precedent (no `.res`) | `SpeakerIcon.GLYPH` = `new TexI(img)` drawn via `g.image(...)` |
-| **World-anchored 2D blit (billboard)** | `SpeakerIcon` `extends GAttrib implements RenderTree.Node, PView.Render2D`; `draw(GOut,Pipe)` projects via `Homo3D.obj2view` then `g.image(...)` |
+| **World-anchored 2D blit (billboard)** | `SpeakerIcon` `extends GAttrib implements RenderTree.Node, PView.Render2D`; `draw(GOut,Pipe)` projects the anchor with `Homo3D.obj2clip` (the `w > 0` test above, then `toview`) and blits it with `g.image(...)` |
 | **World textured quad** | a resource-free `Sprite`: `quadVerts` (upright x=0 plane, z 0→h, y ±w/2, t-inverted) → `Model(TRIANGLE_STRIP,VertexArray,null,0,4)`, `Layout` of `Homo3D.vertex` VEC3+`Tex2D.texc` VEC2 (world-vertex xf from the scene's `Homo3D.state`, PView) |
 | Texture material (the working recipe) | `new Material(tr.draw, tr.clip, Material.nofacecull)``.apply(model)` → a `RenderTree.Node` — `tr` = a `TexRender` over the `TexI` sampler (`tex.st().data`); `TexDraw` samples + `TexClip` **alpha-discards** (the `.res` `$tex` matpart, `clip=true`) → SOLID, not blended; double-sided, unlit. *(NOT `ColorTex`+`FragColor.blend` — that translucent-overlay recipe reads as a 1% ghost.)* |
 | **Resource-free `Drawable`** | `SprDrawable(Gob, Sprite.Mill)`, `getres()==null` (`Mill` resolves the owner cycle); same `Drawable` attr slot as `ResDrawable` |

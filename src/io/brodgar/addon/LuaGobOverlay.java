@@ -8,7 +8,6 @@ import haven.GOut;
 import haven.Gob;
 import haven.Loading;
 import haven.PView;
-import haven.render.Homo3D;
 import haven.render.Pipe;
 import haven.render.RenderTree;
 
@@ -406,9 +405,9 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
             return;                                        // nothing attached (an idle attrib awaiting its prune)
         Coord sc;
         try {
-            Coord3f v = Homo3D.obj2view(new Coord3f(0f, 0f, ANCHOR_Z), state, Area.sized(g.sz()));
+            Coord3f v = Eye.view(new Coord3f(0f, 0f, ANCHOR_Z), state, Area.sized(g.sz()));
             if(v == null)
-                return;   // not projectable this frame
+                return;   // behind the eye, or not projectable this frame -- see Eye
             sc = v.round2();
         } catch(RuntimeException e) {
             return;       // never throw into the render pass (mirrors the Loading-guarded reads)
