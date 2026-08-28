@@ -27,6 +27,7 @@
 package haven;
 
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.*;
 import haven.render.*;
 
@@ -38,7 +39,15 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
     public long id;
     public boolean removed = false;
     public final Glob glob;
-    Map<Class<? extends GAttrib>, GAttrib> attr = new HashMap<Class<? extends GAttrib>, GAttrib>();
+    /* addon: 117.1 -- the attrib map is WRITTEN under this gob's own monitor and READ from threads that hold
+     * none. setattr and delattr take the monitor (write atomicity: setattr spans the map and the render slots,
+     * and two writers interleaving in it leave a gob whose attribs and whose slots disagree); the map is
+     * concurrent because added(RenderTree.Slot), eqpoint, ModSprite's walk and SpeakerIcon's reflective read all
+     * walk attr.values() holding nothing, and a weakly consistent iterator never throws where a HashMap's does.
+     * A null VALUE would be refused here -- setattr's delete path reaches attr.remove(ac) alone, and its put
+     * stays inside the a != null arm. Iteration order is unspecified: eqpoint answers the first EquipTarget it
+     * walks past, so a gob carrying two may answer the other one. */
+    Map<Class<? extends GAttrib>, GAttrib> attr = new ConcurrentHashMap<Class<? extends GAttrib>, GAttrib>();
     public final Collection<Overlay> ols = new ArrayList<Overlay>();
     public final Collection<RenderTree.Slot> slots = new ArrayList<>(1);
     public int updateseq = 0, lastolid = 0;
@@ -644,7 +653,12 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	return(c.cast(attr));
     }
 
-    private void setattr(Class<? extends GAttrib> ac, GAttrib a) {
+    /* addon: 117.1 -- the funnel every attrib write passes through, and the only place attr and the render
+     * slots are changed together, so the monitor is here rather than at each call site. The lock order is gob
+     * then tree and this keeps it: RUtils reaches the tree from inside, the way Gobs.addgob and OCache already
+     * do. OCache.GobInfo.apply calls this already holding the monitor -- monitors are reentrant, so that path is
+     * unchanged. added(RenderTree.Slot) is deliberately NOT synchronized: the tree calls it holding itself. */
+    private synchronized void setattr(Class<? extends GAttrib> ac, GAttrib a) {
 	GAttrib prev = attr.remove(ac);
 	if(prev != null) {
 	    if((prev instanceof RenderTree.Node) && (prev.slots != null))
@@ -678,7 +692,9 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	setattr(attrclass(a.getClass()), a);
     }
 
-    public void delattr(Class<? extends GAttrib> c) {
+    // addon: 117.1 -- synchronized too: it READS attr before deciding, and the read and the write it leads to
+    //        are one operation. Reentrant into setattr below.
+    public synchronized void delattr(Class<? extends GAttrib> c) {
 	Class<? extends GAttrib> ac = attrclass(c);
 	GAttrib attr = this.attr.get(ac);
 	if(c.isInstance(attr))

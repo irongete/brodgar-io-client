@@ -1,0 +1,9 @@
+{
+  "name": "117.1 — the attrib map is written under the gob's own monitor",
+  "id": "117-an-object-the-client-has-is-drawn.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 117.1: with gob:scale and gob:overlay():add/:remove driven over every visible object from the step and from a Draw handler at once, every object that painted still paints, every write reads back, nothing raised, and the client kept drawing.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
