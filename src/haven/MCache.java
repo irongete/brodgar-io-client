@@ -598,7 +598,9 @@ public class MCache implements MapSource {
 	    Cut cut = geticut(cc);
 	    if(!cut.ols.containsKey(id)) {
 		cut.ols.put(id, getcut(cc).makeol(id));
+		io.brodgar.addon.AddonManager.overlayMeshBuilt();     // addon: 119.1 -- one cut's overlay mesh, laid
 		cut.olols.put(id, getcut(cc).makeolol(id));
+		io.brodgar.addon.AddonManager.overlayOutlineBuilt();  // addon: 119.1 -- ...and the outline over it
 	    }
 	    return(cut.ols.get(id));
 	}

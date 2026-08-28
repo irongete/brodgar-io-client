@@ -484,6 +484,10 @@ public final class ProfHandle {
      * {@code GobAdded} to fire (114.1) — cumulative since the client started, and zero for as long as no
      * addon subscribes to that event.
      *
+     * <p>{@code overlayMeshes} and {@code overlayOutlines} are how many cut overlay meshes, and how many of
+     * their outlines, {@code MCache.Grid.getolcut} has laid (119.1) — cumulative in the same way, and counting
+     * the tile-laying pass rather than its result, so a pass over a cut the mask does not reach counts too.
+     *
      * <p>{@code drawSlots} is the draw-slot count, the closest thing the tree has to "draw calls this
      * frame"; {@code uniqueInstances} + {@code batches} (holding {@code instances} between them) is the
      * batching split; {@code invalid} and {@code bypass} are the slots instancing could not take.
@@ -496,6 +500,10 @@ public final class ProfHandle {
         // 114.1: the addon layer's own, and the one number here that describes no scene -- so it is set
         // before the two returns below and answers on the login screen as readily as in the world.
         t.set("gobsHeld", LuaValue.valueOf((double)AddonManager.gobsHeld()));
+        // 119.1: the overlay build passes, on the same terms -- what the map cache has laid describes no one
+        // scene either, and both are read with profiling disarmed like everything else in this table.
+        t.set("overlayMeshes", LuaValue.valueOf((double)AddonManager.overlayMeshes()));
+        t.set("overlayOutlines", LuaValue.valueOf((double)AddonManager.overlayOutlines()));
         UI u = AddonManager.screen();
         if(u == null)
             return t;

@@ -858,6 +858,47 @@ public final class AddonManager {
         VirtualApi.sessionRebased(ui);
     }
 
+    // ------------------------------------------------------------- the overlay build counters (119.1)
+    //
+    // A CUT'S OVERLAY MESH IS BUILT IN EXACTLY ONE PLACE -- MCache.Grid.getolcut, which lays every masked tile
+    // of that cut a second time through MapMesh.makeol, and the edges of the same mask once more through
+    // makeolol. Both passes are counted here, so that what registering one more overlay costs is a number an
+    // addon reads back rather than a stopwatch: hafen.client():profiling():render()'s overlayMeshes and
+    // overlayOutlines.
+    //
+    // Incremented on the thread that builds cuts and read from Lua on the UI thread, hence the atomics.
+    // Nothing gates them on profiling being ARMED: this is work the client does whether or not anyone is
+    // watching, exactly like gobsHeld beside them in the same table (D-051).
+
+    /** <b>Cut overlay meshes built</b>, cumulative since the client started -- one per pass through
+     *  {@code MapMesh.makeol}. A pass whose mask reaches none of that cut's tiles answers {@code null} and
+     *  counts too: the pass over the cut is what it costs, and an empty result is not a saving. */
+    private static final AtomicLong overlayMeshes = new AtomicLong(0L);
+
+    /** <b>Cut overlay OUTLINE meshes built</b>, cumulative since the client started -- the same count for
+     *  {@code MapMesh.makeolol}, the second tile-laying pass {@code getolcut} makes over the same cut. */
+    private static final AtomicLong overlayOutlines = new AtomicLong(0L);
+
+    /** Call site -- {@code MCache.Grid.getolcut}, once {@code makeol} has answered. @see #overlayMeshes */
+    public static void overlayMeshBuilt() {
+        overlayMeshes.incrementAndGet();
+    }
+
+    /** Call site -- {@code MCache.Grid.getolcut}, once {@code makeolol} has answered. @see #overlayOutlines */
+    public static void overlayOutlineBuilt() {
+        overlayOutlines.incrementAndGet();
+    }
+
+    /** @see #overlayMeshes */
+    public static long overlayMeshes() {
+        return overlayMeshes.get();
+    }
+
+    /** @see #overlayOutlines */
+    public static long overlayOutlines() {
+        return overlayOutlines.get();
+    }
+
     /**
      * <b>The per-client half of the old {@code init}</b> (074.2) — load the addons and fire {@code Load},
      * once, for the whole client. It runs at boot (the first turn of {@link #layerTick}) and on a

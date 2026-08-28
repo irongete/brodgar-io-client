@@ -1,0 +1,10 @@
+{
+  "name": "119.1 — the overlay work has a number",
+  "id": "119-the-overlay-costs-what-it-draws.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "permissions": ["client.settings"],
+  "description": "Self-checking suite for task 119.1: hafen.client():profiling():render() answers overlayMeshes and overlayOutlines, they are readable with profiling disarmed (the switch is borrowed for that one read and given back), laying one patch moves both, and neither ever falls.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
