@@ -184,6 +184,7 @@ public class Client implements Console.Directory {
 			synchronized(ui) {ui.keyup(awt);}
 		    Debug.keyevent(awt);
 		}
+		ui.lastevent = Utils.rtime();
 	    }
 	}
     }
