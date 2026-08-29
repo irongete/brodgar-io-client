@@ -1,0 +1,10 @@
+{
+  "name": "120.5 — the pages",
+  "id": "120-the-ground-is-there-when-you-look.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 120.5: the examples the client() and counters pages carry are run exactly as they are written, and every claim those pages make beside them is asserted against the client that has to make it true.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

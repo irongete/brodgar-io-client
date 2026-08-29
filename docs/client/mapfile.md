@@ -100,10 +100,17 @@ tile indices and a `float[]` of heights — so the record is rasterizable by the
   priority: `MapMesh.dotrans` loops from the highest neighbouring id down and hands `255 - i` to `Tiler.trans`
   as the layer order. A reader minting ids of its own therefore gets correct ground with a transition order of
   its own, and there is no way to recover the server's — see the `prio` gotcha below.
-- **The read is two steps and neither of them waits.** `Segment.gridid(sc)` answers from memory; `Segment.grid(id)`
-  hands back an `Indir` — both `checklock()`, both under the `tryLock` of `MiniMap.resolve`'s rule. Call `get()`
-  **outside** the lock and treat its `Loading` as *ask again next pass*: the caller is itself on a `Defer` thread
-  and blocking one on another's task is what [boot-and-loop.md](boot-and-loop.md) warns about.
+- **The read is two steps and neither of them waits.** `Segment.gridid(sc)` answers from memory;
+  `Segment.grid(id)` hands back an `Indir` — both `checklock()`, both under the `tryLock` of
+  `MiniMap.resolve`'s rule, so a pass that cannot have the lock does nothing and the next one gets it. Call
+  `get()` **outside** the lock and treat its `Loading` as *ask again next pass*: the caller is itself on a
+  `Defer` thread and blocking one on another's task is what [boot-and-loop.md](boot-and-loop.md) warns about.
+- **A read budget bounds NEW asks, and it takes a pending set to say so.** The `Indir` is cached in the
+  segment, so asking again is a check on a running future and is how the answer is collected — but a coord
+  still `Loading` re-consumes a slot on every pass unless the reader keeps its own set of what it has asked
+  for and not yet installed, and a budget without one bounds what is *outstanding*: a square of grids then
+  takes as long to ask for as to read. Clear the set whenever the offset moves, or a coord asked for through
+  the old one installs somewhere it never was. Keep the budget small, for the gotcha below and not the disk.
 - **The offset is `sessloc`, and it can check itself.** Segment grid coord = session grid coord +
   `sessloc.tc / cmaps`, and `sessloc.tc` is grid-aligned because `SessionLocator` derives it from a live grid's
   `GridInfo`. `sessloc` goes stale rather than null ([minimap.md](minimap.md)), so a reader proves the offset

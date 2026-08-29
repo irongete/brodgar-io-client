@@ -70,7 +70,7 @@
       `[manual]`: pan far in one direction for a minute, then run `:recall` — report grids held and
       cuts drawn against their caps, so the shipped constants are set from a number.
 
-- [ ] **120.5 — The pages.** Rewrites `docs/client/terrain-raster.md`'s two rows and its trim
+- [x] **120.5 — The pages.** Rewrites `docs/client/terrain-raster.md`'s two rows and its trim
       gotcha: the wanted set is the raster's and is grid-shaped, the schedule is a concurrency target
       at ctick rate, the budgets are the LRU and the cut cap, and the settings replace the console
       arguments. Rewrites the read-back row in `docs/client/mapfile.md` for the `pending`/`tryLock`
