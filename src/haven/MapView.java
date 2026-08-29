@@ -761,6 +761,65 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
     static {camtypes.put("rts", RTSCam.class);}
 
+    /* chart: (SPIKE) `:cam minimap` -- the ordinary 3D camera, over ground made of the map's own pictures.
+     *
+     * It is FreeCam in every respect: the same drag to turn and tilt, the same wheel to pull back. What is
+     * different is not the camera at all but what the ground under it is made of -- see
+     * io.brodgar.session.Chart, which the view installs in place of the terrain while this is on. The
+     * camera exists so that there is a name to install it by, and for the one thing FreeCam cannot do.
+     *
+     * That one thing is the far plane. Camera.resized() fixes it at 2000 units -- 182 tiles, under two
+     * grids -- so a chart reaching several grids out would be clipped away and nobody would know why. The
+     * near plane stays at 1: depth resolution at distance d is `dz * (f-n) * d^2 / (f*n)`, which with
+     * n = 1 is the same for f = 2000 and f = 25000 alike, so moving the far plane costs nothing a camera
+     * standing on the ground can see. */
+    public class MinimapCam extends FreeCam {
+	private float far = 25000f;
+
+	public MinimapCam(String... args) {
+	    super();
+	    if(args.length > 0) {
+		try {
+		    far = Float.parseFloat(args[0]);
+		} catch(NumberFormatException e) {
+		    throw(new IllegalArgumentException("cam minimap: `" + args[0] + "' is not a distance"));
+		}
+	    }
+	    setproj();
+	}
+
+	/* How far the camera is being pulled back -- the TARGET, not the eased value.
+	 *
+	 * FreeCam.tick walks `dist` toward `tdist` over about a second, so a level chosen from `dist` is
+	 * chosen several times on the way to one wheel notch. Choosing from the target settles it on the
+	 * first frame of the gesture, which is also the frame with the most time to prepare the new level
+	 * before the camera arrives. */
+	public float dist() {return(tdist);}
+
+	private void setproj() {
+	    float field = 0.5f;
+	    float aspect = ((float)sz.y) / ((float)sz.x);
+	    proj = Projection.frustum(-field, field, -aspect * field, aspect * field, 1, far);
+	}
+
+	public void resized() {
+	    super.resized();
+	    setproj();
+	}
+
+	/* Five times FreeCam's own step. Its 25 units a notch are sized for a camera you play a character
+	 * with, where the whole useful range is a few hundred units; a chart is looked at from much further
+	 * back and crossing that range a notch at a time is a hundred turns of the wheel.
+	 *
+	 * Here rather than in FreeCam, so `bad` keeps the step it has always had. The clamp is FreeCam's
+	 * own: five units is as close as the camera comes. */
+	public boolean wheel(MouseWheelEvent ev) {
+	    tdist = Math.max(5f, tdist + (float)(ev.s * 125));
+	    return(true);
+	}
+    }
+    static {camtypes.put("minimap", MinimapCam.class);}
+
     @RName("mapview")
     public static class $_ implements Factory {
 	public Widget create(UI ui, Object[] args) {
@@ -1527,6 +1586,20 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    zhi = cc.z + 100;
 	} catch(Loading e) {
 	}
+	return(boxvisible(ul, br, zlo, zhi));
+    }
+
+    /* chart: (SPIKE) the same frustum test, for a source outside this package and with the height band
+     * given rather than taken from the player. A chart cell is a grid or more across and thousands of units
+     * away, under no obligation to sit within 100 units of the character's own altitude; a band that
+     * assumes it culls ground that is plainly on screen. boxvisible rejects only when all eight corners
+     * fall outside ONE clip plane, so it answers generously and never "no" for a box that is visible --
+     * which is what a pre-reject wants. */
+    public boolean worldboxvisible(Coord2d ul, Coord2d br) {
+	return(boxvisible(ul, br, -1000f, 1000f));
+    }
+
+    private boolean boxvisible(Coord2d ul, Coord2d br, float zlo, float zhi) {
 	boolean left = true, right = true, down = true, up = true, behind = true;
 	for(int i = 0; i < 8; i++) {
 	    double x = ((i & 1) == 0) ? ul.x : br.x;
@@ -1679,6 +1752,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
     /* 068: the remembered ground's source -- an MCache of its own, filled out of the map database.
      * Built on the first tick that has a minimap to take sessloc from; RecallTerrain below is what
      * draws it, and :recall is what reports it. */
+    /* chart: (SPIKE) the world as the map database's pictures, with `:cam minimap`. It replaces the
+     * terrain rather than joining it -- the one raster comes out of the scene while this is on, which is
+     * the whole of what "renders no 3D terrain" means. */
+    private io.brodgar.session.Chart chart = null;
+    private RenderTree.Slot s_chart = null;
+
     private io.brodgar.session.Recall recall = null;
     private RecallTerrain recallterrain = null;
     private RenderTree.Slot s_recall = null;
@@ -1952,6 +2031,43 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    recallterrain.center = null;
 	    recallterrain.tick();
 	}
+    }
+
+    private void charttick() {
+	GameUI gui = getparent(GameUI.class);
+	MiniMap mm = (gui == null) ? null : gui.mmap;
+	if(!(camera instanceof MinimapCam) || (mm == null)) {
+	    if(s_chart != null) {
+		/* Out of the scene first, disposed second -- a slot still holding a cell goes on drawing a
+		 * quad whose texture has been freed. And the terrain comes back: attachscene only adds
+		 * what is missing, so it is the one door for that either way. */
+		s_chart.remove();
+		s_chart = null;
+		if(chart != null)
+		    chart.dropall();
+		if(!dormant)
+		    attachscene();
+	    }
+	    return;
+	}
+	MinimapCam cam = (MinimapCam)camera;
+	if(chart == null)
+	    chart = new io.brodgar.session.Chart(glob.sess, this);
+	if(s_chart == null)
+	    s_chart = basic.add(chart, ShadowMap.maskshadow);
+	Coord2d c = null;
+	try {
+	    c = new Coord2d(getcc());
+	} catch(Loading e) {
+	    /* No player yet, or no ground under them: nothing to centre the chart on. */
+	}
+	/* No 3D terrain at all while the chart is up. The gobs stay: a chart with nothing standing on it
+	 * says where the ground is and not who is on it, and the client is already drawing them. */
+	if(s_terrain != null) {
+	    s_terrain.remove();
+	    s_terrain = null;
+	}
+	chart.tick(mm, c, cam.dist());
     }
 
     private void recalltick() {
@@ -3198,6 +3314,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * it wants this frame's area rather than the last one's, and nothing it touches is behind that
 	 * monitor. */
 	recalltick();
+	charttick();   // chart: (SPIKE) the map's own pictures, in place of the terrain
 	Loader.Future<Plob> placing = this.placing;
 	if((placing != null) && placing.done()) {
 	    Plob ob = placing.get();
@@ -4112,6 +4229,20 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		     * each number is stated once, in the one place that owns it. */
 		    cons.out.println(String.format("recall: cuts drawn %d of %d, cuts wanted %d",
 						   recallcutsdrawn(), recallcutcap(), recallcutswanted()));
+		}
+	    });
+	/* chart: (SPIKE) what the map-picture ground holds. */
+	cmdmap.put("chart", new Console.Command() {
+		public void run(Console cons, String[] args) throws Exception {
+		    io.brodgar.session.Chart c = chart;
+		    if(c == null)
+			throw(new Exception("chart: no source yet -- `:cam minimap' is what builds one"));
+		    for(String ln : c.report())
+			cons.out.println(ln);
+		    cons.out.println(String.format("chart: camera %s, ground %s, terrain %s",
+						   (camera instanceof MinimapCam) ? "minimap" : camname(),
+						   (s_chart == null) ? "out of the scene" : "in the scene",
+						   (s_terrain == null) ? "OUT of the scene" : "in the scene"));
 		}
 	    });
 	cmdmap.put("whyload", (cons, args) -> {
