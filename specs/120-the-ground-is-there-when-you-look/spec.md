@@ -96,4 +96,5 @@ Derived impact set — `grep -rniE "remembered ground|:recall|recall|greyscale|w
 - `docs/addons/api/client/README.md` — 1, 5
 - `docs/addons/api/client/profiling/counters.md` — 1, 5
 - `docs/addons/api/conventions.md` — 1
+- `docs/addons/api/timer.md` — 2, 3, 4, 5
 - `DOCUMENTATION.md` — 5

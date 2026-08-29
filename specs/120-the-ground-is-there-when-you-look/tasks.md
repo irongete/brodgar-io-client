@@ -19,7 +19,7 @@
       `[manual]`: open Options ▸ Game ▸ Client — expect a **Remembered ground** section with the
       three controls, and its checkbox moving when the suite's Lua write runs.
 
-- [ ] **120.2 — The read side asks once, and asks for what is wanted.** `Recall` gains a `pending`
+- [x] **120.2 — The read side asks once, and asks for what is wanted.** `Recall` gains a `pending`
       set of grid coords asked for and not yet installed, so `maxread` bounds **new** asks rather
       than outstanding ones — today a grid still `Loading` re-consumes a slot on every sweep. The
       0.25 s `period` goes: `sweeping` already serialises, so one sweep runs per ctick. What is read

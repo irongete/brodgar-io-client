@@ -1486,6 +1486,21 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return(boxvisible(ul, ul.add(csz.mul(3))));
     }
 
+    /* 120.2: is any part of this GRID on screen? The read side's whole question -- what the camera can
+     * see is what is worth reading off the disk, and a square around the centre reads as much ground
+     * behind the camera as in front of it.
+     *
+     * The box is the grid's own, pushed out by a cut on each side, which makes it exactly as wide as
+     * every cutvisible() inside it put together: boxvisible answers `invisible' only when all eight
+     * corners fall outside the SAME plane, and a box contained in a rejected one has its own corners in
+     * that same half-space. So a grid this refuses holds no cut the drawn side would have kept, and the
+     * two sides cannot disagree about the edge. */
+    private boolean gridvisible(Coord gc) {
+	Coord2d csz = new Coord2d(MCache.cutsz).mul(tilesz);
+	Coord2d ul = new Coord2d(gc.mul(MCache.cmaps)).mul(tilesz).sub(csz);
+	return(boxvisible(ul, ul.add(new Coord2d(MCache.cmaps).mul(tilesz)).add(csz.mul(2))));
+    }
+
     /** rts: the same test for a single object -- a couple of tiles across, tall enough for a tree. */
     private boolean gobvisible(Coord2d rc) {
 	Coord2d m = tilesz.mul(3);
@@ -1735,6 +1750,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * back from the record, and within both budgets. Nearest-first, so a pan grows the drawn ground
 	 * outward from where the camera is looking rather than in grid order. */
 	final Set<Coord> draw = new HashSet<>();
+	/* 120.2: which GRIDS this raster wants, which is what the source reads. Replaced whole rather
+	 * than mutated, because Recall's sweep reads it from a Defer thread while this is written from
+	 * the UI thread -- the same rule Recall.Base already obeys. */
+	Set<Coord> wantgrids = Collections.emptySet();
 	Coord2d center = null;
 	int nwanted = 0;
 
@@ -1753,6 +1772,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		area = null;
 		draw.clear();
 		nwanted = 0;
+		wantgrids = Collections.emptySet();
 		return;
 	    }
 	    /* In grids rather than in cuts, because grids are the unit the source reads and the margin is
@@ -1762,6 +1782,20 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * fill margin -- so this is the range itself and Recall.radius() is the range plus one. */
 	    int r = recallrange;
 	    area = new Area(gc.sub(r, r).mul(MCache.cutn), gc.add(r + 1, r + 1).mul(MCache.cutn));
+	    /* 120.2: and what the SOURCE is to read, decided here and nowhere else. It is the same square
+	     * the area above covers, per grid rather than per cut and with nothing else asked of it: a
+	     * grid off screen is neither drawn nor worth taking off the disk, and whether the record has
+	     * anything there is the source's own question and not this raster's. Recall adds the fill
+	     * margin, so this is the range itself. */
+	    Set<Coord> want = new HashSet<>();
+	    for(int y = -r; y <= r; y++) {
+		for(int x = -r; x <= r; x++) {
+		    Coord g = gc.add(x, y);
+		    if(gridvisible(g))
+			want.add(g);
+		}
+	    }
+	    wantgrids = want;
 	    List<Coord> cand = new ArrayList<>();
 	    Area own = terrain.area;
 	    for(Coord cc : area) {
@@ -1852,6 +1886,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		/* No player yet, or no ground under them: nothing to centre a read on. */
 	    }
 	}
+	/* 120.2: the base first, the read LAST, and the decision between them. The base has to be this
+	 * tick's -- a re-base found here must take the ground out of the scene in the same frame and not
+	 * the next one -- and what is read is what the raster asks for, which it cannot say until it has
+	 * been told whether it is in the scene at all. */
 	recall.tick(mm, c);
 	/* The raster goes in with the RTS camera and comes out with it. Every other camera is bolted to
 	 * the character, where the live Terrain already draws everything in view and this would have
@@ -1864,10 +1902,15 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * which is worse than no ground at all. It returns of its own accord once a sweep has proved the
 	 * new base, and in the right place. */
 	if(!recallon || !rts || (c == null) || !recall.ready()) {
+	    /* 120.2: out of the scene, so nothing is wanted and nothing is read. The sweep below still
+	     * runs, and must: it is the sweep that proves the base, and until one has, this branch is the
+	     * only branch there is. */
+	    recall.want(null);
 	    droprecall();
 	    /* In this order and not the other: release() disposes every cut mesh the source holds, and a
 	     * raster still in the tree holding one goes on drawing it. Out of the scene, then disposed. */
 	    recall.release();
+	    recall.read();
 	    return;
 	}
 	if(recallterrain == null)
@@ -1900,12 +1943,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * from eight grids to one. So the raster follows in the SAME frame, and no frame is drawn holding
 	 * a cut of a grid just disposed. */
 	double now = Utils.rtime();
-	if((recallrange == lastrange) && ((now - lastrecall) < 0.2))
-	    return;
-	lastrecall = now;
-	lastrange = recallrange;
-	recallterrain.center = c;
-	recallterrain.tick();
+	if((recallrange != lastrange) || ((now - lastrecall) >= 0.2)) {
+	    lastrecall = now;
+	    lastrange = recallrange;
+	    recallterrain.center = c;
+	    recallterrain.tick();
+	    /* 120.2: what the raster just decided it wants is what the source reads, and it is handed
+	     * over here rather than taken, so there is one place the wiring is stated. Between two raster
+	     * ticks the set stands: the sweeps in between read the same grids and ask for the ones they
+	     * had no slot for. */
+	    recall.want(recallterrain.wantgrids);
+	}
+	recall.read();
     }
 
     /* rts: every frame, unlike sessiontick() -- an animated pose that is 200ms stale is a visible jump. */

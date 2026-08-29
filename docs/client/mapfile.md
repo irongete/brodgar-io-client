@@ -120,6 +120,12 @@ tile indices and a `float[]` of heights — so the record is rasterizable by the
 
 ## Gotchas
 
+- **A grid ask still in flight holds a `Defer` worker on the read lock.** `Segment.loadgrid` is
+  `Defer.later(locked(..., lock.readLock()))` and `locked` takes the lock with `lock()`, never `tryLock`,
+  so an `Indir` handed out and not yet collected parks a pool thread for as long as the processor
+  thread's write lock lasts — a whole segment save. The caller's own `get()` throws rather than waits, so
+  nothing on its side shows this; a burst of asks starves the pool every mesh build shares
+  ([boot-and-loop.md](boot-and-loop.md)).
 - **`Loading` is everywhere on this path** (`Indir.get`, a tileset resource, `olid.get`) and it is a
   `RuntimeException`: catch broadly at the API boundary or it escapes into user code.
 - A grid id and a segment id are **64-bit**; expose them as decimal strings, never Lua numbers.

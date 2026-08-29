@@ -1,0 +1,10 @@
+{
+  "name": "120.2 — the read side asks once",
+  "id": "120-the-ground-is-there-when-you-look.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 120.2: with the rts camera up and the range grown, grids read settles within a bounded window of ticks, and with the system switched off it stops moving at all even as the range grows to its widest under it.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

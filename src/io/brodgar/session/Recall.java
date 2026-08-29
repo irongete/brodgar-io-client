@@ -1,9 +1,13 @@
 package io.brodgar.session;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import haven.AddonWidgets;
 import haven.Coord;
@@ -15,7 +19,6 @@ import haven.MapFile;
 import haven.MapView;
 import haven.MiniMap;
 import haven.Session;
-import haven.Utils;
 
 /**
  * The remembered ground: a map source filled from the map database instead of from the wire.
@@ -49,17 +52,18 @@ import haven.Utils;
  */
 public class Recall {
     /**
-     * How far around the centre the record is read, in grids: the user's own drawn range
-     * ({@link MapView#recallrange}) and one grid more.
+     * How far around the centre the record is kept, in grids, and the widest a read can reach: the
+     * user's own drawn range ({@link MapView#recallrange}) and one grid more.
      *
      * <p>That extra ring is the fill margin the drawn raster needs rather than reach of its own.
      * {@code MapMesh.dotrans} reads a tile across the cut edge and the corner heights need the same
      * tile, so a cut at the fill's own edge throws {@code MCache.LoadingMap} and never completes —
-     * which is why what is read is always one grid wider than what is drawn.
+     * which is why what is read is always one grid wider than what is drawn. {@link #want} is where
+     * that ring is actually added, so what is read stays inside this square without being a square.
      *
      * <p>It is a method and not a constant because the range is a setting: a write from the panel or
-     * from Lua is answered by the next tick's trim and the next sweep's square, with nothing to
-     * rebuild and nothing to tell.
+     * from Lua is answered by the next tick's trim and by the next set the raster hands to {@link #want},
+     * with nothing to rebuild and nothing to tell.
      */
     public static int radius() {
 	return(MapView.recallrange + 1);
@@ -76,10 +80,18 @@ public class Recall {
 	return(((r * 2) + 1) * ((r * 2) + 1));
     }
 
-    /** How many grids one sweep may start reading off the disk. */
+    /**
+     * How many grids one sweep may <b>start</b> reading off the disk, which is not how many may be
+     * outstanding: a grid already asked for costs nothing to ask again (see {@link #pending}), so this
+     * bounds new asks alone and the whole wanted set is asked for in a few ticks rather than a second.
+     *
+     * <p>It stays a small number all the same, and that is not about the disk. An ask is
+     * {@code MapFile.Segment.loadgrid} — a {@link Defer} task that takes the file's read lock with
+     * {@code lock()} and therefore <b>parks a worker</b> for as long as a segment save holds the write
+     * lock. Raise this past what the pool can spare and the mesh builds queued behind it in that same
+     * pool are what pays.
+     */
     private static final int maxread = 8;
-    /** How often the sweep runs, in seconds. */
-    private static final double period = 0.25;
 
     /** The recalled source. Never ticked, never sent for; read by whatever rasterizes it. */
     public final MCache map;
@@ -133,10 +145,36 @@ public class Recall {
     private final Map<String, Integer> tileids = new HashMap<String, Integer>();
     private int nexttile = 0;
 
-    private volatile boolean sweeping = false;
-    private double lastsweep = 0;
+    /**
+     * What to read: every grid the drawn raster asked for and one grid more in every direction, which is
+     * the fill margin {@link #radius()} describes. Immutable and replaced whole, because the sweep reads
+     * it from a {@link Defer} thread while the raster hands it over from the UI thread.
+     *
+     * <p>Empty is the ordinary state and not a failure — with the raster out of the scene nothing is
+     * wanted, and <b>nothing is read</b>. The sweep still runs, because proving the base is what lets the
+     * raster come back at all.
+     */
+    private volatile Set<Coord> readset = Collections.emptySet();
 
-    private volatile int nread = 0, nfailed = 0, nrebase = 0, nblank = 0, nwaiting = 0, nstale = 0;
+    /**
+     * Grid coords asked for and not yet installed — what makes {@link #maxread} a bound on <b>new</b>
+     * asks. Without it a grid whose {@code Indir} is still {@code Loading} consumes one of the sweep's
+     * slots again on every sweep, so the cap is that many <i>in flight</i> and merely asking for the
+     * wanted set takes as long as reading it.
+     *
+     * <p>Asking a second time is free and is still done, because that is how the answer is collected: the
+     * {@code Indir} is cached in the segment, so the second {@code get()} is a check on a future that is
+     * already running. What a pending coord does not do is take a slot from a grid never asked for.
+     *
+     * <p>It is cleared with {@code proven}/{@code mustrelease}: a coord asked for through a base that has
+     * since moved names somewhere else now, and nothing read through it may install behind the
+     * {@code trimall} that dropped its neighbours.
+     */
+    private final Set<Coord> pending = Collections.newSetFromMap(new ConcurrentHashMap<Coord, Boolean>());
+
+    private volatile boolean sweeping = false;
+
+    private volatile int nread = 0, nfailed = 0, nrebase = 0, nblank = 0, nstale = 0;
     private volatile int nreleased = 0;
     private volatile String lasterr = null;
 
@@ -151,8 +189,10 @@ public class Recall {
     }
 
     /**
-     * Called from the drawn view's tick, on the UI thread. Re-derives the base, drops everything if
-     * it moved, and starts one sweep at a time. Everything expensive is on the sweep's thread.
+     * Called from the drawn view's tick, on the UI thread, and <b>first</b>: re-derives the base and
+     * drops everything if it moved, so a re-base takes the ground out of the scene in the frame it is
+     * found rather than the next one. What is read is decided after that, by {@link #want}, and the
+     * reading itself is started by {@link #read} once the raster has said what it wants.
      *
      * @param mm     the corner minimap — the one instance whose {@code sessloc} the rest of the
      *               client reads; {@code null} before the HUD is up
@@ -185,6 +225,9 @@ public class Recall {
 	     * everywhere. Nothing is drawn again until a sweep has proved the new offset. */
 	    proven = false;
 	    mustrelease = true;
+	    /* And the asks in flight go with them: a coord asked for through the offset just left names
+	     * somewhere else under the new one. */
+	    pending.clear();
 	    this.base = cur = new Base(mm.file, loc);
 	}
 	unbased = null;
@@ -198,17 +241,54 @@ public class Recall {
 	Coord gc = center.floor(MCache.tilesz).div(MCache.cmaps);
 	int r = radius();
 	map.trim(gc.sub(r, r), gc.add(r, r));
-	double now = Utils.rtime();
-	if(sweeping || ((now - lastsweep) < period))
+    }
+
+    /**
+     * Hand over the grids the drawn raster wants, in session grid coords — the one place that decides
+     * what this source is for, and {@code null} or an empty set for <b>nothing</b>, which is what the
+     * raster wants while it is out of the scene.
+     *
+     * <p>The margin is added here rather than asked for: {@code MapMesh.dotrans} reads a tile across the
+     * cut edge and the corner heights need the same tile, so a cut at the fill's own edge throws
+     * {@code MCache.LoadingMap} and never completes — see {@link #radius()}. So what is read is always
+     * the wanted set dilated by one grid, and the raster asks for exactly what it means to draw.
+     *
+     * <p>Called on the UI thread; the set is built here and never touched again, so the sweep may read it
+     * from its own thread.
+     */
+    public void want(Set<Coord> grids) {
+	if((grids == null) || grids.isEmpty()) {
+	    readset = Collections.emptySet();
 	    return;
-	lastsweep = now;
+	}
+	Set<Coord> out = new HashSet<Coord>();
+	for(Coord gc : grids) {
+	    for(int y = -1; y <= 1; y++) {
+		for(int x = -1; x <= 1; x++)
+		    out.add(gc.add(x, y));
+	    }
+	}
+	readset = out;
+    }
+
+    /**
+     * Start one pass of reading, if none is running. Called from the drawn view's tick and <b>last</b>,
+     * after {@link #want} has said what there is to read.
+     *
+     * <p>Once a ctick and not once a quarter second: {@code sweeping} already serialises, so the pass
+     * that matters is the one that is not running yet, and what a pass may start is bounded by
+     * {@link #maxread} rather than by a clock. It runs with nothing wanted too, and must — a sweep is
+     * what proves the base, and until one has, nothing is drawn at all.
+     */
+    public void read() {
+	final Base fbase = this.base;
+	if((fbase == null) || sweeping)
+	    return;
 	sweeping = true;
-	final Base fbase = cur;
-	final Coord fc = center.floor(MCache.tilesz).div(MCache.cmaps);
 	Defer.later(new Defer.Callable<Object>() {
 		public Object call() {
 		    try {
-			sweep(fbase, fc);
+			sweep(fbase);
 		    } catch(RuntimeException e) {
 			lasterr = String.valueOf(e);
 		    } finally {
@@ -222,7 +302,7 @@ public class Recall {
     }
 
     /**
-     * One pass: which grids of the wanted rectangle the record has, read off the disk, installed.
+     * One pass: which grids of the wanted set the record has, read off the disk, installed.
      *
      * <p>The lock is a {@code tryLock} and never a {@code lock}: {@link MapFile}'s processor thread
      * holds the write lock across disk I/O, and waiting for it here would stall a worker for as long
@@ -230,7 +310,7 @@ public class Recall {
      * one gets it. Everything under the lock is an in-memory map lookup — the whole coord-to-id map
      * arrives with the segment — and the actual grid read happens outside it.
      */
-    private void sweep(Base base, Coord center) {
+    private void sweep(Base base) {
 	Map<Coord, MapFile.Grid> ready = new HashMap<Coord, MapFile.Grid>();
 	Map<Coord, Long> ids = new HashMap<Coord, Long>();
 	Map<Coord, haven.Indir<MapFile.Grid>> got = new HashMap<Coord, haven.Indir<MapFile.Grid>>();
@@ -273,53 +353,70 @@ public class Recall {
 		return;
 	    }
 	    proven = true;
-	    /* Read once, so one sweep's square is one square: the range is a setting and may move under a
-	     * sweep that is already running. */
-	    int r = radius();
-	    for(int y = -r; y <= r; y++) {
-		for(int x = -r; x <= r; x++) {
-		    Coord gc = center.add(x, y);
-		    if(AddonWidgets.loadedGrid(map, gc) != null)
-			continue;
-		    Long id = base.seg.gridid(gc.add(base.off));
-		    if(id == null) {
-			/* Ground the character has never walked. Not an error and not a miss to
-			 * retry into -- there is simply nothing recorded there. */
-			blank++;
-			continue;
-		    }
-		    if(got.size() >= maxread)
-			continue;
-		    got.put(gc, base.seg.grid(id));
-		    ids.put(gc, id);
+	    /* What the raster asked for, and one grid more -- not a square around a centre of this
+	     * sweep's own. One owner decides what is wanted, and it is the one that knows where the
+	     * camera is pointing and what of that is on screen; a square around the centre reads ground
+	     * behind the camera that no pan will ever want. Read once, because the raster may hand over
+	     * a new set under a sweep that is already running. */
+	    Set<Coord> want = this.readset;
+	    int newask = 0;
+	    for(Coord gc : want) {
+		if(AddonWidgets.loadedGrid(map, gc) != null) {
+		    pending.remove(gc);
+		    continue;
 		}
+		Long id = base.seg.gridid(gc.add(base.off));
+		if(id == null) {
+		    /* Ground the character has never walked. Not an error and not a miss to
+		     * retry into -- there is simply nothing recorded there. */
+		    blank++;
+		    pending.remove(gc);
+		    continue;
+		}
+		if(!pending.contains(gc)) {
+		    /* A NEW ask, and this is the one thing the budget bounds. Asking again for a grid
+		     * already in flight is a check on a future that is already running and costs
+		     * nothing, so it never takes a slot from a grid nobody has asked for yet. */
+		    if(newask >= maxread)
+			continue;
+		    pending.add(gc);
+		    newask++;
+		}
+		got.put(gc, base.seg.grid(id));
+		ids.put(gc, id);
 	    }
 	} finally {
 	    base.file.lock.readLock().unlock();
 	}
-	int waiting = 0;
 	for(Map.Entry<Coord, haven.Indir<MapFile.Grid>> ent : got.entrySet()) {
 	    try {
 		MapFile.Grid g = ent.getValue().get();
 		if(g == null) {
 		    blank++;
+		    pending.remove(ent.getKey());
 		    continue;
 		}
 		ready.put(ent.getKey(), g);
 	    } catch(Loading l) {
-		/* Defer has not got the file off the disk yet. Nothing to do but ask again next
-		 * sweep -- the Indir is cached in the segment, so the second ask is free. */
-		waiting++;
+		/* Defer has not got the file off the disk yet, so the ask STANDS: it stays pending, it
+		 * is asked again next sweep for nothing, and it takes no new slot in the meantime. */
 	    } catch(RuntimeException e) {
 		/* A tileset loaded out of the res cache can carry illegal references, and Loading is
-		 * a RuntimeException everywhere on this path. One grid's failure is not the sweep's. */
+		 * a RuntimeException everywhere on this path. One grid's failure is not the sweep's --
+		 * and the ask is over, however it went, so the coord stops being pending. */
+		pending.remove(ent.getKey());
 		nfailed++;
 		lasterr = String.valueOf(e);
 	    }
 	}
-	nwaiting = waiting;
 	nblank = blank;
 	for(Map.Entry<Coord, MapFile.Grid> ent : ready.entrySet()) {
+	    /* The base moved while this sweep was running, so every coord here means somewhere else now
+	     * -- and release() has already disposed what was read through the old one. Installing behind
+	     * that trimall is exactly how the record gets drawn where it never was. */
+	    if(this.base != base)
+		break;
+	    pending.remove(ent.getKey());
 	    try {
 		install(ent.getKey(), ids.get(ent.getKey()).longValue(), ent.getValue());
 		nread++;
@@ -357,6 +454,7 @@ public class Recall {
 	    return;
 	mustrelease = false;
 	nreleased++;
+	pending.clear();
 	map.trimall();
     }
 
@@ -403,8 +501,8 @@ public class Recall {
 				  Long.toUnsignedString(b.segid, 16), b.tc, b.off,
 				  proven ? "proved against a live grid" : "NOT PROVED -- nothing is drawn"));
 	}
-	out.add(String.format("recall: grids held %d of %d, grids read %d, unrecorded %d, waiting %d, failed %d",
-			      map.numgrids(), gridcap(), nread, nblank, nwaiting, nfailed));
+	out.add(String.format("recall: grids held %d of %d, grids read %d, unrecorded %d, asked %d, failed %d",
+			      map.numgrids(), gridcap(), nread, nblank, pending.size(), nfailed));
 	out.add(String.format("recall: rebases %d, sweeps refused on a stale session location %d, releases %d",
 			      nrebase, nstale, nreleased));
 	/* "sent" is zero by construction and not by a counter: nothing ticks this source, so
