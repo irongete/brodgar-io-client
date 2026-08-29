@@ -1,0 +1,10 @@
+{
+  "name": "120.6 — nothing is wanted while nothing is drawn",
+  "id": "120-the-ground-is-there-when-you-look.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 120.6: the remembered ground switched off takes cuts wanted to zero with cuts drawn, neither rises again while the range is written under them, and switching back on has cuts wanted rise -- the gauge proved in both directions.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

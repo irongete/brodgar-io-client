@@ -78,23 +78,24 @@ Derived impact set — `grep -rniE "remembered ground|:recall|recall|greyscale|w
 ## Context files
 
 - `src/io/brodgar/session/Recall.java` — 1, 2, 4
-- `src/haven/MapView.java` — 1, 2, 3, 4
+- `src/haven/MapView.java` — 1, 2, 3, 4, 6
 - `src/haven/MCache.java` — 2, 4
 - `src/haven/AddonWidgets.java` — 2, 3, 4
 - `src/haven/MapFile.java` — 2
 - `src/haven/Defer.java` — 3
+- `src/haven/render/RenderTree.java` — 6
 - `src/io/brodgar/ui/ClientPanel.java` — 1
 - `src/io/brodgar/addon/ClientOptions.java` — 1
 - `src/io/brodgar/addon/ProfHandle.java` — 1
 - `src/io/brodgar/addon/InterfaceOptions.java` — 1
 - `src/haven/OptWnd.java` — 1
-- `docs/client/terrain-raster.md` — 1, 2, 3, 4, 5
+- `docs/client/terrain-raster.md` — 1, 2, 3, 4, 5, 6
 - `docs/client/mapfile.md` — 2, 5
 - `docs/client/camera.md` — 3
 - `docs/client/ui-panels.md` — 1
 - `docs/client/ui-controls.md` — 1
-- `docs/addons/api/client/README.md` — 1, 5
-- `docs/addons/api/client/profiling/counters.md` — 1, 5
+- `docs/addons/api/client/README.md` — 1, 5, 6
+- `docs/addons/api/client/profiling/counters.md` — 1, 5, 6
 - `docs/addons/api/conventions.md` — 1
 - `docs/addons/api/timer.md` — 2, 3, 4, 5
-- `DOCUMENTATION.md` — 5
+- `DOCUMENTATION.md` — 5, 6

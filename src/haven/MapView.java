@@ -1937,6 +1937,21 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    s_recall.remove();
 	    s_recall = null;
 	}
+	/* 120.6: and what it says it wants goes out with it, because a raster out of the scene is not
+	 * ticked -- there is no centre to tick it on and nothing drawn to tick it for -- so every number
+	 * its last tick left behind would stand for as long as it stays out. Cuts drawn falls to zero of
+	 * its own accord (Grid.removed clears the cut map, which is what recallcutsdrawn reads), and cuts
+	 * wanted would not: an addon polling the pair would read nothing drawn against a want that never
+	 * moves, which is the one shape those two numbers exist to rule out. The counters' page calls all
+	 * three of its gauges what is held, drawn and wanted RIGHT NOW, and this is the drawn side saying
+	 * it -- the read side already says it in recalltick's own branch, where want(null) tells the
+	 * source the same thing. The centre is what tick() zeroes on when it has none, so this is that
+	 * same zeroing rather than a second copy of it, and it belongs here rather than in that branch
+	 * because every caller of this takes the raster out of the scene: a dormant view drops it too. */
+	if(recallterrain != null) {
+	    recallterrain.center = null;
+	    recallterrain.tick();
+	}
     }
 
     private void recalltick() {

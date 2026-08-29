@@ -103,7 +103,9 @@ and has not finished building.
 
 Reading them costs nothing and needs nothing armed, but they describe the **scene**, so all four are absent
 until the world is up. Once it is, a `0` is a count and not an absent key: with the setting off, or with
-every other camera, nothing is held, read, drawn or wanted.
+every other camera, nothing is drawn and nothing is wanted, and both of those gauges fall to zero and stay
+there. Grids held is the one that does not, and on purpose — ground already read back is **kept** for the
+camera that comes back to it, so that gauge falls only when the client's own budget drops a grid.
 
 ```lua
 local r = hafen.client():profiling():render()

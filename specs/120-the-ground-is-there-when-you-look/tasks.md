@@ -85,7 +85,7 @@
       `wc -l` against the ceilings, headings, the change-note greps, every `hafen.*` symbol present
       in `src/`, and the spec's impact set discharged row by row.
 
-- [ ] **120.6 — Nothing is wanted while nothing is drawn.** `recalltick`'s out-of-scene branch tells the
+- [x] **120.6 — Nothing is wanted while nothing is drawn.** `recalltick`'s out-of-scene branch tells the
       read side `recall.want(null)` and drops the raster, but never ticks it — so `RecallTerrain.nwanted`
       keeps the value it held when it left, and with `recall(false)`, or under any camera but `rts`, an
       addon reads 0 cuts drawn against a cuts wanted that never falls. The counters' own page calls the
