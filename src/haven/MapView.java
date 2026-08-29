@@ -59,6 +59,18 @@ public class MapView extends PView implements DTarget, Console.Directory {
     public static double plobagran = Utils.getprefd("plobagran", 12);
     public static boolean invcamx = Utils.getprefb("invcamx", false);
     public static boolean invcamy = Utils.getprefb("invcamy", false);
+    /* addon: (120.1) the remembered ground's three settings. They are the CLIENT's and not one view's:
+     * every session up draws its own recalled ground out of its own record, and a switch the user flips
+     * once must move all of them -- so these are statics with like-named prefs, written in one statement
+     * the way invcamx above is, and there is no second place a value could be left behind in.
+     *
+     * recallrange is the drawn reach in grids around where the camera looks; Recall reads one grid further
+     * for the fill margin. The bounds are stated here, once, because the panel's slider, the Lua option's
+     * refusal and this field's own clamp are three readers of one fact. */
+    public static final int recallrangemin = 1, recallrangemax = 8;
+    public static boolean recallon = Utils.getprefb("recallon", true);
+    public static int recallrange = Utils.clip(Utils.getprefi("recallrange", 2), recallrangemin, recallrangemax);
+    public static boolean recallgrey = Utils.getprefb("recallgrey", true);
     /* addon: (066.2) linked, so camnames() -- and the Options ▸ Camera dropdown reading it -- comes
      * out in the order the camera classes are declared, rather than in a hash order nobody chose. */
     private static final Map<String, Class<? extends Camera>> camtypes = new LinkedHashMap<String, Class<? extends Camera>>();
@@ -1643,8 +1655,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private io.brodgar.session.Recall recall = null;
     private RecallTerrain recallterrain = null;
     private RenderTree.Slot s_recall = null;
-    private boolean recallon = true;
     private double lastrecall = 0;
+    /* 120.1: the range the raster's area was last built from. The trim square and the drawn square move
+     * together or not at all -- see recalltick. */
+    private int lastrange = -1;
 
     /* 068.3: the wash that tells remembered ground from live ground.
      *
@@ -1660,22 +1674,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * BaseColor and ColorMask work exactly this way.
      *
      * It costs one shader program, compiled on the first frame that needs it: no second mesh, no second
-     * draw, no second pass. The amount is a uniform rather than a compiled-in constant, so `:recall wash`
-     * pushes a new instance through Slot.ostate and nothing is rebuilt at all -- not the program, not the
-     * slot tree, not a single cut. */
-    private int washamt = 255;
-
-    private Pipe.Op greyscale() {
-	return(new io.brodgar.session.Greyscale(washamt / 255f));
-    }
-
-    private void setwash(int a) {
-	if(a == washamt)
-	    return;
-	washamt = a;
-	if(s_recall != null)
-	    s_recall.ostate(greyscale());
-    }
+     * draw, no second pass.
+     *
+     * 120.1: it is a SWITCH, because an amount is two spellings of one setting -- an off state and a wash of
+     * zero say the same thing and neither can be told from the other. recallgrey is the boolean and this is
+     * the one instance behind it, cached because Slot.ostate compares by reference: pushing the same object
+     * twice changes nothing, and pushing null takes the state off the subtree without rebuilding a cut. */
+    private static final Pipe.Op grey = new io.brodgar.session.Greyscale(1f);
+    /* What s_recall's ostate is carrying, so the switch is only pushed when it has actually moved: ostate
+     * takes the render tree's lock, and this tick runs every ctick. */
+    private boolean greyed = false;
 
     /* 068.2: the remembered ground, in the scene.
      *
@@ -1750,7 +1758,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    /* In grids rather than in cuts, because grids are the unit the source reads and the margin is
 	     * a grid wide. cutn is cmaps/cutsz, so a grid coord scales to the cut coord of its corner. */
 	    Coord gc = c.floor(tilesz).div(MCache.cmaps);
-	    int r = io.brodgar.session.Recall.radius - 1;
+	    /* 120.1: the drawn reach is the user's setting, and the source reads one grid further for the
+	     * fill margin -- so this is the range itself and Recall.radius() is the range plus one. */
+	    int r = recallrange;
 	    area = new Area(gc.sub(r, r).mul(MCache.cutn), gc.add(r + 1, r + 1).mul(MCache.cutn));
 	    List<Coord> cand = new ArrayList<>();
 	    Area own = terrain.area;
@@ -1871,18 +1881,29 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * plain Terrain slot beside it does. Locking a slot whose state has already been used throws,
 	     * and adding the node is what uses it. */
 	    s_recall = basic.add(recallterrain, ShadowMap.maskshadow);
-	    /* The wash. On the slot rather than in the raster, because it is one state over the whole
-	     * subtree and because ostate is what lets `:recall wash` change it without touching anything
-	     * the raster built. */
-	    s_recall.ostate(greyscale());
+	    greyed = false;
+	}
+	/* The wash. On the slot rather than in the raster, because it is one state over the whole subtree
+	 * and because ostate is what lets the switch move without touching anything the raster built --
+	 * not the program, not the slot tree, not a single cut. */
+	if(greyed != recallgrey) {
+	    s_recall.ostate(recallgrey ? grey : null);
+	    greyed = recallgrey;
 	}
 	/* The cut set changes at panning pace, and maintaining it is a frustum test per cut of a square
 	 * far larger than the one the live raster keeps. Five times a second delays a cut entering the
-	 * scene by rather less than building its mesh does. */
+	 * scene by rather less than building its mesh does.
+	 *
+	 * 120.1: except on the frame the range itself moves. Recall.tick above has already trimmed to the
+	 * new square, and what makes that safe is that the kept square is exactly one grid wider than the
+	 * drawn one -- a margin that absorbs a fifth of a second of panning and nothing like a range cut
+	 * from eight grids to one. So the raster follows in the SAME frame, and no frame is drawn holding
+	 * a cut of a grid just disposed. */
 	double now = Utils.rtime();
-	if((now - lastrecall) < 0.2)
+	if((recallrange == lastrange) && ((now - lastrecall) < 0.2))
 	    return;
 	lastrecall = now;
+	lastrange = recallrange;
 	recallterrain.center = c;
 	recallterrain.tick();
     }
@@ -3195,6 +3216,32 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return(t.main.cuts.containsKey(rc.floor(tilesz).div(MCache.cutsz)));
     }
 
+    // addon: (120.1) the remembered ground's four numbers, so that what it holds and what it draws are
+    //        readable from outside: `:recall` prints them and hafen.client():profiling():render() answers
+    //        them, with profiling disarmed like every other counter in that table. Three are GAUGES --
+    //        what is held, drawn and wanted right now -- and grids read is CUMULATIVE since the source was
+    //        built. Zero before the source exists is a count and not an absence: nothing has been held,
+    //        read, drawn or wanted yet. UI thread: the cut map is the one MapRaster.Grid.tick mutates.
+    public int recallgridsheld() {
+	io.brodgar.session.Recall r = this.recall;
+	return((r == null) ? 0 : r.map.numgrids());
+    }
+
+    public int recallgridsread() {
+	io.brodgar.session.Recall r = this.recall;
+	return((r == null) ? 0 : r.gridsread());
+    }
+
+    public int recallcutsdrawn() {
+	RecallTerrain t = this.recallterrain;
+	return((t == null) ? 0 : t.main.cuts.size());
+    }
+
+    public int recallcutswanted() {
+	RecallTerrain t = this.recallterrain;
+	return((t == null) ? 0 : t.nwanted);
+    }
+
     private Collection<String> olflash = null;
     private double olftimer;
 
@@ -3895,45 +3942,30 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	/* 068: what the remembered ground's source is based on, what it has read back and what it
 	 * costs. The request counts are the ones that matter: a source filled from the map database
 	 * that puts anything on the wire is asking the server about ground the character is nowhere
-	 * near, which is the one thing this must not do. `off` and `on` take the raster out of the
-	 * scene and put it back, which is how "with it off the scene is what it is today" is a thing
-	 * the maintainer can check without a rebuild. */
+	 * near, which is the one thing this must not do.
+	 *
+	 * 120.1: it takes no argument, because the three settings are Options ▸ Game ▸ Client's and a
+	 * console argument beside a checkbox is a second spelling of one setting. What it reports is the
+	 * same four numbers an addon reads back through hafen.client():profiling():render(). */
 	cmdmap.put("recall", new Console.Command() {
 		public void run(Console cons, String[] args) throws Exception {
-		    if(args.length >= 2) {
-			if(args[1].equals("off"))
-			    recallon = false;
-			else if(args[1].equals("on"))
-			    recallon = true;
-			else if(args[1].equals("wash")) {
-			    if(args.length < 3)
-				throw(new Exception("recall wash: an alpha from 0 to 255, and none given"));
-			    int a;
-			    try {
-				a = Integer.parseInt(args[2]);
-			    } catch(NumberFormatException e) {
-				throw(new Exception("recall wash: `" + args[2] + "' is not a number"));
-			    }
-			    if((a < 0) || (a > 255))
-				throw(new Exception("recall wash: alpha " + a + " is outside 0 to 255"));
-			    setwash(a);
-			} else
-			    throw(new Exception("recall: no such argument `" + args[1] + "' -- off, on, wash <alpha>, or nothing"));
-		    }
+		    if(args.length >= 2)
+			throw(new Exception("recall: takes no argument -- the settings are Options \u25b8 Game \u25b8 Client,"
+					    + " under Remembered ground"));
 		    io.brodgar.session.Recall r = recall;
 		    if(r == null)
 			throw(new Exception("recall: no source yet -- no minimap to take a session location from"));
 		    for(String ln : r.report())
 			cons.out.println(ln);
-		    cons.out.println(String.format("recall: drawing %s, raster %s, cuts drawn %d of %d (wanted %d, %d new per tick)",
+		    cons.out.println(String.format("recall: drawing %s, wash %s, range %d grids, raster %s",
 						   recallon ? "on" : "off",
-						   (s_recall == null) ? "out of the scene" : "in the scene",
-						   (recallterrain == null) ? 0 : recallterrain.main.cuts.size(),
-						   recallcutcap,
-						   (recallterrain == null) ? 0 : recallterrain.nwanted,
-						   recallmaxbuild));
-		    cons.out.println(String.format("recall: wash %d of 255 toward grey -- `:recall wash <a>' to change it",
-						   washamt));
+						   recallgrey ? "on" : "off",
+						   recallrange,
+						   (s_recall == null) ? "out of the scene" : "in the scene"));
+		    /* The other two of the four are the source's own, on the line report() prints above:
+		     * each number is stated once, in the one place that owns it. */
+		    cons.out.println(String.format("recall: cuts drawn %d of %d, cuts wanted %d",
+						   recallcutsdrawn(), recallcutcap, recallcutswanted()));
 		}
 	    });
 	cmdmap.put("whyload", (cons, args) -> {

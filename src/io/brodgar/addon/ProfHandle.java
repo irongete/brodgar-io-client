@@ -488,6 +488,12 @@ public final class ProfHandle {
      * their outlines, {@code MCache.Grid.getolcut} has laid (119.1) — cumulative in the same way, and counting
      * the tile-laying pass rather than its result, so a pass over a cut the mask does not reach counts too.
      *
+     * <p>The four {@code recall} keys (120.1) are the remembered ground's: {@code recallGridsHeld} how many
+     * grids that source holds, {@code recallCutsDrawn} how many of its cuts are in the scene and
+     * {@code recallCutsWanted} how many the raster asked for — three gauges — beside {@code recallGridsRead},
+     * which is cumulative since the source was built. They describe the scene, so they arrive with the
+     * {@code MapView} and not before it.
+     *
      * <p>{@code drawSlots} is the draw-slot count, the closest thing the tree has to "draw calls this
      * frame"; {@code uniqueInstances} + {@code batches} (holding {@code instances} between them) is the
      * batching split; {@code invalid} and {@code bypass} are the slots instancing could not take.
@@ -525,6 +531,13 @@ public final class ProfHandle {
         MapView mv = u.root.findchild(MapView.class);
         if(mv == null)
             return t;
+        // 120.1: the remembered ground's four. Three are gauges and recallGridsRead is cumulative; all four
+        // answer with profiling disarmed, like everything else in this table, because they count work the
+        // client does whether or not anyone is watching. Zero is a count and not an absence.
+        t.set("recallGridsHeld", LuaValue.valueOf(mv.recallgridsheld()));
+        t.set("recallGridsRead", LuaValue.valueOf(mv.recallgridsread()));
+        t.set("recallCutsDrawn", LuaValue.valueOf(mv.recallcutsdrawn()));
+        t.set("recallCutsWanted", LuaValue.valueOf(mv.recallcutswanted()));
         t.set("treeLeaves", LuaValue.valueOf(mv.tree.nleaves()));
         t.set("treeNodes", LuaValue.valueOf(mv.tree.nslots()));
         InstanceList il = mv.instancer();

@@ -193,6 +193,9 @@ Client-wide toggles, the Options ▸ Game ▸ Client panel.
 | Method | Type | Description |
 |---|---|---|
 | `profiling()` / `profiling(b)` | bool | arm the client's profiler |
+| `recall()` / `recall(b)` | bool | draw the ground the character has already explored, from the client's own record |
+| `recallRange()` / `recallRange(n)` | number | how far around the camera that ground reaches, **in grids**, `1`..`8` |
+| `recallGrey()` / `recallGrey(b)` | bool | draw that ground without colour |
 
 **Profiling is the client's own profiler, not a second one.** Arming it is exactly what the console's
 `:profile on` does: it makes the client build its per-frame CPU and GPU trees, which is what every
@@ -212,6 +215,34 @@ A write moves an **open** panel's checkbox immediately, since the panel re-reads
 
 > Arming takes effect on the **next** frame: the client decides at the start of each frame whether to build
 > its profile trees, so the frame during which you flip the switch has none.
+
+### Remembered ground
+
+The client keeps a record of every tile the character has walked, and draws it back into the world wherever
+the [`"rts"` camera](#camera) is looking. It is the ground you explored, not the ground you are being sent:
+nothing is asked of the server for it, and nothing on it is alive — no objects, no grass, no one standing.
+The three settings above are that feature's whole surface, and they are the same three the panel's
+**Remembered ground** section carries.
+
+`recallRange` is a **maximum** and not an amount of work: it says how far out the client may look, in grids
+of 100 tiles, and what is actually drawn is bounded by what fits in the view and by the client's own mesh
+budget. A range outside `1`..`8` is refused naming those bounds, and so is a range that is not a whole number
+of grids; a refused write leaves the range where it was.
+
+`recallGrey` takes the colour out of that ground, which is what tells a memory from the world as it is now.
+It is a switch rather than a strength, because an off state and a wash of nothing are the same picture.
+
+```lua
+local c = hafen.client():options():client()
+
+c:recall(true):recallRange(4):recallGrey(true)     -- the write needs client.settings
+hafen.log():write("remembered ground reaches " .. c:recallRange() .. " grids")
+```
+
+Each of the three applies live, moves an open panel, and persists. They are the **client's** and not one
+character's, so with several sessions up a write moves every one of them. What that reach costs is four
+numbers on [`render()`](profiling/counters.md#render): the grids held and read, and the cuts drawn against
+the cuts wanted.
 
 ## Before the client is up
 

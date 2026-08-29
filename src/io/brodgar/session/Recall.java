@@ -12,6 +12,7 @@ import haven.Defer;
 import haven.Loading;
 import haven.MCache;
 import haven.MapFile;
+import haven.MapView;
 import haven.MiniMap;
 import haven.Session;
 import haven.Utils;
@@ -47,15 +48,34 @@ import haven.Utils;
  * nothing but this source's own meshes ever reads them.
  */
 public class Recall {
-    /** How far around the centre the record is read, in grids. */
-    public static final int radius = 3;
     /**
-     * The grid cap, and it is the whole of the budget on this side: a square of {@link #radius}
+     * How far around the centre the record is read, in grids: the user's own drawn range
+     * ({@link MapView#recallrange}) and one grid more.
+     *
+     * <p>That extra ring is the fill margin the drawn raster needs rather than reach of its own.
+     * {@code MapMesh.dotrans} reads a tile across the cut edge and the corner heights need the same
+     * tile, so a cut at the fill's own edge throws {@code MCache.LoadingMap} and never completes —
+     * which is why what is read is always one grid wider than what is drawn.
+     *
+     * <p>It is a method and not a constant because the range is a setting: a write from the panel or
+     * from Lua is answered by the next tick's trim and the next sweep's square, with nothing to
+     * rebuild and nothing to tell.
+     */
+    public static int radius() {
+	return(MapView.recallrange + 1);
+    }
+
+    /**
+     * The grid cap, and it is the whole of the budget on this side: a square of {@link #radius()}
      * around the centre and not one grid more, released down to that square every tick. A grid is an
      * array copy and a handful of kilobytes — what costs is meshing one, and that cap is the drawn
      * raster's, a ring further in.
      */
-    public static final int gridcap = ((radius * 2) + 1) * ((radius * 2) + 1);
+    public static int gridcap() {
+	int r = radius();
+	return(((r * 2) + 1) * ((r * 2) + 1));
+    }
+
     /** How many grids one sweep may start reading off the disk. */
     private static final int maxread = 8;
     /** How often the sweep runs, in seconds. */
@@ -176,7 +196,8 @@ public class Recall {
 	 * disposed mesh. A sweep's own centre lags this one under a fast pan; this centre is the one the
 	 * raster is about to be given, so the two cannot disagree. */
 	Coord gc = center.floor(MCache.tilesz).div(MCache.cmaps);
-	map.trim(gc.sub(radius, radius), gc.add(radius, radius));
+	int r = radius();
+	map.trim(gc.sub(r, r), gc.add(r, r));
 	double now = Utils.rtime();
 	if(sweeping || ((now - lastsweep) < period))
 	    return;
@@ -252,8 +273,11 @@ public class Recall {
 		return;
 	    }
 	    proven = true;
-	    for(int y = -radius; y <= radius; y++) {
-		for(int x = -radius; x <= radius; x++) {
+	    /* Read once, so one sweep's square is one square: the range is a setting and may move under a
+	     * sweep that is already running. */
+	    int r = radius();
+	    for(int y = -r; y <= r; y++) {
+		for(int x = -r; x <= r; x++) {
 		    Coord gc = center.add(x, y);
 		    if(AddonWidgets.loadedGrid(map, gc) != null)
 			continue;
@@ -304,6 +328,15 @@ public class Recall {
 		lasterr = String.valueOf(e);
 	    }
 	}
+    }
+
+    /**
+     * How many grids this source has installed, cumulative since it was built. What
+     * {@code MapView.recallgridsread()} answers, and the read side's whole claim as a number: it climbs
+     * while a pan is being answered and stops the moment the record has caught up with the camera.
+     */
+    public int gridsread() {
+	return(nread);
     }
 
     /**
@@ -370,8 +403,8 @@ public class Recall {
 				  Long.toUnsignedString(b.segid, 16), b.tc, b.off,
 				  proven ? "proved against a live grid" : "NOT PROVED -- nothing is drawn"));
 	}
-	out.add(String.format("recall: grids read %d, in cache %d of %d, unrecorded %d, waiting %d, failed %d",
-			      nread, map.numgrids(), gridcap, nblank, nwaiting, nfailed));
+	out.add(String.format("recall: grids held %d of %d, grids read %d, unrecorded %d, waiting %d, failed %d",
+			      map.numgrids(), gridcap(), nread, nblank, nwaiting, nfailed));
 	out.add(String.format("recall: rebases %d, sweeps refused on a stale session location %d, releases %d",
 			      nrebase, nstale, nreleased));
 	/* "sent" is zero by construction and not by a counter: nothing ticks this source, so

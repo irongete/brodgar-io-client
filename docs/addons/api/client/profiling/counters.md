@@ -69,6 +69,9 @@ absent before the world is up.
 | `stateSlots` | render-state slots in use, process-wide rather than per scene |
 | `gobsHeld` | game objects kept out of the scene until their `GobAdded` fired, **cumulative since client start** |
 | `overlayMeshes` / `overlayOutlines` | ground-overlay pieces laid over the terrain, and the outlines over those, **cumulative since client start** |
+| `recallGridsHeld` | grids of [remembered ground](../README.md#remembered-ground) the client is holding right now |
+| `recallGridsRead` | grids of it read back off the record, **cumulative since the world came up** |
+| `recallCutsDrawn` / `recallCutsWanted` | pieces of remembered ground in the scene right now, and how many the client wanted there |
 
 `programs` and `vram` need a GL environment and are absent on any other backend. The counters are written
 on the render side and may be one frame stale.
@@ -89,6 +92,18 @@ one. So laying a patch moves `overlayMeshes` by the cuts its ring reaches and no
 nothing is built to stop drawing something. Read as a **delta between two reads**, that is what makes the
 cost of a patch a number rather than a feeling — lay one with fifty already on the ground and it moves by
 what one costs.
+
+The four `recall` keys are the [remembered ground](../README.md#remembered-ground)'s, and they are the whole
+of what that reach costs. Three of them are **gauges** — what is held, drawn and wanted at this instant, so
+each falls back as you pan away and rises as you pan in. `recallGridsRead` is the odd one and it is
+**cumulative**: it climbs while the record is being read back and stops the moment it has caught up with the
+camera, so like `gcCount` it means something as a **delta between two reads**. Cuts drawn reaching cuts
+wanted is the feature's own claim as a number: while the two differ there is ground the client means to draw
+and has not finished building.
+
+Reading them costs nothing and needs nothing armed, but they describe the **scene**, so all four are absent
+until the world is up. Once it is, a `0` is a count and not an absent key: with the setting off, or with
+every other camera, nothing is held, read, drawn or wanted.
 
 ```lua
 local r = hafen.client():profiling():render()

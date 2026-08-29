@@ -1,0 +1,10 @@
+{
+  "name": "120.1 — the remembered ground has a surface",
+  "id": "120-the-ground-is-there-when-you-look.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 120.1: the three Remembered ground settings round-trip through opts:client(), a bad range is refused naming its bounds and leaves the old one standing, and render() answers the four recall counters with profiling disarmed.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}
