@@ -11,7 +11,7 @@ character is in the world — and the row for the session on screen is marked `*
 | press the `Select next session` hotkey | goes to the next login, and round |
 | press the `Select character` hotkey, then click | the pointer becomes a hand; click a character (its model or its base) to go to it |
 | press the `Focus selection` hotkey | centres the view on your character — on the `rts` camera, which is the only one with a centre to move |
-| look at the map | a ring on the ground under every character: bright green under the one you are looking at, faint under the others |
+| look at the map | a disc of coloured ground under every character: bright green under the one you are looking at, faint under the others |
 | type `:sessions` | opens the window, or closes it |
 
 ## Logging another account in
@@ -45,33 +45,43 @@ it blink.
 
 The client owns no gesture for this — no modifier, no button. **Select character** arms a pick instead: the
 pointer becomes a hand, and the next click on the map names whoever it landed on. Two things count as
-naming somebody, and the base is checked first, because it is drawn on top of the ground:
+naming somebody, and the base is asked first — not by an arrangement here, but because the client
+hit-tests a base against its own shape inside the press itself, before the pick pass an ordinary click
+rides on has even started:
 
+- **the base under a character** — the very ground the disc is coloured in, whether or not you can see that
+  ground: behind a hill, under a house, on the far side of a wall
 - **the character's own model** — the client's own pick pass, so it is the model that has to be under the
   cursor and not a radius around its feet
-- **the base under it** — the very ellipse the last frame painted
 
 Whichever it was, the click is **consumed**: an armed pick that also walked your character somewhere is a
 pick nobody would use. A click that names nobody disarms and is let through, so a miss costs one click and
 never a stuck mode — and pressing the key again while armed is *never mind*.
+
+A base takes clicks **only while a pick is armed**. A base that took them all the time would eat every
+click on the ground a character happens to be standing on, which is not a marker anybody wants.
 
 Because nothing of this is a modifier the client holds, `Alt`+click and every other combination over the
 map stay yours to use for something else.
 
 ## The base under each character
 
-A ring on the ground at the character's feet, the way a figure stands on one: bright green under the one
-you are looking at, faint under the others. It lies flat, so it turns and squashes with the camera and
-leans into a hillside — the shape is read off the projection itself, which is why no camera angle is ever
-named and why it is right in every camera the client has.
+A disc of coloured ground at the character's feet, the way a figure stands on a plinth: bright green under
+the one you are looking at, faint under the others.
 
-It is painted **at the object**, from that game object's own draw, so it stands exactly where the client
-put the body this frame rather than where the server last said it was: it does not trail a walking
-character by a step.
+It is not drawn *over* the ground — it **is** the ground, re-laid in its own colour. So it follows a slope,
+a ridge and a tile boundary exactly, with no gap and no shimmer; whatever stands on it hides it, your own
+character included; and its edge is its own shape at every zoom rather than a staircase of tiles. Nothing
+about it names a camera, which is why it is right in every camera the client has.
+
+It is laid on the **body** rather than at a place, so it is re-laid wherever that body walks and it goes
+when the body does. And it is the shape it was laid as: the faint one is the same disc scaled down, because
+what a base is made from cannot be changed afterwards.
 
 The client draws none of it. It holds the selection and knows whose screen this is; what that *looks* like
-is the block at the end of `main.lua` — two colours, two widths and the radius, which is in **world** units
-rather than pixels, so a base keeps its size on the ground as you zoom.
+is the block in the middle of `main.lua` — two colours, two opacities and the radius, which is in **world**
+units rather than pixels, so a base keeps its size on the ground as you zoom.
 
-It appears only with two or more logins, and only where the client is drawing that character. The scene on
-screen carries every session's own ground, so that is normally all of them.
+It appears only with two or more logins, and only for a character the one on screen can see — which is also
+the only character a base could be drawn for. The scene on screen carries every session's own ground, so
+that is normally all of them; one that arrives late is laid within a quarter-second of arriving.
