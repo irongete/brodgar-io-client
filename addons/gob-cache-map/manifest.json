@@ -1,0 +1,13 @@
+{
+  "id": "gob-cache-map",
+  "name": "Gob Cache Map",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Writes down every tree and boulder you walk past, and finds one again: search a name, pick a row, and the map goes there over a heatmap of the rest.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "saved_variables": [
+    { "name": "cache", "scope": "account" },
+    { "name": "ui", "scope": "account" }
+  ]
+}
