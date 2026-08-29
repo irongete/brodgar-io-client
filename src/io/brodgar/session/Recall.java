@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -11,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import haven.AddonWidgets;
 import haven.Coord;
-import haven.Coord2d;
 import haven.Defer;
 import haven.Loading;
 import haven.MCache;
@@ -52,8 +53,8 @@ import haven.Session;
  */
 public class Recall {
     /**
-     * How far around the centre the record is kept, in grids, and the widest a read can reach: the
-     * user's own drawn range ({@link MapView#recallrange}) and one grid more.
+     * How far a read may reach around what the raster asked for, in grids: the user's own drawn range
+     * ({@link MapView#recallrange}) and one grid more.
      *
      * <p>That extra ring is the fill margin the drawn raster needs rather than reach of its own.
      * {@code MapMesh.dotrans} reads a tile across the cut edge and the corner heights need the same
@@ -62,22 +63,36 @@ public class Recall {
      * that ring is actually added, so what is read stays inside this square without being a square.
      *
      * <p>It is a method and not a constant because the range is a setting: a write from the panel or
-     * from Lua is answered by the next tick's trim and by the next set the raster hands to {@link #want},
-     * with nothing to rebuild and nothing to tell.
+     * from Lua is answered by the next set the raster hands to {@link #want}, and by the cap that set is
+     * trimmed against, with nothing to rebuild and nothing to tell.
      */
     public static int radius() {
 	return(MapView.recallrange + 1);
     }
 
     /**
-     * The grid cap, and it is the whole of the budget on this side: a square of {@link #radius()}
-     * around the centre and not one grid more, released down to that square every tick. A grid is an
-     * array copy and a handful of kilobytes — what costs is meshing one, and that cap is the drawn
-     * raster's, a ring further in.
+     * How many read squares' worth of grids {@link #gridcap()} is, and the whole of what keeping buys:
+     * one square is the ground the camera is standing over, and the other two are how far it may travel
+     * and still come back to ground that is already there.
+     */
+    private static final int keepsquares = 3;
+
+    /**
+     * How many grids this source may hold — the whole of the budget on this side, and not a square.
+     *
+     * <p>What is read is kept until this cap says otherwise, in the order it was last wanted (see
+     * {@link #trim}). A square around the camera cannot keep anything at all: one grid of travel puts a
+     * whole rank of grids outside it, so panning one way and back re-reads and re-meshes every one of
+     * them, which is what made the second visit cost as much as the first.
+     *
+     * <p>The cap is {@link #keepsquares} times the read square, so at the default range it is a hundred
+     * and forty-seven grids and two whole squares — fourteen grids — of travel come back free. A grid is
+     * an array copy and some eighty kilobytes; what is expensive is meshing one, and that cap is the
+     * drawn raster's, a ring further in.
      */
     public static int gridcap() {
 	int r = radius();
-	return(((r * 2) + 1) * ((r * 2) + 1));
+	return(((r * 2) + 1) * ((r * 2) + 1) * keepsquares);
     }
 
     /**
@@ -172,6 +187,31 @@ public class Recall {
      */
     private final Set<Coord> pending = Collections.newSetFromMap(new ConcurrentHashMap<Coord, Boolean>());
 
+    /**
+     * The grids this source holds, least recently wanted first — the keep set, and the reason a pan back
+     * over ground already read draws it with nothing to rebuild.
+     *
+     * <p>Access-ordered, so wanting a grid is what makes it recent and {@link #trim} drops from this end.
+     * Its membership is the cache's and is reconciled with it on every trim rather than tracked: a coord
+     * wanted over ground the record has nothing at is never installed and must not count against the cap,
+     * and a grid installed by a sweep whose wanted set has since moved must.
+     *
+     * <p>Both threads reach it — the tick wants and the sweep makes room — so every use is under its own
+     * monitor, and {@code map}'s is always taken inside it and never the other way about.
+     */
+    private final LinkedHashMap<Coord, Boolean> lru = new LinkedHashMap<Coord, Boolean>(64, 0.75f, true);
+
+    /**
+     * What the raster was holding a cut of when it last spoke, and what {@link #trim} may never drop.
+     *
+     * <p>A field rather than an argument because the sweep trims too, from its own thread, and it has no
+     * raster to ask. One tick stale there at worst, and that is sound: a grid whose cut has just entered
+     * the scene was wanted on the tick that read it, so it sits at the recent end of {@link #lru} while a
+     * trim drops from the other — which can only reach that end when the whole cache was wanted at once,
+     * and that is a third of the cap. The pin is what makes that an invariant rather than an argument.
+     */
+    private volatile Set<Coord> pinned = Collections.emptySet();
+
     private volatile boolean sweeping = false;
 
     private volatile int nread = 0, nfailed = 0, nrebase = 0, nblank = 0, nstale = 0;
@@ -194,12 +234,15 @@ public class Recall {
      * found rather than the next one. What is read is decided after that, by {@link #want}, and the
      * reading itself is started by {@link #read} once the raster has said what it wants.
      *
-     * @param mm     the corner minimap — the one instance whose {@code sessloc} the rest of the
-     *               client reads; {@code null} before the HUD is up
-     * @param center where the ground should be read around, in world coords, or {@code null} when
-     *               nothing can be placed yet
+     * <p>It centres nothing and releases nothing. Where the ground is read around is the raster's own
+     * question and reaches this source through {@link #want}; what is kept is an LRU over the grids that
+     * set has named, trimmed there too. A square released around a centre every tick is what made panning
+     * one grid dispose a rank of them and panning back rebuild every mesh in it.
+     *
+     * @param mm the corner minimap — the one instance whose {@code sessloc} the rest of the client
+     *           reads; {@code null} before the HUD is up
      */
-    public void tick(MiniMap mm, Coord2d center) {
+    public void tick(MiniMap mm) {
 	if((mm == null) || (mm.file == null)) {
 	    unbased = "no map database yet";
 	    return;
@@ -231,16 +274,6 @@ public class Recall {
 	    this.base = cur = new Base(mm.file, loc);
 	}
 	unbased = null;
-	if(center == null)
-	    return;
-	/* Release, every tick and not merely at the end of a sweep that got the file lock. The kept
-	 * square is concentric with the drawn one and a whole grid wider, so trimming never disposes a
-	 * grid the raster is holding a cut of -- which is the one way this could reach through a
-	 * disposed mesh. A sweep's own centre lags this one under a fast pan; this centre is the one the
-	 * raster is about to be given, so the two cannot disagree. */
-	Coord gc = center.floor(MCache.tilesz).div(MCache.cmaps);
-	int r = radius();
-	map.trim(gc.sub(r, r), gc.add(r, r));
     }
 
     /**
@@ -253,22 +286,92 @@ public class Recall {
      * {@code MCache.LoadingMap} and never completes — see {@link #radius()}. So what is read is always
      * the wanted set dilated by one grid, and the raster asks for exactly what it means to draw.
      *
-     * <p>Called on the UI thread; the set is built here and never touched again, so the sweep may read it
-     * from its own thread.
+     * <p>Wanting is also what makes a grid <b>recent</b>, so this is where the keep set is decided and
+     * where it is trimmed. Nothing wanted is not nothing kept: with the raster out of the scene what was
+     * built stands exactly where it was, and the camera coming back to it draws it with nothing to
+     * rebuild. It is the cap alone that ever drops a grid.
+     *
+     * <p>Called on the UI thread, <b>after</b> the raster has ticked, and the set is built here and never
+     * touched again, so the sweep may read it from its own thread.
+     *
+     * @param grids what the raster means to draw, or {@code null} for nothing
+     * @param held  the grids the raster is holding a cut of, which are never dropped whatever the LRU
+     *              says, or {@code null} when it is holding none
      */
-    public void want(Set<Coord> grids) {
+    public void want(Set<Coord> grids, Set<Coord> held) {
+	pinned = (held == null) ? Collections.<Coord>emptySet() : held;
 	if((grids == null) || grids.isEmpty()) {
 	    readset = Collections.emptySet();
-	    return;
-	}
-	Set<Coord> out = new HashSet<Coord>();
-	for(Coord gc : grids) {
-	    for(int y = -1; y <= 1; y++) {
-		for(int x = -1; x <= 1; x++)
-		    out.add(gc.add(x, y));
+	} else {
+	    Set<Coord> out = new HashSet<Coord>();
+	    for(Coord gc : grids) {
+		for(int y = -1; y <= 1; y++) {
+		    for(int x = -1; x <= 1; x++)
+			out.add(gc.add(x, y));
+		}
+	    }
+	    readset = out;
+	    /* Every coord of what is read and not merely of what is drawn, because what is read is what
+	     * is held and this cap is on what is held. An access-ordered map, so this is the touch that
+	     * makes a grid the most recent one there is. */
+	    synchronized(lru) {
+		for(Coord gc : out)
+		    lru.put(gc, Boolean.TRUE);
 	    }
 	}
-	readset = out;
+	trim(0);
+    }
+
+    /**
+     * Drop the least recently wanted grids down to {@link #gridcap()} — and never a grid the raster is
+     * holding a cut of ({@link #pinned}), whatever the order says.
+     *
+     * <p>That exception is the whole of the safety here, and it is not the LRU being polite. A
+     * {@code MCache.Grid} disposes its cut meshes with itself, and {@code MapRaster.Grid} holds a scene
+     * slot per cut it has drawn — so a grid dropped while the raster holds one of its cuts leaves that
+     * slot drawing a disposed mesh, with nothing to notice. The raster's own cut map is therefore the
+     * authority over this budget rather than the other way about, and it can never cost more than the cap:
+     * what holds a cut is inside the drawn square, which is a ring smaller than the read square this cap
+     * is a multiple of.
+     *
+     * <p>What goes is named rather than what stays ({@code MCache.drop}), because a grid may arrive from a
+     * {@link Defer} thread at any moment and naming what stays would dispose one read off the disk before
+     * anything could draw it.
+     *
+     * @param room how many grids the caller is about to install, so that the cap bounds what is
+     *             <b>held</b> and not what was held one tick ago: an install that makes its own room
+     *             first can never carry the count above the cap, while a trim on the tick alone leaves it
+     *             there until the next one, which is as long as anything reading the gauge cares to look.
+     */
+    private void trim(int room) {
+	List<Coord> drop = new ArrayList<Coord>();
+	synchronized(lru) {
+	    /* The order is this map's; the membership is the cache's. A wanted coord the record has nothing
+	     * at is never installed and must not count against a cap on what is held, and a grid a sweep
+	     * installed after the wanted set moved off it must -- or it would be held by nothing and
+	     * dropped by nothing. */
+	    Set<Coord> have = new HashSet<Coord>();
+	    for(MCache.Grid g : AddonWidgets.loadedGrids(map))
+		have.add(g.gc);
+	    for(Coord gc : have) {
+		if(!lru.containsKey(gc))
+		    lru.put(gc, Boolean.TRUE);
+	    }
+	    lru.keySet().retainAll(have);
+	    int over = (lru.size() + room) - gridcap();
+	    if(over <= 0)
+		return;
+	    Set<Coord> pin = this.pinned;
+	    for(Iterator<Coord> i = lru.keySet().iterator(); i.hasNext() && (over > 0);) {
+		Coord gc = i.next();
+		if(pin.contains(gc))
+		    continue;
+		i.remove();
+		drop.add(gc);
+		over--;
+	    }
+	    map.drop(drop);
+	}
     }
 
     /**
@@ -455,11 +558,23 @@ public class Recall {
 	mustrelease = false;
 	nreleased++;
 	pending.clear();
+	pinned = Collections.emptySet();
+	synchronized(lru) {
+	    lru.clear();
+	}
 	map.trimall();
     }
 
-    /** Remap the recorded grid's tile indices onto this cache's own ids, and install it. */
+    /**
+     * Remap the recorded grid's tile indices onto this cache's own ids, and install it.
+     *
+     * <p>Room first, and that is what makes {@link #gridcap()} a bound on what is <b>held</b> rather than
+     * on what the last tick trimmed. Installing happens here, on a {@link Defer} thread, while the trim
+     * runs on the tick; between the two, a count read from outside would stand as far above the cap as one
+     * sweep can install, and a budget that is only true at the instant it is enforced is not one.
+     */
     private void install(Coord gc, long id, MapFile.Grid g) {
+	trim(1);
 	int[] gmap = new int[g.tilesets.length];
 	for(int i = 0; i < gmap.length; i++)
 	    gmap[i] = tileid(g.tilesets[i]);

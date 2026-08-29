@@ -1743,8 +1743,19 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * player keeps 25. A cut is not a cheap thing to want -- two passes over 625 tiles plus dotrans's
      * eight neighbour reads each, then a slot compile and a VBO upload -- so the cuts beyond the cap are
      * simply not drawn, and because the set is filled nearest to where the camera is looking first, what
-     * is dropped is always the farthest ground on screen. */
-    private static final int recallcutcap = 160;
+     * is dropped is always the farthest ground on screen.
+     *
+     * 120.4: and it is stated as a SHARE of the drawn square rather than as one number for every range.
+     * A flat cap makes the range mean less the further it is turned up -- at the widest setting it would
+     * draw the same ground as the narrowest and simply read more of it off the disk -- and the range is
+     * the user's own reach. Two fifths of the square is the 160 that 068.4 shipped at the default range,
+     * restated so that it means the same fraction of what was asked for at every other one. */
+    private static int recallcutcap() {
+	int r = recallrange;
+	int square = ((r * 2) + 1) * ((r * 2) + 1) * MCache.cutn.x * MCache.cutn.y;
+	return((square * 2) / 5);
+    }
+
     /* 120.3: and how many cut meshes this may have IN FLIGHT, which is a concurrency target and not a
      * quota per tick. A cut still building is not in `cuts` yet, so what this counts is what has been
      * started and not yet arrived; the raster ticks every ctick, so a build that finishes is replaced
@@ -1772,7 +1783,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	Coord2d center = null;
 	int nwanted = 0;
 
-	final Grid main = new Grid<MapMesh>() {
+	/* Typed rather than raw, unlike Terrain's beside it: 120.4 reads `cuts` by key, and a raw Grid
+	 * hands back a raw Map whose keys are Objects. */
+	final Grid<MapMesh> main = new Grid<MapMesh>() {
 		MapMesh getcut(Coord cc) {
 		    return(map.getcut(cc));
 		}
@@ -1858,14 +1871,22 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    draw.clear();
 	    int building = 0;
 	    for(Coord cc : cand) {
-		if(draw.size() >= recallcutcap)
+		if(draw.size() >= recallcutcap())
 		    break;
-		if(!main.cuts.containsKey(cc)) {
+		if(!main.cuts.containsKey(cc) && !map.cutbuilt(cc)) {
 		    /* Not `break`: a cut already built and still in view is kept whatever the budget
 		     * is, because keeping it costs nothing and dropping it would only have it rebuilt.
 		     * What is counted here is what has been started and has not yet arrived -- a cut
 		     * still building has no entry in `cuts` -- so the budget is a target for how many
-		     * are IN FLIGHT and not a quota for how many may begin in one tick. */
+		     * are IN FLIGHT and not a quota for how many may begin in one tick.
+		     *
+		     * 120.4: and what has ALREADY ARRIVED costs nothing to admit, which is why the
+		     * cache is asked and not just `cuts`. A mesh outlives the slot that drew it, so
+		     * every cut this raster had built is still built when it comes back into the tree
+		     * -- and counting those against a target for concurrent BUILDS throttled the one
+		     * case this task exists to make free, letting the ground grow back in over seconds
+		     * where nothing was being built at all. Held grids and built meshes are the same
+		     * promise made twice; a budget may bound what is begun, never what is resumed. */
 		    if(building >= recallmaxbuild)
 			continue;
 		    building++;
@@ -1884,6 +1905,17 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * view: Grid.tick removes the slot of every cut this refuses, and of every cut outside `area`. */
 	boolean skipcut(Coord cc) {
 	    return(!draw.contains(cc));
+	}
+
+	/* 120.4: which GRIDS this raster is holding a cut of, which is what the source may not drop. `cuts`
+	 * holds a cut exactly while that cut's mesh is in the scene, so it -- and not what was drawn, or
+	 * wanted, or asked for -- is the authority: a grid dropped under one of these entries would dispose
+	 * the very mesh its slot goes on drawing. Read after main.tick() has run, so it is this tick's. */
+	Set<Coord> heldgrids() {
+	    Set<Coord> out = new HashSet<>();
+	    for(Coord cc : main.cuts.keySet())
+		out.add(cc.div(MCache.cutn));
+	    return(out);
 	}
 
 	/* 120.3: and this ground is not the ground anything stands on. grounddrawn() answers out of the live
@@ -1934,7 +1966,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * tick's -- a re-base found here must take the ground out of the scene in the same frame and not
 	 * the next one -- and what is read is what the raster asks for, which it cannot say until it has
 	 * been told whether it is in the scene at all. */
-	recall.tick(mm, c);
+	recall.tick(mm);
 	/* The raster goes in with the RTS camera and comes out with it. Every other camera is bolted to
 	 * the character, where the live Terrain already draws everything in view and this would have
 	 * nothing to add but a second mesh over the first -- and with the raster out of the tree its
@@ -1946,14 +1978,22 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * which is worse than no ground at all. It returns of its own accord once a sweep has proved the
 	 * new base, and in the right place. */
 	if(!recallon || !rts || (c == null) || !recall.ready()) {
-	    /* 120.2: out of the scene, so nothing is wanted and nothing is read. The sweep below still
-	     * runs, and must: it is the sweep that proves the base, and until one has, this branch is the
-	     * only branch there is. */
-	    recall.want(null);
+	    /* Out of the scene FIRST, and everything that can dispose a mesh after it: Grid.removed clears
+	     * the cut map, so from here this raster is holding nothing, which is what lets both of the calls
+	     * below dispose freely. A raster still in the tree holding a cut goes on drawing it. */
 	    droprecall();
-	    /* In this order and not the other: release() disposes every cut mesh the source holds, and a
-	     * raster still in the tree holding one goes on drawing it. Out of the scene, then disposed. */
+	    /* 120.2: nothing is wanted and nothing is read. 120.4: and nothing is dropped for it either --
+	     * what was built stands where it was, so the camera coming back to this ground draws it with
+	     * nothing to rebuild. Only the cap ever drops a grid, and nothing here moved it.
+	     *
+	     * What is held goes over all the same, and it is not the same question as what is wanted: this
+	     * branch is the one a range written down while the camera is elsewhere arrives on, and the cap it
+	     * moved is free to drop a grid the moment it is asked. The line above says that set is empty; this
+	     * says it whatever the line above did. */
+	    recall.want(null, (recallterrain == null) ? null : recallterrain.heldgrids());
 	    recall.release();
+	    /* The sweep still runs, and must: it is the sweep that proves the base, and until one has, this
+	     * branch is the only branch there is. */
 	    recall.read();
 	    return;
 	}
@@ -1992,8 +2032,10 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	recallterrain.center = c;
 	recallterrain.tick();
 	/* 120.2: what the raster just decided it wants is what the source reads, and it is handed over
-	 * here rather than taken, so there is one place the wiring is stated. */
-	recall.want(recallterrain.wantgrids);
+	 * here rather than taken, so there is one place the wiring is stated. 120.4: and what it is holding
+	 * goes over with it, because that is what the source's own budget may not drop. Both after the tick
+	 * above and never before -- the cut map it reads is the one that tick just settled. */
+	recall.want(recallterrain.wantgrids, recallterrain.heldgrids());
 	recall.read();
     }
 
@@ -4054,7 +4096,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    /* The other two of the four are the source's own, on the line report() prints above:
 		     * each number is stated once, in the one place that owns it. */
 		    cons.out.println(String.format("recall: cuts drawn %d of %d, cuts wanted %d",
-						   recallcutsdrawn(), recallcutcap, recallcutswanted()));
+						   recallcutsdrawn(), recallcutcap(), recallcutswanted()));
 		}
 	    });
 	cmdmap.put("whyload", (cons, args) -> {

@@ -54,7 +54,7 @@
       seam with live ground showing no step and no shimmer.
       <!-- extra context: src/io/brodgar/addon/VirtualApi.java — groundDirty and what drains it -->
 
-- [ ] **120.4 — What is built is kept, and what is dropped is dropped safely.** `Recall.tick`'s
+- [x] **120.4 — What is built is kept, and what is dropped is dropped safely.** `Recall.tick`'s
       `map.trim(square)` every ctick goes. The keep set becomes an LRU over grids by last wanted,
       trimmed to `gridcap`, and a grid the raster holds a cut of is **never** trimmed whatever the
       LRU says — `RecallTerrain.main.cuts` is the authority, which is the ROADMAP defect (`MCache.trim`

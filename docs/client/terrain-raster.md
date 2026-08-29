@@ -30,6 +30,17 @@ ticks its overlay rasters in a loop *after* its own `catch`, and `MapView.tick` 
 consults the cache (`MCache.getgrid`, `Indir.get`) must therefore **swallow `Loading` and answer
 conservatively**: yield nothing, and let the `getcut` that follows throw where it is caught.
 
+**Gotcha — a cut's MESH outlives the slot that drew it, so "not in `Grid.cuts`" never means "needs
+building".** `MapRaster.Grid.removed` clears `cuts` when the raster leaves the tree, and `Grid.tick` drops
+the slot of every cut `skipcut` refuses — neither touches `MCache.Grid.Cut.mesh`, a `Deferred` that holds
+its built value until the whole `Grid` is disposed. So a raster that came out of the scene and went back in
+finds every cut it had built still built, and `Deferred.get` hands it back with no `Defer` task at all;
+`MCache.numcuts` counts exactly those (`Cut.mesh.cur() != null`) and `MCache.cutbuilt` (`// addon:`) asks it
+of one cut, as a plain lookup that neither builds nor requests. ⚠️ A budget that reads absence from `cuts` as
+"being built" therefore throttles work nobody is doing: it is the right test for what is IN FLIGHT only
+while a dropped cut also loses its mesh, and a source that keeps its grids breaks that coupling — admit an
+already-built cut for free and charge the budget for the rest.
+
 ## See also
 
 - [the 3D world](world-3d.md) — the scene these rasters put their cuts into, and the ground overlays over them

@@ -1,0 +1,10 @@
+{
+  "name": "120.4 — what is built is kept, and what is dropped is dropped safely",
+  "id": "120-the-ground-is-there-when-you-look.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 120.4: the ground leaves the scene and comes back without one grid dropped or one cut rebuilt, the range is written down and back up without dropping or re-reading anything, the smallest cap takes grids held down to it where the session reached it, and neither count ever stands above the cap of the range in force over every range the dial has.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

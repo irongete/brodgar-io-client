@@ -1079,6 +1079,25 @@ public class MCache implements MapSource {
 	return(n);
     }
 
+    /* addon: (120.4) does this cache already hold a BUILT mesh for this cut, without building one and
+     * without asking for anything? The counterpart of numcuts() for a single cut, and the difference
+     * between a cut that has to be meshed and one that merely has to be put back into a scene: the mesh
+     * outlives the slot that drew it, so a raster that came out of the tree and went back in finds every
+     * cut it had already built still built.
+     *
+     * A plain lookup, deliberately not getcut(): that one ends in getgrid(), which on a miss REQUESTS the
+     * grid and throws LoadingMap, and this is asked once per cut per tick over a source no server may be
+     * asked about. An absent grid is an answer here, and so is a cut nothing has meshed yet. */
+    public boolean cutbuilt(Coord cc) {
+	Grid g;
+	synchronized(grids) {
+	    g = grids.get(cc.div(cutn));
+	}
+	if((g == null) || g.removed)
+	    return(false);
+	return(g.geticut(cc.mod(cutn)).mesh.cur() != null);
+    }
+
     /* addon: (068.1) how many grids this cache would ask the server for the next time sendreqs() ran
      * on it. Zero is the whole point for a cache filled from the map database: nothing ticks it and
      * nothing sends for it, so anything above zero here says something called getgrid() on it. */
@@ -1376,6 +1395,30 @@ public class MCache implements MapSource {
 		    Coord gc = i.next();
 		    if((gc.x < ul.x) || (gc.y < ul.y) || (gc.x > lr.x) || (gc.y > lr.y))
 			i.remove();
+		}
+	    }
+	    gridwait.wnotify();
+	}
+    }
+
+    /* addon: (120.4) dispose exactly these grids, which is the same disposal as above over a set the
+     * caller chose rather than everything outside a rectangle. A source filled from the map database
+     * (io.brodgar.session.Recall) keeps what it has built rather than what is under the camera right now,
+     * so what survives a pan is an LRU over grid coords and a rectangle cannot say that: one grid of
+     * travel puts a whole rank outside the square, and panning back re-reads and re-meshes every one.
+     *
+     * It names what GOES rather than what stays, and that is the difference that matters here. The keep
+     * set is decided on the UI thread while that source installs grids from a Defer thread, so a keep set
+     * would dispose a grid that arrived between the decision and the call -- read off the disk and thrown
+     * away before anything could draw it. What was not named is simply not touched. */
+    public void drop(Collection<Coord> gcs) {
+	synchronized(grids) {
+	    synchronized(req) {
+		for(Coord gc : gcs) {
+		    Grid g = grids.remove(gc);
+		    if(g != null)
+			g.dispose();
+		    req.remove(gc);
 		}
 	    }
 	    gridwait.wnotify();
