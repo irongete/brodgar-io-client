@@ -401,17 +401,18 @@ hafen.client():options():keybindings():on("Select character", arm)
 
 -- ---------------------------------------------------------------- centring the view
 --
--- Only the `rts` camera has a centre of its own to move -- every other one is bolted to the character --
--- so s:world():focus(p) refuses under the rest, and the refusal is worth showing rather than swallowing:
--- a key that silently does nothing is the one reported as broken.
+-- Only the `rts` camera has a centre of its own to move. Every other one is bolted to the character, so the
+-- view is ALREADY on what this key would centre and there is nothing left for it to do -- which is exactly
+-- why s:world():focus(p) refuses there: it is handed a centre and has none to write. So the camera in force
+-- is read first and the key stands down under the rest, rather than asking for a move and reporting the no.
 hafen.client():options():keybindings():on("Focus selection", function()
+  if hafen.client():options():camera():mode() ~= "rts" then return end
   local cur = hafen.session():current()
   local pl = cur and cur:player()
   local gob = pl and pl:gob()
   local p = gob and gob:position()
   if not p then return end
-  local ok, err = pcall(function() cur:world():focus(p) end)
-  if not ok then hafen.log():write(err) end
+  cur:world():focus(p)
 end)
 
 -- ---------------------------------------------------------------- the cycle hotkey
