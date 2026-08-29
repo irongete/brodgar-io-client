@@ -378,7 +378,52 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
     static {camtypes.put("bad", FreeCam.class);}
-    
+
+    /* horizon: (SPIKE) `:cam good` -- FreeCam with a projection that can see past the end of the street.
+     *
+     * FreeCam takes Camera.resized()'s frustum whole, and that fixes the far plane at 2000 units: 182 tiles,
+     * under two grids. It is not a draw-distance option anywhere, it is the projection, so no amount of
+     * terrain to draw would ever have appeared beyond it. This is the same camera with its own far plane and
+     * nothing else changed.
+     *
+     * The near plane stays at 1, unlike RTSCam's, and that is deliberate rather than an omission. Depth
+     * resolution at distance d is `dz * (f-n) * d^2 / (f*n)`, which with n = 1 is `dz * d^2` for f = 2000
+     * and f = 100000 alike -- the near plane is what spends the buffer, and this camera sits on the ground
+     * where the near plane cannot move without clipping the character. At 24 bits that is 0.06 units of
+     * resolution at 1000 away and 6 at 10000, which is under a tile; the far end is coarse and has nothing
+     * out there to fight with. RTSCam raises its near because it is pulled back, not to buy precision. */
+    public class GoodCam extends FreeCam {
+	/* Enough for what the horizon actually holds and no more: one zoom level of five cells reaches 500
+	 * session tiles from the character, whose corner is 500*sqrt(2)*11 ~ 7800 units out. Beyond that
+	 * there is nothing to draw, and a far plane past the content buys only depth range. `:cam good
+	 * <far>' overrides it. */
+	private float far = 15000f;
+
+	public GoodCam(String... args) {
+	    super();
+	    if(args.length > 0) {
+		try {
+		    far = Float.parseFloat(args[0]);
+		} catch(NumberFormatException e) {
+		    throw(new IllegalArgumentException("cam good: `" + args[0] + "' is not a distance"));
+		}
+	    }
+	    setproj();
+	}
+
+	private void setproj() {
+	    float field = 0.5f;
+	    float aspect = ((float)sz.y) / ((float)sz.x);
+	    proj = Projection.frustum(-field, field, -aspect * field, aspect * field, 1, far);
+	}
+
+	public void resized() {
+	    super.resized();
+	    setproj();
+	}
+    }
+    static {camtypes.put("good", GoodCam.class);}
+
     public class OrthoCam extends Camera {
 	public boolean exact = true;
 	protected float dfield = (float)(100 * Math.sqrt(2));
@@ -1519,6 +1564,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	return(boxvisible(rc.sub(m), rc.add(m)));
     }
 
+    /* horizon: (SPIKE) the same frustum test, for a source outside this package. A horizon cell's box is
+     * kilometres across, and boxvisible rejects only when all eight of its corners fall outside one clip
+     * plane -- so it answers "maybe" generously and never "no" for a box that is visible, which is exactly
+     * what a pre-reject wants. */
+    public boolean worldboxvisible(Coord2d ul, Coord2d br) {
+	return(boxvisible(ul, br));
+    }
+
     private boolean boxvisible(Coord2d ul, Coord2d br) {
 	float zlo = -50, zhi = 100;
 	try {
@@ -1527,6 +1580,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    zhi = cc.z + 100;
 	} catch(Loading e) {
 	}
+	return(boxvisible(ul, br, zlo, zhi));
+    }
+
+    /* horizon: (SPIKE) the same test with the height band given rather than taken from the player. A cut
+     * kilometres away is under no obligation to be within 100 units of the character's own altitude, and a
+     * band that assumes it culls far ground that is plainly on screen. */
+    private boolean boxvisible(Coord2d ul, Coord2d br, float zlo, float zhi) {
 	boolean left = true, right = true, down = true, up = true, behind = true;
 	for(int i = 0; i < 8; i++) {
 	    double x = ((i & 1) == 0) ? ul.x : br.x;
@@ -1682,6 +1742,126 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private io.brodgar.session.Recall recall = null;
     private RecallTerrain recallterrain = null;
     private RenderTree.Slot s_recall = null;
+
+    /* horizon: (SPIKE) the far ground, drawn out of the map database's zoom pyramid in rings of falling
+     * resolution. It goes in with `:cam good` and comes out with it: every other camera's far plane stops
+     * well short of where the first ring even begins, so the cells would be built and clipped away. */
+    private io.brodgar.session.Horizon horizon = null;
+    private String hzerr = null;                 // horizon: what a refused cut said, for :horizon
+    private HorizonTerrain[] hterrain = null;
+    private RenderTree.Slot[] s_hz = null;
+
+    /* horizon: (SPIKE) one raster per zoom level, over that level's own cache.
+     *
+     * It is the plain terrain raster and nothing else: the cells in that cache are MCache grids like any
+     * other, so getcut meshes them through MapMesh with the tilesets' own Tilers, their transitions and
+     * the scene's light. What makes it a LOD is the scale on `main`'s slot -- MapMesh lays every tile at
+     * tilesz and has no say in it, so a level-n cache is meshed at one tile per SAMPLE and scaled by 2^n
+     * in x and y afterwards, z left alone. The tileset's texture stretches by the same factor, which is
+     * what a LOD looks like.
+     *
+     * The rings overlap by one cut rather than meet. A level's heightfield is the minimum of its
+     * children's, so an exact join shows daylight wherever the coarse side is lower; an overlap has the
+     * finer ground drawn over the coarser, and the sink on the slot decides which is which. */
+    private class HorizonTerrain extends MapRaster {
+	final int lvl;
+	/* Session tiles the FINER neighbour covers, already shrunk by one of this level's own cuts -- so a
+	 * cut inside it is one the level within has covered with a cut to spare. */
+	private Coord hu = null, hb = null;
+
+	/* Cuts whose mesh could not be built at all. A cut build runs on a Defer thread and anything it
+	 * throws that is not a Loading arrives here as a DeferredException -- which Grid.tick does not
+	 * catch, and nothing above it does either, so it takes the frame and with it the UI thread. This
+	 * ground is a best effort over a record written for a map window; one cut of it failing must cost
+	 * that cut. Turned into a Loading so Grid.tick's own guard handles the throw, and remembered so it
+	 * is never asked for again. */
+	final Set<Coord> broken = new HashSet<>();
+
+	final Grid main = new Grid<MapMesh>() {
+		MapMesh getcut(Coord cc) {
+		    try {
+			return(map.getcut(cc));
+		    } catch(Loading l) {
+			throw(l);
+		    } catch(RuntimeException e) {
+			broken.add(cc);
+			hzerr = String.valueOf(e);
+			throw(new Loading("horizon: this cut cannot be built"));
+		    }
+		}
+	    };
+
+	HorizonTerrain(MCache map, int lvl) {
+	    super(map);
+	    this.lvl = lvl;
+	}
+
+	/* Which cuts this raster is to hold, settled once per tick. skipcut is then a set lookup and
+	 * nothing else -- it runs OUTSIDE Grid.tick's catch(Loading) and nothing above it catches one
+	 * either, so a test that can throw belongs here and not there. */
+	final Set<Coord> draw = new HashSet<>();
+	int nwanted = 0;
+
+	/**
+	 * @param zc0  where this level's block is centred, in its own zoom coords
+	 * @param tc   the session tile coord of the segment origin
+	 * @param fu   upper-left of what the finer neighbour draws, in session tiles
+	 * @param fb   lower-right of the same
+	 */
+	void tick(Coord zc0, Coord tc, Coord fu, Coord fb) {
+	    /* The centre cell plus d each way, and the far corner is EXCLUSIVE -- so the block is
+	     * (2d + 1) cells a side and reaches as far one way as the other. */
+	    int d = io.brodgar.session.Horizon.draw / 2;
+	    area = new Area(zc0.sub(d, d).mul(MCache.cutn), zc0.add(d + 1, d + 1).mul(MCache.cutn));
+	    int cut = MCache.cutsz.x << lvl;    // session tiles one of our cuts spans
+	    /* The hole against the LIVE terrain is that box exactly: every cut of ours that fits wholly
+	     * inside it is ground the live raster is already drawing at full resolution, and drawing it
+	     * again underneath buys nothing and costs a near-coplanar surface to fight with. Against a
+	     * coarser LOD level the hole is shrunk by one of our cuts instead, so the levels overlap
+	     * rather than meet -- there the two heightfields disagree and an exact join would show
+	     * daylight, which is not true of the live terrain, whose ground this IS. */
+	    Coord hu = fu, hb = fb;
+	    if(lvl > 1) {
+		hu = fu.add(cut, cut);
+		hb = fb.sub(cut, cut);
+	    }
+	    /* A band wide enough for real relief: a cut kilometres out is under no obligation to sit within
+	     * 100 units of the character's altitude, and assuming it culls ground that is plainly on screen. */
+	    float zlo = -1000, zhi = 1000;
+	    draw.clear();
+	    nwanted = 0;
+	    for(Coord cc : area) {
+		/* Ask the cache what it HOLDS rather than let getcut ask for it: getcut ends in getgrid,
+		 * which on a miss queues a request -- harmless on a source nothing sends for, and it would
+		 * bury the one number :horizon exists to report. */
+		if(AddonWidgets.loadedGrid(map, cc.div(MCache.cutn)) == null)
+		    continue;
+		if(broken.contains(cc))
+		    continue;
+		/* Ground under this cut was never walked: the cell it belongs to holds some of its real
+		 * grids and not others, and this is one of the ones it has not got. */
+		if(horizon.nodraw(lvl, cc))
+		    continue;
+		Coord ul = cc.mul(cut).sub(tc);     // this cut, in session tiles
+		if((ul.x >= hu.x) && (ul.y >= hu.y) && ((ul.x + cut) <= hb.x) && ((ul.y + cut) <= hb.y))
+		    continue;                       // the level within already draws all of it
+		nwanted++;
+		if(!boxvisible(new Coord2d(ul).mul(tilesz), new Coord2d(ul.add(cut, cut)).mul(tilesz), zlo, zhi))
+		    continue;
+		draw.add(cc);
+	    }
+	    main.tick();
+	}
+
+	boolean skipcut(Coord cc) {
+	    return(!draw.contains(cc));
+	}
+
+	public void added(RenderTree.Slot slot) {
+	    slot.add(main, Location.scale(1 << lvl, 1 << lvl, 1f));
+	    super.added(slot);
+	}
+    }
 
     /* 068.3: the wash that tells remembered ground from live ground.
      *
@@ -2052,6 +2232,95 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * above and never before -- the cut map it reads is the one that tick just settled. */
 	recall.want(recallterrain.wantgrids, recallterrain.heldgrids());
 	recall.read();
+    }
+
+    /* horizon: (SPIKE) the far rings, in the scene with `:cam good` and out with everything else. */
+    private void drophorizon() {
+	if(s_hz == null)
+	    return;
+	for(int i = 0; i < s_hz.length; i++) {
+	    if(s_hz[i] != null) {
+		s_hz[i].remove();
+		s_hz[i] = null;
+	    }
+	}
+    }
+
+    private void horizontick() {
+	GameUI gui = getparent(GameUI.class);
+	MiniMap mm = (gui == null) ? null : gui.mmap;
+	final int maxlvl = io.brodgar.session.Horizon.maxlvl;
+	if(!(camera instanceof GoodCam) || (mm == null)) {
+	    drophorizon();
+	    /* In this order and not the other: release() disposes every cut mesh the source holds, and a
+	     * raster still in the tree holding one goes on drawing it. */
+	    if(horizon != null)
+		horizon.release();
+	    return;
+	}
+	if(horizon == null) {
+	    horizon = new io.brodgar.session.Horizon(glob.sess);
+	    hterrain = new HorizonTerrain[maxlvl + 1];
+	    s_hz = new RenderTree.Slot[maxlvl + 1];
+	    for(int lvl = 1; lvl <= maxlvl; lvl++)
+		hterrain[lvl] = new HorizonTerrain(horizon.map(lvl), lvl);
+	}
+	Coord2d c = null;
+	try {
+	    c = new Coord2d(getcc());
+	} catch(Loading e) {
+	    /* No player yet, or no ground under them: nothing to centre the rings on. */
+	}
+	horizon.tick(mm, c);
+	if((c == null) || !horizon.ready()) {
+	    drophorizon();
+	    horizon.release();
+	    return;
+	}
+	Coord tc = horizon.tc();
+	/* What the finer neighbour covers, in session tiles. Level 1's is the live terrain's own drawn
+	 * area -- the one raster whose cuts really are at tile resolution -- and every level above takes
+	 * the block of the level below it. */
+	Coord fu, fb;
+	Area own = terrain.area;
+	if(own == null) {
+	    fu = fb = Coord.z;
+	} else {
+	    fu = own.ul.mul(MCache.cutsz);
+	    fb = own.br.mul(MCache.cutsz);
+	}
+	for(int lvl = 1; lvl <= maxlvl; lvl++) {
+	    Coord zc0 = horizon.centre(lvl);
+	    if(zc0 == null)
+		continue;
+	    if(s_hz[lvl] == null) {
+		/* The level's own place in the world, and its sink. Cache space is one tile per SAMPLE with
+		 * the segment origin at zero; `main`'s slot scales it by 2^lvl and this puts the segment
+		 * origin back where the session has it. ShadowMap's box is 750 units around the character,
+		 * so none of this is in the shadow pass whatever it carries. */
+		Coord3f t = new Coord3f(-(float)(tc.x * tilesz.x), (float)(tc.y * tilesz.y),
+					-io.brodgar.session.Horizon.sink(lvl));
+		/* And a DEPTH bias, which is what the stripes need and a world-space sink cannot give.
+		 *
+		 * The ring and the live ground are the same terrain at two resolutions, so wherever they
+		 * overlap they are near-coplanar; seen at a grazing angle -- which is every distant surface
+		 * from a camera standing on the ground -- two surfaces a few units apart interleave in screen
+		 * space and read as stripes. Moving the ring further down only trades the stripes for a step
+		 * at the seam. DepthBias offsets in DEPTH rather than in the world, and its `factor` term
+		 * scales with the polygon's slope in screen space, which is exactly the grazing case; the
+		 * geometry does not move at all, so the seam keeps its shape. Positive pushes away, the sign
+		 * opposite to MapMesh.gmmat's own (-1, -1), which pulls ground mods forward. */
+		s_hz[lvl] = basic.add(hterrain[lvl],
+				      Pipe.Op.compose(ShadowMap.maskshadow, Location.xlate(t),
+						      new States.DepthBias(8f * lvl, 64f * lvl)));
+	    }
+	    hterrain[lvl].tick(zc0, tc, fu, fb);
+	    /* The next level out yields to this one, so the blocks nest instead of fighting. The same
+	     * (2d + 1) cells the block above actually covers, in session tiles. */
+	    int cell = MCache.cmaps.x << lvl, d = io.brodgar.session.Horizon.draw / 2;
+	    fu = zc0.sub(d, d).mul(cell).sub(tc);
+	    fb = fu.add(cell * ((2 * d) + 1), cell * ((2 * d) + 1));
+	}
     }
 
     /* rts: every frame, unlike sessiontick() -- an animated pose that is 200ms stale is a visible jump. */
@@ -3198,6 +3467,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * it wants this frame's area rather than the last one's, and nothing it touches is behind that
 	 * monitor. */
 	recalltick();
+	horizontick();   // horizon: (SPIKE) the far rings, beside the remembered ground and on the same terms
 	Loader.Future<Plob> placing = this.placing;
 	if((placing != null) && placing.done()) {
 	    Plob ob = placing.get();
@@ -4112,6 +4382,28 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		     * each number is stated once, in the one place that owns it. */
 		    cons.out.println(String.format("recall: cuts drawn %d of %d, cuts wanted %d",
 						   recallcutsdrawn(), recallcutcap(), recallcutswanted()));
+		}
+	    });
+	/* horizon: (SPIKE) what the far rings hold, per level. */
+	cmdmap.put("horizon", new Console.Command() {
+		public void run(Console cons, String[] args) throws Exception {
+		    io.brodgar.session.Horizon h = horizon;
+		    if(h == null)
+			throw(new Exception("horizon: no source yet -- `:cam good' is what builds one"));
+		    for(String ln : h.report())
+			cons.out.println(ln);
+		    StringBuilder sb = new StringBuilder();
+		    for(int lvl = 1; lvl <= io.brodgar.session.Horizon.maxlvl; lvl++) {
+			sb.append(String.format("%sL%d %d drawn of %d wanted", (lvl > 1) ? ", " : "", lvl,
+						(hterrain == null) ? 0 : hterrain[lvl].main.cuts.size(),
+						(hterrain == null) ? 0 : hterrain[lvl].nwanted));
+		    }
+		    if(hzerr != null)
+			cons.out.println("horizon: a cut was refused -- " + hzerr);
+		    cons.out.println(String.format("horizon: camera %s, rings %s -- %s",
+						   (camera instanceof GoodCam) ? "good" : camname(),
+						   ((s_hz == null) || (s_hz[1] == null)) ? "out of the scene" : "in the scene",
+						   sb));
 		}
 	    });
 	cmdmap.put("whyload", (cons, args) -> {
