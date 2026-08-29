@@ -1177,6 +1177,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    return(false);
 	}
 
+	// addon: (120.3) are this raster's cuts the LIVE ground -- the ground grounddrawn() answers about, and
+	//        the only ground a free hafen.virtual() entity may be standing on? A cut of one entering or
+	//        leaving the scene is what wakes that layer's placement pass, and a raster whose cuts are not
+	//        that ground wakes it for nothing. True by default, because every raster but one draws the
+	//        ground the player is walking on and changes its cuts at walking pace; the remembered ground
+	//        changes its own at panning pace, ticks at the frame rate, and answers false.
+	boolean liveground() {
+	    return(true);
+	}
+
 	abstract class Grid<T> extends RenderTree.Node.Track1 {
 	    final Map<Coord, Pair<T, RenderTree.Slot>> cuts = new HashMap<>();
 	    final boolean position;
@@ -1214,7 +1224,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			    cuts.put(cc, new Pair<>(cut, slot.add(draw, cs)));
 			    if(cur != null)
 				cur.b.remove();
-			    io.brodgar.addon.AddonManager.groundChanged();   // addon: 044.9 -- a cut's ground entered the scene
+			    if(MapRaster.this.liveground())
+				io.brodgar.addon.AddonManager.groundChanged();   // addon: 044.9 -- a cut's ground entered the scene
 			}
 		    } catch(Loading l) {
 			l.boostprio(5);
@@ -1227,7 +1238,8 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		    if(!area.contains(ent.getKey())) {
 			ent.getValue().b.remove();
 			i.remove();
-			io.brodgar.addon.AddonManager.groundChanged();   // addon: 044.9 -- ...and one left it
+			if(MapRaster.this.liveground())
+			    io.brodgar.addon.AddonManager.groundChanged();   // addon: 044.9 -- ...and one left it
 		    }
 		}
 	    }
@@ -1670,10 +1682,6 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private io.brodgar.session.Recall recall = null;
     private RecallTerrain recallterrain = null;
     private RenderTree.Slot s_recall = null;
-    private double lastrecall = 0;
-    /* 120.1: the range the raster's area was last built from. The trim square and the drawn square move
-     * together or not at all -- see recalltick. */
-    private int lastrange = -1;
 
     /* 068.3: the wash that tells remembered ground from live ground.
      *
@@ -1737,13 +1745,20 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * simply not drawn, and because the set is filled nearest to where the camera is looking first, what
      * is dropped is always the farthest ground on screen. */
     private static final int recallcutcap = 160;
-    /* And a limit on how many of those may be STARTED in one tick. The mesh build is the whole cost of
-     * this feature and it arrives as a burst -- a pan into unread ground wants a hundred cuts at once,
-     * on the Defer threads every other loading thing in the client shares. A cut not started this tick
-     * is started next one; at five ticks a second the cap fills in a few seconds of continuous panning,
-     * and a cut still building is not in `cuts` yet, so this bounds what is in flight and not merely
-     * what is begun. */
-    private static final int recallmaxbuild = 6;
+    /* 120.3: and how many cut meshes this may have IN FLIGHT, which is a concurrency target and not a
+     * quota per tick. A cut still building is not in `cuts` yet, so what this counts is what has been
+     * started and not yet arrived; the raster ticks every ctick, so a build that finishes is replaced
+     * within a frame rather than within a fifth of a second, and the throughput of the whole feature is
+     * this number over the build's own latency rather than this number over a period.
+     *
+     * So the number to state is a share of the pool that does the building. Defer.maxthreads is
+     * max(2, cores - 1) and every loading thing in the client shares it -- the live terrain's own cuts,
+     * every resource, and this feature's own disk reads, which park a worker on the map file's lock for
+     * as long as a segment save holds it (Recall.maxread). The reserve is what is left standing for all
+     * of that: queueing more recall meshes than the pool can run does not build them any sooner, it only
+     * puts them ahead of the frame's own work in one shared queue. */
+    private static final int recallbuildreserve = 1;
+    private static final int recallmaxbuild = Math.max(2, Defer.maxthreads - recallbuildreserve);
 
     private class RecallTerrain extends MapRaster {
 	/* Which cuts this raster is to hold, computed once per tick: visible, not the live raster's, read
@@ -1786,33 +1801,52 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	     * the area above covers, per grid rather than per cut and with nothing else asked of it: a
 	     * grid off screen is neither drawn nor worth taking off the disk, and whether the record has
 	     * anything there is the source's own question and not this raster's. Recall adds the fill
-	     * margin, so this is the range itself. */
+	     * margin, so this is the range itself.
+	     *
+	     * 120.3: and the same walk is the DRAWN side's pre-reject. Both questions a cut can be refused
+	     * on before its own frustum test are its GRID's -- is any of this grid on screen, and has the
+	     * source read it at all -- so both are asked once per grid here rather than sixteen times over
+	     * inside the cut loop below. That is the whole of what makes this affordable every ctick: the
+	     * square is 25 grids and 400 cuts at the default range and cutvisible is eight clipxf apiece,
+	     * so a grid refused here costs eight tests instead of a hundred and twenty-eight. gridvisible
+	     * is the same box test one cut wider on every side, so a grid it refuses holds no cut that
+	     * cutvisible would have kept, and the two sides cannot disagree about the edge. */
 	    Set<Coord> want = new HashSet<>();
+	    List<Coord> held = new ArrayList<>();
 	    for(int y = -r; y <= r; y++) {
 		for(int x = -r; x <= r; x++) {
 		    Coord g = gc.add(x, y);
-		    if(gridvisible(g))
-			want.add(g);
+		    if(!gridvisible(g))
+			continue;
+		    want.add(g);
+		    /* Ask the cache what it HOLDS rather than let getcut ask for it. MCache.getcut ends in
+		     * getgrid, which on a miss queues a request -- harmless on a source nothing sends for,
+		     * but it fills that queue with every unrecorded grid in the area and buries the one
+		     * number :recall exists to report. Ground the character has never walked is simply not
+		     * drawn -- and it is wanted all the same, because what is read is what the camera frames
+		     * and whether the record has anything there is the source's own question. */
+		    if(AddonWidgets.loadedGrid(map, g) != null)
+			held.add(g);
 		}
 	    }
 	    wantgrids = want;
 	    List<Coord> cand = new ArrayList<>();
 	    Area own = terrain.area;
-	    for(Coord cc : area) {
-		/* The live raster's ground wins every cut the two share: both sources hold the same
-		 * tiles and the same heights there, so a second mesh is not a merge but a twin, and two
-		 * twins in one place is z-fighting. */
-		if((own != null) && own.contains(cc))
-		    continue;
-		/* Ask the cache what it HOLDS rather than let getcut ask for it. MCache.getcut ends in
-		 * getgrid, which on a miss queues a request -- harmless on a source nothing sends for, but
-		 * it fills that queue with every unrecorded grid in the area and buries the one number
-		 * :recall exists to report. Ground the character has never walked is simply not drawn. */
-		if(AddonWidgets.loadedGrid(map, cc.div(MCache.cutn)) == null)
-		    continue;
-		if(!cutvisible(cc))
-		    continue;
-		cand.add(cc);
+	    for(Coord g : held) {
+		Coord ul = g.mul(MCache.cutn);
+		for(int cy = 0; cy < MCache.cutn.y; cy++) {
+		    for(int cx = 0; cx < MCache.cutn.x; cx++) {
+			Coord cc = ul.add(cx, cy);
+			/* The live raster's ground wins every cut the two share: both sources hold the
+			 * same tiles and the same heights there, so a second mesh is not a merge but a
+			 * twin, and two twins in one place is z-fighting. */
+			if((own != null) && own.contains(cc))
+			    continue;
+			if(!cutvisible(cc))
+			    continue;
+			cand.add(cc);
+		    }
+		}
 	    }
 	    nwanted = cand.size();
 	    final Coord cen = c.floor(tilesz).div(MCache.cutsz);
@@ -1827,9 +1861,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		if(draw.size() >= recallcutcap)
 		    break;
 		if(!main.cuts.containsKey(cc)) {
-		    /* Not `break`: a cut already built and still in view is kept whatever this tick's
-		     * build budget is, because keeping it costs nothing and dropping it would only have
-		     * it rebuilt. What the budget bounds is starting new ones. */
+		    /* Not `break`: a cut already built and still in view is kept whatever the budget
+		     * is, because keeping it costs nothing and dropping it would only have it rebuilt.
+		     * What is counted here is what has been started and has not yet arrived -- a cut
+		     * still building has no entry in `cuts` -- so the budget is a target for how many
+		     * are IN FLIGHT and not a quota for how many may begin in one tick. */
 		    if(building >= recallmaxbuild)
 			continue;
 		    building++;
@@ -1848,6 +1884,14 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	 * view: Grid.tick removes the slot of every cut this refuses, and of every cut outside `area`. */
 	boolean skipcut(Coord cc) {
 	    return(!draw.contains(cc));
+	}
+
+	/* 120.3: and this ground is not the ground anything stands on. grounddrawn() answers out of the live
+	 * Terrain's cut map alone, so every cut of this raster that comes or goes would wake the addon
+	 * layer's free-entity placement pass for a set of cuts it never reads -- a false wake five times a
+	 * second before, and one every ctick now that this ticks on the frame. */
+	boolean liveground() {
+	    return(false);
 	}
 
 	public void added(RenderTree.Slot slot) {
@@ -1933,27 +1977,23 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    s_recall.ostate(recallgrey ? grey : null);
 	    greyed = recallgrey;
 	}
-	/* The cut set changes at panning pace, and maintaining it is a frustum test per cut of a square
-	 * far larger than the one the live raster keeps. Five times a second delays a cut entering the
-	 * scene by rather less than building its mesh does.
+	/* 120.3: every ctick, and no clock of its own. What the raster decides is what it is holding in
+	 * flight, so the rate it is asked at IS the rate a finished build is replaced at: at a fifth of a
+	 * second a mesh that took five milliseconds leaves its slot in the budget idle for the other
+	 * hundred and ninety-five, and the whole feature's throughput is the budget over the period rather
+	 * than over the build. What made 5 Hz the affordable rate was a frustum test per cut of a square
+	 * far larger than the live raster's; the pre-reject in the tick below is per GRID, so the walk is
+	 * a few dozen box tests and belongs on the frame.
 	 *
-	 * 120.1: except on the frame the range itself moves. Recall.tick above has already trimmed to the
-	 * new square, and what makes that safe is that the kept square is exactly one grid wider than the
-	 * drawn one -- a margin that absorbs a fifth of a second of panning and nothing like a range cut
-	 * from eight grids to one. So the raster follows in the SAME frame, and no frame is drawn holding
-	 * a cut of a grid just disposed. */
-	double now = Utils.rtime();
-	if((recallrange != lastrange) || ((now - lastrecall) >= 0.2)) {
-	    lastrecall = now;
-	    lastrange = recallrange;
-	    recallterrain.center = c;
-	    recallterrain.tick();
-	    /* 120.2: what the raster just decided it wants is what the source reads, and it is handed
-	     * over here rather than taken, so there is one place the wiring is stated. Between two raster
-	     * ticks the set stands: the sweeps in between read the same grids and ask for the ones they
-	     * had no slot for. */
-	    recall.want(recallterrain.wantgrids);
-	}
+	 * It also makes the trim square and the drawn square move together whatever moved them -- the
+	 * camera or the range setting itself. Recall.tick above has already trimmed to this tick's square,
+	 * and the raster follows in the same frame, so no frame is drawn holding a cut of a grid just
+	 * disposed. */
+	recallterrain.center = c;
+	recallterrain.tick();
+	/* 120.2: what the raster just decided it wants is what the source reads, and it is handed over
+	 * here rather than taken, so there is one place the wiring is stated. */
+	recall.want(recallterrain.wantgrids);
 	recall.read();
     }
 

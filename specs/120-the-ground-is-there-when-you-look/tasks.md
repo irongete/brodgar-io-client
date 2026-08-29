@@ -36,7 +36,7 @@
       `[manual]`: walk into a house or a cave with the camera panned away — expect the ground to go
       and come back in the right place, never drawn in the wrong one.
 
-- [ ] **120.3 — The build side is a concurrency target, not a per-tick quota.** `RecallTerrain.tick`
+- [x] **120.3 — The build side is a concurrency target, not a per-tick quota.** `RecallTerrain.tick`
       runs every ctick instead of every 0.2 s, and `recallmaxbuild` becomes an in-flight target sized
       from `Defer`'s own `max(2, availableProcessors() - 1)` less a stated reserve, so throughput is
       `cap / build-latency` rather than `cap / period`. What makes 20 Hz affordable is a **per-grid**
@@ -84,3 +84,15 @@
       Then the `DOCUMENTATION.md` §11 checks over every page touched: links and anchors resolved,
       `wc -l` against the ceilings, headings, the change-note greps, every `hafen.*` symbol present
       in `src/`, and the spec's impact set discharged row by row.
+
+- [ ] **120.6 — Nothing is wanted while nothing is drawn.** `recalltick`'s out-of-scene branch tells the
+      read side `recall.want(null)` and drops the raster, but never ticks it — so `RecallTerrain.nwanted`
+      keeps the value it held when it left, and with `recall(false)`, or under any camera but `rts`, an
+      addon reads 0 cuts drawn against a cuts wanted that never falls. The counters' own page calls the
+      three gauges what is held, drawn and wanted **right now**, and 120.2 already made the read side say
+      nothing is wanted; the drawn side's half of that word was left behind. The branch zeroes the
+      raster's own counts as it drops it, the way `RecallTerrain.tick` already does with no centre.
+      *Its suite* reads `recallCutsWanted` above zero with the raster in the scene, writes
+      `recall(false)`, and asserts both counts read zero within a bounded window and stay there while
+      the range is written under them — then switches back on and asserts wanted rises again, which is
+      the gauge proved in both directions rather than only on the way down.

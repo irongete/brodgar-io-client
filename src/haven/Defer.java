@@ -35,7 +35,11 @@ public class Defer extends ThreadGroup {
     private static final Map<ThreadGroup, Defer> groups = new WeakHashMap<ThreadGroup, Defer>();
     private final Queue<Future<?>> queue = new PrioQueue<Future<?>>();
     private final Collection<Thread> pool = new LinkedList<Thread>();
-    private final int maxthreads = Math.max(2, Runtime.getRuntime().availableProcessors() - 1);
+    // addon: (120.3) static and readable in the package rather than private to an instance -- the value is
+    //        the machine's and identical in every group. A budget for work that runs HERE is a share of this
+    //        pool, and a share is written by reading the pool, never by restating the formula somewhere it
+    //        can go quietly out of step with this line.
+    static final int maxthreads = Math.max(2, Runtime.getRuntime().availableProcessors() - 1);
     private final AtomicInteger busy = new AtomicInteger(0);
     
     public interface Callable<T> {

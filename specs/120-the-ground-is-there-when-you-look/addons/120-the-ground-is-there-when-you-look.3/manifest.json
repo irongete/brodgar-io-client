@@ -1,0 +1,10 @@
+{
+  "name": "120.3 — the build side is a concurrency target",
+  "id": "120-the-ground-is-there-when-you-look.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 120.3: with the rts camera up at the smallest range, cuts drawn catches cuts wanted within a bounded window of ticks, does it again from nothing after the raster leaves the scene and returns, and never stands above what was wanted.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}
