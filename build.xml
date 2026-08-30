@@ -87,7 +87,14 @@
 	 dest="lib/brodgar/luaj-jse-3.0.1.jar" usetimestamp="true" />
   </target>
 
-  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, get-luaj">
+  <target name="get-brodgar-voice" depends="build-env">
+    <!-- addon voice system: fetch brodgar-voice-all.jar -->
+    <mkdir dir="lib/brodgar" />
+    <get src="https://github.com/irongete/brodgar-io-voice-client/releases/download/v1.0.0/brodgar-voice-all.jar"
+	 dest="lib/brodgar/brodgar-voice-all.jar" usetimestamp="true" />
+  </target>
+
+  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, get-luaj, get-brodgar-voice">
     <condition property="explicit-annotations">
       <javaversion atleast="21" />
     </condition>
@@ -180,6 +187,7 @@
     <copy todir="build">
       <fileset dir="lib/ext/jogl"><include name="*.jar" /></fileset>
       <fileset dir="lib/ext/lwjgl"><include name="*.jar" /></fileset>
+      <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
     </copy>
     <copy file="local-config.properties" tofile="build/haven-config.properties" failonerror="false" quiet="true" />
   </target>
