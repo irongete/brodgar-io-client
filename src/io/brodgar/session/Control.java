@@ -35,7 +35,7 @@ public class Control {
      * changes is the <em>recipient</em>: with somebody other than the drawn character selected, a left
      * click on the ground walks the selection instead of the character on screen.
      */
-    public static volatile boolean on = false;
+    private static volatile boolean on = false;
 
     private static final Set<Long> sel = new LinkedHashSet<Long>();
 

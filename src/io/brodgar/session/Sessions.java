@@ -87,24 +87,10 @@ public class Sessions {
     }
 
     /**
-     * Is this session one the client holds but does not draw? Asked by {@code MapView}'s constructor,
-     * so it must answer correctly from the moment the session exists — which is why a member registers
-     * its {@code Session} before its {@code UI} is built.
-     */
-    public static boolean ismember(Session sess) {
-	if(sess == null)
-	    return(false);
-	for(Member m : members) {
-	    if(m.sess == sess)
-		return(true);
-	}
-	return(false);
-    }
-
-    /**
-     * The same question, asked where only the {@code Glob} is in hand. A session is dormant when it is
-     * not the one being drawn — which is this one list minus whichever member currently holds the
-     * screen, and no second place to look: every game session the client holds is in it.
+     * Is this session one the client holds but does not draw? Asked where only the {@code Glob} is in
+     * hand. A session is dormant when it is not the one being drawn — which is this one list minus
+     * whichever member currently holds the screen, and no second place to look: every game session the
+     * client holds is in it.
      */
     public static boolean dormant(Glob glob) {
 	if(glob == null)
@@ -313,7 +299,7 @@ public class Sessions {
      * session holds it — the client with nobody logged in, which is where dropping the last session
      * leaves you.
      */
-    public static UI loginui() {
+    static UI loginui() {
 	UILoop lp = loop;
 	return((lp == null) ? null : lp.ui);
     }
@@ -625,27 +611,6 @@ public class Sessions {
 	}
     }
 
-    /**
-     * Cycle to the session after the one on screen, and round. One flat list with <b>no distinguished
-     * stop</b>: every session is a member, so tabbing visits each of them exactly once per lap. The
-     * login screen is not one of the stops — it is where dropping the last session leaves you, not
-     * somewhere to tab to — so the list is never left, and with nothing on screen yet the cycle starts
-     * at the first member.
-     *
-     * <p>Through {@link Control#take} rather than {@link #anchor} directly — cycling to a character and
-     * picking it out of the switcher window are the same intent, and both leave it on screen, alone in
-     * the selection and under the camera.
-     */
-    public static void next() {
-	List<Member> ms = members();
-	if(ms.isEmpty())
-	    return;
-	/* No member holding the screen answers -1, which is exactly the index before the first: the cycle
-	 * starts at ms.get(0) with no branch of its own. */
-	int i = ms.indexOf(anchormember());
-	Control.take(ms.get((i + 1) % ms.size()));
-    }
-
     /* rts: public since 072.3 -- AddonManager.screenView() derives the drawn scene from the anchor
      * through this, rather than keeping a hand-written copy of it. A recursive walk, so its one caller
      * there caches what it gets and re-checks the answer instead of walking again. */
@@ -695,12 +660,6 @@ public class Sessions {
 	    this.offset = offset;
 	    this.member = member;
 	    this.isanchor = isanchor;
-	}
-
-	/** This character's place in the ANCHOR's coordinates, seen from its own session. */
-	public Coord2d charpos() {
-	    Gob g = glob.oc.getgob(gui.plid);
-	    return((g == null) ? null : g.rc.sub(offset));
 	}
     }
 
@@ -813,7 +772,7 @@ public class Sessions {
     }
 
     /** The session this character belongs to, by its (global) gob id. */
-    public static Placed bysess(long gobid) {
+    static Placed bysess(long gobid) {
 	for(Placed ss : placed()) {
 	    if(ss.gui.plid == gobid)
 		return(ss);
@@ -881,9 +840,10 @@ public class Sessions {
      * <p>Every placed session but the anchor's own is asked, each in the frame it is actually in, and
      * {@link #placed()} rather than {@code members} is why the frames are right: the {@code isanchor ?
      * zero : offset} correction it applies is the one {@link Member#offset()} does not carry once a
-     * member takes the screen ({@code tickoffset} returns early when it is the anchor, so that field
-     * keeps whatever it last held). The anchor's own entry is skipped because the caller is here
-     * <em>because</em> the anchor's map threw {@link Loading} for this place.
+     * member takes the screen ({@code Sessions.tick} skips the member holding it, so {@code tickoffset}
+     * never runs for that one and the field keeps whatever it last held). The anchor's own entry is
+     * skipped because the caller is here <em>because</em> the anchor's map threw {@link Loading} for
+     * this place.
      *
      * <p>{@code Loading} is caught per session rather than once around the loop: one session lacking
      * that ground is the ordinary case and must not stop the next from answering.
@@ -989,11 +949,6 @@ public class Sessions {
     }
 
 
-
-    static GameUI anchorgameui() {
-	Placed ss = anchorsess();
-	return((ss == null) ? null : ss.gui);
-    }
 
     /* rts: Widget.findchild is a RECURSIVE walk of the whole tree, and this used to run once per
      * session per placed() call, three times a frame. A GameUI is made once when a session enters
@@ -1591,7 +1546,7 @@ public class Sessions {
 	 * before the segment because a segment id means nothing outside the file that minted it.
 	 */
 	private void tickoffset(Member an) {
-	    if((an == null) || (an == this))
+	    if(an == null)
 		return;
 	    Base mine = base();
 	    Base ab = an.base();
@@ -1635,39 +1590,6 @@ public class Sessions {
 	}
 
 	/**
-	 * This character's position in the <em>anchor's</em> coordinates, wherever it is seen from.
-	 *
-	 * <p>The anchor's own view of it is preferred and is all there is while they are near each other.
-	 * Once they separate the anchor stops streaming the gob entirely — the character is still there,
-	 * still walking, still rendered into the scene by the merged view, but only its own session can
-	 * see it. Asking that session and translating is what keeps it selectable at any distance.
-	 */
-	public Coord2d anchorpos() {
-	    GameUI gui = gameui();
-	    Glob anchor = anchorglob();
-	    if((gui == null) || (anchor == null))
-		return(null);
-	    Gob g = anchor.oc.getgob(gui.plid);
-	    if(g != null)
-		return(g.rc);
-	    Session s = this.sess;
-	    Gob mine = (s == null) ? null : s.glob.oc.getgob(gui.plid);
-	    return((mine == null) ? null : toanchor(mine.rc));
-	}
-
-	/** A place in this member's own coordinates, said in the anchor's. */
-	public Coord2d toanchor(Coord2d p) {
-	    Coord2d off = this.offset;
-	    return((off == null) ? null : p.sub(off));
-	}
-
-	/** A place in the anchor's coordinates, said in this member's — which is what an order needs. */
-	public Coord2d tomember(Coord2d p) {
-	    Coord2d off = this.offset;
-	    return((off == null) ? null : p.add(off));
-	}
-
-	/**
 	 * F1's proof, and it proves two things at once. This member's own character, translated into the
 	 * anchor's frame, against where the anchor independently sees that same character standing — gob
 	 * ids are global, so it is one object observed by two sessions. Zero is the answer. A number
@@ -1676,10 +1598,11 @@ public class Sessions {
 	 */
 	public String check() {
 	    /* The screen is asked BEFORE the field, the order {@link #where()} takes and for the same
-	     * reason. {@code tickoffset} returns early for the member holding the screen, so its
-	     * {@code offset} still holds whatever it last measured as somebody else's member — and the
-	     * anchor is at zero by construction, so reading that field here would report a distance for a
-	     * session that has none. {@code placed()} applies the same correction to the same field. */
+	     * reason. {@code Sessions.tick}'s member loop skips the member holding the screen, so
+	     * {@code tickoffset} never runs for it and its {@code offset} still holds whatever it last
+	     * measured as somebody else's member — and the anchor is at zero by construction, so reading
+	     * that field here would report a distance for a session that has none. {@code placed()} applies
+	     * the same correction to the same field. */
 	    if(anchormember() == this)
 		return("the anchor");
 	    Coord2d off = this.offset;
