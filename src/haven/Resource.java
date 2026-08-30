@@ -1707,6 +1707,24 @@ public class Resource implements Serializable {
 		clmap.put(c.name, c);
 	}
 
+	/* addon: does this resource's published code declare `$use: <name>` on its classpath? The bridge
+	 * asks because a resource that uses `lib/obst` is one whose SDT opens with an obstacle -- the shape
+	 * a construction site's stakes trace -- and gob:hitbox() reads that with the library's OWN parser
+	 * rather than decoding the bytes itself. `classpath` is private and there is no other way to see it.
+	 *   Never forces a load: an entry that has not resolved is one this resource's code has not run with
+	 * either, so it answers false rather than blocking a read that must not block. */
+	public boolean uses(String name) {
+	    for(Indir<Resource> ir : classpath) {
+		try {
+		    Resource res = ir.get();
+		    if((res != null) && res.name.equals(name))
+			return(true);
+		} catch(Loading l) {
+		}
+	    }
+	    return(false);
+	}
+
 	public ClassLoader loader() {
 	    synchronized(CodeEntry.this) {
 		if(this.loader == null) {

@@ -42,6 +42,7 @@ you came for from the tables below. Every page in the tree is listed here.
 |---|---|
 | [`session:world`](world.md) | one character's live world: every object it has loaded, the terrain it stands on, and the clicks and drags it makes on both |
 | [Gob](gob.md) | one object in the world — `s:world():gob():get(id)` gives a Gob you read with methods, and `gob:scale(k)` says how big it is drawn |
+| [Placing](placing.md) | the ghost on the cursor: what you are about to place, where it sits, and the ground it will take |
 | [Position](position.md) | a place: the one position type, computable and saveable, that every spatial verb takes |
 | [Overlay](overlay.md) | what is drawn at a gob: the game's own, the labels and painters you attach, and what you stood there |
 | [`hafen.map`](map/README.md) | the hub: the map you have explored, kept on disk, and the order to read these pages in |

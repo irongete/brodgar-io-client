@@ -106,6 +106,29 @@ Reading the layer is not the whole job, and two of the three remaining steps are
   `obst`/`neg` — lives on a mesh resource it reaches through a `RenderLink.MeshMat` layer. A reader that
   stops at `Drawable.getres()` finds neither layer on exactly the resources built that way.
 
+## Published code, and a shape the resource computes itself
+
+A `.res` can carry **its own Java**: a `code` layer of classes plus a `codeentry` layer naming the entry
+point and, under type `2` or a `use` datum, a **classpath** of other resources to load it against —
+`$use: lib/obst` in the preprocessed source. `CodeEntry.loader()` chains a class loader per entry.
+
+**A local copy under `src/haven/res/`** wins over the served class only when its
+`@haven.FromResource(name, version)` matches the resource actually served; otherwise the loader warns and
+uses the fetched code. So adopting a class is version-pinned by construction and a server-side bump
+degrades to upstream behaviour rather than breaking. `Resource`'s own `main` has `get-code` (fetch the
+source and write it annotated) and `find-updates` (report copies whose version has moved on).
+
+**Some objects have no shape layer at all and are sent one per object.** `gfx/terobjs/consobj` — every
+building site in the game — carries neither `obst` nor `neg`: what is going up there is not a property of
+the site resource, so its `Consobj` sprite opens its **state bytes** with `Obstacle.parse(sdt)` from
+`lib/obst` and stands a pole at each vertex. The rings that come back are model-local and unrotated,
+exactly like an `obst` layer's, so the two feed one reader.
+
+`lib/obst`'s wire format is a header byte — type in the high nibble, an extent exponent in the low —
+then, by type: `0` several polygons, `2` one polygon, `3` a rectangle as four `snorm8` edges, and `1`
+the empty obstacle. An unknown type throws `Message.FormatError`, which is the honest signal that the
+bytes were never an obstacle.
+
 ## The gob monitor already guards it
 
 `$cres.apply` runs from `OCache.GobInfo.apply`, which takes `synchronized(gob)` around every pending

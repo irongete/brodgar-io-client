@@ -124,6 +124,7 @@ if t then hafen.log():write("standing on " .. (t.name or t.id)) end
 | `s:world():focus(p)` | the world | aim the view at a place; the drawn session's only, and the `rts` camera's |
 | `s:world():snapPlace(p, fine)` | Position | snap a Position to the client's placement grid |
 | `s:world():snapAngle(a, fine)` | number | snap a facing in radians to the client's placement-angle grid |
+| `s:world():placing()` | [Placing](placing.md) \| nil | the ghost on that character's cursor; `nil` when it is placing nothing |
 
 The two placement *settings* — how many sub-tile divisions, how many rotation steps — are read and written
 through [`hafen.client():options():interface()`](client/README.md#interface): `posGran()` and `angGran()`.
@@ -291,8 +292,9 @@ w:place(p, w:snapAngle(0))
 ```
 
 > **With nothing on the pointer the server ignores it, and nothing comes back to say so.** Placement is
-> started by the server, so the client has no reader that could tell you whether something is being
-> placed; there is no verb here that answers it either.
+> started by the server, so this verb cannot report what it did. Asking **beforehand** is
+> [`s:world():placing()`](placing.md), whose `nil` is "nothing on the cursor" — and which also says what is
+> on it, where it sits and [what ground it will take](placing.md#the-footprint).
 
 ### `s:world():select(p1, p2, mods)`
 
@@ -304,6 +306,7 @@ verbs raise before that session is in the world, and for a Position it cannot lo
 ## See also
 
 - [Gob](gob.md) — what the object readers hand back, and which character does the reading
+- [Placing](placing.md) — the ghost on the cursor: what `place` is about to commit
 - [`hafen.session`](session.md) — the address every verb here hangs off
 - [`hafen.map`](map/README.md) — the recorded map: its segments and grids, your markers, the icon categories
 - [the `filter` argument](conventions.md#the-filter-argument) — the three forms the object readers accept

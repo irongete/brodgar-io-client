@@ -3319,6 +3319,22 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	}
     }
 
+    // addon: the placement ghost currently on the pointer, or null when nothing is being placed. The
+    //        Plob is not in OCache -- it is this field and nothing else -- so `io.brodgar.addon` has no
+    //        other way to read what the server put on the cursor. Same guard the ctick and gtick passes
+    //        above use: `done()` before `get()`, since the Plob is built on the Loader and the future is
+    //        pending until its resource resolves.
+    public Plob addonPlacing() {
+	Loader.Future<Plob> placing = this.placing;
+	if((placing == null) || !placing.done())
+	    return(null);
+	try {
+	    return(placing.get());
+	} catch(RuntimeException e) {
+	    return(null);
+	}
+    }
+
     // addon: V1 virtual entities (hafen.virtual()) — CLIENT-ONLY Gobs in the 3D `basic` scene. addClientGob
     //        does the exact operation Plob.place() does (`basic.add(placed)`), but `basic` (PView) and
     //        Gob.placed live in package `haven`, so this centralizes the scene mutation behind one public

@@ -39,6 +39,7 @@ import haven.MapFile;
 import haven.MapView;
 import haven.Message;
 import haven.MessageBuf;
+import haven.res.lib.obst.Obstacle;
 import haven.MCache;
 import haven.MenuGrid;
 import haven.MiniMap;
@@ -5014,6 +5015,31 @@ public final class AddonManager {
         return (g == null) ? null : g.map;
     }
 
+    /**
+     * <b>That session's map view</b>, or {@code null} while it has none (connecting, not in the world, gone).
+     *
+     * <p>The read counterpart of {@link #sendView(String, String)}: that one refuses a session that is not on
+     * screen, because a gesture with the pointer belongs to the character being drawn. This one does not,
+     * because <b>what is on a character's cursor is a fact about that character</b> rather than about the
+     * screen — every session has its own {@code MapView}, and the server puts a placement on the one it
+     * addressed. So this reads the session it was asked about, like every other reader in this block.
+     */
+    static MapView view(String user) {
+        Sessions.Member m = Sessions.byuser(user);
+        return (m == null) ? null : Sessions.mapview(m.ui);
+    }
+
+    /**
+     * <b>What that character is placing right now</b> — the client's own {@code MapView.Plob}, sitting on the
+     * cursor — or {@code null} when it is placing nothing. The one door to it: a Plob is in no
+     * {@link OCache}, so {@link #getgob(String, long)} cannot reach it and its {@code Gob.id} is {@code -1}
+     * (every Plob's is), which is why it is read from the view and never addressed by an id.
+     */
+    static MapView.Plob placing(String user) {
+        MapView mv = view(user);
+        return (mv == null) ? null : mv.addonPlacing();
+    }
+
     /** That session's live object cache, or {@code null}. */
     private static OCache oc(String user) {
         Glob g = glob(user);
@@ -5418,7 +5444,20 @@ public final class AddonManager {
         String user = gobUser(id);
         if(user == null)
             return LuaValue.NIL;
-        Gob g = getgob(user, id);
+        return hitboxOf(owner, user, getgob(user, id));
+    }
+
+    /**
+     * <b>Any gob's footprint as Positions in {@code user}'s world</b> — the whole of {@code gob:hitbox()}
+     * below the address, and what {@code s:world():placing()} reads too ({@code placing:hitbox()}).
+     *
+     * <p>It is factored out because the two differ only in <i>how the gob is found</i>: one is an id in that
+     * session's {@link OCache}, the other is the client's own {@code MapView.Plob}, which is in no OCache at
+     * all. What follows the lookup — the {@code obst}/{@code neg} rings, the object's own facing, the point it
+     * stands on — is the same object in both cases, because a Plob <b>is</b> a {@link Gob}. {@code NIL} for a
+     * {@code null} gob, so a caller with nothing to read passes it straight through.
+     */
+    static LuaValue hitboxOf(Addon owner, String user, Gob g) {
         if(g == null)
             return LuaValue.NIL;
         Coord2d[][] rings;
@@ -5437,6 +5476,8 @@ public final class AddonManager {
             if(res == null)
                 return LuaValue.NIL;
             rings = hitboxRings(res);
+            if(rings == null)
+                rings = sdtRings(res, g);      // ...and the one the SERVER sent, for a resource built that way
             if(rings == null)
                 return LuaValue.NIL;
             rc = g.rc;
@@ -5500,6 +5541,51 @@ public final class AddonManager {
             });
         }
         return rings.isEmpty() ? null : rings.toArray(new Coord2d[0][]);
+    }
+
+    /** The published library whose parser reads an obstacle out of a gob's state bytes. */
+    private static final String OBST_LIB = "lib/obst";
+
+    /**
+     * <b>The obstacle the SERVER sent in a gob's state bytes</b>, in {@link #hitboxRings}' own shape, or
+     * {@code null} where there is none to read.
+     *
+     * <p><b>A construction site has no footprint of its own.</b> {@code gfx/terobjs/consobj} carries neither
+     * an {@code obst} nor a {@code neg} layer — the stakes and the string you see are drawn by the
+     * resource's <i>own published code</i>, out of a shape the server sends per object, because the shape is
+     * whatever building is going up there and is not a property of the site resource at all. So the reader
+     * for it cannot be the resource's layers, and is this.
+     *
+     * <p><b>It runs the resource's own parser rather than decoding the bytes.</b>
+     * {@code docs/addons/api/gob.md} says the client never decodes state bytes, because what they mean
+     * belongs to that resource's published code — and this does not break that rule, it obeys it: the parse
+     * is {@code lib/obst}'s own {@link Obstacle#parse}, adopted verbatim under {@code @FromResource} and
+     * pinned to the version served. A server-side bump makes the engine prefer the fetched code and warn.
+     *
+     * <p><b>The gate is the resource's own declaration.</b> A resource whose {@code codeentry} lists
+     * {@code lib/obst} on its classpath is one whose code speaks that format, and in every resource that
+     * ships with the client the obstacle is the <b>first</b> thing its constructor reads out of the SDT.
+     * That is the whole warrant for reading it from byte zero, so a parse that does not come out clean is
+     * dropped rather than drawn: a shape guessed wrong is worse than no shape, and {@code null} here is
+     * exactly the "nothing to draw a box from" the verb already answers.
+     */
+    private static Coord2d[][] sdtRings(Resource res, Gob g) {
+        try {
+            Resource.CodeEntry code = res.layer(Resource.CodeEntry.class);
+            if((code == null) || !code.uses(OBST_LIB))
+                return null;
+            byte[] sdt = AddonWidgets.gobSdt(g);
+            if((sdt == null) || (sdt.length == 0))
+                return null;
+            List<Coord2d[]> rings = new ArrayList<Coord2d[]>();
+            for(Coord2d[] ring : Obstacle.parse(new MessageBuf(sdt)).p) {
+                if(ring.length >= 3)
+                    rings.add(ring);
+            }
+            return rings.isEmpty() ? null : rings.toArray(new Coord2d[0][]);
+        } catch(RuntimeException e) {
+            return null;                       // Loading, a short message, an unknown obstacle type
+        }
     }
 
     /**

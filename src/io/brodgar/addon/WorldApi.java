@@ -86,6 +86,7 @@ final class WorldApi {
     static LuaValue world(final Addon owner, final String user) {
         final LuaValue gobs = gobCollection(owner, user);
         final LuaValue grids = gridCollection(owner, user);
+        final LuaValue placing = LuaPlacing.of(owner, user);
         LuaTable m = new LuaTable();
         // gob() — the read-only Gob collection. :get(id) is NEVER nil (it is what lets you anchor to a gob
         // before it streams in; :exists() is the liveness test), while :find/:nearest answer nil and :list
@@ -385,6 +386,22 @@ final class WorldApi {
                 return LuaValue.valueOf(snapPlaceAngle(ang, a.arg(3).toboolean()));
             }
         });
+        // placing() — the ghost on this character's CURSOR, as a Placing object, or nil when it is placing
+        // nothing. The read `place` below never had: what sits on the cursor is the client's own MapView.Plob,
+        // which is in no OCache and carries no id (every Plob's is -1), so s:world():gob() cannot reach it and
+        // it is read from the view instead — MapView.addonPlacing(), the one seam it has.
+        //   It is a READ and so it answers for the session it was asked of, not for the screen: every session
+        // has its own view and the server addresses a placement to one of them, so what is on a character's
+        // cursor is a fact about that character. Placing WITH it is still the drawn character's own business,
+        // and `place` below refuses any other.
+        //   The handle is minted once with this world and re-resolves on every verb, so it names the cursor
+        // rather than one placement: stash it, put a cabin down, start a barrel, and it reads the barrel.
+        m.set("placing", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                Section.self(self, "world", "placing", W);
+                return (AddonManager.placing(user) == null) ? LuaValue.NIL : placing;
+            }
+        });
         // ---- the PROTECTED verbs (048.4, 079.3) ------------------------------------------------------
         // Two arrived from hafen.act(), the one section that grouped its verbs by PERMISSION rather than by
         // what they act on, and the third from the Gob, which stopped being one character's reading of an
@@ -403,8 +420,8 @@ final class WorldApi {
         // button 1 = confirm (default), mods 0 default.
         //   Placement is SERVER-INITIATED — what sits on the cursor is a Plob the server put there — so with
         // nothing being placed the message is simply ignored, and nothing comes back to say so. This verb
-        // cannot tell you whether it did anything, and there is no read here that could: the client's own
-        // MapView.placing is private.
+        // cannot tell you whether it did anything; asking BEFOREHAND is what s:world():placing() above is
+        // for, and a nil from it is "nothing on the cursor".
         m.set("place", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();

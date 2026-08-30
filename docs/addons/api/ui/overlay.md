@@ -107,6 +107,25 @@ It answers on **any** widget, [owned or borrowed](widget.md#owned-vs-borrowed), 
 both: what you paint over one of the client's own widgets is your own drawing over a picture the client
 has already drawn.
 
+**Which widget you name is where in the frame you land**, and that is the whole choice between the two
+collections. One here is painted straight after that widget and its subtree have drawn, and **before the
+widgets drawn after it** — so a painter on the map view covers every object in the world and the HUD's
+windows then cover the painter. `hafen.ui():overlay()` is over the finished HUD instead, windows included.
+Neither is more correct; they answer different questions, and *over the world* is the one a widget answers.
+
+```lua
+local view = hafen.session():current():ui():match("@MapView")
+view:overlay():add("marks"):draw(function(g, w, h)
+  g:color(60, 140, 255)
+  g:rect(0, 0, w, h)                          -- inside the 3D view, under every window
+end)
+```
+
+**A painter here draws widget-local and is clipped to that widget's box.** `w, h` is the widget, `0, 0` is
+its top-left, and anything outside is cut off. So a point that came from somewhere answering **root** design
+pixels — [`worldToScreen`](../world.md#the-screen-and-the-world), [the mouse](mouse.md),
+[`w:rootPos()`](widget.md#read) — is moved by that widget's own `:rootPos()` before it is drawn.
+
 | Call | Returns | Description |
 |---|---|---|
 | `widget:overlay():add(key)` | Overlay | hang a painter on it under `key`, bare; the same key again replaces it |

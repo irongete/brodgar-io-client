@@ -156,22 +156,44 @@ rather than at the frame's origin. That is what lets a ring go straight into
 [`hafen.virtual():patch()`](virtual/patches.md), which lays it on the terrain itself under whatever stands
 there.
 
-`gob:hitbox()` is `nil` once the gob is gone, before its resource has resolved, and for a resource that
-carries **neither** shape below — a decoration, most flooring, anything nothing walks into and nothing
-marks the ground under either.
+`gob:hitbox()` is `nil` once the gob is gone, before its resource has resolved, and for an object none of
+the three sources below has a shape for — a decoration, most flooring, anything nothing walks into and
+nothing marks the ground under either.
 
-> **Two different facts share this one answer, and the verb does not say which you got.** Usually the
+> **Three different facts share this one answer, and the verb does not say which you got.** Usually the
 > rings are the resource's **collision** shapes, what the server collides against. But a resource may
 > carry no collision shape and still carry a plain **click-box**, and a felled log
 > (`gfx/terobjs/log`) is exactly that: nothing stops you walking through one, yet it plainly lies
-> somewhere — an 18×4 rectangle, as it happens. `gob:hitbox()` answers that rectangle rather than
-> `nil`, because the question this verb is asked is *where is this thing*, and a `nil` there only ever
-> meant "we found nothing to draw a box from". **So never read a shape coming back as proof that the
-> object blocks movement.** What the two have in common is the only thing promised: world units, turned
-> by the object's facing, placed where it stands.
+> somewhere — an 18×4 rectangle, as it happens. And an object may carry no shape of its own at all and be
+> sent one **per object by the server**, which is [a building site](#a-shape-the-server-sent). `gob:hitbox()`
+> answers all three rather than `nil`, because the question this verb is asked is *where is this thing*, and
+> a `nil` there only ever meant "we found nothing to draw a box from". **So never read a shape coming back
+> as proof that the object blocks movement.** What the three have in common is the only thing promised:
+> world units, turned by the object's facing, placed where it stands.
 >
 > One ring is left out on purpose — a buildable resource's `build` box, which is the clearance a
 > placement ghost checks before you may put one down, not the footprint of the thing that ends up there.
+
+### A shape the server sent
+
+A **building site** — the stakes and the string that stand where a building is going up — has no footprint
+of its own to read. Its resource (`gfx/terobjs/consobj`) is the same one for every building in the game, so
+the shape cannot live there: what is going up on that spot is sent **with the object**, in the
+[state bytes](#state), and the stakes you see are the resource's own published code drawing that shape.
+
+`gob:hitbox()` reads it, so a site answers the outline of the building it will become, and needs nothing
+from you that a tree does not.
+
+It is the **one** place this API takes a meaning out of `gob:sdt()`, and it does not break the rule beside
+it: what parses those bytes is not the client guessing but the very library the site's own code parses them
+with, held here at the version the server serves. Two things follow, and both are facts rather than
+apologies. A resource is read this way only when it **declares that library** as its own code's, so nothing
+else is decoded on a hunch. And a shape that does not come out of the bytes cleanly is dropped rather than
+drawn, because a box in the wrong place is worse than no box.
+
+The ghost itself has the same verb: [`placing:hitbox()`](placing.md#the-footprint) answers in this shape and
+these units for the thing on your cursor, so what you are about to place wears the same box as what it
+becomes.
 
 ```lua
 local log = hafen.session():current():world():gob():nearest("gfx/terobjs/log")
