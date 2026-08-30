@@ -63,14 +63,12 @@ panning survives the character moving — is registered under the name `rts` bes
 ([camera.md](camera.md)) and is installed by hand with `:cam rts`, mode or no mode. It is what
 `s:world():focus(p)` needs: that verb raises under any other camera, none of which has a centre to move.
 
-**There is one camera, not one per character.** A camera is an inner class of the view it draws, so each
-session's `MapView` owns its own and they cannot be shared — what is shared is the state.
-`Sessions.anchor` hands the outgoing camera to the incoming view (`MapView.adoptcam`) **before**
+**There is one camera, not one per character.** Sessions share a camera's state and never the object
+([camera.md](camera.md)). `Sessions.anchor` reads the incoming session's `Placed.offset` **before**
 `lp.drawn` and before `invalidate`, while `placed()` still measures every offset against the session that
-has the screen: that is the frame the outgoing pan is named in, so `Placed.offset` is what turns it into
-the new session's. A session with no offset — one of the two bases unproved, or the two in different
-segments — cannot have that pan translated, and it becomes *follow the character*. What is copied is
-[camera.md](camera.md).
+has the screen — the frame the outgoing pan is named in — and hands it to the `MapView.adoptcam` that
+`Sessions.tickview` runs. Read after those two lines, `buildplaced` answers `Coord2d.of(0, 0)` for the new
+anchor and the pan lands a whole offset away; a session with no offset falls to *follow the character*.
 
 | Input | Does |
 |---|---|
@@ -99,13 +97,15 @@ hold-while-dragging gesture cannot be a binding whoever owns it.
 | Taking one down | `UILoop.bgdestroy` — `bgui`'s counterpart, run from the **session's own** thread (`Sessions.Member.discard`): it takes the screen off that `UI` if the caller has not, waits under `uilock` for any frame still holding it, then `UI.destroy`. So a `UI` can already be destroyed before the loop thread's next tick notices the anchor moved — a relogin destroys the old one and builds the new one inside `Member.run`, which is why anything that must still read a session as it ends has to **hold** what it needs rather than look it up by that `UI` |
 | The anchor's frame | `UILoop.Frame.tick`: dispatch, then `synchronized(layer)` for the layer's `tick`/`gtick`/hover/resize, then `synchronized(ui)` for `glob.ctick`, `glob.gtick`, `ui.tick`, `mousehover`, resize — one monitor at a time, and the session's hover is told the layer took the pointer |
 | Everything not drawn | `Sessions.tick`, called **after** that block closes, each session under its own monitor, and the one holding the screen skipped because the frame above has already ticked it in full. One call and one loop: every game session the client holds is a member of that list |
-| Handing the screen over | `Sessions.anchor` flips `UILoop.drawn` and the dormancy of the two views. `Sessions.relinquish` does it from a dying session's own thread and `Sessions.reclaim` a frame later if that did not happen, and both hand the screen to another live session — or to the login screen when there is none left |
+| Handing the screen over | **Two halves.** `Sessions.anchor` publishes — it reads the incoming offset, flips `UILoop.drawn`, `invalidate`s and coalesces one request — and touches no widget tree, so it is callable from a thread already holding one. `Sessions.tickview` spends that request at the top of `UILoop.run`, after `env.render()` and before the `uilock` block, on the frame's own thread and holding nothing: `adoptcam` then `dormant(false)` on the incoming view, `dormant(true)` on the outgoing one, each tree walked and written under its **own** monitor — a **private** walk, because `Widget.child`/`next` are not volatile and `Widget.unlink` ends by setting `next = null`, so a `findchild` racing that session's own `Loader` (`UI.CommandQueue.execute` → `NewWidget`/`AddWidget`/`DstWidget`, each under `synchronized(UI.this)`) stops early and answers `null` in silence, and a missed `dormant(false)` leaves the session that just took the screen drawing no scene until the player switches away and back. `Sessions.mapview(UI)` itself stays unguarded: `AddonManager.screenView` reaches it from handlers already holding the **layer's** monitor, and a `synchronized(u)` in it would nest layer → session. The coalesce keeps the **first** `cur` and the **last** `target`, and a request whose two ends are the same `UI` is **dropped** — away and back inside one step is not a change of screen, and applying that pair would `detachscene` the view being drawn. `Sessions.relinquish` publishes from a dying session's own thread, re-reading the anchor and picking the successor **under** `Sessions.class`; `Sessions.reclaim` does it a frame later if that did not happen. Both hand the screen to another live session — or to the login screen when there is none left |
 
 **One lock direction, and it is load-bearing.** The tick never holds two UI monitors at once, the addon
 layer's included — its tick is a block of its own, and its input dispatch takes each tree's in turn. The
-console does nest them — it runs inside the drawn UI's monitor and reaches into another session's — so
-that direction, anchor then member, is the only one anything may take. `Sessions.say` queues its text and
-drains it on the tick: delivering means taking the **anchor's** monitor from whatever spoke.
+console does nest them — it runs inside the drawn UI's monitor and reaches into another session's — so that
+direction, anchor then member, is the only one anything may take. **`Sessions.class` is a leaf under all of
+it**, which is what lets a keybinding, a control, a draw handler or an action hook ask for the screen while
+already holding the drawn tree. `Sessions.say` queues its text and drains it on the tick for the same
+reason: delivering means taking the **anchor's** monitor from whatever spoke.
 
 ## What dormancy buys, and what it costs
 

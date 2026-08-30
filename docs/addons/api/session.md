@@ -142,6 +142,11 @@ follow the screen, exactly as they do when the player takes it with `:session an
 collection back, so writes chain. Naming the session **already** on screen changes nothing and fires no
 [`SessionSelected`](event/bus/lifecycle.md#sessions).
 
+**The screen may be written from any handler**, one holding a widget tree included. It is not a write on a
+tree — it names which tree is drawn — so a `Draw` handler, a control's press, a hotkey and a console line
+may all write it, and `hafen.session():current()` reads the new session on the line after. What the two
+views owe each other, the camera and the scene, the client settles on its next frame.
+
 ```lua
 local list, cur, at = hafen.session():list(), hafen.session():current(), 0   -- go round the logins
 for i, s in ipairs(list) do if s == cur then at = i end end

@@ -35,6 +35,7 @@ end)
 | [`widget:on("Drop", fn)`](ui/custom.md), `"Close"` | the drop, the close button | its own only |
 | a [control's](ui/controls/README.md) `"Pressed"`, `"Changed"`, `"Submitted"`, `"Selected"` | the press | its own only |
 | a [drag or resize](ui/style/geometry.md) gesture, a [mouse grab's](ui/mouse.md) `"Move"`/`"Up"` | the gesture | its own only |
+| [`keybindings():on(name, fn)`](client/keybindings.md) — a hotkey | the key press that fired it | the **drawn character's** only |
 | [`hafen.event():action():on(msg, fn)`](event/streams.md) — outbound | the code that sent the message, before the server hears it | the **sender's** only |
 | [`hafen.console():on(name, fn)`](console.md) | the line being typed | the console's own only |
 
@@ -49,6 +50,11 @@ the scene: the client holds a newly arrived object out of the render tree until 
 so a label or a size written there is in force on that object's **first** drawn frame. Nothing else on the
 step promises that. Every other handler in the first group runs on the next step after the thing it is
 about, and the client has gone on drawing in between.
+
+**A hotkey of yours runs in the character's tree, not in your own layer.** The client matches a key by
+walking the widget tree of the character on screen, so your handler is answering inside *that* tree and may
+write it freely — while your own window, which lives in the layer, is the second tree it may not reach.
+Record what you want and let the step do it, exactly as a `Draw` handler does.
 
 The inbound message stream is the one row in neither group: it holds no tree, so it reaches any of them,
 but it is not the step. It answers the server's update **before** the widget applies it, which is what makes

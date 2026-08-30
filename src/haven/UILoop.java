@@ -779,6 +779,12 @@ public abstract class UILoop implements Console.Directory {
 		    setenv(env);
 		buf = env.render();
 		try {
+		    /* rts: (122.1) the screen changes on ANY thread; the two views move here. Sessions.anchor
+		     * publishes drawn() and leaves a request, touching no widget tree, so it may be called from
+		     * a handler already holding one -- which is every way of asking for the screen from the
+		     * frame. This spends that request holding nothing, and above the block below, so the
+		     * drawn() it reads is already the view whose scene was just attached. */
+		    io.brodgar.session.Sessions.tickview();
 		    UI ui;
 		    synchronized(uilock) {
 			this.lockedui = ui = drawn();   // rts: (F5)

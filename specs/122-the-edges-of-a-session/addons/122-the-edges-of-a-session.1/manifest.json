@@ -1,0 +1,10 @@
+{
+  "name": "122.1 — the screen is published on any thread, and the view moves on the frame's",
+  "id": "122-the-edges-of-a-session.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 122.1: the screen is asked for from inside a Draw handler holding a widget tree and answered on the next line, an away-and-back inside one step leaves the drawn view whole with its click-map, and the rts pan comes back aimed where it was.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

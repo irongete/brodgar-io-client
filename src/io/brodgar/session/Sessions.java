@@ -11,6 +11,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import haven.AddonWidgets;
 import haven.AuthClient;
@@ -400,16 +401,26 @@ public class Sessions {
      * screen does -- the same choice reclaim() makes, made a frame earlier by the one thread that knows
      * the session is going. */
     static void relinquish(UI u) {
-	if((u == null) || (anchor() != u))
+	if(u == null)
 	    return;
-	Member next = null;
-	for(Member m : members) {
-	    if((m.ui != u) && !m.dead && (m.ui != null)) {
-		next = m;
-		break;
+	/* rts: (122.1) the anchor is re-read and the successor picked UNDER the lock anchor(Member) settles
+	 * the switch under, because both halves race the player. Read outside it, the screen can move between
+	 * the test and the pick -- and then this hands it away from the session the player has just switched
+	 * to, from a thread that is only ending a different one. The lock is a leaf: nothing in here and
+	 * nothing in anchor(Member) takes a widget tree's monitor, so a session's own thread may hold it while
+	 * the frame is drawing. */
+	synchronized(Sessions.class) {
+	    if(anchor() != u)
+		return;
+	    Member next = null;
+	    for(Member m : members) {
+		if((m.ui != u) && !m.dead && (m.ui != null)) {
+		    next = m;
+		    break;
+		}
 	    }
+	    anchor(next);
 	}
-	anchor(next);
     }
 
     /* ------------------------------------------------------------------ *
@@ -465,6 +476,14 @@ public class Sessions {
      * {@link #anchor()} — the offsets, the orders, the merged patches, the selection — so it all
      * follows by itself. The offsets in particular are measured <em>against</em> the anchor, and each
      * is the difference of two bases derived again every tick, so they follow the screen by themselves.
+     *
+     * <p><b>This half publishes and moves no view.</b> It touches no widget tree at all — which is what
+     * makes {@code Sessions.class} a <em>leaf</em> lock, and therefore what makes this callable from a
+     * handler that already holds one: a keybinding, a control's own notification, a draw handler, a
+     * console line, an action hook. Every one of those arrives holding the drawn session's monitor, and a
+     * session ending takes the two in the other order from its own thread through {@link #relinquish}.
+     * What the two views owe each other is left in a request, and {@link #tickview()} spends it on the
+     * frame's own thread.
      */
     public static synchronized void anchor(Member m) {
 	UILoop lp = loop;
@@ -478,37 +497,26 @@ public class Sessions {
 	UI cur = anchor();
 	if(target == cur)
 	    return;
-	MapView oldmv = mapview(cur), newmv = mapview(target);
 	/* One camera across the characters. Each session's MapView owns a camera object -- a camera is
-	 * an inner class of the view it draws -- so the one the player has been using is carried over
-	 * as state, before the switch and while the offsets are still measured against the session that
-	 * still holds the screen. That is also the frame the outgoing camera's pan is named in, and
-	 * `offset` is exactly what turns it into the incoming session's. */
-	if((oldmv != null) && (newmv != null)) {
-	    Coord2d off = null;
-	    for(Placed ss : placed()) {
-		if(ss.ui == target)
-		    off = ss.offset;
-	    }
-	    synchronized(target) {
-		newmv.adoptcam(oldmv.camera, off);
-	    }
+	 * an inner class of the view it draws -- so the one the player has been using is carried over as
+	 * state, and `offset` is what names its pan in the incoming session's frame. The offset is read
+	 * HERE and not in tickview(): after drawn(target) and invalidate(), buildplaced() rebuilds with
+	 * the incoming session as the anchor and answers Coord2d.of(0, 0) for it, so a view moved on a
+	 * later read would land the pan a whole offset away between two distant characters. */
+	Coord2d off = null;
+	for(Placed ss : placed()) {
+	    if(ss.ui == target)
+		off = ss.offset;
 	}
 	lp.drawn(target);
-	if(newmv != null) {
-	    synchronized(target) {
-		newmv.dormant(false);
-	    }
-	}
-	if((oldmv != null) && (cur != null)) {
-	    synchronized(cur) {
-		oldmv.dormant(true);
-	    }
-	}
 	/* The session cache says which one is the anchor, and it was built before this line. Anything
 	 * asked between here and the next tick -- Control.take's selection first of all -- would
 	 * otherwise be answered about the session that just lost the screen. */
 	invalidate();
+	/* And the two views are left for the frame. Published BEFORE the request, so a switch a session
+	 * thread makes between one tickview() and the drawn() read below it costs the INCOMING session a
+	 * frame with its scene detached, rather than blanking the outgoing one. */
+	request(cur, target, off);
 	/* addon: (074.3) the screen changed, and the layer above it may care which character it is over.
 	 * After the invalidate, so a handler asking anything session-shaped is answered about the session
 	 * that just took the screen. Going to the LOGIN SCREEN fires nothing -- no session was picked --
@@ -518,6 +526,101 @@ public class Sessions {
 	/* rts: the switch says nothing on screen. Which character has it is visible in the character, and
 	 * SessionSelected above is how a layer that cares is told -- a line per switch is noise in a client
 	 * whose whole point is that you switch often. */
+    }
+
+    /* rts: (122.1) what one change of screen leaves for the frame's own thread: the view losing it, the
+     * view taking it, and the offset that names the outgoing pan in the incoming session's frame. Read
+     * once and never written, so the frame reads a whole request or none of it. */
+    private static class ViewSwitch {
+	final UI cur, target;
+	final Coord2d off;
+
+	ViewSwitch(UI cur, UI target, Coord2d off) {
+	    this.cur = cur;
+	    this.target = target;
+	    this.off = off;
+	}
+    }
+
+    /* rts: (122.1) the one pending change of screen, or null. ONE slot and not a queue: a switch
+     * superseded inside a frame is a switch that never happened, and replaying it would sleep a view
+     * twice. Atomic rather than volatile because two threads publish -- the frame's, from a handler, and
+     * a session's own, through relinquish -- and the coalesce below reads and writes it as one step. */
+    private static final AtomicReference<ViewSwitch> pendingview = new AtomicReference<ViewSwitch>(null);
+
+    /* rts: (122.1) coalesce: the FIRST cur, the LAST target, and that target's own offset. The first cur
+     * because it is the view still being drawn and still holding the camera the player has been using;
+     * the last target because it is where the screen ends up. A pair that meets -- A to B and back to A
+     * inside one step -- comes out with cur == target and is dropped by tickview() rather than applied:
+     * dormant(false) and dormant(true) landing on the same view would take the drawn session's scene out
+     * from under it, click-map and all. */
+    private static void request(UI cur, UI target, Coord2d off) {
+	ViewSwitch prev, next;
+	do {
+	    prev = pendingview.get();
+	    next = new ViewSwitch((prev == null) ? cur : prev.cur, target, off);
+	} while(!pendingview.compareAndSet(prev, next));
+    }
+
+    /**
+     * Move the two views the last change of screen named, on the thread that draws them.
+     *
+     * <p>Called from {@code UILoop.run} at the top of the frame — after {@code env.render()} and
+     * <b>before</b> the {@code uilock} block that reads {@code drawn()} — holding nothing whatsoever. So a
+     * switch made from inside the frame publishes mid-frame and is spent at the top of the next one,
+     * before anything reads which UI to draw: the session taking the screen is never drawn with its scene
+     * detached. A switch made from a session's own thread can land in the gap between the two and costs
+     * that session one frame, which is the whole price of the split.
+     *
+     * <p>Each tree is walked and written under its <b>own</b> monitor and never both at once, which is
+     * the one lock direction this layer permits. Nothing here is allowed to fail the frame: a view taken
+     * down between the publication and this call is a walk that answers null, and a throw out of either
+     * view is a warning rather than the end of the loop.
+     */
+    public static void tickview() {
+	ViewSwitch req = pendingview.getAndSet(null);
+	if(req == null)
+	    return;
+	/* Away and straight back inside one step. The screen never moved, so neither may the views. */
+	if(req.cur == req.target)
+	    return;
+	try {
+	    MapView oldmv = lockedview(req.cur), newmv = lockedview(req.target);
+	    if(newmv != null) {
+		synchronized(req.target) {
+		    if(oldmv != null)
+			newmv.adoptcam(oldmv.camera, req.off);
+		    newmv.dormant(false);
+		}
+	    }
+	    if(oldmv != null) {
+		synchronized(req.cur) {
+		    oldmv.dormant(true);
+		}
+	    }
+	} catch(RuntimeException e) {
+	    new Warning(e, "session: the screen moved but the views did not").issue();
+	}
+    }
+
+    /* rts: (122.1) mapview(u) under u's OWN monitor, and private because the public verb may not do this.
+     * Widget.child and Widget.next are not volatile and Widget.unlink ends by setting next = null, so a
+     * findchild racing that session's own Loader -- UI.CommandQueue.execute defers NewWidget.run,
+     * AddWidget.run and DstWidget.run, each under synchronized(UI.this) -- stops early and answers null in
+     * silence. A spurious null here is STICKY: miss dormant(false) and the session that has just taken the
+     * screen draws with no scene at all until the player switches away and back.
+     *
+     * mapview(UI) itself stays unguarded on purpose. AddonManager.screenView() reaches it from handlers
+     * already holding the addon LAYER's monitor, so a synchronized(u) inside it would nest layer ->
+     * session, the one nesting UILoop.Frame.tick's own comment forbids. This one is called from tickview()
+     * alone, which holds nothing. A UI already destroyed has no tree worth walking and says so. */
+    @SuppressWarnings("deprecation")
+    private static MapView lockedview(UI u) {
+	if((u == null) || (u.root == null) || u.destroyed)
+	    return(null);
+	synchronized(u) {
+	    return(u.root.findchild(MapView.class));
+	}
     }
 
     /**
