@@ -8,6 +8,7 @@ import java.util.List;
 import haven.Area;
 import haven.Coord;
 import haven.Coord2d;
+import haven.FColor;
 import haven.MCache;
 import haven.MapMesh;
 import haven.Material;
@@ -48,22 +49,32 @@ import haven.render.States;
 final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
     /** The tiles the mask marks: the ring's bounding box, one tile proud on each side. */
     private Area tiles;
-    /** What the masked ground is re-laid with — the colour, and the carve that cuts the ring out of it. */
+    /** What the masked ground is re-laid with — the colours, and the carve that cuts the ring out of them. */
     private Material mat;
 
-    PatchOverlay(List<Coord2d> ring, Color col) {
-        set(ring, col);
+    PatchOverlay(List<Coord2d> ring, Color fill, Color edge, float width) {
+        set(ring, fill, edge, width);
     }
+
+    /** Read where {@link #set} is given no edge: a colour the band is switched off over and so never reads. */
+    private static final FColor NORIM = new FColor(0f, 0f, 0f, 0f);
 
     /**
      * Re-derive both halves from a ring in <b>world</b> coordinates, and answer whether the <b>mask</b> moved
      * — which is the caller's cue to pay for a re-cut rather than a state push.
+     *
+     * <p><b>Three values, two states</b> (121.1): {@code fill} is what {@code BaseColor} writes at order 0 and
+     * {@code edge} with {@code width} is what {@link PatchCarve} lays over it at 500, so each carries its own
+     * opacity and the line can stand solid round ground you can see through. A {@code null} {@code edge} is no
+     * border, and it reaches the fragment as {@link PatchCarve}'s negative-width sentinel.
      */
-    boolean set(List<Coord2d> ring, Color col) {
+    boolean set(List<Coord2d> ring, Color fill, Color edge, float width) {
         Area was = tiles;
         tiles = coverage(ring);
-        mat = new Material(new BaseColor(col), States.maskdepth, new MapMesh.OLOrder(this),
-                           new PatchCarve(PatchCarve.of(ring)));
+        mat = new Material(new BaseColor(fill), States.maskdepth, new MapMesh.OLOrder(this),
+                           new PatchCarve(PatchCarve.of(ring),
+                                          (edge == null) ? NORIM : new FColor(edge),
+                                          (edge == null) ? -1f : width));
         return !tiles.equals(was);
     }
 
@@ -95,7 +106,12 @@ final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
 
     public Material mat() {return(mat);}
 
-    /** No outline pass: the rim is the carve's own one-pixel smoothstep, not a line the tile mesh draws. */
+    /**
+     * No outline pass, border or none: {@code patch:border(c, w)} is a band carved off the same signed distance
+     * the silhouette is, inside {@link PatchCarve}, and the engine's own outline would outline the masked
+     * <b>tiles</b> — a rectangle round the shape rather than the shape. So {@code overlayOutlines} stands still
+     * whatever a patch is wearing.
+     */
     public Material omat() {return(null);}
 
     public boolean filter(Area b) {return(b.overlap(tiles) == null);}

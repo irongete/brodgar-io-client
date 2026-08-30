@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import haven.Coord2d;
+import haven.FColor;
 import haven.render.FragColor;
 import haven.render.Homo3D;
 import haven.render.Pipe;
@@ -50,6 +51,21 @@ import static haven.render.sl.Cons.*;
  * {@link For}, and {@code UniformApplier.TypeMapping.register} is public, so mapping {@code float[][]} onto an
  * array of {@code vec4} is the static initialiser below and no core edit.
  *
+ * <p><b>The border is a second band off the very same minimum</b> (121.1). {@code m} is the ring's own signed
+ * distance, so the fragments whose {@code m} lies between {@code 0} and the border's width are the ones inside
+ * the edge — a band, in the same expression, on the same fragment, with no second overlay, no second mesh and
+ * no tile re-laid. The band is mixed over what {@code BaseColor} wrote <b>before</b> the silhouette scales the
+ * alpha, so {@code mix} carries the two opacities across with the two colours and the line comes out at its
+ * own while the interior stays at the fill's — which is the one thing two concentric patches cannot do.
+ *
+ * <p><b>The width is world units with a one-pixel floor</b>, and the floor is what lets it be world units:
+ * {@code fwidth(m)} is how much world one pixel spans, so {@code max(width, fwidth(m))} is the silhouette's
+ * own pixel and a border never thins below it as the camera pulls back. A width of {@code 0} is therefore
+ * legal and means exactly that hairline. <b>No border at all is {@code width < 0}</b> — a sentinel derived
+ * from {@code LuaPatch.border == null} and never seen from Lua — which {@code step(0, width)} switches the
+ * band off by, rather than a second {@link ShaderMacro} that would double the terrain programs to save a
+ * multiply.
+ *
  * <p><b>A uniform is baked, not re-read.</b> {@code GLDrawList.DrawSlot.getsettings} resolves every uniform
  * once, at slot construction, and caches it — so mutating {@link #e} afterwards propagates nothing. A patch
  * that moves, turns or is tinted builds a NEW carve and pushes it through the slot
@@ -70,8 +86,19 @@ public class PatchCarve extends State {
     /** One {@code (nx, ny, d, _)} inward half-plane per edge, in MAP space. Never mutated after construction. */
     public final float[][] e;
 
-    PatchCarve(float[][] e) {
+    /**
+     * The border's colour at the border's own opacity, or an unread value while {@link #width} says there is
+     * none. Never null: the uniform is resolved whether or not the band is switched on.
+     */
+    public final FColor rim;
+
+    /** The border's thickness in MAP (= world) units, or <b>negative</b> for "no border" — see the class doc. */
+    public final float width;
+
+    PatchCarve(float[][] e, FColor rim, float width) {
         this.e = e;
+        this.rim = rim;
+        this.width = width;
     }
 
     /**
@@ -100,16 +127,31 @@ public class PatchCarve extends State {
     private static final Uniform u_edges =
         new Uniform(Type.INT, "patchedges", p -> Integer.valueOf(p.get(slot).e.length), slot);
 
+    /** The border's colour, at the border's own opacity — mixed over the fill inside the band. */
+    private static final Uniform u_rim =
+        new Uniform(Type.VEC4, "patchrim", p -> p.get(slot).rim, slot);
+    /** The border's width in map units, or negative for none: the sentinel {@code step} reads. */
+    private static final Uniform u_rimw =
+        new Uniform(Type.FLOAT, "patchrimw", p -> Float.valueOf(p.get(slot).width), slot);
+
     /** Core GLSL the DSL has no name for; {@code Function.Builtin}'s constructor is public, so this is it. */
     private static final Function.Builtin fwidth =
         new Function.Builtin(Type.FLOAT, new Symbol.Fix("fwidth"), 1);
 
     /**
-     * The coverage of this fragment: 1 well inside the ring, 0 well outside, and one pixel of smoothstep
-     * across the rim. {@code fwidth} is taken on the finished minimum, after the loop, where the control flow
-     * is uniform across the quad (the bound is a uniform) and the derivative is therefore defined.
+     * <b>The fill, the border and the silhouette, in one expression</b> — the fragment's incoming colour in,
+     * the finished colour out. {@code fwidth} is taken on the finished minimum, after the loop, where the
+     * control flow is uniform across the quad (the bound is a uniform) and the derivative is therefore
+     * defined; every later term is that one {@code fw}, so the band and the silhouette are measured against
+     * the very same pixel.
+     *
+     * <p>Both halves are ONE function rather than two, because both are read off {@code m} and a second call
+     * would walk the edge loop a second time. They are one {@code mod} for the same reason the mix sits
+     * inside it: a mod above this one would be handed the mixed colour with no way left to tell the fill from
+     * the line.
      */
-    private static final Function.Def carve = new Function.Def(Type.FLOAT, "patchcarve") {{
+    private static final Function.Def carve = new Function.Def(Type.VEC4, "patchcarve") {{
+        Expression in = param(Function.PDir.IN, Type.VEC4).ref();
         Expression p = pick(Homo3D.fragmapv.ref(), "xy");
         /* Bigger than any distance a fragment inside the mask can be from an edge, and written so that
          * Double.toString emits it without an exponent -- the loop always runs (a patch has three edges at
@@ -119,19 +161,29 @@ public class PatchCarve extends State {
         Expression edge = idx(u_edge.ref(), i);
         code.add(new For(ass(i, l(0)), lt(i, u_edges.ref()), linc(i),
                          stmt(ass(m, min(m, sub(dot(p, pick(edge, "xy")), pick(edge, "z")))))));
-        Expression fw = fwidth.call(m);
-        code.add(new Return(smoothstep(neg(fw), fw, m)));
+        LValue fw = code.local(Type.FLOAT, fwidth.call(m)).ref();
+        /* The floor: one screen pixel of world, so a world-unit width never thins out of sight at distance. */
+        LValue w = code.local(Type.FLOAT, max(u_rimw.ref(), fw)).ref();
+        /* Inside the band, and switched on at all: 1 at the ring's own edge, 0 once m has run w past it. */
+        Expression rim = mul(step(l(0.0), u_rimw.ref()),
+                             sub(l(1.0), smoothstep(sub(w, fw), add(w, fw), m)));
+        /* The line over the fill, each at its own opacity, and then the silhouette over the pair. */
+        code.add(new Return(mul(mix(in, u_rim.ref(), rim),
+                                vec4(l(1.0), l(1.0), l(1.0), smoothstep(neg(fw), fw, m)))));
     }};
 
     private static final ShaderMacro shader = prog -> {
-        /* After BaseColor's 0: what it wrote is the patch's colour, and this scales that colour's alpha. */
-        FragColor.fragcol(prog.fctx).mod(in -> mul(in, vec4(l(1.0), l(1.0), l(1.0), carve.call())), 500);
+        /* After BaseColor's 0: what it wrote is the patch's FILL, and this lays the border over that and then
+         * scales the pair's alpha by the silhouette. */
+        FragColor.fragcol(prog.fctx).mod(in -> carve.call(in), 500);
     };
 
     public ShaderMacro shader() {return(shader);}
     public void apply(Pipe p) {p.put(slot, this);}
 
-    public String toString() {return(String.format("#<patch-carve %d>", e.length));}
+    public String toString() {
+        return(String.format("#<patch-carve %d%s>", e.length, (width < 0) ? "" : (" rim " + width)));
+    }
 
     /**
      * <b>The inward half-planes of a convex ring given in WORLD coordinates.</b> Every point crosses into map

@@ -88,8 +88,10 @@ terrain work. The client cuts the ground into squares, and every ground overlay 
 [patch](../../virtual/patches.md) you lay, a claim or a province the client draws — is laid a second time
 over each cut its shape reaches: once as the sheet, and again as the outline round it where the overlay has
 one. So laying a patch moves `overlayMeshes` by the cuts its ring reaches and no others, and leaves
-`overlayOutlines` where it was, because a patch is drawn without an outline. Taking one up moves neither:
-nothing is built to stop drawing something. Read as a **delta between two reads**, that is what makes the
+`overlayOutlines` where it was, because a patch's own
+[edge](../../virtual/patches.md#the-border) is carved into the sheet the cut already draws rather than laid
+as a second mesh over it — so wearing one, widening it or taking it off moves neither counter either.
+Taking a patch up moves neither: nothing is built to stop drawing something. Read as a **delta between two reads**, that is what makes the
 cost of a patch a number rather than a feeling — lay one with fifty already on the ground and it moves by
 what one costs.
 

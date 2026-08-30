@@ -7,7 +7,8 @@ stand up, and a patch is on the ground under them.
 
 It lies on the ground **exactly**: over a slope, a ridge or a tile boundary it follows the relief with no
 float, no gap and no shimmer, and whatever stands on that ground occludes it, your own character included.
-Its edge is the ring's own shape at every zoom, one pixel wide, rather than a staircase of square tiles.
+Its edge is the ring's own shape at every zoom, rather than a staircase of square tiles, and
+[a line can be drawn along it](#the-border).
 
 `hafen.virtual():patch()` **is the collection** of the patches your addon has laid: `:add(ring, anchor)` lays
 one and hands it back, `:list(filter)` reads them, `:remove(p)` takes one up — the whole
@@ -83,13 +84,14 @@ own shape while it goes: the ring is offsets, and the object's own turning does 
 
 ## The patch
 
-The [shared vocabulary](README.md#one-vocabulary-every-kind) and nothing of its own. Two verbs answer
-differently here, and both because a patch is on the ground rather than above it:
+The [shared vocabulary](README.md#one-vocabulary-every-kind), plus the one verb only a patch has. Two of
+the shared ones answer differently here, and both because a patch is on the ground rather than above it:
 
-| Method | Description |
-|---|---|
-| `patch:offset()` / `patch:offset(x, y)` | where it sits relative to the object it follows — **two** numbers, on the ground |
-| `patch:drawn()` | is it on the terrain being drawn right now? |
+| Method | Permission | Description |
+|---|---|---|
+| `patch:border()` / `patch:border(c [, w])` | unprotected | [the line round the ring](#the-border); `nil` clears it |
+| `patch:offset()` / `patch:offset(x, y)` | unprotected | where it sits relative to the object it follows — **two** numbers, on the ground |
+| `patch:drawn()` | unprotected | is it on the terrain being drawn right now? |
 
 `patch:offset(x, y, z)` raises naming that a patch has no height. A patch held *above* the ground is a
 different thing and this is not it — on the ground it is already occluded by whatever stands on it, which
@@ -100,10 +102,15 @@ its own place, `:rotate(a)` turns it there, `:tint(c)` and `:alpha(a)` colour it
 the ground and puts it back, and `:position(p)` moves a planted one — on one that follows, that raises
 naming `patch:offset` instead.
 
-> **Turning, scaling and tinting cost no terrain work.** They re-carve the silhouette and push a new colour
-> through the ground that is already laid; no mesh is rebuilt. Moving one far enough to leave the tiles it
-> covers does re-cut those tiles, so a patch dragged across the map every frame is the one shape of this
-> that is not free.
+**On a patch the tint is the fill**, and so its fourth component is the fill's own opacity rather than a
+blend strength: there is no picture underneath for a strength to be measured against. `:alpha(a)` is the
+whole shape's and multiplies fill and border alike, which is what lets a solid line stand round ground you
+can see through.
+
+> **Turning, scaling, tinting and bordering cost no terrain work.** They re-carve the silhouette and push
+> new colours through the ground that is already laid; no mesh is rebuilt. Moving one far enough to leave
+> the tiles it covers does re-cut those tiles, so a patch dragged across the map every frame is the one
+> shape of this that is not free.
 
 ### The snapshot
 
@@ -113,14 +120,57 @@ naming `patch:offset` instead.
 
 | Key | What it holds |
 |---|---|
+| `border` | `{color = c, width = w}` — the pair [`patch:border()`](#the-border) hands back |
 | `ring` | the shape, as an array of the `{gridId, x, y}` tables a [Position](../position.md) answers with |
 
-`ring` is absent while this character cannot locate the patch at all, exactly as a key is absent everywhere
-in this API when the thing it names is not known.
+`border` is absent while no line is laid and `ring` while this character cannot locate the patch at all,
+exactly as a key is absent everywhere in this API when the thing it names is not known. The snapshot names
+the two halves of a border where the call counts them, because a snapshot is a document and a call is not.
 
 ```lua
 local i = patch:info()
 hafen.log():write(i.kind .. ": " .. #i.ring .. " point(s), alpha " .. i.alpha)
+```
+
+## The border
+
+`patch:border(c, w)` draws a line at one colour and one thickness all the way round the ring. Its centre is
+left to whatever fills the patch, and a patch with no border laid has none drawn — the property is left out
+rather than set to something invisible.
+
+| Written | Does |
+|---|---|
+| `patch:border(c)` | a hairline in [colour](../shapes.md#colours) `c` — the same as a `w` of `0` |
+| `patch:border(c, w)` | a line `w` **world units** thick, and hands the patch back |
+| `patch:border()` | reads **both** back: the colour keyed, then the width |
+| `patch:border(nil)` | takes the line off; the read answers `nil` again |
+
+The read hands back two values in the order the write takes them, so one patch's edge goes straight onto
+another's:
+
+```lua
+local one = hafen.virtual():patch():add(ring, here)
+  :tint({40, 200, 120, 70}):border({255, 255, 255}, 0)   -- see-through green under a solid white hairline
+local two = hafen.virtual():patch():add(other, there):border(one:border())
+```
+
+**The width is world units, like every other length on a patch** — `w` of `11` is a tile, and `:scale(k)`
+takes the ring out around a line that stays the thickness it was told. `0` is the default and means
+the thinnest line the screen can draw. Below that it cannot go: whatever `w` says, the line is never drawn
+thinner **on screen** than the one pixel the ring's own edge already is, so a border does not fade out as
+the camera pulls back. A `w` outside `0..100` is brought to the nearer end, the way
+[`:scale`](README.md#one-vocabulary-every-kind) and `:alpha` are, rather than refused.
+
+**A border is a colour and a width, and nothing else.** The word is the one a
+[stylesheet rule](../ui/style/chrome.md#border) uses for the same thing, but a rule is a document and says
+it as `{color = …, width = …}`, while out here it is a call and says it as two arguments —
+`patch:border(c, w)`, as [`g:line(x1, y1, x2, y2, width)`](../ui/drawing.md) has them. So a rule's own value
+raises, naming that; so does a picture spelling (`box`, `slice`, an image), which frames a rectangle out of
+art and has nothing to draw along a ring. A `c` that is not a colour raises naming the two colour spellings.
+
+```lua
+local ok, err = pcall(function() patch:border{box = "gfx/hud/wnd"} end)
+hafen.log():write(tostring(err))          -- ...says a border out here is two arguments
 ```
 
 ## Naming and filtering
@@ -135,7 +185,8 @@ hafen.virtual():patch():list()                                  -- all of them
 hafen.virtual():patch():find(function(one) return one:drawn() end)  -- the first one on drawn ground
 ```
 
-`tostring(patch)` is `Patch`, and a verb no patch has answers naming `patch` and listing what it does have.
+`tostring(patch)` is `Patch`, and a verb no patch has answers naming `patch` and listing what it does have,
+`border` among them.
 
 ## Clickability
 

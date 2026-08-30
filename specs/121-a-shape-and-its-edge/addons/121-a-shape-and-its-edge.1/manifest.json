@@ -1,0 +1,9 @@
+{
+  "name": "121.1 — a patch takes a border",
+  "id": "121-a-shape-and-its-edge.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 121.1: patch:border(c [, w]) writes and reads a patch's edge, the tint's own a becomes the fill's opacity, and none of it costs terrain work.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

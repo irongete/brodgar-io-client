@@ -106,9 +106,9 @@ Every entity of every kind answers the same verbs, each a read/write pair on one
 **reads**, calling it with a value **writes** and hands the entity back, so a whole placement is one chain.
 Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the-ghost),
 [`s:image`](sprites.md#the-sprite) and [`s:facing`](sprites.md#facing), [`o:mesh`](models.md#the-object),
-[`panel:widget`, `panel:facing` and `panel:screen`](widgets.md#the-standing-widget). A
-[patch](patches.md) adds none: it is the shape it was laid as, and the ring it holds is read from
-`:info()`.
+[`panel:widget`, `panel:facing` and `panel:screen`](widgets.md#the-standing-widget),
+[`p:border`](patches.md#the-border) for a patch, whose ring is not among them: it is the shape the patch
+was laid as, and it is read from `:info()`.
 
 | Method | Description |
 |---|---|
@@ -119,7 +119,7 @@ Each kind then adds the one or two verbs only it has — [`g:res`](ghosts.md#the
 | `e:rotate()` / `e:rotate(a)` | its own facing in radians, keeping position |
 | `e:scale()` / `e:scale(k)` | uniform scale, `1` being original size |
 | `e:alpha()` / `e:alpha(a)` | opacity `0..1`, where `1` is opaque |
-| `e:tint()` / `e:tint(c)` | a [colour](../shapes.md#colours) laid over it, its `a` being blend strength; `nil` clears it |
+| `e:tint()` / `e:tint(c)` | a [colour](../shapes.md#colours) laid over it, its `a` the blend strength — a [patch](patches.md#the-patch)'s own fill opacity; `nil` clears it |
 | `e:visible()` / `e:visible(b)` | whether you have this one showing; `false` takes it out and keeps the entity |
 | `e:drawn()` | is it in the 3D scene right now? — see [the ground under it](#the-ground-under-one-that-stands-still) |
 | `e:clickable()` / `e:clickable(b)` | the pick surface — opt-in, and client-side only |

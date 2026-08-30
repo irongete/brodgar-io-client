@@ -59,6 +59,15 @@ public final class LuaPatch extends LuaWorldEntity {
     final Coord2d[] local;
 
     /**
+     * <b>The line round the ring</b> ({@code patch:border(c, w)}, 121.1) — its colour, or {@code null} while
+     * nothing is drawn there, and its thickness in world units, {@code 0} meaning the thinnest line the screen
+     * draws. They are the patch's own, not the shared core's: the four kinds that stand up are gobs with their
+     * own materials and an edge on one of those is a different mechanism entirely. Guarded by {@code this}.
+     */
+    Color border;
+    float borderWidth;
+
+    /**
      * The engine-side overlay this patch is drawn through — built on the first lay and kept for the life of the
      * patch, because its identity is what {@code MapView.ols}, {@code MCache.Grid.Cut.ols} and
      * {@code MapMesh.OLOrder.equals} key on. Guarded by {@code this}.
@@ -74,13 +83,16 @@ public final class LuaPatch extends LuaWorldEntity {
     private MCache laid;
 
     /**
-     * What the ground is showing right now — the world ring and the colour {@link #lay} last built from. The
+     * What the ground is showing right now — the world ring, the two colours and the width {@link #lay} last
+     * built from. The
      * ground pass re-asks every free entity about its place whenever a cut comes or goes, and for a patch that
      * has not moved the honest answer is that there is nothing to do: without this, standing still would build
      * a fresh carve and push a fresh draw state several times a minute. Guarded by {@code this}.
      */
     private List<Coord2d> shown;
-    private Color shownCol;
+    private Color shownFill;
+    private Color shownEdge;
+    private float shownWidth;
 
     LuaPatch(Addon owner, Coord2d rc, Coord2d[] local) {
         super(owner, rc, 0.0);
@@ -117,14 +129,30 @@ public final class LuaPatch extends LuaWorldEntity {
     }
 
     /**
-     * The colour the masked ground is re-laid in: the tint, or white where there is none, at this patch's
-     * opacity. The carve then scales that alpha again per fragment, which is what gives the rim its one pixel.
-     * Caller holds the monitor.
+     * <b>The fill</b>: the tint, or white where there is none, at the tint's OWN opacity times this patch's
+     * (121.1). On a patch the tint <i>is</i> the fill — there is no picture under it for a blend strength to
+     * mean anything against — so its {@code a}, dropped before 121, is what makes the interior see-through
+     * while {@link #edgeColour} stands solid round it. {@code :alpha(a)} multiplies both, which is why it
+     * appears in each of the two and in neither of the shader's uniforms. Caller holds the monitor.
      */
-    private Color colour() {
+    private Color fillColour() {
         Color t = (tint == null) ? Color.WHITE : tint;
-        int al = Math.round(clamp01(alpha) * 255f);
-        return new Color(t.getRed(), t.getGreen(), t.getBlue(), al);
+        return faded(t);
+    }
+
+    /**
+     * <b>The border</b>: its own colour at its own opacity times this patch's, or {@code null} while none is
+     * laid — which is what {@link PatchOverlay} turns into the carve's negative-width sentinel. Caller holds
+     * the monitor.
+     */
+    private Color edgeColour() {
+        return (border == null) ? null : faded(border);
+    }
+
+    /** A colour at its own alpha taken out by this patch's {@code :alpha(a)}. Caller holds the monitor. */
+    private Color faded(Color c) {
+        int al = Math.round(clamp01(alpha) * c.getAlpha());
+        return new Color(c.getRed(), c.getGreen(), c.getBlue(), al);
     }
 
     private static float clamp01(float v) {
@@ -148,20 +176,27 @@ public final class LuaPatch extends LuaWorldEntity {
         if(map == null)
             return;                                    // no world to lie on: reground puts it here when there is
         List<Coord2d> ring = worldRing();
-        Color col = colour();
+        Color fill = fillColour();
+        Color edge = edgeColour();
+        float bw = borderWidth;
         if(ol == null) {
-            ol = new PatchOverlay(ring, col);
+            ol = new PatchOverlay(ring, fill, edge, bw);
             map.add(ol);
             laid = map;
             shown = ring;
-            shownCol = col;
+            shownFill = fill;
+            shownEdge = edge;
+            shownWidth = bw;
             return;
         }
-        if((laid == map) && ring.equals(shown) && col.equals(shownCol))
+        if((laid == map) && ring.equals(shown) && fill.equals(shownFill)
+           && ((edge == null) ? (shownEdge == null) : edge.equals(shownEdge)) && (bw == shownWidth))
             return;                                    // nothing about it changed: no cut, and no state
         shown = ring;
-        shownCol = col;
-        boolean moved = ol.set(ring, col);
+        shownFill = fill;
+        shownEdge = edge;
+        shownWidth = bw;
+        boolean moved = ol.set(ring, fill, edge, bw);
         if(laid != map) {
             if(laid != null)
                 laid.remove(ol);
@@ -234,14 +269,27 @@ public final class LuaPatch extends LuaWorldEntity {
     String kind() { return "patch"; }
 
     /**
-     * A patch's own contribution to {@code :info()}: its ring, as the durable {@code {gridId, x, y}} snapshot
-     * each point would answer — the shape a live object inside a snapshot must not be. Absent while this
-     * session cannot locate the patch at all, which is the shape every other {@code info()} in the API has:
-     * present means known.
+     * A patch's own contribution to {@code :info()}: its {@code border}, and its ring as the durable
+     * {@code {gridId, x, y}} snapshot each point would answer — the shape a live object inside a snapshot must
+     * not be. Either is absent when the thing it names is: no border laid, or a session that cannot locate the
+     * patch at all. That is the shape every other {@code info()} in the API has: present means known.
+     *
+     * <p>{@code border} is the <b>two</b> values {@code patch:border()} hands back, under the names the
+     * stylesheet's own rule gives them — a snapshot is a document, which is the very distinction that keeps
+     * {@code {color =, width =}} out of the call itself.
      */
     void infoInto(LuaTable t) {
         List<Coord2d> ring;
         synchronized(this) {
+            if(border != null) {
+                LuaValue bc = AddonManager.color(border);
+                if(!bc.isnil()) {
+                    LuaTable b = new LuaTable();
+                    b.set("color", bc);
+                    b.set("width", LuaValue.valueOf((double)borderWidth));
+                    t.set("border", b);
+                }
+            }
             if(rc == null)
                 return;
             ring = worldRing();

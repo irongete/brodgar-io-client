@@ -2147,16 +2147,86 @@ final class VirtualApi {
     }
 
     /**
-     * The Lua handle for a {@link LuaPatch}: <b>the shared entity vocabulary</b> (118.2) and nothing of its
-     * own. A patch is placed, moved, turned, taken out to a scale, tinted, faded and switched off with the very
-     * verbs its four siblings answer — the two it answers differently it answers through the kind's own
-     * {@link LuaWorldEntity#drawn()} and {@link LuaWorldEntity#height()}, inside those shared verbs — and the
-     * one thing only a patch has, its ring, reaches {@code :info()} through {@link LuaPatch#infoInto}. There is
-     * no {@code :ring()} verb beside it: the ring is what a patch was made from and cannot be changed without
-     * laying another one, so {@code hafen.virtual():patch():add(ring, anchor)} is the only place it is written.
+     * The Lua handle for a {@link LuaPatch}: <b>the shared entity vocabulary</b> (118.2) plus the one verb only
+     * a patch has, {@code :border(c, w)} (121.1). A patch is placed, moved, turned, taken out to a scale,
+     * tinted, faded and switched off with the very verbs its four siblings answer — the two it answers
+     * differently it answers through the kind's own {@link LuaWorldEntity#drawn()} and
+     * {@link LuaWorldEntity#height()}, inside those shared verbs — and its ring reaches {@code :info()} through
+     * {@link LuaPatch#infoInto}. There is no {@code :ring()} verb beside it: the ring is what a patch was made
+     * from and cannot be changed without laying another one, so
+     * {@code hafen.virtual():patch():add(ring, anchor)} is the only place it is written.
+     *
+     * <p><b>The word is a stylesheet rule's; the argument shape is {@code g:line}'s</b>
+     * ({@code rule:border} already names a line at one colour and one thickness, and says it as
+     * {@code {color =, width =}} — which {@code conventions.md} bars in a call and permits in a document). So
+     * the colour and the width are two arguments, as {@code g:line(x1, y1, x2, y2, width)} has them, and the
+     * read hands <b>both</b> back so that {@code two:border(one:border())} is one expression. A table naming
+     * the stylesheet's own fields is refused saying exactly that.
      */
     private static LuaValue patchHandle(final LuaPatch p) {
-        return entityHandle(p, "patch", "patch", null, "");
+        LuaTable x = new LuaTable();
+        // border() -> colour, width (two values, so a read feeds a write straight) | border(c [, w]) writes it |
+        // border(nil) clears it. The width is WORLD units like every other length on a patch, 0 is the default
+        // and means the thinnest line the screen draws, and an out-of-range one is brought into range the way
+        // :scale and :alpha are rather than refused -- a border is a look, and a look is clamped.
+        x.set("border", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                if(!Args.passed(a, 2)) {
+                    synchronized(p) {
+                        if(p.border == null)
+                            return LuaValue.NIL;       // no border: the ONE value, so `if patch:border() then`
+                        return LuaValue.varargsOf(new LuaValue[] {
+                            AddonManager.color(p.border), LuaValue.valueOf((double)p.borderWidth)});
+                    }
+                }
+                LuaValue cv = a.arg(2);
+                if(cv.isnil()) {
+                    setPatchBorder(p, null, 0f);       // the documented nil: "no border" is a real value
+                    return self;
+                }
+                if(!cv.istable())
+                    throw new LuaError(colorRefusal("patch:border"));
+                java.awt.Color c = luaColor(cv, null);
+                if(c == null)
+                    throw new LuaError("patch:border(c, w): that table is the shape a STYLESHEET rule writes a"
+                        + " border in, and out here a border is TWO arguments — the colour and the width, as"
+                        + " g:line(x1, y1, x2, y2, width) has them: patch:border({255, 140, 40}, 2). The width"
+                        + " is world units and may be left out, which is a hairline");
+                setPatchBorder(p, c, Args.passed(a, 3)
+                    ? clampBorderWidth(number(a, 3, "patch:border", "w")) : 0f);
+                return self;
+            }
+        });
+        return entityHandle(p, "patch", "patch", x, " and :border()");
+    }
+
+    /**
+     * Set a patch's border ({@code patch:border(c, w)}, 121.1); {@code null} clears it. Both halves are the
+     * patch's own fields rather than the shared core's, and the re-lay is the same one {@link #setEntityTint}
+     * takes — {@link #refreshEntityScene} pushes a fresh {@link PatchCarve} through the {@code MapView.Overlay}
+     * slot, because a uniform is baked at slot construction and a mutated one propagates nothing. No mesh is
+     * rebuilt and no tile is re-laid: the shape the engine lays is the whole masked box either way, which is
+     * why laying, colouring, widening and clearing a border all cost no terrain work.
+     */
+    private static void setPatchBorder(LuaPatch p, java.awt.Color c, float w) {
+        synchronized(p) {
+            if(p.dead)
+                return;
+            p.border = c;
+            p.borderWidth = w;
+            refreshEntityScene(p);
+        }
+    }
+
+    /**
+     * A border's width, brought into range rather than refused — the treatment {@code :scale} and {@code :alpha}
+     * give a number outside theirs. {@code 0} is the floor and is the default: it means the thinnest line the
+     * screen draws, which the fragment gets by flooring the width against its own {@code fwidth}. The ceiling
+     * is {@code :scale}'s own number, nine tiles of world, and anything past it has long since filled the ring.
+     */
+    static float clampBorderWidth(double w) {
+        return (w < 0.0) ? 0f : ((w > 100.0) ? 100f : (float)w);
     }
 
     /** Tear down every patch this addon owns (reload/disable/relogin, P2): each comes off the ground it lay on. */
