@@ -11,7 +11,7 @@ character is in the world — and the row for the session on screen is marked `*
 | press the `Select next session` hotkey | goes to the next login, and round |
 | press the `Select character` hotkey, then click | the pointer becomes a hand; click a character (its model or its base) to go to it |
 | press the `Focus selection` hotkey | centres the view on your character — on the `rts` camera, which is the only one with a centre to move |
-| look at the map | a disc of coloured ground under every character: bright green under the one you are looking at, faint under the others |
+| look at the map | a disc of coloured ground with a solid line round it under every character: bright green under the one you are looking at, fainter under the others |
 | type `:sessions` | opens the window, or closes it |
 
 ## Logging another account in
@@ -66,21 +66,28 @@ map stay yours to use for something else.
 
 ## The base under each character
 
-A disc of coloured ground at the character's feet, the way a figure stands on a plinth: bright green under
-the one you are looking at, faint under the others.
+A disc of coloured ground with a solid line all the way round it at the character's feet, the way a figure
+stands on a plinth: bright green under the one you are looking at, fainter under the others.
 
 It is not drawn *over* the ground — it **is** the ground, re-laid in its own colour. So it follows a slope,
 a ridge and a tile boundary exactly, with no gap and no shimmer; whatever stands on it hides it, your own
-character included; and its edge is its own shape at every zoom rather than a staircase of tiles. Nothing
-about it names a camera, which is why it is right in every camera the client has.
+character included; and its edge is the disc's own shape at every zoom rather than a staircase of tiles.
+Nothing about it names a camera, which is why it is right in every camera the client has.
+
+**The line is that edge, drawn.** It is carved out of the disc rather than laid over it, so it is the same
+shape at every zoom, and it is never thinner on screen than a pixel — a base zoomed all the way out is
+still ringed. The ground inside stays see-through and the line stays solid, which is the whole difference
+between a plinth and a smudge: you can read the terrain the character is standing on and still see where
+the character is.
 
 It is laid on the **body** rather than at a place, so it is re-laid wherever that body walks and it goes
 when the body does. And it is the shape it was laid as: the faint one is the same disc scaled down, because
 what a base is made from cannot be changed afterwards.
 
 The client draws none of it. It holds the selection and knows whose screen this is; what that *looks* like
-is the block in the middle of `main.lua` — two colours, two opacities and the radius, which is in **world**
-units rather than pixels, so a base keeps its size on the ground as you zoom.
+is the block in the middle of `main.lua` — two colours, the opacity of the ground under each, the line's
+thickness and the radius. The last two are in **world** units rather than pixels, so a base keeps its size
+on the ground as you zoom.
 
 It appears only with two or more logins, and only for a character the one on screen can see — which is also
 the only character a base could be drawn for. The scene on screen carries every session's own ground, so

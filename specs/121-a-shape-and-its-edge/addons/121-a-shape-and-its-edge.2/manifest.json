@@ -1,0 +1,9 @@
+{
+  "name": "121.2 — the base under a character wears its border again",
+  "id": "121-a-shape-and-its-edge.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 121.2: a fill and a border compose on ONE patch -- written in one chain, read off one info() with each colour's own alpha, untouched by :alpha(), and costing no terrain work.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

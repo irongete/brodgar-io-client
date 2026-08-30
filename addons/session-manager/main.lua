@@ -158,12 +158,24 @@ end
 -- reconstruct the view's turn, its tilt and the height of its own anchor out of probe points, and could
 -- only approximate a hillside it was drawn flat across. The ground has all three already.
 --
--- A patch has no outline -- the silhouette is carved out of the ground it re-lays -- so the base is the
--- disc alone. An annulus is not convex, and convex is the whole of what a ring may be.
+-- The base wears its own EDGE. A patch's border is carved out of the very distance its silhouette is
+-- carved from, so a line all the way round the disc is not a second shape lying on the first -- which is
+-- what an annulus would have had to be, and an annulus is not convex, and convex is the whole of what a
+-- ring may be.
+--
+-- The line is what makes the ground read as a PLINTH rather than as a smudge, and it needs the fill and
+-- the edge to carry their own opacities: the fill's is the fourth component of its tint, the line's is its
+-- own colour's, and each is written once. :alpha() is not used here at all -- it multiplies the whole
+-- patch, so it would fade the line along with the ground it stands round, which is the one thing the base
+-- wants not to happen.
 
 local MARK_ON  = {64, 255, 64}          -- the character on screen: the one taking your clicks
 local MARK_OFF = {255, 255, 255}        -- the others, standing where they stand
-local ALPHA_ON, ALPHA_OFF = 0.45, 0.22  -- how solid the ground under each one is
+local FILL_ON, FILL_OFF = 115, 56       -- how solid the GROUND under each one is, 0..255. The line round it
+                                        -- is drawn at the colour's own default, which is solid.
+local BORDER_W = 0.3                    -- the line's thickness in WORLD units, as the radius is. Thinner
+                                        -- than a screen pixel it cannot be drawn, so it is still there
+                                        -- zoomed all the way out.
 local R_ON, R_OFF = 5, 4                -- the base's radius, in WORLD units: a tile is 11 across, so these
                                         -- are about a character wide. The ring is laid at R_ON and the
                                         -- faint one is SCALED down to R_OFF, because a patch's ring is what
@@ -234,8 +246,9 @@ end
 -- Which of the two a base is. Both are writes on the patch rather than a decision taken again every frame,
 -- so a switch of the screen is what re-reads them -- and neither costs the ground any work.
 local function look(m, mine)
-  m.patch:tint(mine and MARK_ON or MARK_OFF)
-    :alpha(mine and ALPHA_ON or ALPHA_OFF)
+  local c = mine and MARK_ON or MARK_OFF
+  m.patch:tint({c[1], c[2], c[3], mine and FILL_ON or FILL_OFF})
+    :border(c, BORDER_W)
     :scale(mine and 1 or (R_OFF / R_ON))
 end
 

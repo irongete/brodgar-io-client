@@ -35,7 +35,7 @@
       `[manual]`: widen the border to two world units — expect a band about a fifth of a tile across.
       `[manual]`: zoom all the way out on a hairline border — expect it still drawn, still one pixel.
 
-- [ ] **121.2 — the base under a character wears its border again.** The maintainer's
+- [x] **121.2 — the base under a character wears its border again.** The maintainer's
       `addons/session-manager` draws each character's base with the pair: the fill keeps its own opacity in
       the tint's `a` and the line is drawn solid, so the disc reads as a plinth rather than a smudge. Its
       README's base section says the edge is the ring's own shape at every zoom, and its pick section stays
