@@ -26,7 +26,7 @@ Two, in order: 123.1 can break the build and the behaviour, 123.2 can break neit
       `[manual]`: with a second character live and standing far from the drawn one, look at the merged
       patch — expect: its ground and objects are where they were before, not offset.
 
-- [ ] **123.2 — every symbol a comment names is one that exists.**
+- [x] **123.2 — every symbol a comment names is one that exists.**
       Nine citations, six files, no behaviour: `Sessions.tickrebind` in `RemoteUI.init`'s comment and in
       `AddonManager`'s — a symbol deleted features ago — and `AddonManager.init` four times in `Prof`
       and once in `MapView.dormant(boolean)`'s javadoc, which is wrong **twice**: that method does not

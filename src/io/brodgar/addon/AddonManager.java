@@ -911,9 +911,10 @@ public final class AddonManager {
      * is built there and loaded on the first frame it is ticked, which is the first instant this client has a
      * thread Lua may run on.
      *
-     * <p>What it no longer does is what {@code Sessions.tickrebind} used to make it do on every anchor change:
-     * tear every addon down and load them again. That was the whole cost of a switch — 11 ms, and every Lua
-     * value an addon held gone with no event saying so — and deleting the caller deleted it.
+     * <p><b>A change of screen never reaches here.</b> An addon is the client's and not a session's, so moving
+     * the anchor tears nothing down and loads nothing again: {@code Sessions.anchor} fires
+     * {@code SessionSelected} and that is the whole of what a switch costs this layer. Every Lua value an addon
+     * holds is the value it held, which is what lets a handler's own tables outlive a character.
      */
     static synchronized void boot() {
         Prof.init();  // 019.1: restore the persisted profiling switch (once per JVM)

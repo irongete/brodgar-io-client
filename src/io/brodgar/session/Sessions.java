@@ -507,8 +507,8 @@ public class Sessions {
 	request(cur, target, off);
 	/* addon: (074.3) the screen changed, and the layer above it may care which character it is over.
 	 * After the invalidate, so a handler asking anything session-shaped is answered about the session
-	 * that just took the screen. Going to the LOGIN SCREEN fires nothing -- no session was picked --
-	 * and the last SessionDestroyed is what says the screen emptied. */
+	 * that just took the screen. Going to the LOGIN SCREEN fires nothing -- no session was picked -- and
+	 * where that is the last session falling, its own SessionRemoved is what says the screen emptied. */
 	if(m != null)
 	    io.brodgar.addon.AddonManager.sessionSelected(m.user);
 	/* rts: the switch says nothing on screen. Which character has it is visible in the character, and

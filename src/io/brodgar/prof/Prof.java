@@ -80,9 +80,11 @@ public final class Prof {
     private static boolean inited = false;
 
     /**
-     * Restore the persisted switch, once per JVM. Called from {@code AddonManager.init} — the panel that owns
-     * the checkbox is in-game only (D-004), and everything 019 profiles is the in-game frame loop, so session
-     * init is the earliest point at which arming means anything.
+     * Restore the persisted switch, once per JVM. Called from {@code AddonManager.boot} — the addon layer's
+     * one boot, on the first frame it is ticked — beside the two sources below, so the switch and what it
+     * measures are armed in the same breath. The panel that owns the checkbox is in-game only (D-004) and
+     * everything 019 profiles is the frame loop, so a switch restored on the login screen measures nothing
+     * until a character is up.
      */
     public static synchronized void init() {
         if(inited)
@@ -203,14 +205,14 @@ public final class Prof {
     private static double lidle, llatency;
 
     /**
-     * Where the per-addon Lua cost comes from. Set by {@code AddonManager.init} rather than imported, so this
+     * Where the per-addon Lua cost comes from. Set by {@code AddonManager.boot} rather than imported, so this
      * package — the profiling <b>engine</b>, whose other consumers are {@code UILoop}, {@code Widget} and the
      * GL layer — never depends on the addon system. 019.4 replaces the single total with the per-addon,
      * per-category accumulators; the roll-up in {@link #frame} stays the same shape.
      */
     private static volatile LongSupplier addonNanos = null;
 
-    /** Register the per-frame addon-cost source (from {@code AddonManager.init}). */
+    /** Register the per-frame addon-cost source (from {@code AddonManager.boot}). */
     public static void addonCost(LongSupplier src) {
         addonNanos = src;
     }
@@ -222,7 +224,7 @@ public final class Prof {
      */
     private static volatile Runnable addonResetter = null;
 
-    /** Register the per-addon reset hook (from {@code AddonManager.init}). */
+    /** Register the per-addon reset hook (from {@code AddonManager.boot}). */
     public static void addonReset(Runnable r) {
         addonResetter = r;
     }

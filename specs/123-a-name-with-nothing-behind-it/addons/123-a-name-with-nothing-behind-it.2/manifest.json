@@ -1,0 +1,9 @@
+{
+  "name": "123.2 — every symbol a comment names is one that exists",
+  "id": "123-a-name-with-nothing-behind-it.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 123.2: the one corrected citation Lua can reach -- SessionDestroyed is refused naming the four session keys that exist, each of those four subscribes, and SessionRemoved lives and ends through sub:off().",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

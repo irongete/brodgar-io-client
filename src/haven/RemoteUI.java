@@ -149,9 +149,10 @@ public class RemoteUI implements UI.Receiver, UI.Runner {
 	/* rts: the addon engine is NOT bound here. Every game session is a Member, registered before its
 	 * UI exists -- Sessions.add and the bootstrap handoff both do it, and this method runs inside the
 	 * UI constructor -- so the guard that used to stand here ("bind unless this is a member") could
-	 * never be false, and binding on the login path would in any case bind whichever session connected
-	 * rather than the one on screen. Sessions.tickrebind is the only binder: it follows the anchor, so
-	 * the engine follows the view. */
+	 * never be false, and binding on the login path would in any case name whichever session connected
+	 * rather than any the layer wanted. Sessions.Member.start is the one binder --
+	 * AddonManager.sessionArrived, a line after the bgui() whose UI constructor runs this method -- so
+	 * the engine follows a session's ARRIVAL and not the screen. */
     }
 
     public String title() {

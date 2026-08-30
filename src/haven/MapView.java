@@ -841,10 +841,13 @@ public class MapView extends PView implements DTarget, Console.Directory {
      * (F0) is what makes this switch cost something. Promotion re-meshes everything in view, which is
      * the hitch this phase exists to measure.
      *
-     * <p>Deliberately does <em>not</em> move the addon engine or the voice channel. Both are
-     * single-session static hubs bound at the main session's own view, and rebinding them is
-     * {@code AddonManager.init} — a full teardown and reload of every addon, which is not what a key
-     * press should do. They stay where they are until F6 makes them per-session.
+     * <p>Deliberately does <em>not</em> move the voice channel. {@code Voice} is a static hub — every
+     * control and every piece of state a {@code Voice.*} static, by its own javadoc — attached from the
+     * constructor's {@code if(!dormant)} block and detached in {@code dispose}, so it stays on whichever
+     * view came up drawn and a key press is not where it is re-addressed. The addon engine needs no moving
+     * at all: it is per session already, attached from {@code Sessions.Member.start} the moment that
+     * session's {@code UI} exists, so the screen changing fires {@code SessionSelected} and rebinds
+     * nothing.
      */
     public void dormant(boolean d) {
 	if(d == dormant)
