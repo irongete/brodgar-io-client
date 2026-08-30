@@ -556,7 +556,10 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     }
 
     public void dispose() {
-	savewndpos();
+	/* rts: (122.4) no savewndpos() here. It was dead by two independent guards -- Sessions.Member.discard
+	 * relinquishes the screen before UILoop.bgdestroy, and bgdestroy clears drawui -- so onscreen() was
+	 * false by construction on every path that reaches this, and the write it looked like happening never
+	 * did. The layout is written where the screen actually leaves the character: leavingscreen(), below. */
 	Debug.log = new java.io.PrintWriter(System.err);
 	ui.cons.clearout();
 	super.dispose();
@@ -988,6 +991,24 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private void savewndpos() {
 	if(!onscreen())
 	    return;
+	savewndpos0();
+    }
+
+    /* rts: (122.4) the screen is leaving this character: write its layout down now.
+     *
+     * The one path that may skip the onscreen() guard, and it has to: this is called from
+     * MapView.dormant(true), which the frame reaches only after the anchor has already been published,
+     * so onscreen() is false by construction by the time it runs. Guarding it would be guarding on the
+     * very move that makes the write necessary.
+     *
+     * Package-visible for MapView and nothing else. Sessions is the only caller of dormant(boolean), so
+     * this covers every exit from the screen -- a switch, a relinquish, the last session falling, the
+     * login screen -- and nothing besides. */
+    void leavingscreen() {
+	savewndpos0();
+    }
+
+    private void savewndpos0() {
 	/* addon: what gets written down is what the USER placed. AddonWidgets.stockc/stockcsz answer the widget's
 	 * own geometry unless an AddOn's layout is standing on it, and then the value it had before that addon
 	 * touched it — otherwise the client would persist the addon's position as the user's own preference, and

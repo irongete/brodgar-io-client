@@ -58,7 +58,7 @@ Every suite is `addons/122-the-edges-of-a-session.<X>/`, run with `:t122`.
       `[manual]`: `:session add <an account with no saved token>`, then the same line again — expect:
       the second says the token is missing, never *"already a live session"*.
 
-- [ ] **122.4 — the layout is written when the screen leaves a character.**
+- [x] **122.4 — the layout is written when the screen leaves a character.**
       `GameUI.savewndpos` splits into the `onscreen()` guard and a `savewndpos0()` body, and a
       package-visible `leavingscreen()` calls the body — the one path that may skip the guard, since by
       the time it runs the guard is false by construction. `MapView.dormant(boolean)` calls it in its

@@ -1,0 +1,9 @@
+{
+  "name": "122.4 — the layout is written when the screen leaves a character",
+  "id": "122-the-edges-of-a-session.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 122.4: the handle the layout checks are read with -- the drawn character's own inventory window, named once, standing in that character's tree, its position read, written and given back exactly as it was.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

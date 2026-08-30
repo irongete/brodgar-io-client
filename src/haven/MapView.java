@@ -851,6 +851,16 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    return;
 	dormant = d;
 	if(d) {
+	    /* rts: (122.4) the screen is leaving this character, so its window layout is written down here
+	     * and nowhere else. Sessions.tickview() is the only caller of this method, so this one line
+	     * covers every exit from the screen -- a switch, a relinquish, the last session falling, the
+	     * login screen. Before the two lines below because they are the teardown and this is the last
+	     * reading of a view that is still the drawn one; and it is safe under the outgoing tree's own
+	     * monitor, which tickview() holds here, because the write takes nothing but the JDK's
+	     * preference store. GameUI.leavingscreen skips the onscreen() guard on purpose -- see it. */
+	    GameUI gui = getparent(GameUI.class);
+	    if(gui != null)
+		gui.leavingscreen();
 	    endcamdrag();   // rts: the screen changed hands mid-drag -- see endcamdrag
 	    detachscene();
 	} else {

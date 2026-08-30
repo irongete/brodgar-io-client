@@ -78,7 +78,7 @@ in between, so the hop count is never one.
 
 | What | Where |
 |---|---|
-| The main writer — **at logout AND every 60 s** | `savewndpos`: `wndc-inv/-equ/-chr/-zerg/-map` + `wndsz-map` (`mapfile.csz()`, the CONTENT size). From `dispose()` **and** from `tick` on a `lastwndsave` clock |
+| The main writer — **every 60 s while on screen, and again the moment the screen leaves this character** | `savewndpos0` is the body: `wndc-inv/-equ/-chr/-zerg/-map` + `wndsz-map` (`mapfile.csz()`, the CONTENT size). Two doors into it — `savewndpos`, which is the `onscreen()` guard, from `tick` on a `lastwndsave` clock; and `leavingscreen()`, which has none, from `MapView.dormant(true)`. ⚠️ **The guard is false by construction on the leaving path** — the new anchor is published before the frame moves the views ([multi-session.md](multi-session.md)) — so that door must skip it, and `dispose()`, reached only once the screen has already gone, carries no write at all |
 | Two more writers, same shape | `cdestroy` → `wndc-misc/<wndid>` for any server window carrying an `"id"` opt ( reads it back); the crafting window's own `destroy()` → `makewndc` |
 | The reads + the clamp | `Utils.getprefc(key, default)` **at construction** — //// — most through the `private` `fitwdg`, which clamps `wdg.c` so ≥ `UI.scale(100)` px stays inside `GameUI.sz` (cheaper re-derived — `UiApi.fitView` — than widened) |
 

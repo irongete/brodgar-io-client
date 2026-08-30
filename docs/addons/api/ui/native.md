@@ -40,10 +40,10 @@ and disabling or `:reload`ing your addon gives back everything you were holding.
 nothing — that session's widgets are gone.
 
 **The half that is easy to get wrong is the disk.** The client persists a few window positions of its own
-— inventory, equipment, the character sheet, kin, the map, and any window it tracks by id — written at
-logout *and* while you play. What it writes is always **what the user last placed**, never where your rule
-put it. So uninstalling your addon leaves the HUD exactly as its owner had arranged it, which is the whole
-point: nothing you do here is a change they have to undo by hand.
+— inventory, equipment, the character sheet, kin, the map, and any window it tracks by id — written while
+you play and again whenever the screen leaves that character. What it writes is always **what the user last
+placed**, never where your rule put it. So uninstalling your addon leaves the HUD exactly as its owner had
+arranged it, which is the whole point: nothing you do here is a change they have to undo by hand.
 
 **Reading back.** `w:position()` answers within the parent, in widget-local [design pixels](pixels.md) — a
 window's coordinate is relative to whatever contains it, and the HUD is not the root, so use
