@@ -41,7 +41,7 @@ Every suite is `addons/122-the-edges-of-a-session.<X>/`, run with `:t122`.
       `[manual]`: log an alt in, leave it in the background from before it enters the world, then tab
       to it and back — expect: nothing audible from it while it is not on screen.
 
-- [ ] **122.3 — an account name is reserved before the connection, not checked before it.**
+- [x] **122.3 — an account name is reserved before the connection, not checked before it.**
       `Sessions.add` and `adopt` take a private `claiming` monitor — a leaf, never nested under a tree
       or under `Sessions.class` — and reserve the account name atomically with the `byuser` check,
       before `connect(user)`'s two blocking round-trips; `members.add(m)` relieves it and a `finally`

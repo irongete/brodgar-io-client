@@ -1,0 +1,9 @@
+{
+  "name": "122.3 — an account name is reserved before the connection",
+  "id": "122-the-edges-of-a-session.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 122.3: the client holds one session per account -- every account it holds is named once, the collection's own count agrees with its list, and get(user) hands back the very entry carrying that name rather than a second object for a duplicate.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

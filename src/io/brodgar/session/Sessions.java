@@ -6,8 +6,10 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1014,8 +1016,63 @@ public class Sessions {
      * Membership
      * ------------------------------------------------------------------ */
 
+    /* rts: (122.3) THE ACCOUNT NAMES A LOGIN IS BEING BUILT FOR, and the monitor they are reserved under.
+     * One session per account is the rule both doors hold, and the check that held it was a read of
+     * `members` separated from the write that adds one by connect()'s two blocking network round-trips --
+     * long enough for a second add of the same name to pass the same read and for the client to end up
+     * holding two members of one account, which is a state nothing above this layer can express.
+     *
+     * A LEAF, and it has to be: claim, enlist and unclaim take nothing whatever underneath this monitor --
+     * `members` is a CopyOnWriteArrayList and needs none -- and both callers reach them from a thread of
+     * their own, holding no widget tree and not Sessions.class. */
+    private static final Set<String> claiming = new HashSet<String>();
+
+    /**
+     * Reserve an account name, or answer {@code false} when the client already holds a session for it or is
+     * building one. Every refusal of a second login for one account comes through here; the words are the
+     * caller's, because the two doors throw different things at different readers.
+     */
+    private static boolean claim(String user) {
+	synchronized(claiming) {
+	    for(Member m : members) {
+		if(m.user.equals(user))
+		    return(false);
+	    }
+	    return(claiming.add(user));
+	}
+    }
+
+    /**
+     * Put a built member on the list and relieve its reservation, in that order and under the one monitor:
+     * in between, the name still has to be refused, and {@code members} is what refuses it from here on.
+     */
+    private static void enlist(Member m) {
+	synchronized(claiming) {
+	    members.add(m);
+	    claiming.remove(m.user);
+	}
+    }
+
+    /**
+     * Release a reservation that never became a member. Called from a {@code finally} and never a
+     * {@code catch}: {@link #connect} is blocking network, and a catch misses the {@code InterruptedException}
+     * and the {@code Error} and leaves the account unusable for the rest of the login, which is worse than
+     * the race it closes. A no-op once {@link #enlist} has taken the name off.
+     */
+    private static void unclaim(String user) {
+	synchronized(claiming) {
+	    claiming.remove(user);
+	}
+    }
+
     /**
      * Connect an account with a saved token and hold it open.
+     *
+     * <p>The account name is <b>reserved before anything connects</b>: {@link #connect} is two blocking
+     * network round-trips, and a check reading {@code members} on this side of them lets a second add of the
+     * same name past the same read. {@link #enlist} relieves the reservation and the {@code finally} releases
+     * it, so an add that dies -- on a refused token, on an interrupt, on an {@code Error} -- leaves the name
+     * usable.
      *
      * @param user the account name, as the login screen knows it
      * @param chr  the character to play, or {@code null} to play whichever the server offers first
@@ -1024,24 +1081,31 @@ public class Sessions {
 	UILoop lp = loop;
 	if(lp == null)
 	    throw(new IllegalStateException("rts: no UI loop yet"));
-	for(Member m : members) {
-	    if(m.user.equals(user))
-		throw(new IOException("already a live session: " + user));
-	}
-	Session sess = connect(user);
-	Member m = new Member(user, chr, sess);
-	/* Registered BEFORE the UI exists: UI's constructor calls Runner.init, which is where a session
-	 * would otherwise capture the addon engine, and the server's first widgets can arrive at once. */
-	members.add(m);
+	if(!claim(user))
+	    throw(new IOException("already a live session: " + user));
 	try {
-	    m.start(lp);
-	} catch(RuntimeException e) {
-	    members.remove(m);
-	    sess.close();
-	    throw(e);
+	    Session sess = connect(user);
+	    Member m = new Member(user, chr, sess);
+	    /* Registered BEFORE the UI exists, and before the thread that pumps it: MapView's constructor
+	     * asks Sessions.dormant(glob) once and keeps that answer for the life of the view, so a view
+	     * built for a member not yet on this list comes up NON-dormant -- attaching its scene and meshing
+	     * terrain for a session nobody draws, until the player switches away and back. */
+	    enlist(m);
+	    try {
+		m.start(lp);
+	    } catch(RuntimeException | Error e) {
+		/* Error too, and not for tidiness: past enlist it is the MEMBER that holds the account name,
+		 * so a start dying on one leaves an entry with no UI and no thread sitting on that name for
+		 * the rest of the client's life -- the very state the reservation's finally exists to prevent. */
+		members.remove(m);
+		sess.close();
+		throw(e);
+	    }
+	    io.brodgar.addon.AddonManager.sessionAdded(user);   // addon: (074.3) a session connected
+	    return(m);
+	} finally {
+	    unclaim(user);
 	}
-	io.brodgar.addon.AddonManager.sessionAdded(user);   // addon: (074.3) a session connected
-	return(m);
     }
 
     /**
@@ -1066,46 +1130,50 @@ public class Sessions {
      * own thread is exactly what {@link #placedRebuiltOffTick()} counts. There is nothing to select
      * either — the session has not reached the world yet, so there is no character to name.
      *
-     * <p><b>One session per account</b>, the rule {@link #add} has always held, now held on this door too:
-     * the login screen is somewhere the player can go with sessions running ({@link Control#take} with a
-     * null, which {@code hafen.session():current(nil)} spells), so logging the same account in twice is a
-     * thing they can now do by typing a name they already have live. Two members of one account name is a
-     * state nothing above here can express — the account <em>is</em> the address, so they share a row in the
-     * switcher and a {@code Session} object in every addon, and the server ends one of the two connections
-     * a moment later anyway. Refused before anything is built, and the runner chain the throw unwinds into
-     * puts the player back on the login screen, which is where a login that did not take is retried.
+     * <p><b>One session per account</b>, the rule {@link #add} holds and this door holds with it: the login
+     * screen is somewhere the player can go with sessions running ({@link Control#take} with a null, which
+     * {@code hafen.session():current(nil)} spells), so logging the same account in twice is a thing they can
+     * do by typing a name they already have live. Two members of one account name is a state nothing above
+     * here can express — the account <em>is</em> the address, so they share a row in the switcher and a
+     * {@code Session} object in every addon, and the server ends one of the two connections a moment later
+     * anyway. Both doors refuse through the same {@link #claim}, so neither can pass the other; refused
+     * before anything is built, and the runner chain the throw unwinds into puts the player back on the
+     * login screen, which is where a login that did not take is retried.
      */
     public static Member adopt(RemoteUI fun) {
 	UILoop lp = loop;
 	if(lp == null)
 	    throw(new IllegalStateException("session: no UI loop yet"));
 	Session sess = fun.sess;
-	for(Member om : members) {
-	    if(om.user.equals(sess.user.name)) {
-		/* Closed here rather than left to the caller: this session is ours the moment we refuse it,
-		 * and a connection nobody holds is one the server keeps open. */
-		sess.close();
-		denial = sess.user.name + " is already logged in";
-		throw(new IllegalStateException("already a live session: " + sess.user.name));
-	    }
-	}
-	Member m = new Member(sess.user.name, null, sess);
-	/* Registered BEFORE the UI exists, for the reason add() gives: UI's constructor runs
-	 * RemoteUI.init, which asks ismember(sess), and the server's first widgets can arrive at once. */
-	members.add(m);
-	try {
-	    m.start(lp, fun);
-	} catch(RuntimeException e) {
-	    members.remove(m);
+	String user = sess.user.name;
+	if(!claim(user)) {
+	    /* Closed here rather than left to the caller: this session is ours the moment we refuse it,
+	     * and a connection nobody holds is one the server keeps open. */
 	    sess.close();
-	    throw(e);
+	    denial = user + " is already logged in";
+	    throw(new IllegalStateException("already a live session: " + user));
 	}
-	/* addon: (074.3) ...and one that came through the client's own login screen is a session like any
-	 * other. Before the anchor below, so an addon hears the session arrive and then be picked. */
-	io.brodgar.addon.AddonManager.sessionAdded(m.user);
-	if(anchormember() == null)
-	    anchor(m);
-	return(m);
+	try {
+	    Member m = new Member(user, null, sess);
+	    /* Registered BEFORE the UI exists, for the reason add() gives: a MapView built for a member not
+	     * yet on this list reads Sessions.dormant(glob) false and keeps that answer. */
+	    enlist(m);
+	    try {
+		m.start(lp, fun);
+	    } catch(RuntimeException | Error e) {   // Error too, for the reason add() gives
+		members.remove(m);
+		sess.close();
+		throw(e);
+	    }
+	    /* addon: (074.3) ...and one that came through the client's own login screen is a session like any
+	     * other. Before the anchor below, so an addon hears the session arrive and then be picked. */
+	    io.brodgar.addon.AddonManager.sessionAdded(m.user);
+	    if(anchormember() == null)
+		anchor(m);
+	    return(m);
+	} finally {
+	    unclaim(user);
+	}
     }
 
     public static boolean drop(String user) {
@@ -1358,7 +1426,22 @@ public class Sessions {
 	    Thread t = new HackThread(() -> run(lp, fun, u), "session-" + user);
 	    t.setDaemon(true);
 	    this.th = t;
-	    t.start();
+	    try {
+		t.start();
+	    } catch(RuntimeException | Error e) {
+		/* rts: (122.3) that thread is the only thing that ever runs this UI's runner chain and the
+		 * only thing that takes the UI down, so a start that does not take leaves `ui` naming a live
+		 * widget tree that nothing drives and nothing will ever destroy -- run()'s own finally is
+		 * what does that, and it never arrives. Unwound in the order run() unwinds it: the field is
+		 * cleared BEFORE the tree comes down, so no reader of it reaches a disposed one. */
+		this.ui = null;
+		this.th = null;
+		try {
+		    discard(lp, u);
+		} catch(RuntimeException de) {
+		}
+		throw(e);
+	    }
 	}
 
 	/**
