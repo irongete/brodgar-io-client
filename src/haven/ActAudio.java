@@ -120,7 +120,14 @@ public class ActAudio extends State {
 	    this.volume = Double.parseDouble(Utils.getpref("sfxvol-" + name, "1.0"));
 	}
 
-	public void mute(boolean m) {
+	/* rts: (122.2) synchronized against mixer(), which is the only other reader of `muted` and the
+	 * only writer of `volc`. Without that edge a channel first played AFTER a session went quiet
+	 * builds its VolAdjust reading a stale `muted`, sets itself audible, and every later mute()
+	 * returns on `m == muted` -- so a background session that had made no sound yet is audible for
+	 * the rest of its life. The two run on different threads by construction: Sessions.applymute is
+	 * the frame's, and the first sound of a session is its own RemoteUI's. Nothing here touches a
+	 * widget tree or a session, so the monitor stays a LEAF and applymute may hold it under nothing. */
+	public synchronized void mute(boolean m) {
 	    if(m == muted)
 		return;
 	    muted = m;
@@ -142,7 +149,11 @@ public class ActAudio extends State {
 	    return(ret);
 	}
 
-	public void setvolume(double volume) {
+	/* rts: (122.2) and this one for the same reason: it writes `volc.vol` and reads `muted` exactly
+	 * as mute() does, so guarding only mute() leaves the same race reachable through the volume
+	 * slider. Both writers or neither. The pref write stays inside -- it is a Preferences call, not
+	 * a lock, and it is what makes the level survive the launch. */
+	public synchronized void setvolume(double volume) {
 	    if(volc != null)
 		volc.vol = muted ? 0.0 : volume;   // rts: (F6) the user's setting, still not audible while muted
 	    this.volume = volume;
@@ -194,7 +205,12 @@ public class ActAudio extends State {
 	    amb = new RootChannel("amb", sys.mixer);
 	}
 
+	/* rts: (122.2) all THREE channels, where upstream clears two. A RootChannel that ever played
+	 * holds a VolAdjust on the shared Audio.Root mixer, and clear() is what stops it -- so a session
+	 * ending without this leaves its interface channel mixing for the rest of the client's life,
+	 * one more of them per login. UI.destroy is the only caller. */
 	public void clear() {
+	    aui.clear();
 	    pos.clear();
 	    amb.clear();
 	}

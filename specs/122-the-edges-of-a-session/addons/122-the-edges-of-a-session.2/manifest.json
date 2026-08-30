@@ -1,0 +1,10 @@
+{
+  "name": "122.2 — a background session is silent from its first sound",
+  "id": "122-the-edges-of-a-session.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 122.2: the channel level setter still writes now that it is synchronized, it takes two consecutive writes and restores what it found, and a level outside 0.0..1.0 is refused naming the range.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

@@ -28,7 +28,7 @@ Every suite is `addons/122-the-edges-of-a-session.<X>/`, run with `:t122`.
       `[manual]`: run `:session drop <the alt on screen>` — expect: the screen moves to the other live
       character, and the client keeps drawing.
 
-- [ ] **122.2 — a background session is silent from its first sound.**
+- [x] **122.2 — a background session is silent from its first sound.**
       `ActAudio.RootChannel.mute(boolean)` and `setvolume(double)` become `synchronized` — the
       happens-before `mixer()`'s double-checked block has never had against them. Without it a channel
       built after the first `Sessions.applymute` reads a stale `muted`, sets itself audible, and every
