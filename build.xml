@@ -248,6 +248,20 @@
 	<not><javaversion atleast="24" /></not>
       </and>
     </condition>
+    <!-- macOS ships no arm64 JOGL native, so the client would fall through to the LWJGL AWT
+	 canvas, which draws on the AWT event thread and gets the process killed by AppKit
+	 (`-[NSOpenGLContext setView:] must be called from the main thread`). The Cocoa/CGL
+	 toolkit is native and dispatches its context calls to the real main thread; it is already
+	 the highest-priority choice and only misses auto-selection by declaring itself
+	 experimental, which naming it explicitly bypasses. It ships in hafen-panama.jar, hence
+	 the Java 22 guard. Override with -Dtoolkit=jogl, or a `toolkit=` line in
+	 build.properties. -->
+    <condition property="toolkit" value="cgl">
+      <and>
+	<os family="mac" />
+	<javaversion atleast="22" />
+      </and>
+    </condition>
     <java jar="bin/hafen.jar" fork="true">
       <jvmarg value="-Xms${heap}" />
       <jvmarg value="-Xmx${heap}" />
@@ -256,6 +270,7 @@
       <jvmarg if:set="zgc-generational" value="-XX:+ZGenerational" />
       <sysproperty key="sun.java2d.uiScale.enabled" value="false" />
       <sysproperty key="java.net.preferIPv6Addresses" value="system" />
+      <sysproperty if:set="toolkit" key="haven.toolkit" value="${toolkit}" />
       <jvmarg if:set="jogl-exports" value="--add-exports=java.base/java.lang=ALL-UNNAMED" />
       <jvmarg if:set="jogl-exports" value="--add-exports=java.desktop/sun.awt=ALL-UNNAMED" />
       <jvmarg if:set="jogl-exports" value="--add-exports=java.desktop/sun.java2d=ALL-UNNAMED" />
