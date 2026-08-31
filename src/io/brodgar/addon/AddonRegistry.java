@@ -13,6 +13,7 @@ import org.luaj.vm2.LuaValue;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -458,10 +459,50 @@ public final class AddonRegistry {
         log("reload complete (" + addons.size() + " addon[s] active)");
     }
 
+    /**
+     * The persisted disabled set, held in memory.
+     *
+     * <p>{@code Utils.getprefsl} is {@code java.util.prefs}, which on Windows is the REGISTRY: one
+     * {@code disabledSet()} was a {@code WindowsRegQueryValueEx} plus a UTF-8 decode of the packed list plus
+     * a fresh {@code LinkedHashSet}. That is nothing once and everything per frame — {@code isEnabled} reads
+     * the whole list to answer about one id, {@code liveStatus} calls it, and {@code AddonPanel.Row.tick}
+     * calls that for every row of every frame. With the panel built once (it is hidden and not destroyed, so
+     * it goes on ticking) a profile measured ~2600 registry reads a second, a quarter of everything the UI
+     * thread did in Java.
+     *
+     * <p>Volatile and immutable: the reload thread and the UI thread both read it, and handing out a shared
+     * mutable set is how a caller's {@code add} would silently become the persisted state. {@link
+     * #writeDisabled} is the one door that writes, so the cache cannot drift from the preference — the one
+     * thing it does not see is a SECOND client instance writing the same node, which is read once at startup
+     * as it always was and not polled for afterwards.
+     */
+    private static volatile Set<String> disabledCache = null;
+
     /** The persisted set of disabled addon ids (client-scope). An addon runs unless it is in here. */
     private static Set<String> disabledSet() {
-        List<String> l = Utils.getprefsl(PREF_DISABLED, new String[0]);
-        return (l == null) ? new LinkedHashSet<String>() : new LinkedHashSet<String>(l);
+        Set<String> d = disabledCache;
+        if(d == null) {
+            List<String> l = Utils.getprefsl(PREF_DISABLED, new String[0]);
+            d = freeze((l == null) ? new LinkedHashSet<String>() : new LinkedHashSet<String>(l));
+            disabledCache = d;
+        }
+        return d;
+    }
+
+    /** A mutable copy for a caller that is about to change the set and hand it to {@link #writeDisabled}. */
+    private static Set<String> disabledCopy() {
+        return new LinkedHashSet<String>(disabledSet());
+    }
+
+    /** Persist the disabled set and refresh the cache from the same value — the only place either happens. */
+    private static void writeDisabled(Set<String> d) {
+        Utils.setprefsl(PREF_DISABLED, d);
+        disabledCache = freeze(new LinkedHashSet<String>(d));
+    }
+
+    /** Insertion order is the persisted order, so the copy stays a LinkedHashSet. */
+    private static Set<String> freeze(Set<String> d) {
+        return Collections.unmodifiableSet(d);
     }
 
     /** Is an addon enabled? (i.e. NOT in the persisted disabled set — the default for a new addon.) */
@@ -477,10 +518,10 @@ public final class AddonRegistry {
     public static void setEnabled(String id, boolean enabled) {
         if((id == null) || id.isEmpty())
             return;
-        Set<String> d = disabledSet();
+        Set<String> d = disabledCopy();
         boolean changed = enabled ? d.remove(id) : d.add(id);
         if(changed) {
-            Utils.setprefsl(PREF_DISABLED, d);
+            writeDisabled(d);
             if(!enabled)
                 BeltHold.addonDisabled(id);   // 059.5: and its action-bar slots are the player's again, for
                                               //   good — the reload below hands each one back, and no restart
@@ -511,11 +552,11 @@ public final class AddonRegistry {
                 /* a broken manifest surfaces as an error row elsewhere; no default to apply here */
             }
         }
-        Set<String> disabled = disabledSet();
+        Set<String> disabled = disabledCopy();
         int disBefore = disabled.size();          // applyPermissionDefaults only ADDS
         applyPermissionDefaults(consentedMap(), disabled, declares);
         if(disabled.size() != disBefore)
-            Utils.setprefsl(PREF_DISABLED, disabled);
+            writeDisabled(disabled);
     }
 
     /**

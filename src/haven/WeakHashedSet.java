@@ -99,11 +99,22 @@ public class WeakHashedSet<E> extends AbstractSet<E> {
 	}
     }
 
+    /* perf: how many dead references one clean() may reap. Unbounded, a single intern() paid for
+     * everything the last GC cycle freed -- and this class is not synchronized, so it paid it with the
+     * CALLER's monitor held. That is the shape of a frame that freezes once every few seconds: the
+     * collector clears a batch of weak referents, the next intern drains all of them under the lock, and
+     * every other thread queues behind it. Bounded, the cost is spread over as many calls as it takes.
+     *
+     * What is left stays queued for the next call, and a dead reference still sitting in the table costs
+     * nothing but its slot: every read already tests Ref.get() for null before believing an entry. The
+     * drain therefore keeps up on its own -- one add() enqueues at most one future corpse and reaps up
+     * to cleanmax of them. */
+    private static final int cleanmax = 64;
+
     private void clean() {
-	int psz = sz;
 	Ref<E>[] tab = this.tab;
 	Reference<? extends E> ref;
-	while((ref = cleanq.poll()) != null) {
+	for(int n = 0; (n < cleanmax) && ((ref = cleanq.poll()) != null); n++) {
 	    Ref rr = (Ref)ref;
 	    int idx = refidx(tab, rr);
 	    if(idx < 0)

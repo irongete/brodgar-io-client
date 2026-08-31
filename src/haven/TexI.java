@@ -66,8 +66,12 @@ public class TexI implements Tex {
 						      if(img.level != 0)
 							  return(null);
 						      FillBuffer buf = env.fillbuf(img);
-						      if(Utils.eq(tdim, sz) && Utils.eq(detectfmt(back), img.tex.efmt)) {
+						      VectorFormat sfmt = detectfmt(back);
+						      byte[] fast;
+						      if(Utils.eq(sfmt, img.tex.efmt) && Utils.eq(tdim, sz)) {
 							  buf.pull(ByteBuffer.wrap(((DataBufferByte)back.getRaster().getDataBuffer()).getData()));
+						      } else if(Utils.eq(sfmt, img.tex.efmt) && ((fast = padcopy(back, sz, tdim, sfmt.nc)) != null)) {
+							  buf.pull(ByteBuffer.wrap(fast));
 						      } else {
 							  buf.pull(ByteBuffer.wrap(convert(back, tdim)));
 						      }
@@ -186,5 +190,37 @@ public class TexI implements Tex {
 
     public static byte[] convert(BufferedImage img, Coord tsz) {
 	return(convert(img, tsz, Coord.z, Utils.imgsz(img)));
+    }
+
+    /* perf: the padded fast path. The default constructor rounds every texture up to a power of two, so
+     * tdim != sz for any image whose size is not one already -- which is nearly every piece of UI. That
+     * alone sent it to convert() above, where Java2D has no accelerated loop into this colour model and
+     * falls back to ComponentColorModel.getRGB() PER PIXEL. A profile caught the UI thread spending 4.3 s
+     * of 120 there, in bursts of tens of milliseconds each, all of it on the frame that first drew a new
+     * texture.
+     *
+     * When the source already carries the layout the texture wants, padding it is a row copy and no
+     * conversion at all. This only claims the case it can prove: one bank, no sub-raster translation, no
+     * offset, and rows packed tight. Anything else answers null and takes convert() as before. The pad is
+     * left zeroed, which is what drawImage into a fresh raster produced too, and nothing samples it --
+     * that is what tdim is for. */
+    private static byte[] padcopy(BufferedImage img, Coord sz, Coord tdim, int nc) {
+	java.awt.image.Raster r = img.getRaster();
+	if(!(r.getSampleModel() instanceof PixelInterleavedSampleModel) || !(r.getDataBuffer() instanceof DataBufferByte))
+	    return(null);
+	PixelInterleavedSampleModel sm = (PixelInterleavedSampleModel)r.getSampleModel();
+	DataBufferByte db = (DataBufferByte)r.getDataBuffer();
+	if((db.getNumBanks() != 1) || (db.getOffset() != 0) ||
+	   (r.getSampleModelTranslateX() != 0) || (r.getSampleModelTranslateY() != 0) ||
+	   (sm.getPixelStride() != nc) || (sm.getScanlineStride() != (sz.x * nc)))
+	    return(null);
+	byte[] src = db.getData();
+	int srow = sz.x * nc, drow = tdim.x * nc;
+	if(src.length < (srow * sz.y))
+	    return(null);
+	byte[] dst = new byte[drow * tdim.y];
+	for(int y = 0; y < sz.y; y++)
+	    System.arraycopy(src, y * srow, dst, y * drow, srow);
+	return(dst);
     }
 }

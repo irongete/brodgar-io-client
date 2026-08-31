@@ -14,6 +14,10 @@
 --   :profiler on|off  arm/disarm profiling itself -- the same switch as the Options > Client checkbox
 --                     and the client's own ':profile on'. The status line is clickable for it too.
 --   :profiler pause | live | clear | <tab>
+--   :profiler trap [ms|off]
+--                     Arm the SPIKE TRAP: it watches for the first frame over the threshold, freezes the
+--                     ring on it, scrubs the timeline to it and prints what moved across it. That is how
+--                     you catch a stutter that happens every few seconds -- see "the trap" below.
 --
 -- PAUSE + TIMELINE. The engine keeps a ring of ~600 frames; that ring IS the recording, and PAUSE is how
 -- you read it. Pausing freezes every table the window shows (they are snapshots, so holding them is free)
@@ -156,6 +160,10 @@ end
 local paused = false
 local snap                                            -- the frozen tables, or nil while live
 local sel                                             -- the scrubbed sample index into snap.history
+
+-- The trap's threshold, up here with the rest of the window's state because the status line draws it and
+-- the status line is written long before the trap is (a local declared after its reader is a global to it).
+local trap                                            -- the threshold in ms, or nil while unarmed
 
 local function capture()
   return {
@@ -640,6 +648,11 @@ local function drawChrome(g, w, h)
   g:text("profiling: " .. L(on and "ON" or "OFF", 4) ..
          ("(click to turn it %s)"):format(on and "off" or "on"), 6, Y_STATUS)
   g:color()
+  if trap then                                        -- armed: say so, since the trap fires with the window shut
+    g:color(240, 200, 120)
+    g:text(("trap >= %s ms"):format(f2(trap)), 300, Y_STATUS)
+    g:color()
+  end
   button(g, BTN_PAUSE, Y_STATUS, paused and "PAUSED" or "LIVE", paused)
   button(g, BTN_CLEAR, Y_STATUS, "CLEAR", false)
 end
@@ -685,7 +698,10 @@ local function click(ev)
   ev:preventDefault()                                 -- consume: never fall through to the world
 end
 
-local function open()
+-- Building this window and destroying it both write the ADDON LAYER's widget tree. Every door into it --
+-- a console line, a hotkey -- is already answering inside the CHARACTER's tree, and no handler may hold
+-- two trees at once (api/threading.md). So the doors below record what they want and let the step do it.
+local function build()
   if win then return end
   win = hafen.ui():window()
     :title("Brodgar.io Profiler")
@@ -703,9 +719,192 @@ local function open()
   win:on("MouseDown", click)
 end
 
+local function open()
+  if win then return end
+  hafen.timer():after(0, build)                       -- the next step, holding no tree
+end
+
 local function toggle()
-  if win then win:destroy(); win = nil else open() end
-  hafen.log():write(("profiler: window %s"):format(win and "open" or "closed"))
+  hafen.timer():after(0, function()
+    if win then win:destroy(); win = nil else build() end
+    hafen.log():write(("profiler: window %s"):format(win and "open" or "closed"))
+  end)
+end
+
+-- --------------------------------------------------------------------------------------------- the trap
+--
+-- The ring records the PHASES of every frame and nothing else, so a spike tells you WHICH phase and never
+-- WHY. A stutter every few seconds is worse still: by the time you reach for PAUSE it has scrolled off the
+-- 180 bars the graph draws, and the ring behind them is only ~5 s at a high framerate.
+--
+-- The trap is the missing recorder. Armed, it samples the PULL-ONLY counters once per step -- they answer
+-- with profiling off and cost nothing to read -- and when a frame lands over the threshold it freezes the
+-- ring on that frame, scrubs the timeline to it, and prints what MOVED across it. A collection, a resource
+-- read, a burst from the server and a crowd of objects arriving each leave a different fingerprint on those
+-- counters, and one line tells them apart.
+--
+--   :profiler trap        arm at max(25 ms, 3x the ring's average)
+--   :profiler trap 40     arm at 40 ms
+--   :profiler trap off    disarm
+--
+-- It runs on the STEP (hafen.event():on("Update")), so it holds no tree and may pause and open the window
+-- freely, and it disarms itself on the first catch -- a trap left running overwrites the frame you wanted.
+
+local trapsub                                         -- the Update subscription, or nil
+local rmsub                                           -- the GobRemoved subscription, or nil
+local before                                          -- the counters as of the previous step
+local gone                                            -- GobRemoved fired since arming, cumulative
+
+-- A rolling window of samples. The one-frame delta says what happened DURING the spike; a demolition can
+-- have been decided several frames before it is paid for, and that cause is only visible over a window.
+-- GobAdded is deliberately NOT subscribed to: listening to it makes the client hold every arriving object
+-- out of the render tree, which is a change to the very thing being measured.
+local WINDOW = 120                                    -- ~1 s at this client's framerate
+local ring, rpos
+
+-- One sample of everything that answers without being armed, plus the object count. All of it is either a
+-- counter the client already keeps or one collection walk, so this is cheap enough to take every frame --
+-- and it is only taken while the trap is armed.
+local function counters()
+  local m, l, n, r = p:memory(), p:loader(), p:net(), p:render()
+  local c = p:textcache().total                       -- .total: every Lua owner, not just this addon's
+  local s = hafen.session():current()
+  return {
+    gcCount = m.gcCount, gcMs = m.gcMs, heap = m.heapUsed,
+    resLoaded = l.resLoaded, queued = l.queued, busy = l.busy,
+    defer = l.defer and l.defer.busy,
+    rx = n.packetsRx, bytes = n.bytesRx,
+    leaves = r.treeLeaves, nodes = r.treeNodes, slots = r.drawSlots,
+    gobs = s and s:world():gob():count() or nil,
+    txmiss = c and c.misses, txevict = c and c.evictions, txbytes = c and c.bytes,
+    gone = gone,
+    -- the remembered ground's four gauges: the one thing in this client that drops terrain and reads it
+    -- back on its own, which is the shape a scene that collapses and rebuilds by itself would have.
+    rHeld = r.recallGridsHeld, rRead = r.recallGridsRead,
+    rDrawn = r.recallCutsDrawn, rWanted = r.recallCutsWanted,
+  }
+end
+
+-- b[k] - a[k], and nil the moment either read was absent: an absent key is "not measured", never zero.
+local function d(a, b, k)
+  if (a[k] == nil) or (b[k] == nil) then return nil end
+  return b[k] - a[k]
+end
+
+-- A delta as a signed string, so "+0" reads as measured-and-still rather than as a blank.
+local function sd(v, dec)
+  if v == nil then return "--" end
+  return ((v >= 0) and "+" or "") .. (dec and fx(v, dec) or tostring(math.floor(v + 0.5)))
+end
+
+-- The phase that ate the frame: the answer the report leads with, since it is the one that decides which
+-- of the counter deltas below it is even worth reading.
+local function worst(ph)
+  local bn, bv = "--", -1
+  for i = 1, #PHASES do
+    local v = ph and ph[PHASES[i]]
+    if v and (v > bv) then bn, bv = PHASES[i], v end
+  end
+  return bn, ((bv >= 0) and bv or nil)
+end
+
+local function disarm()
+  trap = nil
+  if trapsub then trapsub:off(); trapsub = nil end
+  if rmsub then rmsub:off(); rmsub = nil end
+  before, ring, rpos = nil, nil, nil
+end
+
+local function caught(f, a, b, w)
+  local pn, pv = worst(f.phases)
+  pause(true)                                         -- freeze the ring while the frame is still in it
+  tab = 1
+  sel = nil
+  local h = (snap and snap.history) or {}
+  for i = 1, #h do
+    if h[i].frameno == f.frameno then sel = i break end
+  end
+  hafen.log():write(("profiler: TRAP -- frame #%d took %s ms (over %s), worst phase %s %s ms")
+    :format(f.frameno, f2(f.ms), f2(trap), pn, f2(pv)))
+  hafen.log():write(("profiler:   gc %s coll %s ms | heap %s | res %s loaded, queue %s busy %s defer %s")
+    :format(sd(d(a, b, "gcCount")), sd(d(a, b, "gcMs"), 1), mb(b.heap),
+            sd(d(a, b, "resLoaded")), num(b.queued), num(b.busy), num(b.defer)))
+  hafen.log():write(("profiler:   net %s pkt %s B | gobs %s (%s) | leaves %s (%s) | text %s miss %s evict")
+    :format(sd(d(a, b, "rx")), sd(d(a, b, "bytes")), num(b.gobs), sd(d(a, b, "gobs")),
+            num(b.leaves), sd(d(a, b, "leaves")), sd(d(a, b, "txmiss")), sd(d(a, b, "txevict"))))
+  hafen.log():write(("profiler:   recall grids %s (%s) read %s | cuts %s/%s | slots %s (%s) | nodes %s (%s)")
+    :format(num(b.rHeld), sd(d(a, b, "rHeld")), sd(d(a, b, "rRead")),
+            num(b.rDrawn), num(b.rWanted), num(b.slots), sd(d(a, b, "slots")),
+            num(b.nodes), sd(d(a, b, "nodes"))))
+  -- widgets() reports the last frame each widget was ticked or drawn in, and the tree has not been ticked
+  -- yet this frame (the step runs before utick), so this IS the spiking frame. It is what names the widget.
+  local wg = p:widgets()                              -- NOT `w`: that is the window sample, read further down
+  local wt = wg.total or {}
+  hafen.log():write(("profiler:   widget tree %s ms (tick %s, draw %s) over %s widgets")
+    :format(f2(wt.ms), f2(wt.tickMs), f2(wt.drawMs), num(wt.count)))
+  for i = 1, math.min(3, #(wg.byType or {})) do
+    local r = wg.byType[i]
+    hafen.log():write(("profiler:     %s x%s  self %s ms (tick %s, draw %s)")
+      :format(L(r.type, 22), num(r.count), f2(r.selfMs), f2(r.tickSelfMs), f2(r.drawSelfMs)))
+  end
+  -- addons() answers for THE LAST COMPLETED FRAME, and at this point that is the frame that just spiked --
+  -- so this names the addon and the bracket its Lua was in without keeping a per-step copy of the table.
+  local rows = p:addons()
+  hafen.log():write(("profiler:   addons %s ms total%s"):format(
+    f2(f.addons), (#rows == 0) and " (no rows -- nothing charged)" or ""))
+  for i = 1, math.min(2, #rows) do
+    local r = rows[i]
+    local cs = r.cost or {}
+    hafen.log():write(("profiler:     %s %s ms (peak %s) -- draw %s, widgets %s, events %s, timers %s, hooks %s")
+      :format(L(r.id, 16), f2(r.ms), f2(r.msPeak),
+              f2(cs.draw), f2(cs.widgets), f2(cs.events), f2(cs.timers), f2(cs.hooks)))
+  end
+  if w then
+    hafen.log():write(("profiler:   over the ~%s steps before it: gobs %s | leaves %s | net %s pkt | res %s | gc %s coll | recall read %s | GobRemoved %s")
+      :format(num(WINDOW), sd(d(w, b, "gobs")), sd(d(w, b, "leaves")), sd(d(w, b, "rx")),
+              sd(d(w, b, "resLoaded")), sd(d(w, b, "gcCount")), sd(d(w, b, "rRead")), sd(d(w, b, "gone"))))
+  end
+  hafen.log():write(("profiler:   GobRemoved on the frame itself: %s -- %s")
+    :format(sd(d(a, b, "gone")),
+            ((d(a, b, "gone") or 0) > 0) and "the client really dropped them"
+                                          or "NOTHING was dropped: the count fell without a removal"))
+  hafen.log():write(("profiler:   PAUSED on that frame%s -- disarmed; ':profiler trap' re-arms")
+    :format(sel and " and scrubbed to it" or " (it has already left the graph)"))
+  disarm()
+  open()
+end
+
+local function arm(ms)
+  disarm()
+  if not client():profiling() then
+    client():profiling(true)                          -- the trap reads frame(), which is armed-only
+    hafen.log():write("profiler: profiling armed -- the trap needs it")
+  end
+  trap = ms
+  gone = 0
+  rmsub = hafen.event():on("GobRemoved", function() gone = gone + 1 end)
+  ring, rpos = {}, 1
+  before = counters()
+  -- Arming empties the ring and starts the sampling tiers, and opening the window builds a widget: the
+  -- first frames after ':profiler trap' are the slowest ones the trap would ever see, and catching one of
+  -- those would report the trap's own arrival. So the first WARM steps are watched and never fired on.
+  local warm = 30
+  trapsub = hafen.event():on("Update", function()
+    local f = p:frame()
+    local now = counters()
+    local oldest = ring[rpos] or ring[1]              -- rpos is the next slot, so it holds the oldest
+    if warm > 0 then
+      warm = warm - 1
+    elseif trap and f.ms and (f.ms >= trap) then
+      caught(f, before, now, oldest)
+      return                                          -- disarmed: the ring is gone, nothing left to push
+    end
+    ring[rpos] = now
+    rpos = (rpos % WINDOW) + 1
+    before = now
+  end)
+  hafen.log():write(("profiler: trap armed at %s ms -- it fires once, on the first frame over that")
+    :format(f2(trap)))
 end
 
 -- Both hotkeys start UNBOUND (D-047): assign them under Options > Keybindings > Brodgar.io Profiler.
@@ -717,7 +916,7 @@ keys:on("pause", function()
   hafen.log():write(("profiler: %s"):format(paused and "PAUSED -- click a bar in the FRAME graph to inspect it" or "live"))
 end)
 
--- :profiler [on|off|pause|live|clear|<tab>]
+-- :profiler [on|off|pause|live|clear|trap [ms|off]|<tab>]
 hafen.console():on("profiler", function(args)
   local a = (args and args[1] or ""):lower()
   if a == "" then
@@ -725,6 +924,21 @@ hafen.console():on("profiler", function(args)
   elseif a == "on" or a == "off" then
     client():profiling(a == "on")
     hafen.log():write(("profiler: profiling %s"):format(a:upper()))
+  elseif a == "trap" then
+    local b = (args[2] or ""):lower()
+    if b == "off" then
+      disarm()
+      hafen.log():write("profiler: trap disarmed")
+    else
+      -- No threshold given: three times what the ring is averaging, and never under 25 ms -- a spike worth
+      -- hunting is one you can feel, and on an idle client 3x an average of 2 ms would fire on nothing.
+      local ms = tonumber(b)
+      if not ms then
+        local f = p:frame()
+        ms = math.max(25, 3 * (f.msAvg or 8))
+      end
+      arm(ms)
+    end
   elseif a == "pause" or a == "live" then
     pause(a == "pause")
     open()
@@ -742,7 +956,8 @@ hafen.console():on("profiler", function(args)
         return
       end
     end
-    hafen.log():write("profiler: usage -- :profiler [on|off|pause|live|clear|" .. table.concat(TABS, "|") .. "]")
+    hafen.log():write("profiler: usage -- :profiler [on|off|pause|live|clear|trap [ms|off]|" ..
+                      table.concat(TABS, "|") .. "]")
   end
 end)
 

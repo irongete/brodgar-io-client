@@ -162,6 +162,19 @@ public class OCache implements Iterable<Gob> {
 
     @SuppressWarnings("unchecked")
     public Iterator<Gob> iterator() {
+	/* perf: the common case, and in this client the only one -- nothing outside this class calls ladd()
+	 * or lrem(), so `local` is always empty. Going through I2 regardless, every gob in the world paid two
+	 * layers of concatenating-iterator indirection for a feature nobody uses, plus a LinkedList built per
+	 * iteration -- and this collection is walked whole several times a frame (ctick, gtick,
+	 * MiniMap.findicons). A profile put the iterator underneath at 16.8% of the UI thread's Java time and
+	 * its LinkedList nodes at 4.2% of everything the client allocates.
+	 *
+	 * Exactly equivalent, not merely close: an I2 over no iterators yields nothing, so concatenating one
+	 * changed neither the elements nor their order. The only thing it added was that I2.remove() throws
+	 * where the map's own iterator would not -- and nothing anywhere holds an Iterator<Gob> by hand, so
+	 * there is no remove() to preserve. A caller of ladd() gets the old path back, unchanged. */
+	if(local.isEmpty())
+	    return(objs.values().iterator());
 	Collection<Iterator<Gob>> is = new LinkedList<Iterator<Gob>>();
 	for(Collection<Gob> gc : local)
 	    is.add(gc.iterator());

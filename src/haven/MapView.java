@@ -315,12 +315,12 @@ public class MapView extends PView implements DTarget, Console.Directory {
     static {camtypes.put("worse", SimpleCam.class);}
 
     public class FreeCam extends Camera {
-	/* rts: (F4) where the camera looks -- see OrthoCam.camcc(). */
+	/* cam: (F4) where the camera looks -- see OrthoCam.camcc(). */
 	protected Coord3f camcc() {
 	    return(getcc().invy());
 	}
 
-	/* rts: (F4) protected, not private -- RTSCam drives the same controls from the keyboard and
+	/* cam: (F4) protected, not private -- RTSCam drives the same controls from the keyboard and
 	 * sizes its frustum from the distance. */
 	protected float dist = 50.0f, tdist = dist;
 	protected float elev = (float)Math.PI / 4.0f, telev = elev;
@@ -343,7 +343,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	    dist = dist + ((tdist - dist) * cf);
 	    if(Math.abs(tdist - dist) < 0.0001) dist = tdist;
 
-	    Coord3f mc = camcc();   // rts: (F4) -- was getcc().invy()
+	    Coord3f mc = camcc();   // cam: (F4) -- was getcc().invy()
 	    if((cc == null) || (Math.hypot(mc.x - cc.x, mc.y - cc.y) > 250))
 		cc = mc;
 	    else
@@ -390,7 +390,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	private float anglorig;
 	protected Coord3f cc, jc;
 
-	/* rts: (F4, specs/rts/plan.md) where the camera looks. Every shipped camera looks at the
+	/* cam: (F4, specs/rts/plan.md) where the camera looks. Every shipped camera looks at the
 	 * player and at nothing else, and this is the one line that said so -- factored out so that a
 	 * camera can look somewhere else without reimplementing the smoothing, the isometric snap and
 	 * the pixel-exact correction below. */
@@ -483,7 +483,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void tick2(double dt) {
 	    dt *= tf;
 	    float cf = 1f - (float)Math.pow(500, -dt);
-	    Coord3f mc = camcc();   // rts: (F4) -- was getcc().invy()
+	    Coord3f mc = camcc();   // cam: (F4) -- was getcc().invy()
 	    if((cc == null) || (Math.hypot(mc.x - cc.x, mc.y - cc.y) > 250))
 		cc = mc;
 	    else if(!exact || (mc.dist(cc) > 2))
@@ -554,7 +554,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
     }
     static {camtypes.put("ortho", SOrthoCam.class);}
 
-    /* rts: (F4, specs/rts/plan.md) the RTS camera, `:cam rts`. It is an SOrthoCam in every respect --
+    /* cam: (F4, specs/rts/plan.md) the RTS camera, `:cam rts`. It is an SOrthoCam in every respect --
      * the same isometric snap, the same wheel zoom, the same rotation on the arrow keys -- except that
      * it has a centre of its own instead of being bolted to the player. That is the whole difference
      * between a camera you play a character with and one you command a group with.
@@ -616,7 +616,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	public void focus(Coord2d c) {this.center = c;}
 	public void follow()         {this.center = null;}
 
-	/* rts: the pan is the one place this camera holds that is a SETTING and not a cache, so it is
+	/* cam: the pan is the one place this camera holds that is a SETTING and not a cache, so it is
 	 * the one Camera.restate cannot simply drop. It is carried over translated: a panned camera
 	 * looking at a patch of ground goes on looking at that same patch when the screen changes
 	 * hands, which is what one camera across the characters means. Untranslatable -- the two
@@ -686,7 +686,7 @@ public class MapView extends PView implements DTarget, Console.Directory {
 			      ((a * dsc.y) - (c * dsc.x)) / det));
 	}
 
-	/* rts: (F4) the frustum follows the distance.
+	/* cam: (F4) the frustum follows the distance.
 	 *
 	 * Camera.resized() fixes the far plane at 2000, which is generous for a camera bolted to a
 	 * character and is the entire world for one that is not: pull back past it and everything --

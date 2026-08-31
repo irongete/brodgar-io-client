@@ -155,7 +155,25 @@ public class RenderTree implements RenderList.Adapter, Disposable {
     }
 
     public static class DepInfo {
-	private static final WeakHashedSet<DepInfo> interned = new WeakHashedSet<>(Hash.eq);
+	/* perf: the interning is SHARDED. Every slot in the scene interns its DepInfo through here, from
+	 * the UI thread and from every ForkJoinPool worker running the frame's parallel tick (OCache.ctick,
+	 * TickList.tick), so one static monitor made this the narrowest point the whole scene passes
+	 * through: a recording caught the UI thread parked 88 ms on a parallelStream whose workers were all
+	 * sitting inside this set.
+	 *
+	 * Sharding by hash is exact here because equal DepInfos have equal hashCodes -- hashCode() skips the
+	 * same trailing entries equals() ignores -- so two that intern to each other always pick the same
+	 * shard. Each shard is its own monitor, since WeakHashedSet does no locking of its own. */
+	private static final int nshard = 16;
+	private static final WeakHashedSet<DepInfo>[] interned = mkshards();
+
+	@SuppressWarnings("unchecked")
+	private static WeakHashedSet<DepInfo>[] mkshards() {
+	    WeakHashedSet<DepInfo>[] ret = (WeakHashedSet<DepInfo>[])new WeakHashedSet[nshard];
+	    for(int i = 0; i < ret.length; i++)
+		ret[i] = new WeakHashedSet<DepInfo>(Hash.eq);
+	    return(ret);
+	}
 	public State[] states = {};
 	public boolean[] def = {};
 	public boolean[] deps = {};
@@ -204,8 +222,10 @@ public class RenderTree implements RenderList.Adapter, Disposable {
 	}
 
 	public DepInfo intern() {
-	    synchronized(interned) {
-		return(interned.intern(this));
+	    int h = hashCode();
+	    WeakHashedSet<DepInfo> shard = interned[(h ^ (h >>> 16)) & (nshard - 1)];
+	    synchronized(shard) {
+		return(shard.intern(this));
 	    }
 	}
 

@@ -40,6 +40,20 @@ public class Applier {
     private int shash = 0;
     private GLProgram prog;
     private Object[] uvals = new Object[0];
+    /* perf: apply2's scratch, kept instead of allocated. It built three arrays the width of the state
+     * table on EVERY call -- and the first of them BEFORE the pn == 0 early-out, so even an application
+     * with nothing to do paid for it. An allocation profile put this one method at 58% of everything the
+     * client allocates, which is also what keeps the collector cycling and the weak-reference queues
+     * filling: the same pressure that made RenderTree's intern drain long enough to freeze a frame.
+     *
+     * Only the buffers that never leave apply2 are here. nuvals, nfvals, nfconf and gshaders escape into
+     * FboState and the program cache, so those stay freshly allocated.
+     *
+     * assume() deliberately does NOT copy these: a clone starts with its own empty set and grows it, so
+     * no two Appliers ever write one buffer. */
+    private int[] pdirty = new int[0], sdirty = new int[0], udirty = new int[0];
+    private ShaderMacro[] nshaders = new ShaderMacro[0];
+    private boolean[] uch = new boolean[0];
     /* GL states */
     public GLState[] glstates = new GLState[GLState.slots.length];
 
@@ -146,7 +160,12 @@ public class Applier {
 	}
 	State[] cur = this.cur;
 	ShaderMacro[] shaders = this.shaders;
-	int[] pdirty = new int[cur.length];
+	if(this.pdirty.length < cur.length) {
+	    this.pdirty = new int[cur.length];
+	    this.sdirty = new int[cur.length];
+	    this.nshaders = new ShaderMacro[cur.length];
+	}
+	int[] pdirty = this.pdirty;
 	int pn = 0;
 	{
 	    int i = 0;
@@ -162,8 +181,8 @@ public class Applier {
 	if(pn == 0)
 	    return;
 	int shash = this.shash;
-	int[] sdirty = new int[cur.length];
-	ShaderMacro[] nshaders = new ShaderMacro[cur.length];
+	int[] sdirty = this.sdirty;
+	ShaderMacro[] nshaders = this.nshaders;
 	int sn = 0;
 	for(int i = 0; i < pn; i++) {
 	    int slot = pdirty[i];
@@ -183,11 +202,16 @@ public class Applier {
 		gshaders[sdirty[i]] = nshaders[i];
 	    prog = env.getprog(shash, gshaders);
 	}
-	int[] udirty = new int[prog.uniforms.length];
+	int unum = prog.uniforms.length;
+	if(this.udirty.length < unum) {
+	    this.udirty = new int[unum];
+	    this.uch = new boolean[unum];
+	}
+	int[] udirty = this.udirty;
 	int un = 0;
 	boolean fdirty = false;
 	if(prog == this.prog) {
-	    boolean[] ch = new boolean[prog.uniforms.length];
+	    boolean[] ch = this.uch;
 	    for(int i = 0; i < pn; i++) {
 		if((prog.umap.length > pdirty[i]) && (prog.umap[pdirty[i]] != null)) {
 		    for(int ui : prog.umap[pdirty[i]]) {
@@ -200,9 +224,13 @@ public class Applier {
 		if((prog.fmap.length > pdirty[i]) && prog.fmap[pdirty[i]])
 		    fdirty = true;
 	    }
+	    /* perf: give the marker back empty. Only these were set, so this is O(un) and not the
+	     * width of the uniform table. */
+	    for(int i = 0; i < un; i++)
+		ch[udirty[i]] = false;
 	} else {
-	    un = udirty.length;
-	    for(int i = 0; i < udirty.length; i++)
+	    un = unum;                 /* perf: the count, which udirty.length no longer is */
+	    for(int i = 0; i < unum; i++)
 		udirty[i] = i;
 	    if(((prog == null) != (this.prog == null)) || (prog.fragdata.length != this.prog.fragdata.length))
 		fdirty = true;
