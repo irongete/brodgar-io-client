@@ -40,6 +40,32 @@ So **advertise a suggested key in your README instead of claiming one**:
 The user's assignment is persisted by the client and survives `:reload` and restarts; declaring the same
 name again after a reload picks the existing binding back up.
 
+## An assigned key answers to you and to nothing else
+
+Once the user assigns a key, that exact key **with those exact modifiers** is yours, whatever order the
+client walks its widgets in: every other binding yields it for as long as the assignment stands. That
+includes a client hotkey whose own match is looser than one combination — the action menu's hotkeys read
+`Shift` as *keep the menu open*, so `B` answers `B` and `Shift+B` alike. Assign `Shift+B` and the menu
+keeps plain `B` and loses only `Shift+B`.
+
+**Unbinding it or re-keying it hands the key straight back**, on the very next press: the client's binding
+is never written to, only shadowed while your key stands.
+
+What does *not* win is a default. Your hotkey starts unbound and so claims nothing, and a collision nobody
+assigned is settled by the walk, where the client's own bindings are offered the press first — which is
+the other half of why `on` takes no default key.
+
+> **The key is held only while your hotkey is.** The `KeyBinding` and the user's assignment are the
+> client's and outlive you — a remap survives `:reload`, a restart, everything. The **hold on the key** does
+> not: disabling your addon, deleting it, `sub:off()` on the hotkey, or the CPU watchdog killing you all let
+> go of it, and whatever the key was held off answers again. Declaring the hotkey takes it back, so a
+> `:reload` is both back to back and nothing moves. **Declare your hotkeys at load**, not from a later
+> event: the key is free for as long as you have not asked for it.
+>
+> The one case where the key does not come back to you is when it was assigned to something else while you
+> were disabled. That later choice is the user's, so your assignment loses and is cleared to unbound —
+> exactly as assigning a key clears whoever else was on it.
+
 ## The binding collection
 
 `keys:binding()` holds every binding the client currently knows — your hotkeys, other addons' and the
@@ -105,8 +131,10 @@ b:key(saved)                              -- restores all three states, the defa
 > Assigning a key takes it off whoever else was **assigned** it, and there is no undo for that binding:
 > it is left unbound, and only the user can key it again. A binding still on the client's own default is
 > not written to at all — it is **shadowed**, reading as `nil` for as long as your key stands and firing
-> again the moment you release the key. Reverting runs no such pass, so putting two bindings back on
-> defaults that share a key leaves both firing.
+> again the moment you release the key. Where its own match is looser than one combination it is shadowed
+> for **your** combination alone and reads as its own key rather than `nil`: assigning `Shift+B` leaves the
+> action menu `B`, and `nil` is the exact collision. Reverting runs no such pass, so putting two bindings
+> back on defaults that share a key leaves both firing.
 
 ## `down()`: the key, not the hotkey
 

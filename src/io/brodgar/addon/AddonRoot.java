@@ -34,8 +34,14 @@ public final class AddonRoot extends Widget {
      * {@link haven.Widget.GlobKeyEvent} — only after an unconsumed focused {@code KeyDownEvent}, so hotkeys never
      * fire while a text field has focus — and that event walks the widget tree calling {@code globtype} on every
      * widget. This invisible root is an early child of {@code ui.root}, hence walked <b>last</b>, so a client
-     * binding on the same key is matched first and an addon hotkey is the fallback. Returning {@code true}
-     * consumes the key (stops the walk). Zero core edit: this reuses the engine's own {@code globtype} seam.
+     * binding on the same key is offered the press first. Returning {@code true} consumes the key (stops the
+     * walk). Zero core edit: this reuses the engine's own {@code globtype} seam.
+     *
+     * <p><b>The walk is the order, not the verdict.</b> What settles a collision is {@link haven.KeyBinding}'s
+     * exclusivity: the key the user <i>assigns</i> to an addon hotkey is claimed, and every other binding
+     * yields that exact key+modifiers while the claim stands — a binding whose own match <i>ignores</i> a
+     * modifier the press carries included, which is what the action menu's Shift-agnostic hotkeys are. An
+     * addon hotkey on a key nobody assigned it is still the fallback, never a hijack.
      *
      * <p><b>It runs under this tree's monitor</b> (112.4) — input dispatch holds it — so it is family A of
      * {@code specs/112-one-tree-monitor-at-a-time/plan.md}: a hotkey handler may reach the tree it fired in

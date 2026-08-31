@@ -371,6 +371,7 @@ final class HookApi {
         // KeyBinding.get() is a process-global registry: it returns the SAME binding across reloads/sessions, so
         // a user's assignment (persisted in the client prefs) survives; KeyMatch.nil applies only on first create.
         KeyBinding kbnd = KeyBinding.get("addon/" + owner.manifest.id + "/" + name, KeyMatch.nil);
+        kbnd.hold();   // the claim on the user's assignment lives as long as a handler does; teardown released it
         LuaKeyBind h = new LuaKeyBind(owner, name, kbnd, fn);
         keyBinds.add(h);
         owner.keybinds.add(h);
@@ -414,11 +415,16 @@ final class HookApi {
         return null;                                  // unknown multi-character key name
     }
 
-    /** Remove one hotkey: stop it firing + drop it from the global dispatch list. */
+    /**
+     * Remove one hotkey: stop it firing, drop it from the global dispatch list, and let go of the key it was
+     * holding off every other binding. The KeyBinding and the user's assignment stay — only the claim goes,
+     * and {@link #newKeyBind} takes it back when a handler exists again.
+     */
     private static void removeKeyBind(Addon owner, LuaKeyBind h) {
         h.alive = false;
         keyBinds.remove(h);
         owner.keybinds.remove(h);
+        h.binding.release();
     }
 
     /**
@@ -434,15 +440,24 @@ final class HookApi {
     }
 
     /**
-     * Mark dead + unregister every hotkey this addon owns (teardown on reload/disable, P2). The {@link KeyBinding}
-     * registry entries are process-global + persistent and are deliberately left intact (that is how the client
-     * remembers a re-mapped addon key across reloads) — teardown drops only the Lua-handler wrapper.
+     * Mark dead + unregister every hotkey this addon owns (teardown on reload/disable, P2). The
+     * {@link KeyBinding} registry entries are process-global + persistent and are deliberately left intact —
+     * that is how the client remembers a re-mapped addon key across reloads — but their <b>claim</b> on the
+     * key is not: {@link KeyBinding#release} hands it back to every other binding, so a menu hotkey the
+     * assignment was holding off answers again the moment this addon stops answering.
+     *
+     * <p><b>A reload survives it and a disable does not, without either being told apart here.</b>
+     * {@code AddonRegistry.reload()} tears every addon down and then re-loads the enabled ones on the same UI
+     * thread, so an addon that comes back re-declares its hotkeys and {@link #newKeyBind} takes the claim
+     * straight back with no press possible in between. An addon that is disabled, deleted or killed by the
+     * watchdog never re-declares, and its key is simply free.
      */
     static void teardownKeyBinds(Addon a) {
         a.keySubs.clear();            // 086.1: one drop, and each sub's Ended unregisters its own hotkey
         for(LuaKeyBind h : a.keybinds) {          // belt: a hotkey left firing into a torn-down env is the
             h.alive = false;                      //   one failure this sweep must not have
             keyBinds.remove(h);
+            h.binding.release();                  // ...and the key it held goes back to whoever else wants it
         }
         a.keybinds.clear();
     }

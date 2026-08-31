@@ -39,6 +39,10 @@ public class KeyBinding {
     public final KeyMatch defkey;
     public final int modign;
     public KeyMatch key;
+    // addon: the exclusivity-aware form of whichever of `key`/`defkey` key() is handing out, and the one it
+    // was built from. Cached because OptWnd.SetButton.draw() compares key() by IDENTITY: a fresh wrapper on
+    // every call would re-label the button every frame. Guarded by `bindings`, like every other claim state.
+    private KeyMatch awarefor, aware;
 
     static {
 	repair();
@@ -65,6 +69,40 @@ public class KeyBinding {
 	    }
 	    Utils.setpref("keybind/" + id, KeyMatch.reduce(key));
 	    this.key = key;
+	}
+    }
+
+    // addon: TAKE the claim on this binding's own assignment, for a binding whose holder has just come (back)
+    // to life -- an addon declaring its hotkey. Every other claim is taken by set() (the user assigning a
+    // key) or by get() (restoring one as the binding loads); this one is for a binding that already exists,
+    // still carries the user's assignment, and let the claim go when its handler went away (release()).
+    //
+    // It never steals. The key may have been assigned elsewhere while this one had no handler, and that
+    // later choice is the user's. Arriving late and losing IS losing, so the assignment is cleared -- the
+    // same thing set() does to the binding it takes a key off -- and the panel goes on telling the truth:
+    // an assignment it shows is an assignment that fires.
+    public void hold() {
+	synchronized(bindings) {
+	    if(!claimable(this.key))
+		return;
+	    KeyBinding held = claimed.get(keyid(this.key));
+	    if(held == this)
+		return;
+	    if(held != null)
+		clear();
+	    else
+		claimed.put(keyid(this.key), this);
+	}
+    }
+
+    // addon: DROP this binding's claim while KEEPING the user's assignment -- for a holder that is going
+    // away: an addon disabled, its hotkey ended, the watchdog killing it. The key answers to whoever else
+    // wants it (a menu hotkey takes its own default straight back), the assignment stays in the prefs and in
+    // the panel, and hold() takes the key back the moment a handler for it exists again. A reload is a
+    // release and a hold with no input in between, so it is invisible; a disable is a release with no hold.
+    public void release() {
+	synchronized(bindings) {
+	    unclaim();
 	}
     }
 
@@ -95,6 +133,25 @@ public class KeyBinding {
 	return(((long)keycode(k) << 8) | (k.modmatch & 0xff));
     }
 
+    // addon: the same identity for a key as it was actually PRESSED, which is what exclusivity has to be
+    // measured against: a match may IGNORE a modifier the event carries, and so answer to a combo it never
+    // claimed. `modign` is the CALLER's declaration that some modifiers are no part of this key's identity
+    // (Fightsess passes MODS to ask "was this very key released?"), so those bits are dropped here too --
+    // a binding's own modmask is not, since ignoring Shift is exactly the case this exists for. Answers -1
+    // where the event names no key at all, which nothing can claim and nothing should yield to.
+    private static long keyid(KeyEvent ev, int modign) {
+	int code = ev.getExtendedKeyCode();
+	if(code == KeyEvent.VK_UNDEFINED) {
+	    char c = ev.getKeyChar();
+	    if((c == 0) || (c == KeyEvent.CHAR_UNDEFINED))
+		return(-1);
+	    code = KeyEvent.getExtendedKeyCodeForChar(Character.toUpperCase(c));
+	}
+	if(code == KeyEvent.VK_UNDEFINED)
+	    return(-1);
+	return(((long)code << 8) | (UI.modflags(ev) & KeyMatch.MODS & ~modign));
+    }
+
     private static int keycode(KeyMatch k) {
 	if(k.code != KeyEvent.VK_UNDEFINED)
 	    return(k.code);
@@ -107,13 +164,61 @@ public class KeyBinding {
 	return(key != null);
     }
 
+    // addon: a binding's key, carrying the exclusivity into the MATCH. key() below yields a default whose
+    // EXACT key+modifiers another binding explicitly holds; this is the other half of the same rule -- a
+    // match that IGNORES a modifier the event carries, and so answers to a combo it never claimed and could
+    // not have been made to yield. The action menu's hotkeys are precisely that: PagButton.hotkey() is
+    // forchar(hk, MODS & ~S, 0), reading Shift as "keep the menu open", so plain "B" also matched Shift+B
+    // and ate it -- MenuGrid sits above the addon root in the globtype walk -- before whoever had been
+    // assigned Shift+B was ever offered it.
+    //
+    // The test is on the EVENT's own key+modifiers, so nothing coarse happens: plain B still opens Build,
+    // Shift+B goes to its holder, and dropping the claim -- unbinding or re-keying the holder -- hands
+    // Shift+B back to the menu on the very next press. Only ANOTHER binding's claim yields; the holder
+    // matches its own key as it always did.
+    private static class Yielding extends KeyMatch {
+	private final KeyBinding owner;
+
+	Yielding(KeyBinding owner, KeyMatch from) {
+	    super(from.chr, from.casematch, from.code, from.extmatch, from.keyname, from.modmask, from.modmatch);
+	    this.owner = owner;
+	}
+
+	public boolean match(KeyEvent ev, int modign) {
+	    if(!super.match(ev, modign))
+		return(false);
+	    long id = keyid(ev, modign);
+	    if(id < 0)
+		return(true);
+	    synchronized(bindings) {
+		KeyBinding held = claimed.get(id);
+		return((held == null) || (held == owner));
+	    }
+	}
+    }
+
+    // addon: `k` as a Yielding, one instance per (binding, k). Never wraps null or nil: LuaBinding and
+    // KeyHeld read "no key" by identity against KeyMatch.nil, and neither can match anything anyway.
+    private KeyMatch aware(KeyMatch k) {
+	if(!claimable(k))
+	    return(k);
+	synchronized(bindings) {
+	    if(awarefor != k) {
+		aware = new Yielding(this, k);
+		awarefor = k;
+	    }
+	    return(aware);
+	}
+    }
+
     public KeyMatch key() {
 	if(key != null)
-	    return(key);
+	    return(aware(key));
 	// addon: a binding still on its DEFAULT yields that key while another binding explicitly holds it.
 	// Read live and never persisted, so clearing the holder hands this one its default straight back --
 	// which is the point: the menu hotkeys (`scm/<res>`) no panel lists are all defaults, and a loss
-	// written into their own pref was a loss with no way back.
+	// written into their own pref was a loss with no way back. This is the EXACT overlap; Yielding above
+	// is the partial one, where the default goes on matching every combo nothing else has claimed.
 	if(claimable(defkey)) {
 	    synchronized(bindings) {
 		KeyBinding held = claimed.get(keyid(defkey));
@@ -121,7 +226,7 @@ public class KeyBinding {
 		    return(KeyMatch.nil);
 	    }
 	}
-	return(defkey);
+	return(aware(defkey));
     }
 
     public static KeyBinding get(String id, KeyMatch defkey, int modign) {
