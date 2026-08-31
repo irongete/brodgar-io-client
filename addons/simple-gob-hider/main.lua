@@ -5,11 +5,13 @@
 -- the object's own footprint rather than a flat shape drawn over it: a patch lies ON the terrain, so it
 -- follows a slope, and whatever stands there occludes it.
 --
--- Two things the API carries, so this file does not. A patch anchored to a Gob ENDS with that Gob, so a
--- felled tree takes its own mark down. And a thing standing in the world belongs to the world rather than
--- to the character who put it there, so the mark is visible from every login that can see the object --
--- where a screen-space painter can only place ground through the session being drawn, and leaves another
--- login's trees hidden but unmarked.
+-- Three things the API carries, so this file does not. A patch anchored to a Gob ENDS with that Gob, so a
+-- felled tree takes its own mark down. The rim is patch:border(c, w), one line at one colour and one
+-- thickness all the way round the ring -- so a mark is ONE patch, and the ground pays one overlay for it
+-- rather than one per edge. And a thing standing in the world belongs to the world rather than to the
+-- character who put it there, so the mark is visible from every login that can see the object -- where a
+-- screen-space painter can only place ground through the session being drawn, and leaves another login's
+-- trees hidden but unmarked.
 
 -- Each entry matches as a plain SUBSTRING of gob:name(), the resource name the server sent, so
 -- "gfx/terobjs/trees/" takes every tree and "trees/fir" only firs. To learn a name, stand next to it:
@@ -20,12 +22,15 @@ local HIDDEN = {
   "gfx/terobjs/log",
 }
 
-local TINT   = {245, 215, 60}   -- the yellow laid over the ground
-local ALPHA  = 0.5              -- the fill, so the ground still reads through it
-local EDGE   = 0.9              -- the rim, nearly solid
-local BORDER = 0.6              -- how wide that rim is in WORLD units -- 0 lays no border at all
-local PATCH  = 5.5              -- half-side of the square laid for an object with no footprint, world units
-local RESCAN = 2                -- seconds between full re-reads
+-- The fill and the rim each carry their own opacity, which is what lets a nearly solid line stand round
+-- ground you can still read through. On a patch the tint IS the fill, so its fourth component is the fill's
+-- own opacity rather than a blend strength; :alpha(a) is the whole shape's and is left alone here.
+local FILL   = {245, 215, 60, 128}   -- the yellow laid over the ground
+local EDGE   = {245, 215, 60, 230}   -- the rim round it
+local BORDER = 0.6                   -- how thick that rim is in WORLD units -- a tile is 11. 0 is a hairline,
+                                     -- and nil lays no rim at all
+local PATCH  = 5.5                   -- half-side of the square laid for an object with no footprint, world units
+local RESCAN = 2                     -- seconds between full re-reads
 
 local state = {}   -- [session] = {active = bool, hidden = {[Gob] = true, ...}}; a session's own share
 
@@ -82,35 +87,13 @@ end
 -- A ring the API refuses is a ring this addon cannot draw, not an error worth spilling: an obst layer is
 -- whatever the resource's author drew, so a concave one or one past the edge limit is a real shape to
 -- meet. Each ring goes on its own, so one bad ring in a set does not cost the others.
-local function put(g, ring, alpha, own)
+local function put(g, ring, own)
   local ok, patch = pcall(function()
-    return patches():add(ring, g):tint(TINT):alpha(alpha)
+    local p = patches():add(ring, g):tint(FILL)
+    if BORDER then p:border(EDGE, BORDER) end
+    return p
   end)
   if ok and patch then own[#own + 1] = patch end
-end
-
--- The rim is its own geometry, one thin quad per edge, because a patch has no outline verb and stacking
--- a bigger one underneath would not work: two overlays sort by MapMesh.OLOrder, which compares by object
--- identity, so which of the two lands on top is not something an addon can choose. A strip is extended by
--- half its width at each end so the corners close instead of leaving a notch.
-local function border(g, ring, own)
-  if BORDER <= 0 then return end
-  local n = #ring
-  for i = 1, n do
-    local a, b = ring[i], ring[(i % n) + 1]
-    local ax, ay, bx, by = a:x(), a:y(), b:x(), b:y()
-    if ax and ay and bx and by then                  -- a place this character cannot locate has no edge
-      local dx, dy = bx - ax, by - ay
-      local len = math.sqrt((dx * dx) + (dy * dy))
-      if len > 0 then
-        local h = BORDER / 2
-        local nx, ny = (-dy / len) * h, (dx / len) * h   -- across the edge
-        local ex, ey = (dx / len) * h, (dy / len) * h    -- and along it, to close the corner
-        put(g, {a:offset(nx - ex, ny - ey), b:offset(nx + ex, ny + ey),
-                b:offset(-nx + ex, -ny + ey), a:offset(-nx - ex, -ny - ey)}, EDGE, own)
-      end
-    end
-  end
 end
 
 local function lay(g)
@@ -119,8 +102,7 @@ local function lay(g)
   if not set then return end
   local own = {}
   for _, ring in ipairs(set) do
-    put(g, ring, ALPHA, own)
-    border(g, ring, own)
+    put(g, ring, own)
   end
   if #own > 0 then laid[g] = {own = own, real = real} end
 end
