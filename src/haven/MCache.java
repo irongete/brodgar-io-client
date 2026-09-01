@@ -51,15 +51,20 @@ public class MCache implements MapSource {
     Map<Coord, Request> req = new HashMap<Coord, Request>();
     Map<Coord, Grid> grids = new HashMap<Coord, Grid>();
     Session sess;
-    Set<LocalOverlay> ols = new HashSet<>();
+    /* fix: A LOCAL OVERLAY REGISTERS FROM WHATEVER THREAD ITS OWNER RUNS ON, and resource-published
+     * gob code is the ordinary case: gfx/fx/msrect's attrib constructor calls add() on a LOADER thread,
+     * while getols and olreaches walk this set on the UI thread. A plain HashSet across that pair is a
+     * ConcurrentModificationException, or a corrupt bucket, waiting for a mine to come into view. */
+    Set<LocalOverlay> ols = ConcurrentHashMap.newKeySet();
     public volatile int olseq = 0, chseq = 0;
     /* addon: (119.2) ONE SEQUENCE PER OVERLAY, where `olseq` above was one for all of them. `olseq` is
-     * still what means "everything in this grid changed" -- the mapdata2 fill and Grid's own olseq = -1
-     * on a rebuilt cut mesh -- and these are what mean "this one overlay changed": add, remove and
+     * still what means "everything in this grid changed" -- the mapdata2 fill, Grid's own olseq = -1 on
+     * a rebuilt cut mesh, and an overlay that cannot name itself yet (see olbump) -- and these are what
+     * mean "this one overlay changed": add, remove and
      * RectOverlay.update bump the id they concern, and Grid.getolcut compares one id's number against
      * the Cut.olstamp it built that id at. Concurrent because the bumping side is a caller of add(),
-     * which arrives on the UI thread, while the reading side is the tick thread inside getolcut -- and
-     * a caller of add() still touches no Cut, which is the rule the old volatile int bought.
+     * which arrives on ANY thread, while the reading side is the tick thread inside getolcut -- and a
+     * caller of add() still touches no Cut, which is the rule the old volatile int bought.
      *
      * `oldrops` is the second half of it: after remove(), nothing ever asks getolcut for that id again,
      * so its meshes would sit in every cut undisposed forever -- the grid-wide flush used to dispose
@@ -71,8 +76,17 @@ public class MCache implements MapSource {
     /* addon: (119.4) the same members as `ols`, keyed by the id they answer for. olreaches asks that
      * question per cut, per overlay, per frame, so answering it by walking `ols` would be quadratic in
      * exactly the number of marks this is meant to make cheap. Mutated beside `ols` in add/remove and read
-     * where `ols` is read, on the UI thread. */
-    private final Map<OverlayInfo, Collection<LocalOverlay>> olsbyid = new HashMap<>();
+     * where `ols` is read -- on any thread, exactly like `ols` itself, so both halves are concurrent and
+     * the per-id list is iterated by olreaches with no lock of its own.
+     *
+     * `olsanon` is THE MEMBERS THAT HAD NO ID TO BE KEYED BY. A LocalOverlay may reach add() before it can
+     * answer id(): gfx/fx/msrect registers from inside its attrib constructor, and the gfx/fx/mscover
+     * that constructor is building answers null while it is still running. Filing one under `null` would
+     * put it where no lookup ever goes -- and olreaches may never answer false for a mask that reaches --
+     * so it waits here, is asked for its id afresh on every lookup, and moves into `olsbyid` the first
+     * time it has one. */
+    private final Map<OverlayInfo, Collection<LocalOverlay>> olsbyid = new ConcurrentHashMap<>();
+    private final Collection<LocalOverlay> olsanon = ConcurrentHashMap.newKeySet();
     Map<Integer, Defrag> fragbufs = new TreeMap<Integer, Defrag>();
 
     public static class LoadingMap extends Loading {
@@ -258,30 +272,64 @@ public class MCache implements MapSource {
     }
 
     public void add(LocalOverlay ol) {
-	if(ols.add(ol))
-	    olsbyid.computeIfAbsent(ol.id(), k -> new ArrayList<>(1)).add(ol);   // addon: (119.4)
-	oldrops.remove(ol.id());   // addon: (119.2) it is back before the drain ran: nothing to drop
-	olbump(ol.id());
+	OverlayInfo id = ol.id();   // addon: asked ONCE, and null for a member still being constructed
+	if(ols.add(ol)) {
+	    if(id == null)
+		olsanon.add(ol);        // addon: nothing to key it by yet; olreaches asks it again
+	    else
+		olindex(id, ol);        // addon: (119.4)
+	}
+	if(id != null)
+	    oldrops.remove(id);     // addon: (119.2) it is back before the drain ran: nothing to drop
+	olbump(id);
     }
 
     public void remove(LocalOverlay ol) {
+	OverlayInfo id = ol.id();
 	if(ols.remove(ol)) {
-	    Collection<LocalOverlay> byid = olsbyid.get(ol.id());   // addon: (119.4)
-	    if((byid != null) && byid.remove(ol) && byid.isEmpty())
-		olsbyid.remove(ol.id());
+	    olsanon.remove(ol);     // addon: it may never have been indexed at all
+	    if(id != null) {        // addon: (119.4) drop the id with its last member
+		olsbyid.computeIfPresent(id, (k, cur) -> {
+			cur.remove(ol);
+			return(cur.isEmpty() ? null : cur);
+		    });
+	    }
 	}
-	olbump(ol.id());
-	oldrops.add(ol.id());      // addon: (119.2) ctick() disposes its meshes; see the field
+	olbump(id);
+	if(id != null)
+	    oldrops.add(id);        // addon: (119.2) ctick() disposes its meshes; see the field
     }
 
-    /* addon: (119.2) this overlay changed, and no other one did. @see #olseqs */
+    /* addon: (119.4) file one member under the id it answers for. Inside compute() so that the two
+     * mutators serialize on the bin: the list is dropped when its last member leaves, and a member
+     * arriving at that same instant must not land in a list already on its way out. */
+    private void olindex(OverlayInfo id, LocalOverlay ol) {
+	olsbyid.compute(id, (k, cur) -> {
+		Collection<LocalOverlay> c = (cur == null) ? new CopyOnWriteArrayList<>() : cur;
+		c.add(ol);
+		return(c);
+	    });
+    }
+
+    /* addon: (119.2) this overlay changed, and no other one did. @see #olseqs
+     *
+     * An overlay that cannot name itself yet has no id to hang a sequence on, so it means what every
+     * overlay meant before there were per-id sequences: EVERYTHING changed. One grid-wide re-cut, paid
+     * once as a mark is registered by an owner still under construction, in exchange for never missing
+     * the invalidation -- whatever id it goes on to answer, that id's cuts were flushed by this. */
     private void olbump(OverlayInfo id) {
+	if(id == null) {
+	    olseq++;
+	    return;
+	}
 	olseqs.merge(id, 1, (a, b) -> a + b);
     }
 
     /* addon: (119.2) what Grid.Cut.olstamp is compared against. Zero for an id never bumped, which is
      * every recorded overlay a grid was filled with: those change with the grid and nothing else. */
     int olseq(OverlayInfo id) {
+	if(id == null)
+	    return(0);   // addon: no id, no sequence of its own -- olbump moved the grid-wide one instead
 	Integer seq = olseqs.get(id);
 	return((seq == null) ? 0 : seq.intValue());
     }
@@ -1193,8 +1241,10 @@ public class MCache implements MapSource {
 	    }
 	}
 	for(LocalOverlay lol : ols) {
-	    if(!lol.filter(a))
-		ret.add(lol.id());
+	    OverlayInfo id = lol.id();
+	    if((id == null) || lol.filter(a))
+		continue;   // fix: a member still being constructed has no id to draw under -- next frame it has
+	    ret.add(id);
 	}
 	return(ret);
     }
@@ -1215,15 +1265,30 @@ public class MCache implements MapSource {
      * them, there is nothing to ask the grids at all and the locals decide alone. A grid still streaming
      * answers maybe too, and the getcut that follows would throw Loading for it anyway.
      *
-     * UI thread, like getols: `ols` is a plain HashSet, and MapView.oltick and the verbs that add to it are
-     * both on that thread (see io.brodgar.addon.PatchOverlay). */
+     * Any thread that may call getols, and both collections it reads are concurrent for that reason: the
+     * verbs that register a mark are on the UI thread (see io.brodgar.addon.PatchOverlay), but resource
+     * code registers one from a loader thread (see `ols`). */
     public boolean olreaches(OverlayInfo id, Area a) {
+	if(id == null)
+	    return(false);
 	Collection<LocalOverlay> byid = olsbyid.get(id);
 	if(byid != null) {
 	    for(LocalOverlay lol : byid) {
 		if(!lol.filter(a))
 		    return(true);
 	    }
+	}
+	/* addon: the members that had no id when they registered, asked afresh -- and filed under the id
+	 * they now have, so this walk is the empty one it normally is. Skipping them here would be this
+	 * method answering FALSE for a mask that reaches, which is the one answer it may never give. */
+	for(LocalOverlay lol : olsanon) {
+	    OverlayInfo lid = lol.id();
+	    if(lid == null)
+		continue;
+	    if(olsanon.remove(lol))
+		olindex(lid, lol);
+	    if(lid.equals(id) && !lol.filter(a))
+		return(true);
 	}
 	if(!(id instanceof ResOverlay))
 	    return(false);

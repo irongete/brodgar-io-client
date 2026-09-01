@@ -3091,12 +3091,24 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private Loading camload = null, lastload = null;
     public void draw(GOut g) {
 	Loader.Future<Plob> placing = this.placing;
-	if((placing != null) && placing.done())
-	    placing.get().gtick(g.out);
-	// addon: gtick the client-only ghost gobs (hafen.virtual()) — not in OCache, like the Plob above.
+	if((placing != null) && placing.done()) {
+	    /* fix: gtick under the gob's OWN monitor, which is what OCache.gtick holds for every gob it
+	     * ticks. Gob.gtick walks `ols`, and Gob.defer runs the deferred half of addol and of
+	     * Overlay.remove on a loader thread holding exactly that monitor -- so an unguarded gtick here
+	     * iterates a list another thread is adding to, and throws ConcurrentModificationException
+	     * mid-frame. Upstream guarded the ctick half of this same pair (see tick()), not this one. */
+	    Plob ob = placing.get();
+	    synchronized(ob) {
+		ob.gtick(g.out);
+	    }
+	}
+	// addon: gtick the client-only ghost gobs (hafen.virtual()) — not in OCache, like the Plob above,
+	//        and under each ghost's own monitor for the same reason the Plob is.
 	for(Gob gob : clientGobs) {
 	    try {
-		gob.gtick(g.out);
+		synchronized(gob) {
+		    gob.gtick(g.out);
+		}
 	    } catch(RuntimeException e) {
 		/* isolate one ghost's error from the frame */
 	    }

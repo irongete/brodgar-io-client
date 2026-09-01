@@ -42,9 +42,10 @@ import haven.render.States;
  * merely changed colour, or turned inside the tiles it already covers, pushes the new material through the
  * slot instead.
  *
- * <p><b>UI thread only.</b> {@code MCache.ols} is a plain {@code HashSet} that {@code getols} and
- * {@code getol} walk without a lock, from {@code MapView.oltick} and from the overlay cut build — both on the
- * UI thread, which is also where every caller here runs (the addon tick and the {@code hafen.virtual()} verbs).
+ * <p><b>UI thread.</b> Every caller here is on it — the addon tick and the {@code hafen.virtual()} verbs —
+ * and that is this class's own discipline rather than anything {@code MCache} guarantees: resource-published
+ * gob code registers a {@code LocalOverlay} of its own from a loader thread, so {@code MCache.ols} and the
+ * id index beside it are concurrent collections and {@code getols} may be walking either at the time.
  */
 final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
     /** The tiles the mask marks: the ring's bounding box, one tile proud on each side. */
