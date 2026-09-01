@@ -1,0 +1,9 @@
+{
+  "name": "124.2 — the pages state what a reload does",
+  "id": "124-a-reload-announces-every-login.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 124.2: a :reload announces SessionEnteredWorld for every session in the world, the screen's first and each exactly once — what the rewritten pages claim — and the doors those pages still name answer.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

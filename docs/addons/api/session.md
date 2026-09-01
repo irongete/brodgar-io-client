@@ -247,7 +247,9 @@ character it is pointed at.
 The four [session events](event/bus/lifecycle.md#sessions) are where an addon learns that a session connected,
 reached the world, took the screen or ended, and each hands your handler the `Session` it is about. They
 report changes rather than state: an addon loaded while three characters are up hears about none of the
-three, and `hafen.session():list()` is how it learns what is already there.
+three, and `hafen.session():list()` is how it learns what is already there. A `:reload` is not that case —
+it announces `SessionEnteredWorld` for every session in the world, the one on screen first — so the list
+is what a subscription made mid-life reads, rather than a walk an addon writes to catch up after an edit.
 
 ```lua
 for _, s in ipairs(hafen.session():list()) do                -- what the client already holds

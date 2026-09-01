@@ -71,8 +71,8 @@ hafen.event():on("SessionEnteredWorld", function(s)
 end)
 ```
 
-`SessionEnteredWorld` fires when a character's HUD is up — at login, and again on a `:reload` while you
-are in-world — so it is where an addon starts its real work. It hands your handler the
+`SessionEnteredWorld` fires when a character's HUD is up — at login, and again on a `:reload` for every
+login that is in the world — so it is where an addon starts its real work. It hands your handler the
 [session](api/session.md) that entered — the client can hold several logins at once, so the moment says
 which one it is about — and `s:character()` is the character that session is playing.
 

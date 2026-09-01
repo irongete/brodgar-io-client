@@ -1,7 +1,7 @@
 # 124 — Tasks
 
-Two, in order: 124.1 changes the behaviour and the addons that assumed the old one, 124.2 changes only
-prose. Both suites are `addons/124-a-reload-announces-every-login.<X>/`, run with `:t124`.
+Three, in order: 124.1 changes the behaviour and the addons that assumed the old one, 124.2 and 124.3
+change only prose. Every suite is `addons/124-a-reload-announces-every-login.<X>/`, run with `:t124`.
 
 - [x] **124.1 — a reload announces every login that is in the world.**
       `AddonRegistry.reload()`'s tail stops taking `AddonManager.state(screen())` alone and walks
@@ -24,7 +24,7 @@ prose. Both suites are `addons/124-a-reload-announces-every-login.<X>/`, run wit
       `[manual]`: with two characters in the world, `:reload`, then tab to the one that was **not** on
       screen — expect: the Autodrop window is up, titled with that character's name.
 
-- [ ] **124.2 — the pages state what a reload does.**
+- [x] **124.2 — the pages state what a reload does.**
       Six passages, five files, no behaviour. `api/event/bus/lifecycle.md`'s *These report changes, not
       the state* keeps its rule for a subscription and states that a reload announces every session in
       the world. `runtime.md`'s moments table stops calling `SessionEnteredWorld` **Once per session** —
@@ -44,4 +44,18 @@ prose. Both suites are `addons/124-a-reload-announces-every-login.<X>/`, run wit
       `[manual]`: with the suite loaded, pick another character on the account you are looking at —
       expect: one new line in the log naming that account, which is the second announcement for one
       session that the moments table now describes.
+      <!-- extra context: DOCUMENTATION.md (§8 no history, §11 the checks a docs task runs) -->
+
+- [ ] **124.3 — the page states when a character's saved variables read back.**
+      One passage, one file, no behaviour. `api/event/bus/lifecycle.md`'s paragraph under the
+      `SessionEnteredWorld` table drops the screen from the claim: `StoreApi.enterWorld` fills a session's
+      per-character tables for the session that entered, drawn or not — the `loadChar` loop is unconditional
+      and only the `rescope()` at its tail is the screen's — so a character reaching the world behind another
+      brings theirs at its own `SessionEnteredWorld` rather than when you tab to it, and `SessionSelected`
+      moves remembered placements alone. `api/store.md`'s *When each scope is ready* already states it that
+      way and is the wording to agree with; the `// ...if it is the session on screen...` comment in
+      `AddonManager`'s `enterWorldPending` gate goes with it.
+      *Its suite* asserts it through the API: on every `SessionEnteredWorld` for a session that is not
+      `hafen.session():current()`, `s:store()` answers that character's own keys inside the handler — a write
+      and a read back, scored as not reached until a background login arrives within a bounded window.
       <!-- extra context: DOCUMENTATION.md (§8 no history, §11 the checks a docs task runs) -->

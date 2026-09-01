@@ -76,9 +76,12 @@ your own tables by `s:user()` if what you are tracking is the account, and rebui
 character's on every `SessionEnteredWorld` for it.
 
 **These report changes, not the state.** They fire for what happens after you subscribe, so an addon
-loaded while three characters are up hears about none of the three; a `:reload` in the world re-announces
-the session **on screen** with `SessionEnteredWorld`, because that is the one whose per-character saved
-variables were just put back, and says nothing about the others.
+loaded while three characters are up hears about none of the three, and
+[`hafen.session():list()`](../../session.md) is the read for what is already there. A `:reload` is where
+that stops being the whole rule: it rebuilds every addon, so it announces `SessionEnteredWorld` for every
+session that is in the world, the one **on screen** first and each exactly once. Which character the
+player typed it in front of is not a property of a session, so an addon that holds something per login is
+told about all of them and has none to catch up on.
 
 > **Your state survives a character switch.** Nothing of yours is torn down or rebuilt when the screen
 > moves, so a widget handle, a Gob or an [item](../../ui/items.md) you kept from one character is still in

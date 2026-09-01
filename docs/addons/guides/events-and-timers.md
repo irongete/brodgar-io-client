@@ -46,8 +46,9 @@ never inside another handler.
 
 `SessionEnteredWorld` is where most addons really start, and it belongs to a **session** rather than to
 you: it fires once for each character that reaches the world, handing you that
-[`Session`](../api/session.md), and again on a `:reload` for the character on screen — so an addon that
-builds its window there is correct after an edit as well as after a login. The other three
+[`Session`](../api/session.md), and again on a `:reload` for every login that is in the world — so an
+addon that builds its window there is correct after an edit as well as after a login, and for the
+characters you are not looking at as well as the one you are. The other three
 [session events](../api/event/bus/lifecycle.md#sessions) tell you when one connects, takes the screen and
 ends.
 

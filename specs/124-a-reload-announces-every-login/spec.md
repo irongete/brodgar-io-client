@@ -84,14 +84,15 @@ that subtree does not document.
 ## Context files
 
 - `src/io/brodgar/addon/AddonRegistry.java` — 1
-- `src/io/brodgar/addon/AddonManager.java` — 1
-- `src/io/brodgar/addon/StoreApi.java` — 1
+- `src/io/brodgar/addon/AddonManager.java` — 1, 3 (the `enterWorldPending` gate and its comment)
+- `src/io/brodgar/addon/StoreApi.java` — 1, 3
 - `addons/actionbars/main.lua`, `addons/autodrop/main.lua`, `addons/clickpath/main.lua`,
   `addons/item-indicators/main.lua`, `addons/simple-chat/main.lua`, `addons/simple-minimap/main.lua`,
   `addons/water-meter/main.lua`, `addons/stockpile-controls/main.lua` — 1
-- `docs/addons/api/event/bus/lifecycle.md`, `docs/addons/runtime.md`,
-  `docs/addons/guides/events-and-timers.md`, `docs/addons/getting-started.md`,
-  `docs/addons/api/session.md` — 2
+- `docs/addons/api/event/bus/lifecycle.md` — 2, 3
+- `docs/addons/runtime.md`, `docs/addons/guides/events-and-timers.md`,
+  `docs/addons/getting-started.md`, `docs/addons/api/session.md` — 2
+- `docs/addons/api/store.md` — 3 (*When each scope is ready*, the wording `lifecycle.md` agrees with)
 - `specs/124-a-reload-announces-every-login/addons/124-a-reload-announces-every-login.1/main.lua` — 2
   (this feature's own, archived by 124.1: the load-time record and the four checks 124.2's suite duplicates)
-- `DOCUMENTATION.md` — 2
+- `DOCUMENTATION.md` — 2, 3
