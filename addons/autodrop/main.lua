@@ -464,13 +464,6 @@ end
 hafen.event():on("SessionEnteredWorld", adopt)
 hafen.event():on("SessionRemoved", function(s) inst[s:user()] = nil end)
 
--- A `:reload` re-announces ONLY the session on screen (docs/addons/runtime.md), so the characters logged
--- in behind it would sit there without a window until they picked another character. This is the whole of
--- what makes a reload equal to a fresh login for every one of them.
-for _, s in ipairs(hafen.session():list()) do
-  if s:exists() and s:character() then adopt(s) end
-end
-
 -- Closing the window closes the window and nothing else: the backpack goes on being watched, and the
 -- switch inside is what stops it. A console line runs in the tree of the console it was typed at, and the
 -- window it opens is built in another one -- hence the step. The command is the client's, so this is the

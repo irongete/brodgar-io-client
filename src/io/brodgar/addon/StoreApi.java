@@ -451,7 +451,7 @@ final class StoreApi {
     /**
      * <b>A session learns which character it is playing</b>, and reads that character's saved variables in —
      * its {@code <genus>_<char>} folder, now that the HUD is up. Called once per world entry, and once more
-     * by a {@code :reload} for the session on screen.
+     * by a {@code :reload} for every session that is in the world.
      *
      * <p>073.5: it is handed <b>the session it is about and that session's own HUD</b> — the caller has both
      * (the tick that saw the world come up, the reload that found the HUD in its own tree), and reading the

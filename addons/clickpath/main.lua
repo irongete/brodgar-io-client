@@ -141,12 +141,6 @@ end
 
 hafen.event():on("SessionEnteredWorld", watch)
 
-hafen.event():on("Load", function()
-  for _, s in ipairs(hafen.session():list()) do
-    if s:character() then watch(s) end          -- nil until its HUD is up, which is what we are after
-  end
-end)
-
 -- ---------------------------------------------------------------- walking them
 
 local function moveTo(s, w)

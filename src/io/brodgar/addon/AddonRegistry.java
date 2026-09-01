@@ -395,25 +395,25 @@ public final class AddonRegistry {
      * Reload the addon layer only (D-005) — no relog, the session stays connected. Tears down every
      * loaded addon (Disable → flush saved vars → drop owned resources, in reverse load order),
      * re-scans {@code addons/} and the enabled set, re-runs the enabled addons from disk (firing
-     * {@code Load}), and — if already in-world — restores per-character saved vars and re-announces that
-     * session with {@code SessionEnteredWorld}, so addons re-initialize as if freshly logged in (the WoW
-     * {@code PLAYER_LOGIN} analog). Runs on the UI thread (queued via {@link #queueReload}); every session's
-     * tick pump, gob callback and uimsg tap are left in place — only the Lua layer is rebuilt. Per-addon
-     * teardown/load is error-isolated so one bad addon cannot abort the reload.
+     * {@code Load}), and then — for every session that is in the world — restores that character's saved
+     * vars and announces it with {@code SessionEnteredWorld}, so addons re-initialize as if freshly logged
+     * in (the WoW {@code PLAYER_LOGIN} analog). Runs on the UI thread (queued via {@link #queueReload});
+     * every session's tick pump, gob callback and uimsg tap are left in place — only the Lua layer is
+     * rebuilt. Per-addon teardown/load is error-isolated so one bad addon cannot abort the reload.
      *
      * <p><b>It takes no session</b> since 074.2, because the thing it rebuilds has none: the addons are the
-     * client's. What it still needs a session for is the one thing that is a character's — the per-character
-     * saved variables and the {@code SessionEnteredWorld} that follows them — and for that it asks the
-     * <b>screen</b>, which is the character the user typed {@code :reload} while looking at. A reload on the
-     * login screen rebuilds the layer and announces nothing, which is exactly what a fresh boot there does.
+     * client's. What it still needs sessions for is the one thing that is a character's — the per-character
+     * saved variables and the {@code SessionEnteredWorld} that follows them — and for that it asks
+     * {@link AddonManager#allStates()} rather than any one login. With nothing in the world it rebuilds the
+     * layer and announces nothing, which is what a fresh boot on the login screen does.
      *
-     * <p><b>The screen's session and no other</b>, and that is a boundary rather than an oversight (074.3):
-     * {@code SessionEnteredWorld} announces the character the player typed {@code :reload} in front of, and
-     * announcing a second session here would be announcing one that did not enter anything. The other
-     * sessions stay in the world and say nothing about it; what an addon knows about them after a reload is
-     * what it asks for. Their <i>saved variables</i> are not part of that boundary (079.1): the tables are
-     * each session's own and are read back in the first time the new addons ask for them, so a background
-     * character's data is there whether or not anything was said about it.
+     * <p><b>Every session in the world, and the screen's first</b> (124.1): the announcement means
+     * <i>re-initialize for this session</i>, and which character the player happened to be looking at when
+     * they typed {@code :reload} is not a property of a session at all. So the walk is
+     * {@link #announceEnteredWorld}, taken over every state behind that method's three gates — and the
+     * screen's is taken first, so one login is announced exactly as it would be alone and the rule is purely
+     * additive. No session is announced twice, and an addon that holds something per login has no catch-up
+     * walk of {@code hafen.session():list()} to write.
      */
     public static synchronized void reload() {
         log("reloading addons...");
@@ -447,16 +447,52 @@ public final class AddonRegistry {
                                                              //   (no camera pan, no clicks) until :release() is called
                                                              //   by hand, :reload's escape hatch not included
         loadAll();                                   // re-scan disk + enabled set; re-run; fire Load
-        AddonManager.SessionState st = AddonManager.state(screen());   // the character on screen, if there is one
-        GameUI g = (st == null) ? null : AddonManager.gui(st.ui);
-        if(g != null) {
-            StoreApi.enterWorld(st, g);              // reload per-char saved vars (the scope is still valid)
-            String who = io.brodgar.session.Sessions.nameof(st.ui);   // 074.3: the session, not the addon
-            if(who != null)
-                fireSession("SessionEnteredWorld", who);
+        // 124.1: the screen's state first and every other in the world after it. The order is fixed here
+        //   rather than left to the map so that one login is announced the way it always was, and the list
+        //   is taken before anything fires: a handler may log a character in or out, and this walk is about
+        //   the world the reload found.
+        AddonManager.SessionState scr = AddonManager.state(screen());   // the character on screen, if there is one
+        List<AddonManager.SessionState> order = new ArrayList<AddonManager.SessionState>();
+        if(scr != null)
+            order.add(scr);
+        for(AddonManager.SessionState st : AddonManager.allStates()) {
+            if(st != scr)
+                order.add(st);
         }
+        for(AddonManager.SessionState st : order)
+            announceEnteredWorld(st);
         reloadGen++;                                 // notify any live AddOns panel to rebuild its rows
         log("reload complete (" + addons.size() + " addon[s] active)");
+    }
+
+    /**
+     * <b>One session re-enters the world</b> (124.1) — what {@link #reload} does for each state it walks,
+     * behind the three gates that decide whether there is anything to announce:
+     *
+     * <ul>
+     *   <li>the {@code UI} is not destroyed — {@code AddonManager.sweepStates()} runs on a tick, so an
+     *       entry whose session has ended can still be in the map when a reload walks it;</li>
+     *   <li>it has a {@link GameUI} — the session is in the world, and this is also what leaves out the
+     *       addon layer's own state, which is no session and has no HUD;</li>
+     *   <li>{@code Sessions.nameof} names an account — a member that has gone answers {@code null}, and the
+     *       account name is the whole of the payload.</li>
+     * </ul>
+     *
+     * <p>Nothing at all for a state that fails one, which is what makes every entry in the map safe to hand
+     * it. {@code enterWorldPending} is deliberately left alone: arming it would have the tick fire a second
+     * announcement for the same session a frame later.
+     */
+    private static void announceEnteredWorld(AddonManager.SessionState st) {
+        if((st == null) || st.ui.destroyed)
+            return;
+        GameUI g = AddonManager.gui(st.ui);
+        if(g == null)
+            return;
+        String who = io.brodgar.session.Sessions.nameof(st.ui);   // 074.3: the session, not the addon
+        if(who == null)
+            return;
+        StoreApi.enterWorld(st, g);                  // this character's saved vars (the scope is still valid)
+        fireSession("SessionEnteredWorld", who);
     }
 
     /**

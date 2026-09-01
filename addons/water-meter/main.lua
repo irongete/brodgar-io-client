@@ -242,15 +242,6 @@ local function watchSession(session)
   sessionState.subscriptions[#sessionState.subscriptions + 1] = watch
 end
 
--- A :reload re-announces only the character on screen, so the ones behind it are picked up here: a watch
--- on a session whose HUD is not up yet simply waits, and one on a session already in the world fires at
--- once for what it has open.
-hafen.event():on("Load", function()
-  for _, session in ipairs(hafen.session():list()) do
-    watchSession(session)
-  end
-end)
-
 hafen.event():on("SessionEnteredWorld", watchSession)
 
 hafen.event():on("SessionRemoved", forgetSession)

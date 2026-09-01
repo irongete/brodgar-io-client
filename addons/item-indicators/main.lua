@@ -325,13 +325,6 @@ local function watchSession(session)
   sessionSubscriptions[session] = session:ui():on("item", "Added", decorateIcon)
 end
 
--- A :reload re-announces only the character on screen, so the ones behind it are picked up here.
-hafen.event():on("Load", function()
-  for _, session in ipairs(hafen.session():list()) do
-    watchSession(session)
-  end
-end)
-
 hafen.event():on("SessionEnteredWorld", watchSession)
 
 hafen.event():on("SessionRemoved", forgetSession)

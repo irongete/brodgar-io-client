@@ -1,0 +1,9 @@
+{
+  "name": "124.1 — a reload announces every login",
+  "id": "124-a-reload-announces-every-login.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 124.1: a :reload announces SessionEnteredWorld for every session that is in the world, the screen's first, each exactly once, and for nothing else.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

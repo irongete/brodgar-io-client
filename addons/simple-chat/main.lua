@@ -746,17 +746,6 @@ end
 
 -- ---------------------------------------------------------------- lifecycle
 
--- THE SESSION EVENTS REPORT CHANGES, NOT STATE, so an addon loaded while three characters are up hears
--- about none of the three, and a `:reload` in the middle of a game re-announces only the character ON
--- SCREEN. This sweep is what covers them: every login already in the world gets its window here, and the
--- one about to be re-announced is rebuilt when it is -- `drop` first, so the second announcement replaces
--- a window rather than standing another one on top of it.
-hafen.event():on("Load", function()
-  for _, s in ipairs(hafen.session():list()) do
-    if s:character() then raise(s) end
-  end
-end)
-
 -- Every entry into the world is a NEW HUD -- a fresh login, or the same account picking another character,
 -- which keeps the session and replaces its world -- and this window belongs to the HUD. So every entry
 -- builds one, and nothing before one builds anything at all.

@@ -771,4 +771,3 @@ hafen.console():on("actionbars", togglePanel)
 hafen.timer():every(2, relabel)
 
 ensureFirst()                               -- the bar that stands in for the client's own
-syncAll()                                   -- and the logins the client already holds

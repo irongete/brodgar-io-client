@@ -171,10 +171,6 @@ end
 
 -- ---------------------------------------------------------------- lifecycle
 
-hafen.event():on("Load", function()
-  for _, s in ipairs(hafen.session():list()) do attach(s) end
-end)
-
 hafen.event():on("SessionEnteredWorld", function(s) attach(s) end)
 hafen.event():on("SessionRemoved", function(s) detach(s) end)
 
