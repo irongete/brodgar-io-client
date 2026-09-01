@@ -46,7 +46,7 @@ change only prose. Every suite is `addons/124-a-reload-announces-every-login.<X>
       session that the moments table now describes.
       <!-- extra context: DOCUMENTATION.md (§8 no history, §11 the checks a docs task runs) -->
 
-- [ ] **124.3 — the page states when a character's saved variables read back.**
+- [x] **124.3 — the page states when a character's saved variables read back.**
       One passage, one file, no behaviour. `api/event/bus/lifecycle.md`'s paragraph under the
       `SessionEnteredWorld` table drops the screen from the claim: `StoreApi.enterWorld` fills a session's
       per-character tables for the session that entered, drawn or not — the `loadChar` loop is unconditional

@@ -1,0 +1,10 @@
+{
+  "name": "124.3 — a session's saved variables at its own SessionEnteredWorld",
+  "id": "124-a-reload-announces-every-login.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 124.3: a session that is not the one on screen answers its own character's saved variables inside its own SessionEnteredWorld -- a write and a read back, with no tab.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "saved_variables": ["probe"]
+}

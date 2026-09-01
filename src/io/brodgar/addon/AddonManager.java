@@ -1438,8 +1438,10 @@ public final class AddonManager {
                         st.enterWorldPending = false;
                         StoreApi.enterWorld(st, hud);   // 073.5/074.4: THIS session learns its own
                                                    //   <genus>_<char>, from the very HUD this gate just read —
-                                                   //   and if it is the session on screen, its per-character
-                                                   //   saved variables are loaded BEFORE the event fires
+                                                   //   and its per-character saved variables are loaded BEFORE
+                                                   //   the event fires, on screen or not: the loadChar loop is
+                                                   //   per session, and only the rescope() at its tail is the
+                                                   //   screen's
                         BeltHold.restore(st);      // 059.5: ...and this character's action-bar placements, so the
                                                    //   first :add an addon makes puts its button straight back
                         // 074.3: fired DIRECTLY and not through the session queue — this already runs on the UI

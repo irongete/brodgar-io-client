@@ -46,10 +46,13 @@ your own tables by, on the one event where the login it names has already gone.
 
 `SessionEnteredWorld` fires once the HUD exists — the [action menu](../../menugrid.md) included, so the
 entries your addon adds go in from there — but much character-sheet data streams in for a few seconds
-afterwards, see [missing data returns nil](../../conventions.md#missing-data-returns-nil). When that
-session is the one on screen it is also the point from which its
-[per-character saved variables](../../store.md) read back; a character reaching the world behind another
-brings theirs to the tables when you tab to them, which is a `SessionSelected`.
+afterwards, see [missing data returns nil](../../conventions.md#missing-data-returns-nil). It is also the
+point from which that session's [per-character saved variables](../../store.md) read back, on screen or
+not: a character reaching the world behind another brings theirs to the tables at its own announcement, so
+a handler reads them through the `Session` it was handed. Tabbing there brings nothing more, because it is
+already in the tables; what a screen change writes is
+[the placements the user made](../../store.md#the-one-thing-saved-without-being-declared), and those
+belong to the tree they stand in rather than to the screen.
 
 **Taking the screen is not entering the world.** Going between two characters already in the world
 fires `SessionSelected` and nothing else, once per change — whether the player tabbed or an addon
