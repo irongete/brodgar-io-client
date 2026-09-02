@@ -724,8 +724,8 @@ public final class LuaWidget {
         //
         // TWO ADDONS MAY ARM ONE TARGET (a position is not a toggle): the gesture moves it ONCE and writes both
         // levels, so a nil from either is invisible on screen, each nil drops only its own, and both Dragged
-        // handlers fire. A STALE target is the 029.2 silent chaining no-op; a stale HANDLE is an argument you
-        // passed, so it raises.
+        // handlers fire. A STALE target is the 029.2 silent chaining no-op, and 125.2 gives a stale HANDLE the
+        // same answer: nothing is armed, widget:draggable() reads nil, and the call chains.
         m.set("draggable", new VarArgFunction() {
             public Varargs invoke(Varargs a) {        // :draggable() → narg 1 · (nil)/(h) → narg 2
                 LuaValue self = a.arg1();
@@ -745,8 +745,13 @@ public final class LuaWidget {
                     throw new LuaError("widget:draggable(h) expects a Widget — the handle the user presses to"
                         + " drag this one. widget:draggable() reads it, widget:draggable(nil) drops it");
                 Widget hw = live(hh);
+                // 125.2: THE HANDLE LEFT THE TREE, which is not a mistake anyone can guard against — the grip
+                // you armed is a widget like any other and the client may have destroyed it between the step
+                // that handed it to you and this call, with no :exists() of yours able to sit inside that
+                // instant. So the write STOPS: nothing is armed, nothing recorded, and widget:draggable()
+                // answers nil — which is the read that was always the way to ask what is armed.
                 if(hw == null)
-                    throw new LuaError("widget:draggable(h): that handle has left the tree");
+                    return self;
                 if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
                     return self;
                 // The ONE handle a Window refuses is the window itself — its caption already drags it, and two
@@ -796,8 +801,8 @@ public final class LuaWidget {
                     throw new LuaError("widget:resizable(h) expects a Widget — the handle the user presses to"
                         + " resize this one. widget:resizable() reads it, widget:resizable(nil) drops it");
                 Widget hw = live(hh);
-                if(hw == null)
-                    throw new LuaError("widget:resizable(h): that handle has left the tree");
+                if(hw == null)                        // 125.2: a dead HANDLE, exactly as :draggable takes one
+                    return self;                      // — nothing armed, widget:resizable() reads nil, chains
                 if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
                     return self;
                 Gesture.arm(owner, w, hw, Gesture.Mode.SIZE);

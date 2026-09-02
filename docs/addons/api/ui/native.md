@@ -122,9 +122,11 @@ both levels take the place it landed at — so a `nil` from either addon is invi
 | `w:draggable(nil)` | drop your binding; chains |
 
 `w:revert()` drops the binding too, along with everything else your addon holds on that widget — see
-[taking the whole edit back](edit.md#taking-the-whole-edit-back). A handle that is not a widget, or one
-that has left the tree, raises; a target that has left the tree is a silent no-op, like every other write
-here.
+[taking the whole edit back](edit.md#taking-the-whole-edit-back). **A handle that has left the tree arms
+nothing.** The grip an event handed you can be destroyed on the client's own step and no `:exists()` of
+yours sits inside that instant, so the call stops there and chains, and `w:draggable()` reads `nil`
+afterwards — which is how you ask what is armed. A handle that is not a widget at all raises; a target that
+has left the tree is a silent no-op, like every other write here.
 
 ### Knowing when one was dragged
 
@@ -187,8 +189,9 @@ last one to write wins.
 
 The two bindings are independent: one grip may drag a widget while another resizes it, and each `nil` drops
 only the one it names. `w:revert()` drops both, along with everything else your addon holds on that widget.
-The refusals are the drag's, one word along — a handle that is not a widget, or one that has left the tree,
-raises; a target that has left the tree is a silent no-op.
+The answers are the drag's, one word along — a handle that has left the tree arms nothing and chains, with
+`w:resizable()` reading `nil` afterwards; one that is not a widget at all raises; a target that has left the
+tree is a silent no-op.
 
 ### Knowing when one was resized
 

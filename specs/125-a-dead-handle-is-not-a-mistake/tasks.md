@@ -24,7 +24,7 @@
       `[manual]`: none — every claim here is one the API reads back.
       <!-- extra context: src/io/brodgar/addon/AddonWidget.java -->
 
-- [ ] **125.2 — the gestures and the anchor take the same rule, and the page states it once.**
+- [x] **125.2 — the gestures and the anchor take the same rule, and the page states it once.**
       `widget:draggable(h)`, `widget:resizable(h)` (`LuaWidget`, the two `Gesture.arm` sites) and
       `rule:anchor{ to = w }` (`Layout.parseAnchor`) each stop raising on a dead Widget argument:
       the two gestures arm nothing and chain, the anchor keeps a null target and resolves to

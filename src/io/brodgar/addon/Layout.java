@@ -935,11 +935,12 @@ final class Layout {
             if("to".equals(p)) {
                 LuaWidget h = LuaWidget.resolve(pv);
                 if(h != null) {
+                    // 125.2: a target that has already left the tree is not a mistake — the rule installs with
+                    // no target and resolves to nothing, which is what an anchor whose target closes a moment
+                    // LATER has always done. The field read rather than LuaWidget.live is deliberate: it keeps
+                    // this parse free of the tree monitor, and either way the anchor takes the same inert path.
                     to = Anchor.WIDGET;
                     tgt = h.wdg;
-                    if(tgt == null)
-                        throw new LuaError(ctx + ".anchor.to: that widget no longer exists — an anchor holds its"
-                            + " target weakly, so name a live one (widget:exists() says which)");
                 } else if("screen".equals((pv.isstring() && !pv.isnumber()) ? pv.tojstring() : null)) {
                     to = Anchor.SCREEN;
                 } else {

@@ -70,12 +70,17 @@ s:install()
 
 | Field | Default | Meaning |
 |---|---|---|
-| `to` | `"screen"` | the screen, or any widget — **a character's, from a window of yours, and the other way about**: every tree in this client covers the same screen, so the two corners mean the same place. A widget target is held **weakly**: when it closes the anchor stops resolving and the widget simply stays where it is — inert, never a snap back |
+| `to` | `"screen"` | the screen, or any widget — **a character's, from a window of yours, and the other way about**: every tree in this client covers the same screen, so the two corners mean the same place. A widget target is held **weakly**: when it closes the anchor stops resolving and the widget simply stays where it is — inert, never a snap back, and one that has *already* closed by the moment the rule is written installs the same way |
 | `at` | `"topleft"` | one of nine corners: `topleft`, `top`, `topright`, `left`, `center`, `right`, `bottomleft`, `bottom`, `bottomright`. Anything else is an **error** naming all nine |
 | `offset` | `{0, 0}` | `{dx, dy}`, [design px](../pixels.md), added after the corners meet |
 
 The corner is the widget's **own** as well as the target's — `at = "bottomright"` puts its bottom-right
 corner on the target's, which is what makes `offset = {-8, -8}` read as *8 px in from the edge*.
+
+**A `to` that is neither is an error.** A number, a table, a string other than `"screen"` — the anchor has
+no widget to hang off and no future meaning to wait for, so the rule is refused as you write it rather than
+installed inert. That is the one fault here worth telling you about: naming a widget that has gone is the
+ordinary case, and it is what the weak hold above already answers.
 
 **A position is the degenerate anchor** — to the widget's own parent, at its top-left, with that offset —
 which is exactly the coordinate `:position()` reads. So they are *one* property with two spellings, writing

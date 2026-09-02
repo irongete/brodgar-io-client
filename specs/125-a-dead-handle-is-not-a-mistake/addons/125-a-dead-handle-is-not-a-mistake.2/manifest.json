@@ -1,0 +1,9 @@
+{
+  "name": "125.2 — the gestures and the anchor take the same rule",
+  "id": "125-a-dead-handle-is-not-a-mistake.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 125.2: a Widget argument that has left the tree stops widget:draggable(h), widget:resizable(h) and a rule's anchor.to -- nothing is armed, nothing moves -- while a value that is not a Widget still raises at all three.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

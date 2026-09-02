@@ -47,10 +47,24 @@ view of engine state, not an owned resource, and there is nothing to tear down.
 
 **Staleness.** A widget that leaves the tree — window closed, server destroy, relog — is *stale*: every
 read answers `nil` or empty, every client-side write is a silent no-op that still chains, and `:exists()`,
-the one read that always answers, is `false`. Three things raise on a stale widget instead:
-[`send`](#send-a-message-protected), [`:on(key, fn)`](#subscribing) — whose refusal names the missing tree
-rather than a key — and the [two searches](#searching-inside-one-widget), which have a subtree to search and
-no longer have it. Guard on `:exists()` when "is it still there?" is the question you are asking.
+the one read that always answers, is `false`. Ask it about the widget in your hand, on the line you ask it.
+
+**A Widget you pass as an argument takes the same rule.** `w:parent(p)`, `w:draggable(h)`, `w:resizable(h)`,
+`w:replace(view)` and a rule's [`anchor{ to = w }`](style/geometry.md#anchor) each take one, and each
+**stops** when the widget you name has left the tree: nothing is placed, armed or installed, the call
+chains, and the read beside it answers `nil`. No guard of yours could cover that — a widget an event handed
+you may be destroyed on the client's own step, and no `:exists()` sits inside that instant — so the surface
+answers it rather than the caller. A value that is **not** a Widget is a spelling mistake and raises, naming
+what a Widget is.
+
+A stale **receiver** raises wherever there is no honest `nil` to hand back:
+
+- [`w:send(msg, ...)`](#send-a-message-protected) — no tree to deliver into, and nothing was sent
+- [`w:on(key, fn)`](#subscribing) — no events left to check the key against, so its refusal names the
+  missing tree rather than the key
+- [`w:match(sel)` and `w:matchAll(sel)`](#searching-inside-one-widget) — no subtree to search, where an
+  empty answer would read as "no match"
+- [`w:overlay():add(key)`](overlay.md#over-one-widget) — nothing left to draw over
 
 ## Read
 
