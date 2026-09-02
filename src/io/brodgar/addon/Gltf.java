@@ -645,11 +645,19 @@ public final class Gltf {
         int stride = intv(bv.get("byteStride"), csz * nc);   // 0/absent → tightly packed
         if(stride == 0)
             stride = csz * nc;
-        int start = bvOff + accOff;
+        long start = (long)bvOff + accOff;
+        if((start < 0) || (stride < 0))
+            throw err(name, "accessor " + ai + " has a negative byte offset or stride");
+        // The last byte the stride walk below reads, computed in long BEFORE it walks: an accessor whose
+        // range leaves its buffer is refused naming the model and the overrun, never followed into an
+        // anonymous array-index fault. count == 0 reads nothing, so its range is the empty one at start.
+        long end = (count == 0) ? start : (start + ((long)(count - 1) * stride) + ((long)comps * csz));
+        if(end > buf.length)
+            throw err(name, "accessor " + ai + " runs past its buffer (reads to byte " + end + " of " + buf.length + ")");
         long items = (long)count * comps;              // in long: the int product overflows for a large count
         float[] out = new float[(int)items];
         for(int e = 0; e < count; e++) {
-            int base = start + (e * stride);
+            int base = (int)start + (e * stride);
             for(int k = 0; k < comps; k++)
                 out[(e * comps) + k] = readComp(buf, base + (k * csz), ct, norm, name);
         }
@@ -671,10 +679,16 @@ public final class Gltf {
         int stride = intv(bv.get("byteStride"), csz);
         if(stride == 0)
             stride = csz;
-        int start = bvOff + accOff;
+        long start = (long)bvOff + accOff;
+        if((start < 0) || (stride < 0))
+            throw err(name, "index accessor " + ai + " has a negative byte offset or stride");
+        // Same bound as readVecs, one component wide: the walk's last byte in long, before it walks.
+        long end = (count == 0) ? start : (start + ((long)(count - 1) * stride) + csz);
+        if(end > buf.length)
+            throw err(name, "index accessor " + ai + " runs past its buffer (reads to byte " + end + " of " + buf.length + ")");
         int[] out = new int[count];
         for(int e = 0; e < count; e++) {
-            int at = start + (e * stride);
+            int at = (int)start + (e * stride);
             switch(ct) {
             case C_UBYTE:  out[e] = buf[at] & 0xff; break;
             case C_USHORT: out[e] = u16(buf, at); break;

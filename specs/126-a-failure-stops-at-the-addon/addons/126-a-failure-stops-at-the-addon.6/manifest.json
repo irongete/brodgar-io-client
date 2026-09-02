@@ -1,0 +1,9 @@
+{
+  "name": "126.6 — an accessor's byte range is checked against its buffer",
+  "id": "126-a-failure-stops-at-the-addon.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 126.6: a POSITION accessor and an index accessor whose stride walk leaves its buffer are each refused naming the model and the overrun, and a legal indexed model still loads.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

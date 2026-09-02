@@ -61,7 +61,7 @@
       which is the check that the fix bounded the abusive document without refusing a legal deep one.
       `[manual]`: none — both files are shipped and both outcomes are read back.
 
-- [ ] **126.6 — an accessor's byte range is checked against its buffer.**
+- [x] **126.6 — an accessor's byte range is checked against its buffer.**
       `Gltf.readVecs` and `readIndices` compute, in `long`, the last byte their stride walk reads —
       `start + ((count - 1) * stride) + (comps * csz)` — and refuse past `buf.length` through the existing
       `err(name, …)`. A `.glb` whose accessor overruns its buffer raises an `ArrayIndexOutOfBoundsException`
