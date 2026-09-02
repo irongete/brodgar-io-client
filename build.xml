@@ -224,6 +224,46 @@
 
   <target name="deftgt" depends="jars, opt/panama, bin" />
 
+  <!-- addon: a self-contained, playable install for handing to someone else. Unlike bin/ (the
+       development sandbox, which also carries savedata and whatever suite is in flight), dist/ is
+       rebuilt from scratch every time and holds only what the client needs to run: the jars, the
+       resource jars, the natives, the server config, the addons, and run.bat. -->
+  <target name="release" depends="deftgt">
+    <delete dir="dist" />
+    <mkdir dir="dist" />
+    <copy todir="dist">
+      <fileset dir="build">
+	<include name="hafen.jar" />
+      </fileset>
+      <fileset dir="lib/ext">
+	<include name="hafen-res.jar" />
+	<include name="builtin-res.jar" />
+      </fileset>
+    </copy>
+    <copy todir="dist" failonerror="false" quiet="true">
+      <fileset dir="build">
+	<include name="hafen-panama.jar" />
+      </fileset>
+    </copy>
+    <copy todir="dist/lib">
+      <fileset dir="lib/ext/jogl"><include name="*.jar" /></fileset>
+      <fileset dir="lib/ext/lwjgl"><include name="*.jar" /></fileset>
+      <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
+      <fileset dir="lib/brodgar"><include name="*.jar" /></fileset>
+    </copy>
+    <!-- The maintainer's own addons ship; a task suite (addons/<NNN>-<feature>.<X>/) does not. -->
+    <copy todir="dist/addons" failonerror="false" quiet="true">
+      <fileset dir="addons">
+	<filename regex="^[0-9]{3}-[^.]*[.][0-9]+" negate="true" />
+      </fileset>
+    </copy>
+    <copy file="etc/ansgar-config.properties" tofile="dist/haven-config.properties" />
+    <fixcrlf srcdir="etc" includes="run.bat" destdir="dist" eol="crlf" />
+    <chmod file="dist/hafen.jar" perm="a+x" />
+    <echo message="Release ready in dist/ -- double-click dist\run.bat to play." />
+  </target>
+
+
   <target name="run" depends="deftgt">
     <condition property="jogl-exports">
       <javaversion atleast="16" />

@@ -2,9 +2,10 @@
 rem ----------------------------------------------------------------------
 rem  Haven & Hearth client launcher.
 rem
-rem  This file is a template. On build, `ant` copies it into bin/ (see the
-rem  "bin" target in build.xml), next to hafen.jar and its dependency jars.
-rem  Double-click bin\run.bat, or run it from a terminal, to start the
+rem  This file is a template. On build, `ant` copies it next to hafen.jar
+rem  and its dependency jars: into bin/ (the "bin" target, the development
+rem  sandbox) and into dist/ (the "release" target, the install handed to a
+rem  player). Double-click run.bat, or run it from a terminal, to start the
 rem  client. Any extra arguments are passed through to the client.
 rem ----------------------------------------------------------------------
 cd /d "%~dp0"
