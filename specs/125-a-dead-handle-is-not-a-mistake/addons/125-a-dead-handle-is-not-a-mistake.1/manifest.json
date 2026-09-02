@@ -1,0 +1,9 @@
+{
+  "name": "125.1 — widget:parent stops on a dead argument",
+  "id": "125-a-dead-handle-is-not-a-mistake.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 125.1: a Widget argument that has left the tree stops widget:parent(w) in both directions -- the surface is abandoned, the client's own widget does not move -- while a value that is not a Widget still raises.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

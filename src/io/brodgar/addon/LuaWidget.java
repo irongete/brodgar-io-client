@@ -519,11 +519,25 @@ public final class LuaWidget {
                     throw new LuaError("widget:parent(w) chooses the parent while the widget is being BUILT, and"
                         + " this one is already on screen — move it with widget:position(x, y) instead");
                 LuaWidget h = resolve(v);
-                Widget p = (h == null) ? null : live(h);
-                if(p == null)
-                    throw new LuaError("widget:parent(w) expects a Widget that is in the tree — a surface of"
-                        + " yours is in the addon layer unless you name one, and s:ui():match(\"@GameUI\")"
-                        + " is the HUD");
+                if(h == null)
+                    throw new LuaError("widget:parent(w) expects a Widget — a surface of yours is in the addon"
+                        + " layer unless you name one, and s:ui():match(\"@GameUI\") is the HUD");
+                Widget p = live(h);
+                // 125.1: THE PARENT LEFT THE TREE, and that is not a mistake anyone can guard against. The
+                // handler holding it runs on the step AFTER the widget arrived and holds no tree monitor, so
+                // :exists() ahead of this call is check-then-use with nothing across it — the client destroys
+                // item icons in batches, and every queued handler then holds a dead one. So the write STOPS,
+                // as every other write on a stale handle does. Stopping here means ABANDONING the receiver:
+                // it is a surface still being built, it has painted nothing, and left in the layer it would
+                // answer :exists() true at the client's default place with a caller's label built into it.
+                // This is :destroy()'s own body over the Owned this verb already holds.
+                if(p == null) {
+                    UiApi.homeInside(w);                  // anything of the client's inside goes home first
+                    synchronized(monitor(w)) { c.kill(); }
+                    UiApi.dropPending(c);
+                    owner.widgets.remove(c);
+                    return self;                          // ...and the chain behind it takes the 029.2 no-op
+                }
                 if(p == w.parent)
                     return self;
                 // 072.1: the DESTINATION's monitor, and this is the one site that has to choose — a re-home
@@ -1992,10 +2006,16 @@ public final class LuaWidget {
             return self;
         }
         LuaWidget h = resolve(v);
-        Widget p = (h == null) ? null : live(h);
-        if(p == null)
+        if(h == null)
             throw new LuaError("widget:parent(p) on one of the client's own widgets expects a surface YOUR addon"
                 + " built to take it into — hafen.ui():widget() or hafen.ui():window(). Got " + v.typename());
+        Widget p = live(h);
+        // 125.1: the DESTINATION left the tree. The other end of the same split as the builder direction
+        // above, and the receiver here is one of the client's own widgets, which stays exactly where it is:
+        // nothing moves, and the write chains. That is also what leaves the type name above useful: the
+        // branch that prints it is reached only by a genuine non-Widget, never by "Got userdata".
+        if(p == null)
+            return self;
         Owned pc = ownedContent(owner, p);
         if(pc == null)
             throw new LuaError("widget:parent(p) — " + typeName(w) + " is the client's own and so is "

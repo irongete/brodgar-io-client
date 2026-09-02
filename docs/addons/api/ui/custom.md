@@ -223,6 +223,24 @@ local hud = hafen.session():current():ui():match("@GameUI")   -- the HUD is just
 local panel = hafen.ui():widget():parent(hud):size(120, 40)
 ```
 
+**A parent that has left the tree abandons the surface.** The widget you name may be gone by the moment you
+name it: an item icon handed to you by a subscription is destroyed on the client's own step, and a stockpile
+that swallows an inventory destroys a screenful of them at once — so between the event and your call the
+parent can close, and no `:exists()` of yours sits inside the same instant to catch it. The build therefore
+**stops**. Nothing is placed, the rest of the chain runs inert, and the handle you get back answers
+`:exists()` false — the surface was never in the layer, so there is nothing left over to find or release:
+
+```lua
+hafen.session():current():ui():on("item", "Added", function(icon)
+  local badge = hafen.ui():widget():parent(icon):size(12, 12)
+  if not badge:exists() then return end          -- the icon closed: nothing was built
+  badge:on("Draw", function(ev) ev:g():frect(0, 0, 12, 12) end)
+end)
+```
+
+A value that is **not** a Widget is the other fault, and it raises: that one is a spelling mistake, and the
+refusal names what a Widget is and where to get the one you meant.
+
 ### `Drop` makes a widget a drop target
 
 `:on("Drop", fn)` opts the widget into the client's own drag gesture: drag a menu-grid action onto it and

@@ -371,6 +371,12 @@ one [standing in the 3D world](../virtual/widgets.md) — which is this same mov
 keeps the same kind of record. The refusals are the other way round too: `hafen.virtual():widget():add`
 refuses a widget you are holding here.
 
+**A destination that has left the tree moves nothing.** Your own surface may be gone by the moment you
+name it — you built it into a character's tree, and that character logged out — and there is no instant in
+which you could have checked. So the call **stops**: the client's widget stays exactly where it is, holding
+whatever it held, and the verb chains as it always does. Nothing is recorded, so nothing is owed a restore.
+A value that is not a Widget at all still raises, naming the two builders that make a surface of yours.
+
 **The restore puts back the sibling order, not only the parent.** A parent's child list is a paint order and
 the client leans on it — the corner minimap is `lower()`ed so the carved plate above it paints *over* the
 map — so a widget put back by adding alone would come back on top of the very thing that framed it. What
