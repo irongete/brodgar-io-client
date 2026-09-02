@@ -701,12 +701,23 @@ public class Sessions {
 	placedcache = buildplaced();
     }
 
-    /* rts: the thread the frame runs on, and the only one that may build the cache above. Asked of the
-     * loop rather than recorded here: UILoop.th is the loop's own field, so there is no second copy of it
-     * to fall out of step. */
-    private static boolean ontick() {
+    /**
+     * The thread the frame runs on, and the only one that may build the cache above — {@code null}
+     * until the {@code UILoop} constructor has finished, which is the one window in which nothing has
+     * run on it yet. Asked of the loop rather than recorded here: {@code UILoop.th} is the loop's own
+     * field, so there is no second copy of it to fall out of step.
+     *
+     * <p>Public because the addon layer's instruction watchdog asks the same question (126.2): its
+     * budget is confined to the thread that armed it, and this is how it tells the frame's thread from
+     * the off-step ones an action or an inbound message enters on.
+     */
+    public static Thread uithread() {
 	UILoop lp = loop;
-	return((lp != null) && (Thread.currentThread() == lp.th));
+	return((lp == null) ? null : lp.th);
+    }
+
+    private static boolean ontick() {
+	return(Thread.currentThread() == uithread());
     }
 
     /**

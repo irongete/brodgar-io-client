@@ -146,8 +146,9 @@ What that means in practice is small, because it is the only case:
 
 There is no `sleep`, no waiting on a reply, no joining a thread. You schedule a callback and return, and
 that holds in every row of the table. A handler that runs long is a frame the client did not draw, and one
-that never returns would be the client stopping — so two limits catch it: a per-call instruction budget, and
-a sustained per-frame time budget that disables the addon rather than letting the client stutter on. Both
+that never returns would be the client stopping — so two limits catch it: an instruction budget per entry
+into your Lua — one apiece for two of your callbacks running at once on the threads above — and a sustained
+per-frame time budget that disables the addon rather than letting the client stutter on. Both
 are on [budgets and the watchdog](../runtime.md#budgets-and-the-watchdog).
 
 ## See also

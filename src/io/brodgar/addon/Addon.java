@@ -1187,8 +1187,15 @@ public final class Addon {
                 Path fp = dir.resolve(file);
                 String src = new String(Files.readAllBytes(fp), StandardCharsets.UTF_8);
                 LuaValue chunk = env.load(src, "@" + manifest.id + "/" + file);
-                Sandbox.arm(env);   // watchdog the file body too (D-018) — reset the budget per file
-                chunk.call();
+                // watchdog the file body too (D-018) — a full budget per file. 126.2: paired with a
+                // release, because loading runs off the frame's thread and an unreleased claim would be
+                // a holder left behind on a Loader thread that is about to end.
+                long budget = Sandbox.arm(env);
+                try {
+                    chunk.call();
+                } finally {
+                    Sandbox.disarm(env, budget);
+                }
             } catch(Exception e) {
                 error = file + ": " + e.getMessage();
                 return;

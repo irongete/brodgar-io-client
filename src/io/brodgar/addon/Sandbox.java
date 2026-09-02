@@ -2,6 +2,8 @@ package io.brodgar.addon;
 
 import haven.Utils;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LoadState;
 import org.luaj.vm2.LuaClosure;
@@ -48,10 +50,15 @@ import org.luaj.vm2.lib.jse.JsePlatform;
  *       reachable from Lua (D-017).</li>
  * </ul>
  *
- * <p>The {@link #arm(Globals)} / call pattern resets the budget before <em>every</em> entry into Lua
- * (the {@code AddonManager} call sites: each handler/timer via {@code callLua}, each file body in
- * {@link Addon#run()}, and each {@code :lua} REPL evaluation), so a legitimate callback always gets
- * the full budget and only a genuine runaway trips it.
+ * <p>The {@link #arm(Globals)} / call / {@link #disarm(Globals, long)} pattern gives a full budget to
+ * <em>every</em> entry into Lua (the call sites: each handler/timer via {@code AddonManager.callLua},
+ * each file body in {@link Addon#run()}, and each {@code :lua} REPL evaluation), so a legitimate
+ * callback always gets the full budget and only a genuine runaway trips it. <b>The budget is per entry,
+ * not per environment</b> (126.2): {@code threading.md} states that an action handler and an inbound
+ * message handler can be running one addon's Lua while the step is running its Lua too, so a single
+ * counter per {@link Globals} would have one entry reset the other's budget and lose the other's
+ * decrements. {@link Watchdog} therefore <i>confines</i> the budget to the thread that armed it, and
+ * {@code arm} hands back the budget it displaced so a nested entry puts its caller's back.
  *
  * <p><b>The {@code :lua} REPL is deliberately NOT whitelisted</b> ({@link #consoleGlobals()}): it is
  * the operator's own trusted debugging console (full {@code standardGlobals()}, incl. {@code luajava}
@@ -158,13 +165,52 @@ public final class Sandbox {
     }
 
     /**
-     * Reset the instruction budget on {@code g}'s watchdog to a full {@link #INSN_CAP} for the call
-     * that is about to run. Call immediately before every entry into Lua. No-op if {@code g} has no
-     * watchdog or the cap is disabled ({@code <= 0}).
+     * Claim a full {@link #INSN_CAP} instruction budget <b>on the calling thread</b> for the entry into
+     * {@code g}'s Lua that is about to run. Call immediately before every entry into Lua, and hand the
+     * value it returns to {@link #disarm(Globals, long)} in a {@code finally} — that is what releases
+     * the claim, and what puts a caller's own budget back when one entry is nested inside another.
+     * No-op (returning {@link #UNARMED}) if {@code g} has no watchdog.
+     *
+     * <p>A disabled cap ({@code -Dhaven.addon.insncap} {@code <= 0}) arms {@link Long#MAX_VALUE}, which
+     * is how the hard stop is switched off: the arithmetic below is unchanged and simply never underflows.
      */
-    public static void arm(Globals g) {
+    public static long arm(Globals g) {
         if((g != null) && (g.debuglib instanceof Watchdog))
-            ((Watchdog)g.debuglib).remaining = (INSN_CAP > 0) ? INSN_CAP : Long.MAX_VALUE;
+            return ((Watchdog)g.debuglib).arm();
+        return UNARMED;
+    }
+
+    /**
+     * Release what {@link #arm(Globals)} claimed, handing back the value it returned. The outermost
+     * entry on a thread drops that thread's claim entirely — so a Loader thread that made one off-thread
+     * call leaves nothing behind — and a nested one restores the budget its caller was spending.
+     */
+    public static void disarm(Globals g, long armed) {
+        if((g != null) && (g.debuglib instanceof Watchdog))
+            ((Watchdog)g.debuglib).disarm(armed);
+    }
+
+    /**
+     * What {@link #arm(Globals)} returns when there was no budget to displace — no watchdog on {@code g},
+     * or this thread's outermost entry into it. {@link #disarm(Globals, long)} reads it as "drop the
+     * claim" rather than "restore this many instructions", and no real budget can collide with it because
+     * a budget is only ever {@link #INSN_CAP} or {@link Long#MAX_VALUE} counting down.
+     */
+    static final long UNARMED = Long.MIN_VALUE;
+
+    /**
+     * <b>The thread the frame runs on</b> — {@link Watchdog}'s fast path, and {@code null} until the
+     * {@code UILoop} constructor has finished. Asked of the loop once and then remembered: the loop is
+     * built once and its thread never changes, so a second read can only agree. The field is plain
+     * rather than {@code volatile} because it is written with a value that is already safely published
+     * (through {@code Sessions}' own volatile) and every racing writer writes the same reference; a
+     * thread that has not seen the write merely asks again.
+     */
+    private static Thread uith = null;
+
+    static Thread uiThread() {
+        Thread t = uith;
+        return (t != null) ? t : (uith = io.brodgar.session.Sessions.uithread());
     }
 
     private static long propLong(String name, long def) {
@@ -185,9 +231,29 @@ public final class Sandbox {
      * uninitialized {@code globals}); {@code onInstruction} does the budget check and never calls
      * {@code super}, so it never touches that state either.
      *
-     * <p>{@link #remaining} is single-threaded per addon (Lua for one env is serialized), set by
-     * {@link Sandbox#arm(Globals)} before each call and decremented per instruction; on underflow it
-     * self-resets and throws so a caught error does not immediately re-trip on the next instruction.
+     * <p><b>The budget is per entry into Lua, whatever thread entered</b> (126.2). It used to be one
+     * plain field per environment, which is what {@code threading.md} makes wrong: an action handler and
+     * an inbound message handler each enter one addon's Lua off the step's thread, and can be inside it
+     * while the step is inside it too — so arming one entry reset the other's budget and the other's
+     * decrements were lost against a counter that had moved. The budget is <b>thread-confined</b>
+     * instead, and not shared by anybody:
+     * <ul>
+     *   <li>{@link #uiRem} — the thread that ticks and draws, which is very nearly every entry. Reached
+     *       by one reference compare against {@link Sandbox#uiThread()}; plain, not {@code volatile},
+     *       because only that one thread ever touches it. That is confinement, not synchronisation.</li>
+     *   <li>{@link #off} — a holder per <em>other</em> thread, for the rare off-step entries. {@code arm}
+     *       puts one in and the outermost {@code disarm} takes it out, so a Loader thread that made one
+     *       call leaves nothing behind.</li>
+     * </ul>
+     * Neither is touched per instruction by more than one thread, so no reordering is possible and there
+     * is nothing to make visible. On underflow the budget self-resets and throws, so a caught error does
+     * not immediately re-trip on the next instruction.
+     *
+     * <p>{@code disarm} asks the map <b>first</b>, and the ordering is not arbitrary: {@code UILoop.th}
+     * is assigned last in its constructor, so an entry made before that reads {@code null}, fails the
+     * compare and takes the map — and would then be released against {@link #uiRem} if the release asked
+     * the compare again. One map lookup per entry into Lua (not per instruction) buys a claim that is
+     * always released where it was made.
      *
      * <p>{@link #traceback(int)} is overridden to return {@code ""}: LuaJ's default error path
      * ({@code LuaClosure.processErrorHooks}) calls {@code debuglib.traceback(level)} on <b>every</b>
@@ -198,14 +264,64 @@ public final class Sandbox {
      * {@code chunkname:line} prefix carried on the message.
      */
     static final class Watchdog extends DebugLib {
-        long remaining = Long.MAX_VALUE;   // instructions left for the current call; armed before each entry
+        /** Instructions left in the entry the UI thread is inside; touched by {@link Sandbox#uiThread()} only. */
+        private long uiRem = Long.MAX_VALUE;
+        /** One holder per other thread currently inside this environment's Lua — empty almost always. */
+        private final ConcurrentHashMap<Thread, long[]> off = new ConcurrentHashMap<Thread, long[]>();
 
         public void onInstruction(int pc, Varargs v, int top) {
-            if(--remaining < 0) {
-                remaining = Long.MAX_VALUE;   // avoid re-throwing on every subsequent instruction
-                throw new LuaError("addon watchdog: instruction budget exceeded (>" + INSN_CAP
-                    + " instructions in one call — possible infinite loop)");
+            Thread cur = Thread.currentThread();
+            if(cur == uiThread()) {
+                if(--uiRem < 0) {
+                    uiRem = Long.MAX_VALUE;   // avoid re-throwing on every subsequent instruction
+                    throw new LuaError(over());
+                }
+            } else {
+                long[] slot = off.get(cur);
+                if(slot == null)
+                    return;                   // Lua on a thread that armed nothing: nothing to spend
+                if(--slot[0] < 0) {
+                    slot[0] = Long.MAX_VALUE;
+                    throw new LuaError(over());
+                }
             }
+        }
+
+        /** Claim this thread's budget, handing back whatever it displaced. @see Sandbox#arm(Globals) */
+        long arm() {
+            long full = (INSN_CAP > 0) ? INSN_CAP : Long.MAX_VALUE;
+            Thread cur = Thread.currentThread();
+            if(cur == uiThread()) {
+                long prev = uiRem;
+                uiRem = full;
+                return prev;
+            }
+            long[] slot = off.get(cur);
+            if(slot == null) {
+                off.put(cur, new long[] {full});
+                return UNARMED;               // this thread's outermost entry: the disarm drops the holder
+            }
+            long prev = slot[0];
+            slot[0] = full;
+            return prev;
+        }
+
+        /** Release the claim {@link #arm()} made on this thread. @see Sandbox#disarm(Globals, long) */
+        void disarm(long armed) {
+            long[] slot = off.get(Thread.currentThread());
+            if(slot == null) {
+                uiRem = (armed == UNARMED) ? Long.MAX_VALUE : armed;
+                return;
+            }
+            if(armed == UNARMED)
+                off.remove(Thread.currentThread());
+            else
+                slot[0] = armed;
+        }
+
+        private static String over() {
+            return "addon watchdog: instruction budget exceeded (>" + INSN_CAP
+                + " instructions in one call — possible infinite loop)";
         }
 
         public void onCall(LuaFunction f) {}

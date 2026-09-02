@@ -3910,8 +3910,12 @@ public final class AddonManager {
         if(quiet())
             return LuaValue.NIL;
         long t0 = System.nanoTime();
+        // 126.2: the instruction budget for THIS entry, on THIS thread — outside the try, so what is
+        // claimed here is exactly what the finally below releases. The value is the budget it displaced:
+        // an entry nested inside another (a handler that fires an event of its own) puts its caller's
+        // back, and a thread's outermost entry drops its claim entirely.
+        long budget = Sandbox.arm(owner.env);
         try {
-            Sandbox.arm(owner.env);   // reset the watchdog's instruction budget for this callback (D-018)
             return fn.invoke((args.length == 0) ? LuaValue.NONE : LuaValue.varargsOf(args));
         } catch(LuaError e) {
             log(owner, "handler error: " + e.getMessage());
@@ -3936,6 +3940,7 @@ public final class AddonManager {
             }
             contain(owner, t);
         } finally {
+            Sandbox.disarm(owner.env, budget);   // 126.2: released where it was claimed, on every path out
             long d = System.nanoTime() - t0;
             owner.tickLuaNanos += d;   // soft per-tick CPU-budget accounting (D-018 layer 2)
             // 019.4: the SAME measurement, split by what the addon was doing. Deliberately an addition
@@ -4797,8 +4802,15 @@ public final class AddonManager {
             } catch(LuaError e) {
                 chunk = console().load(src, "=lua");                // statement form (e.g. print(...))
             }
-            Sandbox.arm(consoleOwner.env);   // watchdog the console too (e.g. a stray `while true do end`)
-            LuaValue r = chunk.call();
+            // watchdog the console too (e.g. a stray `while true do end`); 126.2: paired with a release,
+            // so this entry's budget is this entry's and the next line typed gets a full one of its own.
+            long budget = Sandbox.arm(consoleOwner.env);
+            LuaValue r;
+            try {
+                r = chunk.call();
+            } finally {
+                Sandbox.disarm(consoleOwner.env, budget);
+            }
             if(!r.isnil()) {
                 String out = "lua= " + Json.write(r);
                 System.out.println("[console] " + out);            // full result to the terminal...

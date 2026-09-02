@@ -15,7 +15,7 @@
       `[manual]`: run `:126crash`, then open Options → AddOns — expect: the client still running, and this
       addon's row reading `auto-disabled`.
 
-- [ ] **126.2 — the instruction budget is one per entry, whatever thread entered.**
+- [x] **126.2 — the instruction budget is one per entry, whatever thread entered.**
       `Sandbox.Watchdog` stops holding one `remaining` per environment and confines it instead: a plain
       `long` for `UILoop.th`, reached by one reference compare in `onInstruction`, and a
       `ConcurrentHashMap<Thread, long[]>` for the off-thread entries an action or inbound-message handler

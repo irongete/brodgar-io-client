@@ -134,9 +134,14 @@ thing they answer is. Which is which, and what each may reach, is [threading](ap
 Because your Lua runs inside the client's own frame, an addon that never returns would freeze the client. Two limits make that
 impossible, and neither one is reachable by ordinary code.
 
-- **Per call: ten million instructions.** Every entry into your Lua — a handler, a timer, a draw, a file
-  body — gets a fresh budget, and a call that exhausts it is aborted with an error naming the runaway. A
-  legitimate callback is thousands of instructions, not millions.
+- **Per entry: ten million instructions.** Every entry into your Lua — a handler, a timer, a draw, a file
+  body — gets a fresh budget of its own, and a call that exhausts it is aborted with an error naming the
+  runaway. A legitimate callback is thousands of instructions, not millions. The budget belongs to the
+  **entry**, not to your addon: two of your callbacks running at once, on the [two threads that can be
+  inside your Lua](api/threading.md), each spend their own, so neither is aborted for what the other did
+  and neither is given a fresh one by the other starting. A callback your own callback calls into — a
+  handler that fires an event you subscribe to — is an entry too, and hands the budget back on the way
+  out, so the outer call goes on spending what it had left rather than starting over.
 - **Per tick: about ten milliseconds, sustained.** An addon whose total Lua time within one tick — every
   handler, timer and draw of that tick added up — goes over the budget for thirty **consecutive** ticks is
   auto-disabled, with the reason on its row in the AddOns panel and in the console. One heavy load or a

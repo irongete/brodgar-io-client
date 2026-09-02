@@ -1,0 +1,9 @@
+{
+  "name": "126.2 — the instruction budget is one per entry",
+  "id": "126-a-failure-stops-at-the-addon.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 126.2: a runaway loop is still aborted by the instruction cap, and twenty entries in a row each get a full budget of their own rather than draining a shared one.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
