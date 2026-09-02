@@ -4309,8 +4309,9 @@ public final class AddonManager {
         // becomes nil (an absent key in an object, a hole in an array — the standard Lua-JSON trade-off);
         // integral numbers come back as Lua ints. Malformed input, or input over the size/depth caps
         // (-Dhaven.addon.json.maxlen / .maxdepth), throws a pcall-able LuaError. encode(value) -> compact
-        // JSON and is STRICT (a function/userdata/thread, a reference cycle, or a non-finite number throws)
-        // so the result is always valid JSON — unlike the REPL echo's forgiving Json.write.
+        // JSON and is STRICT (a function/userdata/thread, a reference cycle, a table nested past the SAME
+        // depth cap parse reads to, or a non-finite number throws) so the result is always valid JSON —
+        // unlike the REPL echo's forgiving Json.write, which places a marker and keeps writing.
         LuaTable json = new LuaTable();
         json.set("parse", new VarArgFunction() {
             public Varargs invoke(Varargs a) {

@@ -45,8 +45,9 @@ One that is not `:durable()` cannot be written and raises saying so, rather than
 that reads like a place and is not one.
 
 Input longer than **8 million characters**, or nested deeper than **256** levels, raises instead of
-risking the stack or the heap. Both caps are set at launch with `-Dhaven.addon.json.maxlen=<chars>` and
-`-Dhaven.addon.json.maxdepth=<levels>`.
+risking the stack or the heap. The depth cap is one cap for both directions: `encode` refuses a table
+nested past it too, because nesting costs the stack on that side as well. Both caps are set at launch
+with `-Dhaven.addon.json.maxlen=<chars>` and `-Dhaven.addon.json.maxdepth=<levels>`.
 
 ### `hafen.json():encode(value)`
 
@@ -58,8 +59,8 @@ Serializes a Lua value to **compact**, single-line JSON.
 - Booleans and strings map across with the usual escaping.
 
 **`encode` is strict**: it only ever produces valid JSON, so a **function**, **userdata**, **thread**, a
-**reference cycle** or a **non-finite number** raises a Lua error rather than emitting a placeholder.
-Wrap it if the value might hold one:
+**reference cycle**, a table nested deeper than the **depth cap** above, or a **non-finite number** raises
+a Lua error rather than emitting a placeholder. Wrap it if the value might hold one:
 
 ```lua
 local ok, s = pcall(function() return hafen.json():encode(value) end)

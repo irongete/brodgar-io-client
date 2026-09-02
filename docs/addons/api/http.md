@@ -86,7 +86,8 @@ or more later. There is no blocking form — a request on the UI thread would fr
 
 A table body is encoded with the same serializer as [`hafen.json():encode`](json.md) and sent as
 `Content-Type: application/json` unless you set your own with `:header`. One that cannot be
-serialized — a function, userdata, a cycle — raises at the call.
+serialized — a function, userdata, a cycle, a table nested past that serializer's depth cap —
+raises at the call.
 
 Transport-owned headers (`Host`, `Content-Length`, `Connection`, `User-Agent`, …) are ignored. A setter
 refuses an explicit `nil`: the read is the same name with no argument, so `req:timeout(t)` with a `t` you

@@ -1,0 +1,9 @@
+{
+  "name": "126.3 — encode refuses a table too deep",
+  "id": "126-a-failure-stops-at-the-addon.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 126.3: a table nested past the depth cap is refused by name instead of overflowing the stack, encode and parse answer to the same cap, and a table one level inside it still round-trips.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

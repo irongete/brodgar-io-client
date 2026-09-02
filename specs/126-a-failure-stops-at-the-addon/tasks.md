@@ -28,7 +28,7 @@
       counter, and the check that fails today if the budget is ever made cumulative.
       <!-- extra context: src/haven/UILoop.java for `th`'s declaration and its assignment order -->
 
-- [ ] **126.3 — encode refuses a table too deep instead of overflowing the stack.**
+- [x] **126.3 — encode refuses a table too deep instead of overflowing the stack.**
       `Json` threads a depth through `write`/`writeTab` against `DEFAULT_MAX_DEPTH`, the cap and the system
       property `parse` already reads. It follows the rule the cycle guard set: strict mode raises, forgiving
       mode writes a placeholder beside `"<cycle>"`, so the store's flush and the `:lua` result survive a deep

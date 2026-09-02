@@ -29,14 +29,20 @@ import org.luaj.vm2.LuaValue;
  * bridge before parsing.
  *
  * <p><b>Writer.</b> {@link #write(LuaValue)} is <i>forgiving</i> (a function/userdata/thread &rarr; a
- * quoted {@code tostring}, a cycle &rarr; {@code "<cycle>"}) — the REPL/store behaviour; {@link
+ * quoted {@code tostring}, a cycle &rarr; {@code "<cycle>"}, a table past the depth cap &rarr;
+ * {@code "<too deep>"}) — the REPL/store behaviour; {@link
  * #write(LuaValue,boolean) write(v,true)} is <i>strict</i> — those cases throw a {@link LuaError} so the
- * public {@code hafen.json():encode} only ever yields valid JSON.
+ * public {@code hafen.json():encode} only ever yields valid JSON. The writer answers to the <b>same</b>
+ * {@link #DEFAULT_MAX_DEPTH} the reader does: nesting is recursive on this side too, so an acyclic but very
+ * deep table would {@code StackOverflow} the writer exactly as a deep document would the reader.
  */
 public final class Json {
     /** Input-length cap for {@code hafen.json():parse} (bytes of the string), {@code -Dhaven.addon.json.maxlen}. */
     public static final int MAX_INPUT = (int)propLong("haven.addon.json.maxlen", 8L * 1024 * 1024);
-    /** Nesting-depth cap used by {@code hafen.json():parse} and the default {@link #parse(String)}. */
+    /**
+     * Nesting-depth cap, one cap in both directions: {@code hafen.json():parse} and the default
+     * {@link #parse(String)} read no deeper, and {@link #write(LuaValue,boolean)} writes no deeper.
+     */
     public static final int DEFAULT_MAX_DEPTH = (int)propLong("haven.addon.json.maxdepth", 256L);
 
     private final String s;
@@ -206,17 +212,19 @@ public final class Json {
 
     /**
      * Serialize a Lua value to compact single-line JSON. When {@code strict}, a non-serializable value
-     * (function/userdata/thread), a reference cycle, or a non-finite number throws a {@link LuaError}
-     * (so {@code hafen.json():encode} only emits valid JSON); when not strict, those degrade to a quoted
-     * {@code tostring} / {@code "<cycle>"} / {@code null} (the REPL's copy-friendly echo).
+     * (function/userdata/thread), a reference cycle, a table nested past {@link #DEFAULT_MAX_DEPTH}, or a
+     * non-finite number throws a {@link LuaError} (so {@code hafen.json():encode} only emits valid JSON);
+     * when not strict, those degrade to a quoted {@code tostring} / {@code "<cycle>"} / {@code "<too deep>"}
+     * / {@code null} (the REPL's copy-friendly echo).
      */
     public static String write(LuaValue v, boolean strict) {
         StringBuilder sb = new StringBuilder();
-        write(v, sb, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<LuaValue, Boolean>()), strict);
+        write(v, sb, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<LuaValue, Boolean>()), strict, 0);
         return sb.toString();
     }
 
-    private static void write(LuaValue v, StringBuilder sb, java.util.Set<LuaValue> seen, boolean strict) {
+    /** {@code depth} is the number of tables already open around {@code v} — 0 at the root. */
+    private static void write(LuaValue v, StringBuilder sb, java.util.Set<LuaValue> seen, boolean strict, int depth) {
         LuaPosition pos = LuaPosition.resolve(v);
         if(pos != null) {
             writePos(pos, sb, strict);
@@ -236,7 +244,7 @@ public final class Json {
         } else if(v instanceof LuaString) {
             writeStr(v.tojstring(), sb);
         } else if(v instanceof LuaTable) {
-            writeTab((LuaTable)v, sb, seen, strict);
+            writeTab((LuaTable)v, sb, seen, strict, depth);
         } else if(strict) {
             throw new LuaError("hafen.json():encode: cannot encode a " + v.typename());
         } else {
@@ -280,7 +288,21 @@ public final class Json {
             sb.append(Double.toString(d));
     }
 
-    private static void writeTab(LuaTable t, StringBuilder sb, java.util.Set<LuaValue> seen, boolean strict) {
+    /**
+     * A table, as an array or an object. Two guards stand in front of the recursion, and both follow the
+     * <b>same rule</b>: strict refuses, forgiving writes a placeholder. A <b>cycle</b> is the walk meeting a
+     * table it is already inside; <b>depth</b> is the walk going deeper than {@link #DEFAULT_MAX_DEPTH}
+     * without one — an acyclic chain of tables, which the cycle guard cannot see and which would
+     * otherwise take the Java stack down with it. A saved-variables flush must not be lost to either, which
+     * is why the forgiving path keeps writing.
+     */
+    private static void writeTab(LuaTable t, StringBuilder sb, java.util.Set<LuaValue> seen, boolean strict, int depth) {
+        if(depth >= DEFAULT_MAX_DEPTH) {                 // this table would be level DEFAULT_MAX_DEPTH + 1
+            if(strict)
+                throw new LuaError("hafen.json():encode: table nesting too deep (> " + DEFAULT_MAX_DEPTH + ")");
+            sb.append("\"<too deep>\"");
+            return;
+        }
         if(!seen.add(t)) {                               // break reference cycles
             if(strict)
                 throw new LuaError("hafen.json():encode: cannot encode a table cycle");
@@ -304,7 +326,7 @@ public final class Json {
                 for(int i = 1; i <= len; i++) {
                     if(i > 1)
                         sb.append(',');
-                    write(t.get(i), sb, seen, strict);
+                    write(t.get(i), sb, seen, strict, depth + 1);
                 }
                 sb.append(']');
             } else {
@@ -316,7 +338,7 @@ public final class Json {
                     first = false;
                     writeStr(k.tojstring(), sb);          // JSON keys are strings
                     sb.append(':');
-                    write(t.get(k), sb, seen, strict);
+                    write(t.get(k), sb, seen, strict, depth + 1);
                 }
                 sb.append('}');
             }
