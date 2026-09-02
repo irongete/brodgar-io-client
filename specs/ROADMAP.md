@@ -13,7 +13,6 @@
 - a numeric **string** passes `v.isnumber()` in LuaJ, so `place`, `item:drop` and `widget:send` coerce one through (filed: 055)
 - the other side of that coercion: the `!isstring() || isnumber()` idiom refuses `"42"` and `"061.8"`, so `entry:value(s)` and `radio:value(s)` reject a row or a line that merely scans as a number (filed: 061)
 - `LuaWorldEntity`'s javadoc calls five retired verbs "the common handle verbs" (filed: 055)
-- `widget:on(key, fn)` on a STALE widget refuses naming the key as unknown, before the check that says the widget left the tree (filed: 061)
 - the layout half of the caption seam takes no widget, so a late-captioned window never lays its descendants out (filed: 049)
 - `hafen.ui():on(sel, event, fn)` is the one `:on` whose handle ends with `:remove()` instead of `sub:off()` (filed: 061)
 - `widget:on("Destroy", fn)` stays silent for one of the CLIENT's widgets inside a window that is destroyed: only an addon's own are reported from the disposal recursion (filed: 061)
