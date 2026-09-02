@@ -251,7 +251,8 @@ sub:off()
 `use` is the **only** key an entry has, so any other name throws at the line that wrote it rather than
 reading as a handler that never fires. **Two handlers on one entry both fire**, in the order they registered,
 and `off()` on one leaves the other running. A handler that errors is isolated: it is logged, and it breaks
-neither your other handlers nor the client.
+neither your other handlers nor the client. One that fails the client itself — off the end of the stack, out
+of memory — stops [your addon instead](../runtime.md#when-a-failure-is-fatal).
 
 The handler is handed the entry that fired, so one function can serve several buttons. Nothing is sent to
 the server, whichever way the entry was pressed, and nothing about the grid changes: the client runs your

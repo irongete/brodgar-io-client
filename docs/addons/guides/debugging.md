@@ -19,7 +19,8 @@ is a table.
 
 Errors your addon raises arrive on the same channel with the same prefix, wherever they came from — a
 handler, a timer, a draw callback. They are isolated: the one callback dies, the rest of your addon and the
-rest of the client carry on. That is why a broken handler looks like *nothing happening* rather than like a
+rest of the client carry on — with one exception, a failure from underneath the language that
+[stops the whole addon](../runtime.md#when-a-failure-is-fatal) rather than the client. That is why a broken handler looks like *nothing happening* rather than like a
 crash, and why the console is the first place to look.
 
 ## Try the call before you write it
@@ -115,7 +116,7 @@ menu, which `Ctrl+O` opens — says the same thing with the error message attach
 | `error: …` | the message: bad JSON, a missing `id` or `files`, or an id that is not the folder name |
 | `disabled` | the checkbox — and remember a write addon is disabled the first time it is seen |
 | `not loaded` | an enable that no `:reload` has applied yet |
-| `auto-disabled (…)` | the [CPU budget](../runtime.md#budgets-and-the-watchdog): your addon was burning the frame |
+| `auto-disabled (…)` | the [CPU budget](../runtime.md#budgets-and-the-watchdog) — your addon was burning the frame — or a [fatal failure](../runtime.md#when-a-failure-is-fatal) the client contained |
 
 A change to the enabled set is always applied on the **next** reload, never mid-session, so "I ticked it
 and nothing happened" is one `:reload` away from being fixed.

@@ -74,7 +74,9 @@ than guessing: each one's reference page states what it gives back when there is
 
 An error while a file runs stops **that** addon's file and marks it errored in the panel; an error inside a
 handler, a timer or a draw callback is logged with your addon's id and isolated, so it takes down neither
-your other handlers nor another addon nor the client.
+your other handlers nor another addon nor the client. A **callback** that fails in a way that is not an
+error at all — running the client off the end of its stack or out of memory — is contained as well, and
+[costs you the addon](#when-a-failure-is-fatal).
 
 ## Your addon outlives the character
 
@@ -140,11 +142,30 @@ impossible, and neither one is reachable by ordinary code.
   auto-disabled, with the reason on its row in the AddOns panel and in the console. One heavy load or a
   single janky frame resets the count, so only sustained overrun trips it.
 
-> An auto-disable lasts until the next load: fix what was burning the frame, then `:reload`. The addon's
-> own enable state is untouched.
+> An auto-disable lasts until the next load: fix what stopped it, then `:reload`. The addon's own enable
+> state is untouched.
 
 [`hafen.client():profiling()`](api/client/profiling/README.md) reports what each addon spends per frame,
 which is how you find out *before* the engine does.
+
+## When a failure is fatal
+
+Some failures are not errors your Lua can see. A handler, a timer or a draw callback that recurses without
+bound runs the client off the end of its stack; one that builds a table without bound runs it out of memory.
+Both raise something from underneath the language, which your own `pcall` never catches and which no
+callback can be written to survive.
+
+The client contains those where it isolates every other error, and pays for them with your addon:
+
+- the failure is logged with your addon's id, and the stack behind it goes to the terminal — for this kind
+  of failure that stack is the only description of it there is;
+- at the end of that tick your addon is torn down, exactly as the CPU budget tears one down: `Disable`
+  fires, your saved variables are flushed, and everything the addon owns is given back;
+- its row in the AddOns panel reads `auto-disabled (…)`, naming what was raised, until the next load.
+
+> **The whole addon stops, not the one callback.** That is the difference from an ordinary error, and it is
+> deliberate: a client that has just run out of stack under your handler holds nothing you could go on
+> reading. Every other addon and the client itself keep running, and so does the frame it happened in.
 
 ## The AddOns panel
 
@@ -158,7 +179,7 @@ tooltip.
 | `disabled` | switched off, and not loaded |
 | `not loaded` | enabled, but not running — usually an enable that no reload has applied yet |
 | `error: …` | its manifest or its Lua failed; the message says how |
-| `auto-disabled (…)` | the CPU budget stopped it |
+| `auto-disabled (…)` | the [CPU budget](#budgets-and-the-watchdog) or a [fatal failure](#when-a-failure-is-fatal) stopped it |
 | `[protected: N]` | it asked for N permission entries — it can act on your behalf; the tooltip names them |
 | `[net]` | it declared network hosts; the tooltip names every host it may reach |
 

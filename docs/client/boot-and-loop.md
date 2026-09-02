@@ -60,7 +60,7 @@ thrown exception, but nothing runs for a `SIGKILL` or a hard JVM failure.
 
 | What | Where |
 |---|---|
-| Render+tick thread ("Haven UI thread") | `UILoop` (thread created) |
+| Render+tick thread ("Haven UI thread") | `UILoop` — the thread is created in the constructor and looped in `UILoop.run`. ⚠️ **`run` catches `InterruptedException` and nothing else**: any other `RuntimeException` or `Error` out of `Frame.run` leaves the `while(true)`, runs the `finally` that clears `lockedui`, and **ends the thread** — the window stays up and nothing ticks, draws or dispatches again, and no `UI` is destroyed. Nothing restarts it and no handler is installed for it, so every seam the frame calls into has to contain its own failures, `Error` included |
 | **Per-frame tick, two trees** | `UILoop.Frame.tick` — the layer under `synchronized(layer)`, then the drawn session under `synchronized(ui)`, **never both at once**. `ctick`/`gtick` run for the session alone: the layer has no `Glob` |
 | Game-state tick | `glob.ctick()` at `UILoop.java` → `Glob.ctick` |
 | **Widget-tree tick broadcast** ← per-frame update seam | `ui.tick()` at `UILoop.java` → `UI.tick` → `TickEvent` → `Widget.tick` |

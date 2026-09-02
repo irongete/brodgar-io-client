@@ -196,6 +196,31 @@ public final class AddonManager {
     // is one warning, not one per character.
     static final Map<String, String> autoDisabledWarn = new ConcurrentHashMap<String, String>();
 
+    /**
+     * <b>One addon filed for quarantine</b> (126.1) — an {@link Error} escaped its Lua at {@link #callLua},
+     * which no {@code pcall} of the addon's could see and which would otherwise leave the choke point, leave
+     * the step and end the UI thread. The failure is contained where it happened; the tear-down is not, so
+     * this is what carries the addon from there to the safe point.
+     */
+    private static final class Quarantine {
+        final Addon addon;
+        final String reason;
+
+        Quarantine(Addon addon, String reason) {
+            this.addon = addon;
+            this.reason = reason;
+        }
+    }
+
+    /**
+     * The quarantines {@link #callLua} has filed and {@link #enforceSoftBudget} has not yet spent (126.1).
+     * A queue and not a direct call, for the reason {@link #autoDisable} states in its own javadoc: it
+     * mutates {@code addons}, and {@code callLua} is called from inside the step's iteration over it — and
+     * from off-thread handlers, which may not touch that list at all. Concurrent because those threads file
+     * here, exactly as they write {@link #autoDisabledWarn}.
+     */
+    private static final Queue<Quarantine> quarantines = new ConcurrentLinkedQueue<Quarantine>();
+
     // -- the permissions tier (spec 12-security-and-permissions / D-010 / D-025 / D-027; refined by D-028):
     // the protected surface. Every protected verb — player:move, hand:use, the four item verbs,
     // world:click/:place/:select, pag:use, widget:send, speed:set, craft:make, slot:use/:res, the kin writes,
@@ -1522,10 +1547,13 @@ public final class AddonManager {
      * {@link Sandbox#SOFT_BUDGET_NANOS} adds a strike, one under budget clears the count. On reaching
      * {@link Sandbox#SOFT_STRIKE_LIMIT} consecutive over-budget ticks it is auto-disabled until the next load
      * (torn down + a warning surfaced in the AddOns panel). Runs at end of tick, so mutating {@code addons}
-     * via {@link #autoDisable} is safe. The {@code :lua} REPL owner is exempt (it is not in {@code addons}
-     * — the sandbox constrains shared addon code, not the operator's console).
+     * via {@link #autoDisable} is safe — which is why {@link #drainQuarantines} is spent here too (126.1),
+     * above the config gate, since a contained {@link Error} is not a budget and does not turn off with one.
+     * The {@code :lua} REPL owner is exempt (it is not in {@code addons} — the sandbox constrains shared
+     * addon code, not the operator's console).
      */
     private static void enforceSoftBudget() {
+        drainQuarantines();   // 126.1: FIRST, and above the config gate below — containment is not a budget
         if((Sandbox.SOFT_BUDGET_NANOS <= 0) || (Sandbox.SOFT_STRIKE_LIMIT <= 0))
             return;   // soft budget disabled by config
         for(Addon a : addons) {
@@ -1540,15 +1568,41 @@ public final class AddonManager {
     }
 
     /**
+     * <b>Spend the quarantines {@link #callLua} filed</b> (126.1), at the end-of-tick safe point the CPU
+     * watchdog already auto-disables from — outside the step's iteration over {@code addons}, on the UI
+     * thread, whichever thread was inside Lua when the failure happened. From there it is the CPU watchdog's
+     * own path exactly: {@link #autoDisable} announces it, tears the addon down and leaves the reason on its
+     * AddOns row until the next load.
+     *
+     * <p>An addon already gone — torn down by a reload, or by the quarantine its own {@code Disable} handler
+     * then raised — is dropped, so a second failure on the way out cannot tear one down twice. So is the
+     * {@code :lua} REPL owner, which is not in {@code addons} and is not the sandbox's business: taking the
+     * console away from the operator because a typed expression overflowed the stack is the opposite of the
+     * point, so it is said and dropped.
+     */
+    private static void drainQuarantines() {
+        for(Quarantine q = quarantines.poll(); q != null; q = quarantines.poll()) {
+            if(q.addon == consoleOwner) {
+                log("the :lua console raised a " + q.reason + " - contained; the console stays");
+                continue;
+            }
+            if(addons.contains(q.addon))
+                autoDisable(q.addon, q.reason);
+        }
+    }
+
+    /**
      * Auto-disable an addon (D-018): record a panel warning, run its teardown ({@code Disable} → flush saved
      * vars → drop owned resources) and drop it from the live set so it stops ticking. This does NOT touch the
      * persisted enabled set — a {@code :reload} gives the addon a fresh start (the user can persist-disable it
      * via the panel checkbox). Called from {@link #enforceSoftBudget} at end of tick, so mutating
-     * {@code addons} here is safe.
+     * {@code addons} here is safe — and since 126.1 from {@link #drainQuarantines} beside it, for an addon
+     * whose Lua raised something no {@code pcall} could catch. One tear-down, one announcement and one panel
+     * string for both, which is why the {@code reason} names its own cause rather than this line doing it.
      */
     private static void autoDisable(Addon a, String reason) {
         String id = (a.manifest != null) ? a.manifest.id : "addon";
-        log(a, "AUTO-DISABLED by the CPU watchdog (" + reason + ") - see Options -> AddOns");
+        log(a, "AUTO-DISABLED (" + reason + ") - see Options -> AddOns");
         autoDisabledWarn.put(id, reason);
         AddonRegistry.teardown(a);
         addons.remove(a);
@@ -3865,6 +3919,22 @@ public final class AddonManager {
         } catch(RuntimeException e) {
             log(owner, "handler error: " + e);
             trace(e);
+        } catch(Throwable t) {
+            // 126.1: AND AN Error. Everything above this line was already contained; a StackOverflowError or
+            // an OutOfMemoryError raised under an addon's Lua was not — it left this choke point, left the
+            // step, left UILoop's frame loop (which catches InterruptedException and nothing else) and ended
+            // the UI thread, taking every other addon and the client with the one that failed. The addon's
+            // own pcall never saw it either — LuaJ's pcall catches LuaError and Exception, and an Error is
+            // neither — so there is nowhere but here for it to be caught.
+            //   TWO KINDS ARE RETHROWN. ThreadDeath belongs to whoever raised it, and anything caught while
+            // this thread is interrupted belongs to the QUIT — the exit path interrupts the thread held in
+            // Client.mt, and a containment that swallowed that would keep the client alive past its own exit.
+            if((t instanceof ThreadDeath) || Thread.currentThread().isInterrupted()) {
+                if(t instanceof Error)
+                    throw (Error)t;
+                throw new RuntimeException(t);   // a checked throwable sneaked through: still not ours to eat
+            }
+            contain(owner, t);
         } finally {
             long d = System.nanoTime() - t0;
             owner.tickLuaNanos += d;   // soft per-tick CPU-budget accounting (D-018 layer 2)
@@ -3895,6 +3965,32 @@ public final class AddonManager {
     private static void trace(Throwable t) {
         if((t != null) && !(t instanceof LuaError) && !(t instanceof Loading))
             t.printStackTrace();
+    }
+
+    /**
+     * <b>Contain a fatal failure and quarantine the addon that raised it</b> (126.1) — {@link #callLua}'s
+     * {@code Throwable} guard, and the only caller.
+     *
+     * <p>It runs on a client that has just failed to grow its stack or its heap, so it stays
+     * <b>constant-shaped</b>: it files the addon and names the failure's class, and it builds no report of
+     * any kind. The Java stack goes to stdout through the same {@link #trace} every other handler error uses
+     * — for an {@link Error} that is the only evidence there is, since the message is usually null and the
+     * Lua side never saw it.
+     *
+     * <p>The filing comes FIRST and the announcement second, each guarded: saying so allocates (a notice
+     * line, a widget's text) and may fail again on an {@code OutOfMemoryError}, and a quarantine that was
+     * lost because the log line could not be drawn is the failure this whole path exists to prevent.
+     */
+    private static void contain(Addon owner, Throwable t) {
+        String kind = t.getClass().getName();
+        quarantines.add(new Quarantine(owner, "fatal: " + kind));
+        try {
+            log(owner, "FATAL " + kind + " out of a callback - contained; this addon is quarantined until"
+                + " the next load - see Options -> AddOns");
+            trace(t);
+        } catch(Throwable ignored) {
+            /* the addon is already filed above, which is the part that must survive; stdout keeps the rest */
+        }
     }
 
     // ------------------------------------------------------------- the hafen facade

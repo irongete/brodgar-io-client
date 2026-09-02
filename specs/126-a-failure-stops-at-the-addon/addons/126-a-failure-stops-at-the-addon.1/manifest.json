@@ -1,0 +1,9 @@
+{
+  "name": "126.1 — a failure stops at the addon",
+  "id": "126-a-failure-stops-at-the-addon.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 126.1: an ordinary refusal from a bridge verb still leaves the addon running, and a fatal Error quarantines the addon instead of ending the client.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

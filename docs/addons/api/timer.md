@@ -30,7 +30,9 @@ most often anything can, and you pay for its body every frame. It keeps running 
 the addon goes away.
 
 An error inside `fn` is logged and isolated, and it does not cancel the timer — a repeating timer whose
-body throws will throw again on every tick, so cancel it yourself when the failure is permanent.
+body throws will throw again on every tick, so cancel it yourself when the failure is permanent. A body that
+fails the client itself — off the end of the stack, out of memory — stops
+[your addon instead](../runtime.md#when-a-failure-is-fatal), timer and all.
 
 ## The timer handle
 

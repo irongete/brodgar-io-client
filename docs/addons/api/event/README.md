@@ -39,7 +39,9 @@ nothing else, so a name it does not carry raises at the line that wrote it.
 Subscribe once, in the file body or in `Load`. The subscription is owned by your addon and released when
 it reloads or is disabled, so there is nothing to unsubscribe by hand. **Two handlers on one key both
 fire**, in the order they registered; `off()` on one leaves the other running. A handler that errors is
-isolated: the error is logged and it breaks neither your other handlers nor the client.
+isolated: the error is logged and it breaks neither your other handlers nor the client. One that fails the
+client itself — off the end of the stack, out of memory — stops
+[your addon instead](../../runtime.md#when-a-failure-is-fatal).
 
 **The bus keys are a closed set** — a name that is not one of them throws at the line that wrote it,
 pointing at [the catalogue](bus/README.md) rather than reading as a subscription that never fires:

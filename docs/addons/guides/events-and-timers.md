@@ -27,7 +27,9 @@ about?*
 A subscription on any of these is owned by your addon and released on `:reload` or disable, so there is
 nothing to unsubscribe by hand. **Two handlers on one key both fire**, in registration order; `off()` on
 one leaves the other running. A handler that errors is isolated: the error is logged with your addon's
-id, and your other handlers, the other addons and the client all keep going.
+id, and your other handlers, the other addons and the client all keep going. A handler that fails the client
+itself — off the end of the stack, out of memory — stops
+[your addon instead](../runtime.md#when-a-failure-is-fatal).
 
 ## The moments every addon has
 
