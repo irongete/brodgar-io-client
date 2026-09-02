@@ -8,6 +8,8 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -113,8 +115,9 @@ final class LuaHttp {
             try {
                 URL u;
                 try {
-                    u = new URL(url);
-                } catch(MalformedURLException e) {
+                    // RFC 3986, as at :request(url) -- and on a hop, of the Location it resolved
+                    u = URI.create(url).toURL();
+                } catch(MalformedURLException | IllegalArgumentException e) {
                     return Result.fail("malformed url: " + e.getMessage());
                 }
                 // Per-hop host validation — allowlist (redirects can't escape it) + private/loopback block.
@@ -154,8 +157,9 @@ final class LuaHttp {
                             return Result.fail("too many redirects (> " + MAX_REDIRECTS + ")");
                         URL next;
                         try {
-                            next = new URL(u, loc);   // resolve relative Location against the current URL
-                        } catch(MalformedURLException e) {
+                            // resolve a relative Location against the current URL, by RFC 3986
+                            next = u.toURI().resolve(loc).toURL();
+                        } catch(URISyntaxException | MalformedURLException | IllegalArgumentException e) {
                             return Result.fail("malformed redirect Location \"" + loc + "\": " + e.getMessage());
                         }
                         url = next.toString();
@@ -166,7 +170,10 @@ final class LuaHttp {
                             method = "GET";
                             body = null;
                         }
-                        continue;                     // finally disconnects c, then re-loop on the new url
+                        // finally disconnects c, then re-loop on the new url -- where validateHop checks it
+                        // again, scheme included, so a Location naming another scheme never reaches
+                        // openConnection and the (HttpURLConnection) cast behind it.
+                        continue;
                     }
                     // 3xx with no Location → nothing to follow; fall through and return it raw.
                 }

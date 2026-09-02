@@ -1,0 +1,9 @@
+{
+  "name": "127.5 — the host the allowlist is asked about is a strictly parsed one",
+  "id": "127-the-consent-covers-the-hosts-it-showed.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 127.5: hafen.http():request(url) parses the url strictly, so the host the consent record is measured against is the one an RFC 3986 parse produced -- a lenient url is refused where it was written, naming it, while an ordinary https one still builds and a file: one is still refused at the call.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

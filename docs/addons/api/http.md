@@ -70,6 +70,12 @@ hafen.http():request("https://api.example.com/report")
 `hafen.http():get(url)` and `hafen.http():post(url, body)` are the same thing with the method set, and
 **neither takes a callback**: the handler has exactly one spelling. Passing one raises and says so.
 
+**The URL is parsed strictly**, by RFC 3986: a space, an unescaped `{`, `}`, `|` or `^`, a malformed `%`
+escape, an address with no scheme, or one whose scheme is not `http` or `https` raises at `:request(url)`,
+naming the URL. The host that parse produces is the one the approved allowlist is asked about, so a URL the
+client and the server would read differently never reaches the wire. Percent-encode whatever you interpolate
+into a path or a query.
+
 Everything is **asynchronous**: `:send()` returns immediately and the handler runs on the UI thread a frame
 or more later. There is no blocking form — a request on the UI thread would freeze the client.
 
@@ -172,8 +178,8 @@ inside it is logged, never propagated.
   you keep yourself, in [`hafen.store`](store.md).
 - **Resource caps**: response size **8 MB**, above which the request fails with a too-large error;
   timeout **10 s**, raisable to **60 s**; **6** requests in flight per addon, with the excess queued and
-  a hard cap of **64** pending, past which `:send()` raises — `hafen.http():count()` sees it coming; and a pool of **8** threads shared by all
-  addons.
+  a hard cap of **64** pending, past which `:send()` raises — `hafen.http():count()` sees it coming;
+  and a pool of **8** threads shared by all addons.
 
 ## See also
 

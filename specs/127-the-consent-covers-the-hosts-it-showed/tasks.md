@@ -57,7 +57,7 @@
       `[manual]`: add ~400 hosts to this suite's manifest, **Reload UI** and consent — expect: a refusal
       naming this addon and the limit, and no Java error in the console.
 
-- [ ] **127.5 — the host the allowlist is asked about is a strictly parsed one.**
+- [x] **127.5 — the host the allowlist is asked about is a strictly parsed one.**
       **Three** `new URL` sites parse through `URI`, and `HttpApi.httpHost` is the one this task is named
       after: it runs at `hafen.http():request(url)` and what it returns **is** `req.host`, the host
       `requireNetwork` measures against the record — so a lenient parse there is a lenient parse of the whole

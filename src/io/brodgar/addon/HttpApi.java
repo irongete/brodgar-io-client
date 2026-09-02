@@ -509,13 +509,24 @@ final class HttpApi {
      * session's, since {@code init} is not told which one ended and clearing them all is exactly what this
      * did when there was one queue for the client.
      */
-    /** Validate an {@code http}/{@code https} URL and return its (non-empty) host, or throw a guiding LuaError. */
+    /**
+     * Validate an {@code http}/{@code https} URL and return its (non-empty) host, or throw a guiding LuaError.
+     *
+     * <p><b>The parse is strict, because what it returns is the gate's question.</b> This host is
+     * {@code req.host}, the one {@code requireNetwork} measures against the consent record, so it is
+     * produced by {@link java.net.URI} — an RFC 3986 parse that refuses a space, a brace, a bare
+     * {@code %} and the rest of what a lenient parse hands on for the server to interpret. Both refusals
+     * are caught: {@code URI.create} and {@code toURL} raise {@link IllegalArgumentException} (illegal
+     * character, malformed escape, or a relative url with no protocol to open), {@code toURL} raises
+     * {@link java.net.MalformedURLException} for a scheme with no handler. Either way the url is named.
+     */
     private static String httpHost(String url, String verb) {
         java.net.URL u;
         try {
-            u = new java.net.URL(url);
-        } catch(java.net.MalformedURLException e) {
-            throw new LuaError(verb + ": malformed url \"" + url + "\" (" + e.getMessage() + ")");
+            u = java.net.URI.create(url).toURL();
+        } catch(java.net.MalformedURLException | IllegalArgumentException e) {
+            String why = (e.getMessage() == null) ? e.getClass().getSimpleName() : e.getMessage();
+            throw new LuaError(verb + ": malformed url \"" + url + "\" (" + why + ")");
         }
         String scheme = (u.getProtocol() == null) ? "" : u.getProtocol().toLowerCase(java.util.Locale.ROOT);
         if(!scheme.equals("http") && !scheme.equals("https"))
