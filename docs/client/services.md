@@ -1,8 +1,9 @@
 # Cross-cutting client services
 
-> Keybindings, resources, prefs + the Options window (`GSettings`), audio, combat, buffs, kin, vitals,
-> movement speed, FEP, study, skills, quests, wounds, crafting, the action menu. The chat and the console
-> each have a page of their own: [chat.md](chat.md), [console.md](console.md).
+> Keybindings, resources, audio, combat, buffs, kin, vitals, movement speed, FEP, study, skills,
+> quests, wounds, crafting, the action menu. The chat, the console, and the preferences the Options
+> window writes each have a page of their own: [chat.md](chat.md), [console.md](console.md),
+> [prefs-and-options.md](prefs-and-options.md).
 
 | Service | Where |
 |---|---|
@@ -12,8 +13,9 @@
 | What a resource's image layer caches, and where its identity is lost | `Resource.Image` holds four pictures for the resource's life: `img` (the raw decode), `scaled` (UI-scaled, built in the **constructor** — `scaled()` is a bare return), and the two lazy `TexI`s `tex()` (over `scaled`) / `rawtex()` (over `img`); `Resource.loadsimg(name)` = `loadrimg(name).scaled()`. **None of the four carries a back-reference to the resource** — the only trace is the anonymous `TexI`'s `toString`, and `scaled` has not even that. `Tex` and `BufferedImage` define no `equals`/`hashCode`, so a picture object is identity-comparable and anonymous: *which resource is this picture?* has no answer at the widget that holds it, only where it was minted |
 | Jar-relative path resolution | `Utils.srcpath` |
 | Local data dir (%APPDATA%) | `Config.localdir` |
-| Preferences (base client only) | `Utils.getpref/setpref`, `prefs()` |
+| Settings, and where each is written | [prefs-and-options.md](prefs-and-options.md) — the prefs store, its 6144-byte list budget, and what each `OptWnd` panel writes |
 | Audio / sfx | play: `UI.sfx` (→ `audio.aui.add`) → `Audio.fromres`; volume `Audio.Root.volume()`. **Per-clip volume** = wrap the `CS` in `Audio.VolAdjust(cs, vol)` (`vol`/`bal` are public mutable fields, so it also adjusts a clip already playing) — `UI.sfx` takes any `Audio.CS`, so a wrapper goes in transparently |
+| Stop / is-it-playing a clip | all public, no core edit: `RootChannel.remove(cs)` (→ `Mixer.stop`, identity match on the very `CS` you added) and `RootChannel.mixer()` → `Mixer.playing(cs)` / `size` / `current` / `clear` |
 | Ambient audio ("the music") | `ActAudio.Ambience`, a `RenderTree.Node` carrying an `"amb"` `Audio.clip` layer; the sound is made by its static `Glob` — one per resource, a looping `Audio.Repeater` on the **`amb`** channel, volume fading with how many slots are currently in view. Published by world resources: `AudioSprite`, `StaticSprite`, `RenderLink`. **A lifetime-bound scene node, not a clip handle** |
 | Music (MIDI) — **dead on this server** | `Music` is `javax.sound.midi`, entirely outside `Audio`/`ActAudio` (the Audio panel does not touch it). `Music.play` has exactly ONE caller: `RootWidget`'s `"bgm"` uimsg (`RootWidget.java`), which **this server never sends** — 132,777 cached resource files hold **0** `midi` layers vs 36 `audio` ones, all sfx. Do not build on it (see D-058) |
 | Combat — the live fight | `Fightview`: `lsrel`  (a `LinkedList`, added/removed by the `new`/`del` uimsgs under the ui monitor), `current`  (the picked opponent, reassigned by `setcur`  off the `cur` uimsg — **`null` out of a fight**), `Relation.gobid/ip/oip`  (`ip` is YOURS, `oip` theirs — `Fightsess` paints them left/right), `Relation.invalid` set by `remove()`; deck `Fightsess.actions`; `GameUI.fv`. **The only id it publishes is the gob id** — no name, no creature data |
@@ -34,37 +36,7 @@
 | Wounds | `CharWnd.wound` → `WoundWnd` (`@RName("wounds")`), also hidden-but-live. `wounds` is a `WoundList` whose public `List<Wound>` is FLAT but held in TREE order: `treesort` recurses from `parentid == -1` writing `Wound.level` (the indent depth), and it runs on the **UI thread** in `tick` while `decwound` adds/updates/removes off-thread → copy under `synchronized(ui)`. `Wound` = `{final id, final parentid, res, level}`; `decwound` looks the record up by id and mutates it, so a wound worsening is the same object. Name and **severity** come from resource-published `ItemInfo` that streams in a beat LATER — severity is the highest-`qprio` `QuickInfo.qstr()`, a content-defined string (usually a magnitude number, **not** seconds) — which is why the event is poll-driven, not uimsg-driven |
 | Equipment | `GameUI.equwnd` → private `Window` wrapping the single `Equipory` (`@RName("epry")`), reached via `children(Equipory.class)` (typically the only one open; a second appears while inspecting another gob's gear). A worn item is a **direct `GItem` child** of the `Equipory` — `addchild` wraps it in one `WItem` per slot index it fills (`wmap`), `cdestroy` tears those down. `GItem` carries `res` (an `Indir<Resource>`, set at construction) and `rawinfo`/`info()` — **derived**, rebuilt from `rawinfo` on demand and **throws a bare `Loading`** (not resolvable — `addcontinfo`/`sprite()` internals) when the resource itself is still streaming; the `"num"`/`"chres"`/`"tt"`/`"meter"` uimsgs write the `num` field / resource / tooltip / the `meter` field respectively — and neither field is the whole of the number it looks like, since `WItem.draw` paints the icon's count from `info()` alone and its arc from `meter` **or** `info()` (`state.md`) |
 
-## Options, Preferences (what OptWnd actually writes)
-
-**Two disjoint stores.** Most settings are plain prefs — `Utils.getpref*`/`setpref*`
-(`java.util.prefs`, string-keyed, written immediately). Graphics settings are **not**: they live in
-`GSettings`, a render `State` value object.
-
-| Setting group | Backing |
-|---|---|
-| Panels (read these for the authoritative write) | `VideoPanel`, `AudioPanel`, `InterfacePanel`, `BindingPanel`, `CameraPanel` (fork) |
-| Video | `GSettings` **named fields**, not constants: `lshadow`, `vsync`, `hz`/`bghz` (/), `rscale`, `lightmode`, `maxlights`. ⚠️ **`gprefs` is per `UI`**, exactly as the audio sub-mix below is: `UI`'s field initialiser runs `GSettings.load(true)` in every tree the loop builds, `UI.setgprefs` publishes into that tree alone, and `UI.tick` flushes the dirty one to the single shared `gconf/*` pref store. So a tree nobody published into keeps what it loaded at construction, and the last one to publish is what every tree reads at the next client start |
-| UI scale | pref `uiscale` (restart to take effect) |
-| Placement granularity | `MapView.plobpgran` / `plobagran`  statics + like-named prefs |
-| Camera inversion | `MapView.invcamx` / `invcamy`  statics + like-named prefs; consumed by `Camera.invdx`/`invdy` |
-| Camera choice | prefs `defcam`/`camargs`, written only by `MapView.setcam` ([camera.md](camera.md)); `CameraPanel.CamSelector` calls it. ⚠️ **A panel's constructor runs before it is in the tree** — `PButton.click` does `tgt.get()` and only then `add`s the result — so `ui` and `getparent(GameUI.class)` are both null there, and `PButton` caches the panel in `actual` and reuses it forever after. A control whose value the client can move behind its back (this one: `:cam` and the RTS mode both do) therefore re-reads in `show()`, which `chpanel` calls every time the panel is opened; construction is far too early and happens once |
-| Audio master / buffer | `Audio.Root.volume()` (persists `sfxvol`), `bufsize()` (**in samples** @44100 Hz, persists `audiobuf`) |
-| Audio channels | `ActAudio.Root` `.aui`/`.pos`/`.amb` → `RootChannel.setvolume` + public `volume` field. The three `AudioPanel` sliders map 1:1: "Interface volume"→`aui`, "In-game event volume"→`pos`, "Ambient volume"→`amb`. **There is no music slider** — `Music` is a separate MIDI player, see above. ⚠️ **A sub-mix level is per `ActAudio.Root`, and there is one of those per `UI`** (`UI`'s constructor does `new ActAudio.Root(audio)` over the one shared `Audio.Root` the loop hands every tree): `RootChannel`'s constructor reads `Utils.getpref("sfxvol-" + name, "1.0")`, so each starts at the saved level, but `setvolume` writes the pref **and only its own channel**. `OptWnd`'s slider is `ui.audio.aui.setvolume(...)` on the panel's own `UI`, so moving it leaves every other tree at the level it read when it was built, until the next client start. The **master** volume is not like this — `Audio.Root.volume()` is one `VolAdjust` on the shared mixer, so it reaches everything at once. ⚠️ **Every write to a `RootChannel` takes the channel's own monitor**: `setvolume` and `mute` are `synchronized`, which is the edge `mixer()`'s double-checked block needs — it builds `volc` and reads `muted` under that same monitor, so a channel first played after a `mute(true)` would otherwise read a stale `muted`, build itself audible and stay so for good, `mute` returning on `m == muted` from then on ([multi-session.md](multi-session.md) is what mutes them). The monitor is a **leaf**: nothing under it reaches a `UI`, a widget or the render tree. ⚠️ **`Root.clear` stops all three channels, and `UI.destroy` is its only caller** — a `RootChannel` that has ever played holds a `VolAdjust` on the shared `Audio.Root` mixer, and `clear()` is the only thing that takes it off, so one missed there goes on mixing for the rest of the process, a further one per login |
-| Stop / is-it-playing a clip | all public, no core edit: `RootChannel.remove(cs)` (→ `Mixer.stop`, identity match on the very `CS` you added) and `RootChannel.mixer()` → `Mixer.playing(cs)` / `size` / `current` / `clear` |
-
 **Gotchas that cost time.**
-- **`GSettings` is immutable.** `update()`  returns a **new** `GSettings`;
-  nothing changes until you publish it with `UI.setgprefs`. Read via `ui.gprefs.<field>.val`.
-  There are no `GSettings.SHADOWS`-style constants — the settings are instance fields with short wire names
-  (`"sdw"`, `"rscale"`, `"lighting"`…).
-- **`lightmode` is `simple` / `zoned`** (the `LightMode` enum), *not* "global".
-- **`Utils.setpref*` catches only `SecurityException`.** `Preferences.put*` also throws
-  `IllegalArgumentException` past `MAX_KEY_LENGTH` (80 chars) / `MAX_VALUE_LENGTH` (8192), and that escapes
-  every `setpref*` as a raw Java error from whatever wrote it. A writer minting a key out of names it does
-  not control has to bound the length itself.
-- **A pref-only write is a no-op until restart** for anything mirrored in a static. `OptWnd` always writes both
-  in one statement — `Utils.setprefb("invcamx", MapView.invcamx = val)` — and so must any other writer.
-- **`plobagran` is a divisor, not degrees**: the panel displays `180 / plobagran`.
 - **Nothing in `haven` reserves `belt[n]` for the server.** It is a plain array the uimsg arms assign, so a
   `PagBeltSlot` written into it from outside draws and fires like any other slot — the array is simply
   overwritten, and what was there is lost unless the writer kept it. **Six arms write it** across the two

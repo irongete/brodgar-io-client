@@ -145,6 +145,11 @@ in the row tooltip, and a bulk **Enable all** skips it.
 A protected verb called by an addon that did not declare its key raises an error naming the verb, the key it
 needs and the manifest line to paste. It is not a silent no-op, and it is not a crash.
 
+**What the user approves has to fit.** Every addon's approved keys and hosts are kept together in one record
+of a fixed size, so a declaration large enough to overflow it — a `network` block of hundreds of hosts —
+cannot be recorded, and approving it is refused: the client names your addon and the limit, and the addon
+stays disabled until the declaration is smaller. An ordinary declaration is nowhere near that.
+
 ## What is not protected
 
 Everything else writes only to your own client, and none of it needs a key. That is worth stating, because

@@ -100,8 +100,11 @@ revised or discharged with its reason by the task that owns the gate. `map/drawi
 - `src/io/brodgar/addon/Permission.java` — 2 (`byKey`, `HTTP_GET`, `HTTP_POST`)
 - `src/io/brodgar/addon/ui/PermissionConsentWnd.java` — 2
 - `src/io/brodgar/addon/ui/AddonPanel.java` — 2 (the dialog's one door)
+- `src/io/brodgar/addon/AddonManager.java` — 6 (read only: `log(String)`, which is how a refusal at the
+  consent dialog reaches the user, and `requirePermission`, whose wording a suite asserts)
 - `src/haven/Utils.java` — 3, 4 (read only: `getprefsl`, `setprefsl`, `setprefb`)
 - `src/io/brodgar/addon/LuaHttp.java` — 5 (`validateHop`, the two `new URL` sites)
 - `docs/addons/api/http.md` — 1
 - `docs/addons/guides/permissions.md` — 2
-- `docs/client/services.md` — 4
+- `docs/client/prefs-and-options.md` — 4 (`getprefsl`/`setprefsl` and the byte budget behind them; the
+  prefs half of `docs/client/services.md`, which is now its own page)

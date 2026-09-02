@@ -44,7 +44,7 @@
       then **Reload UI** and consent — expect: it stays enabled across a second **Reload UI**.
       <!-- extra context: jshell is the pre-check for enc/dec round-tripping, per CLAUDE.md -->
 
-- [ ] **127.4 — a declaration too large is refused, not thrown.**
+- [x] **127.4 — a declaration too large is refused, not thrown.**
       `setprefb` Base64s into a `Preferences` value capped at 8192 characters, and `Utils.setpref*` catches
       only `SecurityException`, so passing the cap escapes raw from whoever wrote it. `grantConsent` encodes
       the candidate record, measures it, and where it does not fit refuses the grant naming the addon and

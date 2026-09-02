@@ -54,4 +54,5 @@ never as a failure anyone can see.
 - [which ground is drawn](terrain-raster.md) — the raster a camera-centred `area` is bounded by
 - [several sessions at once](multi-session.md) — `adoptcam` and what `restate` carries between views
 - [the pointer and the ground](map-click.md) — the projection a screen ↔ world conversion uses
-- [services](services.md) — the `defcam`/`camargs` prefs, and the Options panel that writes them
+- [preferences and the Options window](prefs-and-options.md) — the `defcam`/`camargs` prefs, and the
+  Options panel that writes them

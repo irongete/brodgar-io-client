@@ -42,7 +42,8 @@ lookup instead of a search.
 | [the chat](chat.md) | `ChatUI` and its channels: where a line arrives, the three argument shapes one message name wears, what selects a tab, and what is never trimmed |
 | [the console](console.md) | the `:` command line: what registers a command, the three tiers a name resolves in, what a command that throws does, and which thread its body runs on |
 | [resources](resources.md) | what a `.res` carries: reading a layer by class, predicate or id, the `id == null` gotcha, and the `OD_RES` delta that carries a gob's resource and state bytes under the gob monitor |
-| [services](services.md) | keybindings, `Resource` and code adoption, prefs and Options, audio, combat, buffs, kin, vitals, study, quests, crafting, the action menu, minimap icons |
+| [services](services.md) | keybindings, `Resource` and code adoption, audio, combat, buffs, kin, vitals, study, quests, crafting, the action menu, minimap icons |
+| [preferences and the Options window](prefs-and-options.md) | the two disjoint stores a setting lands in, the 6144-byte budget one preference value has, and what each `OptWnd` panel writes |
 
 ## Client-wide gotchas
 

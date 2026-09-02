@@ -12,6 +12,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.prefs.Preferences;
 
 
 import static io.brodgar.addon.AddonManager.*;
@@ -816,11 +818,38 @@ public final class AddonRegistry {
     }
 
     /**
-     * Write the consent record back, one {@code "<id>=<key>,<key>;<host>,<host>"} row per addon, every field
+     * The byte budget the whole consent record has, and why it is measured before it is written.
+     * {@code Utils.setprefsl} frames the rows as NUL-separated UTF-8 and hands the bytes to
+     * {@code Utils.setprefb}, which is {@code Preferences.putByteArray} — and that Base64s the array into one
+     * preference value capped at {@code MAX_VALUE_LENGTH}, refusing an array longer than three quarters of
+     * that with an {@code IllegalArgumentException}. {@code Utils.setpref*} catches only
+     * {@code SecurityException}, so the refusal escapes raw from whoever wrote the value. This record is the
+     * one place addon-authored strings reach it — an id is a folder name and a host is a manifest line, both
+     * written by the addon — so the bound is taken here, from the store's own constant.
+     */
+    static final int PREF_VALUE_BYTES = Preferences.MAX_VALUE_LENGTH * 3 / 4;
+
+    /**
+     * What {@code Utils.setprefsl} will hand the store for {@code rows}: each row's UTF-8 plus the NUL that
+     * separates it from the next. The framing is measured rather than assumed, because the budget is a byte
+     * count and a row is a string — one non-ASCII character in an id costs more than one byte of it.
+     */
+    private static int prefslBytes(List<String> rows) {
+        int n = 0;
+        for(String row : rows)
+            n += row.getBytes(StandardCharsets.UTF_8).length + 1;
+        return n;
+    }
+
+    /**
+     * Encode the consent record, one {@code "<id>=<key>,<key>;<host>,<host>"} row per addon, every field
      * through {@link #enc} so a delimiter inside one is data. An addon with no hosts writes no {@code ;} — the
      * row is exactly what it would have been without the field, and reads back as the nothing it recorded.
+     * The rows are handed back rather than written so that {@link #grantConsent} can measure them against
+     * {@link #PREF_VALUE_BYTES} first: this is the whole record, so one addon's grant is written only as part
+     * of every other addon's.
      */
-    private static void persistConsent(Map<String, Consent> consented) {
+    private static List<String> consentRows(Map<String, Consent> consented) {
         List<String> rows = new ArrayList<String>();
         for(Map.Entry<String, Consent> e : consented.entrySet()) {
             StringBuilder sb = new StringBuilder(enc(e.getKey())).append('=');
@@ -843,7 +872,7 @@ public final class AddonRegistry {
             }
             rows.add(sb.toString());
         }
-        Utils.setprefsl(PREF_CONSENTED, rows);
+        return rows;
     }
 
     /**
@@ -855,20 +884,39 @@ public final class AddonRegistry {
      * <p>The record is <b>additive</b>, and equally so in both fields: approving a smaller declaration later
      * never narrows it, so an addon that drops a permission or a host is not re-prompted, while one that adds
      * either is (the addition is not in the record until this runs again).
+     *
+     * <p><b>The write is bounded, and a grant that does not fit is refused rather than thrown.</b> The whole
+     * record lives in one preference value with {@link #PREF_VALUE_BYTES} to spend, and this is what puts
+     * addon-authored strings into it, so the candidate record is encoded and measured before anything is
+     * written. Over the budget, the grant is refused naming the addon and the limit and the addon stays
+     * disabled — the only branch that neither loses the write (a grant the store never took is a grant the
+     * next load asks for again, which is what a disabled addon does) nor drops another addon's row to make
+     * room (that would revoke a grant the user did give, to record one they gave now).
      */
     public static void grantConsent(String id, PermissionSet declared, List<String> hosts) {
         if((id == null) || id.isEmpty())
             return;
         Map<String, Consent> consented = consentedMap();
         Consent cur = consented.get(id);
-        Set<Permission> keys = (cur == null) ? EnumSet.noneOf(Permission.class) : EnumSet.copyOf(cur.keys);
+        // Not EnumSet.copyOf: it refuses an empty collection, and a recorded row whose every key this build
+        // has since dropped parses to exactly that.
+        Set<Permission> keys = EnumSet.noneOf(Permission.class);
+        if(cur != null)
+            keys.addAll(cur.keys);
         Set<String> merged = new LinkedHashSet<String>((cur == null) ? Collections.<String>emptyList() : cur.hosts);
         boolean grew = keys.addAll(declared.granted());
         if(hosts != null)
             grew = merged.addAll(hosts) || grew;
         if(grew || (cur == null)) {
             consented.put(id, new Consent(keys, new ArrayList<String>(merged)));
-            persistConsent(consented);
+            List<String> rows = consentRows(consented);
+            int bytes = prefslBytes(rows);
+            if(bytes > PREF_VALUE_BYTES) {
+                log("'" + id + "' stays disabled: recording its consent takes the record to " + bytes
+                    + " bytes, past the " + PREF_VALUE_BYTES + " one preference value holds");
+                return;                  // refused: nothing written, and nothing enabled
+            }
+            Utils.setprefsl(PREF_CONSENTED, rows);
         }
         setEnabled(id, true);
     }

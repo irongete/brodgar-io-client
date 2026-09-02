@@ -1,0 +1,13 @@
+{
+  "name": "127.4 — a declaration too large is refused, not thrown",
+  "id": "127-the-consent-covers-the-hosts-it-showed.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 127.4: an ordinary declaration is still recorded whole -- every host it lists reaches the gate and nothing else does -- while a declaration too large for the preference store is refused by name instead of throwing out of the consent dialog.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["http.get"],
+  "network": {
+    "hosts": ["first.budget-probe.invalid", "middle.budget-probe.invalid", "last.budget-probe.invalid"]
+  }
+}
