@@ -29,6 +29,11 @@ public final class PermissionSet {
     /** The declaration with nothing in it — an ordinary read-only addon. */
     public static final PermissionSet NONE =
         new PermissionSet(Collections.<String>emptyList(), EnumSet.noneOf(Permission.class));
+    /**
+     * The consent dialog's marker for something the user has not approved before. One word and one spelling,
+     * because it is written at two levels of the same line — on the entry, and on the host inside it.
+     */
+    public static final String NEW = "NEW";
 
     private final List<String> entries;
     private final Set<Permission> granted;
@@ -128,31 +133,44 @@ public final class PermissionSet {
      * exact key is its own catalogue line; a <b>group</b> reads as its members joined, because the entry is the
      * line the user reads and expanding {@code item.*} is not their job. In catalogue order (an {@link EnumSet}
      * iterates by ordinal), so two addons declaring the same group read identically.
+     *
+     * <p><b>A network key carries its argument</b> (093.4, A-098): the {@code http.*} keys take the manifest's
+     * {@code network.hosts} allowlist, and the consent dialog is the one place the user decides, so the line
+     * they read there says <i>where</i> as well as <i>whether</i>. An entry granting no network key ignores
+     * {@code hosts} entirely, so the ordinary line is unchanged.
+     *
+     * <p><b>And it marks the hosts the record does not cover.</b> Every host {@code known} does not already
+     * reach is prefixed {@link #NEW}, by the same wildcard rule the gate asks
+     * ({@link Manifest#hostMatches}) — so a re-prompt points at the host that was <i>added</i> instead of
+     * restating the ones the user has already said yes to, which is the whole difference between a dialog
+     * that reports an escalation and one that repeats itself. {@code known} is {@code null} on a first
+     * prompt, where every host is new and marking all of them would say nothing.
      */
-    public static String describe(String entry) {
-        return describe(entry, null);
-    }
-
-    /**
-     * {@link #describe(String)} with <b>the hosts a network key names</b> appended (093.4, A-098). The
-     * {@code http.*} keys carry an argument — the manifest's {@code network.hosts} allowlist — and the
-     * consent dialog is the one place the user decides, so the line they read there has to say <i>where</i>
-     * as well as <i>whether</i>. An entry granting no network key ignores {@code hosts} entirely, so the
-     * ordinary line is unchanged.
-     */
-    public static String describe(String entry, List<String> hosts) {
-        List<Permission> ps = new ArrayList<Permission>(grants(entry));
+    public static String describe(String entry, List<String> hosts, List<String> known) {
+        Set<Permission> granted = grants(entry);
+        List<Permission> ps = new ArrayList<Permission>(granted);
         StringBuilder sb = new StringBuilder();
-        boolean net = false;
         for(int i = 0; i < ps.size(); i++) {
             if(i > 0)
                 sb.append((i == ps.size() - 1) ? " and " : ", ");
             sb.append(ps.get(i).line);
-            net = net || (ps.get(i) == Permission.HTTP_GET) || (ps.get(i) == Permission.HTTP_POST);
         }
-        if(net && (hosts != null) && !hosts.isEmpty())
-            sb.append(": ").append(String.join(", ", hosts));
+        if(grantsNetwork(granted) && (hosts != null) && !hosts.isEmpty()) {
+            sb.append(": ");
+            for(int i = 0; i < hosts.size(); i++) {
+                if(i > 0)
+                    sb.append(", ");
+                if((known != null) && !Manifest.hostMatches(known, hosts.get(i)))
+                    sb.append(NEW).append(' ');
+                sb.append(hosts.get(i));
+            }
+        }
         return sb.toString();
+    }
+
+    /** Whether these catalogue keys include a network key — the one whose ARGUMENT a host allowlist is. */
+    private static boolean grantsNetwork(Set<Permission> granted) {
+        return granted.contains(Permission.HTTP_GET) || granted.contains(Permission.HTTP_POST);
     }
 
     /**
@@ -161,10 +179,21 @@ public final class PermissionSet {
      * dismissed once. A group is new as soon as ONE of its members is: the line the user reads stands for the
      * whole entry, so marking it only when every member is new would hide exactly the widening the record
      * exists to catch. An empty record (never consented) marks everything, which is a first prompt.
+     *
+     * <p><b>A host counts as a member.</b> The hosts are the network key's argument and the same line shows
+     * them, so an entry whose {@code hosts} are not all covered by {@code known} is new even where its keys
+     * were approved long ago — otherwise the one thing this dialog is asking about would be the one thing
+     * left unmarked. Containment is {@link Manifest#hostsUncovered}, the rule the gate itself asks, so a host
+     * an approved wildcard already reaches is not an escalation and does not mark the line.
      */
-    public static boolean isNew(String entry, Set<Permission> consented) {
+    public static boolean isNew(String entry, Set<Permission> consented, List<String> hosts,
+                                List<String> known) {
         Set<Permission> g = grants(entry);
-        return !g.isEmpty() && ((consented == null) || !consented.containsAll(g));
+        if(g.isEmpty())
+            return false;
+        if((consented == null) || !consented.containsAll(g))
+            return true;
+        return grantsNetwork(g) && !Manifest.hostsUncovered(known, hosts).isEmpty();
     }
 
     /** Whether the addon declared nothing at all. */

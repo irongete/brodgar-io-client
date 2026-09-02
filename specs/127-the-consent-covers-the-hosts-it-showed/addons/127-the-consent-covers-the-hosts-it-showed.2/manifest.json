@@ -1,0 +1,11 @@
+{
+  "name": "127.2 — an added host re-prompts, and reads as NEW",
+  "id": "127-the-consent-covers-the-hosts-it-showed.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 127.2: an unchanged declaration keeps its consent, so this addon is enabled, loaded and its one approved host is reachable while a second is refused; the manual half adds a host and reads it back marked NEW.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["http.get"],
+  "network": { "hosts": ["declared.invalid"] }
+}

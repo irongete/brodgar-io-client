@@ -580,10 +580,10 @@ public final class AddonRegistry {
 
     /**
      * Scan {@link #addonDir()} and apply the declaring-addon default (disabled-by-default, opt-in per addon —
-     * D-027/D-028): a discovered addon whose declared permissions are NOT all covered by what the user has
-     * consented to is added to the persisted disabled set, so it comes back asking again. Cheap disk I/O (a
-     * handful of small manifests); call on a (re)load / panel build, not per frame. The pure policy is
-     * {@link #applyPermissionDefaults} (headless-testable).
+     * D-027/D-028): a discovered addon whose declared permissions — <b>or the hosts those permissions take</b>
+     * — are NOT all covered by what the user has consented to is added to the persisted disabled set, so it
+     * comes back asking again. Cheap disk I/O (a handful of small manifests); call on a (re)load / panel build,
+     * not per frame. The pure policy is {@link #applyPermissionDefaults} (headless-testable).
      */
     private static void scanAddonDefaults() {
         File dir = addonDir();
@@ -591,18 +591,23 @@ public final class AddonRegistry {
         if(subs == null)
             return;
         Map<String, Set<Permission>> declares = new LinkedHashMap<String, Set<Permission>>();
+        Map<String, List<String>> hosts = new LinkedHashMap<String, List<String>>();
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
                 continue;
             try {
-                declares.put(sub.getName(), Manifest.load(sub.toPath()).permissions.granted());
+                // ONE load per manifest, both halves off the same object: the hosts are the network key's
+                // argument, so reading them costs no disk I/O this scan was not already paying.
+                Manifest m = Manifest.load(sub.toPath());
+                declares.put(sub.getName(), m.permissions.granted());
+                hosts.put(sub.getName(), m.network);
             } catch(Exception e) {
                 /* a broken manifest surfaces as an error row elsewhere; no default to apply here */
             }
         }
         Set<String> disabled = disabledCopy();
         int disBefore = disabled.size();          // applyPermissionDefaults only ADDS
-        applyPermissionDefaults(consentedMap(), disabled, declares);
+        applyPermissionDefaults(consentedMap(), disabled, declares, hosts);
         if(disabled.size() != disBefore)
             writeDisabled(disabled);
     }
@@ -616,9 +621,18 @@ public final class AddonRegistry {
      * exactly the disabled-by-default a newly discovered addon gets. {@code disabled} is mutated in place
      * (additions only); {@code consented} is read, never written — consent is recorded where it is GIVEN
      * ({@link #grantConsent}). Returns the ids of every declaring addon in {@code declares}. Headless-testable.
+     *
+     * <p><b>Two containments, one sentence.</b> {@code hosts} is each addon's declared {@code network} block,
+     * and it is tested the same way: the hosts an addon asks for must be covered by the hosts the user
+     * approved ({@link Manifest#hostsUncovered}), or it is disabled and asked again. They are what the dialog
+     * showed on the network key's own line, so they are half of what the user answered — and the half an addon
+     * can rewrite between one load and the next. A manifest carrying hosts always grants a network key
+     * ({@link Manifest#load} refuses one that does not), so a host in this map is always a host that was on
+     * the screen. Adding one asks again; dropping one asks nothing, exactly as for a key.
      */
     static Set<String> applyPermissionDefaults(Map<String, Consent> consented, Set<String> disabled,
-                                               Map<String, Set<Permission>> declares) {
+                                               Map<String, Set<Permission>> declares,
+                                               Map<String, List<String>> hosts) {
         Set<String> declaringIds = new LinkedHashSet<String>();
         for(Map.Entry<String, Set<Permission>> e : declares.entrySet()) {
             Set<Permission> declared = e.getValue();
@@ -627,38 +641,48 @@ public final class AddonRegistry {
             String id = e.getKey();
             declaringIds.add(id);
             Consent ok = consented.get(id);
-            if((ok == null) || !ok.keys.containsAll(declared))
+            List<String> want = (hosts == null) ? null : hosts.get(id);
+            if((ok == null) || !ok.keys.containsAll(declared)
+               || !Manifest.hostsUncovered(ok.hosts, want).isEmpty())
                 disabled.add(id);                // never consented, or now asking for more → ask again
         }
         return declaringIds;
     }
 
     /**
-     * The permissions {@code id} declares that the user has NOT consented to, comma-separated, or {@code null}
-     * if there are none (it declares nothing, or everything it asks for is already granted). What the console's
-     * enable reports: the enabled bit can be flipped from anywhere, but the grant happens only in the consent
-     * dialog, so any other path leaves the addon to be defaulted back to disabled on the next scan.
+     * What {@code id} declares that the user has NOT consented to — <b>the keys, and the hosts those keys
+     * take</b> — comma-separated, or {@code null} if there is none (it declares nothing, or everything it asks
+     * for is already granted). What the console's enable reports: the enabled bit can be flipped from anywhere,
+     * but the grant happens only in the consent dialog, so any other path leaves the addon to be defaulted back
+     * to disabled on the next scan. A host is listed here for the reason it is tested in
+     * {@link #applyPermissionDefaults}: it is half of what the user answered, so an enable the scan is about to
+     * undo has to say so whichever half is the reason.
      */
     public static String consentPending(String id) {
         File dir = new File(addonDir(), id);
         if(!new File(dir, "manifest.json").isFile())
             return null;
-        PermissionSet declared;
+        Manifest m;
         try {
-            declared = Manifest.load(dir.toPath()).permissions;
+            m = Manifest.load(dir.toPath());
         } catch(Exception e) {
             return null;                         // a broken manifest is reported as an error row, not here
         }
-        if(declared.isEmpty())
-            return null;
+        if(m.permissions.isEmpty())
+            return null;                         // no key ⇒ no host either: Manifest.load refuses hosts alone
         Consent ok = consentedMap().get(id);
         StringBuilder sb = new StringBuilder();
-        for(Permission p : declared.granted()) {
+        for(Permission p : m.permissions.granted()) {
             if((ok != null) && ok.keys.contains(p))
                 continue;
             if(sb.length() > 0)
                 sb.append(", ");
             sb.append(p.key);
+        }
+        for(String host : Manifest.hostsUncovered((ok == null) ? null : ok.hosts, m.network)) {
+            if(sb.length() > 0)
+                sb.append(", ");
+            sb.append(host);
         }
         return (sb.length() == 0) ? null : sb.toString();
     }
@@ -671,6 +695,18 @@ public final class AddonRegistry {
     public static Set<Permission> consentedKeys(String id) {
         Consent ok = consentedMap().get(id);
         return (ok == null) ? EnumSet.<Permission>noneOf(Permission.class) : ok.keys;
+    }
+
+    /**
+     * The hosts the user has already approved for {@code id} — never {@code null}. The other half of
+     * {@link #consentedKeys}, and the list the consent dialog marks a NEW host against
+     * ({@link PermissionSet#describe}): the dialog shows the manifest's hosts, so it needs the record's to say
+     * which of them the user has not seen. It is the same list the gate reads ({@link Addon#hostGranted}), so
+     * a host marked NEW there is exactly a host a request is refused for until it is approved.
+     */
+    public static List<String> consentedHosts(String id) {
+        Consent ok = consentedMap().get(id);
+        return (ok == null) ? Collections.<String>emptyList() : ok.hosts;
     }
 
     /**

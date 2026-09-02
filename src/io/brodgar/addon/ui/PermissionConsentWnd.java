@@ -40,6 +40,12 @@ import java.util.Set;
  * request for something more rather than as a repeat of one they already dismissed — which is the failure
  * mode of any dialog that shows the same text twice.
  *
+ * <p><b>A host widens too</b>, and is marked where it is written: the {@code network} block is the network
+ * key's argument, so an addon that adds a host to it has asked for something more without touching a key,
+ * and the line carrying that host is marked like any other entry — with the added host itself marked inside
+ * it ({@link PermissionSet#describe}). A dialog that answered a new host by re-printing the approved ones
+ * would put the one thing being asked about in the one place the user has already read.
+ *
  * <p>Pure {@code haven}-public composition (a {@link Window} of {@link Label}s + {@link Button}s), so it
  * lives in the addon package like {@link AddonPanel}. It is a <b>top-level floating window</b> (added to
  * {@code ui.root}, centered and raised), so it drags freely like any window rather than being clipped
@@ -63,21 +69,27 @@ public class PermissionConsentWnd extends Window {
      *                  every line would say nothing).
      * @param hosts     the manifest's {@code network.hosts} allowlist, appended to the line of a network
      *                  key so the user reads WHERE as well as whether (093.4). Ignored by every other entry.
+     * @param known     the hosts already in this addon's consent record; every declared host it does not
+     *                  cover is marked NEW inside the line. Empty on a first prompt, where nothing is marked.
      * @param onConfirm run once, on the UI thread, if the user clicks <b>Enable</b> (record the consent +
      *                  persist-enable the addon + refresh the panel). Never run on Cancel / close.
      */
     public PermissionConsentWnd(String addonName, PermissionSet declared, Set<Permission> consented,
-                                List<String> hosts, Runnable onConfirm) {
+                                List<String> hosts, List<String> known, Runnable onConfirm) {
         super(Coord.z, "Enable " + addonName + "?", true);
         // Build the lines first: a Label sizes itself in its constructor, so their total height is what decides
         // how tall the list box is — and that has to be known BEFORE anything below it is positioned.
         List<Label> lines = new ArrayList<Label>();
+        // A FIRST prompt marks nothing — all of it is new, and saying so on every line says nothing. The one
+        // guard covers both levels, which is why the host marking is handed null rather than the empty record.
+        boolean reprompt = !consented.isEmpty();
         boolean anyNew = false;
         int lh = 0;
         for(String entry : declared.entries()) {
-            boolean isnew = !consented.isEmpty() && PermissionSet.isNew(entry, consented);
+            boolean isnew = reprompt && PermissionSet.isNew(entry, consented, hosts, known);
             anyNew = anyNew || isnew;
-            Label l = new Label(BULLET + (isnew ? "NEW: " : "") + PermissionSet.describe(entry, hosts)
+            Label l = new Label(BULLET + (isnew ? PermissionSet.NEW + ": " : "")
+                                + PermissionSet.describe(entry, hosts, reprompt ? known : null)
                                 + "  (" + entry + ")", WRAP - UI.scale(34));   // room for the indent + the bar
             lines.add(l);
             lh += l.sz.y + UI.scale(3);
@@ -96,7 +108,7 @@ public class PermissionConsentWnd extends Window {
         }
         prev = list;
         if(anyNew)
-            prev = add(new Label("You have enabled this addon before, but it is now asking for the entries"
+            prev = add(new Label("You have enabled this addon before, but it is now asking for what is"
                 + " marked NEW.", WRAP), prev.pos("bl").adds(0, 8));
         prev = add(new Label("Enable it only if you trust it — you are granting exactly these permissions, to"
             + " this addon alone. You can disable it again here in the AddOns panel at any time.", WRAP),

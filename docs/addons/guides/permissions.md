@@ -135,10 +135,12 @@ and no way for an addon to grant itself a key by being installed. Its row in the
 `[protected: N]` badge counting those entries from the moment it is discovered, with the entries themselves
 in the row tooltip, and a bulk **Enable all** skips it.
 
-> **Asking for more re-asks.** What the user approved is remembered per addon, so a version of your addon
-> that adds a key is disabled again and prompts again, with the added entries marked as new in the dialog.
-> A widened group counts as added. Dropping a key never re-prompts, and neither does an addon that declares
-> nothing.
+> **Asking for more re-asks.** What the user approved is remembered per addon — the keys, and the hosts the
+> dialog showed beside them — so a version of your addon that adds either is disabled again and prompts
+> again, with what it added marked as new in the dialog. A widened group counts as added, and so does a host
+> no approved entry already covers: adding `b.example.com` re-asks, while narrowing an approved
+> `*.example.com` to `a.example.com` does not. Dropping a key or a host never re-prompts, and neither does an
+> addon that declares nothing.
 
 A protected verb called by an addon that did not declare its key raises an error naming the verb, the key it
 needs and the manifest line to paste. It is not a silent no-op, and it is not a crash.
@@ -231,7 +233,7 @@ Reaching outside the client is `http.get` and `http.post`, keys like any other �
 The key says **whether** your addon may use the network, the hosts say **where**, and the user reads both as
 one line when they enable you: *"fetch data from the servers it lists: api.example.com"*. Declaring hosts
 without a key is a **load error** naming the key; asking for the key with no hosts is refused at the call.
-A host you did not list is refused before any request leaves.
+A host the user did not approve is refused before any request leaves.
 
 The AddOns panel still shows a `[net]` badge with the exact hosts in the row's tooltip.
 

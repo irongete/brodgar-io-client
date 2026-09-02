@@ -47,7 +47,7 @@ Two things fall out of fixing it, and both are this feature's own:
    `=` records and reads back correctly.
 6. A declaration too large for the preference store is refused with an error naming the addon and the
    limit, instead of an `IllegalArgumentException` escaping from `setprefsl`.
-7. The two remaining `new URL(String)` / `new URL(URL, String)` sites parse through `URI`, so the host the
+7. The three remaining `new URL(String)` / `new URL(URL, String)` sites parse through `URI`, so the host the
    allowlist is asked about is the one a strict parse produced.
 
 ## Out of scope
@@ -94,8 +94,9 @@ revised or discharged with its reason by the task that owns the gate. `map/drawi
   `persistConsent`, `applyPermissionDefaults`, `scanAddonDefaults`, `PREF_CONSENTED`)
 - `src/io/brodgar/addon/Manifest.java` — 1, 2 (`network`, `hostAllowed`, `usesNetwork`)
 - `src/io/brodgar/addon/Addon.java` — 1 (where the granted hosts hang)
-- `src/io/brodgar/addon/HttpApi.java` — 1 (`requireNetwork`)
-- `src/io/brodgar/addon/PermissionSet.java` — 2 (`isNew`, `describe(entry, hosts)`, `entries`)
+- `src/io/brodgar/addon/HttpApi.java` — 1, 7 (`requireNetwork`, and `httpHost`, which parses the
+  url `requireNetwork` is then asked about)
+- `src/io/brodgar/addon/PermissionSet.java` — 2 (`isNew`, `describe(entry, hosts, known)`, `entries`)
 - `src/io/brodgar/addon/Permission.java` — 2 (`byKey`, `HTTP_GET`, `HTTP_POST`)
 - `src/io/brodgar/addon/ui/PermissionConsentWnd.java` — 2
 - `src/io/brodgar/addon/ui/AddonPanel.java` — 2 (the dialog's one door)

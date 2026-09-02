@@ -94,6 +94,27 @@ public final class Manifest {
     }
 
     /**
+     * Those of {@code want} that no pattern in {@code allow} matches — <b>what a declaration adds</b> to a
+     * record of what has already been granted, in declaration order. Empty ⇒ {@code want} is contained by
+     * {@code allow}, which is the containment the consent policy tests: an addon whose declared hosts are all
+     * covered is asking for nothing new and is not re-prompted.
+     *
+     * <p>Containment is {@link #hostMatches} applied once per entry, so it is the <b>same</b> wildcard rule the
+     * gate asks — a re-prompt fires exactly when the gate would refuse, and never for a host it would allow.
+     * Narrowing an approved {@code *.example.com} to {@code a.example.com} therefore adds nothing at all.
+     */
+    public static List<String> hostsUncovered(List<String> allow, List<String> want) {
+        List<String> out = new ArrayList<String>();
+        if(want == null)
+            return out;
+        for(String host : want) {
+            if(!hostMatches(allow, host))
+                out.add(host);
+        }
+        return out;
+    }
+
+    /**
      * One {@code saved_variables} declaration: a global Lua table the engine persists to JSON and
      * restores on load (D-002/D-023). {@code account} = shared across all characters
      * ({@code savedata/account/<addon>.json}); otherwise per-character

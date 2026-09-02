@@ -15,7 +15,7 @@
       `[manual]`: quit the client, start it again and run `:t127` — expect: no consent dialog, this addon
       still enabled, and the same verdict line, which is the record surviving a restart.
 
-- [ ] **127.2 — an added host re-prompts, and reads as NEW.**
+- [x] **127.2 — an added host re-prompts, and reads as NEW.**
       `applyPermissionDefaults` keeps its one sentence and gains a second containment beside the first: the
       declared hosts must be contained by the recorded hosts. `scanAddonDefaults` reads `network` off the
       `Manifest` it already loads, so no extra disk I/O. `consentPending` reports an unrecorded host the way
@@ -58,13 +58,20 @@
       naming this addon and the limit, and no Java error in the console.
 
 - [ ] **127.5 — the host the allowlist is asked about is a strictly parsed one.**
-      `LuaHttp` parses through `URI` at both sites: `URI.create(url).toURL()` at the entry and
-      `u.toURI().resolve(loc).toURL()` for a redirect's relative `Location`, with the two `catch` blocks
-      widened to the exceptions those throw and still answering `Result.fail("malformed url: …")`. The
-      scheme is checked to be `http` or `https` before `openConnection`, because a `Location` naming another
-      reaches `(HttpURLConnection)u.openConnection()` and a `ClassCastException` on the pool thread. This is
-      the last of the build's deprecation warnings.
+      **Three** `new URL` sites parse through `URI`, and `HttpApi.httpHost` is the one this task is named
+      after: it runs at `hafen.http():request(url)` and what it returns **is** `req.host`, the host
+      `requireNetwork` measures against the record — so a lenient parse there is a lenient parse of the whole
+      gate, whatever the sites behind it do. It takes `URI.create(url).toURL()`, its `catch` widened past
+      `MalformedURLException`, still raising the `LuaError` that names the url. `LuaHttp` takes the other
+      two: `URI.create(url).toURL()` at the entry and `u.toURI().resolve(loc).toURL()` for a redirect's
+      relative `Location`, with those two `catch` blocks widened to what `URI` throws and still answering
+      `Result.fail("malformed url: …")`. The redirect is also checked to be `http` or `https` before
+      `openConnection` — the check `httpHost` already makes at the entry, and without it a `Location` naming
+      another scheme reaches `(HttpURLConnection)u.openConnection()` and a `ClassCastException` on the pool
+      thread. The three together are the last of the build's deprecation warnings.
       *Its suite* `pcall`s `hafen.http():request(url)` over a handful of URLs `new URL` accepts and `URI`
       refuses, asserting each raises **and** that the message names the URL rather than reading `null`, then
       asserts an ordinary `https://` URL still builds and that a `file:` one is refused at the call — the
-      pair that separates a stricter parse from a broken one.
+      pair that separates a stricter parse from a broken one. That pair lands on `httpHost`, because it is
+      first and a URL it refuses never reaches `:send()`; the two `LuaHttp` sites are verified by reading
+      them, a relative `Location` being something no offline suite can cause a server to send.
