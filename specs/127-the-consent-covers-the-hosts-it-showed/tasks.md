@@ -30,7 +30,7 @@
       addon disabled until it is answered. Then remove a host and **Reload UI** — expect: no dialog, the
       addon still enabled.
 
-- [ ] **127.3 — a row escapes its own delimiters.**
+- [x] **127.3 — a row escapes its own delimiters.**
       One `enc`/`dec` pair percent-encodes `%`, `=`, `,` and `;`, applied to all three fields — the id, each
       key and each host — so there is one encoder and no field is the exception. Because the delimiters are
       escaped, `consentedMap`'s parse is unchanged: the first literal `=` is still the id boundary and the

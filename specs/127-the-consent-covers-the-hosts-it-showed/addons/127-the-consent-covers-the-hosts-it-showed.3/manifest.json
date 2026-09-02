@@ -1,0 +1,11 @@
+{
+  "name": "127.3 — a row escapes its own delimiters",
+  "id": "127-the-consent-covers-the-hosts-it-showed.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 127.3: this addon's consent row round-trips through the codec, so its one approved host is still reachable and every other host is still refused; the manual half records and reads back an id carrying the row's own '='.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["http.get"],
+  "network": { "hosts": ["declared.invalid"] }
+}

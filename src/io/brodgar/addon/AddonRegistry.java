@@ -56,6 +56,9 @@ public final class AddonRegistry {
      * keeping only the other half lets an addon rewrite its own {@code network.hosts} with nothing to compare
      * against. A row with <b>no {@code ;}</b> reads as <b>no hosts recorded</b>, which is the honest reading of
      * a row that carries none: a grant with no host in it authorises no host, and the addon is asked again.
+     *
+     * <p>All three fields are escaped by {@link #enc}, so a delimiter <i>inside</i> an id or a host is data
+     * and not a boundary.
      */
     private static final String PREF_CONSENTED = "addons/permissions.consented";
 
@@ -725,6 +728,60 @@ public final class AddonRegistry {
         }
     }
 
+    /** The digits {@link #enc} spends on an escape. */
+    private static final String HEX = "0123456789ABCDEF";
+
+    /**
+     * The row codec: percent-encode {@code %} and the row's own three delimiters — {@code =}, {@code ,} and
+     * {@code ;} — and nothing else. It is applied to <b>all three fields</b>, the id, every key and every
+     * host, so there is one encoder and no field is the exception that rots: a key is a closed {@code [a-z.]}
+     * catalogue today, and a field left unescaped because of what its vocabulary happens to be is a field that
+     * breaks the day the vocabulary moves.
+     *
+     * <p>Because the delimiters are escaped, the parse in {@link #consentedMap} stays exactly as cheap as it
+     * was: the first literal {@code =} is still the id boundary and the first literal {@code ;} still the
+     * key/host boundary. And because nothing else is touched, an ordinary row is <b>byte-identical</b> to what
+     * was written before this codec — a folder name and a domain name carry none of the four — so the record
+     * needs no migration and no new pref name. What changes is the row that could not be written at all: an id
+     * containing {@code =} recorded nothing and re-prompted for ever, because {@link #consentedMap} cut it at
+     * its own {@code =} and read the tail as keys. It round-trips now.
+     */
+    private static String enc(String s) {
+        StringBuilder sb = new StringBuilder(s.length() + 8);
+        for(int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if((c == '%') || (c == '=') || (c == ',') || (c == ';'))
+                sb.append('%').append(HEX.charAt((c >> 4) & 0xf)).append(HEX.charAt(c & 0xf));
+            else
+                sb.append(c);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * {@link #enc}'s inverse, and tolerant where it has to be: the record is a preference a user can edit by
+     * hand, so a {@code %} that is not followed by two hex digits reads as the literal {@code %} it is. One
+     * malformed row may not cost the whole record, and the whole record is every grant the user ever gave.
+     */
+    private static String dec(String s) {
+        if(s.indexOf('%') < 0)
+            return s;                        // the ordinary row: nothing to undo
+        StringBuilder sb = new StringBuilder(s.length());
+        for(int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            int hi, lo;
+            if((c == '%') && ((i + 2) < s.length())
+               && ((hi = Character.digit(s.charAt(i + 1), 16)) >= 0)
+               && ((lo = Character.digit(s.charAt(i + 2), 16)) >= 0)) {
+                sb.append((char)((hi << 4) | lo));
+                i += 2;
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
     /** The persisted consent record: addon id → the keys and the hosts the user approved for it. */
     private static Map<String, Consent> consentedMap() {
         Map<String, Consent> out = new LinkedHashMap<String, Consent>();
@@ -739,7 +796,7 @@ public final class AddonRegistry {
             int semi = tail.indexOf(';');        // no ';' ⇒ no hosts recorded (a row written before the field)
             Set<Permission> keys = EnumSet.noneOf(Permission.class);
             for(String k : ((semi < 0) ? tail : tail.substring(0, semi)).split(",")) {
-                Permission p = Permission.byKey(k.trim());
+                Permission p = Permission.byKey(dec(k.trim()));
                 if(p != null)                    // a key this build no longer has grants nothing
                     keys.add(p);
             }
@@ -748,34 +805,42 @@ public final class AddonRegistry {
             List<String> hosts = new ArrayList<String>();
             if(semi >= 0) {
                 for(String h : tail.substring(semi + 1).split(",")) {
-                    String host = h.trim();
+                    String host = dec(h.trim());
                     if(!host.isEmpty())
                         hosts.add(host);
                 }
             }
-            out.put(row.substring(0, eq), new Consent(keys, hosts));
+            out.put(dec(row.substring(0, eq)), new Consent(keys, hosts));
         }
         return out;
     }
 
     /**
-     * Write the consent record back, one {@code "<id>=<key>,<key>;<host>,<host>"} row per addon. An addon with
-     * no hosts writes no {@code ;} — the row is exactly what it would have been without the field, and reads
-     * back as the nothing it recorded.
+     * Write the consent record back, one {@code "<id>=<key>,<key>;<host>,<host>"} row per addon, every field
+     * through {@link #enc} so a delimiter inside one is data. An addon with no hosts writes no {@code ;} — the
+     * row is exactly what it would have been without the field, and reads back as the nothing it recorded.
      */
     private static void persistConsent(Map<String, Consent> consented) {
         List<String> rows = new ArrayList<String>();
         for(Map.Entry<String, Consent> e : consented.entrySet()) {
-            StringBuilder sb = new StringBuilder(e.getKey()).append('=');
+            StringBuilder sb = new StringBuilder(enc(e.getKey())).append('=');
             boolean first = true;
             for(Permission p : e.getValue().keys) {
                 if(!first)
                     sb.append(',');
-                sb.append(p.key);
+                sb.append(enc(p.key));
                 first = false;
             }
-            if(!e.getValue().hosts.isEmpty())
-                sb.append(';').append(String.join(",", e.getValue().hosts));
+            if(!e.getValue().hosts.isEmpty()) {
+                sb.append(';');
+                first = true;
+                for(String h : e.getValue().hosts) {
+                    if(!first)
+                        sb.append(',');
+                    sb.append(enc(h));
+                    first = false;
+                }
+            }
             rows.add(sb.toString());
         }
         Utils.setprefsl(PREF_CONSENTED, rows);
