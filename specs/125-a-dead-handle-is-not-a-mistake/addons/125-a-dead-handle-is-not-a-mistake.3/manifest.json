@@ -1,0 +1,9 @@
+{
+  "name": "125.3 — a view, and one standing in the world",
+  "id": "125-a-dead-handle-is-not-a-mistake.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 125.3: a view that has left the tree stops widget:replace(view) and chains, while hafen.virtual():widget():add(w, anchor) goes on raising and names the tree rather than reporting a type.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

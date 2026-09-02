@@ -1863,12 +1863,20 @@ final class VirtualApi {
     }
 
     /**
-     * The widget a {@code hafen.virtual():widget():add(w, p)} names, or a refusal that says which of the four things
-     * went wrong: it is not a Widget at all, it is already standing (naming the addon that holds it), it is
-     * inside something that is already standing, or it is (or contains) the 3D view itself. The last two are
-     * one refusal in two spellings — a surface within a surface, which the spec refuses outright rather than
-     * deferring. Nothing else can enclose a standing panel: standing <b>moves</b> the widget into its surface,
-     * so the only widget left containing one is the root the surface hangs off, and that is the second spelling.
+     * The widget a {@code hafen.virtual():widget():add(w, p)} names, or the refusal that says which thing went
+     * wrong: it is not a Widget at all, it has left the tree, it is already standing (naming the addon that holds
+     * it), it is inside something that is already standing, or it is (or contains) the 3D view itself. The last
+     * two are one refusal in two spellings — a surface within a surface, which the spec refuses outright rather
+     * than deferring. Nothing else can enclose a standing panel: standing <b>moves</b> the widget into its
+     * surface, so the only widget left containing one is the root the surface hangs off, and that is the second
+     * spelling.
+     *
+     * <p><b>The one Widget argument that goes on raising for a dead one</b> (125.3). Everywhere else a Widget
+     * that has left the tree stops a write and the call chains, because the verb hands its receiver back. This
+     * one <b>mints</b> what it hands back and has never had a {@code nil} to hand — even "there is no map view
+     * yet" raises here — so a quiet stop would answer one where the caller's next line is written on the panel
+     * it just asked for, putting the failure a line further from the fault and inside their own code. What the
+     * split buys is the <i>reason</i>: the dead widget names the tree instead of reporting {@code "userdata"}.
      *
      * <p><b>Provenance is no longer one of them</b> (044.6). Standing the client's own windows is what this
      * feature exists for, and it is the same family of write as {@code widget:position(x, y)},
@@ -1881,11 +1889,16 @@ final class VirtualApi {
      */
     private static Widget standable(Addon owner, LuaValue wv) {
         LuaWidget lw = LuaWidget.resolve(wv);
-        Widget w = (lw == null) ? null : LuaWidget.live(lw);
-        if(w == null)
+        if(lw == null)
             throw new LuaError("hafen.virtual():widget():add(w, anchor) expects a Widget — one you built"
                 + " (hafen.ui():window(), hafen.ui():widget(), or a control builder), or one of the client's"
                 + " own (s:ui():match(…), s:ui():inventory(), …). Got " + wv.typename());
+        Widget w = LuaWidget.live(lw);
+        if(w == null)                                  // the tree, not the type name: see the comment above
+            throw new LuaError("hafen.virtual():widget():add(w, anchor): that widget has left the tree"
+                + " (widget:exists() is false), so there is nothing to stand — the window was closed, the server"
+                + " destroyed it, or the character relogged. Stand one that is up: s:ui():on(selector, \"Added\","
+                + " fn) hands you a widget on the step it arrives");
         if(w.parent instanceof WidgetSurface)
             throw new LuaError("hafen.virtual():widget():add(w, anchor): " + LuaWidget.typeName(w) + " is already"
                 + " standing in the world, held by the addon \""

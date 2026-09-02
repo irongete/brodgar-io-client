@@ -44,7 +44,7 @@
       site rather than by a check the suite cannot honestly make.
       `[manual]`: none.
 
-- [ ] **125.3 — the two sites the rule reaches last: a view, and one standing in the world.**
+- [x] **125.3 — the two sites the rule reaches last: a view, and one standing in the world.**
       `widget:replace(view)` (`UiApi.replaceWith`) takes the same rule as every other chaining write:
       its one `view == null` throw becomes three steps in that order — a value that is not a Widget
       raises, one that has left the tree **stops the substitution and chains**, and only then is the

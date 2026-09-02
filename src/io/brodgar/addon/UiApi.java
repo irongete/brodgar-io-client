@@ -2396,17 +2396,36 @@ final class UiApi {
      * to it — from which point the client's own toggle drives the view and the menu tick reads it (D-069/D-070).
      * Nothing new is stored: the verb fills in a field that already exists.
      *
-     * <p><b>Four refusals, all clear and all thrown</b> (this is a Lua call, unlike the placement path that can only
-     * log): a view the addon does not own, a widget with no enclosing window (nothing to stand in for), one of the
-     * addon's <i>own</i> windows, and a window another addon already holds — <i>one window, one owner</i>, since the
-     * toggle goes with it (031.2).
+     * <p><b>The refusals are thrown</b> (this is a Lua call, unlike the placement path that can only log), and they
+     * are: a value that is not a Widget, a view the addon does not own, a widget with no enclosing window (nothing
+     * to stand in for), one of the addon's <i>own</i> windows, and a window another addon already holds — <i>one
+     * window, one owner</i>, since the toggle goes with it (031.2). A view that has <b>left the tree</b> is none of
+     * them: 125.3 stops the substitution there instead, which is the rule every Widget argument on this surface
+     * takes.
      *
      * <p><b>One window, one view.</b> Installing a different view ends the previous substitution and destroys that
      * view, for the same reason every other ending does: a stand-in that stands for nothing is an orphan window over
      * a container it no longer represents. Re-installing the SAME view is a no-op that still re-hides the window.
      */
     static void replaceWith(Addon owner, Widget w, LuaValue viewv) {
-        Owned own = LuaWidget.ownedContent(owner, LuaWidget.live(LuaWidget.resolve(viewv)));
+        LuaWidget vh = LuaWidget.resolve(viewv);
+        if(vh == null)
+            throw new LuaError("widget:replace(view) expects a widget YOUR addon created (hafen.ui():window() or"
+                + " hafen.ui():widget()) to stand in for the native one — pass nil to undo a replacement. Got "
+                + viewv.typename());
+        // 125.3: THE VIEW LEFT THE TREE, and that is not a mistake anyone can guard against — the view was built
+        // on an earlier step and may have gone since (its own X, a teardown, a relog), with no :exists() of yours
+        // able to sit inside the instant between the check and this call. So the substitution STOPS: the window is
+        // not hidden, its toggle stays the client's, nothing is bound, and w:replacement() goes on reading nil.
+        // Nothing is left half-done by that — unlike the builder direction of :parent(w), the receiver here is one
+        // of the client's own windows, and it is left exactly as the user has it.
+        //
+        // AHEAD OF THE OWNERSHIP REFUSALS, deliberately: whose a view is, and whether it is a surface rather than
+        // a control, are facts a handle that has left the tree can no longer answer.
+        Widget vw = LuaWidget.live(vh);
+        if(vw == null)
+            return;                        // ...and widget:replace hands the receiver back whatever this call did
+        Owned own = LuaWidget.ownedContent(owner, vw);
         // A SURFACE, never a control (040.1): what stands in for a window is a window of yours, and a lone
         // button inheriting a container's toggle would be a stand-in that stands for nothing.
         AddonWidget view = (own instanceof AddonWidget) ? (AddonWidget)own : null;

@@ -208,7 +208,19 @@ you are looking at. Tab back and the panel is there, in the state it kept.
   scene it stands in, so the world cannot stand inside itself. Point at one window, not at the whole
   interface.
 - **Anything that is not a Widget**, naming the builders and the lookups that hand one back.
+- **A widget that has left the tree** — the window closed, the server destroyed it, the character relogged.
+  The refusal names the tree rather than the value's type, so a stale handle never reads as a typing
+  mistake.
 - **`:add` before you are in the world**, like every other kind: a thing in the 3D scene needs that scene.
+
+**A dead widget raises here, where the rest of the surface stops.** Everywhere else a
+[Widget you pass as an argument](../ui/widget.md) that has left the tree stops the write quietly and the
+call chains — there is a receiver to hand back and something to go on writing to. This verb **mints** the
+panel it hands back and has never had a `nil` to hand: `:add` before you are in the world raises for the
+same reason. A quiet stop would answer `nil` exactly where your next line is written on the panel you just
+asked for, putting the failure a line further from the fault and inside your own code. So it says which of
+the two happened, and [`s:ui():on(sel, "Added", fn)`](../ui/replace.md#watching-for-a-widget) is where a
+widget that is up comes from.
 
 ## What it costs
 

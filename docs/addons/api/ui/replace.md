@@ -117,9 +117,22 @@ leaves the stock window **as the user was seeing it**: your view was open, so th
 nothing was on screen, so it stays closed.
 
 **One window, one view.** Installing a *different* view ends the previous substitution and destroys that
-view; installing the same one again is a no-op. Four things are refused outright, each naming what to do
-instead: a view your addon did not create, a widget with **no enclosing window** (there is nothing to stand
-in for), one of your *own* windows, and a window another addon already holds.
+view; installing the same one again is a no-op. What is refused outright, each naming what to do instead:
+
+- a **view your addon did not create** — one of the client's own, or another addon's — and a lone control
+  rather than a whole surface: what stands in for a window is a window of yours
+- a widget with **no enclosing window**: there is nothing to stand in for, and no toggle to inherit
+- one of your **own** windows: replacing stands in for the *client's*, so move, resize or destroy yours
+- a window **another addon already holds**: one window, one owner, because the toggle goes with it
+
+**A view that has left the tree installs nothing.** Your view was built on an earlier step and may have
+gone since — its own X, a teardown, a relog — and no `:exists()` of yours sits inside the instant between
+asking and calling. So `w:replace(view)` stops there and chains: the native window is not hidden, its
+toggle stays the client's, nothing is bound, and `w:replacement()` reads `nil`. That question is asked
+before any of the refusals above, because whose a view is, and whether it is a surface at all, are things a
+handle out of the tree can no longer answer. It is the rule every
+[Widget you pass as an argument](widget.md) takes — and a value that is not a widget at all is a spelling
+mistake, so that one still raises.
 
 ## Where replacing ends
 
