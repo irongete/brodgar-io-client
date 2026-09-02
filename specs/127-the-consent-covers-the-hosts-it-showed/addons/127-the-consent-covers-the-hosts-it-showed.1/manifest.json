@@ -1,0 +1,11 @@
+{
+  "name": "127.1 — the record carries the hosts, and the gate asks the record",
+  "id": "127-the-consent-covers-the-hosts-it-showed.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 127.1: the one host this addon declared and the user approved passes the gate, a second host is refused at the call naming it and naming the approved set the record carries.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["http.get"],
+  "network": { "hosts": ["declared.invalid"] }
+}

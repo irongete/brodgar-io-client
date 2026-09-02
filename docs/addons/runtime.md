@@ -186,7 +186,7 @@ tooltip.
 | `error: …` | its manifest or its Lua failed; the message says how |
 | `auto-disabled (…)` | the [CPU budget](#budgets-and-the-watchdog) or a [fatal failure](#when-a-failure-is-fatal) stopped it |
 | `[protected: N]` | it asked for N permission entries — it can act on your behalf; the tooltip names them |
-| `[net]` | it declared network hosts; the tooltip names every host it may reach |
+| `[net]` | it declared network hosts; the tooltip names every host it asks to reach |
 
 The count is the entries the addon wrote, so a `<prefix>.*` group counts as the one line you read rather
 than as the keys it covers.

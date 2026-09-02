@@ -159,7 +159,7 @@ The verbs that act are on the pages of what they change — [`session:player`](p
 | [`hafen.timer`](timer.md) | run a function later, once or repeatedly |
 | [`hafen.store`](store.md) | saved variables, per character and per account |
 | [`hafen.json`](json.md) | parse and encode JSON |
-| [`hafen.http`](http.md) | fetch a URL, against the host allowlist your manifest declares |
+| [`hafen.http`](http.md) | fetch a URL, against the host allowlist the user approved |
 | [`hafen.locale`](locale.md) | what the client displays: one catalogue of what to draw for the text it would have drawn |
 | [`hafen.console`](console.md) | register a `:name` console command, and run a line at one character's console |
 | [`hafen.log`](log.md) | print a line to the console and the terminal |

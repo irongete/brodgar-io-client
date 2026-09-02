@@ -109,9 +109,11 @@ public class AddonPanel extends OptWnd.Panel {
      * screen and raised to the front — so it drags freely like any window, not clipped inside this panel) and
      * <b>records what was consented to</b> + enables the addon (persisted; applied on reload) + rebuilds the
      * rows <b>only</b> if the user confirms. The record is the door: consent is granted for the keys this
-     * manifest declared, so one that later asks for more is disabled again and asks again — and the dialog is
-     * handed that record as well as the declaration, so the re-prompt can mark what is NEW in it (050.2)
-     * rather than repeating a list the user has already read once.
+     * manifest declared <b>and for the {@code hosts} this dialog showed beside them</b>, so one that later asks
+     * for more is disabled again and asks again — and the dialog is handed that record as well as the
+     * declaration, so the re-prompt can mark what is NEW in it (050.2) rather than repeating a list the user
+     * has already read once. The same {@code hosts} go on the screen and into the record, from the one variable,
+     * because a record of hosts the user was not shown is not a record of anything they agreed to.
      * One dialog at a time: re-ticking while a consent is already open is a no-op. Because it is top-level, it
      * is closed explicitly when this panel leaves the screen — see {@link #tick(double)}.
      */
@@ -119,7 +121,7 @@ public class AddonPanel extends OptWnd.Panel {
         if((consent != null) && (consent.parent != null))
             return;
         consent = ui.root.adda(new PermissionConsentWnd(name, declared, AddonRegistry.consentedKeys(id), hosts,
-                                                       () -> { AddonRegistry.grantConsent(id, declared); rebuild(); }),
+                                                       () -> { AddonRegistry.grantConsent(id, declared, hosts); rebuild(); }),
                                ui.root.sz.div(2), 0.5, 0.5);
         consent.raise();
     }

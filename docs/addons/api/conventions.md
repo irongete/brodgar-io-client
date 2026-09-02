@@ -327,7 +327,8 @@ A key is named `<section>.<verb>` after the section its verb lives on — `gob.c
 `<prefix>.*` entry asks for the family under that prefix in one line. There is no key that grants the tier as
 a whole. **Reaching outside the client is keyed in the same words**: `http.get`/`http.post` are catalogue keys
 like any other, and the `network` host allowlist is **the argument of the key** — the key says whether, the
-hosts say where, and the consent dialog reads them as one line.
+hosts say where, the consent dialog reads them as one line, and the list the user approved there is what
+gates the call.
 
 **A protected verb lives with the thing it changes**, never in a section of its own: walking is on the
 character, clicking is on the gob — so the page you look a verb up on is where you meet the permission,

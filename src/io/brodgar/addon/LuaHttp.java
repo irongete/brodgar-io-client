@@ -95,8 +95,8 @@ final class LuaHttp {
      *
      * <p><b>Redirects (N2b, §5.6).</b> We follow up to {@link #MAX_REDIRECTS} 3xx hops manually
      * ({@code setInstanceFollowRedirects(false)} so the JDK never silently jumps for us), and each hop's
-     * {@code Location} host is <b>re-checked against the addon's allowlist and the private-IP block</b> — a
-     * redirect to a non-allowlisted or private host aborts, so redirects can never escape the declared hosts.
+     * {@code Location} host is <b>re-checked against the hosts the user approved and the private-IP block</b> —
+     * a redirect to a non-approved or private host aborts, so redirects can never escape the granted hosts.
      * Per HTTP semantics a 303 (and a 301/302 on a non-idempotent method) demotes to {@code GET} and drops the
      * body; 307/308 preserve method + body.
      *
@@ -197,9 +197,10 @@ final class LuaHttp {
     }
 
     /**
-     * Validate one hop before connecting: scheme must be http/https, the host must be in the addon's allowlist
-     * (enforced on <b>every</b> hop when {@code redirect} — so a redirect can't escape the declared hosts; the
-     * first hop was already checked at call, re-checked here as defense-in-depth), and no resolved address may be
+     * Validate one hop before connecting: scheme must be http/https, the host must be one the user approved for
+     * the addon ({@link Addon#hostGranted} — the consent record, not the manifest on disk; enforced on
+     * <b>every</b> hop when {@code redirect}, so a redirect can't escape the granted hosts; the first hop was
+     * already checked at call, re-checked here as defense-in-depth), and no resolved address may be
      * private/loopback/link-local (§5.2). Returns {@code null} when the hop is allowed, else the failure Result.
      */
     private static Result validateHop(LuaHttpRequest r, URL u, boolean redirect) {
@@ -209,9 +210,9 @@ final class LuaHttp {
         String host = u.getHost();
         if((host == null) || host.isEmpty())
             return Result.fail("redirect url has no host: " + u);
-        if(redirect && ((r.owner == null) || !r.owner.manifest.hostAllowed(host)))
+        if(redirect && ((r.owner == null) || !r.owner.hostGranted(host)))
             return Result.fail("redirect to non-allowlisted host \"" + host
-                + "\" refused (D-037: redirects may not escape the network allowlist)");
+                + "\" refused (D-037: redirects may not escape the hosts the user approved)");
         InetAddress[] addrs;
         try {
             addrs = InetAddress.getAllByName(host);

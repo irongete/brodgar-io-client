@@ -228,7 +228,7 @@ Everything below raises a `pcall`-able error naming `hafen.asset`, and each shap
 
 `hafen.asset` loads **local files only**. A remote asset would mean an async load in a synchronous API, an
 untrusted binary going into the font and texture paths, and a per-user tracking channel; fetching *data*
-over HTTP is [`hafen.http`](http.md), which is protected by a manifest allowlist.
+over HTTP is [`hafen.http`](http.md), which is protected by a host allowlist the user approves.
 
 The client already owns every `.res` in the game, and those are **addressed by name** rather than loaded
 from your folder: they have no sandbox to pass, no cache of yours to fill and no lifetime to manage. This

@@ -33,7 +33,8 @@ public final class Manifest {
      * not a bare {@code permissions[]} string, because the declaration IS the allowlist. Lower-cased; empty ⇒
      * no {@code network} block ⇒ the addon has no network access. Entries may be an exact host or a
      * {@code *.domain} sub-domain wildcard; the special token {@code "*"} (used only by the internal REPL owner)
-     * matches any host. See {@link #usesNetwork()} / {@link #hostAllowed(String)}.
+     * matches any host. This is the addon's <b>request</b>; what it may actually reach is the record of what the
+     * user approved ({@link Addon#hostGranted}). See {@link #usesNetwork()} / {@link #hostAllowed(String)}.
      */
     public final List<String> network;
 
@@ -48,15 +49,37 @@ public final class Manifest {
     }
 
     /**
-     * Whether {@code host} is permitted by this addon's {@code network} allowlist (D-037): a case-insensitive
-     * exact match, a {@code *.domain} wildcard (matching sub-domains, <b>not</b> the apex — {@code *.example.com}
-     * matches {@code a.example.com} but not {@code example.com}), or the internal-owner {@code "*"} allow-all.
+     * Whether this manifest carries the internal-owner allow-all token — only {@link #internal} mints it, and
+     * {@link #networkhosts} refuses it on disk. The one declaration that reaches a host the user never approved,
+     * because the {@code :lua} REPL is the operator's own console and passes through no consent dialog at all.
+     */
+    public boolean anyHost() {
+        return network.contains("*");
+    }
+
+    /**
+     * Whether {@code host} is permitted by this addon's declared {@code network} allowlist (D-037) — what this
+     * manifest <b>asks</b> for. What an addon may actually reach is what the user approved
+     * ({@link Addon#hostGranted}); this answers the manifest's own question, and a refusal reads the two apart.
      */
     public boolean hostAllowed(String host) {
-        if((host == null) || host.isEmpty())
+        return hostMatches(network, host);
+    }
+
+    /**
+     * Whether {@code host} is matched by the host patterns {@code allow}: a case-insensitive exact match, a
+     * {@code *.domain} wildcard (matching sub-domains, <b>not</b> the apex — {@code *.example.com} matches
+     * {@code a.example.com} but not {@code example.com}), or the internal-owner {@code "*"} allow-all.
+     *
+     * <p>Static, and taking the patterns rather than reading a field, because two lists are matched with this
+     * rule — the manifest's declaration and the record of what the user granted — and a second copy of
+     * "a wildcard covers a sub-domain and not the apex" is the copy that ends up subtly different.
+     */
+    public static boolean hostMatches(List<String> allow, String host) {
+        if((allow == null) || (host == null) || host.isEmpty())
             return false;
         String h = host.toLowerCase(java.util.Locale.ROOT);
-        for(String pat : network) {
+        for(String pat : allow) {
             if(pat.equals("*"))
                 return true;                                   // REPL / internal owner: any host
             if(pat.startsWith("*.")) {

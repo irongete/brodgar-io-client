@@ -197,6 +197,11 @@ final class HttpApi {
      * catalogue decides <i>whether</i>, the allowlist decides <i>where</i>, and the consent dialog says both
      * in one line. Both refusals are synchronous at the call, before any I/O. (The resolved IP's
      * private/loopback check happens later, on the pool thread.)
+     *
+     * <p><b>The allowlist asked is the one the user approved</b>, carried on the {@link Addon} from the consent
+     * record ({@link Addon#hostGranted}) — not the manifest on disk, which the addon writes and can rewrite
+     * between one enable and the next. The manifest still says whether the addon declared any network at all,
+     * because that refusal is about a declaration the author forgot rather than about a grant.
      */
     private static void requireNetwork(Addon owner, Permission perm, String host, String verb) {
         AddonManager.requirePermission(owner, perm, verb);
@@ -205,9 +210,13 @@ final class HttpApi {
                 + " key says WHETHER and the allowlist says WHERE. Add \"network\": { \"hosts\": [\""
                 + ((host != null) ? host : "example.com")
                 + "\"] } to its manifest.json beside the permission.");
-        if(!owner.manifest.hostAllowed(host))
-            throw new LuaError(verb + ": host \"" + host + "\" is not in this addon's network allowlist"
-                + " (declared hosts: " + owner.manifest.network + "). Add it to \"network\": { \"hosts\": [...] }.");
+        if(!owner.hostGranted(host))
+            throw new LuaError(verb + ": host \"" + host + "\" is not one the user approved for this addon"
+                + " (approved: " + owner.grantedHosts + ")."
+                + (owner.manifest.hostAllowed(host)
+                   ? " Its manifest does list it, so it was added after consent was given: enable the addon"
+                     + " again to be asked, and the host is reachable once it is approved."
+                   : " Add it to \"network\": { \"hosts\": [...] } and enable the addon again."));
     }
 
     /** The shared HTTP pool, created on first use (engine-lifetime, daemon threads so it never blocks exit). */

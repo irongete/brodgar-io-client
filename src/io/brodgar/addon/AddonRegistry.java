@@ -45,10 +45,17 @@ public final class AddonRegistry {
     // by AddonManager.engineReloads(), whose whole claim is that the difference between the two is 1.
     private static volatile int loadGen;
     /**
-     * What the user has CONSENTED to, per addon: {@code "<id>=<key>,<key>,…"} rows of catalogue keys they
-     * approved in the enable-time dialog. The record is what the default policy compares a manifest against
-     * (declared ⊆ consented → the user's choice stands), so a manifest that later asks for MORE is disabled
-     * and asked again instead of silently escalating. Additive per addon — asking for less never re-prompts.
+     * What the user has CONSENTED to, per addon: {@code "<id>=<key>,<key>;<host>,<host>"} rows — the catalogue
+     * keys they approved in the enable-time dialog, and <b>the hosts that dialog showed them</b>. The record is
+     * what the default policy compares a manifest against (declared ⊆ consented → the user's choice stands), so
+     * a manifest that later asks for MORE is disabled and asked again instead of silently escalating. Additive
+     * per addon — asking for less never re-prompts.
+     *
+     * <p>The hosts are here because the dialog says them: the network key's line reads <i>"fetch data from the
+     * servers it lists: api.example.com"</i>, so the host list is half of what the user answered and a record
+     * keeping only the other half lets an addon rewrite its own {@code network.hosts} with nothing to compare
+     * against. A row with <b>no {@code ;}</b> reads as <b>no hosts recorded</b>, which is the honest reading of
+     * a row that carries none: a grant with no host in it authorises no host, and the addon is asked again.
      */
     private static final String PREF_CONSENTED = "addons/permissions.consented";
 
@@ -88,6 +95,9 @@ public final class AddonRegistry {
         // (D-027/D-028) until the user enables it through the AddOns-panel consent dialog (slice 4c); once enabled
         // it loads like any other addon (there is no global switch to also satisfy — D-028).
         Set<String> disabled = disabledSet();
+        // The consent record, read ONCE for the whole load: it is what each addon's network gate asks (the
+        // manifest is only the request), so every Addon is handed the hosts the user approved for it.
+        Map<String, Consent> consented = consentedMap();
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
                 continue;
@@ -98,7 +108,9 @@ public final class AddonRegistry {
             try {
                 Manifest m = Manifest.load(sub.toPath());
                 Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
-                Addon addon = new Addon(m, sub.toPath(), g);
+                Consent c = consented.get(sub.getName());
+                Addon addon = new Addon(m, sub.toPath(), g,
+                                        (c == null) ? Collections.<String>emptyList() : c.hosts);
                 installHafen(g, addon);
                 LuaTable ad = new LuaTable();
                 ad.set("id", LuaValue.valueOf(m.id));
@@ -605,7 +617,7 @@ public final class AddonRegistry {
      * (additions only); {@code consented} is read, never written — consent is recorded where it is GIVEN
      * ({@link #grantConsent}). Returns the ids of every declaring addon in {@code declares}. Headless-testable.
      */
-    static Set<String> applyPermissionDefaults(Map<String, Set<Permission>> consented, Set<String> disabled,
+    static Set<String> applyPermissionDefaults(Map<String, Consent> consented, Set<String> disabled,
                                                Map<String, Set<Permission>> declares) {
         Set<String> declaringIds = new LinkedHashSet<String>();
         for(Map.Entry<String, Set<Permission>> e : declares.entrySet()) {
@@ -614,8 +626,8 @@ public final class AddonRegistry {
                 continue;                        // declares nothing: never touched
             String id = e.getKey();
             declaringIds.add(id);
-            Set<Permission> ok = consented.get(id);
-            if((ok == null) || !ok.containsAll(declared))
+            Consent ok = consented.get(id);
+            if((ok == null) || !ok.keys.containsAll(declared))
                 disabled.add(id);                // never consented, or now asking for more → ask again
         }
         return declaringIds;
@@ -639,10 +651,10 @@ public final class AddonRegistry {
         }
         if(declared.isEmpty())
             return null;
-        Set<Permission> ok = consentedMap().get(id);
+        Consent ok = consentedMap().get(id);
         StringBuilder sb = new StringBuilder();
         for(Permission p : declared.granted()) {
-            if((ok != null) && ok.contains(p))
+            if((ok != null) && ok.keys.contains(p))
                 continue;
             if(sb.length() > 0)
                 sb.append(", ");
@@ -657,13 +669,29 @@ public final class AddonRegistry {
      * instead of re-stating the whole list as if none of it had been seen.
      */
     public static Set<Permission> consentedKeys(String id) {
-        Set<Permission> ok = consentedMap().get(id);
-        return (ok == null) ? EnumSet.<Permission>noneOf(Permission.class) : ok;
+        Consent ok = consentedMap().get(id);
+        return (ok == null) ? EnumSet.<Permission>noneOf(Permission.class) : ok.keys;
     }
 
-    /** The persisted consent record: addon id → the catalogue keys the user approved for it. */
-    private static Map<String, Set<Permission>> consentedMap() {
-        Map<String, Set<Permission>> out = new LinkedHashMap<String, Set<Permission>>();
+    /**
+     * One addon's row in the consent record: the catalogue keys the user approved, and the hosts the dialog
+     * showed them when they did. Both halves, because both halves are what the dialog said and what the user
+     * answered — a record keeping the keys alone is a record of half the decision. Immutable; the merge that
+     * makes the record additive happens in {@link #grantConsent}.
+     */
+    static final class Consent {
+        final Set<Permission> keys;
+        final List<String> hosts;
+
+        Consent(Set<Permission> keys, List<String> hosts) {
+            this.keys = Collections.unmodifiableSet(keys);
+            this.hosts = Collections.unmodifiableList(hosts);
+        }
+    }
+
+    /** The persisted consent record: addon id → the keys and the hosts the user approved for it. */
+    private static Map<String, Consent> consentedMap() {
+        Map<String, Consent> out = new LinkedHashMap<String, Consent>();
         List<String> rows = Utils.getprefsl(PREF_CONSENTED, new String[0]);
         if(rows == null)
             return out;
@@ -671,48 +699,74 @@ public final class AddonRegistry {
             int eq = row.indexOf('=');
             if(eq < 0)
                 continue;
+            String tail = row.substring(eq + 1);
+            int semi = tail.indexOf(';');        // no ';' ⇒ no hosts recorded (a row written before the field)
             Set<Permission> keys = EnumSet.noneOf(Permission.class);
-            for(String k : row.substring(eq + 1).split(",")) {
+            for(String k : ((semi < 0) ? tail : tail.substring(0, semi)).split(",")) {
                 Permission p = Permission.byKey(k.trim());
                 if(p != null)                    // a key this build no longer has grants nothing
                     keys.add(p);
             }
-            out.put(row.substring(0, eq), keys);
+            // A host has no catalogue to be unknown against, so an unrecognised one is KEPT: dropping it
+            // would silently narrow a grant the user did give, which is the one direction a read may not take.
+            List<String> hosts = new ArrayList<String>();
+            if(semi >= 0) {
+                for(String h : tail.substring(semi + 1).split(",")) {
+                    String host = h.trim();
+                    if(!host.isEmpty())
+                        hosts.add(host);
+                }
+            }
+            out.put(row.substring(0, eq), new Consent(keys, hosts));
         }
         return out;
     }
 
-    /** Write the consent record back, one {@code "<id>=<key>,<key>"} row per addon. */
-    private static void persistConsent(Map<String, Set<Permission>> consented) {
+    /**
+     * Write the consent record back, one {@code "<id>=<key>,<key>;<host>,<host>"} row per addon. An addon with
+     * no hosts writes no {@code ;} — the row is exactly what it would have been without the field, and reads
+     * back as the nothing it recorded.
+     */
+    private static void persistConsent(Map<String, Consent> consented) {
         List<String> rows = new ArrayList<String>();
-        for(Map.Entry<String, Set<Permission>> e : consented.entrySet()) {
+        for(Map.Entry<String, Consent> e : consented.entrySet()) {
             StringBuilder sb = new StringBuilder(e.getKey()).append('=');
             boolean first = true;
-            for(Permission p : e.getValue()) {
+            for(Permission p : e.getValue().keys) {
                 if(!first)
                     sb.append(',');
                 sb.append(p.key);
                 first = false;
             }
+            if(!e.getValue().hosts.isEmpty())
+                sb.append(';').append(String.join(",", e.getValue().hosts));
             rows.add(sb.toString());
         }
         Utils.setprefsl(PREF_CONSENTED, rows);
     }
 
     /**
-     * Record the user's consent for {@code id} (the keys {@code declared} asks for) and enable the addon — the
-     * one door the AddOns panel's consent dialog confirms through. The record is <b>additive</b>: approving a
-     * smaller declaration later never narrows it, so an addon that drops a permission is not re-prompted, while
-     * one that adds a key is (the new key is not in the record until this runs again).
+     * Record the user's consent for {@code id} — the keys {@code declared} asks for <b>and the {@code hosts} the
+     * dialog showed beside them</b> — and enable the addon: the one door the AddOns panel's consent dialog
+     * confirms through. Both halves are recorded here because both halves were on screen, and the network gate
+     * reads the hosts back ({@link Addon#hostGranted}) rather than the manifest that may since have changed.
+     *
+     * <p>The record is <b>additive</b>, and equally so in both fields: approving a smaller declaration later
+     * never narrows it, so an addon that drops a permission or a host is not re-prompted, while one that adds
+     * either is (the addition is not in the record until this runs again).
      */
-    public static void grantConsent(String id, PermissionSet declared) {
+    public static void grantConsent(String id, PermissionSet declared, List<String> hosts) {
         if((id == null) || id.isEmpty())
             return;
-        Map<String, Set<Permission>> consented = consentedMap();
-        Set<Permission> cur = consented.get(id);
-        Set<Permission> merged = (cur == null) ? EnumSet.noneOf(Permission.class) : EnumSet.copyOf(cur);
-        if(merged.addAll(declared.granted()) || (cur == null)) {
-            consented.put(id, merged);
+        Map<String, Consent> consented = consentedMap();
+        Consent cur = consented.get(id);
+        Set<Permission> keys = (cur == null) ? EnumSet.noneOf(Permission.class) : EnumSet.copyOf(cur.keys);
+        Set<String> merged = new LinkedHashSet<String>((cur == null) ? Collections.<String>emptyList() : cur.hosts);
+        boolean grew = keys.addAll(declared.granted());
+        if(hosts != null)
+            grew = merged.addAll(hosts) || grew;
+        if(grew || (cur == null)) {
+            consented.put(id, new Consent(keys, new ArrayList<String>(merged)));
             persistConsent(consented);
         }
         setEnabled(id, true);

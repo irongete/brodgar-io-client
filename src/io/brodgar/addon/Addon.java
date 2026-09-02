@@ -11,6 +11,8 @@ import org.luaj.vm2.LuaValue;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +34,20 @@ public final class Addon {
     public final Path dir;
     public final Globals env;
     public String error;   // null if the addon loaded cleanly
+
+    /**
+     * <b>The hosts the USER approved for this addon</b> — read out of the consent record at load
+     * ({@code AddonRegistry.loadAll}), never off the manifest. The manifest is the <i>request</i>; this is the
+     * <i>answer</i>, and it is what the network gate asks ({@link #hostGranted}).
+     *
+     * <p>The two differ exactly when the addon's {@code network} block has grown since the user last said yes,
+     * which is the case the record exists for: a request to a host they never saw is refused at the call, so
+     * the refusal does not depend on the re-prompt having fired first.
+     *
+     * <p>Empty for an addon that declared no network, and empty for the engine-internal owner, which passes
+     * through no dialog and is exempted by {@link Manifest#anyHost()} instead.
+     */
+    public final List<String> grantedHosts;
 
     /**
      * <b>The session this addon's Lua is acting for</b> — the {@code UI} on screen's
@@ -1175,9 +1191,24 @@ public final class Addon {
     }
 
     Addon(Manifest manifest, Path dir, Globals env) {
+        this(manifest, dir, env, Collections.<String>emptyList());
+    }
+
+    Addon(Manifest manifest, Path dir, Globals env, List<String> grantedHosts) {
         this.manifest = manifest;
         this.dir = dir;
         this.env = env;
+        this.grantedHosts = Collections.unmodifiableList(new ArrayList<String>(grantedHosts));
+    }
+
+    /**
+     * Whether this addon may reach {@code host} — <b>the record, not the manifest</b>. The engine-internal
+     * owner's any-host exemption is tested first, because it consented to nothing and has nothing recorded;
+     * everything else is matched against {@link #grantedHosts} by the manifest's own wildcard rule
+     * ({@link Manifest#hostMatches}), so {@code *.example.com} means the same thing on both sides.
+     */
+    public boolean hostGranted(String host) {
+        return manifest.anyHost() || Manifest.hostMatches(grantedHosts, host);
     }
 
     /** Run the addon's Lua files in manifest order. On the first failure, record it and stop. */

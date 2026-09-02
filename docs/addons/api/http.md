@@ -2,8 +2,8 @@
 
 Fetch data from a URL outside the game. It is **protected twice over**: the `http.get` / `http.post`
 [permission key](../guides/permissions.md) says whether your addon may use the network at all, and the
-manifest's `network` block says which hosts — the declaration *is* the allowlist. Pair it with
-[`hafen.json`](json.md) to read a JSON API.
+manifest's `network` block says which hosts. Both are one question the user answers when they enable you,
+and their answer is what the client enforces. Pair it with [`hafen.json`](json.md) to read a JSON API.
 
 ```lua
 hafen.http():get("https://api.example.com/prices")
@@ -34,8 +34,11 @@ take** — the key says *whether*, the hosts say *where*:
 ```
 
 - **The user reads them as one line** when they enable your addon: *"fetch data from the servers it lists:
-  api.example.com, \*.githubusercontent.com"*. That is the point of the key — before, a network addon
-  raised no consent dialog at all and the hosts lived in a tooltip.
+  api.example.com, \*.githubusercontent.com"*. That one line is the whole decision they make about your
+  network access, which is why the hosts are written beside the key rather than hidden in a tooltip.
+- **The allowlist that gates a request is the one they approved**, not the one your manifest lists today. A
+  host you add to the block afterwards is refused at the call, naming it, until the user approves it too —
+  so widening the block in a shipped addon is a change they answer, not one that takes effect by itself.
 - **Hosts with no key is a load error** naming the key, so your addon does not run. **A key with no hosts**
   is refused at the call, naming the block to add. Neither can be forgotten quietly.
 - **`hosts` is an exact, case-insensitive allowlist**, with a `*.domain` wildcard for sub-domains:
@@ -153,17 +156,17 @@ inside it is logged, never propagated.
 
 ## Security and limits
 
-> **A request can never leave the allowlist you declared.** Every redirect hop is re-checked against
-> it, and against the address rules below.
+> **A request can never leave the hosts the user approved.** Every redirect hop is re-checked against
+> them, and against the address rules below.
 
 - **Private, loopback and link-local addresses are refused**, even for an allowlisted host: if it
   resolves into `127.0.0.0/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `::1`, `fc00::/7` or
   `fe80::/10`, the request fails, `res:ok()` false, with a blocked-address error. That closes LAN
   scanning and internal-service access from addon code.
 - **TLS is verified** against the JDK trust store, and certificate verification is never disabled.
-- **Redirects are followed**, up to **5** hops. A `3xx` whose `Location` points at a host you did not
-  declare, or at a private address, aborts with `res:ok()` false. A `303`, and a `301` or `302` on a POST,
-  is followed as a `GET` with the body dropped, per HTTP convention.
+- **Redirects are followed**, up to **5** hops. A `3xx` whose `Location` points at a host outside that
+  approved set, or at a private address, aborts with `res:ok()` false. A `303`, and a `301` or `302` on a
+  POST, is followed as a `GET` with the body dropped, per HTTP convention.
 - **A generic `User-Agent`, `brodgar-addon/1`, is sent**, and nothing identifies your character or your
   account. There are no cookies and no shared session: every request stands alone, and any token is one
   you keep yourself, in [`hafen.store`](store.md).
