@@ -52,8 +52,8 @@ import haven.Matrix4f;
  *
  * <h3>Safety caps (D-018 spirit)</h3>
  * Decode is CPU-heavy and runs on the calling (UI) thread (small local assets, spec 17 §3), so a pathological
- * asset must not hang the client: {@link #MAX_PRIMS}, {@link #MAX_VERTS}, and {@link #MAX_BYTES} bound the model;
- * exceeding one throws.
+ * asset must not hang the client: {@link #MAX_PRIMS}, {@link #MAX_VERTS}, {@link #MAX_INDICES} and {@link #MAX_BYTES}
+ * bound the model, and an accessor is bounded <b>before</b> its array is allocated; exceeding one throws.
  *
  * <p><b>Purity / testability.</b> This class touches no GL and no client session — only {@link Json},
  * {@link Matrix4f}/{@link Coord3f} (pure math), and byte arrays — so it is fully headless-testable (the geometry
@@ -77,7 +77,8 @@ public final class Gltf {
 
     // ---- caps (a pathological asset can't hang the client) --------------------------------------------------
     static final int  MAX_PRIMS =   4096;              // total primitives across all nodes/meshes
-    static final long MAX_VERTS = 4_000_000L;          // total vertices across all primitives
+    static final long MAX_VERTS = 4_000_000L;          // total vertices across all primitives, and any one accessor's count
+    static final long MAX_INDICES = 6L * MAX_VERTS;    // any one index accessor (a closed mesh has ~6 indices per vertex)
     static final long MAX_BYTES = 128L * 1024 * 1024;  // any single decoded buffer
     static final int  MAX_IMAGES =    64;              // distinct baseColor textures referenced by the model (R3b)
     static final long MAX_IMAGE_BYTES = 64L * 1024 * 1024;  // any single texture image blob (R3b)
@@ -376,8 +377,13 @@ public final class Gltf {
         int nvert = pos.length / 3;
         int[] idx = null;
         Object indRef = prim.get("indices");
-        if(indRef != null)
+        if(indRef != null) {
             idx = readIndices(intv(indRef, -1), accessors, bufferViews, bufBytes, name);
+            for(int i : idx) {                             // every index subscripts pos[] below (and in computeNormals)
+                if((i < 0) || (i >= nvert))
+                    throw err(name, "index " + i + " is outside the primitive's " + nvert + " vertices");
+            }
+        }
         // NORMAL (R3c): baked H&H-local, unit-length. Prefer the glTF attribute (transformed by the normal matrix =
         // inverse-transpose of `fin`, so non-uniform node scale shears it correctly); else compute smooth normals from
         // the baked triangle geometry. Never null → every primitive is lightable.
@@ -595,6 +601,8 @@ public final class Gltf {
         if(acc.get("sparse") != null)
             throw err(name, "sparse accessors are not supported");
         int count = intv(acc.get("count"), 0);
+        if((count < 0) || (count > MAX_VERTS))         // bound BEFORE the allocation below: a hostile count reserves nothing
+            throw err(name, "accessor " + ai + " count " + count + " is past the vertex cap (> " + MAX_VERTS + ")");
         int ct = intv(acc.get("componentType"), C_FLOAT);
         int nc = typeComps(str(acc.get("type")), name);
         if(nc < comps)
@@ -603,13 +611,14 @@ public final class Gltf {
         int csz = compSize(ct, name);
         int accOff = intv(acc.get("byteOffset"), 0);
         Map<String, Object> bv = bufferView(acc.get("bufferView"), bufferViews, name);
-        byte[] buf = bufBytes[intv(bv.get("buffer"), -1)];
+        byte[] buf = bufferBytes(bv, bufBytes, name);
         int bvOff = intv(bv.get("byteOffset"), 0);
         int stride = intv(bv.get("byteStride"), csz * nc);   // 0/absent → tightly packed
         if(stride == 0)
             stride = csz * nc;
         int start = bvOff + accOff;
-        float[] out = new float[count * comps];
+        long items = (long)count * comps;              // in long: the int product overflows for a large count
+        float[] out = new float[(int)items];
         for(int e = 0; e < count; e++) {
             int base = start + (e * stride);
             for(int k = 0; k < comps; k++)
@@ -622,11 +631,13 @@ public final class Gltf {
     private static int[] readIndices(int ai, List<Object> accessors, List<Object> bufferViews, byte[][] bufBytes, String name) {
         Map<String, Object> acc = accessor(ai, accessors, name);
         int count = intv(acc.get("count"), 0);
+        if((count < 0) || (count > MAX_INDICES))       // bound BEFORE the allocation below
+            throw err(name, "index accessor " + ai + " count " + count + " is past the index cap (> " + MAX_INDICES + ")");
         int ct = intv(acc.get("componentType"), C_USHORT);
         int csz = compSize(ct, name);
         int accOff = intv(acc.get("byteOffset"), 0);
         Map<String, Object> bv = bufferView(acc.get("bufferView"), bufferViews, name);
-        byte[] buf = bufBytes[intv(bv.get("buffer"), -1)];
+        byte[] buf = bufferBytes(bv, bufBytes, name);
         int bvOff = intv(bv.get("byteOffset"), 0);
         int stride = intv(bv.get("byteStride"), csz);
         if(stride == 0)
@@ -750,6 +761,20 @@ public final class Gltf {
         if((bvi < 0) || (bvi >= bufferViews.size()))
             throw err(name, "bufferView index " + bvi + " out of range");
         return asMap(bufferViews.get(bvi));
+    }
+
+    /**
+     * The bytes of a {@code bufferView}'s buffer, range-checked. The glTF {@code buffer} property is required, so a
+     * document without it (or with an out-of-range one) is malformed and is refused by name — never subscripted with
+     * the {@code -1} an absent property reads as.
+     */
+    private static byte[] bufferBytes(Map<String, Object> bv, byte[][] bufBytes, String name) {
+        if(bv.get("buffer") == null)
+            throw err(name, "bufferView has no buffer");
+        int bi = intv(bv.get("buffer"), -1);
+        if((bi < 0) || (bi >= bufBytes.length))
+            throw err(name, "bufferView buffer " + bi + " out of range (" + bufBytes.length + " buffers)");
+        return bufBytes[bi];
     }
 
     private static int typeComps(String type, String name) {

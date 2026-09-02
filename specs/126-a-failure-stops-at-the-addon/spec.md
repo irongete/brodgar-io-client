@@ -100,10 +100,12 @@ discharged on sight. Each is revised or discharged by the task that owns the sur
 - `src/io/brodgar/addon/AddonRegistry.java` — 1, 2 (`teardown`, the panel's status string)
 - `src/io/brodgar/addon/Json.java` — 3
 - `src/io/brodgar/addon/Gltf.java` — 4, 5
+- `src/io/brodgar/addon/AssetApi.java` — 4, 5 (read only: `newMesh`, how a parse failure reaches Lua)
 - `src/haven/UILoop.java` — 1, 6 (read only: the frame loop's catches)
 - `docs/addons/runtime.md` — 1, 2, 6
 - `docs/addons/api/json.md` — 3
 - `docs/addons/api/virtual/models.md` — 4, 5
+- `docs/addons/api/asset.md` — 4, 5 (read only: `mdl:info()`, `:remove` — the door a model suite loads through)
 - `docs/addons/api/threading.md` — 2 (read only: the concurrency it states)
 - `docs/client/boot-and-loop.md` — 6
 - `DOCUMENTATION.md` — 6

@@ -1,0 +1,9 @@
+{
+  "name": "126.4 — a model's accessors are bounded before anything is allocated",
+  "id": "126-a-failure-stops-at-the-addon.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 126.4: a hostile accessor count, a bufferView with no buffer and an index past the vertex count are each refused by name, and a legal indexed model still loads.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

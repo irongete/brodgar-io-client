@@ -39,7 +39,7 @@
       and is what this task removes. It then encodes a table one level inside the cap and asserts it
       round-trips through `parse`, which is the check that the cap was not set an off-by-one too tight.
 
-- [ ] **126.4 — a model's accessors are bounded before anything is allocated.**
+- [x] **126.4 — a model's accessors are bounded before anything is allocated.**
       `Gltf` validates an accessor's `count` against a cap and computes `count * comps` in `long` before any
       `new float[…]`; a `bufferView`'s `buffer` is range-checked rather than indexed with its `-1` default;
       index values are checked against the vertex count. Every refusal goes through the existing
@@ -60,3 +60,15 @@
       naming the repeated node, and one deep single-parent chain of mesh-less nodes asserted to **load**,
       which is the check that the fix bounded the abusive document without refusing a legal deep one.
       `[manual]`: none — both files are shipped and both outcomes are read back.
+
+- [ ] **126.6 — an accessor's byte range is checked against its buffer.**
+      `Gltf.readVecs` and `readIndices` compute, in `long`, the last byte their stride walk reads —
+      `start + ((count - 1) * stride) + (comps * csz)` — and refuse past `buf.length` through the existing
+      `err(name, …)`. A `.glb` whose accessor overruns its buffer raises an `ArrayIndexOutOfBoundsException`
+      today, naming neither the model nor the fault: it is contained and it is a failed load, so it breaks no
+      acceptance criterion, and it is the one malformed case `models.md`'s own paragraph does not deliver.
+      No page changes — the promise is already written there.
+      *Its suite* ships a `.glb` whose POSITION accessor declares three vertices over a twelve-byte buffer and
+      one whose index accessor overruns its view, loads each through `hafen.asset():get`, and asserts each
+      refusal names the model **and** the overrun rather than a Java array index. It re-asserts that a legal
+      indexed model still loads, since the new check sits on the path every accessor takes.

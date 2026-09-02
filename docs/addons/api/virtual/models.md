@@ -63,6 +63,14 @@ handling, because the engine does not sRGB-convert model textures.
 **Never.** Skins, animation, morph targets, Draco and meshopt compression, sparse accessors. A model using
 one of these fails with an error that names the feature.
 
+**Malformed.** Every bound the parser works to is read off the document and checked **before** anything is
+allocated against it. An accessor claiming more vertices than the cap is refused before its array is
+reserved, a buffer view naming no buffer is refused instead of read, and a triangle index outside its own
+primitive's vertices is refused instead of followed. The model as a whole is bounded too: `4096`
+primitives, `4000000` vertices, `128 MiB` for any one buffer and `64 MiB` for any one texture image, and
+`64` images. Each refusal names the model file and what is wrong inside it, and each is an ordinary error
+you can `pcall`, so a corrupt or hand-made `.glb` costs you a failed load and nothing else.
+
 ## The object
 
 The [shared vocabulary](README.md#one-vocabulary-every-kind) — `:position`, `:offset`, `:rotate`, `:scale`,
