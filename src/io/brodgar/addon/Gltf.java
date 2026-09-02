@@ -54,6 +54,8 @@ import haven.Matrix4f;
  * Decode is CPU-heavy and runs on the calling (UI) thread (small local assets, spec 17 §3), so a pathological
  * asset must not hang the client: {@link #MAX_PRIMS}, {@link #MAX_VERTS}, {@link #MAX_INDICES} and {@link #MAX_BYTES}
  * bound the model, and an accessor is bounded <b>before</b> its array is allocated; exceeding one throws.
+ * The node walk needs no cap of its own: glTF's invariant that a node has at most one parent is enforced in
+ * {@link #walk}, so the walk visits each node at most once and a document that reaches one twice is refused.
  *
  * <p><b>Purity / testability.</b> This class touches no GL and no client session — only {@link Json},
  * {@link Matrix4f}/{@link Coord3f} (pure math), and byte arrays — so it is fully headless-testable (the geometry
@@ -287,7 +289,7 @@ public final class Gltf {
         int[] imgRemap = new int[gimages.size()];
         java.util.Arrays.fill(imgRemap, -1);
 
-        // Which root nodes to walk: the default scene, else scene 0, else every node.
+        // Which root nodes to walk: the default scene, else scene 0, else every node nobody parents.
         int sceneIdx = intv(g.get("scene"), scenes.isEmpty() ? -1 : 0);
         int[] roots;
         if((sceneIdx >= 0) && (sceneIdx < scenes.size())) {
@@ -296,17 +298,37 @@ public final class Gltf {
             for(int i = 0; i < roots.length; i++)
                 roots[i] = intv(sn.get(i), 0);
         } else {
-            roots = new int[nodes.size()];
-            for(int i = 0; i < roots.length; i++)
-                roots[i] = i;
+            // A document with no usable scene: its roots are the nodes no other node lists as a child.
+            // Taking *every* node would enter each parented node twice -- once under its parent, once as a
+            // root -- which the one-parent rule in walk() refuses; a parented document with no scene is
+            // ordinary, so it must not be read as a document that reaches a node twice.
+            boolean[] parented = new boolean[nodes.size()];
+            for(Object n : nodes) {
+                for(Object c : asList(asMap(n).get("children"))) {
+                    int ci = intv(c, -1);
+                    if((ci >= 0) && (ci < parented.length))
+                        parented[ci] = true;
+                }
+            }
+            int nroots = 0;
+            for(boolean p : parented) {
+                if(!p)
+                    nroots++;
+            }
+            roots = new int[nroots];
+            for(int i = 0, r = 0; i < parented.length; i++) {
+                if(!parented[i])
+                    roots[r++] = i;
+            }
         }
 
         List<Prim> out = new ArrayList<Prim>();
         long[] totals = new long[1];   // running vertex total (for the cap)
         boolean[] visiting = new boolean[nodes.size()];   // cycle guard
+        boolean[] seen = new boolean[nodes.size()];       // one-parent guard: bounds the walk to the node count
         for(int r : roots)
             walk(r, Matrix4f.id, nodes, meshes, accessors, bufferViews, bufBytes, materials,
-                 textures, gimages, loader, outImages, imgRemap, out, totals, visiting, name);
+                 textures, gimages, loader, outImages, imgRemap, out, totals, visiting, seen, name);
 
         if(out.isEmpty())
             throw err(name, "no triangle primitives found (only points/lines or empty meshes?)");
@@ -317,9 +339,16 @@ public final class Gltf {
     private static void walk(int ni, Matrix4f parent, List<Object> nodes, List<Object> meshes, List<Object> accessors,
                              List<Object> bufferViews, byte[][] bufBytes, List<Object> materials,
                              List<Object> textures, List<Object> gimages, Loader loader, List<Image> outImages, int[] imgRemap,
-                             List<Prim> out, long[] totals, boolean[] visiting, String name) {
+                             List<Prim> out, long[] totals, boolean[] visiting, boolean[] seen, String name) {
         if((ni < 0) || (ni >= nodes.size()) || visiting[ni])
             return;                                        // out of range or a cycle → skip
+        // glTF's own invariant: a node has at most one parent. A document that reaches one twice is invalid,
+        // and it is refused rather than re-walked -- which bounds the whole walk to the node count. Skipping
+        // the second visit instead would be silent data loss: a node under two parents is the same mesh with
+        // a different baked transform, so the second instance is geometry, not a duplicate.
+        if(seen[ni])
+            throw err(name, "node " + ni + " is reached twice (a node has at most one parent)");
+        seen[ni] = true;
         visiting[ni] = true;
         Map<String, Object> node = asMap(nodes.get(ni));
         Matrix4f world = parent.mul(localMatrix(node));
@@ -344,7 +373,7 @@ public final class Gltf {
         }
         for(Object c : asList(node.get("children")))
             walk(intv(c, -1), world, nodes, meshes, accessors, bufferViews, bufBytes, materials,
-                 textures, gimages, loader, outImages, imgRemap, out, totals, visiting, name);
+                 textures, gimages, loader, outImages, imgRemap, out, totals, visiting, seen, name);
         visiting[ni] = false;
     }
 

@@ -1,0 +1,9 @@
+{
+  "name": "126.5 — a node reached twice is refused as the invalid document it is",
+  "id": "126-a-failure-stops-at-the-addon.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 126.5: a node graph that reaches a node twice is refused naming that node, while a legal deep chain and an ordinary parented document with no scene both still load.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

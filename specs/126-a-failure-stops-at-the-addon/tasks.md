@@ -50,7 +50,7 @@
       `hafen.asset():get`, and asserts each `pcall` failed **and** that the message names that fault rather
       than reading `null` or an array index, which is what each of the three produces today.
 
-- [ ] **126.5 — a node reached twice is refused as the invalid document it is.**
+- [x] **126.5 — a node reached twice is refused as the invalid document it is.**
       `Gltf.walk` keeps `visiting` for the cycle case and gains a `seen` array enforcing glTF's own
       invariant, that a node has at most one parent. A document reaching a node twice is refused naming that,
       which bounds the walk to the node count without a budget to tune and without discarding an instance —
@@ -72,3 +72,20 @@
       one whose index accessor overruns its view, loads each through `hafen.asset():get`, and asserts each
       refusal names the model **and** the overrun rather than a Java array index. It re-asserts that a legal
       indexed model still loads, since the new check sits on the path every accessor takes.
+
+- [ ] **126.7 — the node walk is bounded by the parser, not by the Java stack.**
+      `Gltf.walk` recurses one Java frame per node, so a *legal* single-parent chain ends the load with a
+      `StackOverflowError` before its node count bounds anything: 2000 nodes load and 3000 do not, on a
+      default thread stack, which makes the ceiling the JVM's rather than the parser's. It is contained,
+      but containment costs the addon a quarantine, while `models.md` promises a hand-made `.glb` costs
+      "a failed load and nothing else" and that a chain of nodes "stays legal however deep it runs". The
+      walk becomes iterative over an explicit stack of `(node, world)` pairs, which needs no number to
+      tune — the `seen` one-parent guard already bounds it to the node count. `visiting` goes with the
+      recursion: a cycle reaches a node twice by definition, so it is refused naming that node instead of
+      truncating the model in silence, which is what the page already describes. No page changes —
+      `models.md` states both promises today, and this is the task that makes them true.
+      *Its suite* ships a chain of 20,000 mesh-less nodes ending in one triangle and asserts it **loads**
+      with its geometry, which is the assertion that fails today and well past the measured ceiling, and a
+      `.glb` whose nodes form a cycle, asserted to be refused naming the repeated node rather than loading
+      a truncated model. It re-asserts the diamond refusal, since the one-parent rule moves house with the
+      walk.

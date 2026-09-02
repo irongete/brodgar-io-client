@@ -71,6 +71,12 @@ primitives, `4000000` vertices, `128 MiB` for any one buffer and `64 MiB` for an
 `64` images. Each refusal names the model file and what is wrong inside it, and each is an ordinary error
 you can `pcall`, so a corrupt or hand-made `.glb` costs you a failed load and nothing else.
 
+**The node graph.** glTF gives a node **at most one parent**, and the loader holds a document to that: one
+that reaches the same node twice is refused naming that node, so a model loads in time proportional to its
+node count. A chain of nodes stays legal however deep it runs. The second visit is refused rather than
+skipped because a node under two parents is an **instance** — the same mesh with a different baked transform —
+so skipping it would drop that geometry from your model without saying so.
+
 ## The object
 
 The [shared vocabulary](README.md#one-vocabulary-every-kind) — `:position`, `:offset`, `:rotate`, `:scale`,
