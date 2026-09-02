@@ -73,7 +73,7 @@
       refusal names the model **and** the overrun rather than a Java array index. It re-asserts that a legal
       indexed model still loads, since the new check sits on the path every accessor takes.
 
-- [ ] **126.7 — the node walk is bounded by the parser, not by the Java stack.**
+- [x] **126.7 — the node walk is bounded by the parser, not by the Java stack.**
       `Gltf.walk` recurses one Java frame per node, so a *legal* single-parent chain ends the load with a
       `StackOverflowError` before its node count bounds anything: 2000 nodes load and 3000 do not, on a
       default thread stack, which makes the ceiling the JVM's rather than the parser's. It is contained,

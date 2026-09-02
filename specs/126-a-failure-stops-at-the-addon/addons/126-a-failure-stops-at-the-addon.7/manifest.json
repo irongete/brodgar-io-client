@@ -1,0 +1,9 @@
+{
+  "name": "126.7 — the node walk is bounded by the parser, not by the Java stack",
+  "id": "126-a-failure-stops-at-the-addon.7",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 126.7: a legal 20,000-node chain loads with its geometry, while a cyclic and a diamond node graph are each refused naming the node reached twice.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

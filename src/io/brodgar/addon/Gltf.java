@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -56,6 +57,8 @@ import haven.Matrix4f;
  * bound the model, and an accessor is bounded <b>before</b> its array is allocated; exceeding one throws.
  * The node walk needs no cap of its own: glTF's invariant that a node has at most one parent is enforced in
  * {@link #walk}, so the walk visits each node at most once and a document that reaches one twice is refused.
+ * That walk is iterative over an explicit stack, so a legal chain is bounded by the node count and not by the
+ * calling thread's Java stack.
  *
  * <p><b>Purity / testability.</b> This class touches no GL and no client session — only {@link Json},
  * {@link Matrix4f}/{@link Coord3f} (pure math), and byte arrays — so it is fully headless-testable (the geometry
@@ -324,57 +327,81 @@ public final class Gltf {
 
         List<Prim> out = new ArrayList<Prim>();
         long[] totals = new long[1];   // running vertex total (for the cap)
-        boolean[] visiting = new boolean[nodes.size()];   // cycle guard
         boolean[] seen = new boolean[nodes.size()];       // one-parent guard: bounds the walk to the node count
         for(int r : roots)
             walk(r, Matrix4f.id, nodes, meshes, accessors, bufferViews, bufBytes, materials,
-                 textures, gimages, loader, outImages, imgRemap, out, totals, visiting, seen, name);
+                 textures, gimages, loader, outImages, imgRemap, out, totals, seen, name);
 
         if(out.isEmpty())
             throw err(name, "no triangle primitives found (only points/lines or empty meshes?)");
         return new Gltf(out, outImages);
     }
 
-    /** Recursively bake every mesh primitive under node {@code ni}, composing its world transform down the tree. */
-    private static void walk(int ni, Matrix4f parent, List<Object> nodes, List<Object> meshes, List<Object> accessors,
+    /** One node still to bake, and the world transform its parent hands it — {@link #walk}'s explicit stack entry. */
+    private static final class Visit {
+        final int ni;
+        final Matrix4f parent;
+
+        Visit(int ni, Matrix4f parent) {
+            this.ni = ni;
+            this.parent = parent;
+        }
+    }
+
+    /**
+     * Bake every mesh primitive under node {@code ni}, composing its world transform down the tree.
+     *
+     * <p>The walk is <b>iterative over an explicit stack</b>, not recursive: a legal single-parent chain is
+     * arbitrarily deep by glTF's own rules, and one Java frame per node ended a chain of a few thousand nodes
+     * with a {@code StackOverflowError} — a ceiling set by the thread's stack rather than by the parser. The
+     * stack below is bounded by the {@code seen} one-parent guard, which admits each node once, so it needs no
+     * number to tune. Children are pushed in reverse so they pop in document order.
+     */
+    private static void walk(int ni, Matrix4f rootParent, List<Object> nodes, List<Object> meshes, List<Object> accessors,
                              List<Object> bufferViews, byte[][] bufBytes, List<Object> materials,
                              List<Object> textures, List<Object> gimages, Loader loader, List<Image> outImages, int[] imgRemap,
-                             List<Prim> out, long[] totals, boolean[] visiting, boolean[] seen, String name) {
-        if((ni < 0) || (ni >= nodes.size()) || visiting[ni])
-            return;                                        // out of range or a cycle → skip
-        // glTF's own invariant: a node has at most one parent. A document that reaches one twice is invalid,
-        // and it is refused rather than re-walked -- which bounds the whole walk to the node count. Skipping
-        // the second visit instead would be silent data loss: a node under two parents is the same mesh with
-        // a different baked transform, so the second instance is geometry, not a duplicate.
-        if(seen[ni])
-            throw err(name, "node " + ni + " is reached twice (a node has at most one parent)");
-        seen[ni] = true;
-        visiting[ni] = true;
-        Map<String, Object> node = asMap(nodes.get(ni));
-        Matrix4f world = parent.mul(localMatrix(node));
-        Object meshRef = node.get("mesh");
-        if(meshRef != null) {
-            int mi = intv(meshRef, -1);
-            if((mi >= 0) && (mi < meshes.size())) {
-                Matrix4f fin = BASIS.mul(world);           // bake basis + units on top of the node world transform
-                for(Object primRef : asList(asMap(meshes.get(mi)).get("primitives"))) {
-                    Prim p = bakePrim(asMap(primRef), fin, accessors, bufferViews, bufBytes, materials,
-                                      textures, gimages, loader, outImages, imgRemap, name);
-                    if(p == null)
-                        continue;                          // non-triangle mode → skipped
-                    if(out.size() >= MAX_PRIMS)
-                        throw err(name, "too many primitives (> " + MAX_PRIMS + ")");
-                    totals[0] += p.nvert();
-                    if(totals[0] > MAX_VERTS)
-                        throw err(name, "too many vertices (> " + MAX_VERTS + ")");
-                    out.add(p);
+                             List<Prim> out, long[] totals, boolean[] seen, String name) {
+        ArrayDeque<Visit> stack = new ArrayDeque<Visit>();
+        stack.push(new Visit(ni, rootParent));
+        while(!stack.isEmpty()) {
+            Visit cur = stack.pop();
+            int ci = cur.ni;
+            if((ci < 0) || (ci >= nodes.size()))
+                continue;                                  // out of range → skip
+            // glTF's own invariant: a node has at most one parent. A document that reaches one twice is invalid,
+            // and it is refused rather than re-walked -- which bounds the whole walk to the node count. Skipping
+            // the second visit instead would be silent data loss: a node under two parents is the same mesh with
+            // a different baked transform, so the second instance is geometry, not a duplicate. A cycle reaches a
+            // node twice by definition, so this refuses it too -- naming the node, where the old recursion's
+            // separate cycle flag returned quietly and handed back a truncated model.
+            if(seen[ci])
+                throw err(name, "node " + ci + " is reached twice (a node has at most one parent)");
+            seen[ci] = true;
+            Map<String, Object> node = asMap(nodes.get(ci));
+            Matrix4f world = cur.parent.mul(localMatrix(node));
+            Object meshRef = node.get("mesh");
+            if(meshRef != null) {
+                int mi = intv(meshRef, -1);
+                if((mi >= 0) && (mi < meshes.size())) {
+                    Matrix4f fin = BASIS.mul(world);       // bake basis + units on top of the node world transform
+                    for(Object primRef : asList(asMap(meshes.get(mi)).get("primitives"))) {
+                        Prim p = bakePrim(asMap(primRef), fin, accessors, bufferViews, bufBytes, materials,
+                                          textures, gimages, loader, outImages, imgRemap, name);
+                        if(p == null)
+                            continue;                      // non-triangle mode → skipped
+                        if(out.size() >= MAX_PRIMS)
+                            throw err(name, "too many primitives (> " + MAX_PRIMS + ")");
+                        totals[0] += p.nvert();
+                        if(totals[0] > MAX_VERTS)
+                            throw err(name, "too many vertices (> " + MAX_VERTS + ")");
+                        out.add(p);
+                    }
                 }
             }
+            List<Object> children = asList(node.get("children"));
+            for(int i = children.size() - 1; i >= 0; i--)  // reverse: they pop in document order
+                stack.push(new Visit(intv(children.get(i), -1), world));
         }
-        for(Object c : asList(node.get("children")))
-            walk(intv(c, -1), world, nodes, meshes, accessors, bufferViews, bufBytes, materials,
-                 textures, gimages, loader, outImages, imgRemap, out, totals, visiting, seen, name);
-        visiting[ni] = false;
     }
 
     /**
