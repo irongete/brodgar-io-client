@@ -13,6 +13,8 @@ import org.luaj.vm2.Varargs;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -48,7 +50,8 @@ import java.util.WeakHashMap;
  *       the {@code Widget.resize} core tap — {@code move()} is never hooked, and is not a chokepoint anyway:
  *       a drag writes {@code c} directly), or was dragged ({@link #installDragListener}, a {@code Widget.listen}
  *       on that one target — a zero-edit seam, not the client's hottest path), or left the tree
- *       ({@link #dispatchRemoved}, M1). A move made <i>through this API</i> is still synchronous: {@link #apply}
+ *       ({@link #dispatchRemoved}, M1) or died in it ({@link #dispatchDisposed}). A move made <i>through this
+ *       API</i> is still synchronous: {@link #apply}
  *       re-derives whatever hangs off the widget it just wrote.</li>
  * </ul>
  * Nothing here is per frame: a client with no layout rule and nothing laid out pays no seam at all, and one with
@@ -123,12 +126,18 @@ final class Layout {
      * c} directly (D-091's own observation, still true), so there is no "moved" event to wait for — only the
      * pointer events the drag itself generates on the widget being dragged. The handler never cancels
      * anything (always returns {@code false}), so it is purely an observer riding alongside whatever the
-     * target's own {@code handle} already does. Weak keys: a dead target needs no explicit teardown, since
-     * its {@code listening} list dies with it. Guarded by {@link Layout#class}, always mutated together with
+     * target's own {@code handle} already does. Guarded by {@link Layout#class}, always mutated together with
      * {@link #derived} by {@link #retarget}.
+     *
+     * <p><b>Identity, not weak</b> (128.3): the handler {@link #installDragListener} returns closes over the
+     * very target it is stored under, so a {@code WeakHashMap} entry — whose value is held strongly — could
+     * never become weakly unreachable, and the map announced a collection it had no way of performing. The
+     * target is dropped explicitly instead, on the death seam every widget reaches: {@link #dispatchDisposed}.
+     * That is also what a {@code deafen} needs, because a widget's {@code listening} list is <i>not</i> cleared
+     * when it is disposed — the handler outlives the widget it rides on until something takes it off.
      */
     private static final Map<Widget, EventHandler<Widget.MouseMoveEvent>> dragListeners =
-        new WeakHashMap<Widget, EventHandler<Widget.MouseMoveEvent>>();
+        new IdentityHashMap<Widget, EventHandler<Widget.MouseMoveEvent>>();
 
     /** How deep a chain of anchors is followed when one of its links is written (a cycle is a user's to make). */
     private static final int MAXDEPTH = 8;
@@ -621,8 +630,9 @@ final class Layout {
         return h;
     }
 
-    /** Drop {@code t}'s drag listener — the last anchor pointing at it just went. Best-effort: {@code t} may
-     *  already be gone, in which case there is nothing left to deafen. */
+    /** Drop {@code t}'s drag listener — the last anchor pointing at it just went, or {@code t} itself did
+     *  ({@link #untarget}). A disposed widget keeps its {@code listening} list, so the {@code deafen} is the
+     *  real work rather than a formality; it is still best-effort, since a widget halfway anywhere may throw. */
     private static void dropDragListener(Widget t) {
         EventHandler<Widget.MouseMoveEvent> h = dragListeners.remove(t);
         if(h == null)
@@ -773,19 +783,83 @@ final class Layout {
      * widget, {@link #retarget} drops its {@link #derived} entry and, if nothing else names the same target,
      * the drag listener installed for it (042.10 — {@code redrive}'s per-tick fold over every anchor is gone;
      * this is the one place a departure is handled instead).
+     *
+     * <p><b>What {@code w} was anchored TO is not touched here</b> (128.3). A removal is a death notice rather
+     * than a detach — a re-home is {@code remove(); other.add(w)} — so a target that leaves and comes back has
+     * to come back still tracked, by its followers and by its own drag listener. That half is
+     * {@link #dispatchDisposed}'s, which runs only where the widget is really dead.
      */
     static void dispatchRemoved(AddonManager.SessionState st, Widget w) {
-        for(Pending p : st.layoutPending) {
-            if(p.wdg == w) {
-                st.layoutPending.remove(p);
-                break;
+        retire(st, w, false);
+    }
+
+    /**
+     * The disposal seam's offer (128.3, from {@link AddonManager#drainDisposedWidgets}) — the same retirement
+     * for a widget that dies as a <b>descendant</b>, which the removal seam above never sees: {@code destroy()}
+     * recurses {@code dispose()} alone, so nothing below the widget destroyed is unlinked or runs
+     * {@code remove()}. A control an addon anchored inside one of the client's windows, and every widget an
+     * anchor named inside one, used to keep its layout record — and the {@code Widget.listen} registration
+     * behind it — until the next {@code :reload}.
+     *
+     * <p>It adds the half a removal must not do: {@link #untarget}, for the widget as an anchor <b>target</b>.
+     *
+     * <p><b>Idempotent, because the destroyed widget itself reaches both queues</b> — {@code destroy()} is
+     * {@code remove()} and then {@code rdispose()} — so it is retired once and pays one
+     * {@code derived.isEmpty()} the second time round.
+     */
+    static void dispatchDisposed(AddonManager.SessionState st, Widget w) {
+        retire(st, w, true);
+    }
+
+    /**
+     * One widget's layout record, dropped. {@code dead} is what separates the two seams: a widget that was
+     * merely removed may be re-homed one line later, and only a disposal is final enough to retire what named
+     * it.
+     *
+     * <p><b>Every step fast-paths on nothing being laid out</b>, because the disposal drain sees every widget
+     * the client destroys — a closing window is a hundred of them — and a client with no anchor and no
+     * hand-named level must pay one {@code isEmpty()} and one volatile read for each.
+     */
+    private static void retire(AddonManager.SessionState st, Widget w, boolean dead) {
+        if(!st.layoutPending.isEmpty()) {
+            for(Pending p : st.layoutPending) {
+                if(p.wdg == w) {
+                    st.layoutPending.remove(p);
+                    break;
+                }
             }
         }
         LuaWidget.pruneRemoved(w);
         synchronized(Layout.class) {
             if(!derived.isEmpty())
                 retarget(w, null);
+            if(dead)
+                untarget(w);
         }
+    }
+
+    /**
+     * <b>{@code w} is dead, so nothing anchors to it any more</b> (128.3): every {@link #derived} entry whose
+     * anchor names {@code w} as its WIDGET target goes, and then {@code w}'s own {@link #dragListeners} entry
+     * and the {@code Widget.listen} registration behind it. Those are the two records a dying target leaves
+     * that {@link #retarget} cannot reach — it is addressed at a follower, and a target's death is not a
+     * follower's event.
+     *
+     * <p><b>The follower is left exactly where it stands.</b> An anchor whose target has gone is already inert
+     * ({@link Anchor#resolve} answers {@code null}) and snapping the widget back to stock because a window
+     * closed is the answer 036.3 refused. Only the record goes, and the level the author wrote is untouched:
+     * {@code widget:style()} still reports the anchor, with the target it named now {@code nil}.
+     *
+     * <p>Caller holds {@link Layout#class}.
+     */
+    private static void untarget(Widget w) {
+        if(!derived.isEmpty()) {
+            for(Iterator<Anchor> it = derived.values().iterator(); it.hasNext(); ) {
+                if(dragTargetOf(it.next()) == w)
+                    it.remove();
+            }
+        }
+        dropDragListener(w);
     }
 
     /**

@@ -113,7 +113,10 @@ ending, not the thing ending.
 inside `handle(Event)` — the current dispatch finishes against its old snapshot, and the next event sees the
 change — which is what lets a consumer swap one listener for a fresh one without racing the dispatch that
 triggered it. `listen`/`deafen` are per-instance, so a native widget
-that outlives a Lua-layer reload keeps whatever was registered on it until something explicitly `deafen`s it.
+that outlives a Lua-layer reload keeps whatever was registered on it until something explicitly `deafen`s it
+— **a death included**. Neither `remove()` nor `dispose()`/`rdispose()` touches `listening`, so a handler
+rides a destroyed widget for as long as anything still holds the pair, and a `deafen` on one still takes it
+off: a listener is the registrar's to retire, and the engine never does it for them.
 **And it fires BEFORE the widget's own handling**, not after: `Widget.handle(Event)` checks `listening` before
 `ev.shandle(this)`, so a listener that reacts to `MouseMoveEvent` on a widget being dragged sees that widget's
 position from *before* this event's `mousemove()`/`move()` runs — one event stale if it reads `c` inline. A

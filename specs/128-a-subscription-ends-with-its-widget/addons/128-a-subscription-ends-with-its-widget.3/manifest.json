@@ -1,0 +1,9 @@
+{
+  "name": "128.3 — the disposal seam retires a widget's layout record",
+  "id": "128-a-subscription-ends-with-its-widget.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 128.3: an anchor whose target dies as a descendant leaves the follower exactly where it stood, and the very next anchor still tracks the target it names.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

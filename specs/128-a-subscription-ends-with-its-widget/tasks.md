@@ -46,7 +46,7 @@
       `[manual]`: open and close the inventory twice — expect: the window's own `Removed` still reported
       once per close, in the log line the suite writes.
 
-- [ ] **128.3 — the disposal seam retires a widget's layout record.**
+- [x] **128.3 — the disposal seam retires a widget's layout record.**
       `Layout.dispatchRemoved(st, w)` runs from `drainDisposedWidgets` as well as from `drainRemovedWidgets`,
       so it reaches a widget that dies as a descendant: it drops the widget's `st.layoutPending` entry, calls
       `LuaWidget.pruneRemoved(w)`, and under `Layout.class` calls `retarget(w, null)`, which drops `derived`'s

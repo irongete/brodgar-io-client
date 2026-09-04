@@ -3350,6 +3350,11 @@ public final class AddonManager {
      * <i>without</i> firing {@code "Removed"}, which the dispatch above it has already fired for every widget
      * that is properly removed. It is addressed at the tree rather than at an addon, so it takes the whole
      * frame's deaths at once and the tree's monitor with them.
+     *
+     * <p><b>Third since 128.3</b>: {@link Layout#dispatchDisposed}, for the widget's layout record — the same
+     * call {@link #drainRemovedWidgets} makes, plus the half only a death may do. A widget that is merely
+     * removed can be re-homed one line later, so what ANCHORS to it, and the drag listener installed on it,
+     * survive a removal and are retired only here.
      */
     private static void drainDisposedWidgets(SessionState st, int n) {
         if(n <= 0)
@@ -3366,6 +3371,8 @@ public final class AddonManager {
                 break;
             for(int i = 0, m = owners.size(); i < m; i++)
                 owners.get(i).dropWidgetSubs(w);
+            Layout.dispatchDisposed(st, w);                  // addon: 128.3 — ...and its layout record, plus the
+                                                             //   anchors and the drag listener that named IT
             if(dead != null)
                 dead.add(w);
         }
