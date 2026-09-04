@@ -65,7 +65,7 @@
       fresh anchor onto a new target still tracks that target's move — the pair that fails if the retirement
       dropped the seam rather than one widget's record.
 
-- [ ] **128.4 — the disposal seam retires a widget's gesture bindings.**
+- [x] **128.4 — the disposal seam retires a widget's gesture bindings.**
       `Gesture.dispatchRemoved(Widget)` is new: the subsystem has no departure entry point at all today, so
       `widget:draggable(h)` leaves a `Bind` holding the target and the handle strongly in `Addon.gestures` for
       the rest of the session. It runs from both drains, for the reason `Layout.dispatchRemoved` does. For

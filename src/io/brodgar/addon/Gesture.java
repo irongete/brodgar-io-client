@@ -6,9 +6,9 @@ import haven.UI;
 import haven.Widget;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.WeakHashMap;
 
 
 /**
@@ -107,13 +107,29 @@ final class Gesture extends Widget {
     }
 
     /**
-     * The ONE {@code MouseDownEvent} listener installed per handle widget, whatever bindings name it. Weak
-     * keys: a handle that leaves the tree takes its own {@code listening} list with it, so a dead one needs
-     * no explicit deafen — the same discipline {@link Layout}'s drag listeners keep. Guarded by
-     * {@code Gesture.class}.
+     * The ONE {@code MouseDownEvent} listener installed per handle widget, whatever bindings name it. Guarded
+     * by {@code Gesture.class}, and retired explicitly: {@link #forget} deafens a handle the moment no binding
+     * names it any more, and {@link #dispatchRemoved} is what makes a handle that has <i>died</i> reach that
+     * line.
+     *
+     * <p><b>It was a {@code WeakHashMap} and could collect nothing</b> (128.4). The value is the handler
+     * installed on the key — {@link #listen}'s handler closes over {@code handle} — so the entry's own value
+     * reaches its key and no entry was ever weakly unreachable, the identical fault {@link Addon#widgetSubs}
+     * had one level more visibly. An {@link IdentityHashMap} says what this map does; {@code haven.Widget}
+     * overrides neither {@code equals} nor {@code hashCode}, so identity is the lookup it always had.
      */
     private static final Map<Widget, EventHandler<Widget.MouseDownEvent>> arms =
-        new WeakHashMap<Widget, EventHandler<Widget.MouseDownEvent>>();
+        new IdentityHashMap<Widget, EventHandler<Widget.MouseDownEvent>>();
+
+    /**
+     * Is anything armed anywhere, at all? — {@link #dispatchRemoved} is offered <b>every widget the client
+     * removes and every widget it destroys</b>, and a closing window is a hundred of them, so the client
+     * where nobody has armed a gesture must pay one volatile read for each and nothing else. Written with
+     * {@link #arms} under {@code Gesture.class}, which is non-empty exactly while some {@link Bind} exists:
+     * {@link #arm} calls {@link #listen} for every binding, and {@link #deafen} runs only where the last one
+     * naming that handle has gone.
+     */
+    private static volatile boolean armed = false;
 
     // 073.2: the gesture running right now — normally none, and at most one, since a press is one object —
     // is ONE SESSION'S ({@code SessionState.gesturesRunning}), because the press that started it landed on a
@@ -151,6 +167,8 @@ final class Gesture extends Widget {
      * controls it adopted and a binding pressing a widget that is going away is a binding nobody can start.
      */
     static void release(Addon owner, Widget w) {
+        if(owner == null)
+            return;
         for(Bind b : owner.gestures) {
             if((b.target == w) || (b.handle == w))
                 forget(owner, b);
@@ -173,6 +191,67 @@ final class Gesture extends Widget {
         for(Bind b : a.gestures)
             forget(a, b);
         a.gestures.clear();
+    }
+
+    /**
+     * <b>{@code w} has left, so no binding of anybody's names it any more</b> (128.4) — the departure seam this
+     * subsystem never had, offered {@code w} from both drains ({@code AddonManager.drainRemovedWidgets} and
+     * {@code drainDisposedWidgets}). Until it existed, {@code widget:draggable(h)} filed a {@link Bind} holding
+     * the target and the handle <b>strongly</b> in {@link Addon#gestures} and armed a listener recorded in
+     * {@link #arms}, and the only things that ever dropped either were a re-arm, {@code w:draggable(nil)},
+     * {@code w:revert()} and a reload — so a window armed once was held for the rest of the session.
+     *
+     * <p><b>Both drains, for the reason {@link Layout#dispatchRemoved} is on both.</b> A widget that dies as a
+     * descendant never reaches the removal drain at all ({@code destroy()} recurses {@code dispose()} alone),
+     * and a widget that merely leaves the tree has no binding worth keeping either: a {@link Bind} is a record
+     * about where a widget <i>is</i>, like the layout record beside it, and {@link #collect} already refuses to
+     * start a gesture on a target that has left {@code ui.root}. What must survive a removal is a
+     * <i>subscription</i> ({@link Addon#widgetSubs}, 128.1), which is a record about the widget itself.
+     *
+     * <p><b>Each {@link Bind} goes on its own</b>, through {@link #forget}, which deafens the handle only where
+     * no binding names it any more — so a grip serving three targets goes on serving the other two when one of
+     * them dies. Dropping the whole list, or deafening on sight, would take those with it.
+     *
+     * <p><b>Idempotent</b>, because the widget {@code destroy()} was called on reaches both queues, and cheap:
+     * every widget the client removes or destroys is offered here, so the case where nobody has armed anything
+     * — which is nearly every client, nearly all the time — costs one volatile read ({@link #armed}).
+     */
+    static void dispatchRemoved(Widget w) {
+        if(!armed)
+            return;
+        List<Addon> as = AddonManager.addons;
+        for(int i = 0, n = as.size(); i < n; i++)
+            release(as.get(i), w);
+        release(AddonManager.consoleOwner, w);
+        endRunning(w);
+    }
+
+    /**
+     * End a gesture the user is <b>in the middle of</b> whose handle or target has just died — which releases
+     * the {@link UI.Grab} it holds, since a grab left behind swallows every press until the next one. The
+     * target half is what {@link #tick}'s {@code anyLive} test would reach a frame later; the handle half it
+     * cannot see at all, and a drag going on from a grip that no longer exists is the one this is written for.
+     */
+    private static void endRunning(Widget w) {
+        for(AddonManager.SessionState s : AddonManager.allStates()) {
+            if(s.gesturesRunning.isEmpty())
+                continue;
+            for(Gesture g : s.gesturesRunning) {
+                if(g.drives(w))
+                    g.release();
+            }
+        }
+    }
+
+    /** Is {@code w} the grip this gesture was started from, or one of the widgets it is moving? */
+    private boolean drives(Widget w) {
+        if(handle == w)
+            return true;
+        for(int i = 0, n = moves.size(); i < n; i++) {
+            if(moves.get(i).target == w)
+                return true;
+        }
+        return false;
     }
 
     private static Bind find(Addon owner, Widget target, Mode mode) {
@@ -221,12 +300,16 @@ final class Gesture extends Widget {
             };
             handle.listen(Widget.MouseDownEvent.class, h);
             arms.put(handle, h);
+            armed = true;
         }
     }
 
     private static void deafen(Widget handle) {
         EventHandler<Widget.MouseDownEvent> h;
-        synchronized(Gesture.class) { h = arms.remove(handle); }
+        synchronized(Gesture.class) {
+            h = arms.remove(handle);
+            armed = !arms.isEmpty();
+        }
         if(h == null)
             return;
         try {
@@ -272,7 +355,7 @@ final class Gesture extends Widget {
         collect(AddonManager.consoleOwner, handle, u, at, moves);
         if(moves.isEmpty())
             return false;
-        Gesture g = new Gesture(moves, at);
+        Gesture g = new Gesture(handle, moves, at);
         st.gesturesRunning.add(g);
         u.root.add(g);
         g.arm(u);
@@ -317,6 +400,9 @@ final class Gesture extends Widget {
     }
 
     private final List<Move> moves;
+    /** The grip this press came through — 128.4's {@link #drives} asks about it, and nothing else does: every
+     *  coordinate the gesture needs afterwards comes off the move event's own. */
+    private final Widget handle;
     /** Where the press landed, in root pixels: a release that never left it is a CLICK and says nothing. */
     private final Coord press;
     private UI.Grab grab;
@@ -324,8 +410,9 @@ final class Gesture extends Widget {
     /** Has the pointer actually driven anything? Set by the first move away from {@link #press}. */
     private boolean acted;
 
-    private Gesture(List<Move> moves, Coord press) {
+    private Gesture(Widget handle, List<Move> moves, Coord press) {
         super(Coord.z);   // zero size; visible (the field default) so broadcast MouseMoveEvents reach it
+        this.handle = handle;
         this.moves = moves;
         this.press = press;
     }

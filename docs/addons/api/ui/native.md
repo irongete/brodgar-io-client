@@ -121,6 +121,12 @@ both levels take the place it landed at — so a `nil` from either addon is invi
 | `w:draggable(h)` | arm it: pressing `h` drags `w`. Arming again is a change of handle, not a second binding; chains |
 | `w:draggable(nil)` | drop your binding; chains |
 
+**An arming ends when either widget goes** — the target or the handle. A grip you built and later destroyed
+takes every binding it was pressing with it, and a target that dies takes its own; `w:draggable()` reads
+`nil` from that moment, and the widgets are neither held nor listened to afterwards. A grip pressing three
+targets goes on pressing the other two when one of them dies, so arming one handle across a surface of yours
+costs nothing when you tear part of it down.
+
 `w:revert()` drops the binding too, along with everything else your addon holds on that widget — see
 [taking the whole edit back](edit.md#taking-the-whole-edit-back). **A handle that has left the tree arms
 nothing.** The grip an event handed you can be destroyed on the client's own step and no `:exists()` of

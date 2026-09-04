@@ -138,6 +138,8 @@ observe and never had to think about. Each is discharged with that reason by the
   `installDragListener`, `dropDragListener`)
 - `src/io/brodgar/addon/Gesture.java` — 8 (`arms`, `listen`, `deafen`, `forget`, `find`, `Bind`, and the
   running gesture's own teardown)
+- `src/io/brodgar/addon/LuaWidget.java` — 7, 8 (`draggable`/`resizable` — the three arities, the stale
+  target's chaining no-op and the stale handle's; `pruneRemoved`, `recordMoved`, `monitorOf`)
 - `src/io/brodgar/addon/LuaItem.java` — 9 (`Cache.live`, `Cache.of`, `Cache.drain`, and the `item:on` mint
   that already names the cycle)
 - `tools/` — 11 (the new checker; `docverbs.py` and `refusalverbs.py` as the shape a checker is written in)

@@ -3291,7 +3291,9 @@ public final class AddonManager {
      * for the {@code widget:replace(view)} substitution's own death test — the server destroying a window an
      * addon replaced is a removal like any other. <b>Fifth since 044.6</b>:
      * {@link VirtualApi#dispatchStandingRemoved}, for a widget standing in the 3D world — the same removal, one
-     * subsystem along, and the two meet where a replaced stand-in is also a standing panel.
+     * subsystem along, and the two meet where a replaced stand-in is also a standing panel. <b>Since 128.4</b>:
+     * {@link Gesture#dispatchRemoved}, for the drag and resize bindings that named the widget — the half of a
+     * departure this drain announces, and {@link #drainDisposedWidgets} the half only a death reaches.
      */
     private static void drainRemovedWidgets(SessionState st) {
         for(int n = st.removedWidgets.size(); n > 0; n--) {
@@ -3309,6 +3311,8 @@ public final class AddonManager {
             Layout.dispatchRemoved(st, w);                // addon: 042.10 — drop its layout record, its pending
                                                            // late-caption entry, and (if it was an anchor target)
                                                            // any now-unused drag listener
+            Gesture.dispatchRemoved(w);                   // addon: 128.4 — ...and every drag/resize binding that
+                                                           //   named it, as the target or as the grip pressed
             if(w instanceof GItem)                        // addon: 104 — and an item takes item:on() with it
                 dropItemSubs((GItem)w);
         }
@@ -3355,6 +3359,12 @@ public final class AddonManager {
      * call {@link #drainRemovedWidgets} makes, plus the half only a death may do. A widget that is merely
      * removed can be re-homed one line later, so what ANCHORS to it, and the drag listener installed on it,
      * survive a removal and are retired only here.
+     *
+     * <p><b>Fourth since 128.4</b>: {@link Gesture#dispatchRemoved}, for what {@code widget:draggable(h)}
+     * armed — the one subsystem here that had no departure entry point at all, so a {@link Gesture.Bind}
+     * holding a target and a grip <b>strongly</b> outlived both of them for the rest of the session. The same
+     * call the removal drain makes, and for the same reason {@code Layout}'s is on both: a widget that dies as
+     * a descendant reaches this drain and no other.
      */
     private static void drainDisposedWidgets(SessionState st, int n) {
         if(n <= 0)
@@ -3373,6 +3383,8 @@ public final class AddonManager {
                 owners.get(i).dropWidgetSubs(w);
             Layout.dispatchDisposed(st, w);                  // addon: 128.3 — ...and its layout record, plus the
                                                              //   anchors and the drag listener that named IT
+            Gesture.dispatchRemoved(w);                      // addon: 128.4 — ...and its gesture bindings, which
+                                                             //   a widget dying as a DESCENDANT reaches here only
             if(dead != null)
                 dead.add(w);
         }

@@ -1,0 +1,9 @@
+{
+  "name": "128.4 — the disposal seam retires a widget's gesture bindings",
+  "id": "128-a-subscription-ends-with-its-widget.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 128.4: an arming ends when either widget goes — the target or the grip — while a grip serving another target goes on serving it, and the very next arming still reads back.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
