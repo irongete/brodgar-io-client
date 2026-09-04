@@ -1,0 +1,9 @@
+{
+  "name": "128.1 — a subscription ends with its widget",
+  "id": "128-a-subscription-ends-with-its-widget.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 128.1: the disposal seam retires a widget's subscriptions without changing a single announcement -- a destroyed surface and the surface that dies as its descendant each still report Removed exactly once, nothing fires afterwards, a subscription held in Lua still answers sub:off(), and a surface built after the destroy still updates.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

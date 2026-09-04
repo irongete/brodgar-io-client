@@ -454,6 +454,12 @@ public final class AddonManager {
         // destroy()), so the tap only enqueues; tick() drains one frame's worth (D-106) and dispatches to the
         // adapters that fire *Removed.
         final Queue<Widget> removedWidgets = new ConcurrentLinkedQueue<Widget>();
+        // 128.1: the widget-DISPOSAL seam — Widget.rdispose() runs on whatever thread reached destroy() (the
+        // same uncertainty as onWidgetRemoved), and the retirement it feeds is a WRITE to a map the fire path
+        // reads every frame, so the tap only enqueues; the step drains it and drops every addon's
+        // widget:on() subscriptions on the widget. Every disposed widget in the tree passes through here,
+        // including the client's own, so the per-widget cost stays one map lookup per addon.
+        final Queue<Widget> disposedWidgets = new ConcurrentLinkedQueue<Widget>();
         // 042.6: the deferred-belt-write notify — two of GameUI's five setbelt/setbelt2 paths write belt[slot]
         // from a glob.loader.defer task that runs on a Loader thread AFTER the uimsg tap already fired (D-178:
         // the notify goes where the write lands, not where the message arrived), so this only enqueues.
@@ -1128,7 +1134,8 @@ public final class AddonManager {
             // one frame never reports its Added after its Removed.
             drainEnteredWidgets();        // 112.3: s:ui():on(sel, "Added", fn)
             drainItemInfos();             // 112.3: item:on("Changed", fn)
-            drainRemovedWidgets(st);      // 042.1: a widget of ours that left the tree, and what watched it
+            drainWidgetDeaths(st);        // 042.1: a widget of ours that left the tree, and what watched it
+                                          // 128.1: ...and then the subscriptions of everything that was destroyed
             drainResizedWidgets(st);      // 042.10: ...and one that changed shape, for whatever is anchored
 
             // Soft CPU-budget accounting (D-018 layer 2): zero every addon's per-tick Lua time before any
@@ -1340,8 +1347,9 @@ public final class AddonManager {
 
             // 1b'. Widget removals (M1, 042.1) captured off-thread by the Widget.remove() tap → dispatched on
             //      the UI thread, one frame's worth (D-106). After refresh, so a removal never races a content
-            //      update the same frame.
-            drainRemovedWidgets(st);
+            //      update the same frame. 128.1: and the widgets destroyed this frame are retired right after
+            //      they are announced — drainWidgetDeaths is that pair, and the order is the whole of it.
+            drainWidgetDeaths(st);
 
             // 1b'a. WidgetSubs' deep ItemAdded/ItemRemoved diff (064.3), once per tick now that this tick's
             //       placements and removals have landed: a container and everything it gains or loses arrives
@@ -3115,8 +3123,23 @@ public final class AddonManager {
      * link, so the widget {@code destroy()} was called on has already been reported by the time its own
      * {@code dispose()} runs; every descendant still carries its parent and is reported here, exactly once.
      * Like {@link #onWidgetRemoved} it may run on either thread and only enqueues.
+     *
+     * <p><b>The retirement is ahead of the guard, and the guard keeps the event half exactly as it was</b>
+     * (128.1). {@code parent} is already null for the widget {@code destroy()} was called on, and a native
+     * descendant is not {@code Owned}, so the two clauses below are precisely what an addon's {@code
+     * widget:on(key, fn)} bookkeeping must NOT skip: a window that closes has to end the subscriptions on
+     * itself and on every widget under it, whoever built them. Queued here and retired on the step
+     * ({@link #drainDisposedWidgets}); {@code UiApi.prune}'s tree-death sweep stays as the backstop.
+     *
+     * <p><b>{@code Widget.remove()} is deliberately not this seam.</b> It is a death notice rather than a
+     * detach — a re-home is {@code remove(); other.add(w)} — so retiring there would unsubscribe a widget that
+     * is alive one line later. {@code rdispose()} does not run on a re-home, which is what makes it the only
+     * safe place for this.
      */
     public static void onWidgetDisposed(Widget w) {
+        SessionState dst = queueState(w.ui);   // 073.1: the tree the widget was in, and no other
+        if(dst != null)
+            dst.disposedWidgets.add(w);
         if((w.parent == null) || !(w instanceof Owned))
             return;
         onWidgetRemoved(w);
@@ -3288,6 +3311,49 @@ public final class AddonManager {
                                                            // any now-unused drag listener
             if(w instanceof GItem)                        // addon: 104 — and an item takes item:on() with it
                 dropItemSubs((GItem)w);
+        }
+    }
+
+    /**
+     * <b>One frame's deaths, announced and then retired, in that order</b> (128.1) — the pair every step calls
+     * where it used to call {@link #drainRemovedWidgets} alone.
+     *
+     * <p>The count is taken <b>before</b> the announcements, and that is the whole point of the method: a
+     * {@code widget:on("Removed", fn)} handler may destroy another widget, which lands in both queues while
+     * this frame's removal batch is already fixed — so retiring everything present after the dispatch would
+     * drop that widget's subscriptions a frame before its own {@code Removed} is dispatched, and eat it.
+     * Everything queued before the announcements has already been announced by the time they return.
+     */
+    private static void drainWidgetDeaths(SessionState st) {
+        int retiring = st.disposedWidgets.size();
+        drainRemovedWidgets(st);
+        drainDisposedWidgets(st, retiring);
+    }
+
+    /**
+     * <b>A widget died, so every {@code widget:on(key, fn)} on it does</b> (128.1) — the drain of the disposal
+     * seam's queue, and the retirement {@link Addon#widgetSubs} never had for the ordinary case: a window, an
+     * inventory or a control leaving with the session still logged in used to keep its {@link WidgetSubs}, and
+     * every engine listener and watch-list registration in it, until the next {@code :reload}.
+     *
+     * <p>{@link Addon#dropWidgetSubs} is the whole job — it removes the entry and tears it down, releasing
+     * every listener and marking each handler dead so a {@code Sub} kept in Lua still finds nothing to end —
+     * and it <b>fires nothing</b>, which is what keeps a closing window from minting an announcement per widget
+     * inside it. Every addon {@link #profOwners} lists is offered the widget, the same set {@code
+     * UiApi.pruneDeadTrees} walks, and the owner list is built once per drain rather than once per widget:
+     * almost every disposed widget in the client is one nobody subscribed on, and that miss must cost one map
+     * lookup per addon and nothing else.
+     */
+    private static void drainDisposedWidgets(SessionState st, int n) {
+        if(n <= 0)
+            return;
+        List<Addon> owners = profOwners();
+        for(; n > 0; n--) {
+            Widget w = st.disposedWidgets.poll();
+            if(w == null)
+                break;
+            for(int i = 0, m = owners.size(); i < m; i++)
+                owners.get(i).dropWidgetSubs(w);
         }
     }
 

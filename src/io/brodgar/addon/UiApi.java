@@ -1122,8 +1122,10 @@ final class UiApi {
         }
         for(Iterator<Widget> it = co.widgetSubs.keySet().iterator(); it.hasNext(); ) {
             if(dead(it.next()))                      // 041.3/041.4: ...and so is every widget:on() subscription
-                it.remove();
-        }
+                it.remove();                         // 128.1: the BACKSTOP, not the mechanism — a widget that
+        }                                            //   dies on its own is retired at the disposal seam
+                                                     //   (AddonManager.drainDisposedWidgets); this is what is
+                                                     //   left when the whole tree goes and nobody is drained
         for(LuaSelectorWatch w : co.selectorWatches) {                  // 030.2: ...and the selectors it watched
             if((w.ui == null) || w.ui.destroyed) {
                 w.alive = false;

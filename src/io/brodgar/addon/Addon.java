@@ -134,8 +134,8 @@ public final class Addon {
      */
     /**
      * This addon's <b>per-widget subscriptions</b> ({@code widget:on(key, fn)}): one {@link WidgetSubs} per
-     * widget this addon has subscribed on, keyed exactly like every other per-widget registry here (weak, so a
-     * widget that leaves the tree needs nothing done on this side). It started (041.3) as just the four input
+     * widget this addon has subscribed on, keyed by widget identity ({@link haven.Widget} overrides neither
+     * {@code equals} nor {@code hashCode}). It started (041.3) as just the four input
      * keys over the engine {@code EventHandler}s {@link haven.Widget#listen} installs — replacing the fixed
      * three-token {@code hooks} list ({@code hafen.hook():input}) — and 041.4 folds the REST of the widget
      * vocabulary onto the same record: {@code Pressed}/{@code Changed}/…'s controls fire straight into its
@@ -146,8 +146,19 @@ public final class Addon {
      * in the API. A NATIVE widget that survives {@code :reload} is what {@link #teardownWidgetSubs} walks
      * instead, releasing every listener and watch-list registration this addon installed before the Lua layer
      * that owns them is rebuilt (P2).
+     *
+     * <p><b>Retired explicitly, and by the widget's own death</b> (128.1). It was a {@link WeakHashMap}, which
+     * collected nothing: {@link WidgetSubs} holds its own key in {@code wdg} and again in {@code inwdg}, so no
+     * entry was ever weakly unreachable and every window, inventory and flower menu that closed left its
+     * listeners here for the rest of the session. What retires an entry now is the disposal seam
+     * ({@link AddonManager#onWidgetDisposed}, which every descendant of a destroyed widget reaches), through
+     * {@link #dropWidgetSubs} on the step; {@code UiApi.prune} keeps its sweep as the BACKSTOP for a whole
+     * tree dying rather than as the mechanism. Nothing is fired either way — the retirement is bookkeeping.
+     *
+     * <p><b>Concurrent because there are two writers.</b> The mint runs wherever {@code widget:on(key, fn)} was
+     * called, which may be beside the step, and the retiring drain runs on the step.
      */
-    final Map<Widget, WidgetSubs> widgetSubs = new WeakHashMap<Widget, WidgetSubs>();
+    final Map<Widget, WidgetSubs> widgetSubs = new ConcurrentHashMap<Widget, WidgetSubs>();
 
     /** This addon's {@link WidgetSubs} for {@code w}, minted on the first {@code w:on(key, fn)}. */
     WidgetSubs widgetSubs(Widget w) {
@@ -163,9 +174,13 @@ public final class Addon {
      * This addon's {@link WidgetSubs} for {@code w}, or {@code null} — the FIRE-side lookup (041.4), which must
      * never mint one: a control's every press/tick/draw runs through this, so an unlistened widget must cost one
      * map lookup and nothing else (the {@code hasSub} gate one level up from {@link Subs#has}).
+     *
+     * <p>{@code null} in, {@code null} out (128.1): the map is a {@link ConcurrentHashMap} now, which throws on
+     * a null key where the {@link WeakHashMap} it replaces answered {@code null} — and a fire-side caller that
+     * resolves its own widget ({@code AddonWidget.rootw()}, a gesture's target) may hand one over.
      */
     WidgetSubs widgetSubsOrNull(Widget w) {
-        return widgetSubs.get(w);
+        return (w == null) ? null : widgetSubs.get(w);
     }
 
     /**
@@ -197,12 +212,21 @@ public final class Addon {
     }
 
     /**
-     * Drop this addon's subscriptions on <b>one</b> widget ({@code widget:revert()}, 061.9) — the same
-     * release {@link #teardownWidgetSubs} does for all of them, one widget at a time: every engine listener
-     * and watch-list registration goes, and each handler is marked dead so a {@code sub:off()} kept in Lua
-     * still finds nothing to end. Nothing is fired: a revert is not a destroy.
+     * Drop this addon's subscriptions on <b>one</b> widget ({@code widget:revert()}, 061.9; the disposal drain,
+     * 128.1) — the same release {@link #teardownWidgetSubs} does for all of them, one widget at a time: every
+     * engine listener and watch-list registration goes, and each handler is marked dead so a {@code sub:off()}
+     * kept in Lua still finds nothing to end.
+     *
+     * <p><b>Nothing is fired, and nothing here ever may be.</b> A revert is not a destroy, and since 128.1 this
+     * also runs for every descendant of a destroyed widget — so an announcement added here would mint one per
+     * widget inside a closing window, which is the cost the disposal seam is written to avoid.
+     *
+     * <p>A widget no addon subscribed on is almost all of them, and the drain offers each to every addon, so
+     * this must stay one map lookup and nothing else for the miss.
      */
     void dropWidgetSubs(Widget w) {
+        if(w == null)
+            return;
         WidgetSubs s = widgetSubs.remove(w);
         if(s != null)
             s.teardown();
