@@ -1,0 +1,9 @@
+{
+  "name": "128.2 — the disposal seam retires what a selector matched",
+  "id": "128-a-subscription-ends-with-its-widget.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 128.2: what a selector subscription announces is unchanged — a widget entering the client's tree, the one destroyed, and the child that dies as its descendant — while what it MATCHED is retired silently.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

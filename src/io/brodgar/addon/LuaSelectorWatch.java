@@ -30,6 +30,14 @@ import java.util.Map;
  * {@code "Removed"} (event-driven since 042.9), so it holds only live widgets — a dead one is dropped the moment
  * it is removed, never held as a pin.
  *
+ * <p><b>And a widget that dies as a DESCENDANT is dropped too</b> (128.2), on the disposal seam
+ * ({@link UiApi#retireSelectorMatches}, from {@code AddonManager}'s disposal drain) — <b>silently</b>. The
+ * removal seam reaches only what runs {@code Widget.remove()}, and {@code docs/client/widgets.md} records that
+ * {@code rdispose} recurses {@code dispose()} alone: every client-minted widget inside a closing window used to
+ * stay in this map for the rest of the session. The retirement fires nothing, because firing {@code "Removed"}
+ * there would mint one announcement per widget in that window; so this map holds only live widgets, and the
+ * event still says exactly what it said.
+ *
  * <p>The recorded value is the server widget id captured when the widget matched ({@code -1} for a client-only
  * one), because the death test is the same <b>two-branch</b> guard the restore list and the container watches use
  * — by id when server-bound, by tree reachability otherwise — and a matching widget can be either. For a

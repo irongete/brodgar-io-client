@@ -1467,6 +1467,50 @@ final class UiApi {
         }
     }
 
+    /**
+     * <b>A widget was destroyed, so no subscription goes on saying its selector matched it</b> (128.2) — the
+     * selector half of the disposal drain ({@link AddonManager#drainDisposedWidgets}), and the retirement
+     * {@link LuaSelectorWatch#matched} never had for a widget that dies as a <b>descendant</b>. That map is fed
+     * at the entry seam and drained at the removal one ({@link #dispatchSelectorRemoved}), and
+     * {@code docs/client/widgets.md} records why the removal seam is not enough: {@code Widget.rdispose}
+     * recurses {@code dispose()} only, so no descendant of a destroyed widget is ever unlinked or runs
+     * {@code remove()}. Every client-minted widget that died inside a closing window stayed in {@code matched},
+     * strongly, for the rest of the session.
+     *
+     * <p><b>It does not call {@link #dispatchSelectorRemoved}, and that is the point.</b> The dispatch fires
+     * {@code "Removed"} where it removes; firing here would mint an announcement per descendant of every
+     * closing window, which is exactly the cost the disposal seam's own design refuses. A widget disposed as a
+     * descendant therefore leaves {@code matched} as silently as it left the tree — the retirement is
+     * bookkeeping, and nothing an addon can observe changes. What an {@code Owned} widget's own {@code
+     * "Removed"} announcement is, it still is: that comes off the removal queue, which
+     * {@link AddonManager#drainWidgetDeaths} drains <b>first</b>.
+     *
+     * <p><b>The batch, and the monitor taken once for it.</b> The class comment above records the tree's own
+     * monitor as what keeps these two lists from being written by two threads at once, and the drain arrives on
+     * a step holding none — so it is taken here, deliberately, for one tree and for the whole frame's deaths
+     * rather than per widget. Nothing inside it reads a widget or calls Lua, so nothing can want a second.
+     */
+    static void retireSelectorMatches(SessionState st, List<Widget> dead) {
+        if(st.selectorWatches.isEmpty() && st.selectorPending.isEmpty())
+            return;
+        synchronized(LuaWidget.monitorOf(st.ui)) {          // 073.2/112.2: this tree's, and never a second
+            for(LuaSelectorWatch watch : st.selectorWatches) {   // copy-on-write. alive is not tested: a stale
+                if(watch.matched.isEmpty())                      //   entry is stale whether or not the sub
+                    continue;                                    //   that made it has already ended
+                for(int i = 0, n = dead.size(); i < n; i++)
+                    watch.matched.remove(dead.get(i));
+            }
+            for(PendingMatch p : st.selectorPending) {      // ...and out of the bounded re-check, which would
+                for(int i = 0, n = dead.size(); i < n; i++) {    // otherwise offer a destroyed widget for
+                    if(p.wdg == dead.get(i)) {                   // RECHECK_TICKS more ticks
+                        st.selectorPending.remove(p);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     // 042.9/049.3: a window's caption changed (from the caption seam, AddonManager.onCaptionChanged <- Window.chcap,
     // which runs on whatever thread wrote it — a Loader thread applying a uimsg, OUTSIDE synchronized(ui):
     // UI.java:730-732 closes the monitor before calling AddonManager.onUimsg — or the UI thread for an addon's own

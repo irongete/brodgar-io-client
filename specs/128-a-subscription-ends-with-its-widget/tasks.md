@@ -28,7 +28,7 @@
       raises nothing — the pair that fails if `teardown` were made to announce, which is what would turn a
       closing window into a hundred events.
 
-- [ ] **128.2 — the disposal seam retires what a selector matched.**
+- [x] **128.2 — the disposal seam retires what a selector matched.**
       The same drain walks `st.selectorWatches` and removes the widget from each `LuaSelectorWatch.matched`,
       and from `st.selectorPending`, taking the tree's own monitor — `LuaWidget.monitorOf(st.ui)`, one tree
       at a time — because `UiApi` records that monitor as what keeps `matched` from being written by two

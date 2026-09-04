@@ -3343,18 +3343,34 @@ public final class AddonManager {
      * UiApi.pruneDeadTrees} walks, and the owner list is built once per drain rather than once per widget:
      * almost every disposed widget in the client is one nobody subscribed on, and that miss must cost one map
      * lookup per addon and nothing else.
+     *
+     * <p><b>Second consumer since 128.2</b>: {@link UiApi#retireSelectorMatches}, for what a selector
+     * subscription matched. Same drain, same rule — <b>the removal drain announces, the disposal drain
+     * retires</b> — so it drops the widget from every {@code matched} set and from the bounded re-check
+     * <i>without</i> firing {@code "Removed"}, which the dispatch above it has already fired for every widget
+     * that is properly removed. It is addressed at the tree rather than at an addon, so it takes the whole
+     * frame's deaths at once and the tree's monitor with them.
      */
     private static void drainDisposedWidgets(SessionState st, int n) {
         if(n <= 0)
             return;
         List<Addon> owners = profOwners();
+        // 128.2: the batch, for the retirement that is addressed at the TREE rather than at an addon —
+        // UiApi.retireSelectorMatches takes this tree's monitor once for the frame's deaths instead of once per
+        // widget, and is built only when something is actually watching with a selector.
+        List<Widget> dead = st.selectorWatches.isEmpty() && st.selectorPending.isEmpty()
+            ? null : new ArrayList<Widget>(n);
         for(; n > 0; n--) {
             Widget w = st.disposedWidgets.poll();
             if(w == null)
                 break;
             for(int i = 0, m = owners.size(); i < m; i++)
                 owners.get(i).dropWidgetSubs(w);
+            if(dead != null)
+                dead.add(w);
         }
+        if((dead != null) && !dead.isEmpty())
+            UiApi.retireSelectorMatches(st, dead);           // addon: 128.2 — ...and what a selector matched
     }
 
     /**
