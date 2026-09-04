@@ -3365,6 +3365,14 @@ public final class AddonManager {
      * holding a target and a grip <b>strongly</b> outlived both of them for the rest of the session. The same
      * call the removal drain makes, and for the same reason {@code Layout}'s is on both: a widget that dies as
      * a descendant reaches this drain and no other.
+     *
+     * <p><b>Fifth since 128.5</b>: {@link Addon#dropItemSubs} and {@link Addon#dropInternedHandles}, for an
+     * item. A {@code GItem} is an {@code AWidget}, so a disposed one is already in this queue and needs no tap
+     * of its own — and it needs this drain more than anything else here does, because an inventory that closes
+     * <b>destroys</b> the items inside it rather than removing them, so the removal drain's own
+     * {@code dropItemSubs} never sees one. Both calls are behind a single kind test: the caches are keyed on a
+     * {@code GItem}, an {@code IMeter} or a {@code Buff}, and a widget of none of those kinds — almost every
+     * widget that reaches here — pays three {@code instanceof} and no per-addon call at all.
      */
     private static void drainDisposedWidgets(SessionState st, int n) {
         if(n <= 0)
@@ -3385,6 +3393,15 @@ public final class AddonManager {
                                                              //   anchors and the drag listener that named IT
             Gesture.dispatchRemoved(w);                      // addon: 128.4 — ...and its gesture bindings, which
                                                              //   a widget dying as a DESCENDANT reaches here only
+            if(w instanceof GItem) {                         // addon: 128.5 — ...and, for an item destroyed WITH
+                GItem it = (GItem)w;                         //   its container, the subscriptions on it: an
+                for(int i = 0, m = owners.size(); i < m; i++) //   inventory closing never removes what it holds
+                    owners.get(i).dropItemSubs(it);
+            }
+            if((w instanceof GItem) || (w instanceof IMeter) || (w instanceof Buff)) {
+                for(int i = 0, m = owners.size(); i < m; i++)  // addon: 128.5 — ...and every handle interned for
+                    owners.get(i).dropInternedHandles(w);      //   it, in the strong-keyed caches that pin it
+            }
             if(dead != null)
                 dead.add(w);
         }

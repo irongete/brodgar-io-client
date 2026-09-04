@@ -6,7 +6,7 @@
 
 | What | Where |
 |---|---|
-| **`Hidewnd`** — a `Window` whose close **hides** instead of destroying | `GameUI.Hidewnd` — `reqclose() { hide(); }` |
+| **`Hidewnd`** — a `Window` whose close **hides** instead of destroying | `GameUI.Hidewnd` — `reqclose() { hide(); }`. **The contrast is what the close button means**: `Window.reqclose` defaults to `wdgmsg("close")`, so a server-put-up container window's close is a *request* the server answers with a widget destroy — the window, its `Inventory` and every `GItem` in it die through `rdispose` and never through `remove` ([widgets.md](widgets.md)) — while a `Hidewnd` answers itself and destroys nothing, so `maininv`'s items outlive every close |
 | Inventory / equipment: server grid → a **wrapper created hidden** | `GameUI.addchild` `place == "inv"` — `new Hidewnd(…, "Inventory")`, `add(maininv)`, `pack()`, **`hide()`**; `"equ"` at is the same shape |
 | Action search |  `place == "menu"` — `srchwnd`, `reqclose(srchwnd::hide).hide()` |
 | Crafting: an anonymous wrapper the CONTENT ends | `place == "craft"` — `new Window(…, ((Makewindow)child).rcpnm)`, `add(mkwdg)`, `pack()`. Its `cdestroy(w)` runs `ui.destroy(this)` and `makewnd = null` when `w == mkwdg` |

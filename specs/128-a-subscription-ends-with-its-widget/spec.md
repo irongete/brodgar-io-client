@@ -140,8 +140,15 @@ observe and never had to think about. Each is discharged with that reason by the
   running gesture's own teardown)
 - `src/io/brodgar/addon/LuaWidget.java` — 7, 8 (`draggable`/`resizable` — the three arities, the stale
   target's chaining no-op and the stale handle's; `pruneRemoved`, `recordMoved`, `monitorOf`)
-- `src/io/brodgar/addon/LuaItem.java` — 9 (`Cache.live`, `Cache.of`, `Cache.drain`, and the `item:on` mint
-  that already names the cycle)
+- `src/io/brodgar/addon/LuaItem.java` — 9 (`Cache.live`, `Cache.of`, `Cache.drain`, `Cache.retire`, and the
+  `item:on` mint that already names the cycle)
+- `src/io/brodgar/addon/LuaContents.java`, `LuaStudySlot.java`, `LuaMeter.java`, `LuaBuff.java` — 9, 10 (the
+  sibling intern caches, each `Cache.live` + `Cache.retire`: the same strong-keyed shape one subsystem along)
+- `src/io/brodgar/addon/CharApi.java` — 10, 11 (`StudyAdapter.cache` and `EquipAdapter.cache`, the two
+  `GItem`-keyed maps that are change-detection state rather than intern caches, and are fed and drained by
+  `dispatchPlaced`/`dispatchRemoved` — the removal seam alone)
 - `tools/` — 11 (the new checker; `docverbs.py` and `refusalverbs.py` as the shape a checker is written in)
 - `src/haven/Widget.java` — 1, 2 (read only: `destroy`, `remove`, `rdispose`, and the two seams' call sites)
-- `docs/client/widgets.md` — 1, 2 (read only: the seams, the destroy gotchas, the re-home rule)
+- `docs/client/widgets.md` — 1, 2 (read only: the seams, the destroy gotchas, the re-home rule, and the
+  `ContentsWindow` a stack carries with nothing open)
+- `docs/client/gameui-windows.md` — 9 (read only: which windows destroy on close and which only hide)

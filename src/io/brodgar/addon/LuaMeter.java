@@ -131,6 +131,21 @@ public final class LuaMeter {
             }
         }
 
+        /**
+         * <b>The widget died, so its entry goes</b> (128.5) — the meter widget is gone. The key is
+         * STRONG, and {@link #drain} clears an entry only where Lua has already released the handle <i>and</i>
+         * something mints again, so without this the map pins the widget for the session; see
+         * {@link Addon#dropInternedHandles}, which is the only caller.
+         *
+         * <p>{@code synchronized}, which is the monitor {@link #of} takes — the drain runs on the step and a
+         * mint runs wherever Lua ran. A handle Lua is still holding goes on answering: what is dropped is the
+         * cache's claim on a widget that no longer exists, not the object an author stashed.
+         */
+        synchronized void retire(IMeter m) {
+            if(m != null)
+                live.remove(m);
+        }
+
         private LuaValue meta() {
             if(mt == null)
                 mt = buildMeta(owner);

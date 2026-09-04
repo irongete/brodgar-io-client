@@ -1,7 +1,9 @@
 package io.brodgar.addon;
 
 import haven.Waitable;
+import haven.Buff;
 import haven.GItem;
+import haven.IMeter;
 import haven.Widget;
 
 import org.luaj.vm2.Globals;
@@ -895,10 +897,19 @@ public final class Addon {
      * — which left an addon with no way to draw a number on an icon except to keep asking. This is the address
      * that says it: <i>hold the item, subscribe on it</i>, exactly as the widget keys read.
      *
-     * <p>Weak-keyed, so an item nobody holds takes its subscriptions with it; dead with this {@link Addon} on
-     * {@code :reload}/disable, and there is no engine listener to deafen — the fires come from the seams.
+     * <p><b>Retired explicitly, and by the item's own death</b> (128.5). It was a {@link WeakHashMap}, and the
+     * paragraph {@link #dropItemSubs} opens with is why it collected nothing: a handler written the way the
+     * page writes it closes over the very item it was subscribed on, so the map's value reaches its own key
+     * through a Lua closure and no entry was ever weakly unreachable. What retires an entry now is the item's
+     * death — the removal seam for an item taken out of a container, and since 128.5 the disposal seam
+     * ({@link AddonManager#drainDisposedWidgets}) for an item destroyed WITH the container that held it, which
+     * is what an inventory closing does and which no removal ever reaches. Nothing is fired either way.
+     *
+     * <p><b>Concurrent because there are two writers</b>, the same pair {@link #widgetSubs} has: the mint runs
+     * wherever {@code item:on(key, fn)} was called, which may be beside the step, and the retiring drain runs
+     * on the step.
      */
-    final Map<GItem, Subs> itemSubs = new WeakHashMap<GItem, Subs>();
+    final Map<GItem, Subs> itemSubs = new ConcurrentHashMap<GItem, Subs>();
 
     /** This addon's {@link Subs} for {@code it}, minted on the first {@code item:on(key, fn)}. */
     Subs itemSubs(GItem it) {
@@ -910,9 +921,15 @@ public final class Addon {
         return s;
     }
 
-    /** This addon's {@link Subs} for {@code it}, or {@code null} — the FIRE-side lookup, which mints nothing. */
+    /**
+     * This addon's {@link Subs} for {@code it}, or {@code null} — the FIRE-side lookup, which mints nothing.
+     *
+     * <p>{@code null} in, {@code null} out (128.5), for the reason {@link #widgetSubsOrNull} gives: the map is
+     * a {@link ConcurrentHashMap} now, which throws on a null key where the {@link WeakHashMap} it replaces
+     * answered {@code null}.
+     */
     Subs itemSubsOrNull(GItem it) {
-        return itemSubs.get(it);
+        return (it == null) ? null : itemSubs.get(it);
     }
 
     /**
@@ -923,11 +940,48 @@ public final class Addon {
      * {@code GItem} and everything under it. {@link Subs#clear} drops the handlers, which is what breaks the
      * cycle — after it the entry is collectable whether or not it was removed, and a {@code sub:off()} kept in
      * Lua finds a subscription already ended. This is exactly what {@link WidgetSubs} does at its own removal.
+     *
+     * <p><b>And from the disposal seam too</b> (128.5). An inventory that closes <i>destroys</i> the items
+     * inside it rather than removing them, so the removal seam never reaches one — which is precisely the case
+     * the cycle above makes permanent. {@link AddonManager#drainDisposedWidgets} offers every disposed
+     * {@link GItem} to every addon, so this must stay one map lookup and nothing else for the miss.
      */
     void dropItemSubs(GItem it) {
+        if(it == null)
+            return;
         Subs s = itemSubs.remove(it);
         if(s != null)
             s.clear();
+    }
+
+    /**
+     * Drop every handle this addon <b>interned</b> for a widget that has died (128.5) — the other half of an
+     * item's retirement, and the half that has nothing to do with subscriptions.
+     *
+     * <p>The item caches ({@link #items}, {@link #contents}, {@link #studySlots}) are
+     * {@code IdentityHashMap}s keyed <b>strongly</b> on the {@link GItem}, holding a weak reference to the
+     * handle and swept only on the next {@code of()}. So an addon that interns items and then stops minting
+     * them pins every {@code GItem} it ever touched — handle or no handle — and an inventory closing is where
+     * that bites, because the items in it are destroyed rather than removed. {@link #meters} and {@link #buffs}
+     * are the same shape one subsystem along, keyed on the {@code IMeter} and the {@code Buff} widget.
+     *
+     * <p>Each cache is emptied of the entry <b>through the monitor its own {@code of()} takes</b>, never by
+     * reaching the map: the mint runs wherever Lua ran, and this runs on the step.
+     *
+     * <p>A widget of none of those kinds is almost every widget the drain sees, so the kind is tested once per
+     * widget by the drain and this is called only for one that can be in a cache at all.
+     */
+    void dropInternedHandles(Widget w) {
+        if(w instanceof GItem) {
+            GItem it = (GItem)w;
+            items.retire(it);
+            contents.retire(it);
+            studySlots.retire(it);
+        } else if(w instanceof IMeter) {
+            meters.retire((IMeter)w);
+        } else if(w instanceof Buff) {
+            buffs.retire((Buff)w);
+        }
     }
 
     /**

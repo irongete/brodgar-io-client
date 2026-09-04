@@ -35,11 +35,12 @@
 | **Relative placement** | `Widget.Position` (a `Coord` subclass) with `getpos(name)`/`pos(name)` — the anchors `"ul"`/`"ur"`/`"br"`/`"bl"`/`"mid"` and their content-local `"c…"` twins, `pos` throwing where `getpos` answers `null`. `Position.add`/`sub`/`x`/`y` have `adds`/`subs`/`xs`/`ys` twins that `UI.scale` the argument, which is how the client writes a design-pixel offset. `addhlp`/`addhl` lay a row of children out, vertically centred on the tallest |
 | **The UPWARD walk, and its ~30 callers** | `Widget.getparent(Class)` — a plain `w = w.parent` loop. `getparent(GameUI.class)` is how a widget finds the HUD it belongs to: `Inventory.mousewheel` (the shift-wheel bulk transfer) dereferences it **unguarded**, while `GItem`/`WItem.contparent` and `Equipory.drawslots` guard and fall back. Fork: it steps across a standing widget's surface to where that widget was |
 
-**Entry gotcha — `UI.AddWidget` is the server's door, not the tree's.** Widgets the client mints for itself
-never pass it: `Inventory.addchild`/`Equipory.addchild` mint a `WItem` per item and `add()` it, `GameUI.updhand`
-mints the cursor's `ItemDrag`, `GItem.addchild` mints a `ContentsWindow`. `Widget.add0` is the one call all of
-them share, and it is where a "a widget entered the tree" signal has to live. Note the asymmetry that made this
-easy to miss: the *removal* signal has always been on `Widget.remove`, which is universal.
+**Entry gotcha — `UI.AddWidget` is the server's door, not the tree's.** Widgets the client mints for itself never
+pass it: `Inventory.addchild`/`Equipory.addchild` mint a `WItem` per item and `add()` it, `GameUI.updhand` mints
+the cursor's `ItemDrag`, and `GItem.addchild` mints a `ContentsWindow` **on the server's `contents` child, not on
+hover** — so a tree with nothing open still holds one `Inventory` of `GItem`s per stack, which any walk for open
+containers finds. `Widget.add0` is the one call all of them share, and where "a widget entered the tree" has to
+live. Note the asymmetry that made this easy to miss: the *removal* signal is on `Widget.remove`, which is universal.
 
 **Entry gotcha — `add0` runs with the tree's monitor already held.** `Widget.add` wraps `add0` in
 `synchronized(ui)` whenever the parent has a `UI`, on whatever thread reached it — a Loader thread applying

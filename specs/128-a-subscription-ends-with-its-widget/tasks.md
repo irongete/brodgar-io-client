@@ -85,7 +85,7 @@
       arm on a new widget still reads back, and that `w:draggable(nil)` on the dead one raises nothing.
       `[manual]`: drag the armed widget by its handle — expect: it follows the pointer.
 
-- [ ] **128.5 — the disposal seam retires an item's subscriptions and its handles.**
+- [x] **128.5 — the disposal seam retires an item's subscriptions and its handles.**
       `GItem extends AWidget`, so a disposed item is already in the queue and needs no new tap: the drain
       calls `dropItemSubs(it)` for it as well as the removal seam does. An inventory that closes **destroys**
       the items inside it rather than removing them, so the removal seam never reaches them, and

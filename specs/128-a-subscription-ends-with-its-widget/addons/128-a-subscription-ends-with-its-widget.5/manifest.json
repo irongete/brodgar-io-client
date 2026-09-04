@@ -1,0 +1,9 @@
+{
+  "name": "128.5 — the disposal seam retires an item's subscriptions and its handles",
+  "id": "128-a-subscription-ends-with-its-widget.5",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 128.5: a live item goes on interning to the one object it always was across the drains that now reach it, and an item destroyed WITH the container that held it leaves every verb on the handle answering rather than raising.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
