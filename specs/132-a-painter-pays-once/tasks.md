@@ -40,7 +40,7 @@
       `[manual]`: stand with a wall between you and a patched object, `occluded(false)` set — expect: the
       ring is drawn whole, through the wall.
 
-- [ ] **132.2 — a patch's filter and tags allocate nothing.**
+- [x] **132.2 — a patch's filter and tags allocate nothing.**
       `filter(Area b)` answers `!b.isects(tiles)` — the pure comparison `Area.overlap` calls first —
       instead of `b.overlap(tiles) == null`, which builds two `Coord` and an `Area` only to throw it away
       for its nullness. `tags()` becomes a `static final` single-entry list instead of a fresh

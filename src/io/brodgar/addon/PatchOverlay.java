@@ -3,6 +3,7 @@ package io.brodgar.addon;
 import java.awt.Color;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import haven.Area;
@@ -118,8 +119,13 @@ final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
      * drawn from the moment it is registered. The client's own overlay tags ({@code "prov"}, {@code "cplot"})
      * are the player's to turn on and off; a patch is the addon's, and {@code patch:visible(b)} is where it
      * says so.
+     *
+     * <p>One list for every patch there will ever be (132.2), because every patch answers this same one tag and
+     * {@code MapView.oltick} asks per overlay per frame.
      */
-    public Collection<String> tags() {return(Arrays.asList("show"));}
+    private static final Collection<String> TAGS = Collections.unmodifiableList(Arrays.asList("show"));
+
+    public Collection<String> tags() {return(TAGS);}
 
     public Material mat() {return(mat);}
 
@@ -131,7 +137,17 @@ final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
      */
     public Material omat() {return(null);}
 
-    public boolean filter(Area b) {return(b.overlap(tiles) == null);}
+    /**
+     * <b>Is this mask nowhere in {@code b}?</b> — the question {@code MCache.getols} puts to the whole drawn
+     * area and {@code MCache.olreaches} puts to one cut, per overlay, per frame, under {@code MapView.oltick}.
+     *
+     * <p><b>The pure comparison, not the intersection thrown away</b> (132.2): {@code Area.overlap} answers by
+     * building two {@code Coord} and an {@code Area}, and reading it for its nullness alone discards all three
+     * — at the rate this is asked, that is the map's <i>"exactly and with no allocation"</i> broken by one
+     * expression. {@code Area.isects} is the test {@code overlap} itself runs first, so the answer is the same
+     * one and nothing is built to reach it.
+     */
+    public boolean filter(Area b) {return(!b.isects(tiles));}
 
     public void fill(Area b, boolean[] buf) {
         Area ol = tiles.overlap(b);

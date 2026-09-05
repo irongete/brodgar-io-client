@@ -1,0 +1,9 @@
+{
+  "name": "132.2 — a patch's filter and tags allocate nothing",
+  "id": "132-a-painter-pays-once.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 132.2: a patch's mask is asked for the cuts under it and no others, one the drawn ground never reaches is asked for none at all, and three hundred of those cost nothing per frame.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
