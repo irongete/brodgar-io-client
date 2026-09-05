@@ -103,6 +103,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:cellSize()` | `{w=, h=}` \| nil | the cell box of a [grid](lists.md#grid), in [design pixels](pixels.md), or `nil` where a control has no cells — [`:cellSize(w, h)` writes it](lists.md#grid) |
 | `:columns()` | array \| nil | the column descriptors of a [table](lists.md#table), or `nil` where a control has no columns — [`:columns(t)` writes it](lists.md#table) |
 | `:item()` | [`Item`](items.md#the-item-object) \| nil | the item an **icon** draws — `nil` on everything else, where [`:items()`](items.md) is the container's own read |
+| `:group()` | int \| nil | the **group** a list row draws its name in, `0..254`; `nil` on every other widget. Two lists have one and the number means what that list means by it: the **kin roster**'s row answers the kin's own group — what [`kin:group()`](../kin.md) reads and writes — and a village's or a realm's **member** row answers that polity's group for them, a different number, which it answers for a member the roster does not know (`???`) as well as for one it does. `nil` too on a polity that has no groups |
 | `:items()` | [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) of [`Item`](items.md#the-item-object) | the items inside it — see [items](items.md) |
 | `:exists()` | boolean | whether it is still in the tree |
 | `:info()` | table \| nil | the snapshot escape hatch `{type, role, res, id, pos, size, visible, text, owned}`; absent values are unset, and the whole thing is `nil` once stale |

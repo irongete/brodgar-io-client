@@ -1235,6 +1235,39 @@ public final class LuaWidget {
                 return LuaItem.of(owner, ((WItem)w).item);
             }
         });
+        // group() — THE GROUP A ROW DRAWS ITS NAME IN, and nil on every other widget. The join the row itself
+        // cannot make: the three lists that colour a name by group lay their rows out as
+        // SListWidget.ItemWidgets, and the only thing a row says about the group is that COLOUR — which above
+        // the eighth group is the ungrouped one, the same for all of them. Two kinds of row answer, and the
+        // number means what the row's own list means by it:
+        //   · the KIN roster's (BuddyWnd.Buddy.group) — the kin's group, the one kin:group() writes;
+        //   · a village's or a realm's member row (haven.Polity.Member.group) — that polity's group for that
+        //     member, which is a DIFFERENT number from their kin group, and which answers for a member the
+        //     roster does not know ("???") as much as for one it does.
+        // The polity's is read off the wire beside the id, because the two panels that have one keep it in a
+        // field of published resource code; -1 there is a polity with no groups (a Generic one) and reads nil
+        // rather than a number no group has. Unprotected: a read of what is on screen.
+        m.set("group", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                if(Args.passed(a, 2))
+                    throw new LuaError("widget:group() takes no arguments — it reads the polity group the"
+                        + " row it is called on draws its name in. To MOVE a kin between groups, kin:group(n)"
+                        + " is the write, and a colour row is driven with widget:value(n).");
+                Widget w = live(handle(self, "group"));
+                if(!(w instanceof haven.SListWidget.ItemWidget))
+                    return LuaValue.NIL;
+                Object row = ((haven.SListWidget.ItemWidget<?>)w).item;
+                int g;
+                if(row instanceof haven.BuddyWnd.Buddy)
+                    g = ((haven.BuddyWnd.Buddy)row).group;
+                else if(row instanceof haven.Polity.Member)
+                    g = ((haven.Polity.Member)row).group;
+                else
+                    return LuaValue.NIL;
+                return (g < 0) ? LuaValue.NIL : LuaValue.valueOf(g);
+            }
+        });
         // text() / text(s) — WHAT THE WIDGET DISPLAYS, and arity is the verb here as everywhere else (R2). The
         // read is unchanged and answers on ANY text-bearing widget, the client's own included
         // (Label/Button/Window/TextEntry), else nil — NEVER throwing, since docs/addons/api/ui/widget.md

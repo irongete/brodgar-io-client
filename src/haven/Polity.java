@@ -48,6 +48,12 @@ public abstract class Polity extends Widget {
     public class Member {
 	public final Integer id;
 	public final int order;
+	/* addon: THE GROUP THIS MEMBER IS IN, off the wire, or -1 for a polity that has no groups. The two
+	 * panels that have them keep it in a field of their own -- `ui/vlg`'s `Village.VMember.grp` and
+	 * `ui/realm`'s `Realm.RMember.grp`, both published resource code and neither reachable from here --
+	 * and the colour they draw the name in is the only thing they say about it, which above the eighth
+	 * group is nothing at all. So `uimsg "add"` reads the same argument once more, below. */
+	public int group = -1;
 
 	public Member(Integer id) {
 	    this.id = id;
@@ -57,6 +63,7 @@ public abstract class Polity extends Widget {
 	public Member(Member p) {
 	    this.id = p.id;
 	    this.order = p.order;
+	    this.group = p.group;   // addon: a re-`add` copies the member, and the group is the member's
 	}
 
 	public Text rname() {
@@ -221,7 +228,13 @@ public abstract class Polity extends Widget {
 	} else if(msg == "add") {
 	    Integer id = INT.of(args[0]);
 	    synchronized(this) {
-		add(parsememb(args, memb.get(id)));
+		Member pm = parsememb(args, memb.get(id));
+		/* addon: the member's group, from the argument the village's and the realm's own `parsememb`
+		 * read into their subclass field. A polity that has no groups sends no such argument and its
+		 * members keep the -1. */
+		if(args.length > 1)
+		    pm.group = INT.of(args[1]);
+		add(pm);
 	    }
 	} else if(msg == "rm") {
 	    Integer id = INT.of(args[0]);

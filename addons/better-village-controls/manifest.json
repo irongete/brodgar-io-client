@@ -3,7 +3,7 @@
   "name": "Better village controls",
   "version": "1.0.0",
   "author": "irongete",
-  "description": "Every colour row -- the Kin, Village and Realm tabs of the Kith & Kin window, and the claim window -- grows a picker beside it carrying every group the server takes, 0 to 254. It shows the group the row is in -- the number, which is all a group past the eight colours has -- and picking one drives the row the way a click on a square would. That includes the claim window's permission row.",
+  "description": "A polity's groups run 0 to 254 while the client draws eight colours, so every colour row that spends the whole of that space -- the Village and Realm tabs of the Kith & Kin window, and the member panel that puts a person in a group -- grows a picker beside it carrying every group the server takes. It shows the group the row is in, which above the eighth colour is all a group has, and picking one drives the row the way a click on a square would. Every row of the kin roster and of a member list also carries its group's number at the right edge. The Kin tab's own colour row and the claim window's are left with their eight squares: the claim keeps eight permission rows and no more, and a kin group above the eighth is a label nothing in the game spends.",
   "api_version": 1,
   "files": [
     "main.lua"
