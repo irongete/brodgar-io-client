@@ -1072,6 +1072,8 @@ public final class ProfHandle {
      *   <tr><td>{@code periods} / {@code periodsNeeded}</td><td>paired control periods collected, and how many
      *       more the measurement wants</td></tr>
      *   <tr><td>{@code budget} / {@code withinBudget}</td><td>the 5% ceiling and whether this run is inside it</td></tr>
+     *   <tr><td>{@code ringFrames}</td><td>how many frames of profile tree the client retains — a cost that
+     *       lives in <b>retention</b>, which the control comparison below structurally cannot see</td></tr>
      *   <tr><td>{@code tiers}</td><td>one row per tier, keyed by name — see below</td></tr>
      * </table>
      *
@@ -1083,6 +1085,14 @@ public final class ProfHandle {
      * model cannot: cache effects, JIT deopt, GPU query stalls. It is also frequently <b>unable to resolve
      * anything</b>, because the cost it is looking for is a fraction of a percent of a spiky frame time —
      * hence {@code measuredSpreadMs}, and hence the fall back to the model rather than to a zero.
+     *
+     * <p><b>What the comparison cannot see (130.2).</b> "While the client keeps profiling itself exactly as
+     * before" is also the method's boundary. A control frame disarms the probes and leaves everything the
+     * profiler <b>holds</b> where it was, so a cost that lives in retention stands on both sides of the
+     * subtraction and cancels to zero: the measurement sees what profiling <b>spends</b> and never what it
+     * <b>keeps</b>, and {@code withinBudget} is a claim about the first alone. {@code ringFrames} is what the
+     * second is reported as — a count rather than a millisecond figure, because retention is paid as a
+     * collection pause, on the collector's schedule and not in the frame that caused it.
      *
      * <p><b>Tiers.</b> {@code frame} (the fold), {@code addons} (the {@code callLua} category split),
      * {@code widgets} (the per-widget brackets), {@code passes} (the named-pass seams and their GL queries)
@@ -1127,6 +1137,12 @@ public final class ProfHandle {
             t.set("shareOfFrame", LuaValue.valueOf(share));
             t.set("withinBudget", LuaValue.valueOf(share <= BUDGET));
         }
+        // 130.2: the one figure this surface's measured method cannot produce. A control frame disarms the
+        // probes and leaves the client's own profile trees exactly as retained, so anything the profiler HOLDS
+        // stands on both sides of that subtraction and cancels to zero -- the comparison sees what profiling
+        // spends, never what it keeps. This is that cost's only handle on the surface that claims a budget: a
+        // later change that grows the ring shows up here rather than having to be inferred.
+        t.set("ringFrames", LuaValue.valueOf((double)UILoop.histlen));
         LuaTable tiers = new LuaTable();
         for(int i = 0; i < Overhead.TIERS.length; i++) {
             LuaTable r = new LuaTable();

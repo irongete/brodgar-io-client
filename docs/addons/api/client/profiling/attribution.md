@@ -208,7 +208,7 @@ figure would be noise at this scale.
 | Key | Description |
 |---|---|
 | `totalMs` / `shareOfFrame` | the budget number: ms per frame, and as a fraction of the frame |
-| `budget` / `withinBudget` | the ceiling this surface holds itself to, 5% of frame time, and whether this run is inside it |
+| `budget` / `withinBudget` | the ceiling this surface holds itself to, 5% of frame time, and whether what profiling **spends** is inside it |
 | `method` | `"control"` if `totalMs` was measured, `"model"` if calibrated — see below |
 | `aggregatorMs` | the end-of-frame fold, **timed directly**, so exact |
 | `gpuQueryMs` | the GL timestamp queries the named passes insert, timed directly |
@@ -217,6 +217,7 @@ figure would be noise at this scale.
 | `measuredSpreadMs` | the comparison's noise floor |
 | `frameMs` | mean frame time, what the share is taken against |
 | `armedFrames` / `controlFrames` / `periods` / `periodsNeeded` | how much evidence there is so far |
+| `ringFrames` | how many frames of profile tree the client holds at a time — a cost the measurement cannot see |
 | `tiers` | one row per tier, both keyed by name and ordered as a list |
 
 Each tier row is `{name=, ms=, share=, modelledMs=, method=}`, plus `hits`, probe hits per frame, on the
@@ -236,7 +237,7 @@ the calibration runs cold while the real probes run compiled. The *measured* one
 frames**: one frame in every batch runs with every probe disarmed, and each period contributes one delta —
 the median **work** time of its armed frames minus its control frame. Work, not frame time: under vsync or
 a frame cap the total is pinned to the cap and would never move. `method` tells you which one `totalMs`
-used.
+used. What neither of them covers is below.
 
 > **`measuredMs` of zero or less is the normal outcome, and does not mean profiling made the client
 > faster.** It means the cost is under the comparison's own noise floor. The measurement only takes over
@@ -246,6 +247,15 @@ used.
 
 Once the measurement *is* authoritative the tiers are scaled to it in the modelled proportion, so the rows
 always sum to `totalMs`. `modelledMs` is reported alongside, so nothing hides behind the scaling.
+
+**What the measurement cannot see.** The probes are what a control frame disarms; everything the profiler
+**holds** it leaves exactly where it was, because the client's own per-frame trees are the profiling this
+surface reads rather than a probe it adds. So a cost that lives in retention stands on both sides of that
+subtraction and cancels to zero — the measured method sees what profiling **spends** and never what it
+**keeps**, and `withinBudget` is a claim about the first alone. `ringFrames` is what the second is reported
+as: how many frames of tree are held at a time, a count rather than a millisecond figure, because retention is
+paid as a collection pause on the collector's schedule and not in the frame that caused it. It is the number
+to read if you leave profiling armed, and the number a later change that grows those trees moves.
 
 ## See also
 

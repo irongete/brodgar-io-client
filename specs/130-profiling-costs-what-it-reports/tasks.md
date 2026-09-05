@@ -24,7 +24,7 @@
       it did not move is what separates a shorter ring from a broken GPU read.
       `[manual]`: press backtick with profiling armed — expect: three profile windows open and draw.
 
-- [ ] **130.2 — the overhead figure says what its method cannot see.**
+- [x] **130.2 — the overhead figure says what its method cannot see.**
       `overhead()` gains `ringFrames` — how many frames the client's own `Profile` trees retain — built in
       `ProfHandle.overhead()` beside the tier rows. `attribution.md` gains the key in its table and, in the
       *two numbers* passage, the sentence the surface was missing: a control frame disarms the probes and

@@ -1,0 +1,10 @@
+{
+  "name": "130.2 — the overhead figure says what its method cannot see",
+  "id": "130-profiling-costs-what-it-reports.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 130.2: overhead() reports ringFrames, the retention its control-frame method cannot see, and the key follows the armed-only rule rather than being the first on this surface to break it.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}
