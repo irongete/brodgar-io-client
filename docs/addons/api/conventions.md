@@ -145,16 +145,19 @@ act rather than the removal of a member; and [`w:revert()`](ui/edit.md#taking-th
 your edits on a widget, as [`w:replace(nil)`](ui/replace.md) and `w:size(nil)` give back one — an undo of
 your own layer, with nothing ended at all.
 
-### Events: three edges, three words
+### Events: a subject and an edge
 
-An event key is a **subject and an edge**, and there are only three edges. Something appears, something
-goes, something changes — `Added`, `Removed`, `Changed`, whatever the subject in front of them.
+An event key is a **subject and an edge**, and a new key takes the first edge below that is true of the
+moment it names; where none is — your addon's own `Load` and `Disable` — the word is the moment itself.
 
 | Edge | Word | Examples |
 |---|---|---|
 | it appeared | `Added` | `GobAdded`, `BuffAdded`, `SessionAdded`, `FlowerMenuAdded`, and `Added` on a [selector watch](ui/replace.md#watching-for-a-widget) |
 | it went | `Removed` | `GobRemoved`, `MeterRemoved`, `SessionRemoved`, and `Removed` on a [widget](ui/widget.md#subscribing) |
 | it changed | `Changed` | `MeterChanged`, `KinChanged`, `MarkerChanged` |
+| it crossed a threshold | `EnteredWorld` | `SessionEnteredWorld` |
+| it was picked | `Selected` | `SessionSelected`, `ChannelSelected` |
+| it was clicked | `Clicked` | `GhostClicked`, `SpriteClicked`, `ObjectClicked`, `PatchClicked` |
 
 **The subject is singular.** One change is one marker's, so the key is `MarkerChanged` even though what
 your handler is given is the whole collection the change happened in.
@@ -168,12 +171,11 @@ one failure this whole convention exists to prevent.
 [the bus](event/bus/lifecycle.md#lifecycle) and `Update` on [a surface of yours](ui/custom.md#subscribing),
 and both hand your handler the same `dt` — the same edge one object apart is not two words.
 
-The keys of an emitter whose set is **open** are not this: a
-[console command](console.md), a [hotkey](client/keybindings.md), a
-[`wdgmsg` or `uimsg` name](event/streams.md) is a name you or the protocol chose, and those are written
-lower case. Every key the client itself fires is PascalCase, and its set is closed — an unknown one
-[raises](#a-name-that-moved-says-where-it-went-and-an-unknown-one-says-what-exists) rather than being
-accepted and never firing.
+The keys of an emitter whose set is **open** are not this: a [console command](console.md), a
+[hotkey](client/keybindings.md), a [`wdgmsg` or `uimsg` name](event/streams.md) is a name you or the
+protocol chose, and those are written lower case. Every key the client itself fires is PascalCase, and its
+set is closed — an unknown one [raises](#a-name-that-moved-says-where-it-went-and-an-unknown-one-says-what-exists)
+rather than being accepted and never firing.
 
 ### Objects, and the snapshot hatch
 

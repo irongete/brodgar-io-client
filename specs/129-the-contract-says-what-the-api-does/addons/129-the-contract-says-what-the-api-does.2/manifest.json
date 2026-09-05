@@ -1,0 +1,9 @@
+{
+  "name": "129.2 — the edge rule names the vocabulary that ships",
+  "id": "129-the-contract-says-what-the-api-does.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 129.2: every key the edge rule now names is a key the bus takes, spelled exactly as the rule writes it -- the threshold crossed, the two selections, the four clicks and the two moments that are their own word -- each ended by sub:off(); while a near miss in the session family is refused naming the family, and a click key bent to one of the three edges is not a key at all.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

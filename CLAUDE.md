@@ -86,12 +86,16 @@ frozen folder. If the reason does not stand on its own words, it is not prior ar
   An explicit `nil` raises, except where a page documents a meaning for it.
 - **One notification verb**: `X:on(key, fn)` → a `Sub`, ended with `sub:off()`. The address picks
   the door — hold the object, subscribe on it; otherwise on the bus.
-- **An event key is a subject and an edge, and there are three edges**: `Added`, `Removed`,
-  `Changed`, whatever the subject. The subject is **singular**; where an **outcome** differs the
-  **key** differs (`QuestCompleted`/`QuestFailed`, never one key and a field to check); one word per
-  edge **at every level** (a frame is `Update` on the bus and on a surface of yours). A key the
-  client fires is PascalCase and its set is **closed**; a key you or the protocol chose — a command,
-  a hotkey, a `wdgmsg` — is lower case and open.
+- **An event key is a subject and an edge**, and `conventions.md`'s table is the edges: `Added`,
+  `Removed`, `Changed`, `EnteredWorld` for a threshold crossed (`SessionEnteredWorld`), `Selected`
+  for a selection made (`SessionSelected`, `ChannelSelected`), `Clicked` for a click on an entity of
+  yours (`GhostClicked`, `SpriteClicked`, `ObjectClicked`, `PatchClicked`). A new key takes the
+  first of them true of its moment, and where none is — your addon's own `Load` and `Disable` — the
+  word is the moment. The subject is **singular**; where an **outcome** differs the **key**
+  differs (`QuestCompleted`/`QuestFailed`, never one key and a field to check); one word per edge
+  **at every level** (a frame is `Update` on the bus and on a surface of yours). A key the client
+  fires is PascalCase and its set is **closed**; a key you or the protocol chose — a command, a
+  hotkey, a `wdgmsg` — is lower case and open.
 - **An ending's word is the receiver's kind**: `:off()` a subscription · `:remove(member)` on the
   **collection**, never the member · `:release()` a hold over what the client owns · `:destroy()` a
   thing you built · `:cancel()` something in flight · `:stop()` a sound · `:finish()` a scope. Every

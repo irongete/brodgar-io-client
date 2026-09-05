@@ -21,7 +21,7 @@
       what the corrected comments now claim. Beside each it reads a live verb and asserts that still
       answers, so the check is about the absent row and not about a broken `__index`.
 
-- [ ] **129.2 — the edge rule names the vocabulary that ships.**
+- [x] **129.2 — the edge rule names the vocabulary that ships.**
       `CLAUDE.md` and `conventions.md` both say there are only three edges. Seven of the 38 keys are none
       of them, and both statements gain their families beside the three: a **threshold** a session crosses
       (`SessionEnteredWorld`), a **selection** the user makes (`SessionSelected`, `ChannelSelected`), and a
