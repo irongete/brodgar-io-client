@@ -2089,7 +2089,9 @@ public final class AddonManager {
      * 041 — so most of what that feature found was already the exact string the corpus called. The four
      * lifecycle keys moved there, dropping the {@code On} prefix that {@code :on} already says, and 074.3
      * moved one of those again: an addon no longer enters the world, a <b>session</b> does, so the moment is
-     * {@code SessionEnteredWorld} and the spelling it replaced throws (see {@link Refusal#eventKey}).
+     * {@code SessionEnteredWorld}, and the spelling it replaced is now not a key at all — it meets
+     * {@link #busKeyRefusal} like any other unknown one, because {@link Refusal#eventKey}'s table carries no
+     * rows (see {@link Refusal}).
      *
      * <p><b>The session family is four keys and one payload</b> (076.2): a {@link LuaSession}, the address
      * every read the handler goes on to make is named by. They are the vocabulary the addon layer needs now
@@ -4224,8 +4226,10 @@ public final class AddonManager {
         // the Session, where LuaSession mints each per (addon, session) and hangs it on the interned handle.
         // Every one of them names ONE CHARACTER's own state, and the client holds several logins at once, so
         // the read says which: hafen.session():current():meter():list() are the bars on screen and
-        // hafen.session():get(user):meter():list() are another character's. Reading `hafen.meter` at all now
-        // throws from the hafen table's own __index (Refusal.hafenIndex), naming the replacement.
+        // hafen.session():get(user):meter():list() are another character's. Reading `hafen.meter` at all
+        // reads as plain nil: the hafen table's own __index is there (Refusal.hafenIndex) and it stands
+        // UNGUARDED, because Refusal.MOVED carries no rows. Nothing is published, so a hard cut needs no row
+        // — the row would be a message for a caller that never existed.
         //   The reads themselves did not change shape — what changed is the funnel each resolves through:
         // CharApi.charwnd(user) and AddonManager.gameui(user), the named session's own HUD, in place of the
         // drawn one. The six factories are CharApi.chr/study/buffs/meters/quests/wounds.
@@ -4475,8 +4479,12 @@ public final class AddonManager {
         // change that happened, which is one marker's.
         //
         // The key set is CLOSED (D-129): the client fires every one of BUS_KEYS and knows them at load, so an
-        // unknown one throws rather than being accepted and never firing. The four lifecycle keys dropped their On prefix
-        // in 041 (:on already says it), and those four spellings throw naming their replacement.
+        // unknown one throws rather than being accepted and never firing. The four lifecycle keys dropped
+        // their On prefix in 041 (:on already says it), and those four spellings are now not keys at all:
+        // each meets busKeyRefusal like any other unknown one, because Refusal.KEYS carries no rows. Nothing
+        // is published, so a hard cut needs no row — the row would be a message for a caller that never
+        // existed. The Refusal.eventKey call below is that door, standing unguarded for the day a key moves
+        // after something IS published.
         LuaTable event = new LuaTable();
         event.set("on", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -4611,8 +4619,9 @@ public final class AddonManager {
         // manifest (StoreApi.index) — a static refusal table cannot know an addon's own variable names.
         StoreApi.installStore(hafen, owner);
 
-        // The door every section name goes through: one this table answers for throws saying what to write
-        // instead, and every other reads as plain nil, so a feature probe keeps working.
+        // The door every section name goes through. It answers for NONE today — Refusal.MOVED carries no
+        // rows — so every read of a name the table does not carry is plain nil and a feature probe keeps
+        // working. The door stands for the day a section name moves after something is published.
         Refusal.install(hafen);
 
         g.set("hafen", hafen);

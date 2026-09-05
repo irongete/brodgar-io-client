@@ -1,0 +1,9 @@
+{
+  "name": "129.1 — the four comments say what the mechanism does",
+  "id": "129-the-contract-says-what-the-api-does.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 129.1: Refusal.MOVED and Refusal.KEYS carry no rows, so a retired section name and a dotted verb read plain nil and a retired event key meets the emitter's own generic refusal -- while a live section, a live colon verb and a live key still answer, the one table that does carry rows still fires, and a closed vocabulary still throws.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

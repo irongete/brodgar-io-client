@@ -402,8 +402,8 @@ final class StoreApi {
      * The {@code __index} of {@code hafen.store}'s callable table. A <b>declared</b> name throws naming
      * {@code :get} — {@code hafen.store.cfg.foo = 1} is the spelling the whole corpus used, and left to read
      * {@code nil} it would fail as <i>"attempt to index a nil value"</i> one character later. Everything else
-     * falls through to the static {@link Refusal} rows ({@code hafen.store.flush}) and then to plain
-     * {@code nil}, so a feature probe still works.
+     * falls through to {@link Refusal#sectionIndex}, which carries no rows and reads plain {@code nil}, so
+     * a feature probe still works.
      */
     private static LuaValue index(final Addon owner) {
         final LuaValue rest = Refusal.sectionIndex("store");

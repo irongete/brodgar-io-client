@@ -6,7 +6,7 @@
 > a tool, the tool is the proof and the suite covers the same rows from Lua — statically over all of them,
 > dynamically over a sample.
 
-- [ ] **129.1 — the four comments say what the mechanism does.**
+- [x] **129.1 — the four comments say what the mechanism does.**
       The `__index` machinery is correct and stays: `Refusal.index`, `hafenIndex`, `sectionIndex` and
       `install` are wired and answer. What it has no more of is rows — `MOVED` and `KEYS` are declared and
       never receive a `put`, so every read falls through to plain `nil`. Four comments still describe rows

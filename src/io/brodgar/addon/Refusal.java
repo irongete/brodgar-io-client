@@ -20,23 +20,25 @@ import org.luaj.vm2.lib.TwoArgFunction;
  * later and elsewhere as <i>"attempt to call a nil value"</i> — a message that names neither the verb nor the
  * file that wrote it. Across a surface this size that is the difference between fixing an addon and hunting
  * one. So an unknown name is not absent: it <b>throws</b>, at the exact line that wrote it, saying what the
- * receiver does answer — and where the name merely moved, saying what to write instead.
+ * receiver does answer — and where a live spelling was reached through the wrong door, saying which door.
  *
  * <p><b>The vocabulary is closed.</b> {@link #closedIndex} is the {@code __index} an entity hangs off its
  * methods table and {@link #closedFields} the same for an anonymous shape: a key the table carries costs
  * nothing, and every other key raises listing what the receiver answers. That is the whole of the mechanism,
  * and it needs no row below it to work.
  *
- * <p><b>Three tables sharpen it</b>, because a name that <i>moved</i> deserves better than the generic list:
+ * <p><b>Three tables sharpen it</b>, because a name that <i>moved</i> deserves better than the generic list
+ * — though two of the three carry no rows today, as the paragraph after them says:
  *
  * <ul>
  *   <li>{@link #MOVED} — a section keyed {@code "hafen.<name>"}, a verb {@code "<entity>:<name>"}, a shape's
- *       field {@code "<shape>.<field>"}, each mapped to the message naming its replacement. Anything not in
- *       it reads as plain {@code nil} at the section level, so a feature probe ({@code if hafen.something
- *       then}) keeps working and only a name that genuinely moved is loud.</li>
+ *       field {@code "<shape>.<field>"}, each mapped to the message naming its replacement. <b>No row is
+ *       declared</b>, so every name reads as plain {@code nil} at the section level and a feature probe
+ *       ({@code if hafen.something then}) keeps working.</li>
  *   <li>{@link #eventKey} — an event key is a string ARGUMENT ({@code hafen.event():on("Key", fn)}), so no
  *       field read can carry the refusal and no {@code __index} can be hung off it. The emitter consults this
- *       one at the door, before it decides whether the key is one it answers.</li>
+ *       one at the door, before it decides whether the key is one it answers. <b>No row is declared</b>, so
+ *       what an unknown key meets is the emitter's own generic refusal.</li>
  *   <li>{@link #MISPLACED} — <b>live</b> spellings, not moved ones. Where a namespace splits, half its verbs
  *       grow an address and half keep their global spelling, and the mistake goes both ways: a sweep that
  *       addresses {@code hafen.ui():window()} writes code that compiles, runs and is wrong. So a verb that
@@ -45,24 +47,37 @@ import org.luaj.vm2.lib.TwoArgFunction;
  *       derives to check that no dead name is written on a page.</li>
  * </ul>
  *
- * <p>The rows are pure data, generated from a feature's before/after inventory, so coverage is mechanical
- * rather than remembered: a spelling that moved with no row here is a porting error nobody is told about.
- * They key on a <b>name</b>, which is the whole of what a row can carry — a changed argument, return or
- * payload shape has nothing to hang one off, and needs a refusal written inside the verb itself.
+ * <p><b>{@link #MOVED} and {@link #KEYS} carry no rows, and the doors that read them stand unguarded.</b>
+ * Nothing generates rows and nothing {@code put}s one there, so every read of those two misses and falls
+ * through — to plain {@code nil} for a section name and a dotted verb, to the generic refusal for an event
+ * key. That is the decision of {@code 11bf2871c} and it is in force: <b>nothing is published</b>, so a hard
+ * cut needs no row, and the row would be a message for a caller that never existed. The doors stay because
+ * the day something IS published a moved spelling needs somewhere to be answered, and a table is cheaper to
+ * fill than a metamethod is to add back. {@link #MISPLACED} is the one that carries rows, and what it
+ * carries is <b>live</b> spellings, not moved ones.
+ *
+ * <p>A row keys on a <b>name</b>, which is the whole of what a row can carry — a changed argument, return
+ * or payload shape has nothing to hang one off, and needs a refusal written inside the verb itself.
  */
 final class Refusal {
     private Refusal() {
     }
 
-    /** A section {@code "hafen.<name>"}, a verb {@code "<entity>:<name>"}, a shape's field {@code "<shape>.<field>"} — each mapped to the message naming its replacement. */
+    /**
+     * A section {@code "hafen.<name>"}, a verb {@code "<entity>:<name>"}, a shape's field
+     * {@code "<shape>.<field>"} — each mapped to the message naming its replacement. <b>No row is
+     * declared</b> (see the class javadoc), so every read of it misses and the three doors below answer
+     * plain {@code nil}.
+     */
     private static final Map<String, String> MOVED = new HashMap<String, String>();
 
     /**
      * Moved <b>event keys</b> (spec {@code 041-unified-events}), keyed {@code "<emitter>|<key>"} — the third
      * kind of moved spelling and the one that is not a field read at all: a key is an ARGUMENT to {@code :on},
      * so nothing can hang off reading it and the refusal has to happen where the key is accepted. The emitter
-     * checks this table before it checks its own vocabulary, so a moved key says what it is now instead of
-     * falling into the generic "unknown event" refusal.
+     * checks this table before it checks its own vocabulary, so a moved key would say what it is now instead
+     * of falling into the generic "unknown event" refusal. <b>No row is declared</b> (see the class javadoc),
+     * so every key the client does not fire meets that generic refusal, moved spellings included.
      */
     private static final Map<String, String> KEYS = new HashMap<String, String>();
 

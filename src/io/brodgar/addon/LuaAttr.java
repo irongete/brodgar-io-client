@@ -160,8 +160,9 @@ public final class LuaAttr {
     private static LuaValue buildMeta() {
         LuaTable mt = new LuaTable();
         LuaTable m = methods();
-        // Refusal.closedIndex, never the methods table itself: a verb this migration renamed must throw
-        // naming its replacement rather than read as plain nil and fail one character later.
+        // Refusal.closedIndex, never the methods table itself: an unknown verb would otherwise read as plain
+        // nil and fail one call later as "attempt to call a nil value", naming neither the verb nor what a
+        // character attribute does answer.
         mt.set(LuaValue.INDEX, Refusal.closedIndex("attr", m,
             "a character attribute"));
         mt.set("__name", LuaValue.valueOf("Attr"));
