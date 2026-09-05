@@ -1,24 +1,34 @@
 -- Hitboxes -- one key cycles the footprints of everything in view through three modes: off, laid on the
--- ground, and drawn over every object. Assign the key in Options > Keybindings > Hitboxes.
+-- ground, and drawn through everything standing in front of them. Assign the key in
+-- Options > Keybindings > Hitboxes.
 --
--- The shape is gob:hitbox() in all three, the rings the object's own resource carries. What changes is
--- where they are drawn, and the two ways are genuinely different pictures rather than a setting:
+-- The shape is gob:hitbox() in all three, the rings the object's own resource carries, and BOTH drawing
+-- modes are the same patches on the same ground: hafen.virtual():patch() lies on the terrain with no float
+-- and no gap, follows a slope, and one anchored to a Gob moves and ends with that object -- so this addon
+-- keeps almost no bookkeeping of its own. The MODE is one flag on those patches:
 --
---   ground  hafen.virtual():patch(), which lies ON the terrain. It follows a slope with no float and no
---           gap, and whatever stands there occludes it -- so a box behind a wall is behind the wall, and
---           you read the boxes as part of the world. A patch anchored to a Gob also moves and ends with it,
---           so this mode keeps almost no bookkeeping of its own.
---   over    a painter hung on the MAP VIEW, projecting the same rings to the screen every frame. Nothing
---           in the world occludes it, so a box inside a house or behind a hill is drawn whole and on top --
---           which is the point of the mode, and the reason it cannot be a patch: a patch that ignored the
---           ground would not be one.
+--   ground  the world may hide it, which is what a patch does until it is told otherwise. A box behind a
+--           wall is behind the wall and a box under a house is under it, so you read the boxes as part of
+--           the world.
+--   over    patch:occluded(false) -- the hills, the walls and the houses in front of a ring stop cutting it,
+--           so a box inside a barn or over the brow of a hill is drawn whole, which is the point of the
+--           mode. It is STILL on the ground: the same ring on the same relief with one test switched off,
+--           not a flat shape thrown over the screen. And the interface is still over it, because a patch is
+--           drawn inside the world and your windows are drawn after the world is finished -- so the boxes
+--           never cover your inventory.
 --
--- `over` hangs on the map view rather than on hafen.ui(), and that is the whole difference between drawing
--- over the WORLD and drawing over the SCREEN. A widget's overlay is painted straight after that widget's
--- own draw and before its siblings', so the boxes land on top of every object and the windows land on top
--- of them -- where a hafen.ui() painter is over the finished HUD and would cover your inventory. It also
--- means the painter is handed coordinates local to the map view and is clipped to it, so what
--- worldToScreen answers in ROOT pixels is moved by the view's own corner before it is drawn.
+-- Everything else about how a box LOOKS -- the fill's colour and how much of the ground reads through it,
+-- the rim's colour and how thick it is -- is four rows on the page, and not this file's to decide. Both
+-- modes wear the same look, so what the page shows is what you get in either one and the mode is the flag
+-- alone.
+--
+-- A look being a look, every one of those five rows re-dresses the patches already down rather than taking
+-- them up: a tint, a border and the flag cost no terrain work, where laying a box again re-cuts every tile
+-- under it. Only `off` lays and drops.
+--
+-- With the world not hiding them, two rings that overlap stack in whatever order the client draws them in,
+-- and that order is not this addon's to set. Every box wears the same colours, so the picture is the same
+-- either way.
 --
 -- The building you are PLACING wears a box in both. That one is not a game object -- it is the client's own
 -- ghost on the cursor, in no session's object cache -- so it is read from the world rather than found among
@@ -28,61 +38,136 @@
 -- and those are simply not drawn: there is no hitbox to show. Nor does a shape coming back mean the object
 -- blocks movement; a felled log has a click-box and no collision. This addon draws what the verb answers.
 
-local FILL   = {60, 140, 255, 70}   -- ground: the blue laid over the terrain; on a patch the 4th component
-                                    -- IS the fill's own opacity, so the ground reads through it
-local EDGE   = {120, 190, 255}      -- ground: the rim, solid blue
-local WIDTH  = 0.35                 -- ground: how thick that rim is, in WORLD units -- a tile is 11
-
-local OVER_FILL  = {60, 140, 255, 60}    -- over: the same blue, a little thinner because boxes drawn over
-                                         -- everything stack up where the ground would have separated them
-local OVER_EDGE  = {120, 190, 255, 235}  -- over: the rim
-local OVER_WIDTH = 1.5                   -- over: its thickness in DESIGN pixels, not world units
-
 local RESCAN = 2                    -- seconds between full re-reads
-local TURN   = 0.2                  -- seconds between facing corrections -- ground only, see spin()
+local TURN   = 0.2                  -- seconds between facing corrections -- see spin()
+local SETTLE = 0.1                  -- seconds a look row waits before the boxes are re-dressed -- see soon()
 
 local MODES = {"off", "ground", "over"}
 
--- WHICH MODE THE BOXES ARE IN IS A SETTING, so it is declared where the client keeps settings: one row on
--- Options > AddOns > Hitboxes, with the three modes on it. The row is the WHOLE of the state -- there is no
--- variable of this addon's beside it, and the key below moves the row rather than something of its own --
--- so the page and the boxes cannot disagree, and neither can say something the other does not.
+-- THE PALETTE THE TWO DROPDOWNS OFFER. The client draws a checkbox, a slider, a dropdown, a text field, a
+-- button and a line of text, and none of those six is a colour well -- so a colour is picked BY NAME here
+-- and looked up when a patch is dressed. `blue` and `sky` are the two this addon has always drawn and they
+-- are the defaults, so a client whose owner never opens the page looks exactly as it always did.
+local COLOURS = {
+  {"blue",   { 60, 140, 255}},
+  {"sky",    {120, 190, 255}},
+  {"white",  {255, 255, 255}},
+  {"grey",   {150, 150, 150}},
+  {"black",  {  0,   0,   0}},
+  {"red",    {255,  70,  70}},
+  {"orange", {255, 150,  40}},
+  {"yellow", {255, 225,  60}},
+  {"green",  { 70, 220, 110}},
+  {"teal",   { 40, 210, 200}},
+  {"purple", {170, 110, 255}},
+  {"pink",   {255, 120, 200}},
+}
+
+local NAMES, RGB = {}, {}
+for i, c in ipairs(COLOURS) do NAMES[i], RGB[c[1]] = c[1], c[2] end
+
+-- WHAT THE BOXES ARE AND HOW THEY LOOK IS A SETTING, so all five are declared where the client keeps
+-- settings: one page, Options > AddOns > Hitboxes. The rows are the WHOLE of the state -- this addon holds
+-- no variable of its own beside them, and the key below moves the mode row rather than something of its
+-- own -- so the page and the boxes cannot disagree, and neither can say something the other does not.
 --
--- It also gets the one thing this addon never had: the mode is remembered. A client that was left drawing
--- footprints comes back drawing them, instead of starting off every time with nothing on screen to say so.
+-- Every one of them is remembered, because the client stores what its own rows hold. A client left drawing
+-- orange footprints comes back drawing orange footprints.
 local opts = hafen.client():options():addon()
 
 local modeOpt = opts:choice("mode")
   :label("Footprints")
-  :tooltip("off, laid on the ground where each object stands, or drawn over everything in view")
+  :tooltip("off, laid on the ground where each object stands, or drawn through everything in front of it")
   :choices(MODES)
   :default(MODES[1])
   :add()
 
+local fillOpt = opts:choice("fill")
+  :label("Fill colour")
+  :tooltip("the colour laid over the ground an object stands on")
+  :choices(NAMES)
+  :default("blue")
+  :add()
+
+local alphaOpt = opts:number("opacity")
+  :label("Fill opacity")
+  :tooltip("per cent: how much of the fill is there, and so how much of the ground reads through it. " ..
+           "0 leaves the rim standing on bare ground, which is a box drawn as an outline")
+  :range(0, 100)
+  :default(27)
+  :add()
+
+local edgeOpt = opts:choice("border")
+  :label("Border colour")
+  :tooltip("the rim round the ring, drawn solid whatever the opacity above says")
+  :choices(NAMES)
+  :default("sky")
+  :add()
+
+local widthOpt = opts:number("border-width")
+  :label("Border thickness")
+  :tooltip("hundredths of a world unit, and a tile is 11 of them -- so 35 is a thin line. 0 is the " ..
+           "thinnest line the screen can draw and not no line: to be rid of the rim, give it the fill's colour")
+  :range(0, 100)
+  :default(35)
+  :add()
+
 -- THE STEP, AND NOT THE ROW. A row is answered inside the widget tree of whatever put the Options window
--- up, and entering or leaving a mode hangs a painter on the drawn character's map view -- a second tree,
--- which no handler may take while it holds one (api/threading.md). It is also a full sweep, which is work
--- for a step rather than for a press.
+-- up, and a mode change is a full sweep of everything in view -- work for a step rather than for a press,
+-- and work no handler should be doing while it holds a tree of its own (api/threading.md).
 local function step(fn)
   hafen.timer():after(0, fn)
 end
 
-local laid = {}    -- [Gob] = {name = <resource when read>, plus the mode's own half:
-                   --          ground: own = {patch, ...}, base = <facing when read>, turn = <last written>
-                   --          over:   rings = {ring, ...}, base = <facing when read>, moving = <last seen>}
+-- A slider fires Changed once per STEP OF A DRAG, so the four look rows are coalesced onto one short timer
+-- rather than re-dressing every box on screen a hundred times over one pull of the mouse. It is restarted
+-- rather than queued, so a whole drag pays one re-dress every tenth of a second and a single click pays
+-- one -- and either way the work lands off the Options window's own tree, which is the other half of why.
+local settle
+local function soon(fn)
+  if settle then settle:cancel() end
+  settle = hafen.timer():after(SETTLE, function()
+    settle = nil
+    fn()
+  end)
+end
+
+local laid = {}    -- [Gob] = {name = <resource when read>, own = {patch, ...},
+                   --          base = <facing when read>, turn = <last written>}
 local ghost        -- the same, for the ghost on the cursor
-local ticker       -- the re-read; both drawing modes have one
-local turner       -- the facing correction; ground only
-local painter      -- the map view's overlay; over only
-local view         -- the map view it is hanging on, so a change of character is noticed
-local attach       -- forward: the sweep re-hangs the painter, and is written above where it is defined
+local ticker       -- the re-read; it runs in both drawing modes, and is nil in exactly one case: `off`
+local turner       -- the facing correction
 
 local function ground() return modeOpt:value() == "ground" end
-local function over()   return modeOpt:value() == "over" end
 local function off()    return modeOpt:value() == "off" end
 
 local function patches()
   return hafen.virtual():patch()    -- the same object every call
+end
+
+-- ---------------------------------------------------------------- the look the page sets
+
+-- A row holding a colour this palette no longer offers falls back to what the row itself declared rather
+-- than raising -- dress() is called from redress(), where there is no pcall and a raise would spill.
+local function rgb(opt)
+  return RGB[opt:value()] or RGB[opt:default()]
+end
+
+-- The look every patch wears, read off the page each time one is dressed: a row IS its value, so there is
+-- nowhere else for this to be kept and nothing to keep in step.
+--
+-- The fill takes the opacity row as its own fourth component, which on a patch is the fill's own opacity --
+-- there is no picture under a patch for a blend strength to be measured against. The rim is left solid,
+-- which is why the row above it says `fill`: :alpha(a) would have carried the border down with it, and a
+-- border you can see through is a border you cannot follow across pale soil.
+--
+-- Only two things separate a `ground` box from an `over` one, and both are here: the flag, and nothing.
+local function dress(patch)
+  local c = rgb(fillOpt)
+  local a = math.floor(((alphaOpt:value() * 255) / 100) + 0.5)
+  return patch:tint({c[1], c[2], c[3], a})
+              :border(rgb(edgeOpt), widthOpt:value() / 100)   -- the row is hundredths of a world unit
+              :occluded(ground())
 end
 
 -- ---------------------------------------------------------------- reading a footprint
@@ -90,38 +175,28 @@ end
 -- A ring the patch collection refuses is a shape this addon cannot lay, not an error worth spilling: an
 -- obst layer is whatever the resource's author drew, so a concave one or one past the 32-edge limit is a
 -- real shape to meet. Each ring goes on its own, so one bad ring in a set does not cost the others.
--- (Only `ground` goes through here; the painter draws any ring it can project.)
 local function put(anchor, ring, own)
   local ok, patch = pcall(function()
-    return patches():add(ring, anchor):tint(FILL):border(EDGE, WIDTH)
+    return dress(patches():add(ring, anchor))
   end)
   if ok and patch then own[#own + 1] = patch end
 end
 
--- Read one object's footprint and keep whatever the mode in force needs of it. Nothing is recorded for an
--- object with no shape, so the sweep comes back for it -- which is what picks up a resource that had not
--- resolved yet.
+-- Read one object's footprint and lay it. Nothing is recorded for an object with no shape, so the sweep
+-- comes back for it -- which is what picks up a resource that had not resolved yet.
+--
+-- The patches ARE the drawing and they hold the shape, so the rings are not kept: a patch anchored to the
+-- Gob follows it over the ground, and `base`/`turn` are all that is left to correct.
 local function read(g, name)
   local box = g:hitbox()
   if not box then return end
-  local mine = {name = name, base = g:facing() or 0}
-  if ground() then
-    -- The patches ARE the drawing and they hold the shape, so the rings are not kept: a patch anchored to
-    -- the Gob follows it, and `base`/`turn` are all that is left to correct.
-    local own = {}
-    for _, ring in ipairs(box) do put(g, ring, own) end
-    if #own == 0 then return end
-    mine.own, mine.turn = own, 0
-  else
-    -- Nothing is laid, so the rings themselves are the drawing, kept in world places and projected fresh
-    -- every frame by the painter.
-    mine.rings, mine.moving = box, g:moving() or false
-  end
-  laid[g] = mine
+  local own = {}
+  for _, ring in ipairs(box) do put(g, ring, own) end
+  if #own == 0 then return end
+  laid[g] = {name = name, own = own, base = g:facing() or 0, turn = 0}
 end
 
 local function drop(mine)
-  if not mine.own then return end   -- an `over` entry owns no patches: its rings were only ever data
   for _, patch in ipairs(mine.own) do
     if patch:exists() then patches():remove(patch) end
   end
@@ -148,7 +223,6 @@ local function consider(g)
 end
 
 local function sweep()
-  if over() then attach() end
   for _, s in ipairs(hafen.session():list()) do
     if s:character() then
       for _, g in ipairs(s:world():gob():list()) do consider(g) end
@@ -156,7 +230,7 @@ local function sweep()
   end
 end
 
--- ---------------------------------------------------------------- ground: keeping a laid box straight
+-- ---------------------------------------------------------------- keeping a laid box straight
 
 -- gob:hitbox() hands back rings ALREADY turned by the object's facing, and a patch keeps them as offsets
 -- from its anchor that the object's own turning does not turn. So a boar that comes about would wear its
@@ -179,101 +253,6 @@ local function spin()
   end
 end
 
--- ---------------------------------------------------------------- over: keeping the rings current
-
--- A ring kept for the painter is a set of world PLACES, so it goes stale the moment its object moves or
--- turns -- and there is no anchor here to follow it, the way a patch follows its Gob. Re-reading every ring
--- every frame is what that would cost if you let it, so only the objects that actually changed are re-read:
--- one that is moving, one that has stopped since the last frame, and one that has turned in place. Nearly
--- everything in view -- the trees, the walls, the houses -- is read once by the sweep and never again.
-local function refresh()
-  for g, mine in pairs(laid) do
-    local moving = g:moving() or false
-    local face = g:facing()
-    if moving or mine.moving or (face and (face ~= mine.base)) then
-      mine.moving = moving
-      local box = g:hitbox()
-      if box then
-        mine.rings = box
-        mine.base = face or mine.base
-      end
-    end
-  end
-end
-
-local scratch = {}   -- reused by every ring: a painter that allocates per frame is one that stutters
-
--- One ring, projected and drawn. The whole ring is projected BEFORE anything is drawn, and one corner with
--- no pixel drops the shape entire: a place behind the camera projects to a plausible pixel mirrored through
--- the middle of the view, so half a ring placed and half of it mirrored is exactly what this avoids.
-local function trace(gr, world, ring, ox, oy)
-  local n = #ring
-  if n < 3 then return end
-  for i = 1, n do
-    local pt = world:worldToScreen(ring[i])
-    if not pt then return end
-    scratch[(i * 2) - 1], scratch[i * 2] = pt.x - ox, pt.y - oy   -- root pixels into the view's own box
-  end
-  gr:color(OVER_FILL[1], OVER_FILL[2], OVER_FILL[3], OVER_FILL[4])
-  gr:poly(table.unpack(scratch, 1, n * 2))
-  gr:color(OVER_EDGE[1], OVER_EDGE[2], OVER_EDGE[3], OVER_EDGE[4])
-  for i = 1, n do
-    local j = (i % n) + 1
-    gr:line(scratch[(i * 2) - 1], scratch[i * 2], scratch[(j * 2) - 1], scratch[j * 2], OVER_WIDTH)
-  end
-end
-
--- The painter draws and reads nothing else: what to draw was decided by the sweep and by refresh(), on the
--- beat each of those runs on. Everything is projected through the DRAWN character, because a pixel is a
--- point on the screen and there is one screen -- an object only an alt can see has no pixel here, and drops
--- out by the same line a corner behind the camera does.
-local function paint(gr, w, h)
-  local s = hafen.session():current()
-  if not s then return end
-  -- worldToScreen answers ROOT pixels and this painter draws in the map view's own box, so every point is
-  -- moved by the view's corner. nil while the view has no place on screen yet: nothing to draw against.
-  local at = view and view:exists() and view:rootPos()
-  if not at then return end
-  local world, ox, oy = s:world(), at.x, at.y
-  for _, mine in pairs(laid) do
-    if mine.rings then                          -- a painter is the worst place in the file for a raise
-      for _, ring in ipairs(mine.rings) do trace(gr, world, ring, ox, oy) end
-    end
-  end
-  if ghost and ghost.rings then
-    for _, ring in ipairs(ghost.rings) do trace(gr, world, ring, ox, oy) end
-  end
-end
-
--- The map view of the character on screen, or nil before its HUD is up. Widgets are interned per addon, so
--- `==` is what says whether the one the painter hangs on is still the right one.
-local function mapview()
-  local s = hafen.session():current()
-  local ui = s and s:ui()
-  if not ui then return nil end
-  local ok, mv = pcall(function() return ui:match("@MapView") end)
-  return ok and mv or nil
-end
-
-local function detach()
-  if view and painter then
-    pcall(function() view:overlay():remove("hitboxes") end)   -- a widget already gone takes its own
-  end
-  view, painter = nil, nil
-end
-
--- Hang the painter on the map view in force, and move it when that is a different one. A character switch
--- and a relogin both build a new view, and a painter left on the old one draws nowhere -- so this is asked
--- again on every sweep rather than once when the mode was entered.
-function attach()
-  local mv = mapview()
-  if (mv ~= nil) and (mv == view) then return end
-  detach()
-  if not mv then return end
-  view = mv
-  painter = mv:overlay():add("hitboxes"):draw(paint)
-end
-
 -- ---------------------------------------------------------------- the ghost on the cursor
 
 local function unlayGhost()
@@ -284,9 +263,8 @@ local function unlayGhost()
 end
 
 -- The ghost is none of the above: it is not among the gobs, so no sweep finds it, and it has no Gob for a
--- patch to follow. So `ground` lays its box at a PLACE and moves it from here, and `over` simply re-reads
--- its rings -- both every frame, because that is how often a cursor moves, and both affordable because it
--- is one object.
+-- patch to follow. So its box is laid at a PLACE and moved from here, every frame, because that is how
+-- often a cursor moves -- and affordable because it is one object.
 --
 -- Only the DRAWN character's ghost is read. A Plob is drawn in its own session's view, so another login's
 -- is not on your screen to want a box round; tab away mid-placement and the read goes nil, which takes the
@@ -299,11 +277,6 @@ local function ghostFollow()
   if name == nil then return end                -- the resource the server named has not resolved yet
   if ghost and (ghost.name ~= name) then
     unlayGhost()                                -- something else is on the cursor now: read it again
-  end
-  if over() then
-    local box = pl:hitbox()
-    ghost = box and {name = name, rings = box} or nil
-    return
   end
   local at = pl:position()
   if not at then return end
@@ -345,14 +318,10 @@ end
 
 -- ---------------------------------------------------------------- the cycle
 
--- Every mode is left whole before the next is entered, rather than one being converted into the other: the
--- two keep different things (patches against rings) and a half-converted set is a class of bug this addon
--- has no reason to own. It costs one sweep on a keypress.
 local function leave()
   if ticker then ticker:cancel() end
   if turner then turner:cancel() end
   ticker, turner = nil, nil
-  detach()
   unlayGhost()
   local was = laid
   laid = {}
@@ -364,22 +333,47 @@ local function enter()
   sweep()
   ghostFollow()
   ticker = hafen.timer():every(RESCAN, sweep)
-  if ground() then
-    turner = hafen.timer():every(TURN, spin)
-  else
-    attach()
+  turner = hafen.timer():every(TURN, spin)
+end
+
+-- Every row but the mode's own means exactly this, and so does ground <-> over: the boxes stay where they
+-- are and put on what the page now says. The ring, the anchor and the ground under every one of them are
+-- the same before and after, so there is no half-converted set to be caught in -- there is nothing to
+-- convert.
+local function redress()
+  for _, mine in pairs(laid) do
+    for _, patch in ipairs(mine.own) do
+      if patch:exists() then dress(patch) end
+    end
+  end
+  if ghost then
+    for _, patch in ipairs(ghost.own) do
+      if patch:exists() then dress(patch) end
+    end
   end
 end
 
 -- ONE PATH INTO A MODE, whether it was picked on the page or cycled with the key: the row is the setting,
--- so this is where the modes are left and entered, and the key below only moves the row.
+-- so this is where the modes are left and entered, and the key below only moves the row. `ticker` is what
+-- says whether boxes are down, which is the one question that decides between the three answers.
 modeOpt:on("Changed", function(m)
   step(function()
-    leave()
-    enter()
+    if off() then
+      leave()
+    elseif ticker then
+      redress()
+    else
+      enter()
+    end
     hafen.log():write("hitboxes: " .. m)
   end)
 end)
+
+-- The four look rows all say one thing to the boxes: wear it. None of them lays or drops anything, because
+-- none of them changes WHAT is drawn -- only how, and a box that is not drawn has nothing to hear.
+for _, o in ipairs({fillOpt, alphaOpt, edgeOpt, widthOpt}) do
+  o:on("Changed", function() soon(redress) end)
+end
 
 -- The hotkey starts unbound: an addon names an action and the user assigns the key, in
 -- Options > Game > Keybindings > Hitboxes.
@@ -397,22 +391,19 @@ hafen.event():on("GobAdded", function(g)
   if not off() then consider(g) end
 end)
 
--- In `ground` the patches went with it: one anchored to a Gob ends with that Gob, so there is nothing to
--- take up. In `over` there was never anything to take up. Either way the entry goes.
+-- The patches went with it: one anchored to a Gob ends with that Gob, so there is nothing to take up and
+-- only the entry goes.
 hafen.event():on("GobRemoved", function(g)
   laid[g] = nil
 end)
 
--- The per-frame beat. The cursor is read here because that is how often it moves, and `over` brings its
--- rings up to date here rather than in the painter, so the painter only ever draws. Nothing at all runs
--- while the boxes are off.
+-- The per-frame beat, and the cursor is the whole of it: everything else follows the object it is anchored
+-- to without being asked. Nothing at all runs while the boxes are off.
 hafen.event():on("Update", function()
   if off() then return end
   ghostFollow()
-  if over() then refresh() end
 end)
 
 -- The mode is remembered now, so a client that starts in one enters it rather than waiting for a keypress.
--- On the step, because there is a map view to hang a painter on only once a character is in the world --
--- and `attach` is asked again on every sweep, so one that is not there yet costs nothing.
+-- On the step, because the sweep wants a world to read and this runs while the client is still coming up.
 if not off() then step(enter) end

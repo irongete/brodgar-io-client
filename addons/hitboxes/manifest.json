@@ -1,8 +1,8 @@
 {
   "id": "hitboxes",
   "name": "Hitboxes",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": "irongete",
-  "description": "Three modes for the footprint of every game object in view -- and of the building you are placing: off, a blue patch laid on the terrain and occluded by what stands on it, and the same shape drawn over every object but under the UI. Pick one in Options > AddOns > Hitboxes, or cycle them with the key assigned in Options > Keybindings > Hitboxes; the mode is remembered.",
+  "description": "Three modes for the footprint of every game object in view -- and of the building you are placing: off, a blue patch laid on the terrain and hidden by whatever stands in front of it, and the same patch told the world may not hide it -- so a box inside a house or over a hill is drawn whole, while your windows still cover it. Options > AddOns > Hitboxes picks the mode and sets the look: the fill's colour and opacity, and the border's colour and thickness. The key assigned in Options > Keybindings > Hitboxes cycles the modes; every row is remembered.",
   "files": ["main.lua"]
 }
