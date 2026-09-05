@@ -56,6 +56,11 @@ final class LuaRows {
      * An array of rows, validated and resolved: each element is a STRING (a text row) or an
      * {@code {icon =, text =}} TABLE (an icon row), never {@code nil} or any other shape. {@code verb} names
      * the caller for the error text ({@code "widget:rows"} today; the later model-backed controls share it).
+     *
+     * <p><b>The shape is asked by TYPE</b>, the rule {@link Args#str} states: in LuaJ {@code isstring()} is
+     * true of a number and {@code isnumber()} is true of {@code "42"}, so the hand-rolled
+     * {@code isstring() && !isnumber()} refused a row of ordinary digits — {@code :rows{"0", "1", "2"}} — and
+     * said "must be a STRING ... got string" doing it. A row's type is what decides, here as everywhere.
      */
     static List<Row> parse(LuaValue t, String verb) {
         if(!t.istable())
@@ -68,7 +73,7 @@ final class LuaRows {
                 throw new LuaError(verb + "(t): row " + i + " is nil");
             if(e.istable()) {
                 LuaValue textv = e.get("text");
-                if(!textv.isstring() || textv.isnumber())
+                if(textv.type() != LuaValue.TSTRING)
                     throw new LuaError(verb + "(t): row " + i + " is a table and must have a string \"text\""
                         + " key ({icon =, text =})");
                 LuaValue iconv = e.get("icon");
@@ -76,11 +81,15 @@ final class LuaRows {
                     throw new LuaError(verb + "(t): row " + i + " is a table and must have an \"icon\" key"
                         + " ({icon =, text =}) — a plain string is the door for a text-only row");
                 rows.add(new Row(e, textv.tojstring(), icon(iconv, verb, i)));
-            } else if(e.isstring() && !e.isnumber()) {   // in LuaJ a number IS a string -- wrong type, not a row
+            } else if(e.type() == LuaValue.TSTRING) {   // the TYPE: "0" is a string, and 0 is not
                 rows.add(new Row(e, e.tojstring(), null));
             } else {
                 throw new LuaError(verb + "(t): row " + i + " must be a STRING or an {icon =, text =} table,"
-                    + " got " + e.typename());
+                    + " got " + e.typename()
+                    + ((e.type() == LuaValue.TNUMBER)
+                       ? " — a number is not a string here, whatever Lua does with it in a concatenation;"
+                         + " tostring(n) is the conversion if that is what you meant"
+                       : ""));
             }
         }
         return rows;
@@ -95,7 +104,7 @@ final class LuaRows {
                     + " hafen.asset():remove(a), hafen.asset():get(path) loads the file again as a NEW asset");
             return li.tex.back;
         }
-        if(v.isstring() && !v.isnumber()) {       // in LuaJ a number IS a string -- that one is just wrong type
+        if(v.type() == LuaValue.TSTRING) {        // the TYPE, as everywhere: a resource name is a string
             String name = v.tojstring();
             if(Controls.fileish(name))
                 throw new LuaError(verb + "(t): row " + row + "'s icon \"" + name + "\" looks like a file in"

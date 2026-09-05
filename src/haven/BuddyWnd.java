@@ -47,16 +47,43 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
     public static final int offset = UI.scale(35);
     public static final Tex online = Resource.loadtex("gfx/hud/online");
     public static final Tex offline = Resource.loadtex("gfx/hud/offline");
-    public static final Color[] gc = new Color[] {
-	new Color(255, 255, 255),
-	new Color(0, 255, 0),
-	new Color(255, 0, 0),
-	new Color(0, 0, 255),
-	new Color(0, 255, 255),
-	new Color(255, 255, 0),
-	new Color(255, 0, 255),
-	new Color(255, 0, 128),
-    };
+    /* addon: HOW MANY GROUPS HAVE A COLOUR OF THEIR OWN, and so how many the user can pick. Everything
+     * asking how many groups are SELECTABLE asks this; `gc.length` is only how far the array reaches. */
+    public static final int ncolors = 8;
+    /* addon: ...AND THE PALETTE COVERS THE WHOLE GROUP SPACE, because a raw `gc[group]` is what every
+     * reader writes and most of those readers are not ours to guard. The server accepts groups 0..254
+     * (confirmed by the H&H developers) while eight of them have a colour, so `gc[group]` threw straight
+     * out of the draw for a member in a group above the eighth -- in the kin roster and the floating name
+     * over a gob, which are the fork's, and in the SERVER'S OWN published code, which is not: `ui/vlg`'s
+     * `Village.VMember.draw` and `ui/realm`'s `Realm.RMember.draw` both index this array bare, and a third
+     * resource draws the village member panel. Adopting each of those with `get-code` would pin a copy per
+     * resource, each going stale silently on the next server update and each only covering the sites we
+     * happen to have crashed in. So the array answers for the whole space instead: a group with no colour
+     * of its own reads the UNGROUPED colour rather than throwing. The group NUMBER stays the only thing
+     * that tells two of them apart -- it is public on `Buddy.group`. */
+    public static final Color[] gc = new Color[255];
+    static {
+	Color[] named = {
+	    new Color(255, 255, 255),
+	    new Color(0, 255, 0),
+	    new Color(255, 0, 0),
+	    new Color(0, 0, 255),
+	    new Color(0, 255, 255),
+	    new Color(255, 255, 0),
+	    new Color(255, 0, 255),
+	    new Color(255, 0, 128),
+	};
+	if(named.length != ncolors)
+	    throw(new AssertionError(named.length));
+	System.arraycopy(named, 0, gc, 0, ncolors);
+	for(int i = ncolors; i < gc.length; i++)
+	    gc[i] = named[0];
+    }
+    /* addon: the palette read for a group that may be outside 0..254 altogether -- a negative one, or a
+     * number no group can be. Inside that range `gc[group]` is safe on its own. */
+    public static Color gcolor(int group) {
+	return(((group >= 0) && (group < gc.length)) ? gc[group] : gc[0]);
+    }
     private Comparator<Buddy> bcmp;
     private Comparator<Buddy> alphacmp = new Comparator<Buddy>() {
 	private Collator c = Collator.getInstance();
@@ -226,12 +253,12 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 
     public static class GroupSelector extends Widget {
 	public int group;
-	public GroupRect[] groups = new GroupRect[gc.length];
+	public GroupRect[] groups = new GroupRect[ncolors];   // addon: colours, not the palette's reach
 
 	public GroupSelector(int group) {
-	    super(new Coord(gc.length * margin3, margin3));
+	    super(new Coord(ncolors * margin3, margin3));
 	    this.group = group;
-	    for (int i = 0; i < gc.length; ++i) {
+	    for (int i = 0; i < ncolors; ++i) {
 		groups[i] = new GroupRect(this, i, group == i);
 		add(groups[i], new Coord(i * margin3, 0));
 	    }
@@ -243,10 +270,13 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 	public void update(int group) {
 	    if(group == this.group)
 		return;
-	    if(this.group >= 0)
+	    /* addon: a group above the palette has no rectangle. `this.group` is written raw from the wire
+	     * by `BuddyInfo.update`, so it is the UNSELECT of the outgoing group that threw -- clicking a
+	     * colour to move such a kin back into the palette was itself the crash. */
+	    if((this.group >= 0) && (this.group < groups.length))
 		groups[this.group].unselect();
 	    this.group = group;
-	    if(group >= 0)
+	    if((group >= 0) && (group < groups.length))
 		groups[group].select();
 	}
 
@@ -391,7 +421,7 @@ public class BuddyWnd extends Widget implements Iterable<BuddyWnd.Buddy> {
 			    g.aimage(online, Coord.of(sz.y / 2), 0.5, 0.5);
 			else if(item.online == 0)
 			    g.aimage(offline, Coord.of(sz.y / 2), 0.5, 0.5);
-			g.chcolor(gc[b.group]);
+			g.chcolor(gcolor(b.group));   // addon: a group above the palette
 			g.aimage(b.rname().tex(), Coord.of(sz.y + margin1, sz.y / 2), 0.0, 0.5);
 			g.chcolor();
 		    }

@@ -255,11 +255,14 @@ public final class LuaKin {
             }
         });
         // color() — PRESENTATION, not identity: the client's palette only has 8 colours, while the server
-        // accepts groups 0..254, so a group above the palette simply has no colour to report (nil).
+        // accepts groups 0..254, so a group above the palette simply has no colour to report (nil). The
+        // ENGINE draws such a kin in the ungrouped colour rather than throwing (BuddyWnd.gcolor), but that
+        // fallback is a DRAW, not an answer: nil is the truthful one here, and group() is what tells two
+        // groups above the palette apart. Do not route this through gcolor.
         m.set("color", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 BuddyWnd.Buddy b = buddy(self, "color");
-                if((b == null) || (b.group < 0) || (b.group >= BuddyWnd.gc.length))
+                if((b == null) || (b.group < 0) || (b.group >= BuddyWnd.ncolors))
                     return LuaValue.NIL;
                 return AddonManager.color(BuddyWnd.gc[b.group]);
             }

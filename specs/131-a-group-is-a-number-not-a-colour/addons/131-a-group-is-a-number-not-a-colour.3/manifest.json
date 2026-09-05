@@ -1,0 +1,10 @@
+{
+  "name": "131.3 — a colour row holds a group, and the API reads and drives it",
+  "id": "131-a-group-is-a-number-not-a-colour.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 131.3, and 131's own integration check: a dropdown carrying every group the server accepts, every kin's group read as a number with a colour exactly below the palette, and a colour row's group read back with the two refusals its drive owes.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["widget.value"]
+}

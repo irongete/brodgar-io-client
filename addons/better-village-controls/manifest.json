@@ -1,0 +1,14 @@
+{
+  "id": "better-village-controls",
+  "name": "Better village controls",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "Every colour row in the Village tab of the Kith & Kin window grows a picker beside it carrying every group the server takes, 0 to 254. It shows the group the row is in -- the number, which is all a group past the eight colours has -- and picking one drives the row the way a click on a square would.",
+  "api_version": 1,
+  "files": [
+    "main.lua"
+  ],
+  "permissions": [
+    "widget.value"
+  ]
+}

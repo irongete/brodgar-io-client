@@ -1843,8 +1843,10 @@ final class CharApi {
         t.set("id", LuaValue.valueOf(b.id));
         if(b.name != null)
             t.set("name", LuaValue.valueOf(b.name));
-        t.set("group", LuaValue.valueOf(b.group));
-        if((b.group >= 0) && (b.group < BuddyWnd.gc.length))
+        t.set("group", LuaValue.valueOf(b.group));               // the true index, 0..254, palette or not
+        // No `color` for a group above the 8-colour palette — same answer as kin:color(), and for the same
+        // reason: the engine's ungrouped-colour fallback (BuddyWnd.gcolor) is a draw, not the group's colour.
+        if((b.group >= 0) && (b.group < BuddyWnd.ncolors))
             t.set("color", color(BuddyWnd.gc[b.group]));
         t.set("online", LuaValue.valueOf(b.online == 1));
         return t;

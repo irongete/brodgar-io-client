@@ -134,8 +134,12 @@ whole [protected tier](../guides/permissions.md), and it is most visible here, b
 first thing an alt has of its own.
 
 **Groups go to 254, colours stop at 8.** The server accepts `0..254` and the write validates that range,
-but the client draws eight kin colours, so a group of 8 or more has no colour and the Kin window can
-neither display nor select it. Stay within `0..7` unless you know what you are doing.
+but the client's palette holds eight colours. A group of 8 or more therefore has no colour of its own:
+`kin:color()` is `nil`, `kin:info()` carries no `color`, and the client draws that kin in the ungrouped
+colour — in the Kin window and over their gob alike. `kin:group()` still answers the true number, and it is
+the only thing that tells two groups above the palette apart. The Kin window's own colour row selects `0..7`
+and nothing above it, so a group past the palette is one only an addon sets, and the user clears it by
+picking a colour.
 
 **Removing is two steps.** The game drops a kin in two stages: `kin:endKin()` ends the kinship, after
 which the kin is memorized but still listed, then `kin:forget()` drops the memorized entry. To fully

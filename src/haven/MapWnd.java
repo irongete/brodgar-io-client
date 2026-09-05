@@ -363,7 +363,7 @@ public class MapWnd extends Window implements Console.Directory {
 	}
 
 	public void mark(Location loc, boolean onmap) {
-	    Marker nm = new PMarker(file, loc.seg.id, loc.tc, "New marker", BuddyWnd.gc[new Random().nextInt(BuddyWnd.gc.length)], onmap);
+	    Marker nm = new PMarker(file, loc.seg.id, loc.tc, "New marker", BuddyWnd.gc[new Random().nextInt(BuddyWnd.ncolors)], onmap);
 	    file.add(nm);
 	    focus(nm);
 	}

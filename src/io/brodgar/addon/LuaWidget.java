@@ -3161,6 +3161,14 @@ public final class LuaWidget {
                 return LuaMarshal.toLua(((SListWidget<?, ?>)w).sel);
             if(w instanceof Progress)
                 return LuaValue.valueOf(((Progress)w).fraction());
+            // A kin/village colour row (BuddyWnd.GroupSelector) holds the GROUP it is showing, which is what
+            // the highlighted square means -- and it holds it past the eight colours, where no square is
+            // highlighted and the number is the only thing there is to read. -1 is the engine's own "nothing
+            // selected" (the polity rows are built with it), and that is a nil here.
+            if(w instanceof haven.BuddyWnd.GroupSelector) {
+                int group = ((haven.BuddyWnd.GroupSelector)w).group;
+                return (group < 0) ? LuaValue.NIL : LuaValue.valueOf(group);
+            }
         } catch(RuntimeException e) {
             return LuaValue.NIL;   // a Supplier still Loading, say: a read answers nil rather than throwing
         }

@@ -9,9 +9,11 @@ import java.awt.Font;
 import java.awt.image.BufferedImage;
 import static haven.PUtils.*;
 
-/* addon: (F4, D-043) UNMODIFIED local copy of the resource's own source (`haven.Resource get-code ui/obj/buddy`),
- * kept so the adopted class set matches the resource one-to-one -- the edit for the "world.nick" font scope is in
- * this package's InfoPart (the foundry) and Info (the re-compose on a generation move). */
+/* addon: (F4, D-043) local copy of the resource's own source (`haven.Resource get-code ui/obj/buddy`), kept so
+ * the adopted class set matches the resource one-to-one -- the edit for the "world.nick" font scope is in this
+ * package's InfoPart (the foundry) and Info (the re-compose on a generation move). ONE line of this file is the
+ * fork's, tagged where it stands: the kin colour is read through `BuddyWnd.gcolor`, because the palette is eight
+ * long and the group off the wire is not. */
 @haven.FromResource(name = "ui/obj/buddy", version = 4)
 public class Buddy extends GAttrib implements InfoPart {
     public final int id;
@@ -60,7 +62,7 @@ public class Buddy extends GAttrib implements InfoPart {
 	if(bw != null)
 	    b = bw.find(id);
 	if(b != null) {
-	    Color col = BuddyWnd.gc[rgrp = b.group];
+	    Color col = BuddyWnd.gcolor(rgrp = b.group);   // addon: a group above the palette
 	    cmp.add(InfoPart.rendertext(rnm = b.name, col), Coord.z);
 	}
 	this.b = b;

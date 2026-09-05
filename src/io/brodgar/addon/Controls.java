@@ -906,8 +906,9 @@ final class Controls {
      */
     static LuaError noValue(Widget w) {
         return new LuaError("widget:value(v) writes what a control HOLDS, and " + LuaWidget.typeName(w)
-            + " holds nothing — a checkbox, a radio button, a slider, a scrollbar, a text entry, a list and"
-            + " a dropdown are what hold one, whether the client built it or you did (hafen.ui():check(),"
+            + " holds nothing — a checkbox, a radio button, a slider, a scrollbar, a text entry, a list, a"
+            + " dropdown and a kin-colour row are what hold one, whether the client built it or you did"
+            + " (hafen.ui():check(),"
             + " :radio(), :slider(), :scrollbar(), :entry(), :listbox(), :dropdown() — and :progress(), which"
             + " holds one on a bar you built).");
     }
@@ -937,6 +938,18 @@ final class Controls {
             throw new LuaError("widget:value(v) on a progress bar of the client's own — what it draws is a"
                 + " Supplier the client re-reads every frame, so a value written here would be gone before"
                 + " it was seen. widget:value() reads the fraction it is showing.");
+        if(w instanceof haven.BuddyWnd.GroupSelector) {
+            // select(group) is the very method GroupRect's own mousedown ends in, and the polity windows
+            // override it to send their message (ui/vlg's Village sends "gsel", and the member panel its
+            // own) -- so this drive IS the click, and the group need not be one the eight squares can show.
+            final haven.BuddyWnd.GroupSelector gs = (haven.BuddyWnd.GroupSelector)w;
+            final int to = num(v, "a colour row");
+            if((to < 0) || (to > 254))
+                throw new LuaError("widget:value(v) on a colour row is a GROUP, 0..254 — the range the"
+                    + " server accepts; the eight colours only reach 0..7, got " + to);
+            synchronized(mon) { gs.select(to); }
+            return;
+        }
         if(w instanceof haven.RadioGroup.RadioButton) {   // BEFORE the checkbox arm — a radio button is one
             haven.RadioGroup.RadioButton rb = (haven.RadioGroup.RadioButton)w;
             haven.RadioGroup.RadioButton tgt = row(rb, str(v, "a radio button", "the LABEL of one of its"

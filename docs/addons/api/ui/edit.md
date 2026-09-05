@@ -218,6 +218,11 @@ box:value(not box:value())             -- ticked, exactly as a click would have 
 | a slider, a scrollbar | a number | moves it there, clamped into the bounds the control carries |
 | a text entry | a string | replaces the line in the field |
 | a list, a dropdown | a row **of that list** | picks it |
+| a colour row (the eight kin colours) | a number, `0..254` | picks that group, exactly as clicking a square does |
+
+**A colour row reads back, too.** `w:value()` on one is the group it is showing — the **number**, which is
+all a group above the eighth has, since no square highlights for it — and `nil` on a row showing none.
+
 
 It needs the `widget.value` [permission key](../../guides/permissions.md) declared in your manifest, and
 without it the call raises naming that key **before** it looks at the value you passed. It is the one
