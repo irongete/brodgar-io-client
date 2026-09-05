@@ -43,6 +43,27 @@ the replay loop is far too hot to touch.
 | **Drawing a texture at another size, without a second texture** | `ScaledTex<T>` — a `Tex` holding an `impl` and a `sz` of its own, delegating every `render` to the impl and passing its own `sz()` as the destination rectangle. So `g.image(new ScaledTex(t, s), c)` covers `s`, resampled by the sampler, and `dispose()` disposes the **impl** — a view, not a resource, and disposing both double-frees. `UI.scale(Tex)` is the constructor everything uses; see [ui-scaling.md](ui-scaling.md) |
 | **A render target blits UPSIDE DOWN unless flipped** | `tc` is always counted from the image **top**, which is right for a `TexI` and wrong for a texture the client drew into (see [world-3d.md](world-3d.md)'s v-flip gotcha). The engine's own answer is a flag: `TexRaw(Sampler2D, boolean invert)`, which `Window.gbuf` passes `true`. A hand-rolled `TexRender` over a render target must invert `t` itself (`t → sz().y - t`) before delegating |
 
+## Fixed-function pipe states (what GL is actually told)
+
+| What | Where |
+|---|---|
+| The whole set | `GLPipeState.all` — `viewport`, `scissor`, `facecull`, `depthtest`, `maskdepth`, `linewidth`, `depthbias`. Each is a `GLPipeState<T>` over one `State.Slot`, and each `apply(env, gl, from, to)` is the only place its GL calls are written |
+| Depth **testing** | slot `States.depthtest`, value a `States.Depthtest(Test)` (`LT` by default; `FALSE TRUE EQ NEQ LT GT LE GE`). `GLPipeState.depthtest.apply` → `glEnable(GL_DEPTH_TEST)` + `glDepthFunc` for a non-null, `glDisable(GL_DEPTH_TEST)` for a **null** |
+| Turning the test **off** | `States.Depthtest.none` — a bare `Pipe.Op`, `p -> p.put(depthtest, null)`, so it goes straight into a `Material(Pipe.Op...)` list beside anything else |
+| Depth **writing** | `States.maskdepth`, a `State.StandAlone(Slot.Type.GEOM)` with no shader macro. `GLPipeState.maskdepth.apply` → `glDepthMask(false)` when present, `glDepthMask(true)` when absent |
+| A material carrying render state | `Material(Pipe.Op... states)`; `MapView.gridmat` is the in-code precedent — `BaseColor`, `States.maskdepth`, a `MapMesh.OLOrder` and a `Location` in one list, no `.res` anywhere |
+
+**Gotcha — `maskdepth` is not the depth test, and the two read as one word.** `maskdepth` stops a fragment
+**writing** depth; `Depthtest.none` stops it being **tested** against the depth already there. An overlay
+carrying only `maskdepth` is still hidden by a wall, and adding a second `maskdepth`, or a
+`Depthtest(Test.TRUE)` in place of the null, is not the same thing as either. `Depthtest.none` is also the
+one of the pair that is a `Pipe.Op` rather than a `State`, so it has no `apply(Pipe)` to call and no
+instance to compare — it is put in the list or it is not.
+
+**Gotcha — a null in a pipe slot is a state, not an absence.** `GLPipeState.apply` is called with
+`to == null` exactly to mean "the off setting", which is why each of the seven above has a defined answer
+for a null and why `Depthtest.none` works by *putting* one rather than by removing anything.
+
 ## Writing a shader state of your own
 
 | What | Where |

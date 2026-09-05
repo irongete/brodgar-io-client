@@ -27,7 +27,8 @@ import haven.render.States;
  * and {@code MapMesh.OLOrder}'s {@code mainorder} 1002 draws the result after the ground in the same pass,
  * where {@code States.Depthtest(LE)} lets the exact tie through. So there is no lift, no depth bias and
  * nothing that comes apart at distance, and a gob standing on the patch occludes it because its depth is
- * genuinely nearer. It needs no {@code .res}: {@code OverlayInfo} is a plain interface, and
+ * genuinely nearer — until {@link #set} is told otherwise, which takes the depth <i>test</i> off and leaves
+ * everything else exactly where it is. It needs no {@code .res}: {@code OverlayInfo} is a plain interface, and
  * {@code MapView.selol} is the precedent for an anonymous one.
  *
  * <p><b>The mask is generous; the silhouette is carved.</b> {@link #fill} marks every tile the ring's bounding
@@ -53,8 +54,8 @@ final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
     /** What the masked ground is re-laid with — the colours, and the carve that cuts the ring out of them. */
     private Material mat;
 
-    PatchOverlay(List<Coord2d> ring, Color fill, Color edge, float width) {
-        set(ring, fill, edge, width);
+    PatchOverlay(List<Coord2d> ring, Color fill, Color edge, float width, boolean occluded) {
+        set(ring, fill, edge, width, occluded);
     }
 
     /** Read where {@link #set} is given no edge: a colour the band is switched off over and so never reads. */
@@ -68,14 +69,29 @@ final class PatchOverlay implements MCache.LocalOverlay, MCache.OverlayInfo {
      * {@code edge} with {@code width} is what {@link PatchCarve} lays over it at 500, so each carries its own
      * opacity and the line can stand solid round ground you can see through. A {@code null} {@code edge} is no
      * border, and it reaches the fragment as {@link PatchCarve}'s negative-width sentinel.
+     *
+     * <p><b>{@code occluded} is one more op in the same list</b> (132.1), and the whole of what the world
+     * hiding a patch is. {@code States.Depthtest.none} puts {@code null} in the depth-test slot, which
+     * {@code GLPipeState} answers with {@code glDisable(GL_DEPTH_TEST)}, so the fragment is written whatever
+     * stands in front of it. It is <b>not</b> {@link States#maskdepth}, which stays in the list either way and
+     * answers {@code glDepthMask(false)}: that one is whether the fragment writes depth of its own, and an
+     * overlay wants it off whether or not it is tested. Reading the two as one state is the mistake this verb
+     * turns on.
+     *
+     * <p>Because the flag is only an op, it never moves the tiles: the answer below is the same one this
+     * method would give without it, so a patch told the world may not hide it re-pushes its material down
+     * the path a colour change takes and nothing is re-carved.
      */
-    boolean set(List<Coord2d> ring, Color fill, Color edge, float width) {
+    boolean set(List<Coord2d> ring, Color fill, Color edge, float width, boolean occluded) {
         Area was = tiles;
         tiles = coverage(ring);
-        mat = new Material(new BaseColor(fill), States.maskdepth, new MapMesh.OLOrder(this),
-                           new PatchCarve(PatchCarve.of(ring),
+        PatchCarve carve = new PatchCarve(PatchCarve.of(ring),
                                           (edge == null) ? NORIM : new FColor(edge),
-                                          (edge == null) ? -1f : width));
+                                          (edge == null) ? -1f : width);
+        MapMesh.OLOrder order = new MapMesh.OLOrder(this);
+        mat = occluded
+            ? new Material(new BaseColor(fill), States.maskdepth, order, carve)
+            : new Material(new BaseColor(fill), States.maskdepth, States.Depthtest.none, order, carve);
         return !tiles.equals(was);
     }
 

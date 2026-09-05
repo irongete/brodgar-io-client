@@ -2160,8 +2160,9 @@ final class VirtualApi {
     }
 
     /**
-     * The Lua handle for a {@link LuaPatch}: <b>the shared entity vocabulary</b> (118.2) plus the one verb only
-     * a patch has, {@code :border(c, w)} (121.1). A patch is placed, moved, turned, taken out to a scale,
+     * The Lua handle for a {@link LuaPatch}: <b>the shared entity vocabulary</b> (118.2) plus the verbs only a
+     * patch has — {@code :border(c, w)} (121.1) and {@code :occluded(b)} (132.1), the line round the ring and
+     * whether the world may hide it. A patch is placed, moved, turned, taken out to a scale,
      * tinted, faded and switched off with the very verbs its four siblings answer — the two it answers
      * differently it answers through the kind's own {@link LuaWorldEntity#drawn()} and
      * {@link LuaWorldEntity#height()}, inside those shared verbs — and its ring reaches {@code :info()} through
@@ -2211,7 +2212,28 @@ final class VirtualApi {
                 return self;
             }
         });
-        return entityHandle(p, "patch", "patch", x, " and :border()");
+        // occluded() / occluded(b) -- whether the WORLD may hide it (132.1). A bare adjective naming the
+        // property rather than the effect, so it reads one way round: true is what a patch does by default,
+        // false says the ground, the walls and the houses in front of it may not cut it. It is a look and not
+        // a shape -- the ring, the slope and the tiles it covers are the same either way -- which is why the
+        // whole of it is one op in the material and no cut is paid for turning it.
+        x.set("occluded", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaValue bv = Args.written(a, 2, "patch:occluded", "b");
+                if(bv == null) {
+                    synchronized(p) { return LuaValue.valueOf(p.occluded); }
+                }
+                // A bare adjective takes a bare boolean, as gob:visible(b) does: LuaJ coerces anything at all
+                // through toboolean() and 0 is TRUE in Lua, so patch:occluded(0) reading as "the world hides
+                // it" is the one silent wrong answer this verb can give.
+                if(!bv.isboolean())
+                    throw new LuaError("patch:occluded(b): b must be true or false, got " + bv.typename());
+                setPatchOccluded(p, bv.toboolean());
+                return self;
+            }
+        });
+        return entityHandle(p, "patch", "patch", x, ", :border() and :occluded()");
     }
 
     /**
@@ -2228,6 +2250,25 @@ final class VirtualApi {
                 return;
             p.border = c;
             p.borderWidth = w;
+            refreshEntityScene(p);
+        }
+    }
+
+    /**
+     * Say whether the world may hide a patch ({@code patch:occluded(b)}, 132.1). The flag is the patch's own
+     * field, like the border beside it, and the re-lay is the very one {@link #setPatchBorder} takes: a fresh
+     * {@code Material} — one op longer or shorter — pushed through the {@code MapView.Overlay} slot.
+     *
+     * <p><b>It cannot move the mask</b>, so it cannot cost a cut: the tiles are derived from the ring and the
+     * ring did not change, {@code PatchOverlay.set} answers the same as it would without the flag, and
+     * {@link LuaPatch#lay} takes the state-push path a colour change takes. No-op when unchanged/dead, so
+     * saying it twice costs the second nothing at all.
+     */
+    private static void setPatchOccluded(LuaPatch p, boolean b) {
+        synchronized(p) {
+            if(p.dead || (p.occluded == b))
+                return;
+            p.occluded = b;
             refreshEntityScene(p);
         }
     }

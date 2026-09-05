@@ -35,7 +35,7 @@ lookup instead of a search.
 | [the pointer and the ground](map-click.md) | screen ↔ world and the space both speak, placement snapping, the pick pass, and the click dispatch a synchronous hook gets in front of |
 | [which ground is drawn](terrain-raster.md) | the terrain display lists: the one bolted to the player, one over a second cache, and what bounds each |
 | [the camera](camera.md) | reading the installed camera outside a render pass, the name→class registry and the two prefs, and the frustum's two traps |
-| [the render backend](render-gl.md) | the scene counters `:stats on` reads, where a frame's draw calls are submitted, and the 2D blit path |
+| [the render backend](render-gl.md) | the scene counters `:stats on` reads, where a frame's draw calls are submitted, the 2D blit path, the fixed-function pipe states and what each tells GL, and writing a shader state of your own |
 | [several sessions at once](multi-session.md) | one process holding several logged-in sessions with one on screen: the drawn-UI split, what a session that is not drawn stops doing, aligning two sessions' coordinate frames, ordering one that is not drawn, and the merged scene |
 | [text and fonts](text-and-fonts.md) | `Text.Foundry` and every named surface that bakes one, `RichText`, DPI scaling, custom TTF loading |
 | [UI scaling](ui-scaling.md) | the one factor the whole 2D interface is drawn at: `UI.scalef` and its converters, where the number comes from, art that is scaled at load, and the round-trip that is exact in only one direction |

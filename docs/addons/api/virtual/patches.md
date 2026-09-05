@@ -6,9 +6,9 @@ footprint, the reach of something you are about to build. It is the one kind her
 stand up, and a patch is on the ground under them.
 
 It lies on the ground **exactly**: over a slope, a ridge or a tile boundary it follows the relief with no
-float, no gap and no shimmer, and whatever stands on that ground occludes it, your own character included.
-Its edge is the ring's own shape at every zoom, rather than a staircase of square tiles, and
-[a line can be drawn along it](#the-border).
+float, no gap and no shimmer, and whatever stands on that ground occludes it, your own character included —
+until you say [the world may not hide it](#drawing-through-the-world). Its edge is the ring's own shape at
+every zoom, rather than a staircase of square tiles, and [a line can be drawn along it](#the-border).
 
 `hafen.virtual():patch()` **is the collection** of the patches your addon has laid: `:add(ring, anchor)` lays
 one and hands it back, `:list(filter)` reads them, `:remove(p)` takes one up — the whole
@@ -84,18 +84,19 @@ own shape while it goes: the ring is offsets, and the object's own turning does 
 
 ## The patch
 
-The [shared vocabulary](README.md#one-vocabulary-every-kind), plus the one verb only a patch has. Two of
+The [shared vocabulary](README.md#one-vocabulary-every-kind), plus the verbs only a patch has. Two of
 the shared ones answer differently here, and both because a patch is on the ground rather than above it:
 
 | Method | Permission | Description |
 |---|---|---|
 | `patch:border()` / `patch:border(c [, w])` | unprotected | [the line round the ring](#the-border); `nil` clears it |
+| `patch:occluded()` / `patch:occluded(b)` | unprotected | [may the world hide it](#drawing-through-the-world); `true` by default |
 | `patch:offset()` / `patch:offset(x, y)` | unprotected | where it sits relative to the object it follows — **two** numbers, on the ground |
 | `patch:drawn()` | unprotected | is it on the terrain being drawn right now? |
 
 `patch:offset(x, y, z)` raises naming that a patch has no height. A patch held *above* the ground is a
-different thing and this is not it — on the ground it is already occluded by whatever stands on it, which
-is most of what a raised one would have been for.
+different thing and this is not it — what a raised one would mostly have been for is being seen over what
+stands around it, and [`patch:occluded(b)`](#drawing-through-the-world) is that without leaving the ground.
 
 Everything else reads exactly as it does for the kinds that stand up. `:scale(k)` takes the ring out from
 its own place, `:rotate(a)` turns it there, `:tint(c)` and `:alpha(a)` colour it, `:visible(b)` takes it off
@@ -107,10 +108,10 @@ blend strength: there is no picture underneath for a strength to be measured aga
 whole shape's and multiplies fill and border alike, which is what lets a solid line stand round ground you
 can see through.
 
-> **Turning, scaling, tinting and bordering cost no terrain work.** They re-carve the silhouette and push
-> new colours through the ground that is already laid; no mesh is rebuilt. Moving one far enough to leave
-> the tiles it covers does re-cut those tiles, so a patch dragged across the map every frame is the one
-> shape of this that is not free.
+> **Turning, scaling, tinting, bordering and switching occlusion cost no terrain work.** They re-carve the
+> silhouette and push new colours through the ground that is already laid; no mesh is rebuilt. Moving one far
+> enough to leave the tiles it covers does re-cut those tiles, so a patch dragged across the map every frame
+> is the one shape of this that is not free.
 
 ### The snapshot
 
@@ -121,11 +122,13 @@ can see through.
 | Key | What it holds |
 |---|---|
 | `border` | `{color = c, width = w}` — the pair [`patch:border()`](#the-border) hands back |
+| `occluded` | whether the world may hide it, the boolean [`patch:occluded()`](#drawing-through-the-world) reads |
 | `ring` | the shape, as an array of the `{gridId, x, y}` tables a [Position](../position.md) answers with |
 
 `border` is absent while no line is laid and `ring` while this character cannot locate the patch at all,
-exactly as a key is absent everywhere in this API when the thing it names is not known. The snapshot names
-the two halves of a border where the call counts them, because a snapshot is a document and a call is not.
+exactly as a key is absent everywhere in this API when the thing it names is not known; `occluded` is always
+there, since a boolean property has a value at every moment. The snapshot names the two halves of a border
+where the call counts them, because a snapshot is a document and a call is not.
 
 ```lua
 local i = patch:info()
@@ -172,6 +175,52 @@ art and has nothing to draw along a ring. A `c` that is not a colour raises nami
 local ok, err = pcall(function() patch:border{box = "gfx/hud/wnd"} end)
 hafen.log():write(tostring(err))          -- ...says a border out here is two arguments
 ```
+
+## Drawing through the world
+
+`patch:occluded(false)` says the world may not hide the ring: a wall, a hill or a house between you and it
+stops cutting it, and it is drawn whole. `patch:occluded(true)` is the default and is what every patch does
+until it is told otherwise — the ground, the buildings and your own character are all in front of it, and it
+is drawn where they are not.
+
+| Written | Does |
+|---|---|
+| `patch:occluded()` | reads it back: `true` while the world may hide it |
+| `patch:occluded(b)` | says whether it may, and hands the patch back |
+
+`b` must be `true` or `false`. Anything else raises naming the verb, because in Lua `0` is true and a patch
+told `0` would quietly read as one the world hides. Switching it is a **look**, not a shape: nothing is
+re-cut, nothing is re-carved, and the tint, the border, the offset and the ground it is laid on all come
+through the flip exactly as they were.
+
+**Three things it does not change**, and each is one a reader expects it to:
+
+- **The interface still covers it.** A patch is drawn inside the world, and your windows, your chat and
+  every other 2D thing are drawn after the world is finished. A ring under a window is under it either way.
+- **It still lies on the ground.** The shape follows the slope, the ridge and the tile boundary as it always
+  did — this is not a flat shape drawn over the screen, it is the same ring on the same relief with one test
+  switched off.
+- **It is still only where the ground is.** A patch exists on terrain the client has built; ground that has
+  not arrived yet has nothing to draw a ring on, so `patch:drawn()` still answers what it did and a patch on
+  ground this character cannot reach still waits.
+
+The other kinds are unchanged: a [ghost](ghosts.md), a [sprite](sprites.md) and a
+[standing widget](widgets.md) stand in the world and are hidden by what stands in front of them, with no
+verb of their own for this.
+
+```lua
+local me = hafen.session():current():player():gob()
+for _, ring in ipairs(me:hitbox() or {}) do
+  hafen.virtual():patch():add(ring, me)
+    :tint({255, 200, 40, 90}):border({255, 200, 40}, 0.4)
+    :occluded(false)                       -- still readable from the far side of the barn
+end
+```
+
+> **With the world hiding it off, two rings stack in draw order.** Depth is what decides which of two
+> overlapping patches is on top, so a pair that both draw through the world are ordered by whichever the
+> client happens to draw last, and that order is not yours to set. Two of them on the same ground is a
+> picture you cannot predict; give them different ground, or let one of the two be occluded.
 
 ## Naming and filtering
 

@@ -14,9 +14,9 @@ import org.luaj.vm2.LuaValue;
 
 /**
  * A client-only <b>patch</b> (118) — the Java half of {@code hafen.virtual():patch():add(ring, anchor)}: a convex
- * ring of {@link LuaPosition}s lying exactly on the terrain, occluded by whatever stands on it. The fifth kind
- * of {@code hafen.virtual()}, and the first that lies <b>down</b>: the four before it — a prop, a picture, a model,
- * a window — all stand up.
+ * ring of {@link LuaPosition}s lying exactly on the terrain, occluded by whatever stands on it unless
+ * {@link #occluded} says otherwise. The fifth kind of {@code hafen.virtual()}, and the first that lies
+ * <b>down</b>: the four before it — a prop, a picture, a model, a window — all stand up.
  *
  * <p><b>It is the one kind that is not a {@link haven.Gob}.</b> The drawn terrain surface cannot be reproduced
  * from outside ({@code MapMesh.MapSurface} is per cut and per tiler), so independently tessellated geometry
@@ -68,6 +68,15 @@ public final class LuaPatch extends LuaWorldEntity {
     float borderWidth;
 
     /**
+     * <b>Whether the world is allowed to hide it</b> ({@code patch:occluded(b)}, 132.1). {@code true} — the
+     * default, and what a patch that never names it does — is the depth test the terrain and everything
+     * standing on it are drawn against, so a wall in front of the ring cuts it. {@code false} takes that test
+     * off and nothing else: the shape is still carved the same way, still lies on the slope, and is still
+     * covered by the interface, which is drawn after the world rather than in it. Guarded by {@code this}.
+     */
+    boolean occluded = true;
+
+    /**
      * The engine-side overlay this patch is drawn through — built on the first lay and kept for the life of the
      * patch, because its identity is what {@code MapView.ols}, {@code MCache.Grid.Cut.ols} and
      * {@code MapMesh.OLOrder.equals} key on. Guarded by {@code this}.
@@ -93,6 +102,7 @@ public final class LuaPatch extends LuaWorldEntity {
     private Color shownFill;
     private Color shownEdge;
     private float shownWidth;
+    private boolean shownOccluded;
 
     LuaPatch(Addon owner, Coord2d rc, Coord2d[] local) {
         super(owner, rc, 0.0);
@@ -179,24 +189,28 @@ public final class LuaPatch extends LuaWorldEntity {
         Color fill = fillColour();
         Color edge = edgeColour();
         float bw = borderWidth;
+        boolean occ = occluded;
         if(ol == null) {
-            ol = new PatchOverlay(ring, fill, edge, bw);
+            ol = new PatchOverlay(ring, fill, edge, bw, occ);
             map.add(ol);
             laid = map;
             shown = ring;
             shownFill = fill;
             shownEdge = edge;
             shownWidth = bw;
+            shownOccluded = occ;
             return;
         }
         if((laid == map) && ring.equals(shown) && fill.equals(shownFill)
-           && ((edge == null) ? (shownEdge == null) : edge.equals(shownEdge)) && (bw == shownWidth))
+           && ((edge == null) ? (shownEdge == null) : edge.equals(shownEdge)) && (bw == shownWidth)
+           && (occ == shownOccluded))
             return;                                    // nothing about it changed: no cut, and no state
         shown = ring;
         shownFill = fill;
         shownEdge = edge;
         shownWidth = bw;
-        boolean moved = ol.set(ring, fill, edge, bw);
+        shownOccluded = occ;
+        boolean moved = ol.set(ring, fill, edge, bw, occ);
         if(laid != map) {
             if(laid != null)
                 laid.remove(ol);
@@ -277,10 +291,14 @@ public final class LuaPatch extends LuaWorldEntity {
      * <p>{@code border} is the <b>two</b> values {@code patch:border()} hands back, under the names the
      * stylesheet's own rule gives them — a snapshot is a document, which is the very distinction that keeps
      * {@code {color =, width =}} out of the call itself.
+     *
+     * <p>{@code occluded} is always here, unlike the two above: it is a boolean property with a value at every
+     * moment rather than a thing that may or may not be laid, so an absent key would say nothing.
      */
     void infoInto(LuaTable t) {
         List<Coord2d> ring;
         synchronized(this) {
+            t.set("occluded", LuaValue.valueOf(occluded));
             if(border != null) {
                 LuaValue bc = AddonManager.color(border);
                 if(!bc.isnil()) {

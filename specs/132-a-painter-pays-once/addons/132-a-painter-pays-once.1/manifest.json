@@ -1,0 +1,10 @@
+{
+  "name": "132.1 — a patch the world cannot hide",
+  "id": "132-a-painter-pays-once.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 132.1: patch:occluded(b) reads and writes by arity, the flip keeps the tint, the border, the offset and the ground, a non-boolean is refused, showing a ring through the world costs no draw call and no allocation over showing it the ordinary way, and what a patch costs the ground is the cuts its mask reaches.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}
