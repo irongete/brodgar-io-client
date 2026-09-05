@@ -695,6 +695,7 @@ final class Sheet {
      * <b>must</b> be weak: a strong list of styled widgets would pin every closed window, the leak F5 already
      * recorded. Guarded by {@code Sheet.class}.
      */
+    // retained: weak keys, and a Resolved is folded properties -- it declares no widget, so the entry collects.
     private static final Map<Widget, Resolved> cache = new WeakHashMap<Widget, Resolved>();
     /**
      * The per-instance level (034.3): {@code widget:rule()}, one list per widget, in <b>apply</b> order so the
@@ -703,6 +704,7 @@ final class Sheet {
      * An addon owns at most one entry per widget, and an empty list is removed rather than kept.
      * Guarded by {@code Sheet.class}.
      */
+    // retained: weak keys, and a Skin is an Addon and its Props -- it declares no widget, so the entry collects.
     private static final Map<Widget, List<Skin>> skins = new WeakHashMap<Widget, List<Skin>>();
 
     /* ---- the widget's own STOCK (107) ---------------------------------------------------------------
@@ -717,6 +719,7 @@ final class Sheet {
      * its own, whether the theme won would come down to which sheet installed last, which the manifest
      * explicitly does not order. A level beneath every rule has neither problem.
      */
+    // retained: weak keys, and a Stock is an Addon and its Props -- it declares no widget, so the entry collects.
     private static final Map<Widget, Stock> stocks = new WeakHashMap<Widget, Stock>();
     private static volatile boolean anyStock = false;
 

@@ -1,0 +1,9 @@
+{
+  "name": "128.6 — a per-widget map added later cannot reach one drain only",
+  "id": "128-a-subscription-ends-with-its-widget.6",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 128.6, and 128's own integration check: a subscription, an anchor, a drag arming and an item subscription each die with an ancestor the removal seam never sees, each is asserted silent afterwards, and a fresh one of each still works.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

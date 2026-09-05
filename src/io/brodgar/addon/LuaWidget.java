@@ -246,6 +246,7 @@ public final class LuaWidget {
      */
     static final class Cache {
         private final Addon owner;
+        // retained: weak on both axes -- the value is a WeakReference, so nothing reaches the widget.
         private final Map<Widget, WeakReference<LuaValue>> live =
             new WeakHashMap<Widget, WeakReference<LuaValue>>();
         private LuaValue mt;
@@ -2868,6 +2869,7 @@ public final class LuaWidget {
      * selector by the back door -- which the stylesheet's own page rules out in as many words. Held weakly
      * against the widget, so a name dies with the thing it named.
      */
+    // retained: weak keys over a String value -- nothing in the entry reaches the widget, so it collects.
     private static final Map<Widget, String> names = new WeakHashMap<Widget, String>();
 
     /** The name {@code w} was given, {@code "<addon>/<name>"}, or {@code null} for the great majority. */

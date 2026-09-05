@@ -129,6 +129,8 @@ public final class LuaMessage {
      */
     static final class Cache {
         private final Addon owner;
+        // retained: weak keys, and the inner Ref is a WeakReference holding only its own map and index, so
+        //   nothing in the entry reaches the channel.
         private final Map<ChatUI.Channel, Map<Integer, Ref>> live =
             new WeakHashMap<ChatUI.Channel, Map<Integer, Ref>>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();

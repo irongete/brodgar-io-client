@@ -108,6 +108,7 @@ public final class LuaRule {
      */
     static final class Cache {
         private final Addon owner;
+        // retained: weak on both axes -- the value is a WeakReference, so nothing reaches the widget.
         private final Map<Widget, WeakReference<LuaValue>> live =
             new WeakHashMap<Widget, WeakReference<LuaValue>>();
         private LuaValue mt;

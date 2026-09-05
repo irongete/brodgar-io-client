@@ -115,12 +115,16 @@ final class WidgetSubs {
     private int boundId = -1;
     /** Present items, for the {@code ItemAdded}/{@code ItemRemoved} diff — empty until listening starts. DEEP
      *  (064.3): every item this widget holds at any depth, not just {@code widget:items()}'s one-per-cell set. */
+    // retained: instance state of one WidgetSubs, which Addon.dropWidgetSubs removes and tears down whole on
+    //   the disposal drain -- there is no entry here that can outlive the widget this record is about.
     private final Map<GItem, LuaValue> items = new IdentityHashMap<GItem, LuaValue>();
     /** Each item currently in {@link #items}' own immediate container, {@code null} for a top-level one —
      *  recorded while the item is still LIVE (064.3). {@link LuaItem#container} cannot answer this once an
      *  item has left: {@code Widget.remove()} nulls its parent chain before the removal seam ever fires, so
      *  by the time {@link #refreshItems} sees an item missing, re-deriving its container from the item itself
      *  would always read {@code null} — this is the one place that fact is still on record. */
+    // retained: instance state of one WidgetSubs, which Addon.dropWidgetSubs removes and tears down whole on
+    //   the disposal drain -- there is no entry here that can outlive the widget this record is about.
     private final Map<GItem, GItem> containerOf = new IdentityHashMap<GItem, GItem>();
     /** A placement/removal touched something of ours since the last {@link #flush} — 064.3, see
      *  {@link #markDirty} for why the diff itself waits for the tick boundary rather than running inline. */

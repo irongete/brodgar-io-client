@@ -160,6 +160,8 @@ public final class Addon {
      * <p><b>Concurrent because there are two writers.</b> The mint runs wherever {@code widget:on(key, fn)} was
      * called, which may be beside the step, and the retiring drain runs on the step.
      */
+    // retired: Addon.dropWidgetSubs -- the disposal drain offers every dead widget to every addon, and the
+    //   value holds the key in wdg and again in inwdg, so nothing here ever collected on its own.
     final Map<Widget, WidgetSubs> widgetSubs = new ConcurrentHashMap<Widget, WidgetSubs>();
 
     /** This addon's {@link WidgetSubs} for {@code w}, minted on the first {@code w:on(key, fn)}. */
@@ -909,6 +911,8 @@ public final class Addon {
      * wherever {@code item:on(key, fn)} was called, which may be beside the step, and the retiring drain runs
      * on the step.
      */
+    // retired: Addon.dropItemSubs -- an item destroyed WITH the container that held it reaches the disposal
+    //   drain and no removal, and a handler closing over its own item makes the value reach the key.
     final Map<GItem, Subs> itemSubs = new ConcurrentHashMap<GItem, Subs>();
 
     /** This addon's {@link Subs} for {@code it}, minted on the first {@code item:on(key, fn)}. */

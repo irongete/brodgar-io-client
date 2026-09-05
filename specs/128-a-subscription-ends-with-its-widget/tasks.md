@@ -104,7 +104,7 @@
       `[manual]`: close the inventory window — expect: the suite's next line reads
       `[pass] an item's subscription ends with the container that held it`.
 
-- [ ] **128.6 — a per-widget map added later cannot reach one drain only.**
+- [x] **128.6 — a per-widget map added later cannot reach one drain only.**
       `tools/widgetstate.py`, run and read like `docverbs.py` and `refusalverbs.py`. **Check 1**: every field
       in `src/io/brodgar/**` whose declared type is a map keyed by `Widget` or `GItem` carries either a
       `// retired:` note naming the method that retires it — which must exist, and must be called from

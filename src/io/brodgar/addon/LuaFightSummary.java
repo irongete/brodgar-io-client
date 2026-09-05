@@ -71,6 +71,9 @@ public final class LuaFightSummary {
 
     /** One addon's FightSummary cache and metatable (its {@link Addon#fightSummaries}), keyed by the window. */
     static final class Cache {
+        // retained: the strong-key shape LuaItem.Cache retires, at a size that does not force it. A FightWnd is
+        //   one widget inside the character window, which hides rather than closing, so nothing rotates through
+        //   here; drain() takes the entry on the next of() once Lua has released the handle.
         private final Map<FightWnd, Ref> live = new IdentityHashMap<FightWnd, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;

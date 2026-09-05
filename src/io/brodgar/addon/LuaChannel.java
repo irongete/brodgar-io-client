@@ -135,6 +135,7 @@ public final class LuaChannel {
      */
     static final class Cache {
         private final Addon owner;
+        // retained: weak on both axes -- the value is a WeakReference, so nothing reaches the channel.
         private final Map<ChatUI.Channel, WeakReference<LuaValue>> live =
             new WeakHashMap<ChatUI.Channel, WeakReference<LuaValue>>();
         private LuaValue mt;

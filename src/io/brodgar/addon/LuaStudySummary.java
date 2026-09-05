@@ -75,6 +75,9 @@ public final class LuaStudySummary {
 
     /** One addon's StudySummary cache and metatable (its {@link Addon#studySummaries}), keyed by the window. */
     static final class Cache {
+        // retained: the strong-key shape LuaItem.Cache retires, at a size that does not force it. A StudyInfo is
+        //   one widget inside the character window, which hides rather than closing, so nothing rotates through
+        //   here; drain() takes the entry on the next of() once Lua has released the handle.
         private final Map<SAttrWnd.StudyInfo, Ref> live = new IdentityHashMap<SAttrWnd.StudyInfo, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;

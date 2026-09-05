@@ -94,6 +94,8 @@ final class LuaSelectorWatch {
      * ordered, so events fire in tree order. See the class comment for why an {@code "Added"} subscription keeps it
      * too.
      */
+    // retired: UiApi.retireSelectorMatches -- strong keys, and the removal seam's own dispatch reaches only a
+    //   widget that was removed; one that died as a descendant is retired here, silently.
     final Map<Widget, Integer> matched = new LinkedHashMap<Widget, Integer>();
 
     LuaSelectorWatch(Addon owner, haven.UI ui, Selector sel, int event, LuaValue fn) {

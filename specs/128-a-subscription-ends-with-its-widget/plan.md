@@ -206,3 +206,11 @@ are discharged with that reason.
   the tree, and it would still miss the Lua closure that check 1 is written for.
 - **Making `widget:on("Destroy", fn)` fire for a native descendant** — `ROADMAP.md` line 18 and the
   maintainer's to schedule; it is an event's reach and its cost, where this feature is a map's contents.
+- **Retiring the three window-keyed intern caches as well** — `LuaFightSummary.Cache.live`,
+  `LuaFood.Cache.live` and `LuaStudySummary.Cache.live` are `LuaItem.Cache`'s strong-keyed shape exactly, and
+  128.6's checker is what found them: the item half named the Contents, Meter and Buff siblings and these
+  three are keyed on a widget instead. They stay `// retained:`, because the thing that made the item case
+  bite is absent — all three key on a tab of `CharWnd`, which answers its own close by hiding, so nothing
+  rotates through them and `drain()` takes an entry at the next `of()`. Reaching them would put three more
+  `instanceof` in front of every widget the client destroys, against the rule this drain is built on: a
+  widget nobody interned must cost one map lookup and nothing else.

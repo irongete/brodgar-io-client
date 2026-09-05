@@ -119,6 +119,8 @@ public final class LuaItem {
      */
     static final class Cache {
         private final Addon owner;
+        // retired: Cache.retire -- the key is STRONG, so a dead GItem is pinned until Addon.dropInternedHandles
+        //   takes the entry: drain() clears one only where Lua released the handle AND something mints again.
         private final Map<GItem, Ref> live = new IdentityHashMap<GItem, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;

@@ -118,6 +118,9 @@ final class Gesture extends Widget {
      * had one level more visibly. An {@link IdentityHashMap} says what this map does; {@code haven.Widget}
      * overrides neither {@code equals} nor {@code hashCode}, so identity is the lookup it always had.
      */
+    // retired: Gesture.dispatchRemoved -- the handler listen() installs closes over the grip it is stored
+    //   under, so a weak entry could never have collected, and a disposed widget's listening list is never
+    //   cleared by anything else.
     private static final Map<Widget, EventHandler<Widget.MouseDownEvent>> arms =
         new IdentityHashMap<Widget, EventHandler<Widget.MouseDownEvent>>();
 

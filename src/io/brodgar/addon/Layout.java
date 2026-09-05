@@ -117,6 +117,9 @@ final class Layout {
      * identity map for free, and a strong one would pin every window an anchor ever named. Guarded by
      * {@code Layout.class}, always taken <b>inside</b> the widget's own {@code UI} monitor.
      */
+    // retired: Layout.dispatchDisposed -- weak, and still retired: an Anchor holds its target weakly, so the
+    //   entry does collect, but a record that outlives its widget by a collection cycle is still a record of
+    //   a widget that is gone.
     private static final Map<Widget, Anchor> derived = new WeakHashMap<Widget, Anchor>();
 
     /**
@@ -136,6 +139,8 @@ final class Layout {
      * That is also what a {@code deafen} needs, because a widget's {@code listening} list is <i>not</i> cleared
      * when it is disposed — the handler outlives the widget it rides on until something takes it off.
      */
+    // retired: Layout.dispatchDisposed -- the listener installDragListener() returns closes over the target
+    //   it is stored under, and a disposed widget's listening list is never cleared by anything else.
     private static final Map<Widget, EventHandler<Widget.MouseMoveEvent>> dragListeners =
         new IdentityHashMap<Widget, EventHandler<Widget.MouseMoveEvent>>();
 

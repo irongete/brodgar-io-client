@@ -59,6 +59,9 @@ public final class LuaFood {
 
     /** One addon's Food cache and metatable (its {@link Addon#foods}), keyed by widget identity. */
     static final class Cache {
+        // retained: the strong-key shape LuaItem.Cache retires, at a size that does not force it. A BAttrWnd is
+        //   one widget inside the character window, which hides rather than closing, so nothing rotates through
+        //   here; drain() takes the entry on the next of() once Lua has released the handle.
         private final Map<BAttrWnd, Ref> live = new IdentityHashMap<BAttrWnd, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;

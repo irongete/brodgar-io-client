@@ -147,8 +147,17 @@ observe and never had to think about. Each is discharged with that reason by the
 - `src/io/brodgar/addon/CharApi.java` — 10, 11 (`StudyAdapter.cache` and `EquipAdapter.cache`, the two
   `GItem`-keyed maps that are change-detection state rather than intern caches, and are fed and drained by
   `dispatchPlaced`/`dispatchRemoved` — the removal seam alone)
-- `tools/` — 11 (the new checker; `docverbs.py` and `refusalverbs.py` as the shape a checker is written in)
+- `tools/widgetstate.py` — 10, 11 (the checker: the note every widget-keyed map field carries, and the
+  weak-map cycle; `docverbs.py` and `refusalverbs.py` are the shape it is written in)
+- `src/io/brodgar/addon/FlowerMenuApi.java`, `LuaChannel.java`, `LuaMessage.java`, `LuaRule.java`,
+  `Sheet.java` — 10, 11 (the widget-keyed maps that collect: weak keys over a value that cannot reach
+  them, each carrying the `// retained:` note saying so)
+- `src/io/brodgar/addon/LuaFightSummary.java`, `LuaFood.java`, `LuaStudySummary.java` — 10, 11 (the
+  strong-keyed intern caches `LuaItem.Cache`'s siblings do NOT include, keyed on a `CharWnd` tab)
 - `src/haven/Widget.java` — 1, 2 (read only: `destroy`, `remove`, `rdispose`, and the two seams' call sites)
+- `src/haven/GameUI.java`, `src/haven/CharWnd.java` — 10 (read only: `addchild`'s `"inv"`/`"equ"`/`"chr"`
+  branches and `CharWnd`'s tabs — which windows a close hides, which is why a map keyed inside one is
+  retained rather than retired)
 - `docs/client/widgets.md` — 1, 2 (read only: the seams, the destroy gotchas, the re-home rule, and the
   `ContentsWindow` a stack carries with nothing open)
 - `docs/client/gameui-windows.md` — 9 (read only: which windows destroy on close and which only hide)

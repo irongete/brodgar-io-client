@@ -347,6 +347,9 @@ final class CharApi {
         // Live HUD meter -> its last segment snapshot (the change-detection key, NOT a payload). UI-thread-only
         // (placed/removed/refresh); built with its session's state (073.3). IdentityHashMap:
         // IMeter widgets are keyed by object identity, like the buffs.
+        // retained: change-detection state whose drain ANNOUNCES -- removed() fires MeterRemoved -- so it stays
+        //   on the removal seam: the disposal drain retires and never fires. Bounded by its SessionState, which
+        //   this adapter dies with.
         private final Map<IMeter, LuaValue> cache = new IdentityHashMap<IMeter, LuaValue>();
 
         public boolean interested(Widget w, String msg) {
@@ -448,6 +451,9 @@ final class CharApi {
         // Active buff -> its last snapshot (the change-detection key, NOT a payload). UI-thread-only
         // (placed/removed/refresh); built with its session's state (073.3). IdentityHashMap:
         // Buff widgets are keyed by object identity, like the meters.
+        // retained: change-detection state whose drain ANNOUNCES -- removed() fires BuffRemoved -- so it stays
+        //   on the removal seam: the disposal drain retires and never fires. Bounded by its SessionState, which
+        //   this adapter dies with.
         private final Map<Buff, LuaValue> cache = new IdentityHashMap<Buff, LuaValue>();
 
         public boolean interested(Widget w, String msg) {
@@ -551,6 +557,9 @@ final class CharApi {
         // Study-slot GItem -> its last snapshot (the change-detection key, NOT a payload). UI-thread-only
         // (placed/removed/resolveInfo); built with its session's state (073.3).
         // IdentityHashMap: GItem widgets are keyed by object identity, like the buffs/meters/equip.
+        // retained: change-detection state whose drain ANNOUNCES -- removed() fires the study payload -- so it
+        //   stays on the removal seam: the disposal drain retires and never fires. The study slots sit inside
+        //   the character window, which hides rather than closing, so a slot leaves by a removal or not at all.
         private final Map<GItem, LuaValue> cache = new IdentityHashMap<GItem, LuaValue>();
 
         public boolean interested(Widget w, String msg) {
@@ -721,6 +730,9 @@ final class CharApi {
         // Worn GItem -> its last equip-key (the change-detection key, NOT a payload). UI-thread-only
         // (placed/removed/refresh); built with its session's state (073.3). IdentityHashMap:
         // GItem widgets are keyed by object identity, like the meters/buffs.
+        // retained: change-detection state whose drain ANNOUNCES -- removed() fires the equipment payload -- so
+        //   it stays on the removal seam: the disposal drain retires and never fires. The Equipory sits inside a
+        //   Hidewnd, which hides rather than closing, so worn gear leaves by a removal or not at all.
         private final Map<GItem, String> cache = new IdentityHashMap<GItem, String>();
 
         public boolean interested(Widget w, String msg) {

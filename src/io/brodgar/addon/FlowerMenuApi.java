@@ -85,6 +85,7 @@ final class FlowerMenuApi {
      * <p>Weak-keyed so a session that ends without destroying its widgets leaves nothing behind; identity
      * semantics come free, since {@link haven.Widget} does not override {@code equals}. UI thread only.
      */
+    // retained: weak keys over a String value -- nothing in the entry reaches the menu, so it collects.
     private static final Map<FlowerMenu, String> live = new WeakHashMap<FlowerMenu, String>();
 
     /**
@@ -101,6 +102,7 @@ final class FlowerMenuApi {
      * <p>Weak-keyed for the same reason as {@link #live}, and the value is an id rather than a {@link haven.Gob},
      * so a stashed menu can never pin a despawned object. UI thread only.
      */
+    // retained: weak keys over a Long value -- nothing in the entry reaches the menu, so it collects.
     private static final Map<FlowerMenu, Long> clicked = new WeakHashMap<FlowerMenu, Long>();
 
     /** {@code s:flowermenu()} — how this section is reached, and so how every one of its messages spells itself. */
