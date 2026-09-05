@@ -3,6 +3,6 @@
   "name": "Hitboxes",
   "version": "0.4.0",
   "author": "irongete",
-  "description": "One key cycles the footprint of every game object in view -- and of the building you are placing -- through three modes: off, a blue patch laid on the terrain and occluded by what stands on it, and the same shape drawn over every object but under the UI. Assign the key in Options > Keybindings > Hitboxes.",
+  "description": "Three modes for the footprint of every game object in view -- and of the building you are placing: off, a blue patch laid on the terrain and occluded by what stands on it, and the same shape drawn over every object but under the UI. Pick one in Options > AddOns > Hitboxes, or cycle them with the key assigned in Options > Keybindings > Hitboxes; the mode is remembered.",
   "files": ["main.lua"]
 }

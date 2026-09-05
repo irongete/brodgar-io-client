@@ -15,20 +15,30 @@ addons/themes/
   themes/
     index.json      the files in this folder, in the order the list shows them
     default.json    this client's own look, key by key and property by property
+    plainframe.json + plainframe/*.png    the same look on the plain box frame, no blackletter
     hellokitty.json + hellokitty/*.png    a look with art of its own
     cyberpunk.json  + cyberpunk/*.png     ...and another
 ```
 
-## The commands
+## Where you pick one
+
+**Options ▸ AddOns ▸ Themes** holds one row: a dropdown with `off` and every theme `themes/index.json`
+named, in its order. Picking one installs it there and then.
+
+The row **is** the setting — it is where the theme in force is kept — and the commands below write it
+rather than installing anything themselves, so the page and the console cannot disagree about what is on.
+It is kept by the client, like every other setting the Options window edits, and put back on at the next
+start.
 
 | Typed | Does |
 |---|---|
 | `:theme` | lists what `themes/` holds, `*` beside the one installed |
-| `:theme <name>` | installs it — a theme is named by its **file**, minus the `.json` |
-| `:theme off` | gives the client's own look back, to the pixel |
+| `:theme <name>` | picks it on the row — a theme is named by its **file**, minus the `.json` |
+| `:theme off` | picks `off`: the client's own look back, to the pixel |
 
-The choice is kept account-wide and re-installed on the next start. The sheet is **owned** by this addon, so
-`:reload`, disabling it in the AddOns panel and `:theme off` are three ways to the same stock client.
+A theme dropped from the folder is no longer one of the choices, so a client that was wearing it comes back
+on `off` rather than on nothing. The sheet is **owned** by this addon, so `:reload`, disabling it in the
+AddOns panel and `off` are three ways to the same stock client.
 
 `off` is the release, so a theme file cannot be called that; one that tries is skipped with a line saying so.
 

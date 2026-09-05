@@ -42,7 +42,30 @@ local RESCAN = 2                    -- seconds between full re-reads
 local TURN   = 0.2                  -- seconds between facing corrections -- ground only, see spin()
 
 local MODES = {"off", "ground", "over"}
-local mode  = 1                     -- an index into MODES: the key steps it round
+
+-- WHICH MODE THE BOXES ARE IN IS A SETTING, so it is declared where the client keeps settings: one row on
+-- Options > AddOns > Hitboxes, with the three modes on it. The row is the WHOLE of the state -- there is no
+-- variable of this addon's beside it, and the key below moves the row rather than something of its own --
+-- so the page and the boxes cannot disagree, and neither can say something the other does not.
+--
+-- It also gets the one thing this addon never had: the mode is remembered. A client that was left drawing
+-- footprints comes back drawing them, instead of starting off every time with nothing on screen to say so.
+local opts = hafen.client():options():addon()
+
+local modeOpt = opts:choice("mode")
+  :label("Footprints")
+  :tooltip("off, laid on the ground where each object stands, or drawn over everything in view")
+  :choices(MODES)
+  :default(MODES[1])
+  :add()
+
+-- THE STEP, AND NOT THE ROW. A row is answered inside the widget tree of whatever put the Options window
+-- up, and entering or leaving a mode hangs a painter on the drawn character's map view -- a second tree,
+-- which no handler may take while it holds one (api/threading.md). It is also a full sweep, which is work
+-- for a step rather than for a press.
+local function step(fn)
+  hafen.timer():after(0, fn)
+end
 
 local laid = {}    -- [Gob] = {name = <resource when read>, plus the mode's own half:
                    --          ground: own = {patch, ...}, base = <facing when read>, turn = <last written>
@@ -54,9 +77,9 @@ local painter      -- the map view's overlay; over only
 local view         -- the map view it is hanging on, so a change of character is noticed
 local attach       -- forward: the sweep re-hangs the painter, and is written above where it is defined
 
-local function ground() return MODES[mode] == "ground" end
-local function over()   return MODES[mode] == "over" end
-local function off()    return MODES[mode] == "off" end
+local function ground() return modeOpt:value() == "ground" end
+local function over()   return modeOpt:value() == "over" end
+local function off()    return modeOpt:value() == "off" end
 
 local function patches()
   return hafen.virtual():patch()    -- the same object every call
@@ -348,13 +371,24 @@ local function enter()
   end
 end
 
+-- ONE PATH INTO A MODE, whether it was picked on the page or cycled with the key: the row is the setting,
+-- so this is where the modes are left and entered, and the key below only moves the row.
+modeOpt:on("Changed", function(m)
+  step(function()
+    leave()
+    enter()
+    hafen.log():write("hitboxes: " .. m)
+  end)
+end)
+
 -- The hotkey starts unbound: an addon names an action and the user assigns the key, in
 -- Options > Game > Keybindings > Hitboxes.
 hafen.client():options():keybindings():on("cycle", function()
-  leave()
-  mode = (mode % #MODES) + 1
-  enter()
-  hafen.log():write("hitboxes: " .. MODES[mode])
+  local at = 1
+  for i, m in ipairs(MODES) do
+    if m == modeOpt:value() then at = i end
+  end
+  modeOpt:value(MODES[(at % #MODES) + 1])
 end)
 
 -- GobAdded runs before the object's first drawn frame, so one that arrives with its resource already in
@@ -377,3 +411,8 @@ hafen.event():on("Update", function()
   ghostFollow()
   if over() then refresh() end
 end)
+
+-- The mode is remembered now, so a client that starts in one enters it rather than waiting for a keypress.
+-- On the step, because there is a map view to hang a painter on only once a character is in the world --
+-- and `attach` is asked again on every sweep, so one that is not there yet costs nothing.
+if not off() then step(enter) end

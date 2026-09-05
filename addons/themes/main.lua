@@ -118,9 +118,66 @@ local function release()
   active = nil
 end
 
-local function remember(name)
-  settings.theme = name        -- nil is a valid answer: the user asked for the client's own look
+-- ------------------------------------------------------------------ the row that says which
+--
+-- THE LOOK IS A SETTING, so it is declared where the client keeps settings: one row on
+-- Options > AddOns > Themes, holding "off" and every theme the folder turned out to carry. It is declared
+-- from `Load` rather than in the file body, because what it offers is what the index named and that is not
+-- known until the folder has been read -- a row may be declared at any point in an addon's life, and the
+-- tab re-reads its list when one is.
+--
+-- THE ROW IS ALSO THE ANSWER. The command below writes it instead of installing anything itself, so there
+-- is one path into a theme and one place the theme in force lives. A theme the folder no longer carries is
+-- simply not among the choices, and the client falls back to the row's default, which is the release.
+
+local row      -- the choice, once the folder has been read
+
+-- THE STEP, AND NOT THE ROW. Installing a sheet sweeps every character's widget tree, and a row is answered
+-- inside the tree of whatever put the Options window up -- a second tree, which no handler may take while
+-- it holds one (api/threading.md).
+local function step(fn)
+  hafen.timer():after(0, fn)
+end
+
+-- What a pick means, whichever door made it. It is the one place a theme goes on or comes off.
+local function wear(name)
+  if name == RELEASE then
+    release()
+    hafen.log():write("themes: released -- the client's own look, to the pixel")
+    return
+  end
+  local ok, err = install(name)
+  if ok then
+    hafen.log():write('themes: "' .. themes[name].title .. '" installed')
+  else
+    hafen.log():write('themes: "' .. name .. '" did not install -- ' .. err)
+  end
+end
+
+-- What the row reads on a client that has never been told otherwise. The theme in force used to be this
+-- addon's own account-wide saved variable, so one remembered there seeds the row -- and this is the last
+-- thing that ever reads it from there, which is why it is taken out on the way past. One naming a theme the
+-- folder has stopped carrying seeds nothing, exactly as a stored value the row no longer offers would.
+local function seed()
+  local was = settings.theme
+  if was == nil then return RELEASE end
+  settings.theme = nil
   hafen.store():flush()
+  return ((type(was) == "string") and themes[was]) and was or RELEASE
+end
+
+local function declare()
+  local choices = {RELEASE}
+  for i = 1, #order do choices[i + 1] = order[i] end
+
+  row = hafen.client():options():addon():choice("theme")
+    :label("Theme")
+    :tooltip('the look the client wears -- "' .. RELEASE .. '" is the client\'s own, to the pixel')
+    :choices(choices)
+    :default(seed())
+    :add()
+
+  row:on("Changed", function(name) step(function() wear(name) end) end)
 end
 
 -- ------------------------------------------------------------------ the command
@@ -133,8 +190,11 @@ local function list()
   hafen.log():write("themes: " .. #order .. " in " .. FOLDER)
   for i = 1, #order do
     local t = themes[order[i]]
-    hafen.log():write(("  %s %-14s %s"):format((active == t.name) and "*" or " ", t.name,
-                                               t.description or t.title))
+    -- Padded by hand: LuaJ's string.format honours the conversion and not the WIDTH, so "%-14s" comes
+    -- out as plain "%s" and the column it was written for is not there.
+    local pad = t.name .. string.rep(" ", math.max(1, 14 - #t.name))
+    hafen.log():write("  " .. ((active == t.name) and "*" or " ") .. " " .. pad
+                      .. (t.description or t.title))
   end
   hafen.log():write("  :theme <name> installs one, :theme " .. RELEASE
     .. " gives the client's own look back")
@@ -142,37 +202,32 @@ end
 
 hafen.console():on("theme", function(args)
   local want = args[1]
-  if want == nil then
+  if (want == nil) or (row == nil) then return list() end
+
+  local name = string.lower(want)
+  if (name ~= RELEASE) and (themes[name] == nil) then
+    hafen.log():write('themes: no theme called "' .. name .. '"')
     list()
-  elseif string.lower(want) == RELEASE then
-    release()
-    remember(nil)
-    hafen.log():write("themes: released -- the client's own look, to the pixel")
-  else
-    local name = string.lower(want)
-    local ok, err = install(name)
-    if ok then
-      remember(name)
-      hafen.log():write('themes: "' .. themes[name].title .. '" installed')
-    else
-      hafen.log():write("themes: " .. err)
-      if themes[name] == nil then list() end
-    end
+    return
   end
+  -- THE ROW IS THE SETTING, so this moves it and the change above does the rest. Writing the value it
+  -- already holds is not a change and fires nothing, so what is on is said here rather than in silence.
+  if row:value() == name then
+    hafen.log():write('themes: "' .. name .. '" is already what is on')
+    return
+  end
+  row:value(name)
 end)
 
 -- ------------------------------------------------------------------ start
 --
--- The files are read once every `Load` -- which is every `:reload` too, so editing a theme and reloading
--- is the whole edit loop. The remembered theme is re-installed then: a sheet lives as long as the addon
--- does, so it has to be said again after a reload.
+-- The files are read once every `Load` -- which is every `:reload` too, so editing a theme and reloading is
+-- the whole edit loop. The row is declared from what they turned out to hold, and what it holds is put back
+-- on: a sheet lives as long as the addon does, so it has to be said again after a reload.
 
 hafen.event():on("Load", function()
   load()
-  local want = settings.theme
-  if type(want) ~= "string" then return end
-  local ok, err = install(want)
-  if not ok then
-    hafen.log():write('themes: "' .. want .. '" was remembered but ' .. err)
-  end
+  declare()
+  local want = row:value()
+  if want ~= RELEASE then wear(want) end
 end)

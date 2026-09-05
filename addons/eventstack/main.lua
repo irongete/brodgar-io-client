@@ -718,6 +718,15 @@ local function disarm()
   armed = false
 end
 
+-- THE STEP, AND NOT THE DOOR. This addon stands in three kinds of tree at once: the window is the addon
+-- layer's, two of the five sources subscribe inside every login's own tree, and every door into it -- a
+-- console line, a hotkey, a control of its own -- is answered holding exactly one of them. A handler that
+-- holds one may not take a second, so each door below records what it wants and lets the step do it, where
+-- none is held (api/threading.md).
+local function step(fn)
+  hafen.timer():after(0, fn)
+end
+
 -- ---------------------------------------------------------------------------------------------------
 -- The window
 
@@ -757,8 +766,10 @@ local function build()
     local c = hafen.ui():check():parent(w):position(x, PAD):size(CHECK_W):text(k)
       :value(st.sources[k] and true or false)
     c:on("Changed", function(on)
-      st.sources[k] = on
-      if on then armSrc(k) else disarmSrc(k) end
+      st.sources[k] = on                    -- the setting is this addon's own, and moves with the tick
+      step(function()                       -- the door is a walk of every login's tree; this is the layer's
+        if on then armSrc(k) else disarmSrc(k) end
+      end)
     end)
     checkH = math.max(checkH, tall(c))
     x = x + CHECK_W + GAP
@@ -782,7 +793,7 @@ local function build()
     :tooltip("record from the moment the addon loads, rather than from the moment this window opens")
   al:on("Changed", function(on)
     st.atLogin = on
-    if on and not armed then arm() end
+    if on and not armed then step(arm) end
   end)
 
   local lg = hafen.ui():button():parent(w):position(WIN_W - PAD - BTN_W * 2 - GAP, PAD):size(BTN_W)
@@ -948,21 +959,26 @@ end
 -- Dormant until it is asked for: with the window down nothing here is subscribed to anything.
 
 local function toggle()
-  if win and win:exists() then
-    close()
-  else
-    build()
-    if not armed then arm() end
-  end
+  step(function()
+    if win and win:exists() then
+      close()
+    else
+      build()
+      if not armed then arm() end
+    end
+  end)
 end
 
 -- Pausing from a key has to move the tick as well: the checkbox is what the user reads to know whether
--- the view is live, and a programmatic :value(v) never re-enters its own Changed, so there is no loop.
+-- the view is live, and a programmatic :value(v) never re-enters its own Changed, so there is no loop. That
+-- write is the layer's and the key is the character's, so it goes to the step like every other door.
 local function togglePause()
-  paused = not paused
-  if not paused then dirty = true end
-  if pauseBox and win and win:exists() then pauseBox:value(paused) end
-  hafen.log():write("eventstack: " .. (paused and "paused -- the doors are still open" or "live"))
+  step(function()
+    paused = not paused
+    if not paused then dirty = true end
+    if pauseBox and win and win:exists() then pauseBox:value(paused) end
+    hafen.log():write("eventstack: " .. (paused and "paused -- the doors are still open" or "live"))
+  end)
 end
 
 hafen.console():on("eventstack", toggle)

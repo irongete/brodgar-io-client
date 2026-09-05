@@ -425,13 +425,19 @@ end
 -- with, so this is what the user reads there.
 hafen.client():options():keybindings():on("Select next session", cycle)
 
+-- ON THE STEP, AND NOT ON THE LINE. A console line is answered inside the tree of the character whose
+-- console it was typed into, and this window stands in the addon layer -- a second tree, which no handler
+-- may take while it holds one (api/threading.md). So the door records what it wants and the step does it,
+-- which is the same hop the base's own click already makes further up.
 hafen.console():on("sessions", function()
-  if win and win:exists() then
-    win:destroy()
-    win, rows, newbtn = nil, {}, nil
-  else
-    build()
-  end
+  hafen.timer():after(0, function()
+    if win and win:exists() then
+      win:destroy()
+      win, rows, newbtn = nil, {}, nil
+    else
+      build()
+    end
+  end)
 end)
 
 -- Where the user put it. A window you built is dragged by its own title bar, which reports nothing, so

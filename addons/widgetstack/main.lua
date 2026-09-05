@@ -362,7 +362,9 @@ end
 -- ============================================================================================ the inspector
 
 local openInspector       -- forward decl (it recurses: a child/parent click opens another inspector)
+local openLater           -- ...and the same, one step later: opening one WALKS the inspected widget's tree
 local inspCascade = 0     -- cascade new inspector windows so they don't land exactly on top of each other
+local inspectors = {}     -- [st] = true, every Inspector standing: the Update pass re-reads each one
 
 -- Inspector layout constants (shared by its Draw + MouseDown handlers so a click maps to the same row it drew).
 local I_W, I_H       = 470, 410       -- 049.4: wide enough for a chain candidate on one line
@@ -377,6 +379,31 @@ local I_READ_Y0      = 276        -- is the same arithmetic it always was
 local function fmtCoord(c) return c and ("(" .. c.x .. "," .. c.y .. ")") or "-" end
 local function fmtSize(c)  return c and (c.w .. "x" .. c.h) or "-" end
 
+-- WHAT AN INSPECTOR SHOWS IS READ ON THE STEP. `:rootPos()` and `:children()` take the monitor of the tree
+-- the widget stands in, and this window's Draw and its clicks are answered holding the LAYER's -- a second
+-- tree, which no handler may take while it holds one (api/threading.md). So an inspector holds a SNAPSHOT,
+-- re-taken every frame by the Update pass below where no tree is held, and the panel formats it. That is
+-- the shape the stack window above has always had, and it is what makes a click on a child row reach the
+-- widget the row was drawn from.
+local function snap(st)
+  local n = st.node
+  if not n:exists() then
+    st.live = {gone = true, kids = {}}    -- the widget went; the window stays, saying so
+    return
+  end
+  local kids = {}
+  for i, c in ipairs(n:children() or {}) do
+    kids[i] = {node = c, type = c:type() or "?", id = c:id(), text = c:text(), size = c:size()}
+  end
+  local p = n:parent()
+  st.live = {
+    id = n:id(), type = n:type() or "?", text = n:text(), visible = n:visible(),
+    pos = n:position(), size = n:size(), rootpos = n:rootPos(),
+    parent = p and {node = p, type = p:type() or "?", id = p:id()} or nil,
+    kids = kids,
+  }
+end
+
 openInspector = function(node)
   if not node then return end
   inspCascade = (inspCascade + 1) % 10
@@ -384,6 +411,7 @@ openInspector = function(node)
   -- describe()'s :items() traverses this widget's own subtree. Everything else the window draws is read live.
   local st = { node = node, sel = selectorsFor(node), reads = describe(node) }
   local st_sel = st.sel
+  snap(st)                     -- the first frame draws a snapshot like every frame after it
 
   st.win = hafen.ui():window()
     :title("Inspector: " .. (node:type() or "?"))
@@ -394,17 +422,17 @@ openInspector = function(node)
   st.win:on("Draw", function(ev)
       local g, w, h = ev:g(), ev:w(), ev:h()
       g:color(0, 0, 0, 175); g:frect(0, 0, w, h); g:color()
-      local n = st.node
-      local id = n:id()
+      local L = st.live
       -- header
       g:color(230, 230, 160)
-      g:text(("%s%s"):format(n:type() or "?", id and (" #" .. id) or "  (client-only, no :id)"), 6, 4)
+      g:text(("%s%s%s"):format(L.type or "?",
+             L.id and (" #" .. L.id) or "  (client-only, no :id)",
+             L.gone and "   -- GONE" or ""), 6, 4)
       g:color()
       g:text(("visible: %s    pos: %s    size: %s")
-        :format(tostring(n:visible()), fmtCoord(n:position()), fmtSize(n:size())), 6, 20)
-      g:text(("rootpos: %s"):format(fmtCoord(n:rootPos())), 6, 34)
-      local txt = n:text()
-      g:text(("text: %s"):format(txt and ("'" .. txt .. "'") or "(none)"), 6, 48)
+        :format(tostring(L.visible), fmtCoord(L.pos), fmtSize(L.size)), 6, 20)
+      g:text(("rootpos: %s"):format(fmtCoord(L.rootpos)), 6, 34)
+      g:text(("text: %s"):format(L.text and ("'" .. L.text .. "'") or "(none)"), 6, 48)
       -- 030.3: what it IS in the selector vocabulary, and the selector that finds it again
       g:color(200, 200, 255)
       g:text(("role: %s    res: %s"):format(st_sel.role or "nil", st_sel.res or "-"), 6, I_ROLE_Y)
@@ -412,26 +440,26 @@ openInspector = function(node)
       g:text(st_sel.offer and ellipsis(pasteLine(st_sel.offer), 70) or "(no selector matches it)", 6, I_SEL_Y)
       g:color()
       -- parent link (clickable)
-      local p = n:parent()
+      local p = L.parent
       if p then
         g:color(150, 190, 255)
-        g:text(("^ parent: %s%s  (click)"):format(p:type() or "?", p:id() and (" #" .. p:id()) or ""), 6, I_PARENT_Y)
+        g:text(("^ parent: %s%s  (click)"):format(p.type, p.id and (" #" .. p.id) or ""), 6, I_PARENT_Y)
       else
         g:color(120, 120, 120)
         g:text("^ parent: (this is the root)", 6, I_PARENT_Y)
       end
       g:color()
       -- children (each clickable to descend)
-      local kids = n:children()
+      local kids = L.kids
       g:text(("children (%d)  -- click one to descend:"):format(#kids), 6, I_PARENT_Y + LINE)
       for i = 1, math.min(#kids, I_MAXROWS) do
         local c = kids[i]
         g:color(180, 220, 180)
         g:text(("[%d] %s%s%s  %s"):format(
-          i - 1, c:type() or "?",
-          c:id() and (" #" .. c:id()) or "",
-          c:text() and (" '" .. c:text() .. "'") or "",
-          fmtSize(c:size())), 10, I_CHILD_Y0 + (i - 1) * LINE)
+          i - 1, c.type,
+          c.id and (" #" .. c.id) or "",
+          c.text and (" '" .. c.text .. "'") or "",
+          fmtSize(c.size)), 10, I_CHILD_Y0 + (i - 1) * LINE)
         g:color()
       end
       if #kids > I_MAXROWS then
@@ -442,23 +470,31 @@ openInspector = function(node)
       drawReads(g, w, st.reads, I_READ_HEAD, I_READ_Y0)      -- 063.4: what this widget answers
       g:color(120, 120, 120); g:rect(0, 0, w, h); g:color()
   end)
-  st.win:on("Close", function() end)   -- bridge-owned: also destroyed on :reload/disable
+  -- bridge-owned: also destroyed on :reload/disable. What the row here says is that nothing goes on being
+  -- re-read for a window that has gone.
+  st.win:on("Close", function() inspectors[st] = nil end)
   st.win:on("MouseDown", function(ev)
-    local n = st.node
+    local L = st.live
     local y = ev:y()
     if y >= I_SEL_Y and y < I_SEL_Y + LINE then                 -- the selector line: log it (copyable)
       if st_sel.offer then hafen.log():write(pasteLine(st_sel.offer)) end
     elseif y >= I_PARENT_Y and y < I_PARENT_Y + LINE then       -- parent link
-      openInspector(n:parent())
+      if L.parent then openLater(L.parent.node) end
     elseif y >= I_CHILD_Y0 and y < I_CHILD_Y0 + I_MAXROWS * LINE then   -- a child row (never the read block)
       local idx = math.floor((y - I_CHILD_Y0) / LINE) + 1       -- 1-based
-      local kids = n:children()
-      if idx >= 1 and idx <= math.min(#kids, I_MAXROWS) then
-        openInspector(kids[idx])
-      end
+      local c = (idx <= I_MAXROWS) and L.kids[idx]
+      if c then openLater(c.node) end
     end
     ev:preventDefault()                                         -- consume (don't fall through)
   end)
+
+  inspectors[st] = true
+end
+
+-- Opening one walks the inspected widget's own tree -- selectorsFor() is a fistful of s:ui():matchAll()
+-- calls and describe() reads its children -- so every click that opens one hands it to the step.
+openLater = function(node)
+  if node then hafen.timer():after(0, function() openInspector(node) end) end
 end
 
 -- ======================================================================================= the framestack HUD
@@ -497,6 +533,12 @@ end
 
 -- Update: the per-frame poll + the guard. This is the WoW-OnUpdate analog (the engine tick pump, 09).
 hafen.event():on("Update", function(dt)
+  -- Every Inspector standing, re-read here where no tree is held. Before the freeze check: freezing holds
+  -- the STACK still so it can be read, and an inspector is already pinned to one widget.
+  for st in pairs(inspectors) do
+    if st.win:exists() then snap(st) else inspectors[st] = nil end
+  end
+
   if frozen then return end                         -- held still: keep the last stack + box
   local m = hafen.ui():mouse()
   local mx, my = m:x(), m:y()
@@ -636,7 +678,7 @@ local function stackClick(ev)
   if y >= STACK_Y0 and y < STACK_Y0 + shown * LINE and #rows > 0 then
     local k = math.floor((y - STACK_Y0) / LINE)
     local r = rows[shown - k]
-    if r and r.node then openInspector(r.node) end
+    if r and r.node then openLater(r.node) end
   elseif y >= SEL_Y0 and y < READ_HEAD - 8 and insp then    -- the panel's own band: the read block is inert
     local k = math.floor((y - SEL_Y0) / LINE) + 1
     local c = insp.cands[k]
@@ -676,9 +718,13 @@ end)
 -- :widgetstack -- toggle the window (WoW /framestack on/off).
 hafen.console():on("widgetstack", function(args)
   if not win then hafen.log():write(":widgetstack -> not up yet (enter the world first)"); return end
-  local show = not win:visible()
-  if show then win:visible(true) else win:visible(false) end
-  hafen.log():write((":widgetstack -> window %s"):format(show and "shown" or "hidden"))
+  -- The line is answered inside the CHARACTER's tree and this window stands in the layer, so the write
+  -- goes to the step, holding neither (api/threading.md).
+  hafen.timer():after(0, function()
+    local show = not win:visible()
+    win:visible(show)
+    hafen.log():write((":widgetstack -> window %s"):format(show and "shown" or "hidden"))
+  end)
 end)
 
 -- :selector -- log the hovered widget's full selector report. The window shows it too, but a logged line is

@@ -13,15 +13,17 @@
 -- ACTIONBAR1 IS THE EXCEPTION, because it stands in for the bar the client draws: it shows whichever page
 -- the client is on, and the client's own "Go to page N" keys move it. See KEEP below.
 --
--- What is saved is which bars exist, which way round they stand and where the user put them. That is all:
--- the CONTENTS are the server's, held per character, and this addon neither copies them nor needs to.
+-- WHICH BARS THERE ARE AND WHICH WAY ROUND THEY STAND IS A SETTING, declared as twelve rows the client
+-- draws on Options > AddOns > Actionbars: this addon has no window of its own and nothing to open. Where
+-- each bar STANDS is not a setting -- it is a drag -- so that stays in the account's own saved variables.
+-- The CONTENTS of the slots are neither: they are the server's, held per character, and this addon neither
+-- copies them nor needs to.
 --
 -- THE BARS HANG ON THE CHARACTER'S HUD, not in the addon layer, and that is forced rather than chosen: the
 -- action menu ends its drag with DropTarget.dropthing(ui.root, ...) on the SESSION's tree, and the addon
 -- layer is a UI of its own that the walk never enters. A bar built in the layer would draw and click
 -- perfectly and a dragged Paginae would fall straight through it into the map. So a bar is built per login,
--- from SessionEnteredWorld, and dies with it. The options panel catches no drop, so it stays in the layer
--- where a character switch cannot touch it.
+-- from SessionEnteredWorld, and dies with it.
 
 local SLOTS   = 12          -- buttons on a bar: one page of the server's belt
 local MAXBARS = 12          -- 144 slots / 12
@@ -55,19 +57,43 @@ local EDGE  = {20, 28, 21, 167}
 local LABEL = {156, 180, 158, 255}    -- the tone the belt prints "F1" in
 local METER = {255, 255, 255, 64}     -- the recharge pie, exactly as the action menu draws it
 
--- The field the panel stands on: `ISBox.bgcol`, the dark translucent green the client fills a framed box
+-- The field a bar stands on: `ISBox.bgcol`, the dark translucent green the client fills a framed box
 -- with. It is a flat colour and not `gfx/hud/wnd/lg/bg`, the window's own tiled backdrop, because `g` has no
 -- tiling verb -- a 146 px texture stretched across a 430 px bar would smear, and this is the same field at
 -- any length.
 local BACK  = {43, 51, 44, 127}
 
--- ---------------------------------------------------------------- which bars exist
+-- ---------------------------------------------------------------- what the user manages, and where
 --
--- The account's own table, not a character's: a set of bars is a fact about how you play rather than about
--- who you are playing, and the slots behind them are per character whatever this says.
+-- OPTIONS > ADDONS > ACTIONBARS, and no window of this addon's own. Which bars there are is a setting the
+-- way the interface scale is a setting, so it is declared where the client keeps settings: twelve rows, one
+-- per bar, each saying whether that bar is on and which way it stands. The client draws the page, stores the
+-- value and answers the read -- there is nothing here to open, to lay out or to rebuild, and nothing that
+-- has to remember where the user dragged it.
+--
+-- THE ROW IS THE VALUE. The page re-reads its option as it draws, so a change arrives as one event whether
+-- the user moved the dropdown or something else wrote it, and there is no second copy to keep in step.
+--
+-- WHAT IS NOT A SETTING stays in the account's own saved variables: where each bar STANDS. That is a drag
+-- rather than a choice -- a pair of numbers with no control to draw -- and it belongs to the account,
+-- because a place on the screen is the same place on every character.
+
+local KEEP = 1              -- Actionbar1: the page you are on, and the one bar that cannot be taken away
+local OFF, FLAT, UP = "off", "flat", "upright"
+
+-- Everything the rows below drive is written further down, where the bars are.
+local dropBar, syncAll, resetBars
+
+-- THE STEP, AND NOT THE PRESS. A row is answered inside the widget tree of whatever put the Options window
+-- up -- one character's -- and every writer below reaches a bar in a character's HUD, which is a second
+-- tree. Two of them held at once is the one thing this client refuses. So the work is handed to the next
+-- step, which holds none and reaches every login; it lands a frame later, and nothing here can tell.
+local function step(fn)
+  hafen.timer():after(0, fn)
+end
 
 local saved = hafen.store():get("bars")     -- filled before this file runs
-saved.list = saved.list or {}               -- { {n = , x = , y = , vert = }, ... }, sorted by n
+saved.list = saved.list or {}               -- { {n = , x = , y = }, ... }: where each bar stands
 
 local function record(n)
   for _, r in ipairs(saved.list) do
@@ -76,26 +102,88 @@ local function record(n)
   return nil
 end
 
-local function firstFree()
-  for n = 1, MAXBARS do
-    if not record(n) then return n end
-  end
-  return nil
+-- WHAT A ROW READS ON A CLIENT THAT HAS NEVER BEEN TOLD OTHERWISE. Which bars existed used to be this
+-- table's to say, so a bar with a place saved is a bar the user had: it seeds its own row, and this is the
+-- last thing that ever reads an orientation from there.
+local function seed(n)
+  local r = record(n)
+  if not r then return (n == KEEP) and FLAT or OFF end
+  local was = r.vert and UP or FLAT
+  r.vert = nil
+  return was
 end
 
--- ACTIONBAR1 IS NOT OPTIONAL, and it is the one bar that MOVES. It stands in for the client's own, so it
--- does what that one does: it shows whichever page the client is on, and "Go to page 3" takes it to slots
--- 25-36. The other eleven are each nailed to one page, which is what makes a number an identity and lets a
--- hotkey called "Actionbar4 slot 5" mean one button of the game for good.
---
--- It is created on first run and the panel offers no way to drop it: the client's bar is put away and a
--- screen with neither would leave the page you are on with no way to press it.
-local KEEP = 1
+local opts = hafen.client():options():addon()
 
-local function ensureFirst()
-  if record(KEEP) then return end
-  saved.list[#saved.list + 1] = {n = KEEP, x = DEF_X, y = DEF_Y, vert = false}
-  table.sort(saved.list, function(a, b) return a.n < b.n end)
+opts:label("about")
+  :text("A bar is one page of the belt: ActionbarN is slots (N-1)x12+1 to Nx12. Actionbar1 follows the page"
+    .. " you are on, in place of the client's own bar.")
+  :add()
+
+-- ONE ROW PER BAR, and the row says both things at once: a bar is off, lying flat, or standing upright.
+-- Twelve rows rather than a list with an Add button under it, because a bar's NUMBER is its identity --
+-- Actionbar4 is slots 37-48 for as long as the character exists, which is what lets a hotkey called
+-- "Actionbar4 slot 5" name one button of the game. A row is a fact about one page of the belt, and the belt
+-- has twelve.
+local rows = {}
+
+for n = 1, MAXBARS do
+  rows[n] = opts:choice("bar" .. n)
+    :label("Actionbar" .. n)
+    :tooltip((n == KEEP)
+      and "the page you are on, lying flat or standing upright -- it stands in for the client's own bar and"
+          .. " cannot be taken away"
+      or ("slots " .. (((n - 1) * SLOTS) + 1) .. "-" .. (n * SLOTS)
+          .. " -- off, lying flat, or standing upright"))
+    :choices((n == KEEP) and {FLAT, UP} or {OFF, FLAT, UP})
+    :default(seed(n))
+    :add()
+end
+
+local function mode(n)
+  return rows[n]:value()
+end
+
+local function has(n)
+  return mode(n) ~= OFF
+end
+
+local function vertOf(n)
+  return mode(n) == UP
+end
+
+opts:button("reset"):label("Reset bars position")
+  :tooltip("put every bar back in the middle of the screen, stacked -- for when one has ended up past an"
+    .. " edge and there is nothing left to drag")
+  :press(function() step(resetBars) end)
+  :add()
+
+-- THE LINE UNDER THE ROWS, which says the two things no row can: how many bars are up, and what the last
+-- press did. A reset that found no character in the world has nowhere else to report it, and the log is not
+-- where somebody looking at this page is looking.
+local state = opts:label("state"):add()
+
+local function report(msg)
+  local n = 0
+  for i = 1, MAXBARS do
+    if has(i) then n = n + 1 end
+  end
+  local line = n .. " of " .. MAXBARS .. " bars on"
+  if n >= MAXBARS then line = line .. " -- 144 slots is every one there is" end
+  state:text(msg and (line .. " -- " .. msg) or line)
+end
+
+-- A ROW MOVED, and one path does all three things that can mean. `dropBar` takes every copy of that bar off
+-- screen -- a rotation is a different box, so it is built again rather than resized -- and the sync behind
+-- it puts back whatever the rows now say there is.
+for n = 1, MAXBARS do
+  rows[n]:on("Changed", function()
+    step(function()
+      dropBar(n)
+      syncAll()
+      report()
+    end)
+  end)
 end
 
 -- The slot the first button of a bar is, LESS ONE: add a button's number and you have its slot. Read once
@@ -114,15 +202,38 @@ end
 
 -- ---------------------------------------------------------------- the shape of a bar
 --
--- One orientation flag, three functions. A bar lying flat and a bar standing upright are the same twelve
--- squares with `along` and `across` swapped, so the swap happens here, once, and nothing downstream knows
--- which way round it is.
+-- The row says which way a bar stands, and that is the only thing downstream ever asks: a bar lying flat
+-- and a bar standing upright are the same twelve squares with `along` and `across` swapped, so the swap
+-- happens here, once, and nothing past this point knows which way round it is.
 
-local function boxOf(rec)
-  if rec.vert then
+local function boxOf(n)
+  if vertOf(n) then
     return SQ + (PAD_F * 2), LONG + (PAD_F * 2)
   end
   return LONG + (PAD_F * 2), SQ + (PAD_F * 2)
+end
+
+-- WHERE A BAR STANDS. The record is minted the first time a bar is turned on and KEPT when it is turned off
+-- again, so a bar you took away comes back where you left it. One that has never stood anywhere goes under
+-- the lowest bar there is, lined up with it, rather than on top of one already on screen.
+local function spot(n)
+  local r = record(n)
+  if r then return r end
+
+  local x, y = DEF_X, DEF_Y
+  for m = 1, MAXBARS do
+    local o = (m ~= n) and has(m) and record(m)
+    if o then
+      local _, h = boxOf(m)
+      if (o.y + h + STEP) > y then x, y = o.x, o.y + h + STEP end
+    end
+  end
+
+  r = {n = n, x = x, y = y}
+  saved.list[#saved.list + 1] = r
+  table.sort(saved.list, function(a, b) return a.n < b.n end)
+  hafen.store():flush()
+  return r
 end
 
 -- The top-left of button `i`, inside the frame.
@@ -219,13 +330,15 @@ local labels = {}                           -- [n] = { <string> x12 }
 
 local function relabel()
   local built = {}
-  for _, r in ipairs(saved.list) do
-    local row = {}
-    for i = 1, SLOTS do
-      local b = keys:binding():get(keyname(r.n, i))
-      row[i] = (b:exists() and b:key()) or tostring(i)
+  for n = 1, MAXBARS do
+    if has(n) then
+      local row = {}
+      for i = 1, SLOTS do
+        local b = keys:binding():get(keyname(n, i))
+        row[i] = (b:exists() and b:key()) or tostring(i)
+      end
+      built[n] = row
     end
-    built[r.n] = row
   end
   labels = built
 end
@@ -379,12 +492,12 @@ local function build(s, n)
   if not per then per = {}; bars[s] = per end
   if per[n] then return end
 
-  local r = record(n)
   local hud = s:exists() and s:ui():match("@GameUI")
-  if not (r and hud) then return end
+  if not hud then return end
 
-  local vert = r.vert and true or false
-  local bw, bh = boxOf(r)
+  local r = spot(n)
+  local vert = vertOf(n)
+  local bw, bh = boxOf(n)
 
   local w = hafen.ui():widget():parent(hud):size(bw, bh):position(r.x, r.y)
 
@@ -444,7 +557,7 @@ end
 
 -- Take one bar off every character. Rotating calls it: the box changes and the handle under it with it, so
 -- the widget is built again rather than resized in place.
-local function dropBar(n)
+dropBar = function(n)
   for s, per in pairs(bars) do
     if per[n] then destroy(s, n) end
   end
@@ -499,103 +612,36 @@ local function sync(s)
   if not per then per = {}; bars[s] = per end
 
   for n in pairs(per) do
-    if not record(n) then destroy(s, n) end
+    if not has(n) then destroy(s, n) end
   end
-  for _, r in ipairs(saved.list) do
-    -- A HUD that was torn down and built again -- a character leaving the world and coming back inside one
-    -- login -- took our widget with it and left the handle. Drop the handle and the build below is a build.
-    local b = per[r.n]
-    if b and not b.w:exists() then per[r.n] = nil end
+  for n = 1, MAXBARS do
+    if has(n) then
+      -- A HUD that was torn down and built again -- a character leaving the world and coming back inside
+      -- one login -- took our widget with it and left the handle. Drop the handle and the build is a build.
+      local b = per[n]
+      if b and not b.w:exists() then per[n] = nil end
 
-    build(s, r.n)
-    b = per[r.n]
-    if b then b.w:position(r.x, r.y) end
+      local r = spot(n)
+      build(s, n)
+      b = per[n]
+      if b then b.w:position(r.x, r.y) end
+    end
   end
 end
 
-local function syncAll()
+syncAll = function()
   for s in pairs(bars) do                   -- the logins that have gone: their widgets went with the tree
     if not s:exists() then bars[s] = nil end
   end
   for _, s in ipairs(hafen.session():list()) do sync(s) end
 
-  for _, r in ipairs(saved.list) do bindKeys(r.n) end
+  for n = 1, MAXBARS do
+    if has(n) then bindKeys(n) end
+  end
   for n in pairs(keysubs) do
-    if not record(n) then unbindKeys(n) end
+    if not has(n) then unbindKeys(n) end
   end
   relabel()                                 -- after the declarations: an undeclared binding has no key yet
-end
-
--- ---------------------------------------------------------------- the options panel
---
--- In the LAYER, above every character: the set of bars is the account's, so the window that edits it is not
--- one character's either, and a switch leaves it exactly where it was. It catches no drop, which is the one
--- thing the layer cannot do.
-
-local PAD, GAPY = 6, 4
-local NAME_W, ROT_W, DEL_W, BTN_H = 190, 24, 24, 24
-local ROW_W   = NAME_W + GAPY + ROT_W + GAPY + DEL_W
-local PANEL_W = PAD + ROW_W + PAD
-
--- What a row says. The main bar has no fixed range to print: it is wherever the page is, which the client
--- moves and this panel is not watching.
-local function rowText(n)
-  if n == KEEP then return "Actionbar1  the page you are on" end
-  return ("Actionbar%d  slots %d-%d"):format(n, ((n - 1) * SLOTS) + 1, n * SLOTS)
-end
-
-local panel, prows, addbtn, resetbtn, hint
-local refreshPanel                          -- forward: the three writers below rebuild the rows
-
--- NEXT TICK, not here. All three writers below are reached from a press on one of the panel's own buttons,
--- and rebuilding the rows destroys the very button whose handler is still unwinding. A tick later there is
--- no dispatch to be inside, and one frame is nothing to look at.
-local function repaint()
-  hafen.timer():after(0, function() refreshPanel() end)
-end
-
-local function addBar()
-  local n = firstFree()
-  if not n then
-    hafen.log():write("Actionbars: all " .. MAXBARS .. " bars exist -- the server keeps 144 slots, and"
-      .. " twelve bars of twelve is every one of them")
-    return
-  end
-
-  local x, y = DEF_X, DEF_Y                 -- under the lowest bar there is, and lined up with it
-  for _, r in ipairs(saved.list) do
-    local _, h = boxOf(r)
-    if (r.y + h + STEP) > y then x, y = r.x, r.y + h + STEP end
-  end
-
-  saved.list[#saved.list + 1] = {n = n, x = x, y = y, vert = false}
-  table.sort(saved.list, function(a, b) return a.n < b.n end)
-  syncAll()
-  repaint()
-  hafen.store():flush()
-end
-
-local function removeBar(n)
-  if n == KEEP then return end              -- the panel draws no button for it; this is the second lock
-  for i, r in ipairs(saved.list) do
-    if r.n == n then
-      table.remove(saved.list, i)
-      break
-    end
-  end
-  syncAll()
-  repaint()
-  hafen.store():flush()
-end
-
-local function rotate(n)
-  local r = record(n)
-  if not r then return end
-  r.vert = not r.vert
-  dropBar(n)                                -- a different box: built again rather than resized
-  syncAll()
-  repaint()
-  hafen.store():flush()
 end
 
 -- ---------------------------------------------------------------- putting them back on screen
@@ -621,124 +667,47 @@ local function screenBox()
   return nil
 end
 
--- Every bar to the middle, as ONE BLOCK stacked the way `Add actionbar` stacks them -- not each on top of
+-- Every bar to the middle, as ONE BLOCK stacked the way a bar turned on is stacked -- not each on top of
 -- the last. Bars sharing a spot would hide one another, and the eleven underneath would have to be dragged
 -- off one at a time to reach the twelfth; centred as a block they are all in the middle and all visible,
 -- which is what "I cannot find my bars" is asking for.
-local function resetBars()
+resetBars = function()
   local sw, sh = screenBox()
   if not sw then
-    hafen.log():write("Actionbars: no character is in the world -- there is no screen to measure, and no"
-      .. " bar drawn to put back on it")
+    report("no character is in the world, so there is no screen to measure and no bar drawn to put back"
+      .. " on it")
     return
   end
 
-  local total = 0
-  for i, r in ipairs(saved.list) do
-    local _, h = boxOf(r)
-    total = total + h + ((i > 1) and STEP or 0)
+  local total, first = 0, true
+  for n = 1, MAXBARS do
+    if has(n) then
+      local _, h = boxOf(n)
+      total = total + h + (first and 0 or STEP)
+      first = false
+    end
   end
 
   local y = math.max(0, math.floor((sh - total) / 2))
-  for _, r in ipairs(saved.list) do
-    local bw, bh = boxOf(r)
-    r.x = math.max(0, math.floor((sw - bw) / 2))
-    r.y = y
-    y = y + bh + STEP
-    place(r.n)                              -- every login's copy of that bar, at once
+  for n = 1, MAXBARS do
+    if has(n) then
+      local r = spot(n)
+      local bw, bh = boxOf(n)
+      r.x = math.max(0, math.floor((sw - bw) / 2))
+      r.y = y
+      y = y + bh + STEP
+      place(n)                              -- every login's copy of that bar, at once
+    end
   end
   hafen.store():flush()
-end
-
--- The rows are rebuilt rather than reused: the panel is opened by hand and changes only when the user
--- presses one of its own buttons, so there is no flicker to design around and one code path fewer.
-refreshPanel = function()
-  if not (panel and panel:exists()) then return end
-
-  for _, r in ipairs(prows) do
-    r.name:destroy()
-    r.rot:destroy()
-    if r.del then r.del:destroy() end       -- Actionbar1 has none
-  end
-  prows = {}
-
-  local y = PAD
-  for _, rec in ipairs(saved.list) do
-    local n = rec.n
-    local name = hafen.ui():label():parent(panel):position(PAD, y + 5)
-      :text(rowText(n))
-
-    local rot = hafen.ui():button():parent(panel):position(PAD + NAME_W + GAPY, y):size(ROT_W)
-      :text(rec.vert and "V" or "H")
-      :tooltip(rec.vert and "upright -- press to lay it flat" or "flat -- press to stand it upright")
-    rot:on("Pressed", function() rotate(n) end)
-
-    -- No X on Actionbar1: it stands in for the client's own bar, which this addon has put away.
-    local del
-    if n ~= KEEP then
-      del = hafen.ui():button():parent(panel):position(PAD + NAME_W + GAPY + ROT_W + GAPY, y)
-        :size(DEL_W):text("X")
-        :tooltip("remove this bar -- what is in its slots stays on the server")
-      del:on("Pressed", function() removeBar(n) end)
-    end
-
-    prows[#prows + 1] = {name = name, rot = rot, del = del}
-    y = y + BTN_H + GAPY
-  end
-
-  addbtn:position(PAD, y)
-  y = y + BTN_H + GAPY
-
-  resetbtn:position(PAD, y)
-  y = y + BTN_H + GAPY
-
-  hint:text((#saved.list >= MAXBARS)
-    and ("all " .. MAXBARS .. " bars exist: 144 slots is every one")
-    or "drag actions onto a bar from the action menu")
-  hint:position(PAD, y)
-  y = y + hint:size().h
-
-  panel:size(PANEL_W, y + PAD)
-end
-
-local function shutPanel()
-  if panel and panel:exists() then panel:destroy() end
-  panel, prows, addbtn, resetbtn, hint = nil, nil, nil, nil, nil
-end
-
-local function buildPanel()
-  if panel and panel:exists() then return end
-  prows = {}
-
-  panel = hafen.ui():window():title("Actionbars"):size(PANEL_W, BTN_H + (PAD * 2)):position(60, 60)
-  panel:remember("panel")                   -- the user's own placement, kept without a variable of its own
-
-  addbtn = hafen.ui():button():parent(panel):position(PAD, PAD):size(ROW_W):text("Add actionbar")
-  addbtn:on("Pressed", addBar)
-
-  resetbtn = hafen.ui():button():parent(panel):position(PAD, PAD):size(ROW_W)
-    :text("Reset bars position")
-    :tooltip("put every bar back in the middle of the screen, stacked -- for when one has ended up past an"
-      .. " edge and there is nothing left to drag")
-  resetbtn:on("Pressed", resetBars)
-
-  hint = hafen.ui():label():parent(panel):position(PAD, PAD)
-
-  panel:on("Close", function()
-    panel, prows, addbtn, resetbtn, hint = nil, nil, nil, nil, nil
-  end)
-
-  refreshPanel()
-end
-
-local function togglePanel()
-  if panel and panel:exists() then shutPanel() else buildPanel() end
+  report("every bar is back in the middle of the screen")
 end
 
 -- ---------------------------------------------------------------- the way in
 --
--- A button in the action menu, one per character, which is where the client keeps everything a character
--- can do. It is a Paginae like any other, so it can itself be dragged onto a bar.
+-- NEITHER OF THESE OPENS ANYTHING any more: the bars are managed on the client's own settings page, where
+-- every other setting is. What is left for them is the one thing a page cannot do -- answer from where the
+-- user already is, and before there is a world to be in.
 
 local icon                                  -- the PNG, loaded once
 
@@ -746,12 +715,25 @@ hafen.event():on("Load", function()
   icon = hafen.asset():get("icon.png")
 end)
 
+local function tell()
+  local said = {}
+  for n = 1, MAXBARS do
+    if has(n) then said[#said + 1] = "Actionbar" .. n .. " " .. mode(n) end
+  end
+  hafen.log():write("Actionbars: " .. table.concat(said, ", "))
+  hafen.log():write("Actionbars: add, remove and rotate them in Options > AddOns > Actionbars")
+end
+
+-- A button in the action menu, one per character, which is where the client keeps everything a character
+-- can do. It is a Paginae like any other, so it can itself be dragged onto a bar.
 hafen.event():on("SessionEnteredWorld", function(s)
   local ok, err = pcall(function()
+    -- "panel" is the entry's own id, kept as it was rather than renamed with the window it opened: a
+    -- belt slot holding this entry holds it by that name, and a rename would orphan the slot.
     local pag = s:menugrid():add("panel"):name("Actionbars")
-      :tooltip("add and remove action bars")
+      :tooltip("what is on, and where the bars are managed")
     if icon then pag:icon(icon) end
-    pag:on("use", togglePanel)
+    pag:on("use", tell)
   end)
   if not ok then hafen.log():write(err) end
   syncAll()
@@ -761,13 +743,13 @@ for _, key in ipairs({"SessionAdded", "SessionRemoved", "SessionSelected"}) do
   hafen.event():on(key, syncAll)
 end
 
--- The other door, and the only one that is there before you are in the world: the action menu is a
--- character's, and the panel is the account's.
-hafen.console():on("actionbars", togglePanel)
+-- The other door, and the only one that is there before you are in the world -- where the line lands in the
+-- terminal rather than on screen, there being no character to draw it.
+hafen.console():on("actionbars", tell)
 
 -- A key the user assigns in Options is written straight into the client's registry, which tells nobody. So
 -- the corner labels are re-read on a slow timer: the remap shows up within a couple of seconds, and the
 -- draw never pays for it.
 hafen.timer():every(2, relabel)
 
-ensureFirst()                               -- the bar that stands in for the client's own
+report()                                    -- the line under the rows, before anything has moved

@@ -7,18 +7,35 @@ the other eleven pages on screen at the same time, lying flat or standing uprigh
 
 | You do | It does |
 |---|---|
-| press **Actionbars** in the action menu | opens the panel, or closes it |
-| type `:actionbars` | the same, and it works before you are in the world |
-| press `Add actionbar` | adds the next bar there is room for, one row under the lowest one |
+| set a row to `flat` or `upright` in **Options ▸ AddOns ▸ Actionbars** | puts that bar on screen, lying that way |
+| set a row to `off` | takes that bar away. What is in its slots stays on the server, untouched |
 | press `Reset bars position` | puts every bar back in the middle of the screen, one under the next |
-| press a row's `H` / `V` | rotates that bar: flat becomes upright, upright becomes flat |
-| press a row's `X` | removes that bar. What is in its slots stays on the server, untouched |
+| type `:actionbars`, or press **Actionbars** in the action menu | says which bars are on, and where they are managed |
 | press `Go to page N` | pages Actionbar1, the way it pages the client's own bar |
 | drag an action onto a button | puts it in that slot |
 | left-click a button | fires it, modifiers and all |
 | right-click a button | empties it — or hands back a slot held for an addon's own menu entry |
 | **drag the bar anywhere but a filled button** | moves it; where you drop it is where it stands on every character |
 | rest the pointer on a button | names what is in it |
+
+## The settings are the client's own page
+
+**Options ▸ AddOns ▸ Actionbars is the whole of it.** This addon has no window: the page holds twelve rows,
+one per bar, and each row says what that bar is — `off`, `flat` or `upright`. There is nothing to open,
+nothing to place and nothing to close, and the page is the same page every other setting in the client is
+edited on.
+
+A row is a fact about one page of the belt, which is why there are twelve of them rather than a list with an
+`Add` button under it: a bar's number is its identity, so turning Actionbar4 on is a different thing from
+"add a bar", and a bar you turn off and back on comes back with its own slots, its own keys and the place you
+last dragged it to.
+
+Under the rows are `Reset bars position` and one line saying how many bars are up — and what the last press
+did, since a page is where somebody who just pressed something is looking.
+
+Neither door the addon still has opens anything. `:actionbars` at the console and the **Actionbars** entry in
+the action menu each print which bars are on and where they are managed; the console command is the one that
+answers before you are in the world.
 
 ## A bar is a page, and its number says which
 
@@ -30,8 +47,8 @@ goes on showing the same twelve slots it always showed; add a bar again and it c
 slots and its own keys. `Actionbar3 slot 5` names one button of the game for as long as the character
 exists, which is the only way a hotkey for it can mean anything.
 
-It also fixes the ceiling. **Twelve bars is every slot there is** — 144 of them — so `Add actionbar` refuses
-a thirteenth and says why in the log.
+It also fixes the ceiling. **Twelve bars is every slot there is** — 144 of them — which is why the page holds
+twelve rows and there is no thirteenth to turn on.
 
 **Actionbar1 is the exception, and it pages.** It stands in for the bar the client draws, so it does what
 that bar did: it shows **whichever page you are on**, and `Go to page 3` in Options ▸ Keybindings ▸ Action
@@ -41,9 +58,9 @@ So the main bar is the one that moves and the other eleven are the ones that sta
 having both: one bar that follows the page the way the game's own always did, and as many nailed-down ones
 as you want beside it.
 
-**Actionbar1 cannot be removed** either, and its row in the panel has no `X`. It is the page you are on, and
-the client's own bar — the one that otherwise shows it — is put away by this addon. A screen with neither
-would leave the current page with no way to be pressed.
+**Actionbar1 cannot be removed** either: its row offers `flat` and `upright`, and no `off`. It is the page
+you are on, and the client's own bar — the one that otherwise shows it — is put away by this addon. A screen
+with neither would leave the current page with no way to be pressed.
 
 ## The bar is the handle
 
@@ -65,15 +82,15 @@ is the drag's loss, and one it leaves alone reaches the drag handle underneath, 
 
 ## Flat or upright
 
-`H` and `V` in each row of the panel say which way that bar stands, and pressing the button rotates it.
+Each bar's own row says which way it stands, and choosing the other one rotates it.
 Bars are independent: a long flat bar under the map and two short upright ones down the side is an ordinary
 arrangement. Rotating keeps the bar's number, its slots and its keys — it is the same twelve buttons, laid
 out the other way.
 
 ## When a bar has gone off the edge
 
-`Reset bars position` in the panel puts **every bar back in the middle of the screen**, one under the next
-in the order of their numbers, and saves them there.
+`Reset bars position` on the settings page puts **every bar back in the middle of the screen**, one under the
+next in the order of their numbers, and saves them there.
 
 It is there because a bar's place is written in the client's own design pixels, and the screen measured in
 those shrinks when you raise the **Interface scale**: the art is drawn larger, so fewer of them fit across
@@ -83,11 +100,11 @@ thing.
 
 The bars are stacked rather than piled in the same spot, so all of them are visible at once and you can drag
 them back where you want them from there. It needs a character in the world: there is no screen to measure
-from the login screen, and the log says so.
+from the login screen, and the line under the rows says so.
 
 ## Where the bars live, and why
 
-The bars hang on the **character's HUD**, not in the addon layer where this addon's own panel stands. That
+The bars hang on the **character's HUD**, not in the addon layer. That
 is forced rather than chosen: the action menu ends its drag on the *session's* widget tree, and the addon
 layer is a tree of its own that the drop never reaches. A bar built there would draw and click perfectly,
 and every action you dragged at it would fall straight through into the map.
@@ -155,13 +172,16 @@ The client asks you to approve them the first time you enable the addon.
 
 ## What it saves
 
-Which bars exist, which way round each one stands and where you put them, for the **account**: the same
-bars, the same way round, in the same places, on every character. Nothing else. The *contents* of the slots
-are the server's, kept per character, and this addon neither copies them nor needs to — a bar is a window
-onto slots that were already there.
+**Where each bar stands** is the addon's own saved variable, kept for the **account**: the same places on
+every character, and a bar you drag on one moves on all of them. A bar keeps its place while it is off, so
+turning it back on puts it where you left it.
 
-The panel remembers where you drag it too, and it stands above every character, so switching does not move
-it or rebuild it.
+**Which bars are on and which way round they stand** is not saved here at all — it is what the twelve rows
+hold, and a row's value belongs to the client, exactly like the interface scale or a volume. It survives a
+`:reload`, a disable and a restart, and this addon can neither wipe it nor has to save it.
+
+The *contents* of the slots are neither: they are the server's, kept per character, and this addon neither
+copies them nor needs to — a bar is a window onto slots that were already there.
 
 ## Turning it off
 

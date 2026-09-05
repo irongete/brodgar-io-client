@@ -2,7 +2,7 @@
   "name": "Plain Frame",
   "author": "brodgar",
   "description": "The client's own look with no blackletter: every window wears the plain box frame, and every fraktur site is set in the client's serif.",
-  "about": "default.json copied key for key, with TWO changes. THE FRAME: window.frame wears `gfx/hud/wnd`, the eight-piece box the client already paves its inventory squares, its portrait and the action bars with, tiled the way the client tiles it. A border replaces the stock frame art AND its insets, so the two properties beside it are the geometry that art no longer supplies -- `padding` is the whole margin between the box and the content, and `caption` is where the title sits now that the carved plate the stock frame draws it on is gone. THE TEXT: the three keys the client sets in fraktur -- window.title, heading and label -- are set in `serif` instead, at sizes a little under the fraktur ones because a serif reads larger at the same number and a row height was measured at the stock size. Every other key is default.json's value, which is what the client itself draws with; null means the client sets none there. Two fraktur sites are out of reach of any sheet and stay blackletter: the character-selection names and the item-stock counts, neither of which renders through a site key.",
+  "about": "default.json copied key for key, with THREE changes. THE FRAME: window.frame wears `gfx/hud/wnd`, the eight-piece box the client already paves its inventory squares, its portrait and the action bars with, tiled the way the client tiles it. A border replaces the stock frame art AND its insets, so the two properties beside it are the geometry that art no longer supplies -- `padding` is the whole margin between the box and the content, and `caption` is where the title sits now that the carved plate the stock frame draws it on is gone. THE CLOSE BUTTON: `gfx/hud/wnd/lg/cbtnu` is a 20x37 box whose X fills only the bottom-left 8x8 of it -- art placed for the stock frame's 30px title bar, which flush in THIS frame's top-right corner lands 12px in from the edge and below the caption strip entirely. The art carries the button's box and a box cannot be resized, so the theme ships the client's own X as art of its own instead, cut from the same resource at 16x16 -- twice the size it draws at -- and pins it 5px in from the corner, level with the caption. THE TEXT: the three keys the client sets in fraktur -- window.title, heading and label -- are set in `serif` instead, at sizes a little under the fraktur ones because a serif reads larger at the same number and a row height was measured at the stock size. Every other key is default.json's value, which is what the client itself draws with; null means the client sets none there. Two fraktur sites are out of reach of any sheet and stay blackletter: the character-selection names and the item-stock counts, neither of which renders through a site key.",
   "rules": {
     "*": {
       "font": {"builtin": "sans", "size": 10, "aa": false},
@@ -35,11 +35,11 @@
       "caption": {"at": "topleft", "offset": [10, 4]},
       "sizer": null,
       "closeButton": {
-        "res": "gfx/hud/wnd/lg/cbtnu",
-        "hover": {"res": "gfx/hud/wnd/lg/cbtnh", "mode": "stretch"},
-        "pressed": {"res": "gfx/hud/wnd/lg/cbtnd", "mode": "stretch"},
+        "asset": "themes/plainframe/close.png",
+        "hover": {"asset": "themes/plainframe/close-hover.png"},
+        "pressed": {"asset": "themes/plainframe/close-pressed.png"},
         "at": "topright",
-        "mode": "stretch"
+        "offset": [-5, 5]
       }
     },
 

@@ -225,12 +225,17 @@
   <target name="deftgt" depends="jars, opt/panama, bin" />
 
   <!-- addon: a self-contained, playable install for handing to someone else. Unlike bin/ (the
-       development sandbox, which also carries savedata and whatever suite is in flight), dist/ is
-       rebuilt from scratch every time and holds only what the client needs to run: the jars, the
-       resource jars, the natives, the server config, the addons, and run.bat. -->
+       development sandbox, which also carries whatever suite is in flight), dist/ holds only what
+       the client needs to run: the jars, the resource jars, the natives, the server config, the
+       addons, and run.bat. Every one of those is rebuilt from scratch, so an addon dropped from
+       addons/ leaves nothing of itself behind. savedata/ is the one exception, because it is the
+       store of whoever plays from this folder and the build has no business in it. A folder handed
+       to someone else is zipped WITHOUT savedata/. -->
   <target name="release" depends="deftgt">
-    <delete dir="dist" />
     <mkdir dir="dist" />
+    <delete includeemptydirs="true">
+      <fileset dir="dist" includes="**/*" excludes="savedata/**" defaultexcludes="no" />
+    </delete>
     <copy todir="dist">
       <fileset dir="build">
 	<include name="hafen.jar" />
@@ -324,6 +329,11 @@
   <target name="clean">
     <delete dir="build" />
     <delete dir="lib/ext" />
-    <delete dir="bin" />
+    <!-- addon: bin/ is a build product apart from bin/savedata/, which is the addon store of the
+	 characters played from the development sandbox. A clean takes the build, not the player. -->
+    <mkdir dir="bin" />
+    <delete includeemptydirs="true">
+      <fileset dir="bin" includes="**/*" excludes="savedata/**" defaultexcludes="no" />
+    </delete>
   </target>
 </project>
