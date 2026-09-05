@@ -78,7 +78,8 @@ the same two things:
   locate it waits whole, `:exists()` true and `:drawn()` false, rather than drawing part of itself.
 - a **[Gob](../gob.md)** — it follows that object over the ground and ends with it.
 
-A patch that follows is re-laid where the object moved, so it is under the feet the whole way. It keeps its
+A patch that follows is re-laid where the object moved, and only where it moved: it is under the feet the
+whole way, and an object standing still leaves it lying where it lies at no cost to the frame. It keeps its
 own shape while it goes: the ring is offsets, and the object's own turning does not turn it —
 `patch:rotate(a)` is what turns a patch.
 

@@ -2564,6 +2564,8 @@ final class VirtualApi {
      * this — {@link #anchorSeen} fires when an object enters or leaves a character's view, never while it walks
      * — so this is a poll, and it is written to cost as little as a poll can: a {@code getgob} and one
      * coordinate compare per follower per frame, and nothing at all for a patch on an object standing still.
+     * That last one is what {@link #followPatch}'s cheap read buys (132.3): the expensive question is asked
+     * only of an object that could have answered it differently.
      *
      * <p>The three answers are the same three {@link #reground} gives an anchored entity, through the same one
      * door ({@link #setGrounded}): the object is in the drawn character's view and moved, so the ring is re-laid
@@ -2588,16 +2590,55 @@ final class VirtualApi {
         }
     }
 
-    /** One follower of {@link #followPatches}: where its object is now, and the ground under the answer. */
+    /**
+     * One follower of {@link #followPatches}: where its object is now, and the ground under the answer.
+     *
+     * <p><b>The cheap question first</b> (132.3). {@code Gob.getc()} is the interpolated point, and it descends
+     * through {@code MCache.getzp} to the tile grid — the client's largest allocation site, asked here per
+     * follower per frame. {@code Gob.rc} is the server's own point beside it: a field, written only by
+     * {@code Gob.move} when the server says the object is somewhere else. So the field is read first, and
+     * {@code getc()} is called only when the object could be somewhere new. It is not a replacement — the
+     * interpolated point is still the one the ring is laid at, so an object in motion is laid exactly where it
+     * was before this gate existed.
+     *
+     * <p><b>The field alone is not the whole truth, and {@code Moving} is the rest of it.</b> While an object
+     * interpolates, {@code rc} sits at the last point the server sent and {@code getc()} walks away from it
+     * every frame ({@code LinMove.getc}), so a gate on the field alone would leave the ring behind a walking
+     * object between two server messages. The attrib is present exactly while that interpolation is running —
+     * it is what {@code gob:moving()} answers — and it is read under the gob's own monitor beside {@code rc},
+     * the monitor the loading fallback below already takes and the one every attrib write passes through, so
+     * the pair is read as one answer and no second discipline arrives with it. Nothing else moves the point
+     * this reads: every {@code Placer} answers with the {@code rc} it was handed, and a {@code DrawOffset} is
+     * {@code z} only, which a patch on the ground does not use.
+     *
+     * <p><b>The tick an object stops on is a tick the gate must open</b>, and the field alone does not say so:
+     * the server's last point can arrive while the object is still interpolating towards it, so the flag going
+     * out is the only thing left to notice. Without that, the ring would come to rest wherever the last
+     * interpolated frame put it — a fraction of a step short of where the object actually stands.
+     */
     private static void followPatch(LuaPatch p, Glob g) {
         Gob t = (g == null) ? null : g.oc.getgob(p.followTgt);
+        Coord2d src = null;                            // the server's own point for the object...
+        boolean interp = false;                        //   ...and whether it is between two of them
+        if(t != null) {
+            synchronized(t) {
+                src = t.rc;
+                interp = (t.getattr(Moving.class) != null);
+            }
+        }
+        synchronized(p) {
+            if(p.dead)
+                return;
+            if(!interp && !p.followInterp && (src != null) && src.equals(p.followSrc) && p.grounded)
+                return;                                // standing where it already stands: two field reads, out
+        }
         Coord2d rc = null;
         if(t != null) {
             try {
                 Coord3f c = t.getc();                  // the live, INTERPOLATED point — the same one a
                 rc = (c == null) ? null : new Coord2d(c.x, c.y);   //   FollowMoving hands the placement pass
             } catch(RuntimeException ex) {
-                synchronized(t) { rc = t.rc; }         // its placement is still loading: the server's own point
+                rc = src;                              // its placement is still loading: the server's own point
             }
         }
         synchronized(p) {
@@ -2605,6 +2646,8 @@ final class VirtualApi {
                 return;
             boolean seen = (rc != null);
             boolean moved = seen && !rc.equals(p.rc);
+            p.followSrc = seen ? src : null;           // what the next tick's cheap read is compared against
+            p.followInterp = seen && interp;
             if(moved)
                 p.rc = rc;
             if(seen != p.grounded) {

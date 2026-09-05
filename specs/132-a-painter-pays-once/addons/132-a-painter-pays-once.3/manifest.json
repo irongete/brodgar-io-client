@@ -1,0 +1,10 @@
+{
+  "name": "132.3 — a patch following an object standing still pays nothing",
+  "id": "132-a-painter-pays-once.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 132.3: a ring anchored to an object walks with it, comes to rest exactly under it, and costs the frame nothing while it stands there.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["player.move"]
+}

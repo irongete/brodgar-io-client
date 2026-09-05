@@ -54,7 +54,7 @@
       does not grow with N — the assertion that fails if `filter` still builds an `Area` per cut, per
       patch, per frame.
 
-- [ ] **132.3 — a patch following an object standing still pays nothing.**
+- [x] **132.3 — a patch following an object standing still pays nothing.**
       `followPatch` reads `Gob.rc` — the server's own point, a field — before `t.getc()`, and calls the
       interpolated read only when that field differs from what the patch was laid at. `getc()` stays the
       point that is **used**, so a moving object is laid exactly where it is laid today; the cheap read

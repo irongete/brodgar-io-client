@@ -77,6 +77,25 @@ public final class LuaPatch extends LuaWorldEntity {
     boolean occluded = true;
 
     /**
+     * <b>The server's own point for the object this patch follows</b> (132.3), as it stood when the poll last
+     * asked the expensive question — or {@code null} while nothing is followed, or while nobody present can
+     * see the object. {@code VirtualApi.followPatch} compares {@code Gob.rc} against it every tick and reads
+     * the interpolated point only when the two differ, so an object standing still costs two field reads and
+     * nothing else. It is the SERVER'S point rather than {@link #rc}, which holds the interpolated one this
+     * patch is actually laid at: the two are the same place and not the same number. Guarded by {@code this}.
+     */
+    Coord2d followSrc;
+
+    /**
+     * <b>Whether that object was interpolating when the poll last asked</b> (132.3). The server's own point can
+     * arrive while the object is still walking the last of the way towards it, so the tick the motion ends on
+     * is a tick where {@link #followSrc} has not changed and the interpolated point has: the flag going out is
+     * what says the expensive read is owed one more time, and it is what makes a ring come to rest exactly
+     * under the object rather than a fraction of a step behind it. Guarded by {@code this}.
+     */
+    boolean followInterp;
+
+    /**
      * The engine-side overlay this patch is drawn through — built on the first lay and kept for the life of the
      * patch, because its identity is what {@code MapView.ols}, {@code MCache.Grid.Cut.ols} and
      * {@code MapMesh.OLOrder.equals} key on. Guarded by {@code this}.
