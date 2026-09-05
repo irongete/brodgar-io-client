@@ -1,0 +1,10 @@
+{
+  "name": "130.1 — the frame ring keeps a handful of frames",
+  "id": "130-profiling-costs-what-it-reports.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 130.1: the client's own profile ring no longer lengthens young collections, and the surface over it -- history(), frame() and its late GPU read -- still answers.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

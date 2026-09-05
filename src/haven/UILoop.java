@@ -40,8 +40,24 @@ public abstract class UILoop implements Console.Directory {
     public static final Config.Variable<Boolean> profile = Config.Variable.propb("haven.profile", false);
     public final Windeye wnd;
     public final Thread th;
-    public final CPUProfile uprof = new CPUProfile(300), rprof = new CPUProfile(300);
-    public final GPUProfile gprof = new GPUProfile(300);
+    /* addon: (130.1) SIXTEEN frames, not three hundred. Every Profile.Part in these rings holds `nm`
+     * strongly, and for the tier Widget.dispatch and Widget.draw bracket that IS the Widget -- so three
+     * hundred frames of them pinned every widget the client had touched in the last five seconds, plus a
+     * Part and a child list each, in a structure old enough that every young collection scans and copies
+     * every reference it holds. Measured live across the switch, in one uninterrupted GC log: young pauses
+     * of 68.0 ms mean (93.5 max) armed against 9.2 ms (15.1 max) disarmed, and 499 MB more live after
+     * collection, at an UNCHANGED 3.9 s between collections -- retention, not garbage, landing as a hitch
+     * in picture and sound together every few seconds, because a safepoint stops every thread.
+     *
+     * Nothing needs the length. framedone hands over last(), which is one frame, folded at once into
+     * io.brodgar.prof.Prof, whose own history is flat primitive arrays retaining nothing. The only reader
+     * of hist itself is Profdisp, and it takes its window size, its texture width, both draw loops and its
+     * click hit-test from hist.length -- so the backtick graph narrows rather than breaks. Not one slot:
+     * rprof is written from the render callback thread (RenderProfile.run) and read here on the UI thread,
+     * so a ring of one would put the reader on the very slot under the writer. */
+    public static final int histlen = 16;
+    public final CPUProfile uprof = new CPUProfile(histlen), rprof = new CPUProfile(histlen);
+    public final GPUProfile gprof = new GPUProfile(histlen);
     public Environment env;
     public UI ui;
     /* rts: (071.1) which UI is actually DRAWN: the session holding the screen, or `ui` -- the LOGIN
@@ -101,6 +117,19 @@ public abstract class UILoop implements Console.Directory {
     }
 
     private Audio.Root audio = null;
+    /* addon: (130.1) point a root at the loop's own profiles. RootWidget.guprof/grprof/ggprof are the three
+     * references the backtick hands straight to Profwnd, and they are PUSHED IN from here -- so a root the
+     * loop builds and does not wire throws a NullPointerException out of Profdisp's constructor, which reads
+     * prof.hist before anything else. Every UI the loop builds is wired, not just the anchor: since the rts
+     * handoff (071.1) every event follows drawn(), and the drawn session's UI comes from bgui, so the key
+     * never reaches the anchor's root once a character is up. That describes no second frame -- there is ONE
+     * frame loop and one uprof/rprof/gprof, and the window shows the loop's frame whichever root opened it. */
+    private void profwire(UI u) {
+	u.root.guprof = uprof;
+	u.root.grprof = rprof;
+	u.root.ggprof = gprof;
+    }
+
     public UI newui(UI.Runner fun) {
 	if(audio == null)
 	    audio = new Audio.Root(audiosink());
@@ -110,9 +139,7 @@ public abstract class UILoop implements Console.Directory {
 	synchronized(uilock) {
 	    prevui = this.ui;
 	    this.ui = newui;
-	    ui.root.guprof = uprof;
-	    ui.root.grprof = rprof;
-	    ui.root.ggprof = gprof;
+	    profwire(this.ui);
 	    while((this.lockedui != null) && (this.lockedui == prevui)) {
 		try {
 		    uilock.wait();
@@ -170,9 +197,9 @@ public abstract class UILoop implements Console.Directory {
 
     /* rts: a member session's UI (F0, specs/rts/plan.md). Built exactly like the anchor's -- same window,
      * same audio root, same environment -- but it does NOT become `this.ui`, so it replaces nothing,
-     * destroys nothing and is never drawn. The frame loop reaches it through Sessions.tick() instead, and
-     * the profiling fields are deliberately left off it: uprof/rprof/gprof describe the frame, and only
-     * the anchor has one. */
+     * destroys nothing and is never drawn. The frame loop reaches it through Sessions.tick() instead. Its
+     * root is wired to the loop's uprof/rprof/gprof like every other (130.1): those describe the one frame
+     * the one loop runs, and the root that holds the screen is the one the backtick reaches. */
     public UI bgui(UI.Runner fun) {
 	return(mkui(fun));
     }
@@ -188,6 +215,7 @@ public abstract class UILoop implements Console.Directory {
 	UI ret = new UI(wnd, audio, new Coord(wnd.size()), fun);
 	ret.env = this.env;
 	ret.cons.add(this);
+	profwire(ret);          // addon: (130.1) the backtick reaches THIS root in game, not the anchor's
 	return(ret);
     }
 
