@@ -1,6 +1,7 @@
--- Better village controls -- the Village tab of the Kith & Kin window picks a group by COLOUR, and the
--- client draws eight of them (BuddyWnd.ncolors). The server takes 0..254. So every colour row there grows
--- a picker of its own carrying every group the server accepts.
+-- Better village controls -- a colour row picks a group by COLOUR, and the client draws eight of them
+-- (BuddyWnd.ncolors). The server takes 0..254. So every colour row grows a picker of its own carrying
+-- every group the server accepts -- the Kin, Village and Realm tabs of the Kith & Kin window, and the
+-- claim window's permission row, whose own table the fork widened to the same space (haven.res.ui.land).
 --
 -- The picker is a MIRROR, not just a command: it shows the group the row is in -- read straight off the
 -- row with `row:value()`, which is the same thing the highlighted square says and the only thing a group
@@ -51,6 +52,8 @@ local function addPicker(colours)
   picker:position(placeFor(colours, picker:size().h))
   picker:on("Changed", function(row)
     local group = tonumber(row)
+    -- Protected because the drive runs the panel's OWN hook, which is published code this addon cannot
+    -- read: a panel that cannot hold the group says so by throwing, and the row is left where it was.
     local driven, failure = pcall(function() colours:value(group) end)
     if not driven then say(tostring(failure)) end
   end)
