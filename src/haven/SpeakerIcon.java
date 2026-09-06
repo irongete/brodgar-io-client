@@ -149,7 +149,19 @@ public final class SpeakerIcon extends GAttrib implements RenderTree.Node, PView
      * ever gets one attached, and {@link #draw} hides it when the player is not a voice
      * participant. Call once per frame from {@code MapView.tick} (game thread).
      */
+    /* Walked every frame from MapView.tick, and the walk is the whole OCache under its monitor -- ~3% of
+     * the render thread under profiling, to notice a player who arrived a frame ago. Five times a second is
+     * as fast as anyone can tell an icon appeared; one timestamp is enough because only the drawn view
+     * sweeps. */
+    private static final double SWEEP = 0.2;
+    private static double lastsweep = 0;
+
     public static void sweep(MapView mv) {
+        double now = Utils.rtime();
+        if ((now - lastsweep) < SWEEP) {
+            return;
+        }
+        lastsweep = now;
         Gob me = mv.player();
         if (me == null || me.glob == null) {
             return;

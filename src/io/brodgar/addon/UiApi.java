@@ -1126,11 +1126,21 @@ final class UiApi {
         }                                            //   dies on its own is retired at the disposal seam
                                                      //   (AddonManager.drainDisposedWidgets); this is what is
                                                      //   left when the whole tree goes and nobody is drained
-        for(LuaSelectorWatch w : co.selectorWatches) {                  // 030.2: ...and the selectors it watched
+        // 030.2: ...and the selectors it watched. ENDED, not merely delisted: a watch is the tag of a LuaSub
+        // in co.watchSubs, and the Addon -- and so that registry -- outlives every session. Taking the watch
+        // out of the two selectorWatches lists stopped it firing but left the sub holding it, and
+        // LuaSelectorWatch.ui is final: through it a destroyed UI kept its Session, its Glob, both MCaches
+        // and every mesh they had built, for as long as the addon ran (a 4 GB heap at 99 % after 26 dead
+        // sessions). off() is sub:off()'s own path -- byKey drops the sub and the Ended hook runs
+        // removeSelectorWatch, which is the delisting this loop used to do by hand.
+        for(LuaSub s : co.watchSubs.live()) {
+            Object t = s.tag;
+            if(!(t instanceof LuaSelectorWatch))
+                continue;
+            LuaSelectorWatch w = (LuaSelectorWatch)t;
             if((w.ui == null) || w.ui.destroyed) {
-                w.alive = false;
-                w.matched.clear();
-                co.selectorWatches.remove(w);
+                s.alive = false;
+                co.watchSubs.off(s);
             }
         }
     }

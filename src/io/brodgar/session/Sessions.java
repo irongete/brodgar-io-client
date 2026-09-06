@@ -130,9 +130,9 @@ public class Sessions {
      * ------------------------------------------------------------------ */
 
     /**
-     * Advance every member by one frame, and publish where they all are. Deliberately no {@code gtick}:
-     * a member has nothing in a render tree, so there is no render stream of its own to feed. No members
-     * at all is one list check and the publication below.
+     * Advance every member by one frame, and publish where they all are. The {@code gtick} half is
+     * {@link #gtick}, which the frame runs beside the anchor's own. No members at all is one list check
+     * and the publication below.
      */
     public static void tick() {
 	flushsay();
@@ -192,6 +192,38 @@ public class Sessions {
 	    }
 	}
 	republish();
+    }
+
+    /**
+     * The render half of {@link #tick}: every member's {@code Glob.gtick}, each under its own monitor, the
+     * one holding the screen skipped because the frame feeds it in full. This used to be left out on the
+     * grounds that a member has nothing in a render tree -- which stopped being true the day
+     * {@code MapView.SessionGobs} began drawing a member's objects into the anchor's scene. Their poses
+     * still advanced ({@code ctick}), but {@code Gob.gtick} is the only route to {@code SkelSprite.gtick}
+     * and an overlay sprite's {@code gtick}, and {@code Glob.gtick} had exactly one caller, for the drawn
+     * UI: an animated object drawn out of a member showed whatever its buffers last held, frozen mid-swing
+     * until that session took the screen. Same lock shape as the tick, so no two UI monitors are ever
+     * held at once.
+     */
+    public static void gtick(haven.render.Render g) {
+	if(members.isEmpty())
+	    return;
+	UI an = anchor();
+	for(Member m : members) {
+	    UI u = m.ui;
+	    if((u == null) || m.dead || (u == an))
+		continue;
+	    try {
+		synchronized(u) {
+		    if(m.ui != u)
+			continue;
+		    if(u.sess != null)
+			u.sess.glob.gtick(g);
+		}
+	    } catch(RuntimeException e) {
+		new Warning(e, String.format("session: gtick failed for %s", m.user)).issue();
+	    }
+	}
     }
 
     /** What the membership last asked the mode to be, so that only a change acts. */

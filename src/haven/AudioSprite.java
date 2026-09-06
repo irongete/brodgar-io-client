@@ -119,6 +119,11 @@ public class AudioSprite {
 	private ActAudio.PosClip clip;
 	private final Audio.Clip end;
 	private final Collection<RenderTree.Slot> slots = new ArrayList<>(1);
+	/* rts: told that nothing it plays will be heard (Gob.ctick, a session nobody is looking at), and
+	 * whether the server has already ended it. Its only ending is the end clip reaching eof in a
+	 * mixer, and a sprite in no tree hands its clip to no mixer: delete() re-added the end clip over an
+	 * empty slot list, so the overlay of a background session never ended and never left `ols`. */
+	private boolean unheard = false, deleted = false;
 
 	public RepeatSprite(Owner owner, Resource res, Audio.Clip beg, List<Audio.Clip> clips, Audio.Clip end) {
 	    super(owner, res);
@@ -145,6 +150,7 @@ public class AudioSprite {
 	public void added(RenderTree.Slot slot) {
 	    parts(slot);
 	    slots.add(slot);
+	    unheard = false;   // rts: it is in a tree now, so it is heard
 	}
 
 	public void removed(RenderTree.Slot slot) {
@@ -155,7 +161,21 @@ public class AudioSprite {
 	    return(clip == null);
 	}
 
+	/* rts: the same answer ClipSprite gives -- the sound does not happen. For a loop that means: if the
+	 * server has already ended it, the end clip was waiting for a mixer nobody will give it, so end now;
+	 * otherwise remember, so that delete() ends it outright rather than re-adding an end clip to nothing. */
+	public void unheard() {
+	    unheard = true;
+	    if(deleted)
+		clip = null;
+	}
+
 	public void delete() {
+	    deleted = true;
+	    if(unheard) {
+		clip = null;
+		return;
+	    }
 	    if(end != null) {
 		clip = new ActAudio.PosClip(new Audio.Monitor(end.stream()) {
 			protected void eof() {

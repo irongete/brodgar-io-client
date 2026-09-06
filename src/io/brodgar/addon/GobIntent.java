@@ -179,8 +179,12 @@ final class GobIntent {
      * fires). What was asked for at it goes with it: a felled tree never comes back, and an object that
      * unloads and streams in again is a new object as far as this API has ever been concerned.
      */
-    static synchronized void forget(long id) {
-        intents.remove(Long.valueOf(id));
+    static synchronized List<LuaGobOverlay.Attach> forget(long id) {
+        Record r = intents.remove(Long.valueOf(id));
+        // What was attached there, handed back for the rescan to REPORT: on that path no copy of the object
+        // is left for LuaGobOverlay.gobGone to fire GobOverlayRemoved from, and this record is the only
+        // other place that knows which keys stood on it.
+        return (r == null) ? new ArrayList<LuaGobOverlay.Attach>() : new ArrayList<LuaGobOverlay.Attach>(r.overlays);
     }
 
     private static void prune(long id, Record r) {

@@ -223,6 +223,8 @@ local function decorateIcon(icon)
   local label = hafen.ui():label():parent(plate):position(0, 0):name(LABEL_NAME):stock(LABEL_STOCK)
   if not label:exists() then return end
 
+  local fitted                                           -- the icon height `fit` last laid the plate out against
+
   -- A Label's box is exactly the text it renders, so writing a new number resizes it -- and the plate is
   -- that box, or the two-digit floor, whichever is wider. The number is centred in what is left over, so a
   -- single digit sits in the middle of the box rather than against its left edge.
@@ -241,10 +243,32 @@ local function decorateIcon(icon)
     -- replacement is already on its way in.
     local box, within = label:size(), icon:size()
     if (box == nil) or (within == nil) then return end
+    fitted = within.h
     local width = math.max(box.w, minWidth)
     plate:size(width, box.h)
     plate:position(PLATE_LEFT, within.h - labelLift(occupied) - box.h)
     label:position(math.floor((width - box.w) / 2), 0)
+  end
+
+  -- AN ICON IS BORN ONE CELL AND GROWS LATER. The client builds an item's widget at the inventory's square
+  -- size and gives it the item's real footprint on the first tick after the item's SPRITE resolves -- so the
+  -- icon for a board or a bar is 1x3 a moment after it was 1x1. Nothing announces that: a position is a
+  -- coordinate rather than a relationship, and the client's own resize is not the `Resized` a widget
+  -- subscribes to. So a plate laid out against the smaller box sits a whole cell too high for the rest of
+  -- that icon's life -- which is exactly what makes moving the item appear to fix it: the icon is destroyed,
+  -- rebuilt, and the race is rolled again.
+  --
+  -- The resize is applied by the icon's OWN tick, and by the next one it has certainly run: whatever brought
+  -- us here -- a tooltip landing, or a revision of one -- waited on the item's resource, which is the very
+  -- thing the sprite waits on. So one deferred look is the whole of the answer, and on an icon that was its
+  -- full size already it costs a comparison and nothing else.
+  local function layout(occupied)
+    fit(occupied)
+    local against = fitted
+    hafen.timer():after(0, function()
+      local within = icon:size()
+      if (within ~= nil) and (within.h ~= against) then fit(occupied) end
+    end)
   end
 
   -- Read on the tooltip's arrival rather than in the painter: these numbers change once in a while and the
@@ -271,7 +295,7 @@ local function decorateIcon(icon)
     elseif clientDrawsABar(item) then
       occupied = BAR_TOP
     end
-    fit(occupied)
+    layout(occupied)
 
     if remaining == nil then
       icon:overlay():remove(WEAR_KEY)                      -- inert on an icon carrying none

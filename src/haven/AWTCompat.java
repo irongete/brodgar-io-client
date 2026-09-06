@@ -88,8 +88,14 @@ public class AWTCompat {
 	    id = java.awt.event.MouseEvent.MOUSE_PRESSED;
 	else if(ev instanceof Toolkit.MouseUpEvent)
 	    id = java.awt.event.MouseEvent.MOUSE_RELEASED;
+	/* addon: the 11-argument constructor, with the absolute coordinates given. The 9-argument one
+	 * derives them itself through source.getLocationOnScreen(), which throws
+	 * IllegalComponentStateException for a component that is not showing -- and awtdummy never is --
+	 * so every event dispatched paid a thrown-and-caught exception inside the JDK, with its stack
+	 * trace: ~30 a second under profiling. The JDK's own catch left xAbs/yAbs at 0, which is what is
+	 * passed here, so nothing downstream reads anything different. */
 	return(new java.awt.event.MouseEvent(awtdummy, id, System.currentTimeMillis(), awtmods(ev.mods()),
-					     ev.wndc().x, ev.wndc().y, 0, false,
+					     ev.wndc().x, ev.wndc().y, 0, 0, 0, false,
 					     (ev instanceof Toolkit.MouseButtonEvent) ? buttonid(((Toolkit.MouseButtonEvent)ev).button()) : java.awt.event.MouseEvent.NOBUTTON));
     }
 }

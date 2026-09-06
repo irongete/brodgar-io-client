@@ -483,11 +483,17 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		 * the burst of sfx came from. A session nobody is looking at CONSUMES its effects
 		 * instead: they run on their own clock, they are neither seen nor heard, and they end by
 		 * themselves. A sprite whose only ending is being played through is told that it will
-		 * not be. */
-		if(!glob.dormant)
-		    continue;
-		if(ol.spr != null)
-		    ol.spr.unheard();
+		 * not be.
+		 *   ...unless init() just put it in a tree. `slots` was read BEFORE init() filled it, so an
+		 * overlay of a dormant session whose gob stands in the anchor's merged scene was added to
+		 * that scene and told unheard() in the same pass: drawn and written off at once. Re-read
+		 * after init(); one that landed ticks as seen, like any other. */
+		if(ol.slots == null) {
+		    if(!glob.dormant)
+			continue;
+		    if(ol.spr != null)
+			ol.spr.unheard();
+		}
 	    }
 	    boolean done = ol.tick(dt);
 	    if((!ol.delign || (ol.spr instanceof Sprite.CDel)) && done) {

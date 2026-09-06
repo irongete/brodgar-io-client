@@ -692,11 +692,14 @@ public abstract class UILoop implements Console.Directory {
 	    io.brodgar.addon.AddonManager.tick(ui);
 	    /* rts: the background sessions (F0, specs/rts/plan.md). OUTSIDE the anchor's monitor,
 	     * and each member under its own, so no two UI monitors are ever held at once -- the Loader
-	     * threads take exactly one, so there is no cycle to make. No gtick and no resize: a member has
-	     * nothing in a render tree and no pixels of its own. Its own phase, because the whole point of
-	     * F0 is to read what a second session costs. No members = one list check. */
+	     * threads take exactly one, so there is no cycle to make. No resize: a member has no pixels of
+	     * its own. It DOES get a gtick: SessionGobs draws a member's objects into this scene, and a
+	     * SkelSprite's or an overlay's animation reaches the GPU through Gob.gtick alone, so a member fed
+	     * only ctick showed its animated objects frozen. Its own phase, because the whole point of F0 is
+	     * to read what a second session costs. No members = one list check. */
 	    CPUProfile.phase(prof, "sessions");
 	    io.brodgar.session.Sessions.tick();
+	    io.brodgar.session.Sessions.gtick(out);
 	}
 
 	protected void display() {

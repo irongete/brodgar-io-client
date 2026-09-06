@@ -2992,7 +2992,7 @@ public final class AddonManager {
             }
             heldGobs.removeAll(gone);
             for(int i = 0, n = gone.size(); i < n; i++)
-                gobLeft(gone.get(i).longValue());
+                gobLeft(gone.get(i).longValue(), true);
             // 114.1: ...and a copy that session was holding is a copy nothing will ever announce -- its queue
             // went with its state. The ones no live session can see any more are exactly the stranded ones:
             // an object still in somebody's cache is still on its way to a drain that will release it.
@@ -3016,15 +3016,37 @@ public final class AddonManager {
             if(heldGobs.add(key))
                 fireGob("GobAdded", id);
         } else if(heldGobs.remove(key)) {
-            gobLeft(id);
+            gobLeft(id, false);
         }
     }
 
     /** The object left its last session: forget the game's overlays that hung on it, then report it gone. */
-    private static void gobLeft(long id) {
+    private static void gobLeft(long id, boolean rescan) {
         heldNative.remove(Long.valueOf(id));   // the client drops a departing gob whole, decorations and all
         lastSdt.remove(Long.valueOf(id));      // 113.3: ...and what it last reported for the object's state
-        GobIntent.forget(id);                  // 092.7: ...and what was ASKED for at it goes with the object
+        List<LuaGobOverlay.Attach> mine = GobIntent.forget(id);   // 092.7: ...and what was ASKED for at it goes with the object
+        // On the rescan there is no copy left for LuaGobOverlay.gobGone to have reported from, so the addon's
+        // own overlays on an object only the dead session saw were never announced gone. Reported here from
+        // the intent record instead, and only on that path: the per-event one already fired these off the
+        // last copy, and a second GobOverlayRemoved is a removal an addon's set never gets back.
+        if(rescan) {
+            for(int i = 0, n = mine.size(); i < n; i++) {
+                LuaGobOverlay.Attach a = mine.get(i);
+                try {
+                    fireGobOverlay("GobOverlayRemoved", id, a.key, false, a.owner);
+                } catch(RuntimeException e) {
+                    /* an addon's handler is isolated by fireTo; this guards only the dispatch itself */
+                }
+            }
+        }
+        // ...and whatever of ours was STANDING on it. The per-event path above ends an anchored entity before
+        // the object's own GobRemoved reaches Lua (075.3), so a handler reads :exists() == false and can let
+        // its own record go; the rescan reached here through the same GobRemoved with nothing ended under it.
+        // A session dying was the one departure that left every patch, sprite and ghost anchored to what
+        // that character alone could see alive, lifted and untracked -- to be laid again, out of anybody's
+        // reach, the moment another character loaded those same objects. anchorGone re-asks seenAnywhere
+        // itself, so an object a live session still holds is left exactly as it is.
+        VirtualApi.anchorGone(id);
         fireGob("GobRemoved", id);
     }
 
