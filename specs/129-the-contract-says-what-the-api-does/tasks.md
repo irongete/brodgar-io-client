@@ -48,7 +48,7 @@
       exempt and asserts it refuses in the way its page says, naming what to read instead. That pair is the
       census's own claim put back to the API.
 
-- [ ] **129.4 — the checker resolves what a helper built, and fails on nothing.**
+- [x] **129.4 — the checker resolves what a helper built, and fails on nothing.**
       `statements()` matches only a literal `put("…",` and `Refusal.java` holds two; about twenty-five rows
       arrive through `uiKept(verb, why)`, which builds its key by concatenation and its message from a
       template, sixteen of them from the loop over control names at `Refusal.java:90`. The scanner learns

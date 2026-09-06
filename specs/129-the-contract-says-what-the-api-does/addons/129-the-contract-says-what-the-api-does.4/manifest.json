@@ -1,0 +1,9 @@
+{
+  "name": "129.4 — the checker resolves what a helper built, and fails on nothing",
+  "id": "129-the-contract-says-what-the-api-does.4",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 129.4: the refusal rows the scanner now reads are rows that fire -- one built by an explicit uiKept call, one of the sixteen a loop builds, and the one still written as a literal put -- each naming the door the verb is on and the half it is in; then the door each message points at is asked for the verb it promised, which is the half a static check cannot resolve.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

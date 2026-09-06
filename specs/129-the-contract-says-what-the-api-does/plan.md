@@ -106,3 +106,13 @@ No `docs/client/` page: nothing here reaches upstream `haven`. The three mention
   starts lying in the other direction.
 - **Leaving the zero-coverage exit alone once the scanner is fixed** — the scanner is fixed for the helper
   that exists today, and the next one silently returns the tool to a green over nothing.
+- **Teaching the checker a SECTION's vocabulary, so the MENTION count is non-zero as well as the row
+  count** — what it reports is twenty-five rows and zero resolved mentions, and the zero is the shape of
+  today's rows rather than a blind scanner: every row `MISPLACED` carries promises a section verb
+  (`hafen.ui():window(…)`, `s:console():run(line)`), and the resolver types an entity verb written
+  `recv:verb(`, which is what `MOVED` used to carry and no longer does. Resolution still fires — a seeded
+  row promising an entity verb turns the tool red through the helper as readily as through a literal.
+  Reading a section the way an entity is read would make it worse: a vocabulary is harvested per FILE, and
+  `UiApi.java` builds BOTH halves of the split, so `s:ui():window` would resolve against `hafen.ui()`'s
+  verbs and twenty-four rows would pass green for the very reason they exist. The tool states this where
+  it prints its count, and the suite proves those rows fire from Lua instead.
