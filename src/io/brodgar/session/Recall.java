@@ -252,9 +252,16 @@ public class Recall {
      * over ground already read draws it with nothing to rebuild.
      *
      * <p>Access-ordered, so wanting a grid is what makes it recent and {@link #trim} drops from this end.
-     * Its membership is the cache's and is reconciled with it on every trim rather than tracked: a coord
-     * wanted over ground the record has nothing at is never installed and must not count against the cap,
-     * and a grid installed by a sweep whose wanted set has since moved must.
+     * Wanting is <b>all</b> {@link #want} does to it: a coord wanted over ground the record has nothing at
+     * is never installed and must not count against a cap on what is held.
+     *
+     * <p><b>Its membership is written at the three doors that move what the cache holds, and all three are
+     * in this class</b> — {@link #install}, the {@code map.drop} in {@link #trim}, and the
+     * {@code map.trimall} in {@link #release}. So it is not reconciled against the cache and there is
+     * nothing to build to reconcile it with: a trim that has nothing to drop reads a size and returns.
+     * That the doors are the whole story is {@code MCache}'s own property and not an assumption — a grid
+     * enters {@code MCache.grids} from the wire or from {@code AddonWidgets.putgrid} and from nowhere else,
+     * and nothing streams into this cache.
      *
      * <p>Both threads reach it — the tick wants and the sweep makes room — so every use is under its own
      * monitor, and {@code map}'s is always taken inside it and never the other way about.
@@ -376,11 +383,14 @@ public class Recall {
 	    }
 	    readset = out;
 	    /* Every coord of what is read and not merely of what is drawn, because what is read is what
-	     * is held and this cap is on what is held. An access-ordered map, so this is the touch that
-	     * makes a grid the most recent one there is. */
+	     * is held and this cap is on what is held. An access-ordered map, so a `get` is the touch that
+	     * makes a grid the most recent one there is -- and a `get` and not a `put` because wanting is
+	     * not holding: the record has nothing at most of what a pan asks for, and a coord that never
+	     * becomes a grid must not count against a cap on grids. Membership is written at the three
+	     * doors alone (see {@link #lru}); this says only which of it is recent. */
 	    synchronized(lru) {
 		for(Coord gc : out)
-		    lru.put(gc, Boolean.TRUE);
+		    lru.get(gc);
 	    }
 	}
 	trim(0);
@@ -408,23 +418,17 @@ public class Recall {
      *             there until the next one, which is as long as anything reading the gauge cares to look.
      */
     private void trim(int room) {
-	List<Coord> drop = new ArrayList<Coord>();
 	synchronized(lru) {
-	    /* The order is this map's; the membership is the cache's. A wanted coord the record has nothing
-	     * at is never installed and must not count against a cap on what is held, and a grid a sweep
-	     * installed after the wanted set moved off it must -- or it would be held by nothing and
-	     * dropped by nothing. */
-	    Set<Coord> have = new HashSet<Coord>();
-	    for(MCache.Grid g : AddonWidgets.loadedGrids(map))
-		have.add(g.gc);
-	    for(Coord gc : have) {
-		if(!lru.containsKey(gc))
-		    lru.put(gc, Boolean.TRUE);
-	    }
-	    lru.keySet().retainAll(have);
+	    /* Both the order and the membership are this map's own, so there is nothing to ask the cache and
+	     * nothing to build to ask it with -- see {@link #lru} for the three doors that write it. This runs
+	     * on every tick that anything is wanted and drops on almost none of them, so asking the cache what
+	     * it holds to decide that is a copy of the cache per tick to decide nothing.
+	     *
+	     * The drop list is made after that decision for the same reason. */
 	    int over = (lru.size() + room) - gridcap();
 	    if(over <= 0)
 		return;
+	    List<Coord> drop = new ArrayList<Coord>();
 	    Set<Coord> pin = this.pinned;
 	    for(Iterator<Coord> i = lru.keySet().iterator(); i.hasNext() && (over > 0);) {
 		Coord gc = i.next();
@@ -434,6 +438,8 @@ public class Recall {
 		drop.add(gc);
 		over--;
 	    }
+	    /* The second door, and the removal above is its record: what leaves the cache leaves the order in
+	     * the same breath, under the one monitor, so neither can be true without the other. */
 	    map.drop(drop);
 	}
     }
@@ -478,9 +484,17 @@ public class Recall {
      * arrives with the segment — and the actual grid read happens outside it.
      */
     private void sweep(Base base) {
-	Map<Coord, MapFile.Grid> ready = new HashMap<Coord, MapFile.Grid>();
-	Map<Coord, Long> ids = new HashMap<Coord, Long>();
-	Map<Coord, haven.Indir<MapFile.Grid>> got = new HashMap<Coord, haven.Indir<MapFile.Grid>>();
+	/* Null until there is something to put in one, and that is the point rather than a style: a sweep that
+	 * cannot have the lock returns before the first of them, one whose proof fails returns before the read
+	 * loop, and the ordinary sweep -- the camera standing still over ground already read -- walks that loop
+	 * and reaches no put in it. Only a sweep with a grid to ask for builds anything at all.
+	 *
+	 * `got` and `ids` are made together because they are one answer in two halves, and `ready` on the first
+	 * grid that actually arrives, which is later still: an ask is answered by a Defer future that is usually
+	 * still Loading on the sweep that made it. */
+	Map<Coord, haven.Indir<MapFile.Grid>> got = null;
+	Map<Coord, Long> ids = null;
+	Map<Coord, MapFile.Grid> ready = null;
 	int blank = 0;
 	/* Name the proof's witnesses OUTSIDE the file lock: MapFile's own writers walk a map cache while
 	 * holding it, and taking the two in the other order here is how that becomes a deadlock. */
@@ -552,34 +566,47 @@ public class Recall {
 		    pending.add(gc);
 		    newask++;
 		}
+		if(got == null) {
+		    got = new HashMap<Coord, haven.Indir<MapFile.Grid>>();
+		    ids = new HashMap<Coord, Long>();
+		}
 		got.put(gc, base.seg.grid(id));
 		ids.put(gc, id);
 	    }
 	} finally {
 	    base.file.lock.readLock().unlock();
 	}
-	for(Map.Entry<Coord, haven.Indir<MapFile.Grid>> ent : got.entrySet()) {
-	    try {
-		MapFile.Grid g = ent.getValue().get();
-		if(g == null) {
-		    blank++;
+	if(got != null) {
+	    for(Map.Entry<Coord, haven.Indir<MapFile.Grid>> ent : got.entrySet()) {
+		try {
+		    MapFile.Grid g = ent.getValue().get();
+		    if(g == null) {
+			blank++;
+			pending.remove(ent.getKey());
+			continue;
+		    }
+		    if(ready == null)
+			ready = new HashMap<Coord, MapFile.Grid>();
+		    ready.put(ent.getKey(), g);
+		} catch(Loading l) {
+		    /* Defer has not got the file off the disk yet, so the ask STANDS: it stays pending, it
+		     * is asked again next sweep for nothing, and it takes no new slot in the meantime. */
+		} catch(RuntimeException e) {
+		    /* A tileset loaded out of the res cache can carry illegal references, and Loading is
+		     * a RuntimeException everywhere on this path. One grid's failure is not the sweep's --
+		     * and the ask is over, however it went, so the coord stops being pending. */
 		    pending.remove(ent.getKey());
-		    continue;
+		    nfailed++;
+		    lasterr = String.valueOf(e);
 		}
-		ready.put(ent.getKey(), g);
-	    } catch(Loading l) {
-		/* Defer has not got the file off the disk yet, so the ask STANDS: it stays pending, it
-		 * is asked again next sweep for nothing, and it takes no new slot in the meantime. */
-	    } catch(RuntimeException e) {
-		/* A tileset loaded out of the res cache can carry illegal references, and Loading is
-		 * a RuntimeException everywhere on this path. One grid's failure is not the sweep's --
-		 * and the ask is over, however it went, so the coord stops being pending. */
-		pending.remove(ent.getKey());
-		nfailed++;
-		lasterr = String.valueOf(e);
 	    }
 	}
+	/* Written on every sweep that got as far as reading, and not only on one that read something: with
+	 * nothing wanted there is nothing unrecorded either, and a figure left over from the last pan would
+	 * stand for as long as the camera did. */
 	nblank = blank;
+	if(ready == null)
+	    return;
 	for(Map.Entry<Coord, MapFile.Grid> ent : ready.entrySet()) {
 	    /* The base moved while this sweep was running, so every coord here means somewhere else now
 	     * -- and release() has already disposed what was read through the old one. Installing behind
@@ -669,6 +696,9 @@ public class Recall {
 	nreleased++;
 	pending.clear();
 	pinned = Collections.emptySet();
+	/* The third door: trimall empties the cache wholesale, so the order goes with it. Left standing it
+	 * would hold coords for grids that no longer exist, and trim would drop nothing while believing
+	 * itself full. */
 	synchronized(lru) {
 	    lru.clear();
 	}
@@ -692,6 +722,12 @@ public class Recall {
 	for(int i = 0; i < tiles.length; i++)
 	    tiles[i] = gmap[g.tiles[i]];
 	AddonWidgets.putgrid(map, gc, id, tiles, g.zmap);
+	/* The first door. AFTER the trim above, so the entry does not count against the room just made for
+	 * it, and after the put, so a grid that threw on its way in is in no order. Taken after putgrid has
+	 * returned rather than around it: this monitor is always the outer one of the two. */
+	synchronized(lru) {
+	    lru.put(gc, Boolean.TRUE);
+	}
     }
 
     /**

@@ -1,0 +1,10 @@
+{
+  "name": "133.2 — the sweep builds nothing until it has something to read",
+  "id": "133-a-sweep-costs-what-it-reads.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 133.2: a camera standing still over ground already read costs the remembered ground nothing -- neither a gauge nor an allocation moves - and what a pan does read back is exactly what the keep set goes on holding, up to the cap its range implies.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

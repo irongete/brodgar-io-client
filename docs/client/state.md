@@ -81,6 +81,16 @@
   wrong for "where is this place" — a locating read uses a plain `synchronized(grids)` lookup instead, which
   is what `AddonWidgets.loadedGrid` is. `Grid.ul` is `gc * cmaps` in session tiles, the same point
   the map file derives as `(sc * cmaps) - sessloc.tc`, which is why one anchor survives a grid unloading.
+- **`MCache.grids` has exactly one door in and three out, and a miss is none of them.** In:
+  `mapdata2`, and only for a coord already in `req` — plus `AddonWidgets.putgrid` (`// addon:`) on a cache
+  filled from somewhere other than the wire. Out: `trimall`, `trim(ul, lr)` and `drop(Collection)`
+  (`// addon:`), and each of the three calls `Grid.dispose()` in the same statement that unlinks the entry,
+  so `Grid.removed` is set on grids that are already gone and **never on one still in the map** — which is
+  why `numgrids()` (the raw size) and a walk that filters `removed` agree. ⚠️ `getgrid`'s miss looks like a
+  fourth door and is not: it fills `req` and throws, leaving `grids` untouched. So a source that fills its
+  own cache through the one door **knows its whole membership from its own calls**, and needs no copy of the
+  cache to find out what it is holding — which a source that keeps an LRU over grid coords would otherwise
+  take once per tick.
 - **The session coordinate space is re-based MID-SESSION, not only at login** — `invalblob`
    type 2 calls `trimall()`,
   dropping every grid, and the ground that streams back in arrives under different grid coords. Entering a

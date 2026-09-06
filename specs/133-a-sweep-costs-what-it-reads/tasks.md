@@ -29,7 +29,7 @@
       `[manual]`: cross into ground you have explored before — expect: it is drawn, out to the range
       `c:recallRange()` reports.
 
-- [ ] **133.2 — the sweep builds nothing until it has something to read.**
+- [x] **133.2 — the sweep builds nothing until it has something to read.**
       `ready`, `ids` and `got` move to their first use, behind the `tryLock` and behind the proof: `got` and
       `ids` inside the read loop, `ready` after it. A sweep that cannot take the file lock, that fails the
       proof, or that finds `readset` empty — the ordinary case with the camera standing still — then
