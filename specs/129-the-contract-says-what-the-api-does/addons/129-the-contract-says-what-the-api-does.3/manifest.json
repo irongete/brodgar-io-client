@@ -1,0 +1,9 @@
+{
+  "name": "129.3 — the census, and :info() stated by category",
+  "id": "129-the-contract-says-what-the-api-does.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 129.3: the three live handles the census marks as carrying :info() -- a gob, an item and a patch -- each answer a table whose keys are the ones their own page lists and no others, with every always-there key present and typed; while a Sub, which the census exempts as a carrier of an ending, refuses :info() naming the two verbs it does answer.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

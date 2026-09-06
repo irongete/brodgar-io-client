@@ -139,9 +139,11 @@ coordinate.
 
 ### The snapshot
 
-`e:info()` is the one escape hatch every live object in this API carries: the whole state at once, as a
-plain table, for logging or serialising. Every key is spelled the way the verb that reads it is, so there
-is nothing to translate:
+`e:info()` is the escape hatch a live object in this API carries: the whole state at once, as a plain
+table, for logging or serialising. Three kinds carry none — a builder, which is dispatched rather than read
+back; something already a snapshot, an event payload or an HTTP result; and a carrier of an ending, whose
+whole state is that it has not ended — and an entity here is none of them. Every key is spelled the way the
+verb that reads it is, so there is nothing to translate:
 
 ```lua
 local e = hafen.virtual():sprite():list()[1]

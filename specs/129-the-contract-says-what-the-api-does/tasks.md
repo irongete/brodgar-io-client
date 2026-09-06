@@ -35,7 +35,7 @@
       the assertion that fails if any key was renamed while the rule was being written. It `pcall`s `:on`
       with a key that is not in the set and asserts the refusal lists the ones that are.
 
-- [ ] **129.3 — the census, and `:info()` stated by category.**
+- [x] **129.3 — the census, and `:info()` stated by category.**
       Builds `specs/129-the-contract-says-what-the-api-does/info-census.md` and edits nothing else with
       it: one row per closed vocabulary, whether it answers `:info()`, and where it does not, which
       category exempts it — a **builder**, configured and then dispatched; a **snapshot**, already the

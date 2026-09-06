@@ -82,8 +82,12 @@ frozen folder. If the reason does not stand on its own words, it is not prior ar
   separate verb naming itself as the wire's (`slot:index()` is the position, `slot:wire()` is the
   server's), never the same verb counting from somewhere else.
 - **Reference-based accessors**: a read takes the thing it reads and hands back a **live interned
-  object**, with `:info()` as its only snapshot — every live object answers it, with no exception.
-  An explicit `nil` raises, except where a page documents a meaning for it.
+  object**, with `:info()` as its only snapshot. Three kinds carry none, and none of the three is a
+  gap: a **builder**, whose state is what you have set and whose end is the dispatch; something
+  **already a snapshot** — an event payload, an HTTP result; and a **carrier of an ending**, whose
+  whole state is that it has not ended. A live object outside those three that has no `:info()`
+  lacks one by omission, never by rule. An explicit `nil` raises, except where a page documents a
+  meaning for it.
 - **One notification verb**: `X:on(key, fn)` → a `Sub`, ended with `sub:off()`. The address picks
   the door — hold the object, subscribe on it; otherwise on the bus.
 - **An event key is a subject and an edge**, and `conventions.md`'s table is the edges: `Added`,
