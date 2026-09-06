@@ -1,0 +1,10 @@
+{
+  "name": "133.1 — the sweep proves the base from grids it names",
+  "id": "133-a-sweep-costs-what-it-reads.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 133.1: the remembered ground's four counters answer as their page says while a bounded proof runs underneath them -- the gauges rise and fall with the range, the cumulative read climbs and then stops -- and turning that ground on costs no allocation the reach does not.",
+  "api_version": 1,
+  "permissions": ["client.settings"],
+  "files": ["main.lua"]
+}

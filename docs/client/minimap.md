@@ -39,6 +39,19 @@
     holding it, and taking the two in the other order is a deadlock.
   - **`Segment.gridid` answers from memory and `checklock()`s**; `Segment.grid(sc)` would wait on `Defer`
     for tiles nobody wants. Take the first and never the second.
+  - **A bounded sample decides it, so name the grids rather than walking `MCache.grids`.** A stale offset is
+    a property of the whole map — under one *every* live grid disagrees — and a walk is a `Coord` and a
+    record lookup for every grid the session has ever loaded, which is a set that only grows
+    ([terrain-raster.md](terrain-raster.md)). Only a walk can tell one corrupt record entry from a re-base,
+    and nothing downstream tells them apart either. The grid to name is the one under the **character** —
+    `new Coord2d(MapView.getcc()).floor(MCache.tilesz).div(MCache.cmaps)`, the coord `GameUI.mapfiletick`
+    hands to `MapFile.update` — and its ring, because a witness a tick stale sits on a grid edge.
+  - ⚠️ **Session grid `(0, 0)` is not that grid, and a proof anchored there proves nothing.** `sessloc.tc`
+    translates it, which says where the session's coordinate space is *anchored* and nothing whatever about
+    where the character stands: the live cache need hold nothing there, and where it does, the segment
+    `sessloc` currently names need not know that grid at all. Both give `checked == 0` — the refusal that
+    reads as "the record does not know where this session is standing" while the record knows perfectly
+    well.
 
 ## Drawing a grid
 

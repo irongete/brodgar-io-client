@@ -1990,11 +1990,23 @@ public class MapView extends PView implements DTarget, Console.Directory {
 		/* No player yet, or no ground under them: nothing to centre a read on. */
 	    }
 	}
+	/* 133.1: and where the CHARACTER is, in session grid coords, which is not where the camera is
+	 * looking. The source proves its base against live grids it names, and the ground under the
+	 * character is the one place both the live cache and the record are certain to have something:
+	 * GameUI.mapfiletick writes that grid to the record within a second of arriving, and the server has
+	 * just streamed it. The camera can be panned over ground never streamed at all, and `c` above is
+	 * the camera's. */
+	Coord plgc = null;
+	try {
+	    plgc = new Coord2d(getcc()).floor(MCache.tilesz).div(MCache.cmaps);
+	} catch(Loading e) {
+	    /* No player yet, or no ground under them: no witness this tick, and the next one has it. */
+	}
 	/* 120.2: the base first, the read LAST, and the decision between them. The base has to be this
 	 * tick's -- a re-base found here must take the ground out of the scene in the same frame and not
 	 * the next one -- and what is read is what the raster asks for, which it cannot say until it has
 	 * been told whether it is in the scene at all. */
-	recall.tick(mm);
+	recall.tick(mm, plgc);
 	/* The raster goes in with the RTS camera and comes out with it. Every other camera is bolted to
 	 * the character, where the live Terrain already draws everything in view and this would have
 	 * nothing to add but a second mesh over the first -- and with the raster out of the tree its

@@ -108,6 +108,47 @@ public class Recall {
      */
     private static final int maxread = 8;
 
+    /**
+     * How many live grids one sweep may ask about to prove its base, and the whole of what a proof costs:
+     * {@code AddonWidgets.loadedGrid} takes the live cache's monitor once per ask, and that is the monitor
+     * the map and the render threads take.
+     *
+     * <p>A bounded sample decides the offset exactly as a walk of every loaded grid did, because a stale
+     * offset is a property of the map as a whole — under one, <b>every</b> live grid disagrees with the
+     * record rather than one of them. What a sample gives up is noticing a <i>single</i> disagreeing grid
+     * among agreeing ones, which is a corrupt record rather than a re-base, and nothing downstream tells
+     * those two apart.
+     *
+     * <p>It stays a small number, and that is not incidental: a witness set grown toward the size of the
+     * cache would take that monitor more often than the whole-cache copy it replaces. {@link #around} is
+     * asked first and is nine of them, because it is the witness that answers while nothing is being drawn;
+     * the rest come from {@link #readset}, which is where the camera is.
+     */
+    private static final int maxprove = 12;
+
+    /**
+     * The ring around the character, in session grid coords, nearest first — where the witnesses are.
+     *
+     * <p>The ground under the character is the one place both sides are certain to have something: the
+     * server has just streamed that grid, and {@code GameUI.mapfiletick} writes it to the record within a
+     * second of arriving, which is the sentence the refusal below already rests on. So it is the witness
+     * that answers with {@link #readset} empty and the raster out of the scene — the state a proof exists to
+     * get out of, and the one in which the wanted set is no witness at all.
+     *
+     * <p>It is a ring and not the one grid because {@link #plgc} is a tick stale at worst and a character on
+     * a grid edge crosses it; a neighbour costs one lookup and answers the same question.
+     *
+     * <p><b>Session grid {@code (0, 0)} is not that grid.</b> {@code Base.off} translates it, which says
+     * where the session's coordinate space is anchored and nothing whatever about where the character
+     * stands — the live cache need hold nothing there, and where it does, the record's current segment need
+     * not know it.
+     */
+    private static final Coord[] around = {
+	new Coord( 0,  0),
+	new Coord( 0, -1), new Coord( 1,  0), new Coord( 0,  1), new Coord(-1,  0),
+	new Coord( 1, -1), new Coord( 1,  1), new Coord(-1,  1), new Coord(-1, -1),
+    };
+
     /** The recalled source. Never ticked, never sent for; read by whatever rasterizes it. */
     public final MCache map;
     private final Session sess;
@@ -141,6 +182,17 @@ public class Recall {
     private volatile String unbased = "no session location yet";
 
     /**
+     * Where the character is, in session grid coords, or {@code null} while there is no player under a
+     * ground — what {@link #around} is the ring around, and the whole of what a proof is anchored on.
+     *
+     * <p>Written by {@link #tick} from the UI thread and read by the sweep from its own, so one tick stale
+     * at worst, which a ring of grids swallows. It is not on {@link Base}: the base moves when the
+     * coordinate space does and the character moves constantly, and pinning the witnesses to the base would
+     * be pinning them to where the space was anchored, not to where the ground is.
+     */
+    private volatile Coord plgc = null;
+
+    /**
      * Whether a sweep has shown the offset to be the right one, and whether what is held must go.
      *
      * <p>A base that has merely been derived is not a base that has been <i>proved</i>. {@code sessloc}
@@ -159,6 +211,14 @@ public class Recall {
     /* The per-source tile remap. Touched by the sweep alone, and only one sweep runs at a time. */
     private final Map<String, Integer> tileids = new HashMap<String, Integer>();
     private int nexttile = 0;
+
+    /* The proof's witnesses: the live grids one sweep holds the record against, named before the file lock
+     * is taken and read under it. Parallel arrays -- the segment grid coord to ask the record about, and the
+     * live grid's id to compare its answer with -- and fields rather than locals for the same reason as the
+     * remap above, that only one sweep runs at a time. So proving the base allocates nothing but the coords
+     * it asks the record about, and never more than maxprove of those. */
+    private final Coord[] wsc = new Coord[maxprove];
+    private final long[] wid = new long[maxprove];
 
     /**
      * What to read: every grid the drawn raster asked for and one grid more in every direction, which is
@@ -239,10 +299,14 @@ public class Recall {
      * set has named, trimmed there too. A square released around a centre every tick is what made panning
      * one grid dispose a rank of them and panning back rebuild every mesh in it.
      *
-     * @param mm the corner minimap — the one instance whose {@code sessloc} the rest of the client
-     *           reads; {@code null} before the HUD is up
+     * @param mm   the corner minimap — the one instance whose {@code sessloc} the rest of the client
+     *             reads; {@code null} before the HUD is up
+     * @param plgc where the character is, in session grid coords, or {@code null} for no player under a
+     *             ground. It is taken here rather than found because this source has no view to ask, and it
+     *             is what {@link #around} anchors the proof on — see {@link #plgc}
      */
-    public void tick(MiniMap mm) {
+    public void tick(MiniMap mm, Coord plgc) {
+	this.plgc = plgc;
 	if((mm == null) || (mm.file == null)) {
 	    unbased = "no map database yet";
 	    return;
@@ -418,9 +482,9 @@ public class Recall {
 	Map<Coord, Long> ids = new HashMap<Coord, Long>();
 	Map<Coord, haven.Indir<MapFile.Grid>> got = new HashMap<Coord, haven.Indir<MapFile.Grid>>();
 	int blank = 0;
-	/* Snapshot the live grids OUTSIDE the file lock: MapFile's own writers walk a map cache while
+	/* Name the proof's witnesses OUTSIDE the file lock: MapFile's own writers walk a map cache while
 	 * holding it, and taking the two in the other order here is how that becomes a deadlock. */
-	List<MCache.Grid> live = AddonWidgets.loadedGrids(sess.glob.map);
+	int nwitness = gather(base);
 	if(!base.file.lock.readLock().tryLock())
 	    return;
 	try {
@@ -431,16 +495,19 @@ public class Recall {
 	     * somewhere it never was. A grid id is the server's and means the same thing in every
 	     * frame, so asking the record what it has at a LIVE grid's coord and comparing the two ids
 	     * is the offset checking itself. Nothing recorded anywhere near proves nothing either way,
-	     * and that is a refusal too: the player's own grid is recorded within a second of arriving. */
+	     * and that is a refusal too: the player's own grid is recorded within a second of arriving.
+	     *
+	     * Over the witnesses gather() named and not over every grid the live cache holds: what is being
+	     * decided is a property of the whole map, so a bounded sample decides it exactly as a walk did
+	     * (see maxprove) -- and the walk cost a Coord and a record lookup for every grid there is, on
+	     * every pass, on a client holding hours of ground. */
 	    int checked = 0, wrong = 0;
-	    for(MCache.Grid lg : live) {
-		if(lg.id == 0)
-		    continue;
-		Long rid = base.seg.gridid(lg.gc.add(base.off));
+	    for(int i = 0; i < nwitness; i++) {
+		Long rid = base.seg.gridid(wsc[i]);
 		if(rid == null)
 		    continue;
 		checked++;
-		if(rid.longValue() != lg.id)
+		if(rid.longValue() != wid[i])
 		    wrong++;
 	    }
 	    if((checked == 0) || (wrong > 0)) {
@@ -528,6 +595,49 @@ public class Recall {
 		lasterr = String.valueOf(e);
 	    }
 	}
+    }
+
+    /**
+     * Name the live grids this sweep will hold its record against, into {@link #wsc} and {@link #wid}: the
+     * ring around the character ({@link #around} on {@link #plgc}) first, then what the raster asked for
+     * ({@link #readset}).
+     *
+     * <p><b>The bound is on the asks and not on what they find</b>, because an ask is what costs — a coord
+     * the live cache has nothing at has taken its monitor all the same. {@code readset} is a few hundred
+     * coords wide at the largest range, and walking all of it would take that monitor more often than the
+     * whole-cache copy this replaces.
+     *
+     * <p>Called on the sweep's own thread and <b>outside</b> the file lock, so a witness is a grid id read
+     * one moment before the record is asked what it has at that coord; that is the same one-moment-stale
+     * snapshot the walk took, and a re-base found a sweep late is found by the next sweep. A grid whose id
+     * is still {@code 0} is no witness at all: the server has not yet said which grid it is.
+     *
+     * @return how many witnesses the arrays hold, which is at most {@link #maxprove}
+     */
+    private int gather(Base base) {
+	int asked = 0, n = 0;
+	Coord pc = this.plgc;
+	if(pc != null) {
+	    for(int i = 0; (i < around.length) && (asked < maxprove); i++, asked++)
+		n = witness(pc.add(around[i]), base, n);
+	}
+	for(Coord gc : this.readset) {
+	    if(asked >= maxprove)
+		break;
+	    asked++;
+	    n = witness(gc, base, n);
+	}
+	return(n);
+    }
+
+    /** One ask of the live cache, kept as a witness if it answers with a grid the server has named. */
+    private int witness(Coord gc, Base base, int n) {
+	MCache.Grid lg = AddonWidgets.loadedGrid(sess.glob.map, gc);
+	if((lg == null) || (lg.id == 0))
+	    return(n);
+	wsc[n] = gc.add(base.off);
+	wid[n] = lg.id;
+	return(n + 1);
     }
 
     /**

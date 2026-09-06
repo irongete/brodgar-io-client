@@ -20,6 +20,17 @@ and skip the cut when it holds nothing. That is also what drops a cut whose grid
 `MapRaster.Grid.tick` removes the slot of any cut its `skipcut` starts refusing, so the stale mesh leaves the
 scene at the next tick instead of being drawn after its `dispose()`.
 
+**Gotcha — a second source of ground is a second `MCache`, and only one of the two has a monitor anybody
+else wants.** `AddonWidgets.loadedGrids(mc)` (`// addon:`) copies a cache's whole grid map and
+`AddonWidgets.loadedGrid(mc, gc)` looks one coord up in it; **both take `mc.grids`**. On a raster's own
+disk-filled cache that monitor is taken by the raster and by whatever fills it and by nothing else, so a copy
+there is merely wasteful. On `sess.glob.map` it is the monitor the map and the render threads take, which
+[world-3d.md](world-3d.md) already prices per cut. ⚠️ So a question about a handful of grids is asked **by
+coord**, once per grid named — the same shape `RecallTerrain.tick`'s per-grid pre-reject already has.
+Copying the session's cache to answer one pays that monitor for every grid the session has ever loaded, and
+that set only grows: `MCache.trim` has no caller inside the client. The copy is also the smaller half of what
+it costs, because the walk over it is a `Coord` and a lookup for each of those grids, on every pass.
+
 **Gotcha — what such a source keeps is an LRU, and the raster's own `cuts` is what it may never drop.**
 `MCache.trim` keeps a rectangle, and a rectangle cannot say *keep what was built*: one grid of travel puts a
 whole rank of grids outside the square, so panning one way and back re-reads and re-meshes every one of them.
