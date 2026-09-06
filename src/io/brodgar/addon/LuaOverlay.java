@@ -414,7 +414,7 @@ public final class LuaOverlay {
             }
         });
 
-        // ---- how it looks ------------------------------------------------------------------------------
+        // ---- how it looks, and where it sits -------------------------------------------------------------
         // color(c) — the label's colour, as the TABLE a colour is: {200, 210, 220} or {r=,g=,b=[,a=]}. The read
         // hands back the keyed shape every colour reader in this API does, so ov:color(other:color()) is one call.
         m.set("color", new VarArgFunction() {
@@ -446,15 +446,33 @@ public final class LuaOverlay {
                 }
                 if(Args.passed(a, 4))
                     throw new LuaError("overlay:offset(x, y): an overlay is painted at the gob's projected point,"
-                        + " so its offset is SCREEN PIXELS and takes two numbers. The three-number world form is"
-                        + " gone with the world kinds -- a thing standing in the world is"
-                        + " hafen.virtual():sprite():add(asset, gob) (or :object() / :ghost()), and what it sits at"
-                        + " relative to the gob is its own :offset(x, y, z), in world units with z up");
+                        + " so its offset is SCREEN PIXELS and takes two numbers. The vertical world form is a"
+                        + " property of its own -- overlay:height(z), in world units up the gob, 15 by default"
+                        + " and 0 the ground under it. A horizontal one moves a thing standing IN the world:"
+                        + " hafen.virtual():sprite():add(asset, gob) (or :object() / :ghost()), whose own"
+                        + " :offset(x, y, z) is in world units");
                 double x = numberArg(a, 2, "overlay:offset", "x");
                 double y = numberArg(a, 3, "overlay:offset", "y");
                 if(rec != null) {
                     rec.offX = x; rec.offY = y;
                 }
+                return self;
+            }
+        });
+        // height(z) — WHERE UP THE GOB the projected point is taken, in WORLD units: 15 by default (just above
+        // the head, the client's own label height), 0 the ground the object stands on. It is the other half of
+        // where a record lands, and the only half in world units — the projection is done at this height, and
+        // :offset then moves the result by pixels. Per record, so one gob carries a label at its feet and one
+        // over its head at once, each projected at its own.
+        m.set("height", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaGobOverlay.Attach rec = writable(owner, self, "height");
+                if(!Args.passed(a, 2))
+                    return (rec == null) ? LuaValue.NIL : LuaValue.valueOf(rec.height);
+                double z = numberArg(a, 2, "overlay:height", "z");
+                if(rec != null)
+                    rec.height = z;
                 return self;
             }
         });
@@ -482,7 +500,7 @@ public final class LuaOverlay {
                 return LuaValue.valueOf(rec(owner, handle(self, "exists")) != null);
             }
         });
-        // info() — the snapshot escape hatch, for logging: {key, native, count, res?, kind?, world?}.
+        // info() — the snapshot escape hatch, for logging: {key, native, count, height?, res?, kind?, world?}.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaOverlay h = handle(self, "info");
@@ -505,6 +523,7 @@ public final class LuaOverlay {
                 } else {
                     LuaGobOverlay.Attach a = (LuaGobOverlay.Attach)r;
                     t.set("count", LuaValue.valueOf(1));
+                    t.set("height", LuaValue.valueOf(a.height));   // where up the gob it is projected from
                     if(a.kind() != null) {                         // absent while the overlay is still bare
                         t.set("kind", LuaValue.valueOf(a.kind()));
                         t.set("world", LuaValue.FALSE);            // painted at the gob's projected screen point

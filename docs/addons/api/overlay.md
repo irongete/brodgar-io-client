@@ -49,13 +49,11 @@ me:overlay():remove("hp")
 ## What an overlay of yours draws
 
 `:add(key)` attaches a **bare** overlay, and the two setters below say what it draws, at the gob's
-**projected screen point** — **15 world units above the gob**, which is just above the head. That height is
-part of the contract: a painter that wants the ground *under* the gob rather than the air over it comes back
-down the screen by it, and only [the projection](world.md#the-screen-and-the-world) says how many pixels
-that is. Each answers the overlay, so one statement configures the whole thing — and until it names a kind
-it draws nothing, so a half-configured overlay never paints. It says exactly **one** thing: a second,
-different kind raises naming the first, because picking a winner is how one of them silently stops meaning
-anything.
+**projected screen point** — taken **15 world units up the object** by default, which is just above the
+head, and moved by `ov:height(z)`. Each answers the overlay, so one statement configures the whole thing —
+and until it names a kind it draws nothing, so a half-configured overlay never paints. It says exactly
+**one** thing: a second, different kind raises naming the first, because picking a winner is how one of them
+silently stops meaning anything.
 
 **Neither runs for a gob behind the camera**, because there is no screen point to run them at: the projection
 would answer one mirrored through the middle of the view, and a label thirty tiles behind you would draw
@@ -69,18 +67,27 @@ character, so an overlay is painted exactly while the camera can see the thing i
 
 Every one of them has a bare read of the same name, so what you wrote is what you can read back, and the
 configuration is the overlay's own state: `ov:text("healed")` relabels a live overlay rather than replacing
-it.
+it. Once the overlay is gone every one of those reads answers `nil` and every write is inert, because there
+is nothing left to configure.
 
 | Setter | Meaning |
 |---|---|
 | `ov:color(c)` | the label's [colour](shapes.md#colours), `{200, 210, 220}` or `{r=, g=, b=[, a=]}` |
-| `ov:offset(x, y)` | **screen pixels** from the projected anchor point, in [design pixels](ui/pixels.md) |
+| `ov:height(z)` | **world units** up the object at which the point is projected; `15` by default, `0` the ground under it |
+| `ov:offset(x, y)` | **screen pixels** from that projected point, in [design pixels](ui/pixels.md) |
 
-**`ov:offset` means exactly one thing: pixels.** An overlay is painted at a projected point, so that is the
-only unit it could be in — the same design pixel the `sx, sy` beside it is in — and a third argument raises.
+**Two units, and each verb has exactly one of them.** `ov:height(z)` is the world: where up the object's own
+axis the point is taken, so a label at `0` stands on the ground the client stands the object on and rides
+the slope down with it, while the default `15` puts it over the head. `ov:offset(x, y)` is the screen:
+pixels from that point once it is projected, the same design pixel the `sx, sy` beside it is in — and a
+third argument raises, naming the height as the vertical world form. Each record carries its own height, so
+one gob wears a label at its feet and another over its head in the same frame, each projected at its own.
+A horizontal offset **in the world** is neither of these: something standing beside the gob rather than
+over it is [`hafen.virtual`](virtual/README.md).
+
 There is no `ov:clickable` and no `ov:onClick`: the thing under an overlay is the gob, and clicking a gob is
 [`s:world():click`](world.md#write-protected). There is no `ov:move` either: an overlay's position **is** its
-gob's, and what you set is the offset.
+gob's, and what you set is the height and the offset.
 
 ## A thing you stood at the gob is listed here, read-only
 
@@ -143,8 +150,9 @@ rather than empty when the gob carries none.)
 `:info()` is the snapshot escape hatch, and it hands back **two shapes**. Both carry `key`, `native` and
 `count`. **Yours** adds `kind` and `world` — `world` is `true` for a thing standing in the world and `false`
 for a painter, and both are absent while a bare overlay has not said what it draws — plus `res` when what it
-draws is named by a resource or an asset path. **A native one** adds `res`, which is the key itself, and
-carries neither `kind` nor `world`: the game's overlays say only that they are the game's.
+draws is named by a resource or an asset path, and `height` on a painter of yours, bare or not, which is
+where up the object its point is taken. **A native one** adds `res`, which is the key itself, and carries
+neither `kind` nor `world`: the game's overlays say only that they are the game's.
 
 An Overlay object is **interned on the key**, so `gob:overlay():get(key)` hands back the same object every
 time and a replace leaves the handle you were holding naming the *new* record. `:exists()` goes false

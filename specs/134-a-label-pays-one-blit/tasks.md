@@ -21,7 +21,7 @@
       `[manual]`: press the suite's key once and read the digit at the top-left of the screen — expect:
       white digit with a one-pixel black edge all round, one clean edge (no doubled outline).
 
-- [ ] **134.2 — a label stands where it is told.** `LuaGobOverlay.Attach` gains `height` (world units,
+- [x] **134.2 — a label stands where it is told.** `LuaGobOverlay.Attach` gains `height` (world units,
       `15` by default); `LuaOverlay` gains `ov:height()` / `ov:height(z)` through `writable` and
       `numberArg`, `:info()` carries `height`, and the `offset` refusal on a third argument names
       `ov:height(z)`. `LuaGobOverlay.draw` projects per record through `Eye.view` at each record's own

@@ -112,10 +112,11 @@ local w = hafen.session():current():world()
 for _, g in ipairs(w:gob():list()) do tag(g) end          -- ...and everyone already here
 ```
 
-The label is drawn at that object's projected screen point, just above the head, and it follows the gob
-because it is attached to it — no projection to do and nothing to poll. A `:draw(fn)` overlay gets that
-point as `sx, sy` when you want to paint it yourself. Standing something **in** the world instead of over
-it is [`hafen.virtual`](../api/virtual/README.md).
+The label is drawn at that object's projected screen point — just above the head by default, and
+`:height(0)` stands it on the ground under the object instead — and it follows the gob because it is
+attached to it: no projection to do and nothing to poll. A `:draw(fn)` overlay gets that point as `sx, sy`
+when you want to paint it yourself. Standing something **in** the world instead of over it is
+[`hafen.virtual`](../api/virtual/README.md).
 
 Over **one widget** the verb is on the widget — [`widget:overlay()`](../api/ui/overlay.md#over-one-widget)
 — and the painter is handed that widget's own box, clipped to it and hidden with it:

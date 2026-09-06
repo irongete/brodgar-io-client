@@ -2717,9 +2717,14 @@ final class UiApi {
 
     /**
      * Paint the overlays attached to ONE gob — called from {@link LuaGobOverlay#draw} with that attrib's own
-     * records and the gob's projected screen point {@code sc}. Nothing is matched and nothing is searched here
-     * since 038.1: the records are the ones standing on this very gob, and each is painted for its own owner
-     * (its {@code g} wrapper carries that addon's text cache, its cost lands on that addon's row).
+     * records and, beside them, the screen point each one projected to. Nothing is matched and nothing is
+     * searched here since 038.1: the records are the ones standing on this very gob, and each is painted for
+     * its own owner (its {@code g} wrapper carries that addon's text cache, its cost lands on that addon's row).
+     *
+     * <p><b>A point per record</b>, because a record says what height up the gob it is taken at
+     * ({@code ov:height(z)}): {@code pts[i]} is where {@code recs.get(i)} lands, and a {@code null} there is a
+     * record whose anchor is behind the eye this frame, which is painted not at all rather than at a mirrored
+     * pixel. The projection itself is the caller's — it holds the pass's {@code Pipe}.
      *
      * <p>A {@code {draw = fn}} record calls back into Lua through {@link #callLua} (watchdog-armed,
      * error-isolated, CPU-accounted) with the owner's interned {@link LuaGob} object (D-044), so the callback
@@ -2728,19 +2733,22 @@ final class UiApi {
      * rasterisation for its lifetime instead of one per frame. On the UI thread (inside the Render2D pass of
      * {@code UI.draw}).
      */
-    static void paintGobOverlays(Gob gob, List<LuaGobOverlay.Attach> recs, GOut g, LuaGOut gwrap, Coord sc) {
-        // 058.2: the projected point reaches Lua in DESIGN pixels, because everything the callback then draws
-        // from it is read in design pixels — and a record's own :offset(x, y) is written in them, so the label
-        // path converts it back on the way to the device-space blit. `sc` itself stays device below this line.
-        Coord dsc = Px.out(sc);
-        LuaValue sx = LuaValue.valueOf(dsc.x), sy = LuaValue.valueOf(dsc.y);
-        for(LuaGobOverlay.Attach o : recs) {
+    static void paintGobOverlays(Gob gob, List<LuaGobOverlay.Attach> recs, Coord[] pts, GOut g, LuaGOut gwrap) {
+        for(int i = 0; i < recs.size(); i++) {
+            LuaGobOverlay.Attach o = recs.get(i);
+            Coord sc = pts[i];
+            if(sc == null)
+                continue;                     // its own anchor is behind the eye this frame (see Eye)
+            // 058.2: the projected point reaches Lua in DESIGN pixels, because everything the callback then
+            // draws from it is read in design pixels — and a record's own :offset(x, y) is written in them, so
+            // the label path converts it back on the way to the device-space blit. `sc` itself stays device.
+            Coord dsc = Px.out(sc);
             LuaTable gt = gwrap.bind(g, o.owner);
             try {
                 if(o.draw != null)
                     // A gob overlay is drawn into the scene on screen, so its gob is that session's.
-                    callLua(o.owner, Addon.C_DRAW, o.draw, gt,
-                            LuaGob.of(o.owner, gob.id), sx, sy);
+                    callLua(o.owner, Addon.C_DRAW, o.draw, gt, LuaGob.of(o.owner, gob.id),
+                            LuaValue.valueOf(dsc.x), LuaValue.valueOf(dsc.y));
                 else
                     gwrap.label(g, o.text, sc.add(Px.in(o.screenOffset())), 0.5, 1.0, o.color);
             } catch(RuntimeException e) {

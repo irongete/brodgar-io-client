@@ -1,0 +1,9 @@
+{
+  "name": "134.2 — a label stands where it is told",
+  "id": "134-a-label-pays-one-blit.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 134.2: an overlay's anchor height is a property of the record, in world units -- so a record reads back what it was told, one gob carries a label at its feet and one over its head at once, and the point a draw record is handed is the object's own projected point at that height.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

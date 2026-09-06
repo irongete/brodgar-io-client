@@ -56,11 +56,13 @@ import java.util.Map;
  */
 public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PView.Render2D {
     /**
-     * Anchor height over the gob (world units) at which the overlay's screen point is computed — the same
-     * height {@code SpeakerIcon} uses for the buddy name label, i.e. "just above the head". The addon's draw
-     * callback receives that projected {@code (sx, sy)} and offsets from it as it likes.
+     * The anchor height a fresh record stands at (world units up the gob's own axis) — the same height
+     * {@code SpeakerIcon} uses for the buddy name label, i.e. "just above the head". Each record carries its
+     * own ({@link Attach#height}, {@code ov:height(z)}), so this is the default and not the rule: {@code 0} is
+     * the ground the client stands the object on, and the addon's draw callback is handed the point projected
+     * at its own record's height.
      */
-    private static final float ANCHOR_Z = 15f;
+    static final double ANCHOR_Z = 15;
 
     /** The shared {@code g} draw wrapper, bound per draw (one per attached gob; the draw pass is single-threaded). */
     private final LuaGOut gwrap = new LuaGOut();
@@ -120,6 +122,14 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
          * The one conversion is at the label blit ({@code UiApi.paintGobOverlays}).
          */
         volatile double offX, offY;
+        /**
+         * {@code :height(z)} — where along the gob's own up-axis the record's screen point is taken, in
+         * <b>world</b> units, {@link #ANCHOR_Z} by default and {@code 0} the ground under the object. It is
+         * the other half of where the thing lands and the only one in world units: the projection is done at
+         * this height and {@code :offset} moves the result by pixels. A {@code double}, so the draw pass reads
+         * a whole value off one write.
+         */
+        volatile double height = ANCHOR_Z;
 
         Attach(Addon owner, String key) {
             this.owner = owner;
@@ -139,6 +149,11 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         /** The screen-space offset from the projected anchor point. */
         Coord screenOffset() {
             return Coord.of((int)Math.round(offX), (int)Math.round(offY));
+        }
+
+        /** The object-space point this record is projected from: straight up the gob's own axis. */
+        Coord3f anchor() {
+            return new Coord3f(0f, 0f, (float)height);
         }
     }
 
@@ -399,19 +414,37 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
 
     // ---- the draw pass ----------------------------------------------------------------------------
 
+    /**
+     * <b>One projection per height, not one per gob.</b> A record says where along the gob's own axis its
+     * point is taken ({@link Attach#height}), so the divide is done per record — but the records of one gob
+     * usually share a height (they are all at the default, or all at the ground), so the last one is
+     * memoised and the second record of a height costs a comparison. A record whose point is behind the eye
+     * gets a {@code null} and is simply not painted, which is per record too: a label at the feet may be
+     * projectable in a frame where one over the head is not.
+     */
     public void draw(GOut g, Pipe state) {
         List<Attach> recs = paintRecords();
         if(recs.isEmpty())
             return;                                        // nothing attached (an idle attrib awaiting its prune)
-        Coord sc;
+        Coord[] pts = new Coord[recs.size()];
         try {
-            Coord3f v = Eye.view(new Coord3f(0f, 0f, ANCHOR_Z), state, Area.sized(g.sz()));
-            if(v == null)
-                return;   // behind the eye, or not projectable this frame -- see Eye
-            sc = v.round2();
+            Area view = Area.sized(g.sz());
+            double lastZ = 0;
+            Coord last = null;
+            boolean have = false;
+            for(int i = 0; i < pts.length; i++) {
+                Attach a = recs.get(i);
+                if(!have || (a.height != lastZ)) {
+                    Coord3f v = Eye.view(a.anchor(), state, view);
+                    last = (v == null) ? null : v.round2();  // behind the eye, or not projectable -- see Eye
+                    lastZ = a.height;
+                    have = true;
+                }
+                pts[i] = last;
+            }
         } catch(RuntimeException e) {
             return;       // never throw into the render pass (mirrors the Loading-guarded reads)
         }
-        UiApi.paintGobOverlays(gob, recs, g, gwrap, sc);
+        UiApi.paintGobOverlays(gob, recs, pts, g, gwrap);
     }
 }
