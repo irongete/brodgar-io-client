@@ -1,0 +1,9 @@
+{
+  "name": "134.1 — the outline is in the raster",
+  "id": "134-a-label-pays-one-blit.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 134.1: an outline is a property of the face, baked into the cached raster once -- so the box grows by two each way, two frames of an outlined label are one cache entry, and a face carrying one is refused where it would style a client surface.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

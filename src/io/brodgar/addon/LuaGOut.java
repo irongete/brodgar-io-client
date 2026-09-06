@@ -9,6 +9,7 @@ import haven.Resource;
 import haven.RichText;
 import haven.Tex;
 import haven.Text;
+import haven.Utils;
 import haven.render.Model;
 
 import java.awt.Color;
@@ -192,6 +193,10 @@ final class LuaGOut {
      * <p><b>The width has to be in here</b> (110.4). The raster IS the wrap: the same string at two widths is two
      * different rasters, so a key without the width blits the first one at the second width — the re-wrap that
      * silently never happens. It is the same one-int argument the generation is, and it costs the same nothing.
+     *
+     * <p><b>An outline needs no component of its own</b> (134.1). It is a property of the face, and the face is
+     * held by identity, so a handle carrying one is a different key from the handle it was derived from — which
+     * is the whole reason the outline lives on the face rather than in a draw call's options.
      */
     static final class Key {
         private final String str;
@@ -638,8 +643,29 @@ final class LuaGOut {
      * height, the rich one the glyphs' own bounds — so a wrapped raster is a couple of pixels shorter per line
      * than the same string unwrapped. That is the drawn raster in both cases, which is what
      * {@link #measure} has to answer about.
+     *
+     * <p><b>An outline is baked HERE</b> (134.1), which is the one place a string becomes a {@link Text}: a
+     * handle carrying {@link FontHandle#outline} is grown through {@link haven.Utils#outline2} — one pixel of
+     * edge on every side, the glyphs composited back at {@code (1, 1)} — and handed on as a {@code Text} over
+     * the grown image. So the edge costs <b>one</b> blit and one cached raster rather than four more of each a
+     * frame, and {@link #measure}, {@link #label} and both draw sites see the same grown box, because all
+     * four come through here. The wrap is an anonymous subclass because {@code Text}'s
+     * {@code (String, BufferedImage)} constructor is {@code protected} — which is exactly what a subclass may
+     * call, so {@code haven} is not edited for it. It happens before anything asks for {@code tex()}, since
+     * that memoises the texture of whatever image the {@code Text} was holding at the time.
      */
     private static Text render(String str, FontHandle fh, int width) {
+        Text t = render0(str, fh, width);
+        if((fh == null) || (fh.outline == null))
+            return t;
+        // The Text we drop here has no texture yet -- tex() is lazy and nothing has called it -- so there is
+        // nothing to dispose and its AWT raster is simply collected. Disposing it would be wrong as well as
+        // needless: outline2 has drawn that very image into the one we keep.
+        return new Text(t.text, Utils.outline2(t.img, fh.outline)) {};
+    }
+
+    /** The path choice itself — the whole of {@link #render} before an outline had to be baked over it. */
+    private static Text render0(String str, FontHandle fh, int width) {
         if((width <= 0) && (fh == null) && (str.indexOf('$') < 0))
             return Text.render(str);
         RichText.Foundry f = (fh != null) ? fh.rich(Text.std.font.getSize()) : stockRich();

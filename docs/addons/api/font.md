@@ -66,6 +66,7 @@ name — bare it reads, with a value it writes and hands the handle back, so a v
 | `h:bold()` / `h:bold(b)` | boolean | style, baked into the font |
 | `h:italic()` / `h:italic(b)` | boolean | style, baked into the font |
 | `h:color()` / `h:color(c)` | [colour](shapes.md#colours) \| nil | text colour — **for your own drawing only**, see below |
+| `h:outline()` / `h:outline(c)` | [colour](shapes.md#colours) \| nil | an [edge](#an-outline-round-every-glyph) baked one pixel round every glyph — **for your own drawing only**. `nil` is no edge, and writing `nil` undoes the one this variant carries |
 
 A derived handle is a **variant of a font, not a file**: like a built-in it carries no `:path`, even when
 the handle it came from was an asset, and `hafen.asset():remove(it)` refuses it for the same reason.
@@ -84,13 +85,14 @@ tostring(hafen.asset():get("fonts/Inter.ttf"))      --> Asset(font, fonts/Inter.
 > it — so a later write is refused too, rather than looking like it took and changing nothing. Derive
 > another variant instead; deriving from a handle always works.
 
-**`color` is the one option that does not travel.** It applies wherever *you* draw with the handle — the
-widget default and the per-call option below — and a handle carrying one is **refused** where it would style
-a client surface, through [a sheet rule](ui/style/text.md#font) or
-[`widget:rule()`](ui/style/README.md#restyle-one-widget), naming `rule:color(c)` instead. A surface's
-colour is a [sheet property](ui/style/text.md#color), stated where you can read it, not a value hidden inside
-a font handle: give those a face carrying no colour of its own, and say the colour beside the font. `size`,
-`aa`, `bold` and `italic` travel everywhere.
+**`color` and `outline` are the two options that do not travel.** They apply wherever *you* draw with the
+handle — the widget default and the per-call option below — and a handle carrying either is **refused**
+where it would style a client surface, through [a sheet rule](ui/style/text.md#font) or
+[`widget:rule()`](ui/style/README.md#restyle-one-widget). A surface's colour is a
+[sheet property](ui/style/text.md#color), stated where you can read it, not a value hidden inside a font
+handle, so that refusal names `rule:color(c)`; an outline is a decoration baked into the raster, and no
+client surface is drawn with a decorated face, so that one names your own drawing. Give those a face
+carrying neither, and say the colour beside the font. `size`, `aa`, `bold` and `italic` travel everywhere.
 
 ## Draw with it
 
@@ -127,6 +129,37 @@ positional, the same as every other [`g:` call](ui/drawing.md) — and so does `
 
 The rendered text is [cached per addon](ui/drawing.md#text-is-cached-across-frames) with the handle in the
 key, so redrawing the same string in the same font every frame rasterises it once.
+
+### An outline round every glyph
+
+`h:outline(c)` bakes an edge one pixel wide round every glyph the face draws, in the colour you give it.
+Reach for it to keep a number readable over ground, over an item icon, over anything you do not control the
+colour of:
+
+```lua
+local tag = hafen.font():get("sans"):derive():size(11):bold(true):outline{0, 0, 0}
+
+hafen.ui():overlay():add("count"):draw(function(g, w, h)
+  g:text("12", 40, 40, { font = tag })      -- white digits, a black edge, one blit
+end)
+```
+
+The edge is a property of the **face** and not of the call, because it is a property of the raster: it is
+drawn into the cached image once, and the label then costs the single blit an unoutlined one costs for as
+long as the string and the face stay the same. Drawing the same edge yourself — the string in black four
+times, one step out in each direction, then once in white on top — is five draws and five
+[cache entries](ui/drawing.md#text-is-cached-across-frames) every frame instead.
+
+The raster grows by one pixel on every side, so
+[`hafen.ui():measure`](ui/drawing.md#measuring-a-line-before-you-draw-it) answers a box two pixels wider and
+two taller than the same face carrying no outline. Lay out against what it answers and the edge is inside
+your box.
+
+> **A colour tints the whole raster, edge included.** Glyphs and edge are one image by the time anything
+> blits it, so `color` — the per-call option, the handle's own, or a bare `g:color` around the call —
+> multiplies all of it. Black comes through every tint unchanged, which is why a dark edge is the one that
+> behaves: an edge of `{255, 0, 0}` drawn under a green tint is black, not red. Pick the outline for the
+> tints you will draw it under.
 
 ### Mix fonts on one line
 

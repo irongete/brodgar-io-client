@@ -16,7 +16,8 @@ import org.luaj.vm2.LuaValue;
  * font handle — {@code hafen.font(name)} for a built-in ({@code Text.sans/serif/mono/fraktur}) or
  * {@code hafen.asset(path)} for a {@code .ttf}/{@code .otf} the addon ships (via {@code Font.createFont}) —
  * with its bold/italic already baked in, plus the optional {@code size} (<b>logical</b> px), {@code aa}, and
- * default {@code color}. It is a <b>private value the addon holds</b> — there is no shared cross-addon registry
+ * default {@code color} and {@code outline}. It is a <b>private value the addon holds</b> — there is no
+ * shared cross-addon registry
  * (D-043): another addon cannot look it up, so there are no name collisions and no coupling.
  *
  * <p><b>Handle, not a ref.</b> Like {@link LuaImage}, a font has no server identity, so it is addressed by a
@@ -24,12 +25,13 @@ import org.luaj.vm2.LuaValue;
  * {@code LuaValue.userdataOf(this, mt)} with one of two per-addon metatables — a face, and a face that is
  * also a file this addon loaded, which additionally answers the asset verbs. The vocabulary is
  * {@code :derive()} &rarr; a cheap variant, {@code :family()} &rarr; the AWT family name (feed it to a
- * {@code $font[…]} rich-text tag, F2), and the five properties. A widget's {@code font=} option (F2) and the
+ * {@code $font[…]} rich-text tag, F2), and the properties in the table below. A widget's {@code font=}
+ * option (F2) and the
  * {@code g:text} draw wrapper (F2) {@link #resolve} the value back — <b>facade-safe</b> (no AWT {@code Font}
  * crosses into Lua, D-017): no Java method is reachable through the vocabulary, and it cannot be forged (the
  * sandbox omits {@code luajava}).
  *
- * <p><b>Immutable once it is USED.</b> {@code :derive()} hands back a draft whose five properties are chained
+ * <p><b>Immutable once it is USED.</b> {@code :derive()} hands back a draft whose properties are chained
  * setters; the moment {@link #resolve} gives the object to a consumer it is sealed, and every other handle (a
  * built-in, a loaded file) is shared and refuses a setter outright. So nothing that a surface is drawing with
  * can change under it. Loading a
@@ -41,6 +43,15 @@ public final class FontHandle implements AssetApi.Loaded {
     Integer size;          // logical px, or null = "use the stock size of whatever surface this is applied to"
     Boolean aa;            // or null = inherit the surface's stock antialias flag
     Color   color;         // or null = inherit the surface's stock default colour
+    /**
+     * The colour of the <b>edge baked around every glyph</b>, or {@code null} for none — {@code h:outline(c)}.
+     * It is a property of the FACE and not of a draw call, because it is a property of the raster: a face
+     * carrying one renders through {@link haven.Utils#outline2}, which grows the image by one pixel on every
+     * side and composites the glyphs back over it ({@link LuaGOut#render}). So an outlined label is <b>one</b>
+     * blit and one cached raster for its lifetime, where drawing the edge from Lua is five of each a frame.
+     * It rides into the text cache for free: {@link LuaGOut.Key} holds this handle by identity.
+     */
+    Color   outline;
     LuaValue handle;       // the Lua handle (set by FontApi.fontHandle)
     /**
      * What the shared asset verbs answer for this face, and how it frees itself — <b>null on every handle
@@ -50,7 +61,7 @@ public final class FontHandle implements AssetApi.Loaded {
      */
     AssetApi.Asset asset;
 
-    // The two flags that make the four fields above safe to be non-final. A handle is WRITABLE only while it is
+    // The two flags that make the fields above safe to be non-final. A handle is WRITABLE only while it is
     // a draft that nothing has used yet: `draft` is set for what :derive() hands back and for nothing else (a
     // built-in and a loaded .ttf are shared, interned values), and `used` is set the moment resolve() hands this
     // object to a consumer -- a rule, a widget, a draw call -- each of which reads it right then. Guarded by this.
@@ -96,6 +107,7 @@ public final class FontHandle implements AssetApi.Loaded {
      */
     synchronized FontHandle draft() {
         FontHandle d = new FontHandle(font, size, aa, color);
+        d.outline = outline;
         d.draft = true;
         return d;
     }

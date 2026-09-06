@@ -47,8 +47,8 @@ rest of the [handle's own reads](../../font.md#the-variant) answer for it.
 - **A name plus a field is a variant**, derived once and **sealed** the moment the rule reads it: writing to
   the handle you read back is refused, exactly as it is for a variant you handed over yourself. Derive
   another from it instead.
-- **A face names no colour.** `color` inside one is an error pointing at the rule's own
-  [`color`](#color) — see the callout below.
+- **A face names no colour and no outline.** `color` inside one is an error pointing at the rule's own
+  [`color`](#color); `outline` is an error too — see the callout below.
 - A name that is not one of the four built-ins, a file that is not a font, and a face naming neither a
   `builtin` nor an `asset` are each an error saying which.
 
@@ -60,12 +60,14 @@ comes from its background texture, and list-row heights were measured at constru
 Every key honours `font`. Nothing else about a face travels except its family, size, weight and
 antialiasing.
 
-> **A font handle carrying a `color` is refused here.**
+> **A font handle carrying a `color` or an `outline` is refused here.**
 > `hafen.font():get("serif"):derive():color{255, 0, 0}` handed to a rule, or to
 > [`widget:rule()`](README.md#restyle-one-widget), raises naming `rule:color(c)`; so does a face that
 > **names** one, `{builtin = "serif", color = …}`. A handle's colour is for
 > [your own drawing](../../font.md#draw-with-it): `g:text`, your own widgets. One question, "what colour is
-> this surface", has exactly one answer, and it is written as a `color` where you can see it.
+> this surface", has exactly one answer, and it is written as a `color` where you can see it. An
+> [`outline`](../../font.md#an-outline-round-every-glyph) is refused the same two ways and for a nearer
+> reason: it is baked into the raster, and no client surface is drawn with a decorated face.
 
 ## color
 

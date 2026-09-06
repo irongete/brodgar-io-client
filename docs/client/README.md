@@ -39,6 +39,7 @@ lookup instead of a search.
 | [several sessions at once](multi-session.md) | one process holding several logged-in sessions with one on screen: the drawn-UI split, what a session that is not drawn stops doing, aligning two sessions' coordinate frames, ordering one that is not drawn, and the merged scene |
 | [text and fonts](text-and-fonts.md) | `Text.Foundry` and every named surface that bakes one, `RichText`, DPI scaling, custom TTF loading |
 | [UI scaling](ui-scaling.md) | the one factor the whole 2D interface is drawn at: `UI.scalef` and its converters, where the number comes from, art that is scaled at load, and the round-trip that is exact in only one direction |
+| [the chat's colours](chat-colours.md) | one colour per kind of line, each a literal where the line is built, and the two urgency arrays that are not the same array |
 | [the chat](chat.md) | `ChatUI` and its channels: where a line arrives, the three argument shapes one message name wears, what selects a tab, and what is never trimmed |
 | [the console](console.md) | the `:` command line: what registers a command, the three tiers a name resolves in, what a command that throws does, and which thread its body runs on |
 | [resources](resources.md) | what a `.res` carries: reading a layer by class, predicate or id, the `id == null` gotcha, and the `OD_RES` delta that carries a gob's resource and state bytes under the gob monitor |

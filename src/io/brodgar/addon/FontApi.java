@@ -173,9 +173,12 @@ final class FontApi {
      * result is sealed — the rule read it the instant it was parsed, so a setter on the handle it hands back
      * would take and change nothing.
      *
-     * <p><b>{@code color} is refused here</b>, and that is not an omission: a handle's own colour never
-     * styled a client surface (D-073), so a face that could name one would be a second, invisible answer to
-     * "what colour is this surface". The rule's own {@code color} property is the answer, where it can be read.
+     * <p><b>{@code color} and {@code outline} are refused here</b>, and that is not an omission. A handle's
+     * own colour never styled a client surface (D-073), so a face that could name one would be a second,
+     * invisible answer to "what colour is this surface" — the rule's own {@code color} property is the
+     * answer, where it can be read. An outline is refused one boundary over (134.1): it is a decoration baked
+     * into the raster, and a client surface that wants one is a decorator routed per site
+     * ({@code TexFurn}/{@code BlurFurn}), not a flag on a face.
      */
     static FontHandle face(Addon owner, String what, LuaValue v) {
         FontHandle h = FontHandle.resolve(v);
@@ -190,6 +193,16 @@ final class FontApi {
                     + " surface is the rule's own property, said where it can be read: rule:color(c)."
                     + " Hand this rule a face that carries none — derive one and leave :color off — and say"
                     + " the colour beside the font");
+            // ...and an OUTLINE is refused on the same boundary (134.1). It is a decoration baked into the
+            // raster, and no client surface is decorated that way: the four that are stack TexFurn/BlurFurn
+            // per site, routed per site. A rule accepting one would grow every raster that surface draws by
+            // two pixels and move what the client lays out around it, which is the addon drawing on the
+            // client's own furniture rather than on its own.
+            if(h.outline != null)
+                throw new LuaError(what + ": this font carries an outline, and an outline is your OWN drawing"
+                    + " (g:text, widget:font and a label of yours) — it is baked into the raster, and no"
+                    + " client surface is drawn with a decorated face. Hand this rule a face that carries"
+                    + " none: derive one and leave :outline off");
             return h;
         }
         if(!v.istable())
@@ -239,6 +252,10 @@ final class FontApi {
             } else if("color".equals(p)) {
                 throw new LuaError(what + ": a face carries no colour on a client surface — the colour of a"
                     + " surface is the rule's own property, said where it can be read: rule:color(c)");
+            } else if("outline".equals(p)) {
+                throw new LuaError(what + ": a face carries no outline on a client surface — an outline is"
+                    + " your OWN drawing (g:text, widget:font and a label of yours), baked into the raster,"
+                    + " and no client surface is drawn with a decorated face");
             } else {
                 throw new LuaError(what + ": \"" + k.tojstring() + "\" is not a face property — a face is "
                     + FACE);
@@ -358,6 +375,7 @@ final class FontApi {
         });
         m.set("size", property("size"));
         m.set("color", property("color"));
+        m.set("outline", property("outline"));
         m.set("aa", property("aa"));
         m.set("bold", property("bold"));
         m.set("italic", property("italic"));
@@ -394,7 +412,7 @@ final class FontApi {
     }
 
     /**
-     * One of the five properties a {@code :derive()}d handle carries, as the read/write pair every property in
+     * One of the properties a {@code :derive()}d handle carries, as the read/write pair every property in
      * this API is: {@code d:size()} reads and {@code d:size(12)} writes and hands the handle back, so the whole
      * variant is one chain.
      *
@@ -404,12 +422,12 @@ final class FontApi {
      * call it is SEALED, because each of those reads it at that moment: a later write would look like it took and
      * change nothing, which is the silent failure this grammar exists to delete.
      *
-     * <p><b>{@code size} and {@code aa} take an explicit {@code nil}</b>, and the other three do not. Those two
-     * are the pair the page documents an inherited state for — "the stock size of whatever surface it is
-     * applied to", "inherits the surface's stock setting" — so writing one is the "undo your layer" meaning
-     * {@code conventions.md} already gives {@code w:size(nil)}, on the same word. {@code bold} and
-     * {@code italic} are baked into the AWT face and have no such state; a {@code nil} at either is the
-     * accident {@link Args#nilRefused} names.
+     * <p><b>{@code size}, {@code aa} and {@code outline} take an explicit {@code nil}</b>, and the rest do
+     * not. Those three are the ones the page documents an absent state for — "the stock size of whatever
+     * surface it is applied to", "inherits the surface's stock setting", "no edge at all" — so writing one is
+     * the "undo your layer" meaning {@code conventions.md} already gives {@code w:size(nil)}, on the same
+     * word. {@code bold} and {@code italic} are baked into the AWT face and have no such state; {@code color}
+     * documents none either; a {@code nil} at any of those is the accident {@link Args#nilRefused} names.
      */
     private static LuaValue property(final String prop) {
         // `prop`, never `name`: LuaJ's LibFunction declares a `protected String name`, and an inherited field
@@ -428,7 +446,7 @@ final class FontApi {
                 // on the same word. It is a write like any other, so the ownership guard judges it first: a
                 // sealed draft refuses it naming :derive(), rather than clearing a field nothing will re-read.
                 boolean clear = v.isnil();
-                if(clear && !"size".equals(prop) && !"aa".equals(prop))
+                if(clear && !"size".equals(prop) && !"aa".equals(prop) && !"outline".equals(prop))
                     throw Args.nilRefused("font:" + prop, prop);
                 fh.writable("font:" + prop);
                 if("size".equals(prop))
@@ -437,6 +455,8 @@ final class FontApi {
                     fh.aa = clear ? null : Boolean.valueOf(v.toboolean());
                 else if("color".equals(prop))
                     fh.color = colorArg(a, 2, "font:color");
+                else if("outline".equals(prop))
+                    fh.outline = clear ? null : colorArg(a, 2, "font:outline");
                 else
                     fh.style("bold".equals(prop), v.toboolean());
                 return self;
@@ -452,6 +472,8 @@ final class FontApi {
             return (fh.aa == null) ? LuaValue.NIL : LuaValue.valueOf(fh.aa.booleanValue());
         if("color".equals(prop))
             return AddonManager.color(fh.color);
+        if("outline".equals(prop))
+            return AddonManager.color(fh.outline);
         if("bold".equals(prop))
             return LuaValue.valueOf(fh.font.isBold());
         return LuaValue.valueOf(fh.font.isItalic());

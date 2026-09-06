@@ -40,6 +40,7 @@ room it took as `tloff()`/`broff()`.
 |---|---|---|
 | `PUtils.TexFurn(bk, BufferedImage)` | `PUtils.tilemod` — tiles the image through the glyph raster **in place**, so the mask is what you see and the foundry's colour is gone | no growth (`tloff`/`broff` are `Coord.z`) |
 | `PUtils.BlurFurn(bk, grad, brad, Color)` | `PUtils.blurmask2` — a coloured halo behind the glyphs | grows the raster by `grad + brad` on every side, which is `tloff`/`broff` and moves what the site lays out around it |
+| `Utils.outline(img, col)` / `Utils.outline2(img, col)` | a hard one-pixel edge: `outline` answers the edge alone, a four-neighbour dilation of the mask `alpha >= 250` painted in `col`; `outline2` draws the source back over it at `(1, 1)`. **Neither is a `Furnace`** — they take a finished `BufferedImage`, so a caller wraps its own `Text` | grows the raster by 1 on every side (`imgsz.add(2, 2)`); no `tloff`/`broff` exists to report it, so the caller owns the shift |
 
 The two are always stacked the same way — `BlurFurn(TexFurn(foundry, tex), …)` — at four places, and each
 rebuilds its statics on a `Fonts.gen()` compare. The blur's `grad`/`brad`/`col` are per site and none of them
@@ -54,32 +55,6 @@ is shared:
 
 `Charlist`, `Fightsess`, `MapView` and `QuestWnd` build furnaces of their own from the same two classes
 and are **not** routed.
-
-## The chat's colours, one per kind
-
-There is no table of them anywhere: a chat line's colour is a literal at the place the line is **built**,
-and they live in three classes. Nothing distinguishes the kinds at the render — every one of them is a
-`SimpleMessage` or a `NamedMessage` carrying a `Color` — so the only way to tell a System line from a
-private one is **which channel it was appended to**, or which `Message` subclass built it.
-
-| Kind | Where the colour is | Value |
-|---|---|---|
-| System, informational | `UI.Notice.color()`'s default, via `GameUI.msg` → `syslog.append` | `Color.WHITE` |
-| System, error | `UI.ErrorMessage.color` (`defcolor()` overrides `SimpleMessage`'s) | `(192, 0, 0)` |
-| Your own line | `ChatUI.MultiChat.MyMessage` ctor | `(192, 192, 255)` |
-| Private, received | `ChatUI.PrivChat.InMessage` ctor | `(255, 128, 128)` |
-| Private, sent | `ChatUI.PrivChat.OutMessage` ctor | `(128, 128, 255)` |
-| A speaker | `ChatUI.MultiChat.nextcol` — `Color.HSBtoRGB(colseq = (colseq + √2) % 1, 0.5f, 1.0f)`, memoised per sender id in `pc` | walked |
-| A party speaker | `ChatUI.PartyChat.uimsg` — `Party.Member.col` blended with white | server-assigned |
-| Unread urgency | `ChatUI.urgcols` (the toggle button's glow, `GameUI`) and `ChatUI.Selector.uc` (the tab, `namedeco`) | two arrays, both index-0-is-not-a-level |
-
-⚠️ **The two urgency arrays are not the same array.** `urgcols[0]` is `null` — no glow — while `uc[0]` is
-`(80, 40, 0)`, the resting tab colour. Levels 1–3 agree. Anything routing "the urgency colour" has to take
-each site's own array as the fallback rather than assume one.
-
-⚠️ **`MyMessage` is `MultiChat`'s, so the Party channel has it too** (`PartyChat extends MultiChat`): your
-own party line is `(192, 192, 255)`, not a party colour. And `PrivChat`'s error path builds a bare
-`SimpleMessage(err, Color.RED)` — a third red, unrelated to `ErrorMessage`'s.
 
 ## Gotchas
 
@@ -102,6 +77,15 @@ own party line is `(192, 192, 255)`, not a party colour. And `PrivChat`'s error 
 - **`$col[…]` markup vs a `FOREGROUND` extra**: both land as a foreground attribute on a run, but the
   first comes from the *string* and the second from the *call site* — opposite precedence against an
   override. Check which one you are looking at.
+- **`Utils.outline` calls a pixel "outside" at `alpha < 250`**, so an antialiased glyph's own soft rim is
+  outside and gets outlined, and what comes back has a hole where the glyph was. `outline2` is the usable
+  one: it draws the source over that edge at `(1, 1)`, which puts the softness back and is why the pair
+  exists. Both allocate a fresh `TexI.mkbuf` — the source is never mutated, unlike `TexFurn` below.
+- **A `Text` built round a grown raster needs the protected ctor.** `Text(String, BufferedImage)` is
+  `protected`, so a caller outside `haven` wraps one as an anonymous subclass (which is the one form the JLS
+  lets reach a protected constructor). Do it **before** anything calls `tex()`: that memoises a `TexI` over
+  whatever image the `Text` was holding at the time, and the wrapped-away original then owns a texture
+  nobody disposes.
 - **`TexFurn` mutates the slug it is given** (`tilemod(text.img.getRaster(), …)`) and hands the same
   `BufferedImage` back. It is the last word on colour for anything it wraps: `Foundry.defcol`, a `Color`
   passed to `render`, and `Foundry.fixcol` alike are all overwritten. Removing it from the stack is the

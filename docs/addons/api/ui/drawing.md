@@ -189,6 +189,10 @@ What that means when you write a draw callback:
   however many draw sites or frames apart — and the same string at two widths is two entries, because the
   wrap *is* the raster. **Colour is not in the key** — it is applied as a tint over the same raster, so
   drawing one string in two colours in one frame is *one* entry, and animating a colour costs nothing.
+- **An [outline](../font.md#an-outline-round-every-glyph) is part of the font, so it is already in the
+  key.** The edge is baked into the raster, and the raster belongs to the face: a variant carrying one and
+  the face it was derived from are two entries, and the edge itself costs the same one entry and the same
+  one blit a bare face costs. It needs no key of its own and no option on the call.
 - **A string that changes every frame is re-rasterised every frame.** A clock, an FPS readout or a
   coordinate line whose digits move can never hit, and a miss costs exactly what every draw cost before the
   cache existed. **Budget a live readout by how often its *text* changes, not by how many lines it has**:
