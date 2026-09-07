@@ -436,17 +436,19 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         List<Attach> recs = paintRecords();
         if(recs.isEmpty())
             return;                                        // nothing attached (an idle attrib awaiting its prune)
-        Coord[] pts = new Coord[recs.size()];
+        Coord3f[] pts = new Coord3f[recs.size()];
         try {
             Area view = Area.sized(g.sz());
             double lastZ = 0;
-            Coord last = null;
+            Coord3f last = null;
             boolean have = false;
             for(int i = 0; i < pts.length; i++) {
                 Attach a = recs.get(i);
                 if(!have || (a.height != lastZ)) {
-                    Coord3f v = Eye.view(a.anchor(), state, view);
-                    last = (v == null) ? null : v.round2();  // behind the eye, or not projectable -- see Eye
+                    // The point is kept EXACT: its whole part is where the record is laid out and its fraction
+                    // rides under the whole record as the GOut's sub-pixel translation (UiApi.paintGobOverlays),
+                    // so the record glides with the object rather than stepping a device pixel behind it.
+                    last = Eye.view(a.anchor(), state, view);  // null behind the eye, or not projectable -- see Eye
                     lastZ = a.height;
                     have = true;
                 }

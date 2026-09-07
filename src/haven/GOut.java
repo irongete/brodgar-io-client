@@ -41,6 +41,11 @@ public class GOut {
 									   new VertexArray.Layout.Input(ColorTex.texc, new VectorFormat(2, NumberFormat.FLOAT32), 0, 8, 16));
     public final Render out;
     public Coord ul, br, tx;
+    /* addon: a SUB-PIXEL translation, in device pixels, added to every vertex drawp/drawt emit. `tx` is whole
+     * pixels and everything above it is laid out in whole pixels; this is the fraction a screen-space label
+     * anchored to a world point is owed, so that it glides with the object it hangs on instead of stepping
+     * a pixel at a time behind it. Zero for everything the client draws itself. */
+    public float ftx = 0, fty = 0;
     private final GOut root;
     private final Pipe def2d, cur2d;
 
@@ -49,6 +54,7 @@ public class GOut {
 	this.ul = o.ul;
 	this.br = o.br;
 	this.tx = o.tx;
+	this.ftx = o.ftx; this.fty = o.fty;   // addon: a sub-view keeps the fraction
 	this.root = o.root;
 	this.def2d = o.def2d;
 	this.cur2d = def2d.copy();
@@ -220,7 +226,25 @@ public class GOut {
 	atext(text, c, 0, 0);
     }
 
+    /* addon: set the sub-pixel translation (see `ftx`); (0, 0) clears it. */
+    public void subpx(float x, float y) {
+	this.ftx = x; this.fty = y;
+    }
+
+    /* addon: the one place the fraction lands -- a shifted COPY, since callers hand over arrays they may keep. */
+    private float[] subpx(float[] data, int stride) {
+	if((ftx == 0) && (fty == 0))
+	    return(data);
+	float[] ret = data.clone();
+	for(int i = 0; i + 1 < ret.length; i += stride) {
+	    ret[i] += ftx;
+	    ret[i + 1] += fty;
+	}
+	return(ret);
+    }
+
     public void drawp(Model.Mode mode, float[] data, int n) {
+	data = subpx(data, 2);   // addon: sub-pixel anchor
 	out.draw1(cur2d, new Model(mode, new VertexArray(vf_pos, new VertexArray.Buffer(data.length * 4, DataBuffer.Usage.EPHEMERAL, DataBuffer.Filler.of(data))), null, 0, n));
     }
 
@@ -229,6 +253,7 @@ public class GOut {
     }
 
     public void drawt(Model.Mode mode, float[] data, int n) {
+	data = subpx(data, 4);   // addon: sub-pixel anchor; the position is the first pair of each vf_tex vertex
 	out.draw1(cur2d, new Model(mode, new VertexArray(vf_tex, new VertexArray.Buffer(data.length * 4, DataBuffer.Usage.EPHEMERAL, DataBuffer.Filler.of(data))), null, 0, n));
     }
 

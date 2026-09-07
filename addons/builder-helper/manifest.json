@@ -1,0 +1,10 @@
+{
+  "id": "builder-helper",
+  "name": "Builder helper",
+  "version": "0.1.0",
+  "author": "irongete",
+  "description": "Remembers what every building site you have opened still needs, and one key floats each material's have/total over the site. Assign the key in Options > Game > Keybindings > Builder helper.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "saved_variables": [{ "name": "sites", "scope": "account" }]
+}

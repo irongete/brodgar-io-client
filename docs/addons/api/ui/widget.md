@@ -74,7 +74,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 |---|---|---|
 | `:type()` | string | class name, e.g. `"Inventory"`, `"Label"`; for an anonymous subclass, the nearest named superclass |
 | `:role()` | string \| nil | what it **is** in the [selector vocabulary](selectors.md#roles), or `nil` when nothing classifies it |
-| `:res()` | string \| nil | its [resource name](selectors.md#what-carries-a-res), e.g. `"gfx/invobjs/torch"`; `nil` for most widgets |
+| `:res()` | string \| nil | its [resource name](selectors.md#what-carries-a-res), e.g. `"gfx/invobjs/torch"`; on a building site's material box (`@ISBox`) the material it counts; `nil` for most widgets |
 | `:picture()` | string \| nil | the resource name of the **picture it shows**, e.g. `"gfx/hud/wnd/lg/cbtnu"` on a window's close button; `nil` where it holds none — [a different read from `:res()`](selectors.md#the-picture-is-a-different-read) |
 | `:id()` | int \| nil | server widget id, or `nil` when the widget is not server-bound |
 | `:session()` | [Session](../session.md) \| nil | the character whose **tree** it stands in; `nil` for one in your own layer, which belongs to nobody |
@@ -91,7 +91,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:draggable()` | Widget \| nil | the handle **your** addon armed for the user to drag it by, or `nil` — [`:draggable(h)` arms it](native.md#letting-the-user-drag-it-unprotected) |
 | `:resizable()` | Widget \| nil | the handle **your** addon armed for the user to resize it by, or `nil` — [`:resizable(h)` arms it](native.md#letting-the-user-resize-it-unprotected) |
 | `:remember()` | string \| nil | the name **your** addon keeps its place and box under, or `nil` — [`:remember(name)` keeps them](native.md#remembering-where-the-user-put-it-unprotected) |
-| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, CheckBox, Window, TextEntry), else `nil` — `:text(s)` writes it, on [a control you built](controls/README.md#setters) or [one of the client's](edit.md#what-a-window-says) |
+| `:text()` | string \| nil | best-effort text for text-bearing widgets (Label, Button, CheckBox, Window, TextEntry, and a building site's material box `@ISBox`, whose text is the `have/total` figure it draws), else `nil` — `:text(s)` writes it, on [a control you built](controls/README.md#setters) or [one of the client's](edit.md#what-a-window-says) |
 | `:tooltip()` | string \| nil | the line that appears when the pointer rests on it, or `nil` — [`:tooltip(s)` writes it on a control you built](#tooltips-and-focus) |
 | `:focused()` | boolean | whether a keystroke would reach this widget — see [focus](#tooltips-and-focus) |
 | `:image()` | table \| nil | the faces of a [control](controls/interactive.md#a-caption-or-a-picture) that shows pictures, as `{up=, down=, hover=}`, else `nil` |

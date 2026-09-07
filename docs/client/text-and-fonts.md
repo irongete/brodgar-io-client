@@ -117,6 +117,12 @@ and are **not** routed.
   on one is the raster's own measurement and nothing else's. It is the one place the string that reached the
   screen is readable from outside the render, `Text.text` aside, and the only widget of which that is true:
   a `Button` is the width its own constructor was handed, whatever its caption says.
+- ⚠️ **Every `TexI` is born sampling `NEAREST`, both filters** (`TexI.st()`), and so is every picture the
+  client blits: a `Text`'s raster, a `Resource.Image`'s `tex()`. Exact at a whole-pixel offset, and a snap
+  at any other: a quad moved by a fraction of a pixel still lights whole texels, so a blit can never sit
+  between two pixels however its vertices are placed. `TexI.filter(LINEAR)` is the switch, per texture, and
+  a texture the client shares (`Resource.Image.tex()`) is shared with every widget that draws it — a copy is
+  the way to change one blit's sampling without changing the inventory's.
 - ⚠️ **An ellipsis measured on the raster must be cut out of the raster's string.** `charat(x)` indexes the
   string that was **drawn**, so taking the substring out of the source indexes one string with an offset
   measured in another — and a display string longer than the English runs past the end. `Foundry.ellipsize`,

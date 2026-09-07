@@ -53,6 +53,24 @@ final class Px {
     }
 
     /**
+     * Design &rarr; device for a <b>point a draw verb lands on</b>, rounded ONCE, after the scale. A draw verb takes
+     * its coordinates as numbers, and a number an addon computed ({@code sx - w / 2}) is fractional as often as
+     * not; truncating it in design space and scaling afterwards quantised every point to a whole design pixel,
+     * which on a scaled client is more than one device pixel — so two points a fixed distance apart landed a
+     * varying number of device pixels apart as they moved, and a panel drawn round a label trembled. Scaling
+     * first and rounding once keeps a fixed design distance a fixed device distance, and a whole design pixel
+     * still lands where {@link #in(int)} puts it.
+     */
+    static Coord point(double x, double y) {
+        return UI.rscale(x, y);
+    }
+
+    /** Design &rarr; device for a <b>length</b> a draw verb takes (a box side, a radius): scaled, then rounded once. */
+    static int length(double n) {
+        return UI.rscale(n);
+    }
+
+    /**
      * Design &rarr; device for a whole <b>raster</b>: the same texture, viewed at the size it is drawn. An
      * addon's own PNG is authored in design pixels, so this is what makes {@code g:image} cover the
      * {@code img:size()} the addon read — and the client's own {@code .res} art needs it not at all, being

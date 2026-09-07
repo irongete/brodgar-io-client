@@ -69,6 +69,17 @@ public class ISBox extends Widget implements DTarget {
 	tooltip = new PaginaTip(res, true);
     }
 
+    // addon: the two things a material box holds, readable from outside -- the addon API's widget:text()
+    // answers the figure drawn in it ("2/150") and widget:res() the material it counts. Both fields stay
+    // private; these are reads and nothing else.
+    public String label() {
+	return(label.text);
+    }
+
+    public Indir<Resource> res() {
+	return(res);
+    }
+
     public void draw(GOut g) {
 	// addon: (035.3) sheet-fed panel chrome, else the stock box. This one's stock box paints its own tinted
 	// surface inside the frame, so a rule that replaces the box replaces that too -- write the `bg` you want.

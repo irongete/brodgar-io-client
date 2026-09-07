@@ -37,6 +37,20 @@ end)
 | `g:color(r, g, b, a)` / `g:color(c)` | set the draw colour, `0..255`; `g:color()` resets to white — see [below](#colour-here-is-also-loose-numbers) |
 | `g:resource(name, x, y, w, h)` | draw an engine `.res` image **by name**, at native size or scaled |
 
+**A coordinate may be fractional, and it is rounded once, on the device.** Every verb scales what it is
+handed and then rounds to the nearest device pixel, so a point you computed — `sx - w / 2`, half a width off
+an anchor — lands the same number of device pixels from that anchor whatever the anchor's own fraction, and
+two things drawn a fixed distance apart stay a fixed distance apart as they move. On an unscaled client a
+whole number lands exactly where it says; on a scaled one it lands where the client's own layout would put
+that design pixel.
+
+**A painter over a gob glides with the gob.** The point a [gob overlay](../overlay.md) is handed is the
+object's projected point to the whole device pixel, and the pixel's *fraction* is carried under everything
+the callback draws, so the column you laid out from `sx, sy` moves exactly as the object under it moves —
+sub-pixel, with no step and no settling once the camera stops. What that costs is the raster: text and
+images this surface draws are sampled linearly, which at a whole pixel is the same picture and at a fraction
+is a picture a fraction of a pixel soft, the way the object beside it already is.
+
 `g` is valid **only during the draw callback**. Stashing it and drawing later does nothing — it goes inert
 rather than throwing. Nothing on this page is protected: painting your own pixels changes nothing the client
 or the server owns.

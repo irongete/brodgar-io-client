@@ -196,7 +196,8 @@ to, so calling it a site would promise a style nothing reads.
 ## What carries a res
 
 `[res=]` is the *stable* key: a resource name never changes with the client's language, where a caption
-can. But only some widgets have one — **items** (`gfx/invobjs/…`), **meters** (`gfx/hud/meter/hp`), and
+can. But only some widgets have one — **items** (`gfx/invobjs/…`), **meters** (`gfx/hud/meter/hp`), a
+building site's **material boxes** (`@ISBox`, the material each counts), and
 widgets whose code ships inside a resource (`ui/rchan`, `ui/vlg`). **Most windows carry none**: the client's
 own windows are plain Java classes with nothing behind them. So in practice, `[res=]` for items and meters,
 `[title=]` for windows. [`w:res()`](widget.md#read) tells you what a widget actually carries.

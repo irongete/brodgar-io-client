@@ -69,6 +69,7 @@ public final class LuaImage implements AssetApi.Loaded {
         this.tex = tex;
         this.sz = tex.sz();
         this.stex = Px.in(tex);
+        LuaGOut.smooth(tex);   // sampled LINEAR: exact at a whole pixel, a glide under a sub-pixel anchor
     }
 
     public AssetApi.Asset asset() {

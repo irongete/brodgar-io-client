@@ -2,6 +2,7 @@ package io.brodgar.addon;
 
 import haven.Button;
 import haven.Coord;
+import haven.Coord3f;
 import haven.GameUI;
 import haven.Gob;
 import haven.GOut;
@@ -2735,27 +2736,41 @@ final class UiApi {
      * font is part of the cache key; the colour is not, and a gob's label has no background. On the UI thread
      * (inside the Render2D pass of {@code UI.draw}).
      */
-    static void paintGobOverlays(Gob gob, List<LuaGobOverlay.Attach> recs, Coord[] pts, GOut g, LuaGOut gwrap) {
+    static void paintGobOverlays(Gob gob, List<LuaGobOverlay.Attach> recs, Coord3f[] pts, GOut g, LuaGOut gwrap) {
         for(int i = 0; i < recs.size(); i++) {
             LuaGobOverlay.Attach o = recs.get(i);
-            Coord sc = pts[i];
-            if(sc == null)
+            Coord3f v = pts[i];
+            if(v == null)
                 continue;                     // its own anchor is behind the eye this frame (see Eye)
+            // The projected point, split: the WHOLE device pixel is what the record is laid out from -- the
+            // painter's numbers and the label's blit are placed relative to it, in whole pixels, so their
+            // layout is the same whatever the point's fraction -- and the FRACTION is set on the GOut, where
+            // drawp/drawt add it to every vertex, so the whole record glides with the object. Without the
+            // split a label stepped a device pixel at a time while the object beneath it slid smoothly, and
+            // the last steps after the camera stopped read as the label relocating.
+            float fx = (float)Math.floor(v.x), fy = (float)Math.floor(v.y);
+            Coord sc = Coord.of((int)fx, (int)fy);
+            g.subpx(v.x - fx, v.y - fy);
             // 058.2: the projected point reaches Lua in DESIGN pixels, because everything the callback then
             // draws from it is read in design pixels — and a record's own :offset(x, y) is written in them, so
             // the label path converts it back on the way to the device-space blit. `sc` itself stays device.
-            Coord dsc = Px.out(sc);
+            // It reaches Lua EXACT — a double, fractional on a scaled client — rather than rounded to a whole
+            // design pixel: every draw verb scales what it is handed and rounds once in device space
+            // (Px.point), so a painter that draws at `sx + k` lands `k` design pixels from the very device
+            // pixel the point projected to, frame after frame. Rounded here first, the column stepped by whole
+            // design pixels while the object moved by device ones, and trembled against its own plate.
             LuaTable gt = gwrap.bind(g, o.owner);
             try {
                 if(o.draw != null)
                     // A gob overlay is drawn into the scene on screen, so its gob is that session's.
                     callLua(o.owner, Addon.C_DRAW, o.draw, gt, LuaGob.of(o.owner, gob.id),
-                            LuaValue.valueOf(dsc.x), LuaValue.valueOf(dsc.y));
+                            LuaValue.valueOf(Px.out((double)sc.x)), LuaValue.valueOf(Px.out((double)sc.y)));
                 else
                     gwrap.label(g, o.text, sc.add(Px.in(o.screenOffset())), 0.5, 1.0, o.font, o.color);
             } catch(RuntimeException e) {
                 /* never throw into the render pass — callLua already isolates a Lua error */
             } finally {
+                g.subpx(0, 0);
                 gwrap.unbind();
             }
         }

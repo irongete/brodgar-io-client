@@ -62,7 +62,7 @@ character, so an overlay is painted exactly while the camera can see the thing i
 
 | Setter | Meaning |
 |---|---|
-| `ov:draw(fn)` | `fn(g, gob, sx, sy)` runs every frame at that point, painting with [`g`](ui/drawing.md); `sx, sy` is in [design pixels](ui/pixels.md), like everything `g` takes |
+| `ov:draw(fn)` | `fn(g, gob, sx, sy)` runs every frame at that point, painting with [`g`](ui/drawing.md); `sx, sy` is in [design pixels](ui/pixels.md), like everything `g` takes — the projected point to the whole device pixel, its fraction [carried under the whole painter](ui/drawing.md#draw), so what you draw glides with the object |
 | `ov:text(s)` | a label at that point — drawn by the engine, so it costs no Lua at the draw |
 
 Every one of them has a bare read of the same name, so what you wrote is what you can read back, and the

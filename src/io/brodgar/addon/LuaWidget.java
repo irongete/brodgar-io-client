@@ -12,6 +12,7 @@ import haven.HSlider;
 import haven.IButton;
 import haven.ICheckBox;
 import haven.IMeter;
+import haven.ISBox;
 import haven.Img;
 import haven.Inventory;
 import haven.Label;
@@ -2952,6 +2953,8 @@ public final class LuaWidget {
         }
         if(w instanceof IMeter)
             return AddonManager.resIdent(((IMeter)w).bg);
+        if(w instanceof ISBox)                     // a building site's material box: the material it counts
+            return AddonManager.resIdent(((ISBox)w).res());
         for(Class<?> c = w.getClass(); c != null; c = c.getSuperclass()) {
             ClassLoader l = c.getClassLoader();
             if(l instanceof Resource.ResClassLoader) {
@@ -3001,7 +3004,7 @@ public final class LuaWidget {
     /**
      * Best-effort text for a text-bearing widget ({@code :text()}, spec 20, W1) — the one upstream-volatile bit,
      * localized in THIS switch (like the spec-14 adapters): {@link Label#texts}, {@link Button} caption,
-     * {@link Window#cap}, {@link TextEntry#text()}. An unknown type returns {@code null} (&rarr; Lua {@code nil}),
+     * {@link Window#cap}, {@link TextEntry#text()}, {@link ISBox#label()}. An unknown type returns {@code null} (&rarr; Lua {@code nil}),
      * never throws — upstream churn breaks only this method, not addons.
      */
     static String text(Widget w) {
@@ -3024,6 +3027,8 @@ public final class LuaWidget {
             return ((TextEntry)w).text();
         if(w instanceof CheckBox)                  // 040.4: CheckBox.lbls is public for exactly this read
             return ((CheckBox)w).lbls;             // addon: (102.2) the caption it was WRITTEN -- see Button above
+        if(w instanceof ISBox)                     // a building site's material box: the "have/total" it draws
+            return ((ISBox)w).label();
         return null;
     }
 

@@ -8,6 +8,8 @@ import haven.Loading;
 import haven.Resource;
 import haven.RichText;
 import haven.Tex;
+import haven.TexI;
+import haven.render.Texture;
 import haven.Text;
 import haven.Utils;
 import haven.render.Model;
@@ -65,6 +67,9 @@ final class LuaGOut {
     /** Drop the {@code g:resource} name cache (called from a full {@code :reload}). */
     static void clearResourceCache() {
         resCache.clear();
+        for(Tex t : resTexCache.values())
+            t.dispose();                        // the copies are ours: free their GL textures with the names
+        resTexCache.clear();
     }
 
     /**
@@ -305,7 +310,7 @@ final class LuaGOut {
         t.set("text", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                drawText(d, a.arg(2).tojstring(), Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint())),
+                drawText(d, a.arg(2).tojstring(), Px.point(a.arg(3).todouble(), a.arg(4).todouble()),
                          0.0, 0.0, a.arg(5), "g:text");
                 return NIL;
             }
@@ -315,7 +320,7 @@ final class LuaGOut {
         t.set("atext", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                drawText(d, a.arg(2).tojstring(), Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint())),
+                drawText(d, a.arg(2).tojstring(), Px.point(a.arg(3).todouble(), a.arg(4).todouble()),
                          a.arg(5).todouble(), a.arg(6).todouble(), a.arg(7), "g:atext");
                 return NIL;
             }
@@ -325,8 +330,8 @@ final class LuaGOut {
         t.set("rect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                d.rect(Px.in(Coord.of(a.arg(2).toint(), a.arg(3).toint())),
-                       Px.in(Coord.of(a.arg(4).toint(), a.arg(5).toint())));
+                d.rect(Px.point(a.arg(2).todouble(), a.arg(3).todouble()),
+                       Px.point(a.arg(4).todouble(), a.arg(5).todouble()));
                 return NIL;
             }
         });
@@ -334,8 +339,8 @@ final class LuaGOut {
         t.set("frect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                d.frect(Px.in(Coord.of(a.arg(2).toint(), a.arg(3).toint())),
-                        Px.in(Coord.of(a.arg(4).toint(), a.arg(5).toint())));
+                d.frect(Px.point(a.arg(2).todouble(), a.arg(3).todouble()),
+                        Px.point(a.arg(4).todouble(), a.arg(5).todouble()));
                 return NIL;
             }
         });
@@ -345,8 +350,8 @@ final class LuaGOut {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
                 LuaValue w = a.arg(6);
-                d.line(Px.in(Coord.of(a.arg(2).toint(), a.arg(3).toint())),
-                       Px.in(Coord.of(a.arg(4).toint(), a.arg(5).toint())),
+                d.line(Px.point(a.arg(2).todouble(), a.arg(3).todouble()),
+                       Px.point(a.arg(4).todouble(), a.arg(5).todouble()),
                        Px.in(w.isnil() ? 1.0 : w.todouble()));
                 return NIL;
             }
@@ -381,12 +386,12 @@ final class LuaGOut {
                 LuaImage img = LuaImage.resolve(a.arg(2));
                 if((img == null) || img.dead || (img.tex == null)) return NIL;
                 // colon call: arg1 = self, arg2 = img, arg3 = x, arg4 = y, arg5 = w, arg6 = h
-                Coord c = Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint()));
+                Coord c = Px.point(a.arg(3).todouble(), a.arg(4).todouble());
                 LuaValue wv = a.arg(5), hv = a.arg(6);
                 // The PNG's own pixels are design pixels (058.2): img.stex blits it at UI scale, so the native
                 // form covers exactly the img:size() the addon read, and the w×h form covers exactly that box.
                 if(wv.isnumber() && hv.isnumber())
-                    d.image(img.stex, c, Px.in(Coord.of(wv.toint(), hv.toint())));   // → GOut.image(Tex,Coord,Coord)
+                    d.image(img.stex, c, Px.point(wv.todouble(), hv.todouble()));   // → GOut.image(Tex,Coord,Coord); a box is two lengths, rounded the same way
                 else
                     d.image(img.stex, c);                                            // → GOut.image(Tex,Coord)
                 return NIL;
@@ -407,12 +412,12 @@ final class LuaGOut {
                 if((name == null) || name.isEmpty()) return NIL;
                 Tex tex = resTex(name);
                 if(tex == null) return NIL;   // still Loading / failed → draw nothing this frame
-                Coord c = Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint()));
+                Coord c = Px.point(a.arg(3).todouble(), a.arg(4).todouble());
                 LuaValue wv = a.arg(5), hv = a.arg(6);
                 // NOT img.stex's counterpart: an engine texture is Resource.Image.scaled() and is ALREADY device
                 // -sized, so the native blit converts nothing and only the explicit box does (058.2).
                 if(wv.isnumber() && hv.isnumber())
-                    d.image(tex, c, Px.in(Coord.of(wv.toint(), hv.toint())));   // scaled
+                    d.image(tex, c, Px.point(wv.todouble(), hv.todouble()));   // scaled
                 else
                     d.image(tex, c);                                            // native
                 return NIL;
@@ -425,7 +430,7 @@ final class LuaGOut {
                 GOut d = cur; if(d == null) return NIL;
                 LuaImage img = LuaImage.resolve(a.arg(2));
                 if((img == null) || img.dead || (img.tex == null)) return NIL;
-                d.aimage(img.stex, Px.in(Coord.of(a.arg(3).toint(), a.arg(4).toint())),
+                d.aimage(img.stex, Px.point(a.arg(3).todouble(), a.arg(4).todouble()),
                          a.arg(5).todouble(), a.arg(6).todouble());          // → GOut.aimage(Tex,Coord,ax,ay)
                 return NIL;
             }
@@ -435,8 +440,8 @@ final class LuaGOut {
         t.set("prect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                int r = Px.in(a.arg(4).toint());     // a radius is a length: design px, like everything here
-                d.prect(Px.in(Coord.of(a.arg(2).toint(), a.arg(3).toint())),
+                int r = Px.length(a.arg(4).todouble());   // a radius is a length: design px, like everything here
+                d.prect(Px.point(a.arg(2).todouble(), a.arg(3).todouble()),
                         Coord.of(-r, -r), Coord.of(r, r), a.arg(5).todouble() * Math.PI * 2.0);
                 return NIL;
             }
@@ -542,7 +547,7 @@ final class LuaGOut {
             return;
         }
         Text t = render(str, fh, width);                   // miss: rasterise once (fast or rich path, per the key)
-        T = t.tex();
+        T = smooth(t.tex());
         if(cache != null) {
             cache.put(k, t, T);                            // the cache owns it from here — it is the only disposer
             fill(d, T, c, ax, ay, bg);
@@ -576,7 +581,7 @@ final class LuaGOut {
         if(T != null)
             return T.sz();
         Text t = render(str, fh, width);
-        T = t.tex();
+        T = smooth(t.tex());
         if(cache != null) {
             cache.put(k, t, T);                            // the cache owns it from here, exactly as a draw's does
             return T.sz();
@@ -703,14 +708,41 @@ final class LuaGOut {
     }
 
     /**
+     * <b>Linear sampling on a raster this layer blits.</b> Every {@link TexI} is born sampling NEAREST, which
+     * is exact while a raster is blitted at whole pixels and a snap the moment it is not: a quad shifted by a
+     * fraction of a pixel still lights whole texels, so a gob label carried under {@link GOut#subpx} would
+     * step exactly as before. LINEAR is identical at a whole-pixel offset -- texel centres meet pixel centres
+     * -- and a glide at a fractional one, which is what the anchor is owed. Set once, where the raster is
+     * minted; a {@code Tex} of another kind is handed back as it is.
+     */
+    static Tex smooth(Tex t) {
+        if(t instanceof TexI)
+            ((TexI)t).filter(Texture.Filter.LINEAR);
+        return t;
+    }
+
+    /**
+     * {@code g:resource}'s own textures, by name: a private copy per resource, sampled LINEAR (see
+     * {@link #resTex}). Unlike {@link #resCache} beside it this one holds GL memory -- one texture per
+     * distinct name ever drawn -- so {@link #clearResourceCache} disposes each before it drops the map.
+     * Process-wide like its sibling, and to go per addon with it (audit2 B01).
+     */
+    private static final ConcurrentHashMap<String, Tex> resTexCache = new ConcurrentHashMap<String, Tex>();
+
+    /**
      * Resolve an engine resource's default image-layer texture by name for {@code g:resource}, async + cached
      * + {@code Loading}-guarded (D-039): returns {@code null} until the resource is loaded (draw nothing this
-     * frame) or on any load failure (a bad name never throws into the render thread), else the layer's
-     * {@link Tex}. The {@link Indir} is cached by name (dedups the per-frame lookup); the {@code Tex} itself is
-     * cached by the engine's {@code Resource.Image}.
+     * frame) or on any load failure (a bad name never throws into the render thread), else a texture over the
+     * layer's scaled picture. The {@link Indir} is cached by name (dedups the per-frame lookup), and so is the
+     * texture -- <b>a private copy</b>, not {@code Resource.Image.tex()}: that one is the client's own, drawn
+     * by every inventory and menu, and its sampler cannot be turned LINEAR ({@link #smooth}) without turning it
+     * for all of them. One extra texture per resource name an addon draws, and it lives as long as the entry.
      */
     private static Tex resTex(String name) {
         try {
+            Tex have = resTexCache.get(name);
+            if(have != null)
+                return have;
             Indir<Resource> ind = resCache.get(name);
             if(ind == null) {
                 ind = Resource.remote().load(name);
@@ -718,7 +750,11 @@ final class LuaGOut {
             }
             Resource res = ind.get();               // throws Loading until ready
             Resource.Image img = res.layer(Resource.imgc);
-            return (img == null) ? null : img.tex();
+            if(img == null)
+                return null;
+            Tex tex = smooth(new TexI(img.scaled()));
+            resTexCache.put(name, tex);
+            return tex;
         } catch(Loading l) {
             return null;                            // still resolving → draw nothing this frame
         } catch(RuntimeException e) {
