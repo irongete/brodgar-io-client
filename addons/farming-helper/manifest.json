@@ -1,7 +1,7 @@
 {
   "id": "farming-helper",
   "name": "Farming Helper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "irongete",
   "description": "One key puts the growth stage over every planted crop in sight, read from the state bytes the server sent with it. Assign the key in Options > Game > Keybindings > Farming Helper.",
   "api_version": 1,

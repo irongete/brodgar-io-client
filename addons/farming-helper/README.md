@@ -9,7 +9,8 @@ ripe one — so the number over a crop is the very byte the game is drawing that
 
 It is drawn **white and bold on a black outline**, so it reads over pale soil and dark leaves alike, centred
 **on the ground the plant stands on** rather than floating over it, and inside the 3D view: every window
-covers it.
+covers it. Each number is a label hung on the crop itself, drawn by the client with no work per frame, so
+a whole field costs no more than the numbers it shows.
 
 ## Using it
 

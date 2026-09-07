@@ -5,16 +5,12 @@
 -- draw -- so the number here is the very byte the game draws the plant from. It is printed 1-based, the
 -- way every index in this API reads, so a freshly sown field says 1 rather than 0.
 --
--- Two things decide how it is drawn, and both are the reason this is a painter rather than the label
--- gob:overlay():text() would have put up. A gob label hangs at a FIXED anchor 15 world units over the
--- object -- up where a name floats, not down where the plant is -- and it takes a colour and nothing
--- else. So the number is painted by hand instead: worldToScreen projects AT THE GROUND under a place,
--- and the number is drawn there white on a black outline, which is what makes it read over pale soil and
--- dark crops alike without a plate behind it.
---
--- The painter hangs on the character's own map view rather than over the whole HUD, which is what keeps
--- the numbers inside the 3D view and UNDER every window: a painter on a widget draws straight after that
--- widget, and the HUD's windows then cover it.
+-- Each number is a LABEL hung on the crop itself: gob:overlay():add(key):text(n). The client draws it --
+-- no Lua runs per frame, the string is rasterised once for its lifetime and blitted once a frame -- and it
+-- dies with the object, so a harvested crop takes its own number away. Two things make it readable where
+-- a plain label would not be: it stands at height 0, on the ground the plant stands on rather than in the
+-- air over its head, and its face carries a black outline baked into that one raster, which is what makes
+-- white read over pale soil and dark leaves alike without a plate behind it.
 --
 -- Suggested key: Ctrl+F -- assign it in Options > Game > Keybindings > Farming Helper.
 
@@ -23,19 +19,19 @@
 local CROP_PATH = "gfx/terobjs/plants/"
 local TRELLIS = "gfx/terobjs/plants/trellis"
 
-local PAINTER = "stages"    -- our own overlay key on a map view; keys are per addon
+local KEY = "stage"    -- our own overlay key on a crop; keys are per addon
 
--- The client's stock face is sans at 10 design px (Text.std), so this is that face one pixel up, bold.
-local FONT = hafen.font():get("sans"):derive():size(11):bold(true)
-local NUMBER = {font = FONT, color = {255, 255, 255}}
-local BORDER = {font = FONT, color = {0, 0, 0}}
--- Where the black goes. These are the four the client's own stroked text uses -- left, right, up, down
--- -- so the number wears the outline every stroked label in the game wears.
-local STROKE = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+-- The client's stock face is sans at 10 design px (Text.std), so this is that face one pixel up, bold,
+-- with the outline every stroked label in the game wears. One handle for every label: the rendered text
+-- is cached per string and face, so ten thousand "4"s are one raster.
+local FONT = hafen.font():get("sans"):derive():size(11):bold(true):outline{0, 0, 0}
+local WHITE = {255, 255, 255}
+-- A label stands bottom-centred on its point. Half a digit's height down puts the number's middle on the
+-- ground point instead, which is where the eye looks for it.
+local DROP = math.floor(hafen.ui():measure("8", {font = FONT}).h / 2)
 
 local showing = false
-local crops = {}      -- [Gob] = {stage = "4", position = Position|nil}; what to draw, and where
-local views = {}      -- [Session] = that character's map view, while a painter of ours is on it
+local labelled = {}   -- [Gob] = true while a label of ours is on it; the label itself lives on the gob
 
 -- gob:name() is the resource name the server sent, so a crop is recognised by where its resource lives.
 local function isCrop(gob)
@@ -43,67 +39,54 @@ local function isCrop(gob)
   return name ~= nil and name:sub(1, #CROP_PATH) == CROP_PATH and name ~= TRELLIS
 end
 
--- What one crop draws. A crop does not move, so its place is read once and kept -- gob:position() in a
--- draw callback would build a Position per crop per frame. It reads nil until that ground has streamed
--- in, which is why the painter below finishes the job on a later frame instead of giving up here.
-local function remember(crop)
+-- Hang the stage on one crop, or relabel the one already there. An object whose own drawing is still
+-- resolving takes no overlay in that instant, so the attach is tried and, refused, tried once more a
+-- moment later -- by which time the resource that refused it has resolved.
+local function label(crop, retried)
   local bytes = crop:sdt()
   local stage = bytes and bytes[1]
-  if stage then
-    crops[crop] = {stage = tostring(stage + 1), position = crop:position()}
+  if not stage then return end
+  local text = tostring(stage + 1)
+  local have = crop:overlay():get(KEY)
+  if have then
+    have:text(text)
+    return
+  end
+  local ok = pcall(function()
+    crop:overlay():add(KEY):text(text):color(WHITE):font(FONT):height(0):offset(0, DROP)
+  end)
+  if ok then
+    labelled[crop] = true
+  elseif not retried then
+    hafen.timer():after(0.5, function()
+      if showing and crop:exists() then label(crop, true) end
+    end)
   end
 end
 
--- One character's painter. It draws in the map view's OWN pixels, so the root point worldToScreen
--- answers is moved by the view's rootPos before it is used.
-local function paint(session, view)
-  return function(g)
-    local origin = view:rootPos()
-    if not origin then return end
-    local world = session:world()
-    g:color()      -- white, so each colour named below comes out exactly the colour it names
-    for crop, record in pairs(crops) do
-      record.position = record.position or crop:position()
-      local point = record.position and world:worldToScreen(record.position)
-      if point then
-        -- Floored, so the outline lands on whole pixels and stays an even one all the way round.
-        local x = math.floor(point.x - origin.x)
-        local y = math.floor(point.y - origin.y)
-        for _, at in ipairs(STROKE) do
-          g:atext(record.stage, x + at[1], y + at[2], 0.5, 0.5, BORDER)
-        end
-        g:atext(record.stage, x, y, 0.5, 0.5, NUMBER)
-      end
-    end
+local function showAll(session)
+  for _, crop in ipairs(session:world():gob():list(isCrop)) do
+    label(crop)
   end
 end
 
-local function show(session)
-  local view = session:ui():match("@MapView")
-  if not view then return end            -- that character is not in the world yet
-  views[session] = view
-  view:overlay():add(PAINTER):draw(paint(session, view))
-end
-
-local function hide()
-  for session, view in pairs(views) do
-    views[session] = nil
-    view:overlay():remove(PAINTER)
+-- A label hangs on the object, so one :remove takes it off every character that can see it; on a gob
+-- already gone it is inert, since the label died with it.
+local function hideAll()
+  for crop in pairs(labelled) do
+    crop:overlay():remove(KEY)
   end
-  crops = {}
+  labelled = {}
 end
 
 hafen.client():options():keybindings():on("toggle", function()
   showing = not showing
   if not showing then
-    hide()
+    hideAll()
     return
   end
   for _, session in ipairs(hafen.session():list()) do
-    for _, crop in ipairs(session:world():gob():list(isCrop)) do
-      remember(crop)
-    end
-    show(session)
+    showAll(session)
   end
 end)
 
@@ -112,20 +95,16 @@ end)
 -- handler that keeps a growing one current. Nothing is polled.
 hafen.event():on("GobSdtChanged", function(ev)
   local crop = ev:gob()
-  if showing and isCrop(crop) then remember(crop) end
+  if showing and isCrop(crop) then label(crop) end
 end)
 
--- A crop the last of your characters can no longer see. Unlike a gob overlay, a record here does not die
--- with its object, so this is the one place it is dropped -- harvested, or simply walked away from.
+-- The label went with its object; only our own bookkeeping is left to drop.
 hafen.event():on("GobRemoved", function(gob)
-  crops[gob] = nil
+  labelled[gob] = nil
 end)
 
+-- A character arriving in the world sees the labels already hung on what it loads. Its own ground may
+-- hold crops no other character has seen, and those are labelled here.
 hafen.event():on("SessionEnteredWorld", function(session)
-  if showing then show(session) end
-end)
-
--- The map view went with the character, and took our painter with it.
-hafen.event():on("SessionRemoved", function(session)
-  views[session] = nil
+  if showing then showAll(session) end
 end)
