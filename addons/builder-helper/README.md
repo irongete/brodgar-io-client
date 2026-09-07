@@ -5,12 +5,14 @@ Remembers what every building site you have opened still needs, and one key floa
 
 ## How it works
 
-1. **Right-click a building site** (the stakes and string, `gfx/terobjs/consobj`). The window the server
-   opens for it — *Stonestead*, *Palisade*, *Barter Stand*, any building — lists one material box per
-   material. The addon reads each box's figure and material and files them under the **place** the site
-   stands on, as a durable Position (grid id plus offset), in an account-scope saved variable. Any other
-   click on the map, left or right, on the ground or on another object, ends that gesture: a window opened
-   after it is nobody's.
+1. **Right-click a building site** (the stakes and string, `gfx/terobjs/consobj`), or **place a new
+   one**. The window the server opens for it — *Stonestead*, *Palisade*, *Barter Stand*, any building —
+   lists one material box per material. The addon reads each box's figure and material and files them
+   under the **place** the site stands on, as a durable Position (grid id plus offset), in an account-scope
+   saved variable. A window already open when the site is named is taken as its, so a freshly placed
+   site's own window counts, and so does one you had open before right-clicking. Any other click on the
+   map, left or right, on the ground or on another object, ends the gesture: a window opened after it is
+   nobody's.
 2. **Press the key** to show or hide the labels. Every remembered site in view wears a column of rows
    rising from the ground it stands on, one per material: the material's icon and its figure, white
    while short and green once complete. A site that walks into view later, or is seen by another of your

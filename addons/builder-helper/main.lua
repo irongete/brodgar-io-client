@@ -4,9 +4,11 @@
 -- A building site is one gob for every building in the game (gfx/terobjs/consobj); what it is becoming and
 -- what it still wants are not on the object. They are in the window the server opens when you right-click
 -- it: one material box (@ISBox) per material, each drawing an icon and a "have/total" figure, and the
--- window's caption is the building's name. So the addon watches for exactly that gesture -- a right-click
--- on a site -- and binds the boxes that appear next to the place the site stands on. Any other click on
--- the map, left or right, on the ground or on another object, forgets the gesture.
+-- window's caption is the building's name. So the addon watches for the two gestures that open it -- a
+-- right-click on a site, and placing a new one, whose window the server opens on its own -- and binds the
+-- boxes of that window to the place the site stands on. A window already open when the site is named is
+-- claimed as well, so the order the window and the gesture come in does not matter. Any other click on the
+-- map, left or right, on the ground or on another object, forgets the gesture.
 --
 -- A site is filed by its place, as a Position, and Position is durable: it saves as a grid id plus an offset
 -- within the grid, which is the one anchor that means the same thing to every character. The record lives
@@ -187,23 +189,35 @@ local function parse(text)
   return tonumber(have), tonumber(total)
 end
 
--- One material box came up. If it belongs to the window a right-click on a site just opened, its figure
--- and its material go on that site's record, in the order the boxes stand in the window.
-local function boxAdded(w)
-  if not pending then return end
-  local key = pending.key
-  local win = windowOf(w)
-  if not win then return end
+local seen = {}              -- [Window] = how many of its boxes have come up, which is the next box's index
+local orphans = {}           -- [Window] = its boxes in order, up before any gesture named a site for it
+local orphanOrder = {}       -- those windows, the most recent last
+
+-- One box of one window goes on the site's record. The window that carries the record gets the rows
+-- rebuilt from its boxes, in order; a second window of the same site, open beside it, lists the same
+-- materials in the same order, so its boxes bind to the rows they stand at and keep them current too.
+local function bind(w, win, key, index)
   local site = sites[key]
-  if not site or windows[key] ~= win then
+  local current = windows[key]
+  if not site or (current ~= win and not (current and current:exists())) then
     site = {pos = pending.pos, name = win:text(), rows = {}}
     sites[key] = site
     windows[key] = win
   end
   local have, total = parse(w:text())
-  local row = {res = w:res(), text = w:text() or "?", have = have, total = total}
-  site.rows[#site.rows + 1] = row
-  bound[w] = {key = key, row = #site.rows}
+  local row
+  if windows[key] == win then
+    row = {res = w:res(), text = w:text() or "?", have = have, total = total}
+    site.rows[#site.rows + 1] = row
+    index = #site.rows
+  else
+    row = site.rows[index]
+    if not row then return end
+    row.res = w:res() or row.res
+    row.text = w:text() or row.text
+    row.have, row.total = have, total
+  end
+  bound[w] = {key = key, row = index}
   -- The material's resource may still be streaming, in which case it names itself a moment later.
   if not row.res then
     hafen.timer():after(0.5, function()
@@ -230,12 +244,63 @@ local function boxAdded(w)
   end)
 end
 
+-- A box came up: bound to the site the gesture in flight names, or kept aside until a gesture names one.
+local function boxAdded(w)
+  local win = windowOf(w)
+  if not win then return end
+  local n = (seen[win] or 0) + 1
+  seen[win] = n
+  if pending then
+    bind(w, win, pending.key, n)
+    return
+  end
+  if not orphans[win] then
+    orphans[win] = {}
+    orphanOrder[#orphanOrder + 1] = win
+  end
+  orphans[win][n] = w
+end
+
+-- The window a gesture names may already be open -- a site just placed opens its own, and a right-click on
+-- a site whose window is up opens nothing new -- so the most recent window still up that nothing has
+-- claimed is bound to the site the gesture named.
+local function adopt()
+  for i = #orphanOrder, 1, -1 do
+    local win = orphanOrder[i]
+    local boxes = orphans[win]
+    orphans[win] = nil
+    seen[win] = seen[win] and win:exists() and seen[win] or nil
+    table.remove(orphanOrder, i)
+    if win:exists() and boxes then
+      for n, w in ipairs(boxes) do
+        if w:exists() then bind(w, win, pending.key, n) end
+      end
+      return
+    end
+  end
+end
+
 -- The window closed: its boxes bind nothing now. A reopen builds the rows afresh.
 local function boxRemoved(w)
   local b = bound[w]
-  if not b then return end
   bound[w] = nil
-  if windows[b.key] and not windows[b.key]:exists() then windows[b.key] = nil end
+  if b and windows[b.key] and not windows[b.key]:exists() then windows[b.key] = nil end
+  for win in pairs(seen) do
+    if not win:exists() then seen[win] = nil; orphans[win] = nil end
+  end
+end
+
+-- Name a site: the gesture in flight is this site, for a few seconds, and a window already up is its.
+local function point(gob)
+  local key, pos = keyOf(gob)
+  if not key or not pos:durable() then return false end
+  pending = {key = key, pos = pos, gob = gob}
+  local mine = pending
+  hafen.timer():after(5, function()
+    if pending == mine then pending = nil end
+  end)
+  adopt()
+  return true
 end
 
 -- ---- the gesture -------------------------------------------------------------------------------------
@@ -246,19 +311,22 @@ hafen.event():action():on("click", function(ev)
   if ev:widget():type() ~= "MapView" then return end
   local gob = ev:gob()
   local button = ev:args()[3]
-  if gob and button == 3 and isSite(gob) then
-    local key, pos = keyOf(gob)
-    if key and pos:durable() then
-      pending = {key = key, pos = pos, gob = gob}
-      -- A window that has not come up in a few seconds is not this click's; drop the gesture.
-      local mine = pending
-      hafen.timer():after(5, function()
-        if pending == mine then pending = nil end
-      end)
-      return
-    end
-  end
+  if gob and button == 3 and isSite(gob) and point(gob) then return end
   pending = nil
+end)
+
+-- Placing a building: the server stands the site where the ghost was dropped and opens its window on its
+-- own, with no click on the site to name it. The place is kept until a site stands on it.
+local placed = nil           -- {pos = Position} after a "place", until the site arrives or a while passes
+hafen.event():action():on("place", function(ev)
+  if ev:widget():type() ~= "MapView" then return end
+  local ok, pos = pcall(function() return ev:position(1) end)
+  if not ok or not pos then return end
+  placed = {pos = pos}
+  local mine = placed
+  hafen.timer():after(10, function()
+    if placed == mine then placed = nil end
+  end)
 end)
 
 -- The figure moved while the window is open (materials put in, or taken out). This runs where the
@@ -311,8 +379,9 @@ hafen.client():options():keybindings():on("toggle", function()
   end
 end)
 
--- A known site walking back into view wears its label from its first frame. A site whose name has not
--- resolved in the handler is asked again a moment later.
+-- A site arriving: the one just placed is named by where it stands, and a known one walking back into
+-- view wears its label from its first frame. A site whose name has not resolved in the handler is asked
+-- again a moment later.
 local function arrived(gob, retried)
   local name = gob:name()
   if name == nil and not retried then
@@ -322,13 +391,20 @@ local function arrived(gob, retried)
     return
   end
   if name ~= SITE then return end
+  if placed then
+    local p = gob:position()
+    local d = p and p:distance(placed.pos)
+    if d and d < 22 then
+      placed = nil
+      point(gob)
+    end
+  end
+  if not showing then return end
   local key = keyOf(gob)
   if key and sites[key] then label(gob, key) end
 end
 
-hafen.event():on("GobAdded", function(gob)
-  if showing then arrived(gob) end
-end)
+hafen.event():on("GobAdded", arrived)
 
 -- The painter went with its object; only our own bookkeeping is left to drop.
 hafen.event():on("GobRemoved", function(gob)
