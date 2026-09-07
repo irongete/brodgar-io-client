@@ -1,0 +1,9 @@
+{
+  "name": "135.1 — gob:tint(c): a colour laid over a game object",
+  "id": "135-gob-tint.1",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 135.1: gob:tint reads nil bare, writes a colour and hands the Gob back, reads it back keyed, clears on nil, refuses a non-colour, composes with scale/visible and the damage wash, and takes a write on a gone gob.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

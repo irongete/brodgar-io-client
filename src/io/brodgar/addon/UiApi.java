@@ -2850,8 +2850,10 @@ final class UiApi {
                 continue;
             synchronized(u) {
                 try {
-                    for(Gob g : allGobs(user))
+                    for(Gob g : allGobs(user)) {
                         GobScale.revert(g, a);
+                        GobTint.revert(g, a);    // 135.1: the colour goes in the same walk as the size
+                    }
                     // 114.3: ...and every object it was holding out of the scene is drawn again. By id and
                     // not by a mark on the copy: an object is drawn or it is not, so the record of who asked
                     // lives once against the object rather than once per session that happens to hold it.

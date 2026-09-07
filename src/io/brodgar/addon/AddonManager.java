@@ -5942,6 +5942,11 @@ public final class AddonManager {
                 // 114.3: whether the client draws this object at all. Always present, like `moving`: an
                 // object nobody hid answers true, and the two are different facts rather than one absence.
                 t.set("visible", LuaValue.valueOf(!g.addoninvis));
+                // 135.1: the colour laid over it, keyed — and no key at all for an object nobody tinted,
+                // because a key is absent when the thing it names is.
+                java.awt.Color tint = GobTint.value(g);
+                if(tint != null)
+                    t.set("tint", color(tint));
             }
         } catch(RuntimeException e) {
             /* partial snapshot is fine (e.g. world data still resolving) */

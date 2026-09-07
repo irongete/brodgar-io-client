@@ -397,8 +397,8 @@ public final class LuaGob {
                 return LuaOverlay.collection(owner, h.id);
             }
         });
-        // scale() / scale(k) -- how big the game object is DRAWN (046.1), the elder of this handle's two
-        // writes, the other being visible(b) below. Bare
+        // scale() / scale(k) -- how big the game object is DRAWN (046.1), the elder of this handle's three
+        // writes, the others being visible(b) and tint(c) below. Bare
         // reads the factor (1 for a gob nobody scaled, nil once the gob is gone); one number writes it and
         // hands the GOB back, so gob:scale(2):name() is one chain. It is the read/write pair every hafen.virtual()
         // entity answers, on the same footing gob:overlay() stands on: client-local, purely visual, unprotected --
@@ -471,6 +471,37 @@ public final class LuaGob {
                 for(Gob g : AddonManager.gobCopies(h.id))
                     g.addonvisible(vis);
                 GobIntent.visible(h.id, owner, vis);
+                return self;
+            }
+        });
+        // tint() / tint(c) / tint(nil) -- a COLOUR laid over the game object (135.1), the third of this
+        // handle's client-local, purely visual, unprotected writes, and the same word with the same meaning
+        // every hafen.virtual() entity answers: a colour blended over the model with its `a` the strength, so
+        // {255, 0, 0, 96} is a red-washed box with its shading kept and {255, 0, 0} (a = 255) a flat red one.
+        // Bare reads it back KEYED ({r=,g=,b=,a=}, the shape every colour reader answers), nil for an object
+        // nobody tinted and nil once the gob is gone; a colour writes it and hands the GOB back, so
+        // gob:tint(c):scale(2) is one chain; an explicit nil CLEARS it -- one of the nils the API documents a
+        // meaning for, so this takes Args.passed + isnil() rather than Args.written, which refuses a nil.
+        //   It COMPOSES with the game's own damage wash: GobTint.Wash is a render slot of its own at another
+        // fragment order, not a second writer of GobHealth's MixColor slot, so a damaged object keeps its
+        // cracks and its red under your colour. Anything that is not a colour table is refused with the one
+        // colour refusal every colour write raises (AddonManager.colorRefusal).
+        //   Where it lands and how long it lasts are the size's rules exactly: every live copy of the object
+        // (080.1), recorded against the object so a character that loads it later draws it tinted (092.7),
+        // dropped when the object leaves its last session, and put back everywhere by teardown
+        // (UiApi.teardownGobScales). A gob that is gone takes the write and does nothing with it.
+        m.set("tint", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaGob h = handle(self, "tint");
+                if(!Args.passed(a, 2)) {
+                    Gob g = gob(self, "tint");
+                    return (g == null) ? LuaValue.NIL : AddonManager.color(GobTint.value(g));
+                }
+                java.awt.Color c = a.arg(2).isnil() ? null : AddonManager.colorArg(a, 2, "gob:tint");
+                for(Gob g : AddonManager.gobCopies(h.id))
+                    GobTint.apply(g, owner, c);
+                GobIntent.tint(h.id, owner, c);
                 return self;
             }
         });

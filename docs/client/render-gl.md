@@ -83,6 +83,15 @@ throughout. So mutating a live `State`'s field afterwards propagates nothing at 
 the screen only as a **new state instance pushed through the slot**, which puts it in a new group and so
 under a new key.
 
+**Gotcha — a batch is keyed on every non-instanced slot's state, by identity.** `InstanceList.InstKey`
+holds the `Instancable`'s `instanceid()`, the pipe group behind every slot whose `State.Slot.instanced` is
+null (`uinststate`, over `stcounts`), and the `Instancer` of every slot that has one; `equals` compares each
+by `==`. So a `State` whose slot has no `Instancable` (`ColorMask`, any new `Slot` built without
+`.instanced(...)`) put on one member of a batch takes that member **out** of the batch and draws it in a
+draw call of its own — correctly, and that draw call is the whole cost — while an instanced one
+(`MixColor`, `Location`) rides along as a per-instance attribute. An `Instancable` buys the draw call
+back at the price of an `Instancer` and an attribute path to keep right.
+
 **Gotcha — `Slot.add(n, state)` sets the child's `cstate`.** Replacing what an `added` put in is therefore
 `Slot.cstate`, not `Slot.ostate` — `ostate` is the *other* one and layers a second op over the first, which
 merely happens to work when both are `put(slot, …)` of the same slots. Both are no-ops when the op is `==`

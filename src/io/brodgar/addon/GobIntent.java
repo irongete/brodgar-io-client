@@ -2,6 +2,7 @@ package io.brodgar.addon;
 
 import haven.Gob;
 
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -10,7 +11,7 @@ import java.util.Map;
 
 /**
  * <b>What an addon has asked to be drawn at one game object</b> (092.7, A-087) &mdash; the intent behind
- * {@code gob:scale(k)}, {@code gob:visible(b)} and {@code gob:overlay():add(key)}, held per <b>gob id</b> so a
+ * {@code gob:scale(k)}, {@code gob:visible(b)}, {@code gob:tint(c)} and {@code gob:overlay():add(key)}, held per <b>gob id</b> so a
  * session that loads the object <i>afterwards</i> draws it the same.
  *
  * <p><b>Why it has to exist.</b> A gob id is the server's and names one object; a {@link Gob} is per
@@ -49,11 +50,15 @@ final class GobIntent {
          *  second field: this one being set IS "hidden", and showing it again forgets rather than recording
          *  "drawn", exactly as writing {@code gob:scale(1)} forgets a size. */
         Addon hideOwner;
+        /** The addon that last tinted the object, and the colour &mdash; {@code null} for a gob nobody tinted
+         *  (135.1): no tint is the absence of the state on the attrib, and the absence of it here too. */
+        Addon tintOwner;
+        Color tint;
         /** The overlay records standing on this object, in attach order &mdash; the very objects the copies share. */
         final List<LuaGobOverlay.Attach> overlays = new ArrayList<LuaGobOverlay.Attach>();
 
         boolean empty() {
-            return (scaleOwner == null) && (hideOwner == null) && overlays.isEmpty();
+            return (scaleOwner == null) && (hideOwner == null) && (tintOwner == null) && overlays.isEmpty();
         }
     }
 
@@ -106,6 +111,26 @@ final class GobIntent {
             return;
         }
         record(id, true).hideOwner = owner;
+    }
+
+    /**
+     * {@code gob:tint(c)} was written (135.1). <b>One colour, last write wins</b>, {@link GobTint}'s own rule
+     * &mdash; and {@code null} is {@code gob:tint(nil)}, putting the object back, so it forgets rather than
+     * recording "no colour": no tint is the absence of this state on the attrib, and the absence of it here too.
+     */
+    static synchronized void tint(long id, Addon owner, Color c) {
+        if(c == null) {
+            Record r = record(id, false);
+            if(r != null) {
+                r.tintOwner = null;
+                r.tint = null;
+                prune(id, r);
+            }
+            return;
+        }
+        Record r = record(id, true);
+        r.tintOwner = owner;
+        r.tint = c;
     }
 
     /**
@@ -165,6 +190,10 @@ final class GobIntent {
                 r.scaleOwner = null;
             if(r.hideOwner == a)
                 r.hideOwner = null;
+            if(r.tintOwner == a) {
+                r.tintOwner = null;
+                r.tint = null;
+            }
             for(Iterator<LuaGobOverlay.Attach> oi = r.overlays.iterator(); oi.hasNext(); ) {
                 if(oi.next().owner == a)
                     oi.remove();
@@ -214,6 +243,13 @@ final class GobIntent {
                 GobScale.apply(g, r.scaleOwner, r.scale);
             } catch(RuntimeException e) {
                 /* a copy that cannot take it draws its own size: a state, not a fault */
+            }
+        }
+        if(r.tintOwner != null) {
+            try {
+                GobTint.apply(g, r.tintOwner, r.tint);
+            } catch(RuntimeException e) {
+                /* a copy that cannot take it draws plain: a state, not a fault */
             }
         }
         /* Before the copy is let into a render tree at all (the drain releases the 114.1 hold below this
