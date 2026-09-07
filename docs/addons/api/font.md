@@ -81,9 +81,9 @@ tostring(hafen.asset():get("fonts/Inter.ttf"))      --> Asset(font, fonts/Inter.
 
 > **Only a fresh variant is writable, and only until you use it.** A built-in and a loaded `.ttf` are shared
 > values, so writing one would restyle every surface already using it: they refuse a setter, naming
-> `:derive()`. And once you have handed a variant to a rule, a widget or a draw call, that surface has read
-> it — so a later write is refused too, rather than looking like it took and changing nothing. Derive
-> another variant instead; deriving from a handle always works.
+> `:derive()`. And once you have handed a variant to a rule, a widget, an overlay or a draw call, that
+> surface has read it — so a later write is refused too, rather than looking like it took and changing
+> nothing. Derive another variant instead; deriving from a handle always works.
 
 **`color` and `outline` are the two options that do not travel.** They apply wherever *you* draw with the
 handle — the widget default and the per-call option below — and a handle carrying either is **refused**

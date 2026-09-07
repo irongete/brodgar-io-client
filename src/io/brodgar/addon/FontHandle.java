@@ -64,7 +64,8 @@ public final class FontHandle implements AssetApi.Loaded {
     // The two flags that make the fields above safe to be non-final. A handle is WRITABLE only while it is
     // a draft that nothing has used yet: `draft` is set for what :derive() hands back and for nothing else (a
     // built-in and a loaded .ttf are shared, interned values), and `used` is set the moment resolve() hands this
-    // object to a consumer -- a rule, a widget, a draw call -- each of which reads it right then. Guarded by this.
+    // object to a consumer -- a rule, a widget, an overlay, a draw call -- each of which reads it right then.
+    // Guarded by this.
     private boolean draft;
     private boolean used;
 
@@ -123,9 +124,9 @@ public final class FontHandle implements AssetApi.Loaded {
                 + " interned values, and writing one would restyle every surface already using it. The variant"
                 + " is h:derive(), whose properties are yours to set");
         if(used)
-            throw new LuaError(verb + ": this font is already in use — a rule, a widget or a draw call read it"
-                + " when you handed it over, so a write now would change nothing. Derive another variant from"
-                + " it: h:derive():" + verb.substring(verb.indexOf(':') + 1) + "(...)");
+            throw new LuaError(verb + ": this font is already in use — a rule, a widget, an overlay or a draw"
+                + " call read it when you handed it over, so a write now would change nothing. Derive another"
+                + " variant from it: h:derive():" + verb.substring(verb.indexOf(':') + 1) + "(...)");
     }
 
     /**
@@ -190,8 +191,8 @@ public final class FontHandle implements AssetApi.Loaded {
     }
 
     /**
-     * The same resolution for a <b>consumer</b> — a rule, a widget, a draw call — which reads the face at
-     * that moment, so the handle is sealed here: a setter afterwards would take and change nothing.
+     * The same resolution for a <b>consumer</b> — a rule, a widget, an overlay, a draw call — which reads the
+     * face at that moment, so the handle is sealed here: a setter afterwards would take and change nothing.
      * Mirrors {@link LuaImage#resolve}, with that one extra job.
      */
     static FontHandle resolve(LuaValue v) {

@@ -39,3 +39,23 @@
       removed at the end.
       `[manual]`: with the suite's overlays up, look at your character — expect: `a` standing at the feet,
       `b` above the head, both following as you walk.
+
+- [x] **134.3 — a gob label wears a font.** The two halves above do not compose: `ov:text(s)` on a gob is
+      blitted through `LuaGOut.label(g, str, c, ax, ay, col)` with no handle, so the outline 134.1 put in a
+      face cannot reach the label 134.2 stood on the ground — the one label a crop number wants. The gap is
+      the feature's own. `LuaGobOverlay.Attach` gains `font` (a `FontHandle`, sealed by
+      `FontHandle.resolve` as the widget overlay's is) and `fontVal` for the read; `LuaOverlay` gains
+      `ov:font()` / `ov:font(h)` through `writable`, mirroring `LuaWidgetOverlay`'s setter word for word
+      (the refusal on a non-handle names `hafen.font():get` and `hafen.asset():get`); `:info()` carries
+      nothing new (a handle is not a snapshot). `UiApi.paintGobOverlays` blits through the seven-argument
+      `label` with the record's font and no background. Page: `overlay.md` (the row beside `color`, and the
+      "one blit, no Lua" sentence now says the face may carry an outline).
+      *Its suite* derives `sans` at 11 bold with `:outline{0, 0, 0}`, attaches `:text("7"):height(0):font(o)`
+      to the player's gob, asserts `ov:font() == o`, that `:font("sans")` fails and the message names
+      `hafen.font():get`, that a native overlay refuses `:font(o)` naming its key (bounded window, else
+      reached none), and that after two frames `hafen.client():profiling():textcache()` holds one entry more
+      than before the attach — the label and a `g:atext("7", …, {font = o})` on a HUD overlay of the suite
+      share it, so drawing both adds one, not two. Every record removed at the end.
+      `[manual]`: look at your character's feet — expect: a white 7 with a one-pixel black edge, standing
+      on the ground point, following as you walk.
+

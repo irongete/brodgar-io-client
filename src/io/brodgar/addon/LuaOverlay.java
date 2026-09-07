@@ -429,6 +429,31 @@ public final class LuaOverlay {
                 return self;
             }
         });
+        // font(h) — the face the label is blitted in, and the one dressing that IS part of the text cache's
+        // key: a label and a g:text of the same string in the same font are one entry. A face carrying an
+        // outline therefore puts the edge in that one raster, which is how a label at a gob wears one for
+        // the price of one blit. A value that is not a handle is refused rather than resolving to the stock
+        // font, which is a label silently in the wrong face.
+        m.set("font", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaValue self = a.arg1();
+                LuaGobOverlay.Attach rec = writable(owner, self, "font");
+                LuaValue hv = Args.written(a, 2, "overlay:font", "h");
+                if(hv == null) {
+                    LuaValue cur = (rec == null) ? null : rec.fontVal;
+                    return (cur == null) ? LuaValue.NIL : cur;
+                }
+                FontHandle fh = FontHandle.resolve(hv);
+                if(fh == null)
+                    throw new LuaError("overlay:font(h) expects a font handle — hafen.font():get(\"serif\") or"
+                        + " hafen.asset():get(\"fonts/mine.ttf\") — got " + hv.typename());
+                if(rec != null) {
+                    rec.font = fh;
+                    rec.fontVal = hv;
+                }
+                return self;
+            }
+        });
         // offset(x, y) — where it sits relative to the gob's projected point, in screen PIXELS. ONE meaning
         // since 043.3: the third number used to switch the whole verb into world units for the world kinds, and
         // those left, so a third argument is refused naming the verb that moves a thing in the world.

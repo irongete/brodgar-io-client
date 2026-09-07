@@ -116,6 +116,16 @@ public final class LuaGobOverlay extends GAttrib implements RenderTree.Node, PVi
         /** {@code :color(…)} for a text record; null = the stock white. */
         volatile Color color;
         /**
+         * {@code :font(h)} — the face a text record is blitted in, resolved (and so sealed) at the write;
+         * null = the client's stock font. It is the one dressing that is part of the text cache's key, so a
+         * label and a {@code g:text} of the same string in the same face are ONE entry — and a face
+         * carrying an outline puts the edge in that one raster, which is the whole reason a label at a gob
+         * can wear an outline for the price of one blit.
+         */
+        volatile FontHandle font;
+        /** The very handle {@code :font(h)} was given, for the read to hand back unchanged. */
+        volatile LuaValue fontVal;
+        /**
          * {@code :offset(x, y)} — screen pixels from the gob's projected point, and only ever that. <b>Design</b>
          * pixels since 058.2, like every other length this API takes: it is written beside the {@code sx, sy} a
          * draw callback is handed, and a pair the addon writes in one unit and reads in another is not a pair.

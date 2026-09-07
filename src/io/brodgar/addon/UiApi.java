@@ -2729,9 +2729,11 @@ final class UiApi {
      * <p>A {@code {draw = fn}} record calls back into Lua through {@link #callLua} (watchdog-armed,
      * error-isolated, CPU-accounted) with the owner's interned {@link LuaGob} object (D-044), so the callback
      * reads the gob LIVE rather than from a per-frame snapshot. A {@code {text = …}} record never enters Lua at
-     * all — it is drawn in Java through the same cached text path {@code g:text} uses, so a label costs one
-     * rasterisation for its lifetime instead of one per frame. On the UI thread (inside the Render2D pass of
-     * {@code UI.draw}).
+     * all — it is drawn in Java through the same cached text path {@code g:text} uses, in the record's own face
+     * ({@code ov:font(h)}), so a label costs one rasterisation for its lifetime instead of one per frame — and a
+     * face carrying an outline bakes the edge into that one raster rather than costing a blit of its own. The
+     * font is part of the cache key; the colour is not, and a gob's label has no background. On the UI thread
+     * (inside the Render2D pass of {@code UI.draw}).
      */
     static void paintGobOverlays(Gob gob, List<LuaGobOverlay.Attach> recs, Coord[] pts, GOut g, LuaGOut gwrap) {
         for(int i = 0; i < recs.size(); i++) {
@@ -2750,7 +2752,7 @@ final class UiApi {
                     callLua(o.owner, Addon.C_DRAW, o.draw, gt, LuaGob.of(o.owner, gob.id),
                             LuaValue.valueOf(dsc.x), LuaValue.valueOf(dsc.y));
                 else
-                    gwrap.label(g, o.text, sc.add(Px.in(o.screenOffset())), 0.5, 1.0, o.color);
+                    gwrap.label(g, o.text, sc.add(Px.in(o.screenOffset())), 0.5, 1.0, o.font, o.color);
             } catch(RuntimeException e) {
                 /* never throw into the render pass — callLua already isolates a Lua error */
             } finally {

@@ -1,0 +1,9 @@
+{
+  "name": "134.3 — a gob label wears a font",
+  "id": "134-a-label-pays-one-blit.3",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 134.3: the label an overlay stands at a gob is blitted in a face of the addon's own -- so the record reads back the handle it was given and refuses what is not one, and the label and a g:text of the same string in the same face are one cache entry, outline and all.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

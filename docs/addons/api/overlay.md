@@ -73,6 +73,7 @@ is nothing left to configure.
 | Setter | Meaning |
 |---|---|
 | `ov:color(c)` | the label's [colour](shapes.md#colours), `{200, 210, 220}` or `{r=, g=, b=[, a=]}` |
+| `ov:font(h)` | the [face](font.md) the label is drawn in; the client's stock font when you set none |
 | `ov:height(z)` | **world units** up the object at which the point is projected; `15` by default, `0` the ground under it |
 | `ov:offset(x, y)` | **screen pixels** from that projected point, in [design pixels](ui/pixels.md) |
 
@@ -84,6 +85,16 @@ third argument raises, naming the height as the vertical world form. Each record
 one gob wears a label at its feet and another over its head in the same frame, each projected at its own.
 A horizontal offset **in the world** is neither of these: something standing beside the gob rather than
 over it is [`hafen.virtual`](virtual/README.md).
+
+**A label costs one blit and one rasterisation for its lifetime.** It is drawn through the same
+[text cache](ui/drawing.md#text-is-cached-across-frames) `g:text` goes through, so the line is laid out and
+uploaded once and every later frame is a lookup and a blit — with no Lua call at all, where a painter
+drawing the same words pays one every frame. The string and the face are what is cached, so relabelling
+rasterises once more and then settles; the colour is not, and may change every frame for nothing. And the
+face may carry an [outline](font.md#an-outline-round-every-glyph), baked into that same one raster — which
+is what makes a number standing on a crop readable over any ground for the price of the blit it already
+cost. `ov:font()` gives back the very handle you passed, and `nil` while the label is in the client's own
+face; a value that is not a handle raises, naming where one comes from.
 
 There is no `ov:clickable` and no `ov:onClick`: the thing under an overlay is the gob, and clicking a gob is
 [`s:world():click`](world.md#write-protected). There is no `ov:move` either: an overlay's position **is** its
@@ -151,7 +162,8 @@ rather than empty when the gob carries none.)
 `count`. **Yours** adds `kind` and `world` — `world` is `true` for a thing standing in the world and `false`
 for a painter, and both are absent while a bare overlay has not said what it draws — plus `res` when what it
 draws is named by a resource or an asset path, and `height` on a painter of yours, bare or not, which is
-where up the object its point is taken. **A native one** adds `res`, which is the key itself, and carries
+where up the object its point is taken. The face is not in it: a font handle is a live object, and this is
+a copy. **A native one** adds `res`, which is the key itself, and carries
 neither `kind` nor `world`: the game's overlays say only that they are the game's.
 
 An Overlay object is **interned on the key**, so `gob:overlay():get(key)` hands back the same object every

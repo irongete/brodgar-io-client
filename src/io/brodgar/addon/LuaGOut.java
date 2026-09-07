@@ -591,19 +591,20 @@ final class LuaGOut {
      * {@code {text = …}} half of {@code gob:overlay}: an engine-drawn overlay never enters Lua, so it cannot
      * call {@code g:text} itself, and {@link GOut#atext} would re-rasterise and re-upload the string every
      * frame — the pre-026 cost, one label at a time. Same key, same LRU, same owner: a {@code text} overlay and
-     * a {@code g:text} of the same string in the same addon are ONE entry.
+     * a {@code g:text} of the same string in the same addon are ONE entry — which is what {@code fh} buys, the
+     * record's own face ({@code ov:font(h)}) being a component of that key: an <b>outlined</b> face bakes its
+     * edge into the one raster the label already costs. A gob's label wears no background, which is the only
+     * dressing the widget overlay's own {@code label} below has and this one has not.
      */
-    void label(GOut d, String str, Coord c, double ax, double ay, Color col) {
-        draw0(d, str, c, ax, ay, null, col, null, 0);   // a client-drawn label is one line: no wrap width
+    void label(GOut d, String str, Coord c, double ax, double ay, FontHandle fh, Color col) {
+        draw0(d, str, c, ax, ay, fh, col, null, 0);   // a client-drawn label is one line: no wrap width
     }
 
     /**
-     * The same label, in a font of the addon's own and over a filled background — the {@code :text(s)} half of
-     * {@code widget:overlay()} (103.4), which is dressed where a gob's label is not. Both extras are free of
-     * the cache: {@code fh} is already a key component (a label and a {@code g:text} of the same string in the
-     * same font are ONE entry), and the background is a {@code frect} <b>behind</b> the raster, measured off
-     * the very {@link Tex} the cache handed back — so a colour that changes every frame still costs no
-     * rasterisation, exactly as the tint does.
+     * The same label over a filled background — the {@code :text(s)} half of {@code widget:overlay()} (103.4),
+     * which sits on a box of its own where a gob's label stands on a point. The background is free of the
+     * cache: it is a {@code frect} <b>behind</b> the raster, measured off the very {@link Tex} the cache handed
+     * back, so a colour that changes every frame still costs no rasterisation, exactly as the tint does.
      */
     void label(GOut d, String str, Coord c, double ax, double ay, FontHandle fh, Color col, Color bg) {
         draw0(d, str, c, ax, ay, fh, col, bg, 0);   // one line, as the gob's label above is
