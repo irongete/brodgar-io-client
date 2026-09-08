@@ -181,7 +181,7 @@ final class FlowerMenuApi {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "select");
                 AddonManager.requirePermission(owner, Permission.FLOWERMENU_SELECT);
-                select(user, Args.required(a, 2, FM + ":select", "key"));
+                select(owner, user, Args.required(a, 2, FM + ":select", "key"));
                 return LuaValue.NIL;
             }
         });
@@ -246,7 +246,10 @@ final class FlowerMenuApi {
                     throw new LuaError(FM + ":cancel() takes no arguments: there is one open"
                         + " menu and cancelling it chooses nothing — to pick a petal, use "
                         + FM + ":select(label|n)");
-                required(user, FM + ":cancel").choose(null);   // the very call Esc makes
+                // FlowerMenu.choose is the very call Esc makes (D-009) and composes its own
+                // wdgmsg("cl", …) — or ends a client-side petal and sends nothing at all.
+                final FlowerMenu fm = required(user, FM + ":cancel");
+                Wire.send(owner, user, FM + ":cancel", fm, "cl", null, () -> fm.choose(null));
                 return a.arg1();          // the section: every ending chains
             }
         });
@@ -328,8 +331,8 @@ final class FlowerMenuApi {
     }
 
     /** Pick the petal at 0-based {@code i} on {@code user}'s ring — {@code petal:select()}'s own door. */
-    static void selectPetal(String user, int i) {
-        selectOn(required(user, FM + ":select"), LuaValue.valueOf(i + 1));
+    static void selectPetal(Addon owner, String user, int i) {
+        selectOn(owner, user, required(user, FM + ":select"), LuaValue.valueOf(i + 1));
     }
 
     static String[] names(FlowerMenu fm) {
@@ -429,15 +432,15 @@ final class FlowerMenuApi {
      * in LuaJ a number answers {@code isstring()} too, and {@code :select("3")} means the petal <i>labelled</i>
      * "3".
      */
-    private static void select(String user, LuaValue key) {
-        selectOn(required(user, FM + ":select"), key);
+    private static void select(Addon owner, String user, LuaValue key) {
+        selectOn(owner, user, required(user, FM + ":select"), key);
     }
 
     /**
-     * {@link #select} with the menu already found — the whole resolution, split off so it can be driven against a
-     * hand-built {@link FlowerMenu} with no {@code UI} behind it (the finder is the one part that needs one).
+     * {@link #select} with the menu already found — the whole resolution, split off so the two doors onto it
+     * (the section's and the Petal's) resolve a key exactly alike.
      */
-    static void selectOn(FlowerMenu fm, LuaValue key) {
+    static void selectOn(Addon owner, String user, FlowerMenu fm, LuaValue key) {
         final String verb = FM + ":select";
         String[] names = names(fm);
         int idx;
@@ -457,15 +460,17 @@ final class FlowerMenuApi {
                 + " case-insensitively) or its 1-based position on the ring (a number) — got a "
                 + key.typename());
         }
-        // audit2 B06: the read and the choose under that tree's monitor, as every write in this file is --
-        // choose() sends through the widget's own parent chain, and `opts` is replaced from the message path.
-        synchronized(LuaWidget.monitor(fm)) {
-            FlowerMenu.Petal[] opts = fm.opts;
-            if((opts == null) || (idx >= opts.length) || (opts[idx] == null))
-                throw new LuaError(verb + ": the menu's petals changed while it was being read — read"
-                    + " " + FM + ":list() again");
-            fm.choose(opts[idx]);   // the client's own selection, client-side petals and all (D-009)
-        }
+        // The read and the choose under that tree's monitor, which Wire takes: choose() sends through the
+        // widget's own parent chain, and `opts` is replaced from the message path. It composes its own
+        // wdgmsg("cl", …) — or handles a client-side petal and sends nothing — so no shape goes over.
+        final int at = idx;
+        Wire.send(owner, user, verb, fm, "cl", null, () -> {
+                FlowerMenu.Petal[] opts = fm.opts;
+                if((opts == null) || (at >= opts.length) || (opts[at] == null))
+                    throw new LuaError(verb + ": the menu's petals changed while it was being read — read"
+                        + " " + FM + ":list() again");
+                fm.choose(opts[at]);   // the client's own selection, client-side petals and all (D-009)
+            });
     }
 
     // ---- the seams -------------------------------------------------------------------------------

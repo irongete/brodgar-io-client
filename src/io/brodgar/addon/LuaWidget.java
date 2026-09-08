@@ -1132,7 +1132,11 @@ public final class LuaWidget {
                 Object[] args = new Object[Math.max(0, n - 2)];
                 for(int i = 3; i <= n; i++)
                     args[i - 3] = LuaMarshal.toJava(a.arg(i), "widget:send");
-                w.wdgmsg(msgv.tojstring(), args);
+                // audit2 B07: through the one door, like every other send here. This is the ONE verb
+                // whose message name is the caller's rather than this API's, and Wire's own escape-hatch
+                // row says so: it takes the tree, the monitor and the rate bound, and checks no shape,
+                // because a row keyed by name would be about some other widget's message of that name.
+                Wire.send(owner, AddonManager.userOf(w), "widget:send", w, msgv.tojstring(), args);
                 return self;
             }
         });

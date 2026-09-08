@@ -113,6 +113,13 @@ local mine = s:world():gob():list(function(g) return g:kin() == k end)
 
 ## Write (protected)
 
+A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
+shapes a player could compose, and what the server does with more than that is the server's.
+
+**Every one of these is kept by the server**: disabling, reloading or uninstalling your addon does not
+undo a rename, a regroup or an ended kinship, and neither does the session ending. There is nothing to
+give back, so put one behind a choice the player made rather than behind a load.
+
 Each verb returns what it was called on — the `Kin`, or the collection for `add` — so they chain. `add`
 hands back the collection rather than a new `Kin`, because there is none yet: the server decides whether
 the secret is valid and the roster changes a beat later, as a `KinChanged`. Each verb needs its own
@@ -123,7 +130,7 @@ an addon that did not declare it, each raises an error naming that key; see
 | Method | Key | Description |
 |---|---|---|
 | `s:kin():add(secret)` | `kin.add` | add a kin by the other player's hearth secret, the string the "Add kin" field takes. It returns **nothing**: the server decides whether that secret names anyone, so there is no `Kin` yet — watch `KinChanged` for the roster |
-| `kin:rename(name)` | `kin.rename` | set the kin's nickname |
+| `kin:rename(name)` | `kin.rename` | set the kin's nickname: one typed line, 1 to 64 characters, no newline or tab |
 | `kin:group(group)` | `kin.group` | move the kin to group `0..254` — the write half of `kin:group()` |
 | `kin:endKin()` | `kin.end` | end the kinship; the kin stays *memorized* in the list |
 | `kin:forget()` | `kin.forget` | drop a memorized, un-kinned kin from the list entirely |

@@ -201,6 +201,9 @@ never told, and nothing about any character changes.
 
 ## Write (protected)
 
+A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
+shapes a player could compose, and what the server does with more than that is the server's.
+
 ### `channel:send(text)`
 
 Say `text` in that channel, as that character, and hand the **channel** back so writes chain. It needs the
@@ -216,6 +219,10 @@ The line goes out of the login the channel belongs to, so a character you are no
 itself. It raises, in this order, on the missing permission, on an empty or non-string `text`, and on a
 channel that has gone or **has no entry line at all** — the System log is written by the client and nobody
 says anything in it, so a `"chat.system"` channel refuses and names the kinds that do take a line.
+
+`text` is **one typed line**: 1 to 512 characters, and a newline, tab or other control character raises
+naming its position. That is the whole of what the entry line under a channel can compose, and it is the
+whole of what this verb will send.
 
 `text` is sent exactly as you wrote it. The server decides what a line does — a command, an emote, a
 whisper — precisely as it does for the line the player types.

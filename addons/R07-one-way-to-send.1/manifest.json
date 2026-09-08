@@ -1,0 +1,10 @@
+{
+  "id": "R07-one-way-to-send.1",
+  "name": "R07 One way to send",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "Verification suite for refactor block R07: every write this API makes goes out through one door, which bounds the SHAPE of the message to what a player could compose and the RATE to one per frame per character per verb. Run it with :tR07, standing still, with nothing on your cursor.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["player.move", "world.place", "world.select", "chat.send", "kin.add"]
+}

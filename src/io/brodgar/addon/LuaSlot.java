@@ -280,7 +280,8 @@ public final class LuaSlot {
                 GameUI g = AddonManager.gameui(h.user);
                 if(g == null)
                     throw new LuaError("slot:res(): no game UI (that character is not in the world yet)");
-                g.wdgmsg("setbelt", Integer.valueOf(h.index), "res", res);
+                Wire.send(owner, h.user, "slot:res", g, "setbelt",
+                          new Object[] {Integer.valueOf(h.index), "res", res});
                 return self;
             }
         });
@@ -307,7 +308,8 @@ public final class LuaSlot {
                 GameUI g = AddonManager.gameui(h.user);
                 if(g == null)
                     throw new LuaError("slot:clear(): no game UI (that character is not in the world yet)");
-                g.wdgmsg("setbelt", Integer.valueOf(h.index), (Object)null);
+                Wire.send(owner, h.user, "slot:clear", g, "setbelt",
+                          new Object[] {Integer.valueOf(h.index), null});
                 return self;
             }
         });
@@ -385,7 +387,12 @@ public final class LuaSlot {
                     throw new LuaError("slot:use(): slot " + n + " is empty (check slot:empty() first)");
                 if(g.beltwdg == null)
                     throw new LuaError("slot:use(): no action-bar widget yet");
-                g.beltwdg.act(n, new MenuGrid.Interaction(1, mods));
+                // The bar's own button presses it (D-009): GameUI.ResBeltSlot composes the
+                // wdgmsg("belt", n, button, mods) from the Interaction, so those are the values Wire's
+                // "belt" row is handed.
+                Wire.send(owner, h.user, "slot:use", g.beltwdg, "belt",
+                          new Object[] {Integer.valueOf(n), Integer.valueOf(1), Integer.valueOf(mods)},
+                          () -> g.beltwdg.act(n, new MenuGrid.Interaction(1, mods)));
                 return self;
             }
         });

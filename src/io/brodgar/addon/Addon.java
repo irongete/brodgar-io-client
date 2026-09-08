@@ -950,6 +950,16 @@ public final class Addon {
     //   drain and no removal, and a handler closing over its own item makes the value reach the key.
     final Map<GItem, Subs> itemSubs = new ConcurrentHashMap<GItem, Subs>();
 
+    /**
+     * <b>The frame each of this addon's send verbs last went out on</b> (audit2 B07) — {@link Wire}'s rate
+     * bound, keyed by the verb and the character it was addressed at. One entry per pair the addon has ever
+     * sent through, which is a verb count and not a message count: it is written once per send and never
+     * grows past the vocabulary. It lives on the addon because the bound is the addon's — two addons each
+     * get their own frame, exactly as two players would — and it dies with it, which is why nothing sweeps
+     * it.
+     */
+    final Map<String, Long> lastSend = new ConcurrentHashMap<String, Long>();
+
     /** This addon's {@link Subs} for {@code it}, minted on the first {@code item:on(key, fn)}. */
     Subs itemSubs(GItem it) {
         Subs s = itemSubs.get(it);

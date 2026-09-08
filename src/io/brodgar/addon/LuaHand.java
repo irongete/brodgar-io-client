@@ -175,10 +175,7 @@ final class LuaHand {
                             + " item rather than through this one. Read the target out of this session"
                             + " (s:ui()), or address the hand of the character that holds it. Nothing was"
                             + " sent.");
-                    // audit2 B06: under that tree's monitor -- wdgmsg walks the parent chain to the UI.
-                    synchronized(LuaWidget.monitor(g)) {
-                        g.wdgmsg("itemact", itemArgs(mods));
-                    }
+                    Wire.send(owner, user, USE, g, "itemact", itemArgs(mods));
                     return self;
                 }
                 // (b) a GOB: the MapView "itemact" EXTENDED with the object's own click args — the one
@@ -198,18 +195,16 @@ final class LuaHand {
                     synchronized(gb) { grc = gb.rc; }   // OCache discipline: copy under the gob lock
                     if(grc == null)
                         throw new LuaError(USE + ": that gob has no position yet");
-                    synchronized(LuaWidget.monitor(mv)) {   // audit2 B06: as above
-                        mv.wdgmsg("itemact", gobArgs(pc(mv), mods, (int)gb.id, grc.floor(OCache.posres)));
-                    }
+                    Wire.send(owner, user, USE, mv, "itemact",
+                              gobArgs(pc(mv), mods, (int)gb.id, grc.floor(OCache.posres)));
                     return self;
                 }
                 // (c) a POSITION: the MapView "itemact" on bare ground.
                 if(LuaPosition.resolve(target) != null) {
                     Coord2d rc = LuaPosition.worldArg(a, 2, USE, "target", user);
                     MapView mv = view(user);
-                    synchronized(LuaWidget.monitor(mv)) {   // audit2 B06: as above
-                        mv.wdgmsg("itemact", groundArgs(pc(mv), rc.floor(OCache.posres), mods));
-                    }
+                    Wire.send(owner, user, USE, mv, "itemact",
+                              groundArgs(pc(mv), rc.floor(OCache.posres), mods));
                     return self;
                 }
                 throw new LuaError(USE + "(target, mods): target must be an Item (a member of a container's"

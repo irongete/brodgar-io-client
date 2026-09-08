@@ -112,7 +112,7 @@ final class LuaPetal {
                 if(Args.passed(a, 2))
                     throw new LuaError("petal:select() takes no arguments — it picks THIS petal, which is"
                         + " what holding one is for; session:flowermenu():select(label|n) is the other door");
-                FlowerMenuApi.selectPetal(h.user, h.i);
+                FlowerMenuApi.selectPetal(owner, h.user, h.i);
                 return me;
             }
         });

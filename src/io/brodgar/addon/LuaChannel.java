@@ -290,12 +290,12 @@ public final class LuaChannel {
                     throw new LuaError("channel:send(text): a channel of kind '" + kindOf(c) + "' has no"
                         + " entry line — the kinds that take one are \"chat\", \"chat.party\" and"
                         + " \"chat.private\", and ch:kind() says which this is");
-                // audit2 B06: send() appends to the channel's own history -- a plain list keydown walks --
-                // and then walks the parent chain to reach the UI for its wdgmsg. Both under that tree's
-                // monitor, which is what every other write in this section takes.
-                synchronized(LuaWidget.monitor(c)) {
-                    ((ChatUI.EntryChannel)c).send(text);
-                }
+                // EntryChannel.send is the client's own entry line (D-009): it appends the line to the
+                // history the arrow keys walk and composes the wdgmsg("msg", text). The text it will carry
+                // is handed over with it, and Wire's "msg" row is what an entry line can compose.
+                final ChatUI.EntryChannel ec = (ChatUI.EntryChannel)c;
+                Wire.send(owner, AddonManager.userOf(c), "channel:send", c, "msg", new Object[] {text},
+                          () -> ec.send(text));
                 return self;
             }
         });

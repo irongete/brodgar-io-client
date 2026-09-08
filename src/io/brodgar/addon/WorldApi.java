@@ -436,7 +436,7 @@ final class WorldApi {
                 int button = Args.optint(a, 4, W + ":place", "button", null, 1);
                 int mods = Args.optint(a, 5, W + ":place", "mods", null, 0);
                 MapView mv = sendView(user, W + ":place");
-                mv.wdgmsg("place", placeArgs(rc, ang, button, mods));
+                Wire.send(owner, user, W + ":place", mv, "place", placeArgs(rc, ang, button, mods));
                 return self;
             }
         });
@@ -477,7 +477,8 @@ final class WorldApi {
                 if(rc == null)
                     throw new LuaError(W + ":click: the gob has no position yet");
                 Coord pc = (mv.ui != null) ? mv.ui.mc : Coord.z;   // dummy screen coord, like MiniMap.mvclick
-                mv.wdgmsg("click", clickGobArgs(pc, button, mods, (int)g.id, rc.floor(OCache.posres)));
+                Wire.send(owner, user, W + ":click", mv, "click",
+                          clickGobArgs(pc, button, mods, (int)g.id, rc.floor(OCache.posres)));
                 // 047.3: the same token the real click records in MapView.Click.hit — and here the gob is not
                 // correlated but KNOWN, this being addon code that named it. lcc is untouched by a programmatic
                 // click, so a menu the server opens in reply matches on the press point exactly as it does for a
@@ -499,7 +500,7 @@ final class WorldApi {
                 Coord2d p2 = LuaPosition.worldArg(a, 3, W + ":select", "p2", user);
                 int mods = Args.optint(a, 4, W + ":select", "mods", null, 0);   // before the view, as place does
                 MapView mv = sendView(user, W + ":select");
-                mv.wdgmsg("sel", selArgs(p1, p2, mods));
+                Wire.send(owner, user, W + ":select", mv, "sel", selArgs(p1, p2, mods));
                 return self;
             }
         });

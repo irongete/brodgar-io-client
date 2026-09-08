@@ -1111,7 +1111,10 @@ final class CharApi {
                 // changes subject — a place is unreachable for the character you addressed. That frame is also
                 // the one the order is sent in, so nothing translates it again on the way out.
                 Coord2d rc = LuaPosition.worldArg(a, 2, P + ":move", "p", user);
-                order(user, rc, P + ":move");
+                // 076.5: the one send that reaches a character nobody is looking at, so it carries no
+                // widget — Sessions.ordermember finds that session's own view and composes the ground
+                // click itself (D-009), which is why nothing goes over for a shape row to read.
+                Wire.send(owner, user, P + ":move", null, "click", null, () -> order(user, rc, P + ":move"));
                 return self;                                     // the Player, so a move chains
             }
         });

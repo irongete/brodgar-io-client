@@ -355,7 +355,8 @@ public final class LuaItem {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.ITEM_USE);
                 int mods = Args.optint(a, 2, "item:use", "mods", null, 0);
-                target(self, "use").wdgmsg("iact", iactArgs(mods));
+                GItem g = target(self, "use");
+                Wire.send(owner, AddonManager.userOf(g), "item:use", g, "iact", iactArgs(mods));
                 return self;
             }
         });
@@ -366,7 +367,8 @@ public final class LuaItem {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.ITEM_TAKE);
                 noArgs(a, "item:take");
-                target(self, "take").wdgmsg("take", takeArgs());
+                GItem g = target(self, "take");
+                Wire.send(owner, AddonManager.userOf(g), "item:take", g, "take", takeArgs());
                 return self;
             }
         });
@@ -376,7 +378,8 @@ public final class LuaItem {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.ITEM_DROP);
                 int n = Args.optint(a, 2, "item:drop", "n", null, -1);
-                target(self, "drop").wdgmsg("drop", countArgs(n));
+                GItem g = target(self, "drop");
+                Wire.send(owner, AddonManager.userOf(g), "item:drop", g, "drop", countArgs(n));
                 return self;
             }
         });
@@ -387,7 +390,8 @@ public final class LuaItem {
                 LuaValue self = a.arg1();
                 AddonManager.requirePermission(owner, Permission.ITEM_TRANSFER);
                 int n = Args.optint(a, 2, "item:transfer", "n", null, -1);
-                target(self, "transfer").wdgmsg("transfer", countArgs(n));
+                GItem g = target(self, "transfer");
+                Wire.send(owner, AddonManager.userOf(g), "item:transfer", g, "transfer", countArgs(n));
                 return self;
             }
         });

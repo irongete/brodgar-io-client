@@ -61,6 +61,9 @@ that, watch for the window with [`s:ui():on`](ui/replace.md): `s:ui():on("window
 
 ## Write (protected)
 
+A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
+shapes a player could compose, and what the server does with more than that is the server's.
+
 | Method | Key | Description |
 |---|---|---|
 | `s:craft():make(all)` | `craft.make` | craft the open recipe once; with `all = true`, press Craft All |

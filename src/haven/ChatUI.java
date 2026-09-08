@@ -995,8 +995,16 @@ public class ChatUI extends Widget {
 	    }
 	}
 
+	/* addon: (audit2 B07) the entry history is BOUNDED. It is the list the Up/Down keys walk, and
+	 * nothing ever trimmed it -- so every line said, from the entry line or from an addon's
+	 * channel:send(text), was kept for the life of the login. HISTORY is as far back as the arrow
+	 * keys reach; what was said before that is the scrollback's, and the scrollback is not this. */
+	private static final int HISTORY = 100;
+
 	public void send(String text) {
 	    history.add(text);
+	    while(history.size() > HISTORY)
+		history.remove(0);
 	    wdgmsg("msg", text);
 	}
     }

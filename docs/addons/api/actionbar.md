@@ -109,6 +109,13 @@ cooldown ticking, which would be every frame; read `:cooldown()` live off the ob
 
 ## Write (protected)
 
+A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
+shapes a player could compose, and what the server does with more than that is the server's.
+
+**`slot:res(name)` and `slot:clear()` are kept by the server**: the bar is the character's own, so an
+assignment or a clear outlives your addon being disabled, reloaded or uninstalled, and the session ending.
+To draw over a slot and give it back untouched, hold it instead — see below.
+
 | Method | Key | Description |
 |---|---|---|
 | `slot:use(mods)` | `actionbar.use` | activate the slot, exactly as a left-click on that button does |

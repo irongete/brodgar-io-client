@@ -266,6 +266,9 @@ whose place is a Position — so a typo on either is answered in the vocabulary 
 
 ## Send a message (protected)
 
+A write goes out **once per frame at most**; a second in the same frame raises. The client sends only
+shapes a player could compose, and what the server does with more than that is the server's.
+
 ### `widget:send(msg, ...)`
 
 Send an arbitrary widget message, for what the typed verbs do not cover — the message a client-side button

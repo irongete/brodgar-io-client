@@ -477,7 +477,10 @@ public final class LuaSpeed {
                         + " not selectable right now — you can pick " + selectable(user) + ", which is what "
                         + CharApi.SP + ":available() hands back (:list() is all four, and sp:available() says"
                         + " which of them can be picked)");
-                s.set(n);
+                // Speedget.set is the client's own selection (D-009 -> wdgmsg("set", n)), so the index
+                // it will carry is what Wire's "set" row reads.
+                Wire.send(owner, user, CharApi.SP + ":set", s, "set", new Object[] {Integer.valueOf(n)},
+                          () -> s.set(n));
                 return me;
             }
         });

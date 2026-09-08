@@ -260,9 +260,13 @@ public final class LuaKin {
                 int g = Args.integer(group, "kin:group", "group", "0.." + MAXGROUP);
                 if((g < 0) || (g > MAXGROUP))
                     throw new LuaError("kin:group(group): group must be 0.." + MAXGROUP + ", got " + g);
-                synchronized(LuaWidget.monitor(kinwnd(self, "group"))) {    // audit2 B06: as above
-                    require(self, "group").chgrp(g);                        // wdgmsg("grp", id, group)
-                }
+                LuaKin h = handle(self, "group");
+                BuddyWnd bw = kinwnd(self, "group");
+                BuddyWnd.Buddy b = require(self, "group");
+                // The client's own Buddy.chgrp composes the wdgmsg("grp", id, group) (D-009), so the
+                // values it will carry are handed over with it and the wire shape is checked on them.
+                Wire.send(owner, h.user, "kin:group", bw, "grp",
+                          new Object[] {Integer.valueOf(h.id), Integer.valueOf(g)}, () -> b.chgrp(g));
                 return self;
             }
         });
@@ -330,9 +334,14 @@ public final class LuaKin {
             public LuaValue call(LuaValue self, LuaValue name) {
                 AddonManager.requirePermission(owner, Permission.KIN_RENAME);
                 Args.str(name, "kin:rename", "name", "the name YOUR list shows this kin under");
-                synchronized(LuaWidget.monitor(kinwnd(self, "rename"))) {   // audit2 B06: the send walks to the UI
-                    require(self, "rename").chname(name.tojstring());       // wdgmsg("nick", id, name)
-                }
+                LuaKin h = handle(self, "rename");
+                BuddyWnd bw = kinwnd(self, "rename");
+                BuddyWnd.Buddy b = require(self, "rename");
+                String n = name.tojstring();
+                // Buddy.chname composes the wdgmsg("nick", id, name) (D-009); what a rename field can
+                // actually compose -- one typed line, not empty -- is the "nick" row in Wire.
+                Wire.send(owner, h.user, "kin:rename", bw, "nick",
+                          new Object[] {Integer.valueOf(h.id), n}, () -> b.chname(n));
                 return self;
             }
         });
@@ -340,9 +349,11 @@ public final class LuaKin {
         m.set("endKin", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 AddonManager.requirePermission(owner, Permission.KIN_END);
-                synchronized(LuaWidget.monitor(kinwnd(self, "endKin"))) {   // audit2 B06: as above
-                    require(self, "endKin").endkin();                       // "End kinship" → wdgmsg("rm", id)
-                }
+                LuaKin h = handle(self, "endKin");
+                BuddyWnd bw = kinwnd(self, "endKin");
+                BuddyWnd.Buddy b = require(self, "endKin");
+                Wire.send(owner, h.user, "kin:endKin", bw, "rm",   // "End kinship" → wdgmsg("rm", id)
+                          new Object[] {Integer.valueOf(h.id)}, () -> b.endkin());
                 return self;
             }
         });
@@ -350,7 +361,11 @@ public final class LuaKin {
         m.set("forget", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 AddonManager.requirePermission(owner, Permission.KIN_FORGET);
-                require(self, "forget").forget();                     // "Forget" → wdgmsg("rm", id)
+                LuaKin h = handle(self, "forget");
+                BuddyWnd bw = kinwnd(self, "forget");
+                BuddyWnd.Buddy b = require(self, "forget");
+                Wire.send(owner, h.user, "kin:forget", bw, "rm",   // "Forget" → wdgmsg("rm", id)
+                          new Object[] {Integer.valueOf(h.id)}, () -> b.forget());
                 return self;
             }
         });
@@ -567,7 +582,9 @@ public final class LuaKin {
                 if(bw == null)
                     throw new LuaError(CharApi.KN + ":add(secret): no Kin window (that character is not in"
                         + " the world yet)");
-                bw.wdgmsg("bypwd", s);      // BuddyWnd's own "Add kin" field sends exactly this
+                // BuddyWnd's own "Add kin" field sends exactly this, and Wire's "bypwd" row is what
+                // that field can compose: one typed line.
+                Wire.send(owner, user, CharApi.KN + ":add", bw, "bypwd", s);
                 // 091/A-084: NOT the collection and not a member. Adding by hearth secret is a round
                 // trip -- the server decides whether that secret names anyone -- so there is no Kin to hand
                 // back yet, and handing back the roster made s:kin():add(x):name() look like it might work.

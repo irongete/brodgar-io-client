@@ -61,6 +61,10 @@ if mark then hafen.store():get("cfg").camp = mark:position() end   -- survives t
 | `marker:color()` / `:color(c)` | [colour](../shapes.md#colours) \| nil / self | player markers only: the pin colour |
 | `marker:onMap()` / `:onMap(on)` | bool \| nil / self | player markers only: also drawn on the main map |
 
+**A pin is kept in the player's own map database**, and disabling, reloading or uninstalling your addon does
+not remove it: it is the player's data from the moment it is added, the same as one they dropped themselves.
+Remove the ones you added, when you want them gone, before you stop.
+
 A pin is created **bare**, with the client's own gold and off the main map, and configured by chaining —
 which is also how you read it back, since arity is the verb:
 
