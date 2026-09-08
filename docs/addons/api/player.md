@@ -145,8 +145,9 @@ the three the client itself has:
 | a [Gob](gob.md) | apply it to that object — the waterskin onto the plant, not onto the dirt beside it |
 
 `mods` is optional and defaults to `0`: a bitfield, Shift = 1, Ctrl = 2, Alt = 4, added together — and
-optional is not unchecked, so a value that is not a number raises naming the verb and the parameter, and one
-that merely scans as a number is
+optional is not unchecked, so anything that is not a
+[whole, finite number](conventions.md#a-number-is-finite-and-an-index-is-whole) raises naming the verb and
+the parameter, and one that merely scans as a number is
 [still a string](conventions.md#a-number-is-not-a-string-and-a-numeric-string-is-not-a-number). It
 returns the Hand, so a run of uses chains.
 

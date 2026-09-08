@@ -532,11 +532,8 @@ public final class LuaEvent {
      * sides, and either one otherwise walks the character somewhere far away in silence.
      */
     private Coord coordArg(Varargs a, String verb, String other) {
-        LuaValue iv = Args.required(a, 2, "ev:" + verb, "i");
-        if(!iv.isnumber())
-            throw new LuaError("ev:" + verb + "(i): i is the 1-based argument INDEX, a number — got "
-                + iv.typename() + ". ev:args() shows what each index holds.");
-        int i = iv.toint();
+        int i = Args.integer(a, 2, "ev:" + verb, "i", "the 1-based argument INDEX; ev:args() shows what"
+                             + " each index holds");
         int n = (args == null) ? 0 : args.length;
         if((i < 1) || (i > n))
             throw new LuaError("ev:" + verb + "(" + i + "): '" + msg + "' carries " + n + " argument"

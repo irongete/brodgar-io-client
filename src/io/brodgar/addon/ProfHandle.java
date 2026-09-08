@@ -156,8 +156,9 @@ public final class ProfHandle {
                     return out;
                 int n = have;
                 LuaValue arg = a.arg(2);            // colon call: arg(1) is the handle
-                if(arg.isnumber())
-                    n = Math.max(0, Math.min(have, arg.toint()));
+                if(!arg.isnil())
+                    n = Math.max(0, Math.min(have, Args.integer(arg, "p:history", "n",
+                                                                "how many frames back, newest last")));
                 for(int i = 0; i < n; i++) {
                     int s = Prof.slot(have - n + i);
                     LuaTable e = new LuaTable();

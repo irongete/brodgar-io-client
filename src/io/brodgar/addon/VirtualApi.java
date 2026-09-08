@@ -120,9 +120,9 @@ final class VirtualApi {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "virtual", "click");
                 String key = pointerKey(Args.required(a, 2, "hafen.virtual():click", "key"));
-                int x = (int)Math.round(number(a, 3, "hafen.virtual():click", "x"));
-                int y = (int)Math.round(number(a, 4, "hafen.virtual():click", "y"));
-                int arg = Args.passed(a, 5) ? (int)Math.round(number(a, 5, "hafen.virtual():click", "a")) : 1;
+                int x = Args.integer(a, 3, "hafen.virtual():click", "x", "a root design pixel");
+                int y = Args.integer(a, 4, "hafen.virtual():click", "y", "a root design pixel");
+                int arg = Args.optint(a, 5, "hafen.virtual():click", "a", "the button or the wheel step", 1);
                 Coord p = Px.in(Coord.of(x, y));       // design → device, at the edge (058.2)
                 return LuaValue.valueOf(SurfaceInput.pointer(key, p.x, p.y, arg));
             }
@@ -644,14 +644,15 @@ final class VirtualApi {
      * exactly that case. Never a defaulted zero: the map origin is a real place, and defaulting to it would
      * put a thing that is merely waiting into the middle of the world.
      */
-    private static Coord2d optPlace(LuaValue opts) {
-        // The two keys are written together by Anchor#spec() or not at all, so they are read together, and
-        // by TYPE — never isnumber()/optdouble(), which coerce a string that merely scans as a number
-        // (Args states that rule once, for the whole bridge).
+    private static Coord2d optPlace(LuaValue opts, String verb) {
+        // The two keys are written together by Anchor#spec() or not at all, so their PRESENCE is read
+        // together; what each holds is then read by the one door, which is where the type rule and the
+        // finiteness rule are both stated (a place at NaN is a thing standing nowhere, drawn at the origin).
         LuaValue x = opts.get("x"), y = opts.get("y");
-        if((x.type() != LuaValue.TNUMBER) || (y.type() != LuaValue.TNUMBER))
+        if(x.isnil() || y.isnil())
             return null;
-        return new Coord2d(x.todouble(), y.todouble());
+        return new Coord2d(Args.num(x, verb, "x", "a world coordinate").todouble(),
+                           Args.num(y, verb, "y", "a world coordinate").todouble());
     }
 
     /** The point a fresh gob is built at — its place, or the origin as a placeholder it never stands at (045.2). */
@@ -880,12 +881,13 @@ final class VirtualApi {
         // client-bundled resources — the pool the engine itself uses for gob drawables (Session/Music/Widget).
         // local() alone would only find the client jar, so a terobj like gfx/terobjs/arch/logcabin never resolves.
         final Indir<Resource> resid = Resource.remote().load(resName);
-        final LuaGhost gh = new LuaGhost(owner, resid, resName, optPlace(opts),   // 045.2: null ⇒ waiting for its place
-                                         av.isnumber() ? av.todouble() : 0.0);
-        gh.sdt = luaSdt(opts.get("sdt"));              // V3: optional spawn-data bytes (null ⇒ MessageBuf.nil)
-        gh.alpha = luaAlpha(opts.get("alpha"));        // V3: opacity 0..1 (default 1 = opaque)
+        final String verb = "hafen.virtual():ghost():add";
+        final LuaGhost gh = new LuaGhost(owner, resid, resName, optPlace(opts, verb),   // 045.2: null ⇒ waiting for its place
+                                         Args.optnum(av, verb, "a", "the facing in radians", 0.0));
+        gh.sdt = luaSdt(opts.get("sdt"), verb);        // V3: optional spawn-data bytes (null ⇒ MessageBuf.nil)
+        gh.alpha = luaAlpha(opts.get("alpha"), verb);  // V3: opacity 0..1 (default 1 = opaque)
         gh.tint = luaTint(opts.get("tint"));           // V3: colour overlay {r=,g=,b=[,a=]}, or null
-        gh.scale = luaScale(opts.get("scale"));        // V6: uniform scale (default 1 = original size)
+        gh.scale = luaScale(opts.get("scale"), verb);  // V6: uniform scale (default 1 = original size)
         gh.followTgt = tgt;                            // 043.2: the ANCHOR, an argument of :add(what, gob)
         gh.clickable = clickablev.toboolean();         // V2: nil/false → not clickable; true → clickable
         if(onclickv.isfunction())
@@ -1014,7 +1016,8 @@ final class VirtualApi {
                 LuaPosition.Anchor place = LuaPosition.anchorArg(a, 2, kind + ":position", "p");
                 Coord2d rc = LuaPosition.worldOf(place, null);
                 Double ang = Args.passed(a, 3)
-                    ? Double.valueOf(number(a, 3, kind + ":position", "a")) : null;
+                    ? Double.valueOf(Args.num(a, 3, kind + ":position", "a", "the facing in radians").todouble())
+                    : null;
                 moveEntity(e, place, rc, ang);
                 return self;
             }
@@ -1038,8 +1041,8 @@ final class VirtualApi {
                     synchronized(e) { off = e.followOff; }
                     return offsetTable(off, e.height());
                 }
-                float x = (float)number(a, 2, kind + ":offset", "x");
-                float y = (float)number(a, 3, kind + ":offset", "y");
+                float x = (float)Args.num(a, 2, kind + ":offset", "x", "world units").todouble();
+                float y = (float)Args.num(a, 3, kind + ":offset", "y", "world units").todouble();
                 // 118.2: a patch LIES on the terrain, so the third number is the one thing an offset cannot
                 // say about it. Refused naming that rather than accepted and dropped, because a shape asked
                 // to float and drawn flat is the wrong picture with nothing said about it.
@@ -1047,7 +1050,7 @@ final class VirtualApi {
                     throw new LuaError(kind + ":offset(x, y, z): a " + kind + " has no height — it lies ON the"
                         + " terrain, which is what makes it exact and what lets whatever stands on it occlude"
                         + " it. Slide it on the ground with " + kind + ":offset(x, y)");
-                float z = Args.passed(a, 4) ? (float)number(a, 4, kind + ":offset", "z") : 0f;
+                float z = (float)Args.optnum(a, 4, kind + ":offset", "z", "world units up", 0.0);
                 setEntityOffset(e, new Coord3f(x, y, z));
                 return self;
             }
@@ -1060,7 +1063,8 @@ final class VirtualApi {
                 if(av == null) {
                     synchronized(e) { return LuaValue.valueOf(e.a); }
                 }
-                moveEntity(e, null, null, Double.valueOf(number(a, 2, kind + ":rotate", "a")));
+                moveEntity(e, null, null, Double.valueOf(
+                               Args.num(a, 2, kind + ":rotate", "a", "the facing in radians").todouble()));
                 return self;
             }
         });
@@ -1071,7 +1075,8 @@ final class VirtualApi {
                 if(sv == null) {
                     synchronized(e) { return LuaValue.valueOf((double)e.scale); }
                 }
-                setEntityScale(e, clampScale(number(a, 2, kind + ":scale", "s")));
+                setEntityScale(e, clampScale(Args.num(a, 2, kind + ":scale", "s",
+                                                      "1 is the original size").todouble()));
                 return self;
             }
         });
@@ -1082,7 +1087,8 @@ final class VirtualApi {
                 if(av == null) {
                     synchronized(e) { return LuaValue.valueOf((double)e.alpha); }
                 }
-                setEntityAlpha(e, clampAlpha(number(a, 2, kind + ":alpha", "a")));
+                setEntityAlpha(e, clampAlpha(Args.num(a, 2, kind + ":alpha", "a",
+                                                      "opacity 0..1, 1 is opaque").todouble()));
                 return self;
             }
         });
@@ -1278,14 +1284,6 @@ final class VirtualApi {
             + " — the same four keys widget:on(key, fn) answers to");
     }
 
-    /** A required number argument, refused by name rather than silently coerced to zero. */
-    private static double number(Varargs a, int i, String verb, String param) {
-        LuaValue v = Args.required(a, i, verb, param);
-        if(!v.isnumber())
-            throw new LuaError(verb + ": " + param + " must be a number, got " + v.typename());
-        return v.todouble();
-    }
-
     /**
      * Move an entity and/or turn it: {@code place}/{@code rc} null keeps where it stands, {@code ang} null keeps
      * its facing. A live gob is repositioned now; one whose visual is still streaming in just has its desired
@@ -1351,7 +1349,7 @@ final class VirtualApi {
                 if(!rv.isstring() || rv.isnumber())
                     throw new LuaError("ghost:res(res [, spawnData]) expects a resource NAME string, got "
                         + rv.typename());
-                setGhostRes(gh, rv.tojstring(), luaSdt(a.arg(3)));   // swaps the visual; it streams in like new
+                setGhostRes(gh, rv.tojstring(), luaSdt(a.arg(3), "ghost:res"));   // swaps the visual; it streams in like new
                 return self;
             }
         });
@@ -1495,13 +1493,13 @@ final class VirtualApi {
         if((mv == null) || (g == null))
             return null;                               // not in the world yet — no scene to add to
         LuaMesh mesh = resolveObjectMesh(opts.get("model"));   // AFTER the world check (don't validate when not in world)
-        LuaValue av = opts.get("a");
-        double a = av.isnumber() ? av.todouble() : 0.0;
-        Coord2d rc = optPlace(opts);                   // 045.2: null ⇒ the place is not locatable this session
+        String verb = "hafen.virtual():object():add";
+        double a = Args.optnum(opts.get("a"), verb, "a", "the facing in radians", 0.0);
+        Coord2d rc = optPlace(opts, verb);             // 045.2: null ⇒ the place is not locatable this session
         LuaObject ob = new LuaObject(owner, mesh, rc, a);
-        ob.alpha = luaAlpha(opts.get("alpha"));
+        ob.alpha = luaAlpha(opts.get("alpha"), verb);
         ob.tint = luaTint(opts.get("tint"));
-        ob.scale = luaScale(opts.get("scale"));        // uniform scale on top of the baked model→world size
+        ob.scale = luaScale(opts.get("scale"), verb);  // uniform scale on top of the baked model→world size
         ob.clickable = opts.get("clickable").toboolean();
         LuaValue onclickv = opts.get("onClick");
         if(onclickv.isfunction())
@@ -1591,13 +1589,13 @@ final class VirtualApi {
         if((mv == null) || (g == null))
             return null;                               // not in the world yet — no scene to add to
         LuaImage img = resolveSpriteImage(opts.get("image"));   // AFTER the world check (don't validate when not in world)
-        LuaValue av = opts.get("a");
-        double a = av.isnumber() ? av.todouble() : 0.0;
-        Coord2d rc = optPlace(opts);                   // 045.2: null ⇒ the place is not locatable this session
+        String verb = "hafen.virtual():sprite():add";
+        double a = Args.optnum(opts.get("a"), verb, "a", "the facing in radians", 0.0);
+        Coord2d rc = optPlace(opts, verb);             // 045.2: null ⇒ the place is not locatable this session
         LuaSprite sp = new LuaSprite(owner, img, rc, a, FIXED);   // a sprite is placed upright; :facing(mode) re-mills it
-        sp.alpha = luaAlpha(opts.get("alpha"));        // opacity 0..1 (default 1); combines with the PNG's own alpha
+        sp.alpha = luaAlpha(opts.get("alpha"), verb);  // opacity 0..1 (default 1); combines with the PNG's own alpha
         sp.tint = luaTint(opts.get("tint"));           // colour overlay {r=,g=,b=[,a=]}, or null
-        sp.scale = luaScale(opts.get("scale"));        // uniform scale ("fixed": ~1 tile tall; "screen": screen-size ×)
+        sp.scale = luaScale(opts.get("scale"), verb);  // uniform scale ("fixed": ~1 tile tall; "screen": screen-size ×)
         sp.clickable = opts.get("clickable").toboolean();   // R2b: opt-in pick (a "screen" sprite has no world mesh → never picked)
         LuaValue onclickv = opts.get("onClick");       // R2b: per-sprite click callback fn(s, button, x, y) — like a ghost
         if(onclickv.isfunction())
@@ -1781,7 +1779,7 @@ final class VirtualApi {
         if((mv == null) || (g == null) || (u == null) || (u.root == null))
             return null;                               // not in the world yet — no scene to add to
         Widget content = standable(owner, wv);         // AFTER the world check (don't re-home when there is no scene)
-        Coord2d rc = optPlace(opts);                   // 045.2: null ⇒ the place is not locatable this session
+        Coord2d rc = optPlace(opts, "hafen.virtual():widget():add");   // 045.2: null ⇒ not locatable this session
         WidgetSurface surf = new WidgetSurface(u, owner, content.sz);   // 073.2: the tree it is about to stand in
         LuaWidgetEntity we = new LuaWidgetEntity(owner, surf, content, rc, 0.0);
         surf.ent = we;                                 // 044.4: the surface asks the entity whether it takes the pointer
@@ -1856,8 +1854,8 @@ final class VirtualApi {
         // device, so the conversion is the two edges of this verb and nothing in between.
         x.set("screen", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                int wx = (int)Math.round(number(a, 2, "panel:screen", "x"));
-                int wy = (int)Math.round(number(a, 3, "panel:screen", "y"));
+                int wx = Args.integer(a, 2, "panel:screen", "x", "a design pixel across the panel");
+                int wy = Args.integer(a, 3, "panel:screen", "y", "a design pixel down the panel");
                 Coord w = Px.in(Coord.of(wx, wy));
                 Coord p = Px.out(SurfaceInput.screenOf(we, w.x, w.y));
                 return (p == null) ? LuaValue.NIL
@@ -2072,6 +2070,14 @@ final class VirtualApi {
                 + " hands back, or one you build yourself from a place with p:offset(dx, dy). Got "
                 + rv.typename());
         int n = rv.length();
+        // The cap FIRST, before a point of it is read: a point contributes at most one edge, so a ring
+        // longer than the fragment stage's array cannot be carved whatever the points turn out to be — and
+        // asking last meant a table of a million cost a million resolutions, a million subtractions and a
+        // convexity pass before the refusal that names 32.
+        if(n > PatchCarve.EDGES)
+            throw new LuaError(verb + ": that ring has " + n + " points and a patch carries at most "
+                + PatchCarve.EDGES + " edges — the half-planes are one array uniform, declared at that"
+                + " length in the fragment stage. Refused rather than truncated to the wrong shape");
         List<LuaPosition> out = new ArrayList<LuaPosition>(n);
         for(int k = 1; k <= n; k++) {
             LuaPosition p = LuaPosition.resolve(rv.get(k));
@@ -2146,6 +2152,11 @@ final class VirtualApi {
                 + " is a line, and a line has no ground under it");
         Coord2d[] local = ringLocal(an, ring, PATCH_ADD);
         List<Coord2d> shape = java.util.Arrays.asList(local);
+        int bad = PatchCarve.nonFinite(shape);
+        if(bad != 0)
+            throw new LuaError(PATCH_ADD + ": ring[" + bad + "] is not a place — its distance from the"
+                + " anchor is not a finite number, and a ring with one such point carves a silhouette that"
+                + " answers every click on the map. Build the ring from places the session can locate");
         if(!PatchCarve.convex(shape))
             throw new LuaError(PATCH_ADD + ": that ring is concave, and a patch is convex — the silhouette is"
                 + " carved as the intersection of the ring's edge half-planes, so a concave one would be drawn"
@@ -2222,8 +2233,8 @@ final class VirtualApi {
                         + " border in, and out here a border is TWO arguments — the colour and the width, as"
                         + " g:line(x1, y1, x2, y2, width) has them: patch:border({255, 140, 40}, 2). The width"
                         + " is world units and may be left out, which is a hairline");
-                setPatchBorder(p, c, Args.passed(a, 3)
-                    ? clampBorderWidth(number(a, 3, "patch:border", "w")) : 0f);
+                setPatchBorder(p, c, clampBorderWidth(
+                                   Args.optnum(a, 3, "patch:border", "w", "world units; 0 is a hairline", 0.0)));
                 return self;
             }
         });
@@ -3118,17 +3129,19 @@ final class VirtualApi {
         return e.rc;
     }
 
-    /** Parse a ghost {@code alpha} option/arg → clamped 0..1; a non-number defaults to 1 (opaque). */
-    private static float luaAlpha(LuaValue v) {
-        return v.isnumber() ? clampAlpha(v.todouble()) : 1f;
+    /** Parse a ghost {@code alpha} option → clamped 0..1; absent is 1 (opaque), anything that is not a
+     *  finite number is refused naming the key ({@link Args#optnum}). */
+    private static float luaAlpha(LuaValue v, String verb) {
+        return clampAlpha(Args.optnum(v, verb, "alpha", "opacity 0..1, 1 is opaque", 1.0));
     }
     static float clampAlpha(double a) {
         return (a < 0.0) ? 0f : ((a > 1.0) ? 1f : (float)a);
     }
 
-    /** Parse a ghost {@code scale} option/arg → clamped positive (0.01..100); a non-number defaults to 1 (original size). */
-    private static float luaScale(LuaValue v) {
-        return v.isnumber() ? clampScale(v.todouble()) : 1f;
+    /** Parse a ghost {@code scale} option → clamped positive (0.01..100); absent is 1 (original size),
+     *  anything that is not a finite number is refused naming the key ({@link Args#optnum}). */
+    private static float luaScale(LuaValue v, String verb) {
+        return clampScale(Args.optnum(v, verb, "scale", "1 is the original size", 1.0));
     }
     static float clampScale(double s) {
         return (s < 0.01) ? 0.01f : ((s > 100.0) ? 100f : (float)s);   // never 0/negative (would collapse/invert the mesh)
@@ -3143,13 +3156,13 @@ final class VirtualApi {
      * Parse a ghost {@code sdt} option/arg → a {@link MessageBuf} of raw bytes, or {@code null} (⇒ {@code MessageBuf.nil})
      * when omitted. Accepts a 1-based Lua array of byte values (0..255); a non-table is treated as "none".
      */
-    private static MessageBuf luaSdt(LuaValue v) {
+    private static MessageBuf luaSdt(LuaValue v, String verb) {
         if((v == null) || !v.istable())
             return null;
         int n = v.length();
         byte[] b = new byte[n];
         for(int i = 0; i < n; i++)
-            b[i] = (byte)(v.get(i + 1).toint() & 0xff);
+            b[i] = (byte)(Args.integer(v.get(i + 1), verb, "sdt[" + (i + 1) + "]", "a byte, 0..255") & 0xff);
         return new MessageBuf(b);
     }
 

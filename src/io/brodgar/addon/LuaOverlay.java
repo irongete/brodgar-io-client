@@ -476,8 +476,8 @@ public final class LuaOverlay {
                         + " and 0 the ground under it. A horizontal one moves a thing standing IN the world:"
                         + " hafen.virtual():sprite():add(asset, gob) (or :object() / :ghost()), whose own"
                         + " :offset(x, y, z) is in world units");
-                double x = numberArg(a, 2, "overlay:offset", "x");
-                double y = numberArg(a, 3, "overlay:offset", "y");
+                double x = Args.num(a, 2, "overlay:offset", "x", "screen pixels across").todouble();
+                double y = Args.num(a, 3, "overlay:offset", "y", "screen pixels down").todouble();
                 if(rec != null) {
                     rec.offX = x; rec.offY = y;
                 }
@@ -495,7 +495,7 @@ public final class LuaOverlay {
                 LuaGobOverlay.Attach rec = writable(owner, self, "height");
                 if(!Args.passed(a, 2))
                     return (rec == null) ? LuaValue.NIL : LuaValue.valueOf(rec.height);
-                double z = numberArg(a, 2, "overlay:height", "z");
+                double z = Args.num(a, 2, "overlay:height", "z", "world units up the gob").todouble();
                 if(rec != null)
                     rec.height = z;
                 return self;
@@ -631,14 +631,6 @@ public final class LuaOverlay {
     /** A colour argument — the API's one spelling, shared with every other colour property. */
     private static java.awt.Color colorArg(Varargs a, int i, String verb) {
         return AddonManager.colorArg(a, i, verb);
-    }
-
-    /** A required number argument, refused by name rather than coerced to zero. */
-    private static double numberArg(Varargs a, int i, String verb, String param) {
-        LuaValue v = Args.required(a, i, verb, param);
-        if(!v.isnumber())
-            throw new LuaError(verb + ": " + param + " must be a number, got " + v.typename());
-        return v.todouble();
     }
 
     /** A stored Lua value read back, or {@code nil} when nothing was stored. */

@@ -112,7 +112,8 @@ It raises for each of these, before anything is sent:
 
 - an addon that did not declare `speed.set` in its [manifest](../guides/permissions.md), naming the key
 - a speed that is not selectable, listing the ones that are
-- a position outside `1..4`, or a name no speed has
+- a position that is not a [whole number](conventions.md#a-number-is-finite-and-an-index-is-whole)
+  `1..4`, or a name no speed has
 - a `nil`, or a value that is neither a `Speed`, a number nor a string
 - no speed selector on that character, which is any moment before it has streamed in
 

@@ -537,14 +537,12 @@ final class UiApi {
         m.set("tipAt", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Section.self(a.arg1(), "ui", "tipAt");
-                LuaValue x = Args.required(a, 2, "hafen.ui():tipAt", "x");
-                LuaValue y = Args.required(a, 3, "hafen.ui():tipAt", "y");
-                if(!x.isnumber() || !y.isnumber())
-                    throw new LuaError("hafen.ui():tipAt(x, y) expects numbers");
+                int tx = Args.integer(a, 2, "hafen.ui():tipAt", "x", "a root design pixel");
+                int ty = Args.integer(a, 3, "hafen.ui():tipAt", "y", "a root design pixel");
                 UI u = screen();
                 if((u == null) || (u.root == null))
                     return LuaValue.NIL;
-                Widget from = LuaWidget.tipAt(u, Px.in(new Coord(x.toint(), y.toint())));   // design px, like :hit
+                Widget from = LuaWidget.tipAt(u, Px.in(new Coord(tx, ty)));   // design px, like :hit
                 return (from == null) ? LuaValue.NIL : LuaWidget.of(owner, from);
             }
         });
@@ -2402,11 +2400,10 @@ final class UiApi {
      * is a clear error.
      */
     private static LuaValue nodeById(Addon owner, UI u, LuaValue idv) {
-        if(!idv.isnumber())
-            throw new LuaError(UIS + ":node(id) expects a widget id (number)");
+        int id = Args.integer(idv, UIS + ":node", "id", "another widget's :id()");
         if(u == null)
             return LuaValue.NIL;
-        Widget w = u.getwidget(idv.toint());
+        Widget w = u.getwidget(id);
         if(w == null)
             return LuaValue.NIL;
         return LuaWidget.of(owner, w);
@@ -2420,15 +2417,15 @@ final class UiApi {
      * {@code :same()} be cut (029.1).
      */
     private static LuaValue nodeHit(Addon owner, LuaValue xv, LuaValue yv) {
-        if(!xv.isnumber() || !yv.isnumber())
-            throw new LuaError("hafen.ui():hit(x, y) expects numbers");
+        int hx = Args.integer(xv, "hafen.ui():hit", "x", "a root design pixel");
+        int hy = Args.integer(yv, "hafen.ui():hit", "y", "a root design pixel");
         UI u = screen();
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         Widget hit;
         // DESIGN PIXELS in, exactly like widget:position/:size (058.1) — so hafen.ui():hit(m:x(), m:y()) is the
         // widget the pointer is over, and an addon's own hit rectangle is the box it drew.
-        synchronized(u) { hit = LuaWidget.hitTest(u.root, Px.in(new Coord(xv.toint(), yv.toint()))); }
+        synchronized(u) { hit = LuaWidget.hitTest(u.root, Px.in(new Coord(hx, hy))); }
         return (hit == null) ? LuaValue.NIL : LuaWidget.of(owner, hit);
     }
 

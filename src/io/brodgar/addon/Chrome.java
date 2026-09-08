@@ -924,10 +924,7 @@ final class Chrome {
             if(i == names.length)
                 throw new LuaError(verb + ".generate: \"" + n.arg1().tojstring() + "\" is not a generator"
                     + " property — a generator names " + names[0] + ", " + names[1] + " and " + names[2]);
-            // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (028).
-            if(pv.type() != LuaValue.TNUMBER)
-                throw new LuaError(verb + ".generate." + p + ": expected a number 0..1, got " + pv.typename());
-            double d = pv.todouble();
+            double d = Args.num(pv, verb + ".generate", p, "a fraction 0..1").todouble();
             if((d < 0) || (d > 1))
                 throw new LuaError(verb + ".generate." + p + ": " + d + " is outside 0..1 — a step is a"
                     + " fraction of the hue circle, and a saturation and a brightness are fractions of full");
@@ -2241,12 +2238,8 @@ final class Chrome {
             throw new LuaError(ctx + ".glow: names no colour — a glow is " + GLOWS);
         if(rad.isnil())
             throw new LuaError(ctx + ".glow: names no radius — a glow is " + GLOWS);
-        // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (the 028
-        // asset lesson), and `radius = "4"` is a typo.
-        if(rad.type() != LuaValue.TNUMBER)
-            throw new LuaError(ctx + ".glow.radius: expected a number of design pixels, got " + rad.typename()
-                + " — a glow is " + GLOWS);
-        int r = rad.toint();
+        int r = Args.integer(rad, ctx + ".glow", "radius", "design pixels — a glow is "
+                             + GLOWS);
         if(r < 0)
             throw new LuaError(ctx + ".glow.radius: a radius is a distance and cannot be negative (got " + r
                 + ") — a glow is " + GLOWS);
@@ -2425,11 +2418,7 @@ final class Chrome {
         if(width == null)
             throw new LuaError(ctx + ".border: a line needs a \"width\" — how thick the frame is drawn, in"
                 + " design pixels: { color = {r,g,b[,a]}, width = 2 }");
-        // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (the 028
-        // asset lesson), and `width = "2"` is a typo.
-        if(width.type() != LuaValue.TNUMBER)
-            throw new LuaError(ctx + ".border.width: expected a number of design pixels, got " + width.typename());
-        int w = width.toint();
+        int w = Args.integer(width, ctx + ".border", "width", "design pixels");
         if(w < 1)
             throw new LuaError(ctx + ".border.width: a line's width is at least 1 design pixel (got " + w
                 + ") — a frame nobody can see is said by leaving the property out");
@@ -2505,10 +2494,10 @@ final class Chrome {
      * back and the write takes them again.
      */
     static Pad parsePadding(String ctx, LuaValue v) {
-        // type() rather than isnumber(): in LuaJ a STRING that looks like a number answers isnumber() (the 028
-        // asset lesson, and why a sheet key is type-checked the same way). `padding = "6"` is a typo.
+        // type() rather than a number door: which of the two SHAPES was written is the question here, and
+        // the value each of them holds is read by Args.integer below (`padding = "6"` is a typo either way).
         if(v.type() == LuaValue.TNUMBER) {
-            int p = v.toint();
+            int p = Args.integer(v, ctx + ".padding", "padding", "design pixels, for all four sides");
             int[] s = {p, p, p, p};
             nonneg(ctx, ".padding", "padding", s);
             return new Pad(p, p, p, p);
@@ -2549,14 +2538,20 @@ final class Chrome {
     private static int[] insets(String ctx, String what, String noun, LuaValue v) {
         if(!v.istable())
             throw new LuaError(ctx + what + ": expected {left, top, right, bottom}, got " + v.typename());
+        // isnil() and not a number test: WHICH of the two spellings was written is the question, and the
+        // four values it holds are then read by the one door (a keyed table with a bad `l` says so, rather
+        // than falling through to the positional form and complaining about that instead).
         LuaValue l = v.get("l"), t = v.get("t"), r = v.get("r"), b = v.get("b");
-        if(!l.isnumber() || !t.isnumber() || !r.isnumber() || !b.isnumber()) {
+        if(l.isnil() || t.isnil() || r.isnil() || b.isnil()) {
             l = v.get(1); t = v.get(2); r = v.get(3); b = v.get(4);
-            if(!l.isnumber() || !t.isnumber() || !r.isnumber() || !b.isnumber())
+            if(l.isnil() || t.isnil() || r.isnil() || b.isnil())
                 throw new LuaError(ctx + what + ": expected four numbers — {left, top, right, bottom}"
                     + " or { l = 8, t = 4, r = 8, b = 8 }");
         }
-        int[] s = {l.toint(), t.toint(), r.toint(), b.toint()};
+        String where = ctx + what;
+        String px = "design pixels";
+        int[] s = {Args.integer(l, where, "left", px), Args.integer(t, where, "top", px),
+                   Args.integer(r, where, "right", px), Args.integer(b, where, "bottom", px)};
         nonneg(ctx, what, noun, s);
         return s;
     }

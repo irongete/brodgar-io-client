@@ -595,10 +595,9 @@ final class WorldApi {
             }
 
             public LuaValue getMember(LuaValue key) {
-                if(!key.isnumber())
-                    throw new LuaError(W + ":gob():get(id) expects a gob id (a number) — the"
-                        + " \"player\"/\"me\"/\"partyN\" tokens are gone; your own gob is session:player():gob()");
-                return LuaGob.of(owner, (long)key.todouble());
+                return LuaGob.of(owner, Args.integer(key, W + ":gob():get", "id", "a gob id — the \"player\"/\"me\"/\"partyN\" tokens are"
+                                                    + " gone; your own gob is session:player():gob()",
+                                                    -Args.EXACT, Args.EXACT));
             }
 
             /** A gob id is the server's own, so the handle is the identity: gob:exists() is the question. */
@@ -667,9 +666,11 @@ final class WorldApi {
     /** Rebuild a Position from the {@code {gridId, x, y}} durable form, refusing a shape that is not one. */
     private static LuaValue savedPosition(Addon owner, LuaValue saved) {
         LuaValue idv = saved.get("gridId"), xv = saved.get("x"), yv = saved.get("y");
-        if((idv.type() != LuaValue.TSTRING) || !xv.isnumber() || !yv.isnumber())
+        if((idv.type() != LuaValue.TSTRING) || xv.isnil() || yv.isnil())
             throw new LuaError(W + ":position(saved): expected the table p:info() gives you —"
                 + " {gridId = \"<decimal string>\", x = <number>, y = <number>}");
+        Args.num(xv, W + ":position(saved)", "x", "a coordinate within its grid");
+        Args.num(yv, W + ":position(saved)", "y", "a coordinate within its grid");
         long id;
         try {
             id = Long.parseLong(idv.tojstring());

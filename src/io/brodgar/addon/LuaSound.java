@@ -392,11 +392,7 @@ public final class LuaSound {
      * only caller today, and the parameter still buys the caller-accurate message.
      */
     static double volume(LuaValue v, String method) {
-        if(v.isnil())
-            return 1.0;
-        if(!v.isnumber())
-            throw new LuaError(method + "(volume): expected a number 0..1, got " + v.typename());
-        double vol = v.todouble();
+        double vol = Args.optnum(v, method, "volume", "a fraction of the clip's own loudness, 0..1", 1.0);
         if((vol < 0.0) || (vol > 1.0))
             throw new LuaError(method + "(volume): volume must be 0..1, got " + vol);
         return vol;

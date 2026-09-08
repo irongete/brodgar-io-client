@@ -1024,13 +1024,15 @@ final class Controls {
     }
 
     /**
-     * {@code v} as the number a slider or a scrollbar holds, through {@link Args#num}. Package-private
+     * {@code v} as the number a slider or a scrollbar holds, through {@link Args#integer} — a position
+     * within a range is a whole number, and 2.7 truncated to 2 was a value the control never showed.
+     * Package-private
      * <b>because the adapters call it too</b>: {@link CSlider}, {@link CScrollbar} and {@link CScrollport}'s
      * bar hold the same kind of value as the client's own controls of those kinds, and a control family with
      * two type languages refuses {@code "50"} on one of a pair and takes it on the other.
      */
     static int num(LuaValue v, String what) {
-        return Args.num(v, "widget:value", "v", "on " + what + " it is a position within its range").toint();
+        return Args.integer(v, "widget:value", "v", "on " + what + " it is a position within its range");
     }
 
     /** {@code v} as a string, through {@link Args#str} — which is where the LuaJ coercion rule is stated. */
@@ -1176,10 +1178,10 @@ final class Controls {
         return ((Range)c).range();
     }
 
-    /** One {@code :range} bound, through {@link Args#num} — the same door {@link #num} is for a value, and
+    /** One {@code :range} bound, through {@link Args#integer} — the same door {@link #num} is for a value, and
      *  the reason the adapters call it rather than testing {@code isnumber()} each for themselves. */
     static int bound(LuaValue v, String param) {
-        return Args.num(v, "widget:range", param, "a bound of the control's own range").toint();
+        return Args.integer(v, "widget:range", param, "a bound of the control's own range");
     }
 
     /**
@@ -1230,7 +1232,7 @@ final class Controls {
                 + " hafen.ui():dropdown(), hafen.ui():menu() and hafen.ui():table() are the builders that take"
                 + " one — " + LuaWidget.typeName(w) + " has none.");
         // DESIGN px, as written: checked, reported and only then converted
-        int des = Args.num(v, "widget:rowHeight", "n", "a NUMBER of design pixels").toint();
+        int des = Args.integer(v, "widget:rowHeight", "n", "a NUMBER of design pixels");
         if(des <= 0)
             throw new LuaError("widget:rowHeight(n) — n must be a POSITIVE number of pixels, got " + des);
         int n = Px.in(des);                   // 058.3: the client's own row widgets measure in device px
@@ -1301,8 +1303,8 @@ final class Controls {
             throw new LuaError("widget:cellSize(w, h) sets a GRID's CELL SIZE, and hafen.ui():grid() is the"
                 + " builder that takes one — " + LuaWidget.typeName(w) + " has none.");
         // DESIGN px, as written: checked and reported in that space
-        int cw = Args.num(a, 2, "widget:cellSize", "w", "a NUMBER of design pixels").toint();
-        int ch = Args.num(a, 3, "widget:cellSize", "h", "a NUMBER of design pixels").toint();
+        int cw = Args.integer(a, 2, "widget:cellSize", "w", "a NUMBER of design pixels");
+        int ch = Args.integer(a, 3, "widget:cellSize", "h", "a NUMBER of design pixels");
         if((cw <= 0) || (ch <= 0))
             throw new LuaError("widget:cellSize(w, h) — both must be POSITIVE numbers of pixels, got " + cw + "x"
                 + ch);

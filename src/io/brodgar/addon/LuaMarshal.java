@@ -233,9 +233,10 @@ final class LuaMarshal {
         }
         case LuaValue.TTABLE: {
             LuaValue x = v.get("x"), y = v.get("y");
-            if(x.isnumber() && y.isnumber())
-                return new Coord(x.toint(), y.toint());
-            throw new LuaError(ctx + ": a table argument must be a coord {x=,y=}");
+            if(x.isnil() || y.isnil())
+                throw new LuaError(ctx + ": a table argument must be a coord {x=,y=}");
+            return new Coord(Args.integer(x, ctx, "x", "a coordinate"),
+                             Args.integer(y, ctx, "y", "a coordinate"));
         }
         default:
             throw new LuaError(ctx + ": unsupported argument type " + v.typename());

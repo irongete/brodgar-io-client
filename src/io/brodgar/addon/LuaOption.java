@@ -182,12 +182,8 @@ public final class LuaOption {
                     + " — pass true or false");
             return LuaValue.valueOf(v.toboolean());
         case NUMBER: {
-            Args.num(v, "option:value", "v", "a whole number between " + lo + " and " + hi);
-            double d = v.todouble();
-            if(d != Math.rint(d))
-                throw new LuaError("option:value(v): the row '" + name + "' is a whole number and the client"
-                    + " draws it as a slider, got " + d + " — round it, or scale the range you declared");
-            int n = (int)d;
+            int n = Args.integer(v, "option:value", "v", "between " + lo + " and " + hi + "; the row '" + name
+                                 + "' is drawn as a slider");
             if((n < lo) || (n > hi))
                 throw new LuaError("option:value(v): " + n + " is outside the range " + lo + ".." + hi
                     + " the row '" + name + "' declared");

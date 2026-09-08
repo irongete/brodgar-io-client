@@ -1,0 +1,11 @@
+{
+  "id": "R03-args-refuses-non-numbers.1",
+  "name": "R03 Args refuses what is not a number",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "Verification suite for refactor block R03: a number argument is finite, and an index, an id, a count or a design pixel is whole. Every door in the API says so through Args now. Run it with :tR03.",
+  "api_version": 1,
+  "files": ["main.lua"],
+  "permissions": ["speed.set", "client.settings"],
+  "saved_variables": [{ "name": "probe", "scope": "account" }]
+}

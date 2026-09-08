@@ -5134,18 +5134,28 @@ public final class AddonManager {
      */
     static java.awt.Color luaColor(LuaValue t, java.awt.Color dflt) {
         LuaValue r = t.get("r"), g = t.get("g"), b = t.get("b"), a = t.get("a");
-        if(!r.isnumber() || !g.isnumber() || !b.isnumber()) {
+        if(!component(r) || !component(g) || !component(b)) {
             r = t.get(1); g = t.get(2); b = t.get(3); a = t.get(4);   // the positional shorthand {r,g,b[,a]}
-            if(!r.isnumber() || !g.isnumber() || !b.isnumber())
+            if(!component(r) || !component(g) || !component(b))
                 return dflt;
         }
-        int ai = a.isnumber() ? clampByte(a.toint()) : 255;
-        return new java.awt.Color(clampByte(r.toint()), clampByte(g.toint()), clampByte(b.toint()), ai);
+        int ai = component(a) ? clampByte(a.todouble()) : 255;
+        return new java.awt.Color(clampByte(r.todouble()), clampByte(g.todouble()), clampByte(b.todouble()), ai);
     }
 
-    /** Clamp an int to a 0..255 colour byte. */
-    static int clampByte(int v) {
-        return (v < 0) ? 0 : ((v > 255) ? 255 : v);
+    /**
+     * One 0..255 component of a colour table: a number by TYPE, and finite — the test {@link Args#num}
+     * makes, asked as a QUESTION rather than as a door, because this is the one place that answers a
+     * default instead of refusing. Which spelling was written is what it decides, and every caller turns
+     * the {@code null} into its own refusal or its own fallback.
+     */
+    private static boolean component(LuaValue v) {
+        return (v.type() == LuaValue.TNUMBER) && Double.isFinite(v.todouble());
+    }
+
+    /** Clamp a number to a 0..255 colour byte. */
+    static int clampByte(double v) {
+        return (v < 0) ? 0 : ((v > 255) ? 255 : (int)v);
     }
 
     /**

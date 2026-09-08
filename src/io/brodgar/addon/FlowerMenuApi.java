@@ -277,11 +277,8 @@ final class FlowerMenuApi {
             }
 
             public LuaValue getMember(LuaValue key) {
-                if(key.type() != LuaValue.TNUMBER)
-                    throw new LuaError(FM + ":get(n): the key is a petal's 1-based position, the same"
-                        + " number petal:index() answers and the 1..9 key the ring is picked with, got "
-                        + key.typename());
-                int n = key.toint();
+                int n = Args.integer(key, FM + ":get", "n", "a petal's 1-based position, the same number"
+                                     + " petal:index() answers and the 1..9 key the ring is picked with");
                 String[] ns = names(open(user));
                 return ((n < 1) || (n > ns.length)) ? LuaValue.NIL : LuaPetal.of(owner, user, n - 1);
             }
@@ -434,9 +431,8 @@ final class FlowerMenuApi {
         String[] names = names(fm);
         int idx;
         if(key.type() == LuaValue.TNUMBER) {
-            double d = key.todouble();
-            idx = (int)d;
-            if((d != idx) || (idx < 1) || (idx > names.length))
+            idx = Args.integer(key, verb, "key", "a petal's 1-based position on the open menu");
+            if((idx < 1) || (idx > names.length))
                 throw new LuaError(verb + "(" + key.tojstring() + "): a position is a whole number 1.."
                     + names.length + " on the open menu — " + offers(names));
             idx--;

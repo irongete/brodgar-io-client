@@ -20,8 +20,9 @@ cache, so a handle you keep in a variable is always fresh: it tracks a gob as it
 [snapshots vs handles](conventions.md#snapshots-vs-handles).
 
 `:get(id)` always returns a Gob, even for an id no character has loaded or that never existed. That is what
-lets you anchor to a gob before it streams in; `:exists()` is the liveness test. A non-number argument raises
-an error.
+lets you anchor to a gob before it streams in; `:exists()` is the liveness test. An id that is not a
+[whole, finite number](conventions.md#a-number-is-finite-and-an-index-is-whole) raises: an unknown id is a
+Gob that does not exist yet, while `1.5` is not an id at all.
 
 ## Which character does the reading
 

@@ -239,16 +239,13 @@ public final class LuaChannel {
                     }
 
                     public LuaValue getMember(LuaValue key) {
-                        if(key.type() != LuaValue.TNUMBER)
-                            throw new LuaError("channel:message():get(i): the key is a line's position in"
-                                + " the scrollback, oldest first, got " + key.typename());
-                        double d = key.todouble();
-                        int i = (int)d;
-                        if((i != d) || (i < 1))
+                        int i = Args.integer(key, "channel:message():get", "i", "a line's position in"
+                                             + " the scrollback, oldest first");
+                        if(i < 1)
                             throw new LuaError("channel:message():get(i): a line's position is a whole"
                                 + " number and the indices start at one — the oldest line this channel"
                                 + " holds is :get(1) and the newest is :get(ch:message():count()), got "
-                                + LuaValue.valueOf(d).tojstring());
+                                + i);
                         ChatUI.Channel c = live(h);
                         return (i > count(h)) ? LuaValue.NIL : LuaMessage.of(owner, c, i - 1);
                     }

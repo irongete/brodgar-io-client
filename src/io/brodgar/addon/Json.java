@@ -161,11 +161,18 @@ public final class Json {
         if(peek() == '-') i++;
         while((i < s.length()) && ("0123456789+-.eE".indexOf(s.charAt(i)) >= 0))
             i++;
+        double d;
         try {
-            return Double.valueOf(Double.parseDouble(s.substring(start, i)));
+            d = Double.parseDouble(s.substring(start, i));
         } catch(NumberFormatException e) {
             throw err("bad number");
         }
+        // Double.parseDouble("1e400") is Infinity, and JSON has no spelling for one: the parser would
+        // otherwise mint a value its own encoder refuses two hundred lines below, and the store would
+        // write it back as null. Refused where it is read, like every other malformed literal here.
+        if(!Double.isFinite(d))
+            throw err("number out of range");
+        return Double.valueOf(d);
     }
 
     private Object literal(String word, Object val) {

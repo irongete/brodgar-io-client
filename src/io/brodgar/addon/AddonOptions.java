@@ -259,10 +259,8 @@ public final class AddonOptions {
             return new VarArgFunction() {
                 public Varargs invoke(Varargs a) {
                     requireBare("range");
-                    int l = Args.num(a, 2, "option:range", "lo", "the lowest whole number the row takes")
-                                .toint();
-                    int h = Args.num(a, 3, "option:range", "hi", "the highest whole number the row takes")
-                                .toint();
+                    int l = Args.integer(a, 2, "option:range", "lo", "the lowest whole number the row takes");
+                    int h = Args.integer(a, 3, "option:range", "hi", "the highest whole number the row takes");
                     if(l >= h)
                         throw new LuaError("option:range(lo, hi): lo must be below hi, got " + l + " and "
                             + h + " for the row '" + name + "'");
@@ -385,14 +383,9 @@ public final class AddonOptions {
                         + " " + def.typename() + " — pass true or false to :default(v)");
                 break;
             case NUMBER: {
-                Args.num(def, "option:add", "the default of '" + name + "'",
-                         "a whole number between " + lo + " and " + hi);
-                double d = def.todouble();
-                if(d != Math.rint(d))
-                    throw new LuaError("option:add(): the default " + d + " of the row '" + name + "' is not"
-                        + " a whole number, and the client draws a number row as a slider — round it, or"
-                        + " scale the range you declared");
-                int n = (int)d;
+                int n = Args.integer(def, "option:add", "the default of '" + name + "'",
+                                     "between " + lo + " and " + hi + "; the client draws a number row"
+                                     + " as a slider");
                 if((n < lo) || (n > hi))
                     throw new LuaError("option:add(): the default " + n + " of the row '" + name + "' is"
                         + " outside the range " + lo + ".." + hi + " it declared — widen :range(lo, hi) or"

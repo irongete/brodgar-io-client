@@ -1035,8 +1035,8 @@ final class CharApi {
         LuaValue va = a.get(k), vb = b.get(k);
         if(va.isnil() != vb.isnil())
             return false;
-        if(va.isnumber())
-            return vb.isnumber() && (va.todouble() == vb.todouble());
+        if(va.type() == LuaValue.TNUMBER)   // by TYPE, like every other number test in the bridge
+            return (vb.type() == LuaValue.TNUMBER) && (va.todouble() == vb.todouble());
         if(va.isstring())
             return vb.isstring() && va.tojstring().equals(vb.tojstring());
         return true;

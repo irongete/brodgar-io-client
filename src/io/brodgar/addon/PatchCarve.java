@@ -283,4 +283,21 @@ public class PatchCarve extends State {
     static boolean tooMany(float[][] e) {
         return e.length > EDGES;
     }
+
+    /**
+     * <b>The 1-based position of the first point that is not a place</b>, or {@code 0} when every one of them
+     * is. A NaN coordinate survives everything below it: {@code Math.hypot(NaN, NaN)} is NaN and
+     * {@code len < EPS} is false, so the edge is kept and normalised into the half-plane array; {@code
+     * inside()} then tests {@code … < 0}, which is false for NaN, and answers <b>true for every screen
+     * point</b> — a patch that swallows every press in the map view. Asked before {@link #convex}, because a
+     * ring that is not made of places has no shape to be convex or concave.
+     */
+    static int nonFinite(List<Coord2d> ring) {
+        for(int i = 0; i < ring.size(); i++) {
+            Coord2d p = ring.get(i);
+            if(!Double.isFinite(p.x) || !Double.isFinite(p.y))
+                return i + 1;
+        }
+        return 0;
+    }
 }

@@ -314,7 +314,7 @@ final class LuaGOut {
         t.set("text", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                drawText(d, a.arg(2).tojstring(), Px.point(a.arg(3).todouble(), a.arg(4).todouble()),
+                drawText(d, a.arg(2).tojstring(), Px.point(px(a, 3, "g:text", "x"), px(a, 4, "g:text", "y")),
                          0.0, 0.0, a.arg(5), "g:text");
                 return NIL;
             }
@@ -324,8 +324,10 @@ final class LuaGOut {
         t.set("atext", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                drawText(d, a.arg(2).tojstring(), Px.point(a.arg(3).todouble(), a.arg(4).todouble()),
-                         a.arg(5).todouble(), a.arg(6).todouble(), a.arg(7), "g:atext");
+                drawText(d, a.arg(2).tojstring(), Px.point(px(a, 3, "g:atext", "x"), px(a, 4, "g:atext", "y")),
+                         Args.num(a, 5, "g:atext", "ax", "a fraction 0..1 across the text").todouble(),
+                         Args.num(a, 6, "g:atext", "ay", "a fraction 0..1 down the text").todouble(),
+                         a.arg(7), "g:atext");
                 return NIL;
             }
         });
@@ -334,8 +336,8 @@ final class LuaGOut {
         t.set("rect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                d.rect(Px.point(a.arg(2).todouble(), a.arg(3).todouble()),
-                       Px.point(a.arg(4).todouble(), a.arg(5).todouble()));
+                d.rect(Px.point(px(a, 2, "g:rect", "x"), px(a, 3, "g:rect", "y")),
+                       Px.point(px(a, 4, "g:rect", "w"), px(a, 5, "g:rect", "h")));
                 return NIL;
             }
         });
@@ -343,8 +345,8 @@ final class LuaGOut {
         t.set("frect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                d.frect(Px.point(a.arg(2).todouble(), a.arg(3).todouble()),
-                        Px.point(a.arg(4).todouble(), a.arg(5).todouble()));
+                d.frect(Px.point(px(a, 2, "g:frect", "x"), px(a, 3, "g:frect", "y")),
+                        Px.point(px(a, 4, "g:frect", "w"), px(a, 5, "g:frect", "h")));
                 return NIL;
             }
         });
@@ -353,10 +355,9 @@ final class LuaGOut {
         t.set("line", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                LuaValue w = a.arg(6);
-                d.line(Px.point(a.arg(2).todouble(), a.arg(3).todouble()),
-                       Px.point(a.arg(4).todouble(), a.arg(5).todouble()),
-                       Px.in(w.isnil() ? 1.0 : w.todouble()));
+                d.line(Px.point(px(a, 2, "g:line", "x1"), px(a, 3, "g:line", "y1")),
+                       Px.point(px(a, 4, "g:line", "x2"), px(a, 5, "g:line", "y2")),
+                       Px.in(Args.optnum(a, 6, "g:line", "width", "design pixels", 1.0)));
                 return NIL;
             }
         });
@@ -373,8 +374,8 @@ final class LuaGOut {
                 if(npt < 3) return NIL;
                 float[] data = new float[npt * 2];
                 for(int i = 0; i < npt; i++) {      // design px, unrounded: a vertex reaches the GPU as a float
-                    data[i * 2]     = (float)(d.tx.x + Px.in(a.arg(2 + (i * 2)).todouble()));
-                    data[i * 2 + 1] = (float)(d.tx.y + Px.in(a.arg(3 + (i * 2)).todouble()));
+                    data[i * 2]     = (float)(d.tx.x + Px.in(px(a, 2 + (i * 2), "g:poly", "x" + (i + 1))));
+                    data[i * 2 + 1] = (float)(d.tx.y + Px.in(px(a, 3 + (i * 2), "g:poly", "y" + (i + 1))));
                 }
                 d.drawp(Model.Mode.TRIANGLE_FAN, data);
                 return NIL;
@@ -390,14 +391,13 @@ final class LuaGOut {
                 LuaImage img = LuaImage.resolve(a.arg(2));
                 if((img == null) || img.dead || (img.tex == null)) return NIL;
                 // colon call: arg1 = self, arg2 = img, arg3 = x, arg4 = y, arg5 = w, arg6 = h
-                Coord c = Px.point(a.arg(3).todouble(), a.arg(4).todouble());
-                LuaValue wv = a.arg(5), hv = a.arg(6);
+                Coord c = Px.point(px(a, 3, "g:image", "x"), px(a, 4, "g:image", "y"));
                 // The PNG's own pixels are design pixels (058.2): img.stex blits it at UI scale, so the native
                 // form covers exactly the img:size() the addon read, and the w×h form covers exactly that box.
-                if(wv.isnumber() && hv.isnumber())
-                    d.image(img.stex, c, Px.point(wv.todouble(), hv.todouble()));   // → GOut.image(Tex,Coord,Coord); a box is two lengths, rounded the same way
-                else
+                if(a.arg(5).isnil() && a.arg(6).isnil())
                     d.image(img.stex, c);                                            // → GOut.image(Tex,Coord)
+                else
+                    d.image(img.stex, c, Px.point(px(a, 5, "g:image", "w"), px(a, 6, "g:image", "h")));   // → GOut.image(Tex,Coord,Coord); a box is two lengths, rounded the same way
                 return NIL;
             }
         });
@@ -416,14 +416,13 @@ final class LuaGOut {
                 if((name == null) || name.isEmpty()) return NIL;
                 Tex tex = resTex(name);
                 if(tex == null) return NIL;   // still Loading / failed → draw nothing this frame
-                Coord c = Px.point(a.arg(3).todouble(), a.arg(4).todouble());
-                LuaValue wv = a.arg(5), hv = a.arg(6);
+                Coord c = Px.point(px(a, 3, "g:resource", "x"), px(a, 4, "g:resource", "y"));
                 // NOT img.stex's counterpart: an engine texture is Resource.Image.scaled() and is ALREADY device
                 // -sized, so the native blit converts nothing and only the explicit box does (058.2).
-                if(wv.isnumber() && hv.isnumber())
-                    d.image(tex, c, Px.point(wv.todouble(), hv.todouble()));   // scaled
-                else
+                if(a.arg(5).isnil() && a.arg(6).isnil())
                     d.image(tex, c);                                            // native
+                else
+                    d.image(tex, c, Px.point(px(a, 5, "g:resource", "w"), px(a, 6, "g:resource", "h")));   // scaled
                 return NIL;
             }
         });
@@ -434,8 +433,10 @@ final class LuaGOut {
                 GOut d = cur; if(d == null) return NIL;
                 LuaImage img = LuaImage.resolve(a.arg(2));
                 if((img == null) || img.dead || (img.tex == null)) return NIL;
-                d.aimage(img.stex, Px.point(a.arg(3).todouble(), a.arg(4).todouble()),
-                         a.arg(5).todouble(), a.arg(6).todouble());          // → GOut.aimage(Tex,Coord,ax,ay)
+                d.aimage(img.stex, Px.point(px(a, 3, "g:aimage", "x"), px(a, 4, "g:aimage", "y")),
+                         Args.num(a, 5, "g:aimage", "ax", "a fraction 0..1 across the image").todouble(),
+                         Args.num(a, 6, "g:aimage", "ay", "a fraction 0..1 down the image").todouble());
+                                                                             // → GOut.aimage(Tex,Coord,ax,ay)
                 return NIL;
             }
         });
@@ -444,9 +445,11 @@ final class LuaGOut {
         t.set("prect", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 GOut d = cur; if(d == null) return NIL;
-                int r = Px.length(a.arg(4).todouble());   // a radius is a length: design px, like everything here
-                d.prect(Px.point(a.arg(2).todouble(), a.arg(3).todouble()),
-                        Coord.of(-r, -r), Coord.of(r, r), a.arg(5).todouble() * Math.PI * 2.0);
+                int r = Px.length(px(a, 4, "g:prect", "radius"));   // a radius is a length: design px, like everything here
+                d.prect(Px.point(px(a, 2, "g:prect", "cx"), px(a, 3, "g:prect", "cy")),
+                        Coord.of(-r, -r), Coord.of(r, r),
+                        Args.num(a, 5, "g:prect", "fraction", "a fraction 0..1 of the circle").todouble()
+                        * Math.PI * 2.0);
                 return NIL;
             }
         });
@@ -467,8 +470,10 @@ final class LuaGOut {
                         throw new LuaError(AddonManager.colorRefusal("g:color"));
                     d.chcolor(c);
                 } else {
-                    LuaValue al = a.arg(5);
-                    d.chcolor(r.toint(), a.arg(3).toint(), a.arg(4).toint(), al.isnil() ? 255 : al.toint());
+                    d.chcolor(Args.integer(r, "g:color", "r", "0..255"),
+                              Args.integer(a, 3, "g:color", "g", "0..255"),
+                              Args.integer(a, 4, "g:color", "b", "0..255"),
+                              Args.optint(a, 5, "g:color", "a", "0..255, 255 is opaque", 255));
                 }
                 return NIL;
             }
@@ -532,11 +537,23 @@ final class LuaGOut {
         LuaValue v = opts.get("width");
         if(v.isnil())
             return 0;
-        int w = Args.num(v, verb, "opts.width", "the design-pixel width to wrap at").toint();
+        int w = Args.integer(v, verb, "opts.width", "the design-pixel width to wrap at");
         if(w <= 0)
             throw new LuaError(verb + ": opts.width must be a positive number of design pixels, got " + w
                 + " — omit width entirely to draw one unwrapped line");
         return Px.in(w);
+    }
+
+    /**
+     * One <b>design-pixel</b> number of a draw verb — the coordinate, the length, the radius. Sub-pixel
+     * on purpose (110.4/135.2: the point is rounded once, at {@link Px#point}, so a label over a gob does
+     * not jitter as the camera lerps), which is why it is a finite {@code double} and not an integer — but
+     * finite it must be: {@code Math.round(NaN)} is {@code 0} and {@code Math.round(inf)} is the int cast
+     * of {@code Long.MAX_VALUE}, so an unchecked one is a vertex the GPU is handed and a wedge angle with
+     * no arc.
+     */
+    private static double px(Varargs a, int i, String verb, String param) {
+        return Args.num(a, i, verb, param, "a design pixel").todouble();
     }
 
     /** The cached render-and-blit itself, shared by {@link #drawText} and the Java-side {@link #label}. */

@@ -300,10 +300,9 @@ public final class LuaPartyMember {
             }
 
             public LuaValue getMember(LuaValue key) {
-                if(!key.isnumber())
-                    throw new LuaError(CharApi.PT + ":get(gobId): a party member is addressed by GOB ID, a"
-                        + " number — they have no name (member:gob():name() is the name over their head)");
-                long id = (long)key.todouble();
+                long id = Args.integer(key, CharApi.PT + ":get", "gobId", "a GOB ID — a party member"
+                                       + " has no name (member:gob():name() is the name over"
+                                       + " their head)", -Args.EXACT, Args.EXACT);
                 return (member(user, id) == null) ? LuaValue.NIL : of(owner, user, id);
             }
 

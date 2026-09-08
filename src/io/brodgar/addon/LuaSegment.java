@@ -283,26 +283,30 @@ public final class LuaSegment {
 
     /** A {@code {x,y}} segment grid coord argument. Any integer is legal — a segment has no bounds. */
     private static Coord coordArg(LuaValue c) {
-        if((c == null) || !c.istable() || !c.get("x").isnumber() || !c.get("y").isnumber())
+        if((c == null) || !c.istable() || c.get("x").isnil() || c.get("y").isnil())
             throw new LuaError("seg:grid():get(sc): sc is a segment grid coord {x=,y=}"
                 + " (grid:segmentCoord() hands you one)");
-        return Coord.of(c.get("x").toint(), c.get("y").toint());
+        String w = "seg:grid():get(sc)", g = "a segment grid coordinate";
+        return Coord.of(Args.integer(c.get("x"), w, "sc.x", g), Args.integer(c.get("y"), w, "sc.y", g));
     }
 
     /** How many grids one {@code :list(area)} may walk — each miss is a disk read the caller pays for. */
     private static final int MAX_AREA_GRIDS = 1024;
 
     private static Coord areaUL(LuaValue area) {
-        if((area == null) || !area.istable() || !area.get("x").isnumber() || !area.get("y").isnumber())
+        if((area == null) || !area.istable() || area.get("x").isnil() || area.get("y").isnil())
             throw new LuaError("seg:grid():list(area): area is {x=,y=,w=,h=} in segment grid coords");
-        return Coord.of(area.get("x").toint(), area.get("y").toint());
+        String w = "seg:grid():list(area)", g = "a segment grid coordinate";
+        return Coord.of(Args.integer(area.get("x"), w, "area.x", g),
+                        Args.integer(area.get("y"), w, "area.y", g));
     }
 
     private static Coord areaSz(LuaValue area) {
         LuaValue w = area.get("w"), h = area.get("h");
-        if(!w.isnumber() || !h.isnumber())
+        if(w.isnil() || h.isnil())
             throw new LuaError("seg:grid():list(area): area is {x=,y=,w=,h=} in segment grid coords");
-        int iw = w.toint(), ih = h.toint();
+        int iw = Args.integer(w, "seg:grid():list(area)", "area.w", "a count of grids");
+        int ih = Args.integer(h, "seg:grid():list(area)", "area.h", "a count of grids");
         if((iw < 1) || (ih < 1))
             throw new LuaError("seg:grid():list(area): w and h are counts of GRIDS and must be at least 1");
         if((iw * ih) > MAX_AREA_GRIDS)

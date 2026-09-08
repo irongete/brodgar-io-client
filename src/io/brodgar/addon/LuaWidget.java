@@ -651,7 +651,7 @@ public final class LuaWidget {
                         return self;
                     }
                     // w:size(w) — the width; the art answers for the height
-                    int width = Args.num(a, 2, "widget:size", "w", "a width in design pixels").toint();
+                    int width = Args.integer(a, 2, "widget:size", "w", "a width in design pixels");
                     if(w == null)                         // a write on a stale widget: the 029.2 chaining no-op
                         return self;
                     Owned content = ownedContent(owner, w);
@@ -3365,13 +3365,13 @@ public final class LuaWidget {
 
     /**
      * The two DESIGN-pixel numbers a geometry write takes, as the {@link Coord} it means. It goes through
-     * {@link Args#num} rather than LuaJ's {@code checkint}, which answers <i>bad argument: number expected,
+     * {@link Args#integer} rather than LuaJ's {@code checkint}, which answers <i>bad argument: number expected,
      * got nil</i> and names neither the verb nor which of the two was missing — so {@code w:position(nil, 10)}
      * reads as the house nil refusal, and a number-shaped string is refused rather than coerced.
      */
     private static Coord pixels(Varargs a, String verb, String px, String py) {
-        int x = Args.num(a, 2, verb, px, "a design pixel").toint();
-        int y = Args.num(a, 3, verb, py, "a design pixel").toint();
+        int x = Args.integer(a, 2, verb, px, "a design pixel");
+        int y = Args.integer(a, 3, verb, py, "a design pixel");
         return Coord.of(x, y);
     }
 
@@ -3474,8 +3474,9 @@ public final class LuaWidget {
         if(!v.istable())
             throw new LuaError(where + " expects a {x=,y=} coord table");
         LuaValue x = v.get("x"), y = v.get("y");
-        if(!x.isnumber() || !y.isnumber())
+        if(x.isnil() || y.isnil())
             throw new LuaError(where + " expects a {x=,y=} coord table");
-        return new Coord(x.toint(), y.toint());
+        return new Coord(Args.integer(x, where, "x", "a design pixel"),
+                         Args.integer(y, where, "y", "a design pixel"));
     }
 }

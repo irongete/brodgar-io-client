@@ -80,6 +80,15 @@ abstract class OptionsMethod extends VarArgFunction {
         return Args.num(value, verb, param, hint);
     }
 
+    /**
+     * The written value as a <b>whole number</b> ({@link Args#integer}), with this option's own spelling —
+     * for a row the client stores as an {@code int}, where {@code (int)v} would otherwise take {@code 3.7}
+     * and set 3 with nothing said.
+     */
+    protected int integer(LuaValue value, String param, String hint) {
+        return Args.integer(value, verb, param, hint);
+    }
+
     /** The written value as a <b>string</b>, by type — the other half of {@link #num}. */
     protected LuaValue str(LuaValue value, String param, String hint) {
         return Args.str(value, verb, param, hint);

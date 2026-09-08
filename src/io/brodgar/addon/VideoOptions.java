@@ -159,10 +159,10 @@ public final class VideoOptions {
                 return (gs == null) ? LuaValue.NIL : LuaValue.valueOf((double)gs.maxlights.val);
             }
             protected void onWrite(LuaValue value) {
-                double v = num(value, "n", "how many dynamic lights at once").todouble();
+                int n = integer(value, "n", "how many dynamic lights at once");
                 GSettings gs = prefs();
                 if(gs != null)
-                    apply(gs.maxlights, (int)v, "lightLimit");
+                    apply(gs.maxlights, n, "lightLimit");
             }
         });
         return m;

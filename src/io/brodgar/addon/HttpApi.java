@@ -323,7 +323,7 @@ final class HttpApi {
                 if(ms == null)
                     return LuaValue.valueOf(req.timeout);
                 requireUnsent(req, "timeout");
-                req.timeout = clampTimeout(Args.num(ms, "request:timeout", "ms", "milliseconds").toint());
+                req.timeout = clampTimeout(Args.integer(ms, "request:timeout", "ms", "milliseconds"));
                 return h;
             }
         });

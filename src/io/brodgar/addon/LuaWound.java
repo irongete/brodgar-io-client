@@ -444,10 +444,8 @@ public final class LuaWound {
             }
 
             public LuaValue getMember(LuaValue key) {
-                if(!key.isnumber())
-                    throw new LuaError(CharApi.WD + ":get(id): a wound is addressed by its ID, a number —"
-                        + " " + CharApi.WD + ":find(\"<name>\") is the search by name or resource");
-                int wid = key.toint();
+                int wid = Args.integer(key, CharApi.WD + ":get", "id", "a wound's id — "
+                                       + CharApi.WD + ":find(\"<name>\") is the search by name or resource");
                 return (wound(user, wid) == null) ? LuaValue.NIL : of(owner, user, wid);
             }
 

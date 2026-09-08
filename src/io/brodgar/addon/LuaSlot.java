@@ -450,10 +450,8 @@ public final class LuaSlot {
             }
 
             public LuaValue getMember(LuaValue key) {
-                if(!key.isnumber())             // BEFORE isstring(): in LuaJ a number IS a string
-                    throw new LuaError(CharApi.AB + ":get(n): the key is the 1-based position"
-                        + " slot:index() answers (1.." + SLOTS + "), got " + key.typename());
-                int n = key.toint();
+                int n = Args.integer(key, CharApi.AB + ":get", "n", "the 1-based position slot:index()"
+                                     + " answers, 1.." + SLOTS);
                 // Bounded, unlike s:kin():get(id): the belt is a fixed array, so an out-of-range index is
                 // a bug in the addon (a typo'd loop), never a slot that merely does not exist yet.
                 //
@@ -515,9 +513,8 @@ public final class LuaSlot {
                 GameUI.Belt b = (g == null) ? null : g.beltwdg;
                 if(v == null)
                     return LuaValue.valueOf((b == null) ? 1 : (b.curbelt + 1));
-                Args.num(v, CharApi.AB + ":page", "n", "the page the bar shows, 1.." + PAGES
-                    + "; :page() with no argument reads which one it is on");
-                int n = v.toint();
+                int n = Args.integer(v, CharApi.AB + ":page", "n", "the page the bar shows, 1.." + PAGES
+                                     + "; :page() with no argument reads which one it is on");
                 if((n < 1) || (n > PAGES))
                     throw new LuaError(CharApi.AB + ":page(n): page out of range (1.." + PAGES + "), got " + n
                         + " — the bar is 144 slots in twelve pages of " + PAGE);

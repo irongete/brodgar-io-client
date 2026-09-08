@@ -344,12 +344,9 @@ final class MapImages {
     static int levelArg(LuaValue v, String where) {
         if(v.isnil())
             return 0;
-        if(v.type() != LuaValue.TNUMBER)
-            throw new LuaError(where + ": lvl is a zoom level, 0.." + MAXLVL
-                + " — 0 is the ground itself and each level covers twice as much in each direction");
-        double d = v.todouble();
-        int lvl = (int)d;
-        if((lvl != d) || (lvl < 0) || (lvl > MAXLVL))
+        int lvl = Args.integer(v, where, "lvl", "a zoom level, 0.." + MAXLVL + " — 0 is the ground itself"
+                               + " and each level covers twice as much in each direction");
+        if((lvl < 0) || (lvl > MAXLVL))
             throw new LuaError(where + ": " + v.tojstring() + " is not a zoom level — a whole number 0.."
                 + MAXLVL + " (level " + MAXLVL + " already composites " + (1 << (MAXLVL * 2)) + " grids)");
         return lvl;

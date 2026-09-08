@@ -834,10 +834,12 @@ final class MapApi {
      * {@code method} is the whole receiver-and-verb label ({@code "grid:tile"}, {@code "mask:covers"}).
      */
     static Coord tileArg(LuaValue c, String method) {
-        if((c == null) || !c.istable() || !c.get("x").isnumber() || !c.get("y").isnumber())
+        if((c == null) || !c.istable() || c.get("x").isnil() || c.get("y").isnil())
             throw new LuaError(method + "(c): c is a within-grid tile coord {x=,y=}, 0.."
                 + (MCache.cmaps.x - 1));
-        int ix = c.get("x").toint(), iy = c.get("y").toint();
+        String g = "a within-grid tile coordinate, 0.." + (MCache.cmaps.x - 1);
+        int ix = Args.integer(c.get("x"), method + "(c)", "c.x", g);
+        int iy = Args.integer(c.get("y"), method + "(c)", "c.y", g);
         if((ix < 0) || (iy < 0) || (ix >= MCache.cmaps.x) || (iy >= MCache.cmaps.y))
             throw new LuaError(method + "(c): " + ix + "," + iy + " is outside the grid — c is a"
                 + " WITHIN-grid tile coord (0.." + (MCache.cmaps.x - 1) + "), not a segment tile coord");

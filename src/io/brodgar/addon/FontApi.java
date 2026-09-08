@@ -501,9 +501,7 @@ final class FontApi {
 
     /** A positive logical-px size from a Lua value. Rejects a non-number / a non-positive one. */
     private static Integer optSize(LuaValue v, String ctx) {
-        if(!v.isnumber())
-            throw new LuaError(ctx + ": 'size' must be a number (design px)");
-        int px = v.toint();
+        int px = Args.integer(v, ctx, "'size'", "design px");
         if(px <= 0)
             throw new LuaError(ctx + ": 'size' must be a positive number (design px)");
         return Integer.valueOf(px);

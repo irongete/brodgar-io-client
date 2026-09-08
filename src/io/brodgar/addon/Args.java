@@ -35,8 +35,20 @@ import org.luaj.vm2.Varargs;
  * through as a name and the defensive one refuses a perfectly ordinary string. Stating the rule once is what
  * keeps the twelve hand-rolled variants of it from disagreeing.
  *
- * <p><b>And the optional twin, {@link #optint}, is part of that discipline rather than a convenience.</b> An
- * argument a verb can do without is still an argument whose type is checked: LuaJ's {@code optint} and
+ * <p><b>And the VALUE discipline the type one is only half of.</b> {@code 0/0} and {@code math.huge} are
+ * numbers by type, so a test that asks the type alone takes them — and every range check written after one
+ * is <b>false for NaN</b>, both comparisons at once, which is how a volume, a fraction, a radius and a
+ * timer's delay each passed their own bounds and reached the mixer, the GPU, the preference file and the
+ * clock. So {@link #num} asks the value too: a number here is <b>finite</b>. And where the thing named is an
+ * INDEX, an ID, a COUNT or a number of PIXELS, {@link #integer} asks the other half — LuaJ's {@code toint()}
+ * truncates through {@code long} with nothing said ({@code 2.7} is {@code 2}, {@code 1e10} is
+ * {@code 1410065408} and {@code math.huge} is {@code -1}), so a range test written after one never sees what
+ * the caller wrote. {@link #optnum} is the optional twin of {@link #num}, as {@link #optint} is of
+ * {@link #integer}.
+ *
+ * <p><b>And the optional twins, {@link #optnum} and {@link #optint}, are part of that discipline rather
+ * than a convenience.</b> An argument a verb can do without is still an argument whose type and value are
+ * checked, and an options-table field is such an argument: LuaJ's {@code optint} and
  * {@code optdouble} coerce a numeric string and fall through to a raw <i>bad argument</i> on anything else,
  * so a verb that reaches for them hands both mistakes back at once. Where a helper here does not cover a
  * shape, that is the thing to fix — an optional argument left to LuaJ is how a swept file stays unswept.
@@ -106,23 +118,97 @@ final class Args {
         return v;
     }
 
-    /** A <b>required number</b> argument, by type — the other half of {@link #str}, and the same reason. */
+    /** A <b>required number</b> argument, by type and by value — the other half of {@link #str}, same reason. */
     static LuaValue num(Varargs a, int i, String verb, String param, String hint) {
         return num(required(a, i, verb, param), verb, param, hint);
     }
 
-    /** {@link #num(Varargs, int, String, String, String)} over a value already in hand. */
+    /**
+     * {@link #num(Varargs, int, String, String, String)} over a value already in hand.
+     *
+     * <p><b>Finite, and that is not a second check but the same one.</b> A number an API can do something
+     * with is a number a comparison can order: {@code NaN < 0} and {@code NaN > 1} are <i>both</i> false, so
+     * every {@code 0..1} guard in the bridge waved it through, and {@code math.huge} divides into a zero and
+     * multiplies into a matrix with no inverse. Refused here rather than at each of them, because the verb
+     * that took it is the only place that still knows the caller's own spelling.
+     */
     static LuaValue num(LuaValue v, String verb, String param, String hint) {
         if(v.type() != LuaValue.TNUMBER)
             throw new LuaError(verb + ": " + param + " must be a number" + hint(hint) + ", got " + v.typename()
                 + ((v.type() == LuaValue.TSTRING) ? STRING_IS_NOT : ""));
+        double d = v.todouble();
+        if(!Double.isFinite(d))
+            throw new LuaError(verb + ": " + param + " must be a finite number" + hint(hint) + ", got "
+                + show(d));
         return v;
     }
 
     /**
-     * An <b>optional number</b> argument: the caller's number, or {@code def} when they passed nothing at
-     * all. The twin of {@link #num} for the argument a verb can do without — a modifier bitfield, a button,
-     * a count.
+     * A <b>required whole number</b> argument — an index, an id, a count, a number of design pixels. The
+     * value {@link #num} passes, plus the two things a cast does silently and this refuses by name.
+     *
+     * <p><b>Why a cast is not a check.</b> LuaJ's {@code toint()} is {@code (int)(long)d}: it truncates
+     * {@code 2.7} to {@code 2}, wraps {@code 1e10} to {@code 1410065408} and answers {@code -1} for
+     * {@code math.huge}. Every one of those is a number a range test written afterwards then approves,
+     * because the test never sees what the caller wrote — which is how {@code s:speed():set(2.7)} chose
+     * speed 2, a glow took a radius of 1.4 billion design pixels, and a fractional gob id minted the handle
+     * for its neighbour. The API's rule is that an index is a whole number, so that is what is asked, once,
+     * here.
+     */
+    static int integer(Varargs a, int i, String verb, String param, String hint) {
+        return integer(required(a, i, verb, param), verb, param, hint);
+    }
+
+    /** {@link #integer(Varargs, int, String, String, String)} over a value already in hand (a table field,
+     *  a {@link #written} result, a collection key). */
+    static int integer(LuaValue v, String verb, String param, String hint) {
+        return (int)integer(v, verb, param, hint, Integer.MIN_VALUE, Integer.MAX_VALUE);
+    }
+
+    /**
+     * {@link #integer} for a whole number too wide for an {@code int} — a gob id is the server's own
+     * unsigned 32-bit number, and a party member is addressed by one. {@code lo}/{@code hi} are the range
+     * the receiver can actually hold; past {@code 2^53} a Lua number no longer names one integer, which is
+     * what {@link #EXACT} bounds an id door by.
+     */
+    static long integer(LuaValue v, String verb, String param, String hint, long lo, long hi) {
+        double d = num(v, verb, param, hint).todouble();
+        if(d != Math.floor(d))
+            throw new LuaError(verb + ": " + param + " must be a whole number" + hint(hint) + ", got "
+                + show(d));
+        if((d < lo) || (d > hi))
+            throw new LuaError(verb + ": " + param + " must be a whole number" + hint(hint) + " from " + lo
+                + " to " + hi + ", got " + show(d));
+        return (long)d;
+    }
+
+    /** The widest whole number a Lua number names exactly ({@code 2^53}) — the bound of an id door. */
+    static final long EXACT = 9007199254740992L;
+
+    /**
+     * An <b>optional number</b>: the caller's finite number, or {@code def} when they passed nothing at all.
+     * The twin of {@link #num} for the argument a verb can do without — a volume, a line's width, an angle.
+     * An explicit {@code nil} in a slot the caller passed is refused by {@link #written}, like any other.
+     */
+    static double optnum(Varargs a, int i, String verb, String param, String hint, double def) {
+        LuaValue v = written(a, i, verb, param);
+        return (v == null) ? def : num(v, verb, param, hint).todouble();
+    }
+
+    /**
+     * {@link #optnum(Varargs, int, String, String, String, double)} over a value already in hand — an
+     * options-table field, which is absent as a {@code nil} rather than as a missing slot. <b>Absent is the
+     * default; present and not a finite number is a refusal</b>, because a field spelled wrong that silently
+     * became the default is the write nobody made, which is the whole argument {@link #written} rests on.
+     */
+    static double optnum(LuaValue v, String verb, String param, String hint, double def) {
+        return v.isnil() ? def : num(v, verb, param, hint).todouble();
+    }
+
+    /**
+     * An <b>optional whole number</b> argument: the caller's number, or {@code def} when they passed nothing
+     * at all. The twin of {@link #integer} for the argument a verb can do without — a modifier bitfield, a
+     * button, a count.
      *
      * <p><b>Why an optional argument needs a helper of its own.</b> LuaJ's {@code optint}/{@code optdouble}
      * do two wrong things in one call. A value of the wrong kind falls through to {@code checkint()} and
@@ -138,12 +224,27 @@ final class Args {
      */
     static int optint(Varargs a, int i, String verb, String param, String hint, int def) {
         LuaValue v = written(a, i, verb, param);
-        return (v == null) ? def : num(v, verb, param, hint).toint();
+        return (v == null) ? def : integer(v, verb, param, hint);
     }
 
     /** What the call site knows and the parameter name does not, in parentheses, or nothing. */
     private static String hint(String hint) {
         return (hint == null) ? "" : (" (" + hint + ")");
+    }
+
+    /**
+     * The number as the caller wrote it, for a refusal. {@code Double.toString} spells a whole number
+     * {@code 12.0} and a big one {@code 1.0E10}, neither of which is what was typed; and the two values this
+     * class exists to refuse have no decimal spelling at all, so they are named.
+     */
+    private static String show(double d) {
+        if(Double.isNaN(d))
+            return "nan";
+        if(Double.isInfinite(d))
+            return (d > 0) ? "inf" : "-inf";
+        if((d == Math.floor(d)) && (Math.abs(d) < 1e15))
+            return Long.toString((long)d);
+        return Double.toString(d);
     }
 
     private static final String NUMBER_IS_NOT =

@@ -593,11 +593,7 @@ public final class LuaGob {
      * direct verb, and the loudest failure is the one at the call site that caused it.
      */
     private static float scaleArg(LuaValue v) {
-        if(!v.isnumber())
-            throw new LuaError("gob:scale(k): k must be a number, got " + v.typename());
-        double k = v.todouble();
-        if(Double.isNaN(k) || Double.isInfinite(k))
-            throw new LuaError("gob:scale(k): k must be a finite number, got " + k);
+        double k = Args.num(v, "gob:scale", "k", "1 is the original size").todouble();
         if(k <= 0.0)
             throw new LuaError("gob:scale(k): k must be greater than 0, got " + k + " — 0 collapses the object"
                 + " to a point and a negative one turns it inside out. gob:scale(1) is the original size");

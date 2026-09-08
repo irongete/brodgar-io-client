@@ -510,8 +510,10 @@ public final class LuaSpeed {
              */
             public LuaValue getMember(LuaValue key) {
                 Integer n;
-                if(key.isnumber()) {                // BEFORE isstring(): in LuaJ a number IS a string
-                    int i = key.toint();            // 090: the 1-based position sp:index() answers
+                if(key.type() == LuaValue.TNUMBER) {   // by TYPE, so "2" is a name and not a position
+                    // 090: the 1-based position sp:index() answers
+                    int i = Args.integer(key, CharApi.SP + ":get", "key", "the 1-based position sp:index()"
+                                         + " answers, 1..4 (1=crawl 2=walk 3=run 4=sprint)");
                     n = ((i < 1) || (i > SPEEDS)) ? null : Integer.valueOf(i - 1);
                 } else if(key.isstring()) {
                     n = byName(key.tojstring());
@@ -537,8 +539,10 @@ public final class LuaSpeed {
         LuaSpeed h = resolve(x);
         if(h != null)
             return h.index;
-        if(x.isnumber()) {                          // BEFORE isstring(): in LuaJ a number IS a string
-            int n = x.toint();                      // 090: the 1-based position sp:index() answers
+        if(x.type() == LuaValue.TNUMBER) {          // by TYPE, so "2" is a name and not a position
+            // 090: the 1-based position sp:index() answers
+            int n = Args.integer(x, CharApi.SP + ":set", "speed", "the 1-based position sp:index() answers,"
+                                 + " 1..4 (1=crawl 2=walk 3=run 4=sprint)");
             if((n < 1) || (n > SPEEDS))
                 throw new LuaError(CharApi.SP + ":set(speed): the index is the 1-based position sp:index()"
                     + " answers, 1..4 (1=crawl 2=walk 3=run 4=sprint), got " + n);

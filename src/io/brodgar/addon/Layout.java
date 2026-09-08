@@ -1011,9 +1011,11 @@ final class Layout {
             if((x.type() != LuaValue.TNUMBER) || (y.type() != LuaValue.TNUMBER))
                 throw new LuaError(ctx + "." + prop + ": expected two numbers — " + shape + " or " + keyed);
         }
-        if(size && ((x.toint() < 0) || (y.toint() < 0)))
-            throw new LuaError(ctx + ".size: a size cannot be negative (got " + x.toint() + "x" + y.toint() + ")");
-        return Coord.of(x.toint(), y.toint());
+        int ix = Args.integer(x, ctx + "." + prop, ka, "design pixels");
+        int iy = Args.integer(y, ctx + "." + prop, kb, "design pixels");
+        if(size && ((ix < 0) || (iy < 0)))
+            throw new LuaError(ctx + ".size: a size cannot be negative (got " + ix + "x" + iy + ")");
+        return Coord.of(ix, iy);
     }
 
     /**

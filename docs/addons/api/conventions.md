@@ -215,6 +215,22 @@ because a hearth secret is a string, while `entry:value("42")` is taken and a ra
 `"061.8"`, a string that happens to scan as a number being an ordinary string. The refusal names the verb, the
 parameter and the conversion you meant — `tostring(n)` one way, `tonumber(s)` the other.
 
+### A number is finite, and an index is whole
+
+`0/0` and `math.huge` are numbers by type, and nothing else in Lua tells them apart from `3` — so a number
+argument is checked for **being finite** as well. It has to be: every range test written after a type check
+is false for `0/0` on *both* sides at once, so a NaN volume, a NaN fraction and a NaN delay each passed
+their own bounds and reached the mixer, the screen and the clock.
+
+An **index, an id, a count or a number of design pixels is a whole number** too. Lua has one number type,
+so `2.7` is a perfectly legal number to write — but it is not a position, and `s:speed():get(2.7)` reading
+as speed 2 is a call that did something other than what it said. Both raise naming the verb, the parameter
+and the number you wrote.
+
+`x, y` and the lengths the [draw verbs](ui/drawing.md) take are the one family that is finite without being
+whole: they are sub-pixel on purpose, so a label over a moving object does not jitter, and they round once
+where they meet the screen.
+
 ### A table is a value, never named arguments
 
 A table you pass in is **data**: a colour, a coordinate, a document to encode. A thing you build is

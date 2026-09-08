@@ -639,6 +639,12 @@ final class StoreApi {
             } else if(!v.isnil() && !v.isboolean() && !(v instanceof LuaNumber) && !(v instanceof LuaString)
                       && (LuaPosition.resolve(v) == null)) {
                 return at + " holds a " + v.typename();
+            } else if((v instanceof LuaNumber) && !Double.isFinite(v.todouble())) {
+                // A NaN or an infinity IS a LuaNumber, so the kind test above waves it through — and JSON
+                // has no spelling for one, so the writer puts a bare null there and the read back drops the
+                // KEY, which is a saved variable deleted rather than degraded. Named here, where every other
+                // thing a store cannot hold is named.
+                return at + " holds " + (Double.isNaN(v.todouble()) ? "nan" : "an infinity");
             }
         }
         return null;

@@ -247,7 +247,7 @@ public final class LuaKin {
                     return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.group);
                 }
                 AddonManager.requirePermission(owner, Permission.KIN_GROUP);
-                int g = Args.num(group, "kin:group", "group", "0.." + MAXGROUP).toint();
+                int g = Args.integer(group, "kin:group", "group", "0.." + MAXGROUP);
                 if((g < 0) || (g > MAXGROUP))
                     throw new LuaError("kin:group(group): group must be 0.." + MAXGROUP + ", got " + g);
                 require(self, "group").chgrp(g);                      // wdgmsg("grp", id, group)
@@ -563,8 +563,8 @@ public final class LuaKin {
      * (case-insensitive) name and answers {@code nil} when nobody on the roster carries it.
      */
     private static LuaValue find(Addon owner, String user, LuaValue key, String where) {
-        if(key.isnumber())                     // isnumber FIRST: in LuaJ isstring() is true for numbers too
-            return of(owner, user, key.toint());
+        if(key.type() == LuaValue.TNUMBER)     // by TYPE, so "42" is a name and not an id
+            return of(owner, user, Args.integer(key, where, "key", "a buddy id"));
         if(key.isstring()) {
             BuddyWnd bw = CharApi.buddywnd(user);
             if(bw == null)

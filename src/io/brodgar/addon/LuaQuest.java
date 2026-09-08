@@ -391,10 +391,7 @@ public final class LuaQuest {
             }
 
             public LuaValue getMember(LuaValue key) {
-                if(!key.isnumber())
-                    throw new LuaError(CharApi.Q + ":get(id): a quest is addressed by its server ID, a"
-                        + " number — " + CharApi.Q + ":find(\"<title>\") is the search by name");
-                int qid = key.toint();
+                int qid = Args.integer(key, CharApi.Q + ":get", "id", "a quest's server id — " + CharApi.Q + ":find(\"<title>\") is the search by name");
                 return (quest(user, qid) == null) ? LuaValue.NIL : of(owner, user, qid);
             }
 
