@@ -23,7 +23,7 @@
       show under your colour.
       <!-- extra context: src/haven/render/InstanceList.java (InstKey.uinststate) — the batching key -->
 
-- [ ] **135.2 — The page a gob's look is on.** Creates `docs/addons/api/look.md` (*Look: how a gob is
+- [x] **135.2 — The page a gob's look is on.** Creates `docs/addons/api/look.md` (*Look: how a gob is
       drawn*) from `gob.md`'s Size, Drawn or not and Overlays sections plus a new Tint section that
       states the blend, the `a = 255` flat fill, the `nil`, the keyed read, and "a size's rules exactly"
       for where it lands and how long it lasts. `gob.md` keeps a `## How it is drawn` pointer and ends
