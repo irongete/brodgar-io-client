@@ -37,36 +37,37 @@ final class SurfaceInput {
     /** Below this a determinant is noise: the quad is edge-on and has no interior to land on. */
     private static final float EPS = 1e-6f;
 
-    /**
-     * The surface a button press landed on, so the release and whatever drag came between go to the SAME
-     * panel even after the pointer has left it — the flat UI's own grab behaviour, which a widget standing in
-     * the world has to keep for a scrollbar or a slider to be usable at all.
-     */
-    private static volatile WidgetSurface held;
+    /* THE PANEL A PRESS IS DOWN ON IS ONE LOGIN'S (audit2 B01): SessionState.surfaceHeld and
+     * .surfaceHeldFrame. They were one pair of fields for the client -- the surface a button press landed on,
+     * so the release and whatever drag came between go to the SAME panel even after the pointer has left it,
+     * and the frame it was last handed something, without which a gesture whose release never comes past
+     * MapView would look eternal and repaint that panel every frame forever. One pair for the client meant a
+     * release or a drag arriving through one login's map view resolved against a panel held in another's;
+     * per session each login's gesture is its own, and the clock is the one its own render pass keeps. */
 
-    /**
-     * The frame the held surface was last handed something. A widget that takes the mouse on its press — every
-     * button does — is fed the REST of the gesture by the UI's own grab, which never comes past {@code MapView},
-     * so the release that ends it is one this class simply never sees. Without a clock the gesture would look
-     * eternal and {@link #gesturing} would repaint that panel every frame for the rest of the session.
-     */
-    private static volatile long heldFrame = Long.MIN_VALUE;
+    /** The state a gesture on {@code s} is recorded in — the session that panel stands in, or {@code null}
+     *  once that tree is gone. */
+    private static AddonManager.SessionState stateOf(WidgetSurface s) {
+        return (s == null) ? null : s.state();
+    }
 
     /** A surface has ended: it must not go on receiving the rest of a gesture. */
     static void forget(WidgetSurface s) {
-        if(held == s)
-            held = null;
+        AddonManager.SessionState st = stateOf(s);
+        if((st != null) && (st.surfaceHeld == s))
+            st.surfaceHeld = null;
     }
 
     /**
      * Is a gesture in flight on {@code s} <i>right now</i>? While one is, the panel repaints every frame: a
      * control being dragged — a scrollbar, a slider — has no cached face to say it changed, it simply draws its
      * new position, so the drag itself is the only signal that covers all of them. Bounded by the frame the
-     * last event arrived in, for the reason {@link #heldFrame} gives: a still pointer is not changing anything
+     * last event arrived in, for the reason the note above gives: a still pointer is not changing anything
      * anyway, and a gesture that ended out of sight must not cost anything forever.
      */
     static boolean gesturing(WidgetSurface s) {
-        return (held == s) && ((WidgetSurface.frames() - heldFrame) <= 2);
+        AddonManager.SessionState st = stateOf(s);
+        return (st != null) && (st.surfaceHeld == s) && ((st.surfaceFrames - st.surfaceHeldFrame) <= 2);
     }
 
     // ---------------------------------------------------------------- the homography (pure arithmetic)
@@ -161,8 +162,12 @@ final class SurfaceInput {
 
     /** {@code panel:screen(x, y)} — the same, in the SCREEN coordinates the pointer itself reports. */
     static Coord screenOf(LuaWidgetEntity we, int wx, int wy) {
-        Coord mr = viewOrigin();
-        if((mr == null) || (we == null) || we.dead)
+        if((we == null) || we.dead)
+            return null;
+        // audit2 B01: the panel's OWN login's scene, not the drawn one's — the same read refreshOrigin makes.
+        AddonManager.SessionState st = we.surface.state();
+        Coord mr = (st == null) ? null : viewOrigin(st.view());
+        if(mr == null)
             return null;
         Coord p = screen(we.surface, wx, wy);
         return (p == null) ? null : p.add(mr);
@@ -209,21 +214,26 @@ final class SurfaceInput {
 
     static boolean mouseDown(MapView mv, Widget.MouseDownEvent ev) {
         Hit h = hit(mv, ev.c);
-        held = (h == null) ? null : h.s;
-        heldFrame = WidgetSurface.frames();
+        AddonManager.SessionState st = AddonManager.state(mv.ui);   // the login this press arrived through
+        if(st != null) {
+            st.surfaceHeld = (h == null) ? null : h.s;
+            st.surfaceHeldFrame = st.surfaceFrames;
+        }
         return deliver(mv, h, ev);
     }
 
     static boolean mouseUp(MapView mv, Widget.MouseUpEvent ev) {
-        Hit h = grabbed(ev.c);
-        held = null;
+        Hit h = grabbed(mv, ev.c);
+        AddonManager.SessionState st = AddonManager.state(mv.ui);
+        if(st != null)
+            st.surfaceHeld = null;
         if(h == null)
             h = hit(mv, ev.c);
         return deliver(mv, h, ev);
     }
 
     static boolean mouseMove(MapView mv, Widget.MouseMoveEvent ev) {
-        Hit h = grabbed(ev.c);
+        Hit h = grabbed(mv, ev.c);
         return deliver(mv, (h == null) ? hit(mv, ev.c) : h, ev);
     }
 
@@ -231,11 +241,15 @@ final class SurfaceInput {
         return deliver(mv, hit(mv, ev.c), ev);
     }
 
-    /** The gesture in progress, if a press is still down on a surface — extrapolated, so it survives leaving it. */
-    private static Hit grabbed(Coord pc) {
-        WidgetSurface s = held;
-        if((s == null) || !s.takesPointer()) {
-            held = null;
+    /** The gesture in progress in {@code mv}'s own login, if a press is still down on a surface there —
+     *  extrapolated, so it survives leaving it. */
+    private static Hit grabbed(MapView mv, Coord pc) {
+        AddonManager.SessionState st = AddonManager.state(mv.ui);
+        WidgetSurface s = (st == null) ? null : st.surfaceHeld;
+        if(s == null)
+            return null;
+        if(!s.takesPointer()) {
+            st.surfaceHeld = null;
             return null;
         }
         Coord l = local(s, pc.x, pc.y, false);
@@ -255,8 +269,9 @@ final class SurfaceInput {
         Coord mr = viewOrigin(mv);
         if(mr != null)
             h.s.origin(ev.c.add(mr).sub(h.local));
-        if(held == h.s)
-            heldFrame = WidgetSurface.frames();
+        AddonManager.SessionState st = AddonManager.state(mv.ui);
+        if((st != null) && (st.surfaceHeld == h.s))
+            st.surfaceHeldFrame = st.surfaceFrames;
         try {
             ev.derive(h.local).dispatch(h.s);
         } catch(RuntimeException e) {
@@ -377,28 +392,30 @@ final class SurfaceInput {
      * set would put that list's own clicks somewhere else entirely.
      */
     static void refreshOrigin(WidgetSurface s) {
-        Coord mr = viewOrigin();
+        // audit2 B01: THIS panel's own login, in both halves. It read the DRAWN session's map view and the
+        // DRAWN session's held panel for every session's surfaces alike, so a background character's panels
+        // were placed against a scene they do not stand in.
+        AddonManager.SessionState st = (s == null) ? null : s.state();
+        if(st == null)
+            return;
+        Coord mr = viewOrigin(st.view());
         if(mr == null)
             return;
-        if(held != s) {
+        if(st.surfaceHeld != s) {
             Coord tl = screen(s, 0, 0);
             if(tl != null)
                 s.origin(tl.add(mr));
             return;
         }
-        UI u = AddonManager.screen();
-        if((u == null) || (u.mc == null))
+        UI u = st.ui;
+        if(u.mc == null)
             return;
         Coord l = local(s, u.mc.x - mr.x, u.mc.y - mr.y, false);
         if(l != null)
             s.origin(u.mc.sub(l));
     }
 
-    /** Where the map view sits in the UI's own coordinates — screen point &harr; map-view point. */
-    private static Coord viewOrigin() {
-        return viewOrigin(AddonManager.screenView());
-    }
-
+    /** Where the map view sits in its own UI's coordinates — screen point &harr; map-view point. */
     private static Coord viewOrigin(MapView mv) {
         if((mv == null) || (mv.ui == null) || (mv.ui.root == null) || !mv.hasparent(mv.ui.root))
             return null;

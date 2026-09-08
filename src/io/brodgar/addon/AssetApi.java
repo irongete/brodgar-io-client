@@ -468,7 +468,17 @@ final class AssetApi {
             throw new LuaError("hafen.asset: could not read font '" + name + "': " + e.getMessage());
         }
         try {
-            GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(f);   // so h:family() resolves in $font (F2)
+            // The AWT font registry is the JVM's ONE namespace of family names, and it has no counterpart:
+            // nothing unregisters a family, so a family this addon loads stays resolvable in $font[…] for
+            // every addon after this one is disabled. That half cannot be fixed here, and runtime.md says so.
+            // What CAN be said is the other half the return value carries (audit2 B01): false means the family
+            // name was already taken — by the OS, by the client, or by another addon's file — and $font[…]
+            // will therefore draw THAT face rather than this file's. The handle itself is unaffected: it holds
+            // the Font this load created and draws it whoever else owns the name.
+            if(!GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(f))
+                AddonManager.log("font family '" + f.getFamily() + "' (" + owner.manifest.id + ": " + name + ")"
+                                 + " is already registered in this client — $font[" + f.getFamily() + "] draws"
+                                 + " the face that took the name first; the handle itself draws this file");
         } catch(RuntimeException e) { /* best-effort: even if registration fails the handle still draws via its Font */ }
         FontHandle fh = new FontHandle(f, null, null, null);
         fh.asset = new Asset(owner, name) {

@@ -604,13 +604,19 @@ final class Controls {
         return c;
     }
 
-    /** The (widget, key) whose action {@link #replay} is running right now, or {@code null} — see {@link #activate}. */
-    private static Widget replayWdg;
-    private static String replayKey;
-
-    /** Is this activation the one {@code ev:resend()} is replaying? Then the seam is not asked again. */
+    /**
+     * Is this activation the one {@code ev:resend()} is replaying <b>in this widget's own tree</b>? Then the
+     * seam is not asked again.
+     *
+     * <p>The flag is the tree's ({@link AddonManager.SessionState#replayWdg}, audit2 B01). It was one pair for
+     * the client, confined to neither thread nor session, so a second UI dispatching an activation while one
+     * was replaying read the other's {@code (widget, key)}. A widget names its tree, so the question is asked
+     * of the tree the widget is in, and a widget with no state behind it — a tree already destroyed — is
+     * simply not replaying.
+     */
     private static boolean replaying(Widget w, String key) {
-        return (replayWdg == w) && key.equals(replayKey);
+        AddonManager.SessionState st = AddonManager.state(w.ui);
+        return (st != null) && (st.replayWdg == w) && key.equals(st.replayKey);
     }
 
     /**
@@ -641,15 +647,20 @@ final class Controls {
      * so neither may be reported as one.
      */
     private static void unseamed(Widget w, String key, Runnable body) {
-        Widget pw = replayWdg;
-        String pk = replayKey;
-        replayWdg = w;
-        replayKey = key;
+        AddonManager.SessionState st = (w == null) ? null : AddonManager.state(w.ui);
+        if(st == null) {
+            body.run();       // no tree to suppress the seam in: the run itself is still owed
+            return;
+        }
+        Widget pw = st.replayWdg;
+        String pk = st.replayKey;
+        st.replayWdg = w;
+        st.replayKey = key;
         try {
             body.run();
         } finally {
-            replayWdg = pw;
-            replayKey = pk;
+            st.replayWdg = pw;
+            st.replayKey = pk;
         }
     }
 

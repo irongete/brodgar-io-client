@@ -85,8 +85,25 @@ final class WidgetSurface extends Widget {
     // drawn session's offscreen pass rendering another session's widget tree.
 
 
-    /** Offscreen passes actually issued, and frames the pass was offered — the {@code p:surfaces()} counters. */
-    private static volatile long uploads, frames;
+    /**
+     * <b>The render clock of one session</b> (audit2 B01) — the frames its offscreen pass was offered, which
+     * is what {@link #culled} and {@link SurfaceInput#gesturing} measure their two-frame slack against, and
+     * the passes actually issued beside it.
+     *
+     * <p>Both were one counter for the client, incremented once per SESSION per frame: two logins consumed
+     * the slack at twice the rate and raced a non-atomic read-modify-write on it. They belong to the session
+     * because the increment always did, and the surfaces they clock stand in one tree apiece.
+     */
+    private long clock() {
+        AddonManager.SessionState st = state();
+        return (st == null) ? 0 : st.surfaceFrames;
+    }
+
+    /** <b>The state of the session this panel stands in</b>, or {@code null} once that tree is gone — the
+     *  render clock, the held panel and the surface list are all in it. */
+    AddonManager.SessionState state() {
+        return AddonManager.state(sui);
+    }
 
     /**
      * The offscreen blend: colour composites the ordinary way, but the ALPHA channel accumulates
@@ -198,7 +215,7 @@ final class WidgetSurface extends Widget {
         this.quad = q;
         this.qdepth = depth;
         this.onscreen = (q != null) && (view != null) && meets(q, view);
-        this.qframe = frames;
+        this.qframe = clock();
     }
 
     /**
@@ -241,7 +258,7 @@ final class WidgetSurface extends Widget {
      * anything changed while it was not.
      */
     boolean culled() {
-        return ((frames - qframe) > 2) || !onscreen;
+        return ((clock() - qframe) > 2) || !onscreen;
     }
 
     /**
@@ -251,7 +268,7 @@ final class WidgetSurface extends Widget {
      * before the world draw that records them.
      */
     float[] corners() {
-        return ((frames - qframe) <= 2) ? quad : null;
+        return ((clock() - qframe) <= 2) ? quad : null;
     }
 
     float depth() {
@@ -324,10 +341,13 @@ final class WidgetSurface extends Widget {
     static void renderAll(UI u, Render out) {
         if((u == null) || (out == null))
             return;
-        java.util.List<WidgetSurface> mine = all(u);   // 073.2: the panels of the tree being drawn
+        AddonManager.SessionState st = AddonManager.state(u);
+        if(st == null)
+            return;
+        java.util.List<WidgetSurface> mine = st.surfaces;   // 073.2: the panels of the tree being drawn
         if(mine.isEmpty())
             return;
-        frames++;
+        st.surfaceFrames++;
         synchronized(u) {
             for(WidgetSurface s : mine)                // copy-on-write: a draw callback may stand or end one
                 s.render(out);
@@ -357,7 +377,9 @@ final class WidgetSurface extends Widget {
             return;
         }
         dirty = false;
-        uploads++;
+        AddonManager.SessionState st = state();
+        if(st != null)
+            st.surfaceUploads++;
     }
 
     /**
@@ -571,11 +593,22 @@ final class WidgetSurface extends Widget {
         return n;
     }
 
+    /**
+     * The {@code p:surfaces()} counters, rolled up for the client (audit2 B01) — the sum over the live
+     * sessions, which is exactly the number one shared counter carried: it was incremented once per session
+     * per frame, so the client-wide figure is the sum and neither reader changes what it reports.
+     */
     static long uploads() {
-        return uploads;
+        long n = 0;
+        for(AddonManager.SessionState st : AddonManager.allStates())
+            n += st.surfaceUploads;
+        return n;
     }
 
     static long frames() {
-        return frames;
+        long n = 0;
+        for(AddonManager.SessionState st : AddonManager.allStates())
+            n += st.surfaceFrames;
+        return n;
     }
 }

@@ -3658,11 +3658,11 @@ public class MapView extends PView implements DTarget, Console.Directory {
 	/* addon: (105) hand the OBJECT over, not the wire's number. The id inside args is a sign-truncated
 	 * int32 while a gob id is a uint32, so an addon comparing it against gob:id() is right for half the
 	 * id space and wrong for the other half. It is held only for the length of this dispatch. */
-	io.brodgar.addon.AddonManager.clickgob((cg == null) ? -1 : cg.id);
+	io.brodgar.addon.AddonManager.clickgob(ui, (cg == null) ? -1 : cg.id);
 	try {
 	    wdgmsg("click", args);
 	} finally {
-	    io.brodgar.addon.AddonManager.clickgob(-1);
+	    io.brodgar.addon.AddonManager.clickgob(ui, -1);
 	}
     }
     

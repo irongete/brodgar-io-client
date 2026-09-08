@@ -58,8 +58,9 @@ public class Window extends Widget {
     public static final Coord dlmrgn = UI.scale(23, 14);
     public static final Coord dsmrgn = UI.scale(9, 9);
     public static final BufferedImage ctex = Resource.loadsimg("gfx/hud/fonttex");
-    @Deprecated public static final Text.Furnace cf = DefaultDeco.cf;
-    @Deprecated public static final Text.Furnace ncf = DefaultDeco.ncf;
+    // addon: (audit2 B01) the two @Deprecated aliases of DefaultDeco.cf/ncf are gone with the statics they
+    // aliased. Nothing in the tree read them, and both were always null: the furnaces they pointed at are
+    // built lazily inside checktitlefont(), long after this class initialises.
     public static final IBox wbox = new IBox.Scaled("gfx/hud/wnd", "tl", "tr", "bl", "br", "extvl", "extvr", "extht", "exthb") {
 	    final Coord co = UI.scale(3, 3), bo = UI.scale(2, 2);
 
@@ -181,9 +182,14 @@ public class Window extends Widget {
 	// none, the stock foundry, cascading through "default"). The furnaces are rebuilt lazily whenever
 	// Fonts.gen() moves, and each window's cached `cap` re-renders on the same check (see drawframe).
 	public static final Text.Foundry titlefnd = new Text.Foundry(Text.fraktur, 15).aa(true);
-	private static Text.Forge cf, ncf;
-	private static int fontgen = -1;
-	private static void checktitlefont() {
+	// addon: (audit2 B01) THIS decoration's own furnaces, not the client's. They were three statics, compared
+	// against Fonts.gen() -- which folds the per-widget style frame's stamp in, so it is NOT a frame-global:
+	// two visible windows resolving to different styles each read fontgen != g inside their own draw and each
+	// rebuilt the relief and both halos, every frame, for ever. Per decoration the comparison is against the
+	// generation THIS window last built at, which is what the cached caption beside it (capgen) already did.
+	private Text.Forge cf, ncf;
+	private int fontgen = -1;
+	private void checktitlefont() {
 	    int g = Fonts.gen();
 	    if((cf == null) || (fontgen != g)) {
 		stockdecl();               // addon: (065.17) what this decoration is made of, said where it is drawn

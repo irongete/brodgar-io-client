@@ -8,11 +8,9 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.OneArgFunction;
 
-import java.lang.ref.Reference;
-import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
-import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * A <b>FightSummary object</b> — the scalars around one character's deck ({@code s:fight():summary()}): the
@@ -69,56 +67,45 @@ public final class LuaFightSummary {
 
     // ---- the per-addon intern cache + metatable ----------------------------------------------------
 
-    /** One addon's FightSummary cache and metatable (its {@link Addon#fightSummaries}), keyed by the window. */
+    /**
+     * One addon's FightSummary cache and metatable (its {@link Addon#fightSummaries}), keyed by the window.
+     *
+     * <p><b>Weak on BOTH axes</b> ({@code WeakHashMap<FightWnd, WeakReference<LuaValue>>}, audit2 B01) — the
+     * shape {@link LuaWidget.Cache} states the reason for, and the reason applies here too. It keyed the
+     * window STRONGLY, and its queue entry held the key a second time, so a destroyed character window and
+     * its whole subtree stayed reachable from this map until something minted another summary in the same
+     * addon — which, for an addon that asked once and kept the handle, is never. {@code haven.Widget}
+     * overrides neither {@code equals} nor {@code hashCode}, so the weak map is identity-keyed exactly as the
+     * {@code IdentityHashMap} was; the value is a {@link WeakReference} so it never strongly reaches its own
+     * key, and a value cleared while the window still stands is simply re-minted on the next look-up.
+     */
     static final class Cache {
-        // retained: the strong-key shape LuaItem.Cache retires, at a size that does not force it. A FightWnd is
-        //   one widget inside the character window, which hides rather than closing, so nothing rotates through
-        //   here; drain() takes the entry on the next of() once Lua has released the handle.
-        private final Map<FightWnd, Ref> live = new IdentityHashMap<FightWnd, Ref>();
-        private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
+        // retained: weak on both axes -- the value is a WeakReference, so nothing here reaches the window.
+        private final Map<FightWnd, WeakReference<LuaValue>> live =
+            new WeakHashMap<FightWnd, WeakReference<LuaValue>>();
         private LuaValue mt;
 
         Cache(Addon owner) {
         }
 
         synchronized LuaValue of(FightWnd wnd) {
-            drain();
             if(wnd == null)
                 return LuaValue.NIL;
-            Ref r = live.get(wnd);
+            WeakReference<LuaValue> r = live.get(wnd);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(wnd);
             }
             LuaValue v = LuaValue.userdataOf(new LuaFightSummary(wnd), meta());
-            live.put(wnd, new Ref(v, wnd, dead));
+            live.put(wnd, new WeakReference<LuaValue>(v));
             return v;
-        }
-
-        private void drain() {
-            Reference<? extends LuaValue> r;
-            while((r = dead.poll()) != null) {
-                Ref sr = (Ref)r;
-                if(live.get(sr.key) == sr)
-                    live.remove(sr.key);
-            }
         }
 
         private LuaValue meta() {
             if(mt == null)
                 mt = buildMeta();
             return mt;
-        }
-    }
-
-    private static final class Ref extends WeakReference<LuaValue> {
-        final FightWnd key;
-
-        Ref(LuaValue v, FightWnd key, ReferenceQueue<LuaValue> q) {
-            super(v, q);
-            this.key = key;
         }
     }
 

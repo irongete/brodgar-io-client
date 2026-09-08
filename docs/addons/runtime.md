@@ -264,6 +264,13 @@ commands, input hooks, your windows and overlays, world ghosts, sprites and obje
 stylesheet, sounds you started, and the client's own widgets you hid, moved or replaced, which are handed
 back as the user was seeing them. Written first: your saved variables, flushed at `Disable`.
 
+Everything your addon holds lives on the addon, or on the login it was made in, and goes with it — a
+disable frees what that addon had and touches no other's. Two things you reach are the client's own and
+stay: a **font family** you load goes into the one namespace the whole client shares, and nothing takes a
+family back, so `$font[…]` still resolves it and a name already registered draws the face that took it
+first (your own handle always draws your file); and a **sound** of several clips leaves an entry in the
+client's audio cache, beside the ones its own sounds leave.
+
 Kept: everything outside the addon layer. The client itself is not reloaded, so a `:reload` never costs you
 your login.
 

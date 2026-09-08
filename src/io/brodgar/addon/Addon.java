@@ -1141,6 +1141,53 @@ public final class Addon {
     final LuaGOut.Cache texts = new LuaGOut.Cache();
 
     /**
+     * This addon's <b>{@code g} draw wrapper</b> (audit2 B01) — the one {@link LuaGOut} every painter of
+     * <i>this</i> addon binds for the length of one draw callback: a HUD overlay, a widget overlay. It was one
+     * wrapper for the client, on the premise that the draw traversal is single-threaded and never re-entrant,
+     * which made a nested painter of ANOTHER addon rebind the outer painter's wrapper mid-call — its remaining
+     * verbs going inert and its text rendering into the inner addon's cache. Per addon the premise is no longer
+     * needed: two addons painting inside one another hold two wrappers, and each stays bound to its own owner.
+     *
+     * <p>The other wrappers are narrower still and stay where they are: {@link AddonWidget} and {@link CGrid}
+     * hold one per WIDGET, which is one addon's by construction, and {@link LuaGobOverlay} one per gob attrib.
+     */
+    final LuaGOut gout = new LuaGOut();
+
+    /**
+     * This addon's <b>engine-resource caches</b> for {@code g:resource(name, ...)} (audit2 B01, D-039): the
+     * resource name &rarr; its {@link haven.Indir} lookup, and beside it the LINEAR-sampled {@link haven.Tex}
+     * copy that name is drawn through. Both were one map for the client, keyed by any Lua string an addon ever
+     * passed and dropped only by a full {@code :reload} — never by a disable, and never per addon. The second
+     * holds GL memory, one texture per distinct name, which is why {@link LuaGOut#dropResources} disposes each
+     * before it drops the maps.
+     *
+     * <p>Concurrent because {@code g:resource} is reached from every thread that draws.
+     */
+    final Map<String, haven.Indir<haven.Resource>> resCache =
+        new ConcurrentHashMap<String, haven.Indir<haven.Resource>>();
+    final Map<String, haven.Tex> resTexCache = new ConcurrentHashMap<String, haven.Tex>();
+
+    /**
+     * <b>What this addon has asked to be drawn at a game object</b> (audit2 B01, {@link GobIntent}): gob id
+     * &rarr; the size, the tint, the hiding and the overlays it wrote there, so a session that loads the object
+     * afterwards draws it the same. Only ids this addon actually asked for something at are in it.
+     *
+     * <p><b>Per addon and not for the client</b>, which is what makes a teardown free: the wishes of an addon
+     * that has stopped running are gone with the addon, so nothing an unguarded sweep may skip can re-apply
+     * them to a copy that arrives later. The gob id stays the key because a gob id is the <i>server's</i> and
+     * names one object — {@link GobIntent} holds the whole reason.
+     */
+    final Map<Long, GobIntent.Record> gobIntents = new java.util.HashMap<Long, GobIntent.Record>();
+
+    /**
+     * This addon's <b>marker refs</b> ({@link MapApi#markerId}) — the {@link haven.MapFile.Marker} an
+     * interned Marker object stands for, in both directions, minted on the first hand-out. Per addon
+     * because a ref is minted only because an addon asked for one, and weak on the marker so a pin the map
+     * database itself has dropped is not held here alone.
+     */
+    final MapApi.MarkerRefs markerRefs = new MapApi.MarkerRefs();
+
+    /**
      * The single {@code hafen.ui():mouse()} object for this addon ({@link LuaMouse}, 041.5) — the pointer
      * entity, built lazily and cached so {@code hafen.ui():mouse() == hafen.ui():mouse()}, the same singleton
      * shape every singleton here has. Holds no engine resource itself (its verbs read live UI state on every

@@ -40,22 +40,27 @@ import java.util.Map;
  *
  * <p><b>Interned on the marker ref</b>, which is the identity the engine actually has: a
  * {@link MapFile.Marker} is loaded once and then mutated in place (a merge rewrites its fields; it is never
- * re-minted), so object identity is stable and {@link MapApi}'s ref map — the one 037.1 already handed to
- * Lua as a number — is exactly the right key. The ref is the <b>client's</b>: there is one database per
+ * re-minted), so object identity is stable and the ref map — the one 037.1 already handed to Lua as a number
+ * — is exactly the right key. The <b>pin</b> is the client's: there is one database per
  * {@code (store, filename)}, so two characters on one server read the same {@code Marker} objects and a
- * handle minted while one of them is drawn names the same pin when the other is.
+ * handle minted while one of them is drawn names the same pin when the other is. The <b>ref</b> is not
+ * (audit2 B01): it is a number one addon minted for its own handles, so it is kept on that addon
+ * ({@link Addon#markerRefs}) and read back through the owner every handle already carries.
  */
 public final class LuaMarker {
-    /** The per-session marker ref — the whole state of a handle, and its identity ({@link MapApi#markerId}). */
+    /** The addon this handle was minted in — the environment whose {@link MapApi.MarkerRefs} the ref reads. */
+    public final Addon owner;
+    /** This addon's marker ref — the whole state of a handle, and its identity ({@link MapApi#markerId}). */
     public final long ref;
 
-    private LuaMarker(long ref) {
+    private LuaMarker(Addon owner, long ref) {
+        this.owner = owner;
         this.ref = ref;
     }
 
     /** {@code tostring(marker)}: {@code Marker(<name>)}. */
     public String toString() {
-        MapFile.Marker m = MapApi.markerByRef(ref);
+        MapFile.Marker m = MapApi.markerByRef(owner, ref);
         return "Marker(" + (((m == null) || (m.nm == null)) ? "?" : m.nm) + ")";
     }
 
@@ -86,7 +91,7 @@ public final class LuaMarker {
         for(MapFile.Marker m : MapApi.markerList(seg)) {
             if(!matches(filter, owner, m))
                 continue;
-            out.set(++i, of(owner, MapApi.markerId(m)));
+            out.set(++i, of(owner, MapApi.markerId(owner, m)));
         }
         return out;
     }
@@ -99,14 +104,14 @@ public final class LuaMarker {
     static List<LuaValue> members(Addon owner, Long seg) {
         List<LuaValue> out = new ArrayList<LuaValue>();
         for(MapFile.Marker m : MapApi.markerList(seg))
-            out.add(of(owner, MapApi.markerId(m)));
+            out.add(of(owner, MapApi.markerId(owner, m)));
         return out;
     }
 
     /** What a <b>string</b> filter matches on a Marker member: its label. Null for a marker with none. */
     static String name(LuaValue member) {
         LuaMarker h = resolve(member);
-        MapFile.Marker m = (h == null) ? null : MapApi.markerByRef(h.ref);
+        MapFile.Marker m = (h == null) ? null : MapApi.markerByRef(h.owner, h.ref);
         return (m == null) ? null : m.nm;
     }
 
@@ -124,7 +129,7 @@ public final class LuaMarker {
             double d = Math.hypot(worldX(m, sl) - prc.x, worldY(m, sl) - prc.y);
             if(d < bestd) { bestd = d; best = m; }
         }
-        return (best == null) ? LuaValue.NIL : of(owner, MapApi.markerId(best));
+        return (best == null) ? LuaValue.NIL : of(owner, MapApi.markerId(owner, best));
     }
 
     /** Does a marker pass a collection filter? A function filter is called with the interned Marker object. */
@@ -133,7 +138,7 @@ public final class LuaMarker {
             return true;
         if(filter.isfunction()) {
             try {
-                return filter.call(of(owner, MapApi.markerId(m))).toboolean();
+                return filter.call(of(owner, MapApi.markerId(owner, m))).toboolean();
             } catch(RuntimeException e) {   // LuaError is a RuntimeException
                 return false;
             }
@@ -167,7 +172,7 @@ public final class LuaMarker {
                     return v;
                 live.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaMarker(ref), meta());
+            LuaValue v = LuaValue.userdataOf(new LuaMarker(owner, ref), meta());
             live.put(key, new Ref(v, key, dead));
             return v;
         }
@@ -392,7 +397,7 @@ public final class LuaMarker {
             throw new LuaError("marker:" + method + "() — use a COLON call on a Marker object"
                 + " (hafen.map():marker():list()[n], seg:markers()[n],"
                 + " hafen.map():marker():add(name, p))");
-        return MapApi.markerByRef(h.ref);
+        return MapApi.markerByRef(h.owner, h.ref);
     }
 
     /** The world X of a marker's tile centre in this session (the caller has checked the segment matches). */

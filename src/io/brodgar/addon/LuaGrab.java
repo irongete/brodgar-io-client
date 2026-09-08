@@ -50,11 +50,18 @@ public final class LuaGrab {
     }
 
     /**
-     * {@code hafen.ui():mouse():grab()} — mint the capturing widget, arm it on {@code ui.root}, and hand back
-     * its Lua wrapper. {@code nil} if the UI is not up yet (there is nothing to capture on).
+     * {@code hafen.ui():mouse():grab()} — mint the capturing widget, arm it on the ADDON LAYER's own root, and
+     * hand back its Lua wrapper. {@code nil} if the layer is not up yet (there is nothing to capture on).
+     *
+     * <p><b>The layer, not the session on screen</b> (audit2 B01). A grab is the addon's own thing and
+     * {@link AddonManager#layer()} promises exactly this — "a window in it keeps its place, its focus and any
+     * grab it holds across a character switch, because nothing about it moves" — where a grab armed on the
+     * drawn session's tree was stranded in a tree that is no longer drawn the moment the player tabbed. The
+     * layer is offered every pointer event before the session beneath it, and both trees are resized to the
+     * same screen, so the grab captures exactly what it captured before and reports the same coordinates.
      */
     static LuaValue create(Addon owner) {
-        UI u = AddonManager.screen();
+        UI u = AddonManager.layer();
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         LuaMouseGrab g = new LuaMouseGrab(owner);

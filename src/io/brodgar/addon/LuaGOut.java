@@ -18,7 +18,7 @@ import java.awt.Color;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -56,20 +56,24 @@ import org.luaj.vm2.lib.VarArgFunction;
  */
 final class LuaGOut {
     /**
-     * The engine-resource cache for {@code g:resource(name, ...)} (D-039): resource name &rarr; its
-     * {@link Indir}, so a per-frame draw does not re-issue the lookup. The referenced resources are the
-     * client's own global engine resources (shared via {@link Resource#remote()}, which caches them anyway),
-     * so this map holds only lightweight refs and leaks nothing; it is cleared on {@code :reload} for
-     * faithfulness (see {@link #clearResourceCache}).
+     * <b>Drop one addon's {@code g:resource} caches</b> (audit2 B01) &mdash; the name&rarr;{@link Indir}
+     * lookups and, beside them, the LINEAR-sampled texture copies, which are ours and hold GL memory, so each
+     * is disposed before the maps go. Called from the teardown of a {@code :reload} <i>and</i> of a single
+     * disable, which is the whole change: both maps were one set for the client, keyed by any Lua string any
+     * addon ever passed, and dropped by a full {@code :reload} alone.
      */
-    private static final ConcurrentHashMap<String, Indir<Resource>> resCache = new ConcurrentHashMap<String, Indir<Resource>>();
-
-    /** Drop the {@code g:resource} name cache (called from a full {@code :reload}). */
-    static void clearResourceCache() {
-        resCache.clear();
-        for(Tex t : resTexCache.values())
-            t.dispose();                        // the copies are ours: free their GL textures with the names
-        resTexCache.clear();
+    static void dropResources(Addon a) {
+        if(a == null)
+            return;
+        for(Tex t : a.resTexCache.values()) {
+            try {
+                t.dispose();                    // the copies are ours: free their GL textures with the names
+            } catch(RuntimeException e) {
+                /* best-effort: a texture already released is still one we are done with */
+            }
+        }
+        a.resTexCache.clear();
+        a.resCache.clear();
     }
 
     /**
@@ -722,14 +726,6 @@ final class LuaGOut {
     }
 
     /**
-     * {@code g:resource}'s own textures, by name: a private copy per resource, sampled LINEAR (see
-     * {@link #resTex}). Unlike {@link #resCache} beside it this one holds GL memory -- one texture per
-     * distinct name ever drawn -- so {@link #clearResourceCache} disposes each before it drops the map.
-     * Process-wide like its sibling, and to go per addon with it (audit2 B01).
-     */
-    private static final ConcurrentHashMap<String, Tex> resTexCache = new ConcurrentHashMap<String, Tex>();
-
-    /**
      * Resolve an engine resource's default image-layer texture by name for {@code g:resource}, async + cached
      * + {@code Loading}-guarded (D-039): returns {@code null} until the resource is loaded (draw nothing this
      * frame) or on any load failure (a bad name never throws into the render thread), else a texture over the
@@ -737,28 +733,49 @@ final class LuaGOut {
      * texture -- <b>a private copy</b>, not {@code Resource.Image.tex()}: that one is the client's own, drawn
      * by every inventory and menu, and its sampler cannot be turned LINEAR ({@link #smooth}) without turning it
      * for all of them. One extra texture per resource name an addon draws, and it lives as long as the entry.
+     *
+     * <p><b>Both caches are the bound addon's</b> ({@link Addon#resCache}, {@link Addon#resTexCache}, audit2
+     * B01), so what one addon drew is dropped when that addon goes rather than at the next full
+     * {@code :reload}. An unbound wrapper resolves without caching: it has nowhere to put the entry, and a
+     * draw with no owner is a defensive case rather than a path.
      */
-    private static Tex resTex(String name) {
+    private Tex resTex(String name) {
+        Addon a = owner;
         try {
-            Tex have = resTexCache.get(name);
+            if(a == null)
+                return uncachedTex(name);
+            Tex have = a.resTexCache.get(name);
             if(have != null)
                 return have;
-            Indir<Resource> ind = resCache.get(name);
+            Indir<Resource> ind = a.resCache.get(name);
             if(ind == null) {
                 ind = Resource.remote().load(name);
-                resCache.put(name, ind);
+                a.resCache.put(name, ind);
             }
             Resource res = ind.get();               // throws Loading until ready
             Resource.Image img = res.layer(Resource.imgc);
             if(img == null)
                 return null;
             Tex tex = smooth(new TexI(img.scaled()));
-            resTexCache.put(name, tex);
+            a.resTexCache.put(name, tex);
             return tex;
         } catch(Loading l) {
             return null;                            // still resolving → draw nothing this frame
         } catch(RuntimeException e) {
             return null;                            // bad name / load error → draw nothing, never throw
+        }
+    }
+
+    /** The same resolution with nothing to cache into -- see {@link #resTex}. Never throws. */
+    private static Tex uncachedTex(String name) {
+        try {
+            Resource res = Resource.remote().load(name).get();
+            Resource.Image img = res.layer(Resource.imgc);
+            return (img == null) ? null : smooth(new TexI(img.scaled()));
+        } catch(Loading l) {
+            return null;
+        } catch(RuntimeException e) {
+            return null;
         }
     }
 }

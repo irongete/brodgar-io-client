@@ -27,9 +27,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 import io.brodgar.addon.AddonManager.SessionState;
 
@@ -363,13 +364,63 @@ final class MapApi {
     // question about one login, and the file claim is what lets a notify — handed a MapFile and nothing else —
     // find a session to drain on at all.
 
-    /** The id sequence the refs are minted from, and the two maps it feeds. A ref that is unique for the
-     *  client's life is one that can never be misread; the maps are guarded by {@link #markerById}, which the
-     *  UI and REPL threads both reach. */
-    private static long markerIdSeq = 0;
-    private static final IdentityHashMap<MapFile.Marker, Long> markerIds =
-        new IdentityHashMap<MapFile.Marker, Long>();
-    private static final Map<Long, MapFile.Marker> markerById = new HashMap<Long, MapFile.Marker>();
+    /**
+     * <b>One addon's marker refs</b> ({@link Addon#markerRefs}, audit2 B01) &mdash; the two directions of
+     * {@code Marker &harr; ref} plus the sequence they are minted from, all three of which were one set for
+     * the client. Nothing pruned them: not a removal, not a teardown, not the {@code :reload} sweep, so every
+     * marker ever handed to Lua stayed named for the life of the process even after the map database had
+     * dropped the pin.
+     *
+     * <p><b>Per addon</b>, because a ref exists only because an addon asked for one, and it is read back only
+     * through that addon's own handle ({@link LuaMarker#owner}) &mdash; a number one addon minted means
+     * nothing in another's environment, and no Lua value crosses a sandbox boundary (D-017). So the whole set
+     * dies with the {@link Addon} on {@code :reload}/disable, with nothing to tear down.
+     *
+     * <p><b>Weak on the marker, on both sides.</b> The database mints each {@link MapFile.Marker} once and
+     * holds it while the pin exists (a merge rewrites it in place; it is never re-minted), so identity is the
+     * right key &mdash; but a marker DELETED from the database was then held by nothing else, and holding it
+     * here alone made a removed pin unreclaimable. So the forward map is a {@link WeakHashMap}, which keys by
+     * identity of its own accord since {@code MapFile.Marker} overrides neither {@code equals} nor
+     * {@code hashCode}, and the reverse map's value is a {@link WeakReference}. <b>Both</b>, because either
+     * one alone defeats the other: a strong key here would keep the weak reference over there from ever
+     * clearing. Neither value reaches its own key, so the pin is collected with the database's own release and
+     * {@link #prune} drops the ref that named it on the next mint or look-up.
+     *
+     * <p>Guarded by the object itself: the UI thread and the REPL's both reach it.
+     */
+    static final class MarkerRefs {
+        private long seq = 0;
+        private final Map<MapFile.Marker, Long> ids = new WeakHashMap<MapFile.Marker, Long>();
+        private final Map<Long, WeakReference<MapFile.Marker>> byId =
+            new HashMap<Long, WeakReference<MapFile.Marker>>();
+
+        /** The ref for {@code m}, minted on the first ask and the same number for the life of this addon. */
+        synchronized long id(MapFile.Marker m) {
+            prune();
+            Long id = ids.get(m);
+            if(id == null) {
+                id = Long.valueOf(++seq);
+                ids.put(m, id);
+                byId.put(id, new WeakReference<MapFile.Marker>(m));
+            }
+            return id.longValue();
+        }
+
+        /** The marker a ref names, or {@code null} &mdash; an unknown ref, or a pin the database has dropped. */
+        synchronized MapFile.Marker byRef(long ref) {
+            prune();
+            WeakReference<MapFile.Marker> r = byId.get(Long.valueOf(ref));
+            return (r == null) ? null : r.get();
+        }
+
+        /** Drop the refs whose marker has gone; the forward map drops its own. Caller holds the monitor. */
+        private void prune() {
+            for(Iterator<WeakReference<MapFile.Marker>> it = byId.values().iterator(); it.hasNext(); ) {
+                if(it.next().get() == null)
+                    it.remove();
+            }
+        }
+    }
 
     /** The client's on-disk map DB (markers/segments), or null before the HUD/map is up. */
     static MapFile mapfile() {
@@ -467,28 +518,14 @@ final class MapApi {
         return (g == null) ? null : g.mmap;
     }
 
-    /** Assign (or look up) the stable ref id for a marker. Touched from UI + REPL threads → guarded. */
-    static long markerId(MapFile.Marker m) {
-        synchronized(markerById) {
-            Long id = markerIds.get(m);
-            if(id == null) {
-                id = Long.valueOf(nextMarkerId());
-                markerIds.put(m, id);
-                markerById.put(id, m);
-            }
-            return id.longValue();
-        }
+    /** Assign (or look up) {@code owner}'s stable ref id for a marker &mdash; see {@link MarkerRefs}. */
+    static long markerId(Addon owner, MapFile.Marker m) {
+        return owner.markerRefs.id(m);
     }
 
-    /** The next ref id. Synchronized on the class: the counter is the client's, the maps it feeds are not. */
-    private static synchronized long nextMarkerId() {
-        return ++markerIdSeq;
-    }
-
-    static MapFile.Marker markerByRef(long id) {
-        synchronized(markerById) {
-            return markerById.get(Long.valueOf(id));
-        }
+    /** The marker one of {@code owner}'s refs names, or {@code null} once the database has dropped the pin. */
+    static MapFile.Marker markerByRef(Addon owner, long id) {
+        return owner.markerRefs.byRef(id);
     }
 
     /**
@@ -552,7 +589,7 @@ final class MapApi {
         Coord segTc = sl.tc.add(Coord2d.of(wx, wy).floor(MCache.tilesz));
         MapFile.PMarker pm = new MapFile.PMarker(file, sl.seg.id, segTc, nm, DEFAULT_MARKER_COLOR, false);
         file.add(pm);                             // takes the write lock, persists (defersave), bumps markerseq
-        return LuaMarker.of(owner, markerId(pm));
+        return LuaMarker.of(owner, markerId(owner, pm));
     }
 
     /** remove(marker) — remove a marker the API handed out. Returns whether one was removed. */
@@ -561,7 +598,7 @@ final class MapApi {
         MapFile file = mapfile();
         if((h == null) || (file == null))
             return false;
-        MapFile.Marker m = markerByRef(h.ref);
+        MapFile.Marker m = markerByRef(h.owner, h.ref);
         if(m == null)
             return false;
         file.remove(m);                           // no-ops if already gone; bumps markerseq if it removed one

@@ -8,13 +8,11 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.OneArgFunction;
 
-import java.lang.ref.Reference;
-import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * A <b>Maneuver object</b> — one combat maneuver or attack a character knows ({@code s:fight():maneuver()}),
@@ -76,53 +74,41 @@ public final class LuaManeuver {
     /**
      * One addon's Maneuver cache and metatable (its {@link Addon#maneuvers}), keyed by engine identity — the
      * {@code Action}, which belongs to one character's window and so needs no account beside it (077.4).
+     *
+     * <p><b>Weak on BOTH axes</b> (audit2 B01), for {@link LuaFightSummary.Cache}'s reason exactly and with
+     * the same consequence: {@code FightWnd.Action} is a <b>non-static inner</b> class of {@code FightWnd}, so
+     * a strongly-keyed entry pinned the whole character window through the Action's own enclosing reference,
+     * and the {@code "avail"} message mints a fresh Action for every newly learnt maneuver. {@code Action}
+     * overrides neither {@code equals} nor {@code hashCode}, so the weak map keys by identity exactly as the
+     * {@code IdentityHashMap} did.
      */
     static final class Cache {
-        private final Map<FightWnd.Action, Ref> live = new IdentityHashMap<FightWnd.Action, Ref>();
-        private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
+        // retained: weak on both axes -- the value is a WeakReference, so nothing here reaches the Action.
+        private final Map<FightWnd.Action, WeakReference<LuaValue>> live =
+            new WeakHashMap<FightWnd.Action, WeakReference<LuaValue>>();
         private LuaValue mt;
 
         Cache(Addon owner) {
         }
 
         synchronized LuaValue of(String user, FightWnd.Action act) {
-            drain();
             if(act == null)
                 return LuaValue.NIL;
-            Ref r = live.get(act);
+            WeakReference<LuaValue> r = live.get(act);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(act);
             }
             LuaValue v = LuaValue.userdataOf(new LuaManeuver(user, act), meta());
-            live.put(act, new Ref(v, act, dead));
+            live.put(act, new WeakReference<LuaValue>(v));
             return v;
-        }
-
-        private void drain() {
-            Reference<? extends LuaValue> r;
-            while((r = dead.poll()) != null) {
-                Ref mr = (Ref)r;
-                if(live.get(mr.key) == mr)
-                    live.remove(mr.key);
-            }
         }
 
         private LuaValue meta() {
             if(mt == null)
                 mt = buildMeta();
             return mt;
-        }
-    }
-
-    private static final class Ref extends WeakReference<LuaValue> {
-        final FightWnd.Action key;
-
-        Ref(LuaValue v, FightWnd.Action key, ReferenceQueue<LuaValue> q) {
-            super(v, q);
-            this.key = key;
         }
     }
 

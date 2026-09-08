@@ -218,6 +218,10 @@ public final class AddonRegistry {
                                       //   so an unreleased hold leaves an overlay drawn forever (D-097)
         LuaSound.teardownSounds(a);   // 024.2: silence anything the addon left in the air (a disabled addon making noise is a bug)
         LuaGOut.teardownTexts(a);     // 026.1: drop the addon's cached g:text renderings (frees their GL textures — we own them)
+        LuaGOut.dropResources(a);     // B01: ...and its g:resource caches beside them — the name lookups and the
+                                      //   LINEAR-sampled texture copies, which are ours too. They were one set for
+                                      //   the client, dropped by a full :reload alone; per addon a disable frees
+                                      //   what that addon drew and nothing else
         UiApi.teardownGobOverlays(a); // 038.1: drop everything this addon attached to a game object, wherever it
                                       //   hangs — the ONE sweep of the object cache the feature costs, and the
                                       //   only one left: an overlay's state lives on the gob, so nothing else
@@ -441,9 +445,13 @@ public final class AddonRegistry {
         StoreApi.detach();                           // 074.4/079.1: every session's tables were just flushed
                                                      //   and belong to addons that are going; the ones about to
                                                      //   be built hold nobody until they are asked for
-        LuaGOut.clearResourceCache();                // U1/D-039: drop the g:resource name cache on reload
         LuaSound.teardownSounds(AddonManager.consoleOwner);  // 024.2: the REPL survives a reload, its clips do not
         LuaGOut.teardownTexts(AddonManager.consoleOwner);    // 026.1: ...nor does its cached text (same reason)
+        LuaGOut.dropResources(AddonManager.consoleOwner);    // B01: ...nor the engine art it drew by name (the
+                                                             //   textures are ours). The reload-only sweep of one
+                                                             //   cache for the whole client is GONE: every addon
+                                                             //   was just torn down, and each took its own
+
         UiApi.teardownHidden(AddonManager.consoleOwner);     // 031.1: ...nor do the native windows it hid — with their
                                                              //   toggles now owned too, :reload IS the escape hatch
         UiApi.teardownMoved(AddonManager.consoleOwner);      // 036.1: ...nor the ones it moved, for the same reason.

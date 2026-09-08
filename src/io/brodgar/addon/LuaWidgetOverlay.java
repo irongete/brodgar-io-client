@@ -54,12 +54,6 @@ public final class LuaWidgetOverlay {
     private LuaWidgetOverlay() {
     }
 
-    /**
-     * The shared {@code g} draw wrapper, bound per painter. One is enough: the paint runs from the draw
-     * traversal, which is single-threaded and never re-entrant here — a widget's overlays are painted after
-     * its whole subtree has drawn, so no second bind can be open.
-     */
-    private static final LuaGOut gwrap = new LuaGOut();
 
     // ---- one attached record ----------------------------------------------------------------------
 
@@ -231,7 +225,11 @@ public final class LuaWidgetOverlay {
             String txt = r.text;                           //   overlay paints nothing rather than painting badly
             if(!r.active || ((fn == null) && (txt == null)))
                 continue;
-            LuaTable gt = gwrap.bind(g, r.owner);          // per addon: the wrapper carries its text cache
+            // audit2 B01: the OWNER'S wrapper, not one for the client. It carries that addon's text cache, and
+            // holding it per addon is what makes the nesting safe: a painter of this addon that draws a widget
+            // whose own overlay belongs to another addon no longer rebinds the wrapper out from under itself.
+            LuaGOut gwrap = r.owner.gout;
+            LuaTable gt = gwrap.bind(g, r.owner);
             try {
                 if(fn != null)
                     AddonManager.callLua(r.owner, Addon.C_DRAW, fn, gt, lw, lh);

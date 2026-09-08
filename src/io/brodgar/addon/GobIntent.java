@@ -4,7 +4,6 @@ import haven.Gob;
 
 import java.awt.Color;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -26,8 +25,24 @@ import java.util.Map;
  * <p><b>The edge was already there, one level down.</b> {@code AddonManager.drainGobEvents} walks every
  * session's own {@code OCache} queue, and each entry names <i>that</i> session's copy arriving. It settles
  * them into one client-wide event and threw the per-session halves away; now they re-apply on the way past.
- * So this class holds no callback, registers nothing, and sweeps nothing: it is a map, and the walk that
- * already runs consults it.
+ * So this class holds no callback, registers nothing, and sweeps nothing: it is a walk over the addons, and
+ * the walk that already runs consults it.
+ *
+ * <p><b>The record is the WRITER'S</b> (audit2 B01), not the client's. It was one map for the whole client,
+ * each entry naming the addon that had written it, and the only thing that ever forgot an addon's wishes was
+ * one call late inside {@link UiApi#teardownGobScales} &mdash; so a throw anywhere above it left a torn-down
+ * addon's size, colour, hiding and overlays re-applied to every copy that arrived afterwards, for the life of
+ * the client. Held on the {@link Addon} ({@link Addon#gobIntents}) there is nothing to sweep: the wishes go
+ * with the addon, and {@link #applyTo} reads the live addons and can reach no other.
+ *
+ * <p><b>The KEY is still the gob id</b>, and it is not a session's: a gob id is the server's naming of one
+ * object that two characters observe, which is the whole premise above.
+ *
+ * <p><b>One size, one colour, one answer to "is it drawn"</b>, last write wins &mdash; the rule the attribs
+ * themselves keep, and it is kept here by the write: taking the size at an object takes it <i>away</i> from
+ * whatever other addon had asked for one there, exactly as writing the attrib does. So at most one addon
+ * holds each of the three at a given id, and the order {@link #applyTo} walks the addons in cannot decide
+ * anything. Overlays compose across addons, as they do on the object.
  *
  * <p><b>It ends with the OBJECT, not with a copy.</b> {@code GobScale}'s contract is that a size ends with the
  * loaded object &mdash; walk far enough away and back and the boulder is its own size again &mdash; and this
@@ -35,41 +50,56 @@ import java.util.Map;
  * {@code GobRemoved} fires and an overlay is reported gone. While any character can still see the object, the
  * object is still loaded, and one object drawn two sizes in two windows is the defect rather than the rule.
  *
- * <p>UI-thread only, like the writes that fill it and the drain that reads it (P5). {@code HashMap}, and
- * keyed by {@code Long}: a gob id is a server id, not an object identity.
+ * <p>UI-thread only, like the writes that fill it and the drain that reads it (P5). Every entry point is
+ * {@code synchronized} on this class, which is the one monitor over every addon's map alike; the maps are
+ * plain {@link java.util.HashMap}s keyed by {@code Long}, a gob id being a server id rather than an object
+ * identity.
  */
 final class GobIntent {
     private GobIntent() {}
 
-    /** What has been asked for at one object. Any part of it may be empty; the record goes when all are. */
-    private static final class Record {
-        /** The addon that last wrote the size, and what it wrote &mdash; {@code null} for a gob nobody scaled. */
-        Addon scaleOwner;
+    /** What ONE ADDON has asked for at one object. Any part of it may be empty; the record goes when all are. */
+    static final class Record {
+        /** Is a size asked for here, and which &mdash; {@code scaled} false for an object this addon left alone.
+         *  Writing exactly {@code 1} is putting the object back, so it forgets rather than recording "no
+         *  change": the original size is the absence of this state on the attrib, and the absence of it here. */
+        boolean scaled;
         float scale;
-        /** The addon that hid the object, or {@code null} &mdash; a gob nobody hid is drawn, so there is no
-         *  second field: this one being set IS "hidden", and showing it again forgets rather than recording
-         *  "drawn", exactly as writing {@code gob:scale(1)} forgets a size. */
-        Addon hideOwner;
-        /** The addon that last tinted the object, and the colour &mdash; {@code null} for a gob nobody tinted
-         *  (135.1): no tint is the absence of the state on the attrib, and the absence of it here too. */
-        Addon tintOwner;
+        /** Is the object held out of the scene by this addon? A gob nobody hid is drawn, so there is no second
+         *  field: this being set IS "hidden", and showing it again forgets rather than recording "drawn". */
+        boolean hidden;
+        /** The colour this addon laid over the object, or {@code null} (135.1): no tint is the absence of the
+         *  state on the attrib, and the absence of it here too. */
         Color tint;
-        /** The overlay records standing on this object, in attach order &mdash; the very objects the copies share. */
+        /** The overlay records this addon stood on the object, in attach order &mdash; the very objects the
+         *  copies share. */
         final List<LuaGobOverlay.Attach> overlays = new ArrayList<LuaGobOverlay.Attach>();
 
         boolean empty() {
-            return (scaleOwner == null) && (hideOwner == null) && (tintOwner == null) && overlays.isEmpty();
+            return !scaled && !hidden && (tint == null) && overlays.isEmpty();
         }
     }
 
-    /** Gob id &rarr; what is asked for there. Only ids something is actually asked for at are in it. */
-    private static final Map<Long, Record> intents = new HashMap<Long, Record>();
+    /**
+     * Every addon that may be holding an intent &mdash; the loaded ones and the {@code :lua} REPL owner, which
+     * writes gob verbs like any other owner and is in no registry. Read fresh at each walk: a list built once
+     * is a list that disagrees with the registry after the next {@code :reload}.
+     */
+    private static List<Addon> owners() {
+        List<Addon> out = new ArrayList<Addon>(AddonManager.addons);
+        Addon c = AddonManager.consoleOwner;
+        if(c != null)
+            out.add(c);
+        return out;
+    }
 
-    private static Record record(long id, boolean create) {
+    private static Record record(Addon owner, long id, boolean create) {
+        if(owner == null)
+            return null;
         Long key = Long.valueOf(id);
-        Record r = intents.get(key);
+        Record r = owner.gobIntents.get(key);
         if((r == null) && create)
-            intents.put(key, r = new Record());
+            owner.gobIntents.put(key, r = new Record());
         return r;
     }
 
@@ -77,71 +107,79 @@ final class GobIntent {
 
     /**
      * {@code gob:scale(k)} was written. <b>One size, last write wins</b>, which is {@link GobScale}'s own rule
-     * rather than a second one &mdash; and writing exactly {@code 1} is putting the object back, so it forgets
-     * rather than recording "no change": the original size is the absence of this state on the attrib, and it
-     * is the absence of it here too.
+     * rather than a second one &mdash; so this takes the size at {@code id} away from every other addon that
+     * had asked for one there, exactly as writing the attrib does. Writing exactly {@code 1} is putting the
+     * object back, so it forgets rather than recording "no change".
      */
     static synchronized void scale(long id, Addon owner, float k) {
-        if(k == GobScale.NONE) {
-            Record r = record(id, false);
+        for(Addon a : owners()) {
+            Record r = record(a, id, false);
             if(r != null) {
-                r.scaleOwner = null;
-                prune(id, r);
+                r.scaled = false;
+                prune(a, id, r);
             }
-            return;
         }
-        Record r = record(id, true);
-        r.scaleOwner = owner;
-        r.scale = k;
+        if(k == GobScale.NONE)
+            return;
+        Record r = record(owner, id, true);
+        if(r != null) {
+            r.scaled = true;
+            r.scale = k;
+        }
     }
 
     /**
      * {@code gob:visible(b)} was written. <b>One object, drawn or not, last write wins</b> &mdash; the same
-     * rule the size above keeps, and for the same reason: an object has one answer, so this records who wrote
-     * it rather than layering two addons' opinions. Writing {@code true} is putting the object back, so it
-     * forgets: being drawn is the absence of this state on the copy, and it is the absence of it here too.
+     * rule the size above keeps, and for the same reason: an object has one answer, so the write takes the
+     * answer over rather than layering two addons' opinions. Writing {@code true} is putting the object back,
+     * so it forgets: being drawn is the absence of this state on the copy, and the absence of it here too.
      */
     static synchronized void visible(long id, Addon owner, boolean vis) {
-        if(vis) {
-            Record r = record(id, false);
+        for(Addon a : owners()) {
+            Record r = record(a, id, false);
             if(r != null) {
-                r.hideOwner = null;
-                prune(id, r);
+                r.hidden = false;
+                prune(a, id, r);
             }
-            return;
         }
-        record(id, true).hideOwner = owner;
+        if(vis)
+            return;
+        Record r = record(owner, id, true);
+        if(r != null)
+            r.hidden = true;
     }
 
     /**
      * {@code gob:tint(c)} was written (135.1). <b>One colour, last write wins</b>, {@link GobTint}'s own rule
      * &mdash; and {@code null} is {@code gob:tint(nil)}, putting the object back, so it forgets rather than
-     * recording "no colour": no tint is the absence of this state on the attrib, and the absence of it here too.
+     * recording "no colour".
      */
     static synchronized void tint(long id, Addon owner, Color c) {
-        if(c == null) {
-            Record r = record(id, false);
+        for(Addon a : owners()) {
+            Record r = record(a, id, false);
             if(r != null) {
-                r.tintOwner = null;
                 r.tint = null;
-                prune(id, r);
+                prune(a, id, r);
             }
-            return;
         }
-        Record r = record(id, true);
-        r.tintOwner = owner;
-        r.tint = c;
+        if(c == null)
+            return;
+        Record r = record(owner, id, true);
+        if(r != null)
+            r.tint = c;
     }
 
     /**
      * <b>Every object {@code a} is holding hidden</b>, for the teardown sweep that has to put them back in
-     * every session that holds a copy. Read before {@link #dropOwner} forgets who wrote what, because after
-     * it there is nothing left to say which objects those were.
+     * every session that holds a copy. Read before {@link #dropOwner} forgets what this addon wrote, because
+     * after it there is nothing left to say which objects those were.
      */
     static synchronized List<Long> hiddenBy(Addon a) {
         List<Long> out = new ArrayList<Long>();
-        for(Map.Entry<Long, Record> e : intents.entrySet()) {
-            if(e.getValue().hideOwner == a)
+        if(a == null)
+            return out;
+        for(Map.Entry<Long, Record> e : a.gobIntents.entrySet()) {
+            if(e.getValue().hidden)
                 out.add(e.getKey());
         }
         return out;
@@ -153,24 +191,26 @@ final class GobIntent {
      * A key attached twice replaces, exactly as the attrib's own {@code put} does.
      */
     static synchronized void overlay(long id, LuaGobOverlay.Attach rec) {
-        Record r = record(id, true);
-        drop(r, rec.owner, rec.key);
+        Record r = record(rec.owner, id, true);
+        if(r == null)
+            return;
+        drop(r, rec.key);
         r.overlays.add(rec);
     }
 
     /** {@code gob:overlay():remove(key)}. Inert for a key that was never attached, like the removal itself. */
     static synchronized void dropOverlay(long id, Addon owner, String key) {
-        Record r = record(id, false);
+        Record r = record(owner, id, false);
         if(r == null)
             return;
-        drop(r, owner, key);
-        prune(id, r);
+        drop(r, key);
+        prune(owner, id, r);
     }
 
-    private static void drop(Record r, Addon owner, String key) {
+    /** Take {@code key} out of one addon's record &mdash; the owner is the map the record is in. */
+    private static void drop(Record r, String key) {
         for(Iterator<LuaGobOverlay.Attach> it = r.overlays.iterator(); it.hasNext(); ) {
-            LuaGobOverlay.Attach a = it.next();
-            if((a.owner == owner) && a.key.equals(key))
+            if(it.next().key.equals(key))
                 it.remove();
         }
     }
@@ -179,28 +219,13 @@ final class GobIntent {
 
     /**
      * <b>An addon went away</b> ({@code :reload} or disable) &mdash; the third half of the teardown sweep that
-     * already reverts the scales and detaches the overlays. Without it a session loading an object afterwards
-     * would re-apply what an addon that is no longer running once asked for, which is the one thing teardown
-     * exists to make impossible.
+     * already reverts the scales and detaches the overlays. It is one drop rather than a walk now, and the
+     * teardown could skip it entirely without leaving anything behind: {@link #applyTo} reads the live addons,
+     * so an addon that has left the registry is one no arriving copy can be drawn for.
      */
     static synchronized void dropOwner(Addon a) {
-        for(Iterator<Map.Entry<Long, Record>> it = intents.entrySet().iterator(); it.hasNext(); ) {
-            Record r = it.next().getValue();
-            if(r.scaleOwner == a)
-                r.scaleOwner = null;
-            if(r.hideOwner == a)
-                r.hideOwner = null;
-            if(r.tintOwner == a) {
-                r.tintOwner = null;
-                r.tint = null;
-            }
-            for(Iterator<LuaGobOverlay.Attach> oi = r.overlays.iterator(); oi.hasNext(); ) {
-                if(oi.next().owner == a)
-                    oi.remove();
-            }
-            if(r.empty())
-                it.remove();
-        }
+        if(a != null)
+            a.gobIntents.clear();
     }
 
     /**
@@ -209,16 +234,22 @@ final class GobIntent {
      * unloads and streams in again is a new object as far as this API has ever been concerned.
      */
     static synchronized List<LuaGobOverlay.Attach> forget(long id) {
-        Record r = intents.remove(Long.valueOf(id));
-        // What was attached there, handed back for the rescan to REPORT: on that path no copy of the object
-        // is left for LuaGobOverlay.gobGone to fire GobOverlayRemoved from, and this record is the only
-        // other place that knows which keys stood on it.
-        return (r == null) ? new ArrayList<LuaGobOverlay.Attach>() : new ArrayList<LuaGobOverlay.Attach>(r.overlays);
+        List<LuaGobOverlay.Attach> out = new ArrayList<LuaGobOverlay.Attach>();
+        Long key = Long.valueOf(id);
+        for(Addon a : owners()) {
+            Record r = a.gobIntents.remove(key);
+            // What was attached there, handed back for the rescan to REPORT: on that path no copy of the
+            // object is left for LuaGobOverlay.gobGone to fire GobOverlayRemoved from, and these records are
+            // the only other place that knows which keys stood on it.
+            if(r != null)
+                out.addAll(r.overlays);
+        }
+        return out;
     }
 
-    private static void prune(long id, Record r) {
+    private static void prune(Addon owner, long id, Record r) {
         if(r.empty())
-            intents.remove(Long.valueOf(id));
+            owner.gobIntents.remove(Long.valueOf(id));
     }
 
     // ---- and what re-applies it -------------------------------------------------------------------
@@ -228,37 +259,62 @@ final class GobIntent {
      * Called from the gob drain for every {@code added} entry, before the client-wide edge is settled, so a
      * {@code GobAdded} handler that reads {@code gob:scale()} back already sees the truth.
      *
-     * <p>Free for the client that asks for nothing: one {@code HashMap} miss per object arriving. Never
-     * throws into the drain &mdash; a copy whose own drawing is still resolving simply does not carry the
-     * overlay, which is the same answer {@code LuaGobOverlay.attach} gives for such a copy at write time.
+     * <p>Free for the client that asks for nothing: one {@code HashMap} miss per live addon per object
+     * arriving, over maps that stay empty unless something was written into them. Never throws into the drain
+     * &mdash; a copy whose own drawing is still resolving simply does not carry the overlay, which is the same
+     * answer {@code LuaGobOverlay.attach} gives for such a copy at write time.
      */
     static synchronized void applyTo(Gob g) {
         if(g == null)
             return;
-        Record r = intents.get(Long.valueOf(g.id));
-        if(r == null)
-            return;
-        if(r.scaleOwner != null) {
+        Long key = Long.valueOf(g.id);
+        Addon scaleOwner = null, tintOwner = null;
+        float scale = GobScale.NONE;
+        Color tint = null;
+        boolean hidden = false;
+        List<LuaGobOverlay.Attach> overlays = null;
+        for(Addon a : owners()) {
+            Record r = a.gobIntents.get(key);
+            if(r == null)
+                continue;
+            if(r.scaled) {
+                scaleOwner = a;
+                scale = r.scale;
+            }
+            if(r.tint != null) {
+                tintOwner = a;
+                tint = r.tint;
+            }
+            hidden |= r.hidden;
+            if(!r.overlays.isEmpty()) {
+                if(overlays == null)
+                    overlays = new ArrayList<LuaGobOverlay.Attach>();
+                overlays.addAll(r.overlays);
+            }
+        }
+        if(scaleOwner != null) {
             try {
-                GobScale.apply(g, r.scaleOwner, r.scale);
+                GobScale.apply(g, scaleOwner, scale);
             } catch(RuntimeException e) {
                 /* a copy that cannot take it draws its own size: a state, not a fault */
             }
         }
-        if(r.tintOwner != null) {
+        if(tintOwner != null) {
             try {
-                GobTint.apply(g, r.tintOwner, r.tint);
+                GobTint.apply(g, tintOwner, tint);
             } catch(RuntimeException e) {
                 /* a copy that cannot take it draws plain: a state, not a fault */
             }
         }
         /* Before the copy is let into a render tree at all (the drain releases the 114.1 hold below this
          * walk), so an object arriving hidden is never drawn once and then taken away. */
-        if(r.hideOwner != null)
+        if(hidden)
             g.addonvisible(false);
-        for(int i = 0, n = r.overlays.size(); i < n; i++) {
+        if(overlays == null)
+            return;
+        for(int i = 0, n = overlays.size(); i < n; i++) {
             try {
-                LuaGobOverlay.ensure(g).put(r.overlays.get(i));
+                LuaGobOverlay.ensure(g).put(overlays.get(i));
             } catch(RuntimeException e) {
                 /* its own drawing is still resolving (Loading): it simply does not draw this one */
             }

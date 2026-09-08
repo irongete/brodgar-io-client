@@ -60,7 +60,7 @@ final class UiApi {
     //   Their world-space sibling is GONE from here (038.1): hafen.ui.gobOverlay's filter list and its
     // throttled sweep are deleted, the state lives ON THE GOB (LuaGobOverlay is now the store), and the only
     // thing left in this file is paintGobOverlays — which no longer matches anything.
-    private static final LuaGOut hudGout = new LuaGOut();                 // shared g wrapper for the HUD pass
+
     static final UI.AfterDraw hudAfterDraw = new UI.AfterDraw() { // one-shot afterdraw, re-queued each tick
         public void draw(GOut g) { paintHudOverlays(g); }
     };
@@ -2702,8 +2702,10 @@ final class UiApi {
             if(a.hudOverlays.isEmpty())
                 continue;
             // 026.1: bound PER ADDON (it used to wrap the whole loop) — the wrapper now carries the owner of the
-            // g:text cache, and a cache is per-addon.
-            LuaTable gt = hudGout.bind(g, a);
+            // g:text cache, and a cache is per-addon. audit2 B01: and so is the WRAPPER, which was one object
+            // for the client here too, so a painter that opens another addon's cannot rebind this one.
+            LuaGOut gwrap = a.gout;
+            LuaTable gt = gwrap.bind(g, a);
             try {
                 for(HudOverlay o : a.hudOverlays) {
                     LuaValue fn = o.fn;                 // bare until :draw(fn) — an incomplete overlay
@@ -2711,7 +2713,7 @@ final class UiApi {
                         callLua(a, Addon.C_DRAW, fn, gt, w, h);
                 }
             } finally {
-                hudGout.unbind();
+                gwrap.unbind();
             }
         }
     }

@@ -1048,7 +1048,11 @@ public final class LuaEvent {
         m.set("gob", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaEvent e = self(a.arg1(), Shape.ACTION, "gob");
-                long id = AddonManager.clickGobId();
+                // audit2 B01: the EVENT's own session. The click being dispatched is one login's, so the
+                // object it landed on is read out of that login's state rather than out of one field the
+                // whole client shared — where a handler running for a background character could read what
+                // the drawn one had just clicked.
+                long id = AddonManager.clickGobId(e.ui);
                 return (id < 0) ? LuaValue.NIL : LuaGob.of(e.owner, id);
             }
         });

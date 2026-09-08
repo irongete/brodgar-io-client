@@ -52,8 +52,12 @@ final class HookApi {
     private HookApi() {}
 
     // -- addon console commands (A11): the client's own :command. consoleHandlers = name -> current live handler;
-    // consoleDispatched = names whose ONE engine-lifetime Console dispatcher is installed (grows only — never
-    // reset per session, so :reload swaps the handler with no duplicate/leaked command, coverage-gaps C1).
+    // consoleDispatched = names whose Console dispatcher is installed. Both are the CONSOLE's namespace rather
+    // than any addon's — a command name is one word for the client, and whoever registered it last answers it.
+    // audit2 B01: the dispatcher set no longer grows only. It is installed with the first handler for a name
+    // and taken back out with the last (Console.unsetscmd), so a :reload still swaps the handler with no
+    // duplicate, and a name nobody handles any more stops answering "no addon handles :name" and goes back to
+    // being a word the console does not know.
     private static final Map<String, LuaConsoleCommand> consoleHandlers = new ConcurrentHashMap<String, LuaConsoleCommand>();
     private static final Set<String> consoleDispatched = ConcurrentHashMap.newKeySet();
 
@@ -291,7 +295,7 @@ final class HookApi {
                         dispatchConsole(cmd, args);
                     }
                 });
-                consoleDispatched.add(cmd);
+                consoleDispatched.add(cmd);   // ...and endConsoleCommand takes both back out with the last handler
             } else {
                 // A dispatcher already exists for this name — a :reload re-register (same addon) or a takeover by a
                 // different addon. If a LIVE handler owned by a different addon holds it, note the reassignment
@@ -329,19 +333,29 @@ final class HookApi {
 
     /**
      * End one console command — the {@link Subs.Ended} hook of {@link Addon#consoleSubs} (086.1), run by
-     * {@code sub:off()} and by the teardown below alike. It drops the live handler and drops the command from
-     * the owner; the engine's {@link Console} dispatcher for that name <b>stays installed</b> (C1:
-     * {@link Console#setscmd} has no unregister), after which it reports "no addon handles :name".
+     * {@code sub:off()} and by the teardown below alike. It drops the live handler, drops the command from the
+     * owner, and — audit2 B01 — takes the engine's {@link Console} dispatcher back out with the LAST handler
+     * for that name ({@link Console#unsetscmd}), so a word no addon answers any more is a word the console
+     * does not know rather than one that replies "no addon handles :name" for the life of the client.
+     *
+     * <p><b>The last handler, not this one.</b> Registration is last-wins, so ending a handler another addon
+     * has already taken the name over from must leave the dispatcher exactly where it is; the map decides,
+     * and the map is the thing the dispatcher routes through.
      */
     static void endConsoleCommand(Addon owner, LuaConsoleCommand h) {
         if(h == null)
             return;
         h.alive = false;
-        consoleHandlers.remove(h.name, h);   // only if h is STILL the current handler (a later addon may own it now)
+        synchronized(consoleDispatched) {
+            consoleHandlers.remove(h.name, h);   // only if h is STILL the current handler (a later addon may own it now)
+            if(!consoleHandlers.containsKey(h.name) && consoleDispatched.remove(h.name))
+                Console.unsetscmd(h.name);
+        }
         owner.consoleCommands.remove(h);
     }
 
-    /** Drop every console command this addon owns (teardown on reload/disable, P2). Console dispatchers stay (C1). */
+    /** Drop every console command this addon owns (teardown on reload/disable, P2) — and with the last handler
+     *  for a name, its dispatcher ({@link #endConsoleCommand}). */
     static void teardownConsoleCommands(Addon a) {
         a.consoleSubs.clear();          // 086.1: one drop, and each sub's Ended clears its own live handler
         a.consoleCommands.clear();      //   (belt: a command with no sub behind it cannot exist)

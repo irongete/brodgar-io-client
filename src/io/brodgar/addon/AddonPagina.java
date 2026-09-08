@@ -453,6 +453,11 @@ public final class AddonPagina extends MenuGrid.Pagina {
     private static void detach(AddonPagina p) {
         p.subs.clear();
         BeltHold.entryRemoved(p);   // 059.4: and give back every bar slot that was held for it
+        // audit2 B01: ...and the KEY BINDING the button minted goes with the entry. KeyBinding.get mints into
+        // a process-wide map that had no removal at all, so "scm/addon/<addon>/<id>" -- and whatever the
+        // player had assigned to it in Options > Keybindings -- outlived :remove, disable and :reload, and
+        // then answered a button that is in no grid. One drop, on the one path every removal takes.
+        KeyBinding.unregister("scm/" + p.id);
         synchronized(p.scm.paginae) {
             p.scm.paginae.remove(p);
             for(MenuGrid.Pagina q : p.scm.paginae) {

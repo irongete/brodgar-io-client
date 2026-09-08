@@ -255,6 +255,29 @@ public class KeyBinding {
 	}
     }
 
+    // addon: DROP a binding from the registry entirely -- the counterpart get() never had, for a binding
+    // whose holder is not merely going quiet but ceasing to exist. `bindings` is a process-wide map with no
+    // removal, so every id ever minted stayed in it: a custom action-menu entry mints "scm/addon/<addon>/<id>"
+    // the first time its button is drawn, and disabling the addon, removing the entry or reloading the layer
+    // left that id -- and the key the player had assigned to it -- answering a button that is in no grid.
+    //
+    // It drops the CLAIM as release() does, so the key goes back to whoever else wants it, and it drops the
+    // stored assignment with the entry: the id is gone, so an assignment against it is a preference for
+    // something that does not exist, and leaving it would hand the key straight back to a re-minted binding
+    // the player never assigned it to. Unknown ids are inert. Nothing here touches a binding the client
+    // itself declares -- those are static fields of live classes and are never unregistered.
+    public static void unregister(String id) {
+	if(id == null)
+	    return;
+	synchronized(bindings) {
+	    KeyBinding kb = bindings.remove(id);
+	    if(kb == null)
+		return;
+	    kb.unclaim();
+	    Utils.setpref("keybind/" + id, "");
+	}
+    }
+
     // addon: a snapshot of the whole registry, for hafen.client:options():keybindings():list(). The map is
     // private and lazily populated (a binding exists only once its owning class has been loaded), so a copy
     // taken under the monitor is the only safe way to enumerate what is currently bound.

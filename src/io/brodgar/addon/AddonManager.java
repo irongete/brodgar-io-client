@@ -380,18 +380,9 @@ public final class AddonManager {
      * <p>{@code null} before the world is up, which every caller already guards for.
      */
     static MapView screenView() {
-        UI u = screen();
-        if(u == null)
-            return null;
-        MapView mv = viewcache;
-        if((mv != null) && (mv.ui == u) && (mv.parent != null))
-            return mv;
-        return viewcache = Sessions.mapview(u);
+        SessionState st = state(screen());
+        return (st == null) ? null : st.view();
     }
-
-    /** {@link #screenView()}'s memo. Volatile: written from whichever thread first re-derives, and a lost
-     *  race costs one extra walk, never a wrong answer — the reader re-checks what it reads. */
-    private static volatile MapView viewcache;
 
     // ------------------------------------------------------------- whose state it is (073.1)
 
@@ -600,6 +591,58 @@ public final class AddonManager {
             new ConcurrentHashMap<Addon, StoreApi.CharStore>();
         /** Engine-clock time of this session's last throttled flush ({@link StoreApi}). */
         double storeLastAutoSave;
+
+        // ---- the input and render state of ONE LOGIN (audit2 B01) --------------------------------
+        // Each of these was one field for the CLIENT, and each names one login: the tree an activation is
+        // being replayed in, the panel a press is down on, the clock a panel's staleness is measured by, the
+        // object the click being dispatched landed on, and the scene that login draws. Two logins shared
+        // every one of them, so a release arriving through one map view resolved against a panel held in the
+        // other, a second login halved the slack a gesture is bounded by, and ev:gob() in one session's
+        // handler could read what the other had just clicked.
+
+        /** The (widget, key) whose action {@link Controls#replay} is running in THIS tree, or {@code null}
+         *  — the flag that suppresses the activation seam for the one action being re-issued. Saved and
+         *  restored around each replay, and never volatile: an activation is dispatched on the tree's own
+         *  thread, under its monitor, which is where this is read. */
+        Widget replayWdg;
+        String replayKey;
+
+        /** The surface a button press landed on in THIS session, so the release and whatever drag came
+         *  between go to the same panel even after the pointer has left it ({@link SurfaceInput}), and the
+         *  frame that panel was last handed something. Volatile: the pointer seams run on the thread that
+         *  dispatched the event, the render pass on the frame's. */
+        volatile WidgetSurface surfaceHeld;
+        volatile long surfaceHeldFrame = Long.MIN_VALUE;
+
+        /** Offscreen passes issued for this session's panels, and frames the pass was offered to it — the
+         *  clock {@link WidgetSurface#culled} and {@link SurfaceInput#gesturing} measure their two-frame
+         *  slack against, and the {@code p:surfaces()} counters, which sum them for the client. Per session
+         *  because the increment always was: it runs once per session per frame, so one counter for the
+         *  client climbed twice as fast as the slack it bounded. */
+        volatile long surfaceFrames, surfaceUploads;
+
+        /** The gob a click being dispatched in THIS session landed on, or {@code -1} for ground and for
+         *  every message that is not a map click (105). Set by {@code MapView.clickhit} around its own
+         *  {@code wdgmsg("click")} and cleared in a {@code finally}, so it is live for exactly the window in
+         *  which an action handler can be running. Volatile because reading it is all Lua does with it. */
+        volatile long clickGobId = -1;
+
+        /** {@link #view()}'s memo. Volatile: written by whichever thread first re-derives, and a lost race
+         *  costs one extra walk, never a wrong answer — the reader re-checks what it reads. */
+        private volatile MapView viewcache;
+
+        /**
+         * <b>The 3D scene THIS session draws</b>, or {@code null} before its world is up. The walk
+         * {@link Sessions#mapview} makes is recursive, far too much for the per-panel-per-frame origin read
+         * that asks most often, so it is paid once per view and the answer kept — and re-checked on every
+         * read, so a cached view whose tree it has left is derived again rather than handed back.
+         */
+        MapView view() {
+            MapView mv = viewcache;
+            if((mv != null) && (mv.ui == ui) && (mv.parent != null))
+                return mv;
+            return viewcache = Sessions.mapview(ui);
+        }
 
         SessionState(UI ui) {
             this.ui = ui;
@@ -2050,20 +2093,19 @@ public final class AddonManager {
      * <p><b>Threading.</b> The click hit-test's own thread, under {@link ClickToken}'s monitor. It raises no Lua
      * and allocates one {@link Coord}.
      */
-    /* addon: (105) the gob the click CURRENTLY being dispatched landed on, or -1 for ground. Set by
-     * MapView.clickhit around its own wdgmsg and cleared in a finally, so it is live for exactly the window
-     * in which an action handler can be running, and reads -1 for every other message. UI thread only, and
-     * volatile because reading it is the only thing Lua does with it. */
-    private static volatile long clickGobId = -1;
-
-    /** addon: (105) hold the gob a click resolved to for the length of its dispatch; -1 clears it. */
-    public static void clickgob(long id) {
-        clickGobId = id;
+    /** addon: (105) hold the gob a click resolved to for the length of its dispatch, in the session whose map
+     *  view resolved it; -1 clears it. The session is the argument (audit2 B01): it was one field for the
+     *  client, so a handler in one login could read what another had just clicked. */
+    public static void clickgob(UI ui, long id) {
+        SessionState st = state(ui);
+        if(st != null)
+            st.clickGobId = id;
     }
 
-    /** addon: (105) what {@code ev:gob()} answers — see {@link #clickgob}. */
-    static long clickGobId() {
-        return clickGobId;
+    /** addon: (105) what {@code ev:gob()} answers for one session — see {@link #clickgob}. */
+    static long clickGobId(UI ui) {
+        SessionState st = state(ui);
+        return (st == null) ? -1 : st.clickGobId;
     }
 
     public static void noteClick(Gob g, Coord lcc) {

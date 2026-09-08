@@ -58,6 +58,17 @@ public class Console {
 	}
     }
 
+    // addon: TAKE a static command back out -- the counterpart setscmd never had. `scommands` is a
+    // process-wide map with no removal, so a command installed for something that has since gone on
+    // answering: an addon's :name kept a dispatcher for the life of the client after the addon was disabled,
+    // replying "no addon handles :name" where the console should have said the word is unknown -- and, for a
+    // name the client itself declares later, shadowing it for good. Unknown names are inert.
+    public static void unsetscmd(String name) {
+	synchronized(scommands) {
+	    scommands.remove(name);
+	}
+    }
+
     public void setcmd(String name, Command cmd) {
 	synchronized(commands) {
 	    commands.put(name, cmd);
