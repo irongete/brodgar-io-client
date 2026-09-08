@@ -949,8 +949,8 @@ final class AssetApi {
      * for. Font assets own nothing releasable, so dropping the cache is their whole teardown. Leaves no GL
      * resource behind.
      *
-     * <p>Unlike sounds (024.2) and cached text (026.1) there is no {@code :reload} sweep of the {@code :lua}
-     * REPL owner: it has no addon folder ({@link Addon#dir} is {@code null}), so it can hold no assets at all.
+     * <p>The {@code :lua} REPL owner walks this step like any other owner and it is always a no-op for it: it
+     * has no addon folder ({@link Addon#dir} is {@code null}), so it can hold no assets at all.
      */
     static void teardownAssets(Addon a) {
         teardownImages(a);      // R1: frees each TexI's GL texture

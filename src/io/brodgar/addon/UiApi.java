@@ -1731,13 +1731,13 @@ final class UiApi {
      *
      * <p><b>And it ends the substitution, view included</b> (032.1). Restoring the window is only half of an
      * ending: the stand-in has to go with it, or a {@code :reload} leaves a custom window floating over the stock
-     * one it no longer replaces. For a loaded addon {@code destroyWidgets} would have caught it a moment later
-     * anyway (the kill is idempotent), but the {@code :lua} REPL owner <b>survives</b> a reload and has no such
-     * sweep — which is exactly where the leak showed. The rule is read first, the view killed after.
+     * one it no longer replaces. {@code destroyWidgets} would catch it a moment later anyway (the kill is
+     * idempotent, and every owner reaches that step), but this step runs before it and must leave nothing for
+     * it to find — which is exactly where the leak showed. The rule is read first, the view killed after.
      *
-     * <p><b>The {@code :lua} REPL is torn down here too</b>, from {@code AddonRegistry.reload} — the REPL owner
-     * itself survives a reload, but the windows it hid do not, exactly as its sounds (024.2) and cached text
-     * (026.1) do not. Since 031.1 a hidden window's <i>toggle</i> is owned as well, which makes {@code :reload}
+     * <p><b>The {@code :lua} REPL is torn down here too</b>, from {@code AddonRegistry.reload}, which walks the
+     * REPL owner through the same teardown an addon gets — the REPL owner itself survives a reload, but the
+     * windows it hid do not, exactly as its sounds (024.2) and cached text (026.1) do not. Since 031.1 a hidden window's <i>toggle</i> is owned as well, which makes {@code :reload}
      * the escape hatch for a hide typed into the console: without this the key stays swallowed until a relog.
      *
      * <p><b>Each record names its own tree</b> (078.4). The window is put back in the {@code UI} it was hidden

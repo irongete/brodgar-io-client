@@ -111,6 +111,11 @@ final class LuaHttp {
         String url = r.url;
         int hops = 0;
         while(true) {
+            // Torn down or cancelled: no hop of a dead request goes out. The redirect loop is the reason this
+            // is read here and not only at submit -- a request that died mid-flight used to follow the rest of
+            // its chain, sending its headers to every host on it, for an addon that had stopped running.
+            if(r.dead)
+                return Result.fail("cancelled");
             HttpURLConnection c = null;
             try {
                 URL u;
@@ -129,6 +134,9 @@ final class LuaHttp {
                     return bad;
 
                 c = (HttpURLConnection)u.openConnection();
+                r.conn = c;                            // ...so an ending can close this exchange under us
+                if(r.dead)
+                    return Result.fail("cancelled");   // it died while we opened: nothing has gone out yet
                 c.setInstanceFollowRedirects(false);   // we follow manually so every hop is re-validated
                 c.setConnectTimeout(r.timeout);
                 c.setReadTimeout(r.timeout);
@@ -192,10 +200,32 @@ final class LuaHttp {
             } catch(RuntimeException e) {
                 return Result.fail(e.getClass().getSimpleName() + ": " + e.getMessage());
             } finally {
+                r.conn = null;
                 if(c != null)
                     c.disconnect();
             }
         }
+    }
+
+    /**
+     * <b>Stop a dead request's exchange where it stands</b> (N2a). {@code dead} alone suppresses the callback
+     * and nothing else: the worker goes on to finish the round trip, so a disabled addon's request still
+     * reaches the host with its headers and still follows its redirects. Closing the connection ends the
+     * exchange instead — the blocked read raises, {@link #perform} returns a failure nothing is waiting for,
+     * and no later hop is opened.
+     *
+     * <p>Called from the UI thread while the worker is inside {@link #perform}, which is exactly what
+     * {@link HttpURLConnection#disconnect()} is for. A request that has opened nothing yet holds no
+     * connection, and one between hops finds {@code dead} itself at the top of the loop. Best-effort: a
+     * connection closing under the worker at the same moment is already doing what this asks.
+     */
+    static void abort(LuaHttpRequest r) {
+        HttpURLConnection c = r.conn;
+        if(c == null)
+            return;
+        try {
+            c.disconnect();
+        } catch(RuntimeException e) { /* already closed, or closing under the worker: nothing left to do */ }
     }
 
     /** True for the 3xx statuses we follow (N2b): 301, 302, 303, 307, 308. */

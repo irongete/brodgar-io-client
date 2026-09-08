@@ -1376,10 +1376,17 @@ final class VirtualApi {
             gob  = e.gob;  e.gob  = null;
             mv   = e.mv;   e.mv   = null;
         }
-        e.unregister();
-        entityUnregister(e);                          // 043.2/044.9: and out of whichever index it was in
+        // Each of the three below on its own, like the three after them: this entity is already out of its
+        // addon's list and out of its monitor, so every one of these is a thing that still has to be given
+        // back whether or not the one before it managed to. An unguarded step here strands the gob in the
+        // scene for the sake of a registry entry.
+        try { e.unregister(); } catch(RuntimeException ex) { log("entity teardown error: " + ex); }
+        try {
+            entityUnregister(e);                      // 043.2/044.9: and out of whichever index it was in
+        } catch(RuntimeException ex) { log("entity teardown error: " + ex); }
         if(mv != null) {
-            mv.removeClientGob(gob, slot);            // drops it from the MapView tick list + removes the slot (swallows SlotRemoved)
+            // drops it from the MapView tick list + removes the slot (swallows SlotRemoved)
+            try { mv.removeClientGob(gob, slot); } catch(RuntimeException ex) { log("entity teardown error: " + ex); }
         } else if(slot != null) {
             try { slot.remove(); } catch(RuntimeException ex) { /* scene already gone (relog) */ }
         }
@@ -1445,20 +1452,34 @@ final class VirtualApi {
         }
     }
 
+    /**
+     * <b>Destroy one kind's worth of entities, each on its own</b> — the body of the five teardown sweeps, and
+     * the one thing they all needed: an entity that throws on the way out costs its own release and not the
+     * rest of its kind. A sweep that stopped at the first bad entity left every later one standing in the
+     * scene with the addon that put it there already gone.
+     *
+     * <p>The list is copied because each destroy removes its own member as it goes (copy-on-write lists).
+     */
+    private static void destroyEach(List<? extends LuaWorldEntity> es) {
+        if(es.isEmpty())
+            return;
+        for(LuaWorldEntity e : new ArrayList<LuaWorldEntity>(es)) {
+            try {
+                destroyEntity(e);
+            } catch(RuntimeException ex) {
+                log("entity teardown error: " + ex);
+            }
+        }
+    }
+
     /** Tear down every ghost this addon owns (reload/disable/relogin, P2): destroy each (slot removed + visual freed). */
     static void teardownGhosts(Addon a) {
-        if(a.ghosts.isEmpty())
-            return;
-        for(LuaGhost gh : new ArrayList<LuaGhost>(a.ghosts))
-            destroyEntity(gh);          // removes each from a.ghosts as it goes (copy-on-write list)
+        destroyEach(a.ghosts);
     }
 
     /** Tear down every sprite this addon owns (reload/disable/relogin, P2): destroy each (slot removed + quad freed). */
     static void teardownSprites(Addon a) {
-        if(a.sprites.isEmpty())
-            return;
-        for(LuaSprite sp : new ArrayList<LuaSprite>(a.sprites))
-            destroyEntity(sp);          // removes each from a.sprites as it goes (copy-on-write list)
+        destroyEach(a.sprites);
     }
 
     // ---- custom 3D models in the world (hafen.virtual():object()) -------------------------------------------
@@ -1554,10 +1575,7 @@ final class VirtualApi {
 
     /** Tear down every object this addon owns (reload/disable/relogin, P2): destroy each (slot removed + Models freed). */
     static void teardownObjects(Addon a) {
-        if(a.objects.isEmpty())
-            return;
-        for(LuaObject ob : new ArrayList<LuaObject>(a.objects))
-            destroyEntity(ob);          // removes each from a.objects as it goes (copy-on-write list)
+        destroyEach(a.objects);
     }
 
     // ---- custom world sprites (hafen.virtual():sprite()) ------------------------------------------------------
@@ -2033,10 +2051,7 @@ final class VirtualApi {
 
     /** Tear down every standing widget this addon owns (reload/disable/relogin, P2): each goes back where it was. */
     static void teardownSurfaces(Addon a) {
-        if(a.surfaces.isEmpty())
-            return;
-        for(LuaWidgetEntity we : new ArrayList<LuaWidgetEntity>(a.surfaces))
-            destroyEntity(we);          // removes each from a.surfaces as it goes (copy-on-write list)
+        destroyEach(a.surfaces);
     }
 
     // ---- shapes lying on the ground (hafen.virtual():patch()) ------------------------------------------------
@@ -2285,10 +2300,7 @@ final class VirtualApi {
 
     /** Tear down every patch this addon owns (reload/disable/relogin, P2): each comes off the ground it lay on. */
     static void teardownPatches(Addon a) {
-        if(a.patches.isEmpty())
-            return;
-        for(LuaPatch p : new ArrayList<LuaPatch>(a.patches))
-            destroyEntity(p);           // removes each from a.patches as it goes (copy-on-write list)
+        destroyEach(a.patches);
     }
 
     /**

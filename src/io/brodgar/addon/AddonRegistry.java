@@ -14,6 +14,7 @@ import org.luaj.vm2.LuaValue;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.prefs.Preferences;
 
 
@@ -136,109 +138,188 @@ public final class AddonRegistry {
         log(addons.size() + " addon(s) loaded");
     }
 
-    /** Fire {@code Disable}, flush the addon's saved vars, then drop its owned resources. */
-    static void teardown(Addon a) {
-        try {
-            fireTo(a, "Disable");     // the addon's last chance to write its store tables...
-        } catch(RuntimeException e) {
-            /* isolation is per-handler in callLua; this is just a backstop */
+    /**
+     * <b>One thing an addon owned, and the release of it</b> — a step of {@link #teardown}, carrying the name
+     * the log gives it when it is the step that failed. A step is <i>registered</i> rather than written into a
+     * statement sequence, and that is the whole of what makes a teardown finish: {@link #guarded} runs each one
+     * on its own, so no subsystem can take the thirty after it down with it.
+     */
+    private static final class Step {
+        final String name;                 // what a failure is named by; nothing else reads it
+        final Consumer<Addon> run;
+
+        Step(String name, Consumer<Addon> run) {
+            this.name = name;
+            this.run = run;
         }
-        StoreApi.flush(a);                     // ...then persist them (spec 05: flushed at Disable)
-        VirtualApi.teardownSurfaces(a);  // 044.1: take every widget this addon stood in the world back OUT of its
-                                         //   surface first, so the two teardowns below see an ordinary widget on the
-                                         //   flat UI. Standing is a re-home, so it has to be undone before anything
-                                         //   decides where a widget ends up — the hidden-native restore reads where
-                                         //   the widget is, and destroyWidgets disposes what it finds.
-        UiApi.teardownRehomed(a);        // ...and beside it, every widget of the CLIENT's this addon TOOK into a
-                                         //   surface of its own (widget:parent(p)). Same reason as the line above,
-                                         //   and the same order: destroyWidgets below disposes recursively, so a
-                                         //   minimap still inside one of our panels would go down with it. BEFORE
-                                         //   teardownMoved, which restores where it stands: this one only answers
-                                         //   what it hangs under, and that one has to have the last word.
-        UiApi.teardownHidden(a);         // 029.2/031.2: give back every native widget the addon hid — and its toggle —
-                                         //   under the one rule: the window ends up as the user was seeing it, and a
-                                         //   substitution ends whole (the stand-in view dies with it, 032.1). BEFORE
-                                         //   destroyWidgets: the rule reads the view's visibility, and a destroyed
-                                         //   view stands for nothing.
-        destroyWidgets(a);               // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
-        a.teardownWidgetSubs();           // 041.3/041.4: deafen every widget:on() listener + drop every poll
-                                          //   registration (engine widgets outlive a :reload — must detach before
-                                          //   the Lua layer that owns them rebuilds)
-        a.actionSubs.clear();             // 041.2: stop intercepting the outbound wdgmsg stream, and
-        a.messageSubs.clear();            //   the inbound uimsg one — where the L2/L3 hook registries were
-                                          //   unregistered, and for the same reason: the rest of this
-                                          //   teardown can itself make the client send and receive
-        HookApi.teardownKeyBinds(a);      // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
-        UiApi.teardownSelectorWatches(a);    // 030.2: drop the selector subscriptions (no disappear — reload != destroy)
-        HookApi.teardownConsoleCommands(a); // A11: drop the addon's live console handlers (Console dispatchers stay — C1)
-        BeltHold.teardownHolds(a);        // 059.4: give back every action-bar slot this addon was HOLDING — the
-                                          //   slot goes back to the server's own content, which never changed
-        AddonPagina.teardownEntries(a);   // 059.1: take every entry this addon added to the action menu back out
-                                          //   of the grid. BEFORE the asset teardown below: an entry draws one of
-                                          //   the addon's images, and a cell must stop being laid out before the
-                                          //   texture under it is disposed
-        VirtualApi.teardownGhosts(a);       // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
-        VirtualApi.teardownSprites(a);      // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
-        VirtualApi.teardownObjects(a);      // R3: destroy client-only world objects (remove the slot + free the glTF Models; before the meshes)
-        VirtualApi.teardownPatches(a);      // 118: take every patch off the ground (its overlay out of the MCache it was registered in)
-        MapImages.teardown(a);                  // 037.4: free the map drawings the client rendered for this addon
-                                                //   (grid:image / grid:overlayImage) — they are TexIs like any
-                                                //   other image and ride the same registry, so this only has to
-                                                //   drop the bounded cache; it runs BEFORE the asset teardown so
-                                                //   nothing is left pointing at a disposed texture
-        AssetApi.teardownAssets(a);             // 028.1: dispose every loaded asset — images (each TexI's GL texture; after
-                                                //   the sprites that sampled it), then meshes (the shared base-colour TexIs;
-                                                //   AFTER the objects above, R3b), then the intern cache itself. Fonts own
-                                                //   nothing releasable; FontApi.teardownFonts below reverts their overrides.
-        LuaGrab.teardownGrabs(a);     // 041.5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
-        Gesture.teardown(a);          // 062: ...and every widget:draggable(h)/:resizable(h) binding — ending a
-                                      //   gesture running right now, and deafening the last listener on each handle.
-                                      //   BEFORE teardownMoved below: what a gesture WROTE is a layout level,
-                                      //   and it is that sweep which gives the place back
-        LuaWidget.rememberTeardown(a);   // 062: ...and every widget:remember(name) BINDING. What each name holds
-                                         //   is left on disk untouched — the flush above wrote it — because a
-                                         //   reload is not the user changing their mind about where a window
-                                         //   goes. widget:remember(nil) is the only thing that forgets.
-        HttpApi.teardownRequests(a);  // N2a: cancel in-flight HTTP requests (result discarded on drain; no callback)
-        a.teardownWaitings();         // 042.1: cancel every pending Resolve registration (a value still loading) —
-                                      //   same shape as the HTTP requests above, for the same reason
-        LocaleApi.teardown(a);        // 102.1: give the client its own words back -- this addon's CATALOGUE
-                                      //   leaves the provider stack and every string it displayed reverts to
-                                      //   the English the client wrote. Beside teardownFonts below, and for
-                                      //   the same reason: both bump the generation every routed site rebuilds on
-        FontApi.teardownFonts(a);     // 033.1: drop this addon's STYLESHEET (hafen.ui():sheet()) and its per-widget
-                                      //   widget:setFont overrides in one sweep (bumps gen -> stock foundry restored)
-        UiApi.teardownMoved(a);       // 036.1: put every native widget this addon laid out back where the user had
-                                      //   it — an addon's layout is a LAYER over the client's, so nothing of ours
-                                      //   is left behind for GameUI.savewndpos to persist as their preference.
-                                      //   AFTER teardownFonts (036.2): the sheet's own pos/size rules have to have
-                                      //   stopped resolving first, or re-running the cascade would put them back
-        MapApi.teardownOverlays(a);   // 037.3: give back every map/world overlay this addon was HOLDING — the
-                                      //   ref count is shared with the client's own checkbox and the server,
-                                      //   so an unreleased hold leaves an overlay drawn forever (D-097)
-        LuaSound.teardownSounds(a);   // 024.2: silence anything the addon left in the air (a disabled addon making noise is a bug)
-        LuaGOut.teardownTexts(a);     // 026.1: drop the addon's cached g:text renderings (frees their GL textures — we own them)
-        LuaGOut.dropResources(a);     // B01: ...and its g:resource caches beside them — the name lookups and the
-                                      //   LINEAR-sampled texture copies, which are ours too. They were one set for
-                                      //   the client, dropped by a full :reload alone; per addon a disable frees
-                                      //   what that addon drew and nothing else
-        UiApi.teardownGobOverlays(a); // 038.1: drop everything this addon attached to a game object, wherever it
-                                      //   hangs — the ONE sweep of the object cache the feature costs, and the
-                                      //   only one left: an overlay's state lives on the gob, so nothing else
-                                      //   ever looks for it. The game's own overlays are untouched.
-        UiApi.teardownCursor(a);     // 105: the pointer is one, and an addon that has stopped running does not hold it
-        UiApi.teardownGobScales(a);   // 046.1: put back every game object this addon resized — the same sweep,
-                                      //   for the same reason, on the state's other half. A gob's size records
-                                      //   who wrote it, so another addon's scale is left alone; nothing an
-                                      //   addon that stopped running left distorted stays distorted.
-                                      //   114.3: ...and every object it hid is drawn again, in the same walk.
-        a.hudOverlays.clear();        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
-        LuaWidgetOverlay.teardown(a); // 103.3: ...and every painter this addon hung on a WIDGET comes off the
-                                      //   widget as well as off the addon's list — the paint walks the widget's
-                                      //   own field, so a record left there goes on painting for an addon that
-                                      //   has stopped running, until the widget itself dies
-        a.subs.clear();               // 041.1: the whole bus, in one drop — nothing to unsubscribe by hand
-        a.timers.clear();
+    }
+
+    /**
+     * <b>Everything an addon owns, in the order it is given back</b> — the teardown itself, as data. The order
+     * is load-bearing and each step says why it sits where it does; what is <b>not</b> load-bearing is any
+     * step's success, which is exactly why this is a list walked one entry at a time rather than a sequence of
+     * statements where the first throw ends the rest.
+     *
+     * <p><b>One walk for every owner</b>, the {@code :lua} REPL included: {@link AddonManager#consoleOwner} is
+     * an {@link Addon} and owns what an addon owns, so a reload gives its console lines back exactly what a
+     * disable gives an addon back. There is one answer to "what does a teardown release" rather than one for
+     * an addon and a shorter one for the console.
+     */
+    private static final List<Step> STEPS = Collections.unmodifiableList(Arrays.asList(
+        // The addon's last chance to write its store tables... (isolation is per-handler in callLua; this
+        // step's own guard is the backstop)
+        new Step("Disable", a -> fireTo(a, "Disable")),
+        // ...then persist them (spec 05: flushed at Disable)
+        new Step("saved variables", StoreApi::flush),
+        // 044.1: take every widget this addon stood in the world back OUT of its surface first, so the two
+        //   teardowns below see an ordinary widget on the flat UI. Standing is a re-home, so it has to be
+        //   undone before anything decides where a widget ends up — the hidden-native restore reads where the
+        //   widget is, and destroyWidgets disposes what it finds.
+        new Step("standing widgets", VirtualApi::teardownSurfaces),
+        // ...and beside it, every widget of the CLIENT's this addon TOOK into a surface of its own
+        //   (widget:parent(p)). Same reason as the step above, and the same order: destroyWidgets below
+        //   disposes recursively, so a minimap still inside one of our panels would go down with it. BEFORE
+        //   the moved-windows step, which restores where it stands: this one only answers what it hangs under,
+        //   and that one has to have the last word.
+        new Step("re-homed widgets", UiApi::teardownRehomed),
+        // 029.2/031.2: give back every native widget the addon hid — and its toggle — under the one rule: the
+        //   window ends up as the user was seeing it, and a substitution ends whole (the stand-in view dies
+        //   with it, 032.1). BEFORE destroyWidgets: the rule reads the view's visibility, and a destroyed view
+        //   stands for nothing.
+        new Step("hidden windows", UiApi::teardownHidden),
+        // 116.1: ...and the radial menu it hid, on the same rule — a ring an addon took out of the paint is
+        //   painted again the moment that addon stops running, however much of its second is left.
+        new Step("hidden radial menu", FlowerMenuApi::teardown),
+        // custom UI vanishes cleanly (2a; before subs, so no dangling callbacks)
+        new Step("widgets", AddonRegistry::destroyWidgets),
+        // 041.3/041.4: deafen every widget:on() listener + drop every poll registration (engine widgets
+        //   outlive a :reload — must detach before the Lua layer that owns them rebuilds)
+        new Step("widget subscriptions", Addon::teardownWidgetSubs),
+        // 041.2: stop intercepting the outbound wdgmsg stream, and the inbound uimsg one — where the L2/L3
+        //   hook registries were unregistered, and for the same reason: the rest of this teardown can itself
+        //   make the client send and receive
+        new Step("action subscriptions", a -> a.actionSubs.clear()),
+        new Step("message subscriptions", a -> a.messageSubs.clear()),
+        // 2e-2: unregister global hotkeys from the GlobKeyEvent dispatch list
+        new Step("key binds", HookApi::teardownKeyBinds),
+        // 030.2: drop the selector subscriptions (no disappear — reload != destroy)
+        new Step("selector watches", UiApi::teardownSelectorWatches),
+        // A11: drop the addon's live console handlers (Console dispatchers stay — C1)
+        new Step("console commands", HookApi::teardownConsoleCommands),
+        // 059.4: give back every action-bar slot this addon was HOLDING — the slot goes back to the server's
+        //   own content, which never changed
+        new Step("belt holds", BeltHold::teardownHolds),
+        // 059.1: take every entry this addon added to the action menu back out of the grid. BEFORE the asset
+        //   step below: an entry draws one of the addon's images, and a cell must stop being laid out before
+        //   the texture under it is disposed
+        new Step("menu entries", AddonPagina::teardownEntries),
+        // V1: destroy client-only world ghosts (remove the scene slot + free the sprite)
+        new Step("ghosts", VirtualApi::teardownGhosts),
+        // R2: destroy client-only world sprites (remove the slot + free the quad geometry)
+        new Step("sprites", VirtualApi::teardownSprites),
+        // R3: destroy client-only world objects (remove the slot + free the glTF Models; before the meshes)
+        new Step("objects", VirtualApi::teardownObjects),
+        // 118: take every patch off the ground (its overlay out of the MCache it was registered in)
+        new Step("patches", VirtualApi::teardownPatches),
+        // 037.4: free the map drawings the client rendered for this addon (grid:image / grid:overlayImage) —
+        //   they are TexIs like any other image and ride the same registry, so this only has to drop the
+        //   bounded cache; it runs BEFORE the asset step so nothing is left pointing at a disposed texture
+        new Step("map images", MapImages::teardown),
+        // 028.1: dispose every loaded asset — images (each TexI's GL texture; after the sprites that sampled
+        //   it), then meshes (the shared base-colour TexIs; AFTER the objects above, R3b), then the intern
+        //   cache itself. Fonts own nothing releasable; the fonts step below reverts their overrides.
+        new Step("assets", AssetApi::teardownAssets),
+        // 041.5: release any active mouse-drag grab (drops the UI.Grab + unlinks the widget)
+        new Step("mouse grabs", LuaGrab::teardownGrabs),
+        // 062: ...and every widget:draggable(h)/:resizable(h) binding — ending a gesture running right now,
+        //   and deafening the last listener on each handle. BEFORE the moved-windows step below: what a
+        //   gesture WROTE is a layout level, and it is that sweep which gives the place back
+        new Step("gestures", Gesture::teardown),
+        // 062: ...and every widget:remember(name) BINDING. What each name holds is left on disk untouched —
+        //   the flush above wrote it — because a reload is not the user changing their mind about where a
+        //   window goes. widget:remember(nil) is the only thing that forgets.
+        new Step("remembered placements", LuaWidget::rememberTeardown),
+        // N2a: cancel every in-flight HTTP request — the connection is closed under the worker, so a torn-down
+        //   addon's request stops reaching the host rather than merely losing its callback
+        new Step("http requests", HttpApi::teardownRequests),
+        // 042.1: cancel every pending Resolve registration (a value still loading) — same shape as the HTTP
+        //   requests above, for the same reason
+        new Step("pending resolves", Addon::teardownWaitings),
+        // 102.1: give the client its own words back -- this addon's CATALOGUE leaves the provider stack and
+        //   every string it displayed reverts to the English the client wrote. Beside the fonts step below,
+        //   and for the same reason: both bump the generation every routed site rebuilds on
+        new Step("locale", LocaleApi::teardown),
+        // 033.1: drop this addon's STYLESHEET (hafen.ui():sheet()) and its per-widget widget:setFont overrides
+        //   in one sweep (bumps gen -> stock foundry restored)
+        new Step("fonts", FontApi::teardownFonts),
+        // 036.1: put every native widget this addon laid out back where the user had it — an addon's layout is
+        //   a LAYER over the client's, so nothing of ours is left behind for GameUI.savewndpos to persist as
+        //   their preference. AFTER the fonts step (036.2): the sheet's own pos/size rules have to have
+        //   stopped resolving first, or re-running the cascade would put them back
+        new Step("moved windows", UiApi::teardownMoved),
+        // 128.3: ...and beside it, the drag listeners the disposal seam never reaches — a dead anchor target
+        //   whose tree had already gone is drained by nothing, so it is the one layout record a widget's own
+        //   death cannot take out
+        new Step("drag listeners", Layout::teardown),
+        // 037.3: give back every map/world overlay this addon was HOLDING — the ref count is shared with the
+        //   client's own checkbox and the server, so an unreleased hold leaves an overlay drawn forever (D-097)
+        new Step("map overlays", MapApi::teardownOverlays),
+        // 024.2: silence anything the addon left in the air (a disabled addon making noise is a bug)
+        new Step("sounds", LuaSound::teardownSounds),
+        // 026.1: drop the addon's cached g:text renderings (frees their GL textures — we own them)
+        new Step("texts", LuaGOut::teardownTexts),
+        // B01: ...and its g:resource caches beside them — the name lookups and the LINEAR-sampled texture
+        //   copies, which are ours too. They were one set for the client, dropped by a full :reload alone; per
+        //   addon a disable frees what that addon drew and nothing else
+        new Step("resources", LuaGOut::dropResources),
+        // 038.1: drop everything this addon attached to a game object, wherever it hangs — the ONE sweep of
+        //   the object cache the feature costs, and the only one left: an overlay's state lives on the gob, so
+        //   nothing else ever looks for it. The game's own overlays are untouched.
+        new Step("gob overlays", UiApi::teardownGobOverlays),
+        // 105: the pointer is one, and an addon that has stopped running does not hold it
+        new Step("cursor", UiApi::teardownCursor),
+        // 046.1: put back every game object this addon resized — the same sweep, for the same reason, on the
+        //   state's other half. A gob's size records who wrote it, so another addon's scale is left alone;
+        //   nothing an addon that stopped running left distorted stays distorted.
+        //   114.3: ...and every object it hid is drawn again, in the same walk.
+        new Step("gob scales", UiApi::teardownGobScales),
+        // 2b: HUD overlays stop painting immediately (the paint iterates this list)
+        new Step("hud overlays", a -> a.hudOverlays.clear()),
+        // 103.3: ...and every painter this addon hung on a WIDGET comes off the widget as well as off the
+        //   addon's list — the paint walks the widget's own field, so a record left there goes on painting for
+        //   an addon that has stopped running, until the widget itself dies
+        new Step("widget overlays", LuaWidgetOverlay::teardown),
+        // 041.1: the whole bus, in one drop — nothing to unsubscribe by hand
+        new Step("subscriptions", a -> a.subs.clear()),
+        new Step("timers", a -> a.timers.clear())));
+
+    /**
+     * <b>Fire {@code Disable}, flush the addon's saved vars, then drop its owned resources</b> — every step of
+     * {@link #STEPS}, whatever any one of them does. Takes {@code null}, because there may never have been a
+     * {@code :lua} line and {@link AddonManager#consoleOwner} is minted by the first one.
+     */
+    static void teardown(Addon a) {
+        if(a == null)
+            return;
+        for(Step s : STEPS)
+            guarded(a, s);
+    }
+
+    /**
+     * <b>Run one step, and let nothing out of it.</b> The addon is going away and every step after this one
+     * still has something to give back, so a step that fails is a line in the log and no more — which is also
+     * the only place such a failure can be seen, since by here there is no addon left to tell.
+     *
+     * <p>{@code Throwable} rather than {@code RuntimeException}: a teardown is the last chance to hand
+     * something back, and an {@code Error} out of one subsystem must not leave the client holding the other
+     * forty. Nothing is rethrown, because there is no caller a teardown failure means anything to.
+     */
+    private static void guarded(Addon a, Step s) {
+        try {
+            s.run.accept(a);
+        } catch(Throwable t) {
+            log(a, "teardown: " + s.name + " failed: " + reason(t));
+        }
     }
 
     /**
@@ -441,36 +522,17 @@ public final class AddonRegistry {
         List<Addon> cur = new ArrayList<Addon>(addons);
         for(int i = cur.size() - 1; i >= 0; i--)     // reverse load order
             teardown(cur.get(i));
+        teardown(AddonManager.consoleOwner);         // ...and the :lua REPL owner, by the same walk. It survives a
+                                                     //   reload and what it owns does not: a console line's window,
+                                                     //   its label on a game object, its clips, its hotkey and its
+                                                     //   held overlay all go, which is what makes :reload the
+                                                     //   escape hatch for a line typed at the console. The REPL is
+                                                     //   an Addon, so it is torn down as one rather than by a
+                                                     //   shorter list that drifts from this one
         addons.clear();
         StoreApi.detach();                           // 074.4/079.1: every session's tables were just flushed
                                                      //   and belong to addons that are going; the ones about to
                                                      //   be built hold nobody until they are asked for
-        LuaSound.teardownSounds(AddonManager.consoleOwner);  // 024.2: the REPL survives a reload, its clips do not
-        LuaGOut.teardownTexts(AddonManager.consoleOwner);    // 026.1: ...nor does its cached text (same reason)
-        LuaGOut.dropResources(AddonManager.consoleOwner);    // B01: ...nor the engine art it drew by name (the
-                                                             //   textures are ours). The reload-only sweep of one
-                                                             //   cache for the whole client is GONE: every addon
-                                                             //   was just torn down, and each took its own
-
-        UiApi.teardownHidden(AddonManager.consoleOwner);     // 031.1: ...nor do the native windows it hid — with their
-                                                             //   toggles now owned too, :reload IS the escape hatch
-        UiApi.teardownMoved(AddonManager.consoleOwner);      // 036.1: ...nor the ones it moved, for the same reason.
-                                                             //   Its SHEET survives a reload (like its site rules), so
-                                                             //   036.2's re-fold hands a widget its own rule back
-        MapApi.teardownOverlays(AddonManager.consoleOwner);  // 037.3: ...nor the overlays it was holding — :reload is
-                                                             //   the escape hatch for a REPL line that took one
-        MapImages.teardown(AddonManager.consoleOwner);       // 037.4: ...nor the map drawings it rendered (each is a
-                                                             //   GL texture; the REPL owner has no other teardown)
-        AddonPagina.teardownEntries(AddonManager.consoleOwner);   // 059.1: ...nor an action-menu entry a REPL line
-                                                             //   added — :reload is its only way back out
-        Gesture.teardown(AddonManager.consoleOwner);         // 062: ...nor a widget a REPL line armed for the user
-                                                             //   to drag or resize — :reload is its only way back
-        LuaWidget.rememberTeardown(AddonManager.consoleOwner);   // 062: ...nor one it asked to be remembered (the
-                                                             //   binding; what the name holds is the character's)
-        LuaGrab.teardownGrabs(AddonManager.consoleOwner);    // 041.5: ...nor a mouse grab a REPL line started and never
-                                                             //   released — without this the pointer stays captured
-                                                             //   (no camera pan, no clicks) until :release() is called
-                                                             //   by hand, :reload's escape hatch not included
         loadAll();                                   // re-scan disk + enabled set; re-run; fire Load
         // 124.1: the screen's state first and every other in the world after it. The order is fixed here
         //   rather than left to the map so that one login is announced the way it always was, and the list
@@ -1059,8 +1121,8 @@ public final class AddonRegistry {
         return out;
     }
 
-    /** A thrown manifest problem as one readable line (some exceptions carry no message of their own). */
-    private static String reason(Exception e) {
+    /** A thrown problem as one readable line -- a manifest's, or a teardown step's (some carry no message). */
+    private static String reason(Throwable e) {
         String msg = e.getMessage();
         return ((msg == null) || msg.isEmpty()) ? e.toString() : msg;
     }

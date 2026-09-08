@@ -485,12 +485,16 @@ final class FontApi {
      * <b>per widget</b> — the sheet's tree rules and its {@code widget:rule()} levels — through
      * {@link Sheet#forget}, which is where the whole per-widget cascade lives. Both bump the generation counter, so
      * every routed site reverts to the stock foundry. Called from {@link AddonRegistry#teardown}.
+     *
+     * <p><b>It asks no flag first.</b> {@code a.skin} and {@code a.skinNodes} answer for two of the three
+     * things a sheet holds, and {@code widget:stock()} sets neither — so an addon that only ever dressed its
+     * own surfaces used to leave every {@code Stock} entry it declared in the map. Both sweeps below are
+     * already conditional on having found something (each bumps the generation only when it changed
+     * anything), so there is nothing an early return here saves and one thing it drops.
      */
     static void teardownFonts(Addon a) {
-        if((a.skin == null) && !a.skinNodes)
-            return;                       // never styled anything → nothing to revert (avoids a needless gen bump)
         Fonts.removeOwner(a);             // the sheet's named scopes
-        Sheet.forget(a);                  // its TREE rules and its widget:rule() levels leave with it (034.1/034.3)
+        Sheet.forget(a);                  // its TREE rules, its widget:rule() levels and its stocks (034.1/034.3/107)
     }
 
     // ------------------------------------------------------------------ opt parsing

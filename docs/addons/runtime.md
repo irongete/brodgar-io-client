@@ -217,6 +217,11 @@ own console rather than shared addon code, so it is **not** sandboxed and every 
 it is the fastest way to try a call before you write it, and the fastest way to break something. The
 instruction watchdog still applies, so a stray infinite loop aborts instead of freezing the client.
 
+**`:reload` is the way back out of anything you type there.** The console owns what it puts up exactly as an
+addon owns what it puts up — its windows, its labels on game objects, its overlays, its hotkeys, its clips —
+and a reload takes all of it back, by the same teardown an addon gets. So a `:lua` line you cannot undo by
+hand is one `:reload` away from undone.
+
 ```text
 :lua hafen.session():current():world():gob():count("terobjs/tree")
 :lua hafen.session():current():ui():match("window[title=Inventory]"):size()
@@ -265,8 +270,9 @@ stylesheet, sounds you started, and the client's own widgets you hid, moved or r
 back as the user was seeing them. Written first: your saved variables, flushed at `Disable`.
 
 Everything your addon holds lives on the addon, or on the login it was made in, and goes with it — a
-disable frees what that addon had and touches no other's. Two things you reach are the client's own and
-stay: a **font family** you load goes into the one namespace the whole client shares, and nothing takes a
+disable frees what that addon had and touches no other's. **Each of those is released on its own**: one that
+fails to release is a line on the console naming it, and everything else is released all the same, so a
+teardown always finishes. Two things you reach are the client's own and stay: a **font family** you load goes into the one namespace the whole client shares, and nothing takes a
 family back, so `$font[…]` still resolves it and a name already registered draws the face that took it
 first (your own handle always draws your file); and a **sound** of several clips leaves an entry in the
 client's audio cache, beside the ones its own sounds leave.

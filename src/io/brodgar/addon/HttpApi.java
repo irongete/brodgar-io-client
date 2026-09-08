@@ -38,8 +38,9 @@ import org.luaj.vm2.lib.ZeroArgFunction;
  *
  * <p>The blocking socket I/O + security checks live one layer down in {@link LuaHttp}; the host-allowlist
  * gate ({@link #requireNetwork}) is here; the callback dispatch goes through {@link AddonManager#callLua}. The
- * tick drain, the session {@link #reset}, and the per-addon {@link #teardownRequests} are the three hooks
- * {@link AddonManager} calls. All members static; not instantiable.
+ * tick drain and the per-addon {@link #teardownRequests} are the two hooks {@link AddonManager} calls. A
+ * session that ends needs no third: {@code AddonManager} drops the whole {@code SessionState}, and the queues
+ * go with it. All members static; not instantiable.
  */
 final class HttpApi {
     private HttpApi() {}
@@ -378,7 +379,7 @@ final class HttpApi {
         m.set("cancel", new ZeroArgFunction() {
             public LuaValue call() {
                 if(!req.dead) {
-                    req.dead = true;
+                    kill(req);
                     owner.requests.remove(req);
                     queueStart(owner);   // freeing a slot may let a queued request start
                 }
@@ -495,20 +496,26 @@ final class HttpApi {
         }
     }
 
+    /**
+     * <b>End one request</b> — the flag every reader keeps, and the exchange under the worker. The two are one
+     * act: a request whose flag alone is set has stopped being listened to, not stopped, and its round trip
+     * goes on reaching the host it names. Both endings ({@code :cancel()} and the teardown below) come here,
+     * so there is one answer to what ending a request does.
+     */
+    private static void kill(LuaHttpRequest r) {
+        r.dead = true;        // in-flight workers see this and discard; queued ones never start
+        LuaHttp.abort(r);     // ...and the exchange itself ends, rather than finishing unheard
+    }
+
     /** Teardown (N2a): cancel every in-flight request so a reload/disable/relog leaks nothing + never calls back. */
     static void teardownRequests(Addon a) {
         if(a.requests.isEmpty())
             return;
         for(LuaHttpRequest r : a.requests)
-            r.dead = true;    // in-flight workers see this and discard; queued ones never start
+            kill(r);
         a.requests.clear();
     }
 
-    /**
-     * Session init: drop stale HTTP completions (their requests were torn down by the teardown loop). Every
-     * session's, since {@code init} is not told which one ended and clearing them all is exactly what this
-     * did when there was one queue for the client.
-     */
     /**
      * Validate an {@code http}/{@code https} URL and return its (non-empty) host, or throw a guiding LuaError.
      *

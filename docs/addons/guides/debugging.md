@@ -23,6 +23,18 @@ rest of the client carry on — with one exception, a failure from underneath th
 [stops the whole addon](../runtime.md#when-a-failure-is-fatal) rather than the client. That is why a broken handler looks like *nothing happening* rather than like a
 crash, and why the console is the first place to look.
 
+One line has the same prefix but is the client's rather than yours — a subsystem that failed to give
+something back while your addon was being [torn down](../runtime.md#what-a-reload-keeps-and-what-it-drops):
+
+```text
+[myaddon] teardown: sounds failed: the mixer this clip went to is gone
+```
+
+It names the one thing that was not given back — `widgets`, `sounds`, `key binds`, `assets` — and everything
+else was given back anyway, which is what makes the line worth reading: whatever it names may still be on
+screen or still in the air after the `:reload`, and nothing else is. Every step but `Disable` is the client's
+own work, so one of those failing is a client bug rather than yours.
+
 ## Try the call before you write it
 
 `:lua <expression>` evaluates against the live API and prints the result as JSON. It is the fastest way to

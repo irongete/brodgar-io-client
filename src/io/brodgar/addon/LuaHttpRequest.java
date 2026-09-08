@@ -1,5 +1,6 @@
 package io.brodgar.addon;
 
+import java.net.HttpURLConnection;
 import java.util.Map;
 
 import org.luaj.vm2.LuaValue;
@@ -15,9 +16,10 @@ import org.luaj.vm2.LuaValue;
  * {@link LuaHttp.Result} onto {@link AddonManager}'s result queue, which {@code tick} drains on the UI
  * thread and, if the request is still live, arms the sandbox and invokes {@link #cb}.
  *
- * <p><b>Cancellation.</b> {@code :cancel()} and teardown both set {@link #dead}. A dead request is never
- * started, its in-flight result is discarded on drain, and its handler <b>never fires</b> (no "cancelled"
- * event in v1) — the explicit no-callback-after-cancel guarantee of §3.3.
+ * <p><b>Cancellation.</b> {@code :cancel()} and teardown both set {@link #dead} <b>and close
+ * {@link #conn}</b>. A dead request is never started, one in flight has its exchange ended where it stands
+ * rather than being left to finish unheard, its result is discarded on drain, and its handler <b>never
+ * fires</b> (no "cancelled" event in v1) — the explicit no-callback-after-cancel guarantee of §3.3.
  *
  * <p><b>Built bare, sent on purpose</b> (095, A-115). Until 095 the call that created a request also
  * scheduled it, so every setter carried a lifetime rule no other builder in the API has — configure it in
@@ -41,6 +43,14 @@ final class LuaHttpRequest {
     final Subs subs;
 
     volatile boolean dead;    // cancelled / torn down — handler suppressed, result discarded
+    /**
+     * The exchange this request has open right now, or {@code null} between hops and before the first. Written
+     * by the worker inside {@link LuaHttp#perform} and read by {@link LuaHttp#abort} on the UI thread, which is
+     * what lets an ending <b>close</b> the connection rather than only stop listening to it — a dead request
+     * whose socket is left open still reaches the host with its headers and still follows its redirects.
+     * {@code volatile} for the same reason {@link #dead} is: two threads, and no lock between them.
+     */
+    volatile HttpURLConnection conn;
     /** The host {@link #url} names, resolved once at construction — what the allowlist is checked against
      *  when {@code :send()} runs the gate (095: there is no {@code :url(u)} setter, so it cannot change). */
     String host;

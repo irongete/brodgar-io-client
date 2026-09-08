@@ -1,0 +1,8 @@
+{
+  "id": "R02-a-teardown-that-finishes.1",
+  "name": "R02 a teardown that finishes",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "Verification suite for refactor block R02: a teardown is one guarded walk over a list of steps, and the :lua REPL owner walks the same list. Run it with :tR02.",
+  "files": ["main.lua"]
+}

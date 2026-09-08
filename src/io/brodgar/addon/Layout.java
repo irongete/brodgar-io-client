@@ -635,6 +635,37 @@ final class Layout {
         return h;
     }
 
+    /**
+     * <b>The drag listeners no death seam will ever reach</b> — a step of {@link AddonRegistry#teardown}.
+     * {@link #untarget} takes a dying anchor target out of {@link #dragListeners}, and it is reached from the
+     * disposal drain, which is fed only for a widget whose tree still has a state to queue onto. A target
+     * whose tree had <i>already</i> gone when it died is announced to nothing, so it stays here as a strong
+     * identity key holding the handler that closes over it — the one record a widget's own death cannot take
+     * out.
+     *
+     * <p><b>Addressed at the map, not at {@code a}</b>: an entry whose tree is gone is dead whoever anchored
+     * to it, nothing can reach it again, and there is no per-addon half to separate — the map is keyed on the
+     * target rather than on who pointed at it. It is a step of the teardown because a teardown is the moment
+     * the client walks its static maps at all; {@code a} names which teardown, and nothing more.
+     */
+    static void teardown(Addon a) {
+        synchronized(Layout.class) {
+            if(dragListeners.isEmpty())
+                return;
+            for(Iterator<Map.Entry<Widget, EventHandler<Widget.MouseMoveEvent>>> it
+                    = dragListeners.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<Widget, EventHandler<Widget.MouseMoveEvent>> e = it.next();
+                UI u = e.getKey().ui;
+                if((u != null) && !u.destroyed)
+                    continue;               // its tree is live: the disposal seam still reaches this one
+                it.remove();
+                try {
+                    e.getKey().deafen(e.getValue());
+                } catch(RuntimeException ex) { /* the tree is gone: its listener list went with it */ }
+            }
+        }
+    }
+
     /** Drop {@code t}'s drag listener — the last anchor pointing at it just went, or {@code t} itself did
      *  ({@link #untarget}). A disposed widget keeps its {@code listening} list, so the {@code deafen} is the
      *  real work rather than a formality; it is still best-effort, since a widget halfway anywhere may throw. */

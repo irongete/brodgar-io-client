@@ -231,16 +231,33 @@ public final class LuaSound {
 
     /**
      * One resource name's live playback, shared by every handle for that name in one addon. {@link #clips} are
-     * the {@link Audio.CS} streams handed to the mixer (appended from a <b>loader</b> thread, read and cleared
-     * from the <b>UI</b> thread — hence the object's own monitor, never a Lua-side lock);
+     * the {@link Audio.CS} streams handed to the mixer, each with the channel it went to (appended from a
+     * <b>loader</b> thread, read and cleared from the <b>UI</b> thread — hence the object's own monitor,
+     * never a Lua-side lock);
      * {@link #pending} counts the plays the loader has not resolved yet, so {@code :playing()} is true from the
      * instant {@code :play()} returns; {@link #gen} is bumped by every stop, which is how a play still in flight
      * is cancelled rather than blipping after the fact.
      */
     private static final class Live {
-        final List<Audio.CS> clips = new ArrayList<Audio.CS>();
+        final List<Clip> clips = new ArrayList<Clip>();
         int pending;
         int gen;
+    }
+
+    /**
+     * One clip in the air, and <b>the channel it went to</b>. The channel is remembered rather than asked for
+     * again at the stop: {@link #play} hands the clip to the layer that was up when it resolved, and a layer
+     * replaced since would leave a stop asking a mixer that never had it — the clip would go on sounding with
+     * every handle to it already gone.
+     */
+    private static final class Clip {
+        final UI ui;                 // the channel this clip was handed to, and the only one that can take it back
+        final Audio.CS cs;
+
+        Clip(UI ui, Audio.CS cs) {
+            this.ui = ui;
+            this.cs = cs;
+        }
     }
 
     /**
@@ -248,16 +265,12 @@ public final class LuaSound {
      * asking IS the prune), and answer whether anything of this name is still sounding or still resolving.
      */
     private static boolean prune(Live l) {
-        UI u = AddonManager.layer();
-        ActAudio.Root au = (u == null) ? null : u.audio;
         synchronized(l) {
-            if(au == null) {                    // no layer yet: nothing has been handed to a mixer at all
-                l.clips.clear();
-                return false;
-            }
-            for(Iterator<Audio.CS> i = l.clips.iterator(); i.hasNext();) {
-                if(!au.aui.mixer().playing(i.next()))
-                    i.remove();
+            for(Iterator<Clip> i = l.clips.iterator(); i.hasNext();) {
+                Clip c = i.next();
+                ActAudio.Root au = c.ui.audio;   // ITS channel, not whichever layer is up now
+                if((au == null) || !au.aui.mixer().playing(c.cs))
+                    i.remove();                  // drained, or its channel went with the UI that held it
             }
             return (l.pending > 0) || !l.clips.isEmpty();
         }
@@ -272,13 +285,13 @@ public final class LuaSound {
      * started after. (Lock order is always {@code Live} → the channel/mixer, never the other way.)
      */
     private static void silence(Live l) {
-        UI u = AddonManager.layer();
         synchronized(l) {
             l.gen++;            // a deferred play stamped with the old generation now drops its clip
             l.pending = 0;
-            if(u != null) {
-                for(int i = 0; i < l.clips.size(); i++)
-                    u.audio.aui.remove(l.clips.get(i));
+            for(int i = 0; i < l.clips.size(); i++) {
+                Clip c = l.clips.get(i);
+                if(c.ui.audio != null)          // ITS channel: a layer replaced since this clip started
+                    c.ui.audio.aui.remove(c.cs);   //   still has to be the one told to drop it
             }
             l.clips.clear();
         }
@@ -453,7 +466,7 @@ public final class LuaSound {
                     if(live.gen != gen)                // stopped while we resolved: never blip (pending zeroed)
                         return;
                     live.pending--;
-                    live.clips.add(cs);
+                    live.clips.add(new Clip(u, cs));   // the clip AND the channel it is about to go to
                     u.sfx(cs);      // INSIDE the monitor: registering and starting must be one step, or a
                                     // :stop() landing between them removes a clip the mixer has not got yet
                 }

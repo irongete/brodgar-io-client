@@ -10,6 +10,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -105,8 +106,45 @@ final class FlowerMenuApi {
     // retained: weak keys over a Long value -- nothing in the entry reaches the menu, so it collects.
     private static final Map<FlowerMenu, Long> clicked = new WeakHashMap<FlowerMenu, Long>();
 
+    /**
+     * <b>The addon that took a ring out of the paint</b>, per menu — written by {@code :visible(false)} and
+     * taken out by {@code :visible(true)}. Key presence is "somebody is hiding this one", and the value says
+     * who, which is the whole of what {@link #teardown} needs: an addon that stops running while a ring it hid
+     * is still up has that ring painted again, on the rule every other hide in the API already obeys.
+     *
+     * <p>{@code hide()} is a flag on the widget with no record of its own, so without this map nothing could
+     * put one back. Weak-keyed like the two above, and for the same reason — a ring lives about a second and
+     * dies with its session either way; the value is the {@link Addon}, which nothing in the entry reaches
+     * the key through. UI thread only.
+     */
+    // retained: weak keys over an Addon value -- nothing in the entry reaches the menu, so it collects.
+    private static final Map<FlowerMenu, Addon> hidden = new WeakHashMap<FlowerMenu, Addon>();
+
     /** {@code s:flowermenu()} — how this section is reached, and so how every one of its messages spells itself. */
     static final String FM = "session:flowermenu()";
+
+    /**
+     * <b>Give back every ring this addon hid</b> (a step of {@link AddonRegistry#teardown}) — a ring an addon
+     * took out of the paint is painted again the moment that addon stops running, which is the rule every
+     * other hide in the API obeys and the one thing {@code fm.hide()} could not do for itself.
+     *
+     * <p>A menu already gone is skipped by its own tree: {@code show()} on a dead widget is a flag write on a
+     * widget nothing draws. The entry goes either way, so the map holds nothing of a torn-down addon's.
+     */
+    static void teardown(Addon a) {
+        if(hidden.isEmpty())
+            return;
+        for(Iterator<Map.Entry<FlowerMenu, Addon>> it = hidden.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<FlowerMenu, Addon> e = it.next();
+            if(e.getValue() != a)
+                continue;
+            FlowerMenu fm = e.getKey();
+            it.remove();
+            synchronized(LuaWidget.monitor(fm)) {   // that ring's OWN tree (112.2), never the drawn one
+                fm.show();
+            }
+        }
+    }
 
     /**
      * Build the flower-menu section object for {@code (owner, user)} — <b>the menu THAT character has
@@ -187,6 +225,12 @@ final class FlowerMenuApi {
                     else
                         fm.hide();
                 }
+                // ...and the record of who did it, which is what a teardown gives back (the flag itself
+                // carries no owner). Written under no lock but the UI thread's own, like the two maps beside it.
+                if(vis)
+                    hidden.remove(fm);
+                else
+                    hidden.put(fm, owner);
                 return self;              // the section: a property write chains
             }
         });
