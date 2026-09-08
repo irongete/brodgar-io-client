@@ -99,7 +99,7 @@ public final class LuaCraft {
             public Varargs invoke(Varargs a) {
                 LuaValue me = a.arg1();
                 Section.self(me, "craft", "make", CharApi.CR);
-                AddonManager.requirePermission(owner, Permission.CRAFT_MAKE);
+                AddonManager.requirePermission(AddonManager.current(), Permission.CRAFT_MAKE);
                 LuaValue all = Args.written(a, 2, CharApi.CR + ":make", "all");
                 Makewindow mw = ActApi.makewindow(user);
                 if(mw == null)

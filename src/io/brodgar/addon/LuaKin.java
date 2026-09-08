@@ -256,7 +256,7 @@ public final class LuaKin {
                         return LuaValue.valueOf(b.group);
                     }
                 }
-                AddonManager.requirePermission(owner, Permission.KIN_GROUP);
+                AddonManager.requirePermission(AddonManager.current(), Permission.KIN_GROUP);
                 int g = Args.integer(group, "kin:group", "group", "0.." + MAXGROUP);
                 if((g < 0) || (g > MAXGROUP))
                     throw new LuaError("kin:group(group): group must be 0.." + MAXGROUP + ", got " + g);
@@ -332,7 +332,7 @@ public final class LuaKin {
         // -- protected writes (D-027/D-028): drive the client's own Buddy methods (D-009), return self ------
         m.set("rename", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue name) {
-                AddonManager.requirePermission(owner, Permission.KIN_RENAME);
+                AddonManager.requirePermission(AddonManager.current(), Permission.KIN_RENAME);
                 Args.str(name, "kin:rename", "name", "the name YOUR list shows this kin under");
                 LuaKin h = handle(self, "rename");
                 BuddyWnd bw = kinwnd(self, "rename");
@@ -348,7 +348,7 @@ public final class LuaKin {
         // endKin() = END KINSHIP (step 1): ends the kinship; the kin stays memorized in the list.
         m.set("endKin", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                AddonManager.requirePermission(owner, Permission.KIN_END);
+                AddonManager.requirePermission(AddonManager.current(), Permission.KIN_END);
                 LuaKin h = handle(self, "endKin");
                 BuddyWnd bw = kinwnd(self, "endKin");
                 BuddyWnd.Buddy b = require(self, "endKin");
@@ -360,7 +360,7 @@ public final class LuaKin {
         // forget() = FORGET (step 2): drops a memorized (un-kinned) kin from the list entirely.
         m.set("forget", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                AddonManager.requirePermission(owner, Permission.KIN_FORGET);
+                AddonManager.requirePermission(AddonManager.current(), Permission.KIN_FORGET);
                 LuaKin h = handle(self, "forget");
                 BuddyWnd bw = kinwnd(self, "forget");
                 BuddyWnd.Buddy b = require(self, "forget");
@@ -568,7 +568,7 @@ public final class LuaKin {
             // COLLECTION rather than a Kin, because there is no Kin yet: the server decides whether the secret
             // is valid and the roster changes on a later tick, which is what KinChanged reports.
             public LuaValue addMember(Varargs a) {
-                AddonManager.requirePermission(owner, Permission.KIN_ADD);
+                AddonManager.requirePermission(AddonManager.current(), Permission.KIN_ADD);
                 // The type, not isstring(): a NUMBER answers isstring() in LuaJ, so the laxer test used to
                 // send :add(1234) to the server as the hearth secret "1234" — a wrong value walking through
                 // the one type check in this family that guards a protected write.

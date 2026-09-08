@@ -425,7 +425,7 @@ final class WorldApi {
         m.set("place", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.WORLD_PLACE);
+                AddonManager.requirePermission(AddonManager.current(), Permission.WORLD_PLACE);
                 Section.self(self, "world", "place", W);
                 Coord2d rc = LuaPosition.worldArg(a, 2, W + ":place", "p", user);
                 double ang = number(a, 3, W + ":place", "angle");
@@ -457,7 +457,7 @@ final class WorldApi {
         m.set("click", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.GOB_CLICK);
+                AddonManager.requirePermission(AddonManager.current(), Permission.GOB_CLICK);
                 Section.self(self, "world", "click", W);
                 LuaValue gv = Args.required(a, 2, W + ":click", "gob");
                 LuaGob h = LuaGob.resolve(gv);
@@ -494,7 +494,7 @@ final class WorldApi {
         m.set("select", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.WORLD_SELECT);
+                AddonManager.requirePermission(AddonManager.current(), Permission.WORLD_SELECT);
                 Section.self(self, "world", "select", W);
                 Coord2d p1 = LuaPosition.worldArg(a, 2, W + ":select", "p1", user);
                 Coord2d p2 = LuaPosition.worldArg(a, 3, W + ":select", "p2", user);

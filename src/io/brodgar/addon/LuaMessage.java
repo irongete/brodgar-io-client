@@ -1,6 +1,7 @@
 package io.brodgar.addon;
 
 import haven.ChatUI;
+import haven.RichText;
 import haven.UI;
 
 import org.luaj.vm2.LuaError;
@@ -213,11 +214,25 @@ public final class LuaMessage {
 
     private static LuaTable methods(final Addon owner) {
         LuaTable m = new LuaTable();
-        // text() — the line as it was written, markup and all. The client renders that markup; nothing here
-        // strips it, so what an addon reads is what the server said.
+        // text() — the line as the CLIENT RENDERS IT (audit2 B08, ct-07): quoted, exactly as ChatUI's own two
+        // render arms quote it before handing it to the rich-text parser. A line is written by another player,
+        // and $col{}/$img{} in a stranger's text is inert in the chat precisely because of that quoting — so a
+        // raw read handed straight to a surface that parses rich text (a label, a tooltip, a HUD overlay) made
+        // the stranger's markup live again on YOUR screen. What this answers is now what you saw.
         m.set("text", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 ChatUI.Channel.Message msg = live(handle(self, "text"));
+                String s = (msg == null) ? null : msg.text();
+                return (s == null) ? LuaValue.NIL : LuaValue.valueOf(RichText.Parser.quote(s));
+            }
+        });
+        // raw() — the line as it arrived, quoting and all still to do. The unquoted form, for the addon that
+        // is matching on the line rather than drawing it: a pattern written against what the server sent
+        // needs the bytes the server sent. Anything this hands to a rich-text surface carries the sender's
+        // markup with it, which is what :text() exists to have already dealt with.
+        m.set("raw", new OneArgFunction() {
+            public LuaValue call(LuaValue self) {
+                ChatUI.Channel.Message msg = live(handle(self, "raw"));
                 String s = (msg == null) ? null : msg.text();
                 return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
             }

@@ -267,7 +267,7 @@ public final class LuaSlot {
                         + " assigns one of the game's own actions, by the name the server publishes. Hold the"
                         + " slot for the entry instead: slot:hold(pag).");
                 }
-                AddonManager.requirePermission(owner, Permission.ACTIONBAR_RES);
+                AddonManager.requirePermission(AddonManager.current(), Permission.ACTIONBAR_RES);
                 LuaSlot h = handle(self, "res");
                 if(!rv.isstring())
                     throw new LuaError("slot:res(resourceName): expected a resource name string, got "
@@ -301,7 +301,7 @@ public final class LuaSlot {
                     throw new LuaError("slot:clear() takes no arguments — it empties the slot. To put one of"
                         + " the game's actions in it, slot:res(resourceName); to give back a slot you are"
                         + " holding for one of your own entries, slot:hold(nil)");
-                AddonManager.requirePermission(owner, Permission.ACTIONBAR_CLEAR);
+                AddonManager.requirePermission(AddonManager.current(), Permission.ACTIONBAR_CLEAR);
                 LuaSlot h = handle(self, "clear");
                 // THAT character's own HUD sends it, exactly as res(name) does: the clear lands on the bar
                 // the slot names whether or not it is the one on screen.
@@ -370,7 +370,7 @@ public final class LuaSlot {
         m.set("use", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.ACTIONBAR_USE);
+                AddonManager.requirePermission(AddonManager.current(), Permission.ACTIONBAR_USE);
                 // The modifiers are read before the bar is looked up: an argument the caller got wrong is
                 // the caller's to hear about whether or not that slot happens to be empty right now.
                 int mods = Args.optint(a, 2, "slot:use", "mods", null, 0);

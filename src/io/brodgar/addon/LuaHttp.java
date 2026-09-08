@@ -6,7 +6,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
+import java.net.Proxy;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -62,7 +64,14 @@ final class LuaHttp {
     static {
         for(String h : new String[] {
                 "host", "content-length", "connection", "keep-alive", "transfer-encoding",
-                "te", "trailer", "upgrade", "proxy-authorization", "proxy-connection", "user-agent" })
+                "te", "trailer", "upgrade", "proxy-authorization", "proxy-connection", "user-agent",
+                // audit2 B08 (ht-08): and these two, which are not hop-by-hop but are OURS all the same.
+                // `Accept-Encoding` is the premise the size cap is written against -- we ask for `identity`
+                // because MAX_SIZE counts the bytes we buffer, and an addon setting `gzip` replaced it, so a
+                // compressed body decompressed past the cap. `Cookie` is refused because http.md says there
+                // are none: nothing here keeps a jar, so a hand-written one is a session an addon carries
+                // across requests behind the user's back.
+                "accept-encoding", "cookie" })
             FORBIDDEN_HEADERS.add(h);
     }
 
@@ -110,12 +119,28 @@ final class LuaHttp {
         byte[] body = r.body;
         String url = r.url;
         int hops = 0;
+        // audit2 B08 (ht-03): ONE DEADLINE OVER THE WHOLE EXCHANGE. The two timeouts below are per SOCKET
+        // OPERATION -- setReadTimeout is SO_TIMEOUT, a bound on one read and not on the transfer -- and they
+        // were set inside this loop, per hop, so each of the six hops MAX_REDIRECTS permits was entitled to
+        // the full 60 s the page documents as the ceiling, and a server trickling one byte inside every
+        // window held one of the eight pool threads every addon shares for as long as it liked. This is the
+        // clock the page's number now means: the whole exchange, redirects and body included.
+        final long deadline = System.currentTimeMillis() + r.timeout;
+        // audit2 B08 (ht-04): the host of the FIRST hop. The addon's own headers were re-applied on every
+        // iteration, so a 302 from one approved host to another handed the first host's Authorization to the
+        // second -- two hosts the user approved separately, and a bearer token for one is not a bearer token
+        // for the other. They now travel no further than the host they were addressed to.
+        String firstHost = null;
+        boolean sameHost = true;
         while(true) {
             // Torn down or cancelled: no hop of a dead request goes out. The redirect loop is the reason this
             // is read here and not only at submit -- a request that died mid-flight used to follow the rest of
             // its chain, sending its headers to every host on it, for an addon that had stopped running.
             if(r.dead)
                 return Result.fail("cancelled");
+            int left = (int)(deadline - System.currentTimeMillis());
+            if(left <= 0)
+                return Result.fail("timeout");
             HttpURLConnection c = null;
             try {
                 URL u;
@@ -125,26 +150,31 @@ final class LuaHttp {
                 } catch(MalformedURLException | IllegalArgumentException e) {
                     return Result.fail("malformed url: " + e.getMessage());
                 }
-                // Per-hop host validation — allowlist (redirects can't escape it) + private/loopback block.
-                // We check ALL resolved addresses so a host with both a public and a private A record can't
-                // sneak the private one. (Documented resolve-then-connect DNS-rebinding gap — a later
-                // hardening pins the checked IP into the connection, §9.)
-                Result bad = validateHop(r, u, hops > 0);
-                if(bad != null)
-                    return bad;
+                // Per-hop ORIGIN validation: the grant (a redirect cannot escape it) and the private/loopback
+                // block. ALL resolved addresses are checked, so a host with both a public and a private A
+                // record cannot sneak the private one -- and the ONE resolve this does is the address the
+                // connection is then made to (ht-01, see open()).
+                Hop hop = validateHop(r, u);
+                if(hop.bad != null)
+                    return hop.bad;
+                String host = u.getHost().toLowerCase(Locale.ROOT);
+                if(firstHost == null)
+                    firstHost = host;
+                else if(!firstHost.equals(host))
+                    sameHost = false;
 
-                c = (HttpURLConnection)u.openConnection();
+                c = open(u, hop.pin);
                 r.conn = c;                            // ...so an ending can close this exchange under us
                 if(r.dead)
                     return Result.fail("cancelled");   // it died while we opened: nothing has gone out yet
                 c.setInstanceFollowRedirects(false);   // we follow manually so every hop is re-validated
-                c.setConnectTimeout(r.timeout);
-                c.setReadTimeout(r.timeout);
+                c.setConnectTimeout(left);             // ht-03: what is LEFT of the exchange, not a fresh one
+                c.setReadTimeout(left);
                 c.setUseCaches(false);
                 c.setRequestMethod(method);
                 c.setRequestProperty("User-Agent", USER_AGENT);
                 c.setRequestProperty("Accept-Encoding", "identity");   // no gzip: we buffer raw bytes (size cap)
-                if(r.headers != null) {
+                if((r.headers != null) && sameHost) {  // ht-04: the headers stop at the host they name
                     for(Map.Entry<String, String> e : r.headers.entrySet()) {
                         if(headerAllowed(e.getKey()) && (e.getValue() != null))
                             c.setRequestProperty(e.getKey(), e.getValue());
@@ -186,11 +216,13 @@ final class LuaHttp {
                     // 3xx with no Location → nothing to follow; fall through and return it raw.
                 }
                 InputStream in = (status >= 400) ? c.getErrorStream() : c.getInputStream();
-                byte[] data = readCapped(in);       // throws TooLarge past MAX_SIZE
+                byte[] data = readCapped(in, deadline);   // TooLarge past MAX_SIZE, Deadline past the clock
                 String bodyStr = new String(data, charsetOf(c));
                 return Result.ok(status, bodyStr, lowerHeaders(c));
             } catch(TooLargeException e) {
                 return Result.fail("response too large (> " + MAX_SIZE + " bytes)");
+            } catch(DeadlineException e) {
+                return Result.fail("timeout");
             } catch(SocketTimeoutException e) {
                 return Result.fail("timeout");
             } catch(MalformedURLException e) {
@@ -234,38 +266,108 @@ final class LuaHttp {
     }
 
     /**
-     * Validate one hop before connecting: scheme must be http/https, the host must be one the user approved for
-     * the addon ({@link Addon#hostGranted} — the consent record, not the manifest on disk; enforced on
-     * <b>every</b> hop when {@code redirect}, so a redirect can't escape the granted hosts; the first hop was
-     * already checked at call, re-checked here as defense-in-depth), and no resolved address may be
-     * private/loopback/link-local (§5.2). Returns {@code null} when the hop is allowed, else the failure Result.
+     * <b>One hop, checked and pinned</b> (audit2 B08) — either the failure that stops the exchange, or the
+     * address the connection is to be made to. It is one object because the two answers come out of one
+     * resolve, and splitting them is what let the check and the connect disagree.
      */
-    private static Result validateHop(LuaHttpRequest r, URL u, boolean redirect) {
+    private static final class Hop {
+        final Result bad;          // non-null: the hop is refused, and this is why
+        final InetAddress pin;     // the vetted address, valid iff bad == null
+
+        private Hop(Result bad, InetAddress pin) {
+            this.bad = bad;
+            this.pin = pin;
+        }
+        static Hop refused(String why) {
+            return new Hop(Result.fail(why), null);
+        }
+        static Hop at(InetAddress a) {
+            return new Hop(null, a);
+        }
+    }
+
+    /**
+     * Validate one hop before connecting: the scheme must be http/https, the <b>origin</b> must be one the
+     * user approved for the addon ({@link Addon#hostGranted} — the consent record, not the manifest on disk),
+     * and no resolved address may be private/loopback/link-local (§5.2). Returns the vetted address to
+     * connect to, or the failure.
+     *
+     * <p><b>Every hop, including the first</b>, so a redirect can never escape the granted origins and the
+     * first hop's synchronous check at the call is confirmed here where the packet actually goes.
+     *
+     * <p><b>The origin, and not the host</b> (ht-05). The grant was {@code URL.getHost()} alone — the scheme
+     * was validated per request but never recorded and the port never entered the match at all — so a host
+     * the user approved for {@code https} was equally reachable in cleartext, on any port. {@link Manifest}
+     * builds both sides of the comparison, so the pattern and the url are read by one rule.
+     *
+     * <p><b>ONE resolve</b> (ht-01), whose answer is handed back to be connected to. It used to resolve here,
+     * check what it found, and then let {@code openConnection} resolve the name a second time and connect to
+     * whatever THAT answered — so a host answering public at check-time and 127.0.0.1 a moment later reached
+     * loopback with the addon's headers on it.
+     */
+    private static Hop validateHop(LuaHttpRequest r, URL u) {
         String scheme = (u.getProtocol() == null) ? "" : u.getProtocol().toLowerCase(Locale.ROOT);
         if(!scheme.equals("http") && !scheme.equals("https"))
-            return Result.fail("redirect to a non-http(s) url refused: " + u);
+            return Hop.refused("hop to a non-http(s) url refused: " + u);
         String host = u.getHost();
         if((host == null) || host.isEmpty())
-            return Result.fail("redirect url has no host: " + u);
-        if(redirect && ((r.owner == null) || !r.owner.hostGranted(host)))
-            return Result.fail("redirect to non-allowlisted host \"" + host
-                + "\" refused (D-037: redirects may not escape the hosts the user approved)");
+            return Hop.refused("hop url has no host: " + u);
+        String origin = Manifest.origin(scheme, host,
+                                        (u.getPort() > 0) ? u.getPort() : Manifest.defaultPort(scheme));
+        if((r.owner == null) || !r.owner.hostGranted(origin))
+            return Hop.refused("hop to non-allowlisted origin \"" + origin + "\" refused (D-037: a request"
+                + " reaches the scheme, host and port the user approved, and a redirect may not escape them)");
         InetAddress[] addrs;
         try {
             addrs = InetAddress.getAllByName(host);
         } catch(Exception e) {
-            return Result.fail("DNS resolution failed for " + host);
+            return Hop.refused("DNS resolution failed for " + host);
         }
+        if(addrs.length == 0)
+            return Hop.refused("DNS resolution failed for " + host);
         for(InetAddress a : addrs) {
             if(isBlockedAddress(a))
-                return Result.fail("host " + host + " resolves to a blocked address ("
+                return Hop.refused("host " + host + " resolves to a blocked address ("
                     + a.getHostAddress() + "; private/loopback ranges are refused)");
         }
-        return null;
+        return Hop.at(addrs[0]);
     }
 
-    /** Read a stream fully, aborting past {@link #MAX_SIZE}. {@code in} may be null (no body). */
-    private static byte[] readCapped(InputStream in) throws IOException {
+    /**
+     * <b>Open the connection to the address the hop was vetted at</b> (audit2 B08, ht-01).
+     *
+     * <p>For {@code http} the connection is made through an explicit proxy address, which is the one hook
+     * {@link HttpURLConnection} offers for choosing where the socket goes: the JDK connects to
+     * {@code pin} and writes the request in absolute form, so the {@code Host} header still names the host
+     * the url does and the origin server — which RFC 7230 §5.3.2 requires to accept that form — answers for
+     * exactly the address we checked. No second name lookup happens anywhere on that path.
+     *
+     * <p>For {@code https} the connection is made by name, and the pin is the <b>certificate</b>: whatever
+     * address the name resolves to at connect time has to present a chain valid for that host, which an
+     * attacker's rebound private address cannot. That is a stronger binding than an IP, and it is the reason
+     * this half needs no proxy: the JDK gives no way to choose the address without also taking over SNI and
+     * hostname verification, and re-implementing certificate identity to gain nothing would be the worse
+     * trade. Plain http, which has no such binding, is the half that can reach a metadata service.
+     */
+    private static HttpURLConnection open(URL u, InetAddress pin) throws IOException {
+        String scheme = (u.getProtocol() == null) ? "" : u.getProtocol().toLowerCase(Locale.ROOT);
+        if(scheme.equals("http") && (pin != null)) {
+            int port = (u.getPort() > 0) ? u.getPort() : 80;
+            Proxy at = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(pin, port));
+            return (HttpURLConnection)u.openConnection(at);
+        }
+        return (HttpURLConnection)u.openConnection();
+    }
+
+    /**
+     * Read a stream fully, aborting past {@link #MAX_SIZE} and past {@code deadline} (audit2 B08, ht-03).
+     * {@code in} may be null (no body).
+     *
+     * <p>The socket timeout bounds one {@code read}, so a server dribbling a byte inside every window was
+     * never timed out by it however long the body took. The exchange's own clock is checked per chunk, which
+     * is where the trickle is actually visible.
+     */
+    private static byte[] readCapped(InputStream in, long deadline) throws IOException {
         if(in == null)
             return new byte[0];
         ByteArrayOutputStream buf = new ByteArrayOutputStream();
@@ -276,6 +378,8 @@ final class LuaHttp {
                 total += n;
                 if(total > MAX_SIZE)
                     throw new TooLargeException();
+                if(System.currentTimeMillis() > deadline)
+                    throw new DeadlineException();
                 buf.write(chunk, 0, n);
             }
         } finally {
@@ -315,10 +419,16 @@ final class LuaHttp {
     }
 
     /**
-     * Whether {@code a} is a private/loopback/link-local/unspecified address that third-party code must not
-     * reach (§5.2): blocks {@code 127/8}, {@code 10/8}, {@code 172.16/12}, {@code 192.168/16},
-     * {@code 169.254/16}, {@code ::1}, {@code fc00::/7}, {@code fe80::/10} (and any multicast/wildcard).
-     * Implemented via {@link InetAddress}'s own classifiers, which cover exactly these ranges per family.
+     * Whether {@code a} is an address third-party code must not reach (§5.2). The JDK's own classifiers
+     * cover {@code 127/8}, {@code 10/8}, {@code 172.16/12}, {@code 192.168/16}, {@code 169.254/16},
+     * {@code ::1}, {@code fe80::/10} and any multicast or wildcard address; {@code fc00::/7} and three IPv4
+     * ranges they do not classify are added by hand below.
+     *
+     * <p><b>The three by hand are audit2 B08 (ht-06)</b>, and they were reachable: {@code 100.64/10} is
+     * carrier-grade NAT, where a home router's own management interface commonly sits; {@code 192.0.0/24} is
+     * the IETF protocol block, which carries DS-Lite's {@code 192.0.0.1} gateway; {@code 198.18/15} is the
+     * benchmarking range that routes to lab equipment on the networks that use it. {@code http.md} prints
+     * its ranges as a closed list, so an omission there is a promise the client was not keeping.
      */
     static boolean isBlockedAddress(InetAddress a) {
         return a.isLoopbackAddress()        // 127/8, ::1
@@ -326,7 +436,24 @@ final class LuaHttp {
             || a.isLinkLocalAddress()       // 169.254/16, fe80::/10
             || a.isSiteLocalAddress()       // 10/8, 172.16/12, 192.168/16
             || a.isMulticastAddress()
-            || isUniqueLocalV6(a);          // fc00::/7 (not covered by isSiteLocalAddress for IPv6)
+            || isUniqueLocalV6(a)           // fc00::/7 (not covered by isSiteLocalAddress for IPv6)
+            || isReservedV4(a);             // 100.64/10, 192.0.0/24, 198.18/15
+    }
+
+    /**
+     * The IPv4 ranges the JDK classifies as ordinary public addresses and which are not (ht-06):
+     * {@code 100.64.0.0/10}, {@code 192.0.0.0/24} and {@code 198.18.0.0/15}.
+     */
+    private static boolean isReservedV4(InetAddress a) {
+        byte[] b = a.getAddress();
+        if(b.length != 4)
+            return false;
+        int o0 = b[0] & 0xff, o1 = b[1] & 0xff, o2 = b[2] & 0xff;
+        if((o0 == 100) && (o1 >= 64) && (o1 <= 127))       // 100.64.0.0/10 - carrier-grade NAT
+            return true;
+        if((o0 == 192) && (o1 == 0) && (o2 == 0))          // 192.0.0.0/24 - IETF protocol assignments
+            return true;
+        return (o0 == 198) && ((o1 == 18) || (o1 == 19));  // 198.18.0.0/15 - benchmarking
     }
 
     /** IPv6 unique-local {@code fc00::/7} (the IPv6 analog of RFC-1918; JDK has no direct predicate for it). */
@@ -346,5 +473,9 @@ final class LuaHttp {
 
     /** Internal signal that the response exceeded {@link #MAX_SIZE} (mapped to a clean transport error). */
     private static final class TooLargeException extends IOException {
+    }
+
+    /** Internal signal that the exchange ran past its deadline mid-body (audit2 B08, ht-03). */
+    private static final class DeadlineException extends IOException {
     }
 }

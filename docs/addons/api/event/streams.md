@@ -20,6 +20,11 @@ can introduce, not a catalogue the client owns, so any string is accepted. One s
 > [`widget:send`](../ui/widget.md#send-a-message-protected) needs: they put a message on the same wire, and
 > `ev:send(t)` carries arguments of your choosing. `ev:preventDefault()` needs nothing — cancelling reaches
 > no one.
+>
+> **The key that is read is the key of the addon whose handler is running.** An `ev` is an ordinary Lua
+> value, so it can be put in a shared table and picked up by another addon — and the verb it calls there is
+> measured against *that* addon's manifest. Handing an event on hands no permission with it, and the same is
+> true of a [`Widget`](../ui/widget.md), a [`Session`](../session.md) or anything else that crosses.
 
 `hafen.event():action():on(msg, fn)` fires when a widget is about to send an action `msg` to the server,
 with the arguments **fully resolved** — for a move `"click"`, that is the destination world coordinate,

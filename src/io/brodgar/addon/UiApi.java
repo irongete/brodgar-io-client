@@ -1901,6 +1901,15 @@ final class UiApi {
                 }
                 WidgetSurface.reparent(u, w, np, new Coord(r.at));   // a copy: haven.Coord is mutable
                 LuaWidget.relink(w, r.after);
+                // audit2 B08 (un-03): ...AND THE CLIENT TRACKS IT AGAIN. Taking the window ran
+                // GameUI.cdestroy, which drops the id out of `wndids` and writes the window's place to disk;
+                // nothing put it back, so the client had permanently stopped tracking a window an UNPROTECTED
+                // verb had merely borrowed -- its toggle, its remembered place, the id the server names it
+                // by. The id was captured at the take (LuaWidget.Rehomed.wndid) and is handed back here,
+                // inside the same monitor the reparent runs under.
+                GameUI gui = AddonManager.gui(u);
+                if(gui != null)
+                    gui.rewnd(r.wndid, w);
             }
             Layout.apply(w);      // a sheet rule that still names it resolves again, now in the home parent
         } catch(RuntimeException e) {

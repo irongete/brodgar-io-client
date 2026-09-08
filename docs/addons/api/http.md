@@ -41,10 +41,15 @@ take** — the key says *whether*, the hosts say *where*:
   so widening the block in a shipped addon is a change they answer, not one that takes effect by itself.
 - **Hosts with no key is a load error** naming the key, so your addon does not run. **A key with no hosts**
   is refused at the call, naming the block to add. Neither can be forgotten quietly.
+- **An entry grants one origin — a scheme, a host and a port.** Write it as `[scheme://]host[:port]`. What
+  you leave out you get by default, and the defaults are **https** on **443**: so `api.example.com` grants
+  `https://api.example.com:443` and nothing else, and cleartext or another port has to be asked for by name
+  (`http://box.example.com:8080`). A call to any other origin is rejected **synchronously**, as a Lua error
+  at call time, so wrap the call if the URL is dynamic.
 - **`hosts` is an exact, case-insensitive allowlist**, with a `*.domain` wildcard for sub-domains:
   `*.example.com` matches `a.example.com` and `a.b.example.com`, but **not** the apex `example.com`,
-  which you list separately. A call to any other host is rejected **synchronously**, as a Lua error at
-  call time, so wrap the call if the URL is dynamic.
+  which you list separately. **A wildcard covers one domain**: `*.com` is a load error, and so is any
+  wildcard whose suffix is a bare top-level domain. The user approves this list by reading it.
 - The **AddOns panel** still shows a `[net]` badge and the declared hosts in the addon's tooltip.
 
 ## Request
@@ -98,7 +103,9 @@ A table body is encoded with the same serializer as [`hafen.json():encode`](json
 serialized — a function, userdata, a cycle, a table nested past that serializer's depth cap —
 raises at the call.
 
-Transport-owned headers (`Host`, `Content-Length`, `Connection`, `User-Agent`, …) are ignored. A setter
+Transport-owned headers (`Host`, `Content-Length`, `Connection`, `User-Agent`, …) are ignored, and so are
+**`Accept-Encoding`** and **`Cookie`**: the first is how the client asks for an uncompressed body, which is
+what the 8 MB cap is measured against, and the second is a session the client does not keep. A setter
 refuses an explicit `nil`: the read is the same name with no argument, so `req:timeout(t)` with a `t` you
 forgot to set would otherwise read the timeout and change nothing.
 
@@ -157,6 +164,10 @@ A request you build and never `:send()` costs nothing and holds no slot. Reloadi
 and relogging, cancel every request the addon has in flight: an in-flight response is discarded and no
 handler runs, so nothing leaks across a reload.
 
+`req:cancel()`, a reload and a disable all **close the exchange where it stands** rather than letting it
+finish unheard, so no further hop goes out. A request whose login ends before the reply arrives is ended
+the same way: the handler belongs to that character's tick, and there is no tick left to run it on.
+
 The handler runs under the same watchdog and error isolation as every other addon callback: an error
 inside it is logged, never propagated.
 
@@ -166,16 +177,27 @@ inside it is logged, never propagated.
 > them, and against the address rules below.
 
 - **Private, loopback and link-local addresses are refused**, even for an allowlisted host: if it
-  resolves into `127.0.0.0/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `::1`, `fc00::/7` or
-  `fe80::/10`, the request fails, `res:ok()` false, with a blocked-address error. That closes LAN
-  scanning and internal-service access from addon code.
+  resolves into `127.0.0.0/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, `100.64.0.0/10`,
+  `192.0.0.0/24`, `198.18.0.0/15`, `::1`, `fc00::/7` or `fe80::/10`, the request fails, `res:ok()` false,
+  with a blocked-address error. That is the whole list, and it closes LAN scanning, carrier-NAT router
+  interfaces and internal-service access from addon code.
+- **The address that was checked is the address that is used.** A hop is resolved once, and a plain `http`
+  connection is then made to that very address, so a name that answers public when it is checked and
+  private a moment later reaches nothing. For `https` the binding is the **certificate**: whatever the name
+  resolves to has to present a chain valid for the host you named, which an internal address cannot.
 - **TLS is verified** against the JDK trust store, and certificate verification is never disabled.
-- **Redirects are followed**, up to **5** hops. A `3xx` whose `Location` points at a host outside that
+- **Redirects are followed**, up to **5** hops. A `3xx` whose `Location` points at an origin outside that
   approved set, or at a private address, aborts with `res:ok()` false. A `303`, and a `301` or `302` on a
   POST, is followed as a `GET` with the body dropped, per HTTP convention.
+- **Your headers stop at the host you addressed.** A redirect that changes host drops every header you set
+  — the second host is one the user approved separately, and a bearer token for the first is not a bearer
+  token for it. The client's own headers go on every hop.
 - **A generic `User-Agent`, `brodgar-addon/1`, is sent**, and nothing identifies your character or your
   account. There are no cookies and no shared session: every request stands alone, and any token is one
   you keep yourself, in [`hafen.store`](store.md).
+- **The timeout is one deadline over the whole exchange** — connect, redirects and body together — so five
+  hops cannot spend it five times and a server sending one byte at a time cannot outlast it. It fails with
+  a `timeout` error whenever it runs out.
 - **Resource caps**: response size **8 MB**, above which the request fails with a too-large error;
   timeout **10 s**, raisable to **60 s**; **6** requests in flight per addon, with the excess queued and
   a hard cap of **64** pending, past which `:send()` raises — `hafen.http():count()` sees it coming;

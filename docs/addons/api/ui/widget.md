@@ -84,7 +84,7 @@ Every method below answers on every widget, owned or not, and none of them throw
 | `:owned()` | boolean | whether **your** addon built it — see [owned vs borrowed](#owned-vs-borrowed) |
 | `:is(sel)` | boolean | whether **this** widget matches that [selector](selectors.md) — the predicate, where [`:match(sel)`](#searching-inside-one-widget) searches below it |
 | `:children()` | [collection](../conventions.md#collections-the-noun-is-the-kind-the-verb-is-how-many) | child Widgets in tree order; empty for a leaf. `:list()` is the array, and a child has no key, so there is no `:get` |
-| `:parent()` | Widget \| nil | the enclosing widget, or `nil` at the root |
+| `:parent()` | Widget \| nil | the enclosing widget, or `nil` at the root — and `nil` inside the [Kin window](../kin.md#the-row-is-where-the-walk-ends), which is not walkable from within |
 | `:position()` | `{x=, y=}` | position within the parent, in widget-local [design pixels](pixels.md) — [`:position(x, y)` moves it](native.md) |
 | `:size()` | `{w=, h=}` | size, in [design pixels](pixels.md); for a window its **outer** box. `.x` on one [raises](../shapes.md#the-anonymous-shapes) |
 | `:visible()` | boolean | whether it is visible — [`:visible(b)` writes it](native.md) |
@@ -213,7 +213,7 @@ provoke the error.
 | `:size(w, h)` | resize the content, chrome repacks around it, and chain | **works**, same |
 | `:size(w)` | set the width and keep the height a [control](controls/README.md#sizing)'s own art gives it | **error** — the client's widget has no art of yours to ask |
 | `:pack()` | size it to what is inside it — a window's chrome or a bare widget alike — and chain | **works on a window** — [it refits, as a level that restores](edit.md#your-own-controls-inside-one-of-the-clients-windows); a control refuses |
-| `:parent(w)` | choose what it hangs under while it is being built — [one of the client's own windows included](edit.md#your-own-controls-inside-one-of-the-clients-windows) | **works** — [take it into a surface of yours, and `nil` gives it back](native.md#taking-one-into-a-surface-of-your-own-unprotected) |
+| `:parent(w)` | choose what it hangs under while it is being built — [one of the client's own windows included](edit.md#your-own-controls-inside-one-of-the-clients-windows) | **works** — [take it into a surface of yours, and `nil` gives it back](native.md#taking-one-into-a-surface-of-your-own-unprotected); a window you take keeps the id the client tracks it by, and gets it back with the window |
 | `:destroy()` | remove it and everything in it, and chain | **error**, same reason |
 | `:revert()` | give back everything your addon holds on it and on what is inside it | **works**, same — [the one undo for a whole edit](edit.md#taking-the-whole-edit-back) |
 | `:text(s)` | write the caption of a [control](controls/README.md) you built | **works** — [a level over what it says, and it restores](edit.md#what-a-window-says) |
@@ -227,7 +227,7 @@ provoke the error.
 | `:rowHeight(n)` | set a [listbox, dropdown, menu or table](lists.md)'s row height while it is being built | **error**, same reason |
 | `:cellSize(w, h)` | set a [grid](lists.md#grid)'s cell box while it is being built | **error**, same reason |
 | `:columns(t)` | name a [table](lists.md#table)'s columns while it is being built | **error**, same reason |
-| `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore), except on a [radial menu](../flowermenu.md#drawn-or-not-unprotected), where both writes refuse naming `s:flowermenu():visible(b)` and the read still answers |
+| `:visible(b)` | show or hide it, and chain | **works** — [see hiding](native.md#hiding-a-native-widget-carries-a-restore), except on a [radial menu](../flowermenu.md#drawn-or-not-unprotected), where both writes refuse naming `s:flowermenu():visible(b)` and the read still answers. **One window, one owner, in both directions**: `:visible(true)` on a window another addon is holding raises, naming that addon, exactly as `:visible(false)` does — and on a window you [replaced](replace.md) it ends the substitution, so the stand-in goes with the record |
 | `:draggable(h)` | hand the move to the user, by a handle they press | **works** — [and what a drag writes is your position level](native.md#letting-the-user-drag-it-unprotected) |
 | `:resizable(h)` | hand the box to the user, by a handle they press | **works** — [and what a resize writes is your size level](native.md#letting-the-user-resize-it-unprotected) |
 | `:remember(name)` | keep its place and box under a name of yours | **works**, same — [and it puts them back on the call](native.md#remembering-where-the-user-put-it-unprotected) |
@@ -238,6 +238,19 @@ One of these writes is protected, and it is the one that is not client-side stat
 **borrowed** control drives it as the user would, so the server sees it, and it needs the `widget.value`
 [key](../../guides/permissions.md) — like [`:send`](#send-a-message-protected) below. Every other write
 here changes only your own client, and every one of them restores.
+
+**That refusal does not depend on the widget still being there.** `:value(v)` on a borrowed control asks for
+the key first and answers the stale-receiver no-op second, so an addon that did not declare it hears the same
+thing whether or not the widget is in the tree — as [`:send`](#send-a-message-protected) and
+`s:console():run` already did. A protected verb's gate is always its first statement.
+
+**A field the client hides what you type into reads `nil`.** A password entry, and the *hearth secret* the
+Kin window holds, answer `nil` to `:text()`, `:value()` and `:info()` — whatever they contain, and however
+you reached them. They are the user's own secrets, put there by the user or by the server; nothing in this
+API reads one back, and no permission buys it. Writing one is still `:value(v)` under
+[`widget.value`](../../guides/permissions.md), because typing into a field is exactly what that key is for.
+The [Kin window](../kin.md#the-row-is-where-the-walk-ends) also stops a `:parent()` walk from inside, so the
+row `kin:widget()` hands you cannot be climbed out of.
 
 **Arity is the verb.** `w:position()` reads, `w:position(x, y)` writes and `w:position(nil)` drops your write;
 `w:size()` (`{w=, h=}`), `w:visible()`, `w:draggable()`, `w:resizable()` and `w:remember()` are the same shape

@@ -84,8 +84,15 @@ final class ChatApi {
                         + " one's");
                 // audit2 B06: select() shows the channel selector, resizes and moves the focus -- three
                 // tree writes, under the monitor the frame holds while it ticks and draws that tree.
+                //   audit2 B08 (ct-06): AND THE FOCUS IS A KEY. The one-argument select() takes keyboard
+                // focus into the channel's entry line, which is what an addon calling this every frame used
+                // to hold against the player. So the two-argument form is called instead, and it takes the
+                // focus only for an addon the user granted "ui.focus": everyone else selects the tab, which
+                // is the client-local move the page has always described, and the keyboard stays where the
+                // player put it. Not a refusal -- selecting a tab is nobody's act but the addon's own.
+                boolean focus = AddonManager.permitted(AddonManager.current(), Permission.UI_FOCUS);
                 synchronized(LuaWidget.monitor(chat)) {
-                    chat.select(c);
+                    chat.select(c, focus);
                 }
                 return self;
             }

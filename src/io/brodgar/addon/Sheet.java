@@ -1304,7 +1304,10 @@ final class Sheet {
             if(font != null)
                 fontOwner = st0.owner;
         }
-        for(int i = 0; i < installed.size(); i++) {
+        /* audit2 B08 (us-01): ...and a surface the user DECIDES with takes no tree rule at all. Asked once,
+         * above the loop, because the answer is a property of the widget and not of the rule. */
+        int nsheets = consentSurface(w) ? 0 : installed.size();
+        for(int i = 0; i < nsheets; i++) {
             Sheet s = installed.get(i);
             for(int j = 0; j < s.tree.size(); j++) {
                 Rule r = s.tree.get(j);
@@ -1392,6 +1395,34 @@ final class Sheet {
         out.size = size;
         out.sizeOwner = sizeOwner;
         return out;
+    }
+
+    /**
+     * <b>Is this widget part of a surface the user decides with?</b> (audit2 B08, us-01) — the consent
+     * dialog, the AddOns panel and its options panel, and the login screen. A tree rule matches every widget
+     * in every tree, so an addon could move, shrink, recolour or blank <i>the very dialog it is being enabled
+     * by</i>: {@code window[title=Enable <its own name>?]} is an ordinary selector, and the dialog is an
+     * ordinary {@link haven.Window} whose caption says so. What the user reads before they answer has to be
+     * what the client drew.
+     *
+     * <p><b>The widget or any ancestor</b>, because the caption, the buttons and the key lines inside the
+     * dialog are what a rule would actually reach — excluding the frame alone would leave every word in it
+     * addressable. It excludes <b>tree rules</b> and nothing else: a widget's own {@code widget:rule()} level
+     * and the stock it was declared with still resolve, and neither of those can be pointed at a surface the
+     * addon did not build.
+     *
+     * <p>The walk is the tree's depth and runs only where a sheet is installed at all, which is the same
+     * condition the rule loop above already pays for.
+     */
+    private static boolean consentSurface(Widget w) {
+        for(Widget p = w; p != null; p = p.parent) {
+            if((p instanceof io.brodgar.addon.ui.PermissionConsentWnd)
+               || (p instanceof io.brodgar.addon.ui.AddonPanel)
+               || (p instanceof io.brodgar.addon.ui.AddonOptionsPanel)
+               || (p instanceof haven.LoginScreen))
+                return true;
+        }
+        return false;
     }
 
     // ---- the caption seam: an ancestor's caption is part of a descendant's answer (049.3) ------------

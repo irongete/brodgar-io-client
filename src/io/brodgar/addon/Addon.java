@@ -15,9 +15,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -52,6 +54,21 @@ public final class Addon {
      * through no dialog and is exempted by {@link Manifest#anyHost()} instead.
      */
     public final List<String> grantedHosts;
+
+    /**
+     * <b>The catalogue keys the USER approved for this addon</b> (audit2 B08) — read out of the consent
+     * record at load ({@code AddonRegistry.loadAll}), never off the manifest, exactly as
+     * {@link #grantedHosts} is. The manifest is the <i>request</i>; this is the <i>answer</i>, and it is what
+     * the key gate asks ({@link #keyGranted}).
+     *
+     * <p>The two differ exactly when the addon's {@code permissions} list has grown since the user last said
+     * yes — which the enable-time scan defaults back to disabled, but which the gate must not depend on
+     * having fired: a key the user never saw is refused at the call.
+     *
+     * <p>Empty for an addon that declared none, and empty for the engine-internal owner, which passes
+     * through no dialog and is exempted by {@link Manifest#internal()} instead.
+     */
+    public final Set<Permission> grantedKeys;
 
     /**
      * <b>The one entry into this addon's Lua</b> (audit2 B06) — every call that runs a chunk of this addon's
@@ -1395,24 +1412,46 @@ public final class Addon {
     }
 
     Addon(Manifest manifest, Path dir, Globals env) {
-        this(manifest, dir, env, Collections.<String>emptyList());
+        this(manifest, dir, env, Collections.<String>emptyList(), EnumSet.noneOf(Permission.class));
     }
 
-    Addon(Manifest manifest, Path dir, Globals env, List<String> grantedHosts) {
+    Addon(Manifest manifest, Path dir, Globals env, List<String> grantedHosts, Set<Permission> grantedKeys) {
         this.manifest = manifest;
         this.dir = dir;
         this.env = env;
         this.grantedHosts = Collections.unmodifiableList(new ArrayList<String>(grantedHosts));
+        this.grantedKeys = Collections.unmodifiableSet(grantedKeys.isEmpty()
+                                                       ? EnumSet.noneOf(Permission.class)
+                                                       : EnumSet.copyOf(grantedKeys));
     }
 
     /**
-     * Whether this addon may reach {@code host} — <b>the record, not the manifest</b>. The engine-internal
-     * owner's any-host exemption is tested first, because it consented to nothing and has nothing recorded;
-     * everything else is matched against {@link #grantedHosts} by the manifest's own wildcard rule
-     * ({@link Manifest#hostMatches}), so {@code *.example.com} means the same thing on both sides.
+     * Whether this addon may reach {@code origin} ({@code scheme://host:port}, {@link Manifest#origin}) —
+     * <b>the record, not the manifest</b>. The engine-internal owner's any-host exemption is tested first,
+     * because it consented to nothing and has nothing recorded; everything else is matched against
+     * {@link #grantedHosts} by the manifest's own rule ({@link Manifest#hostMatches}), so
+     * {@code *.example.com} means the same thing on both sides.
+     *
+     * <p>An <b>origin</b> and not a host since audit2 B08 (ht-05): a grant carries the scheme and the port,
+     * so a host the user approved for {@code https} is not also reachable in cleartext on any port.
      */
-    public boolean hostGranted(String host) {
-        return manifest.anyHost() || Manifest.hostMatches(grantedHosts, host);
+    public boolean hostGranted(String origin) {
+        return manifest.anyHost() || Manifest.hostMatches(grantedHosts, origin);
+    }
+
+    /**
+     * Whether this addon holds {@code perm} — <b>the record, not the manifest</b> (audit2 B08, pm-03), the
+     * key half of {@link #hostGranted} and written to read the same way. The engine-internal owner is
+     * exempted first for the same reason: the {@code :lua} REPL is the operator's own console and passes
+     * through no consent dialog, so it has nothing recorded to be granted by.
+     *
+     * <p>The manifest still has to declare the key — the record is additive and per addon, so a key granted
+     * once stays granted, and an addon that has since dropped the declaration should not keep the door. Both
+     * halves, and the refusal names the manifest because that is the half an author can fix.
+     */
+    public boolean keyGranted(Permission perm) {
+        return manifest.internal()
+            || (manifest.permissions.has(perm) && grantedKeys.contains(perm));
     }
 
     /**
@@ -1426,9 +1465,17 @@ public final class Addon {
      * schedule a timer or subscribe on its last line, so the load holds {@link #luaLock} across every file
      * rather than per call. It runs on a Loader thread holding no tree monitor, so waiting for the lock is
      * the ordinary direction and never the deadlock.
+     *
+     * <p>It takes that lock through {@link AddonManager#enterLua} and not by hand (audit2 B08), because the
+     * entry is what names the running addon: a file body that calls a protected verb on its last line is
+     * this addon's code exactly as a handler is, and a gate keyed on {@link AddonManager#current()} has to
+     * see it. Waiting is the ordinary direction here, so the entry is never the one that is declined.
      */
     void run() {
-        luaLock.lock();
+        if(!AddonManager.enterLua(this)) {
+            error = "the addon layer was busy when this addon was loaded";
+            return;
+        }
         try {
             for(String file : manifest.files) {
                 try {
@@ -1450,7 +1497,7 @@ public final class Addon {
                 }
             }
         } finally {
-            luaLock.unlock();
+            AddonManager.leaveLua(this);
         }
     }
 }

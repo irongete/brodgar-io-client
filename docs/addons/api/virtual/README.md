@@ -19,10 +19,15 @@ local rabbit = s:world():gob():nearest("rabbit")
 hafen.virtual():sprite():add(icon, rabbit)                      -- following a game object
 ```
 
-> **Unprotected.** These are visualizations with no server id: the server never learns one exists and none of
-> them grants a gameplay advantage, so they need no permission and no consent dialog. They sit
-> alongside [a HUD overlay](../ui/overlay.md), not beside a verb that acts. Committing a *real*
-> build is still the protected [`session:world():place`](../world.md#write-protected).
+> **Unprotected — with one exception, and it is the one kind that is not a picture.** These are
+> visualizations with no server id: the server never learns one exists and none of them grants a gameplay
+> advantage, so they need no permission and no consent dialog. They sit alongside
+> [a HUD overlay](../ui/overlay.md), not beside a verb that acts. Committing a *real* build is still the
+> protected [`session:world():place`](../world.md#write-protected).
+>
+> The exception is [`hafen.virtual():click`](#clicking-what-stands-in-the-world-protected), which needs
+> `virtual.click`: a [standing widget](widgets.md) can be one of the **client's own**, and clicking it does
+> what clicking it with the mouse does.
 
 Everything here is **bridge-owned**: every entity your addon stands is torn down automatically on reload,
 disable and relogin, leaking neither a scene slot nor a GPU texture.
@@ -276,7 +281,23 @@ cross-kind set has a name of its own.
 | `hafen.virtual():entity()` | collection | everything this addon has standing, across the kinds, in the order it was stood |
 | `hafen.virtual():visible()` | bool | is the section on screen? |
 | `hafen.virtual():visible(b)` | the section | take the whole section off screen, or put it back |
+
+### Clicking what stands in the world (protected)
+
+| Call | Returns | Description |
+|---|---|---|
 | `hafen.virtual():click(key, x, y [, a])` | bool | put the pointer on whatever is standing at a screen point — see [clicks](widgets.md#clicks-are-the-widgets-own) |
+
+**This one needs the `virtual.click` permission.** Everything else in the section is a picture, and the
+blanket above is written about pictures. A panel, though, can hold one of the **client's own widgets** —
+[`widget:parent(p)`](../ui/native.md) takes a minimap, a portrait or a button into a surface of yours — and
+a pointer event put into a button is that button pressed, which does the button's own `wdgmsg`. So the verb
+is keyed for what it can reach rather than for what it usually does: the consent line reads *"click the
+controls it has standing in the world, which act as if you had clicked them"*.
+
+Everything about the call is otherwise unchanged: `x, y` are screen pixels in design space, the same numbers
+`hafen.ui():mouse()` reports, and the boolean says whether a panel took the point — `false` meaning it was
+on none, which is when the client's own world click goes on exactly as it always did.
 
 `hafen.virtual():entity()` is a collection like the per-kind ones above, over all of them at once: it takes
 the same canonical filter, and hands back the same entities those collections do — a ghost, a sprite, an

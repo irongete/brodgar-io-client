@@ -99,6 +99,12 @@ public enum Permission {
     WIDGET_SEND      ("widget.send",        "widget:send",                    "send any message the client itself could send"),
     WIDGET_VALUE     ("widget.value",       "widget:value",                   "flip the client's own controls — a box it ticks,"
                                                                               + " a field it types into — which the server sees"),
+    UI_RESEND        ("ui.resend",          "ev:resend",                      "re-run a button you pressed, so the client"
+                                                                              + " sends what that press sends"),
+    UI_FOCUS         ("ui.focus",           "s:chat():selected",              "move the keyboard into a chat entry line,"
+                                                                              + " so what you type next goes there"),
+    VIRTUAL_CLICK    ("virtual.click",      "hafen.virtual():click",          "click the controls it has standing in the"
+                                                                              + " world, which act as if you had clicked them"),
     CLIENT_SETTINGS  ("client.settings",    "hafen.client():options()",       "change your client settings and"
                                                                               + " hotkeys"),
     CONSOLE_RUN      ("console.run",        "s:console():run",                "run any of the client's console"
@@ -115,7 +121,7 @@ public enum Permission {
      * The verb as it is written in Lua ({@code item:transfer}) — the refusal opens with it, and the
      * permissions guide lists it. Where one key gates <b>several</b> doors onto one action, this names the
      * canonical one and each other site passes its own spelling to
-     * {@link AddonManager#requirePermission(Addon, Permission, String)}.
+     * {@link AddonManager#requirePermission}.
      */
     public final String lua;
     /** What this key lets the addon do, in the user's words — the consent dialog's line. */

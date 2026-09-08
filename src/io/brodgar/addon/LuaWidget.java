@@ -8,6 +8,7 @@ import haven.Coord;
 import haven.Equipory;
 import haven.FlowerMenu;
 import haven.FromResource;
+import haven.GameUI;
 import haven.HSlider;
 import haven.IButton;
 import haven.ICheckBox;
@@ -519,6 +520,14 @@ public final class LuaWidget {
                 LuaValue v = Args.passed(a, 2) ? a.arg(2) : null;
                 if(v == null) {
                     Widget p = (w == null) ? null : w.parent;
+                    // audit2 B08 (pk-02): AND THE KIN WINDOW IS NOT WALKABLE FROM INSIDE. kin:widget() hands
+                    // back a row that lives in the BuddyWnd, whose `charpass` sibling the server fills with
+                    // the character's hearth secret; the walk up and back down was the whole reach. The row
+                    // has no parent, so the crossing back into the widget tree ends where it arrived. The
+                    // window itself still answers :parent() — it is what is INSIDE it that is not addressable
+                    // from a handle minted in there.
+                    if(insideCredentialWnd(p))
+                        return LuaValue.NIL;
                     return (p == null) ? LuaValue.NIL : of(owner, p);
                 }
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
@@ -881,7 +890,9 @@ public final class LuaWidget {
         // addon's restore list, so :reload/disable puts it back exactly as it was (UiApi.teardownHidden) — that is
         // what replaces hafen.ui.adopt, which used to hide a window just so you could read it. A hidden server
         // widget stays bound to its id (still receiving uimsg/addchild), so it remains a perfectly live model.
-        // visible(true) gives it back and drops the record. The write chains; visible(nil) is refused (§2.9 — there
+        // visible(true) gives it back and drops the record — ending a substitution first, if the window carried one,
+        // and refusing outright when ANOTHER addon holds the record (audit2 B08): one window has one owner in
+        // both directions. The write chains; visible(nil) is refused (§2.9 — there
         // is nothing here to undo, and a nil that silently became a READ is the bug that rule exists for). One
         // receiver refuses the write in BOTH directions and names a verb of its own — the radial menu, below.
         m.set("visible", new VarArgFunction() {
@@ -907,6 +918,17 @@ public final class LuaWidget {
                         + " opens, and this write keeps a restore record that would outlive it;"
                         + " widget:visible() still reads.");
                 if(v.toboolean()) {
+                    // audit2 B08 (un-01): THE ONE-WINDOW-ONE-OWNER RULE GUARDS BOTH DIRECTIONS. This arm used
+                    // to show the widget and drop only THIS addon's record, with no owner check at all — so a
+                    // second addon un-hid a window the first owns and is standing in for, and the rule the
+                    // `false` arm enforces three lines down was enforceable in one direction only.
+                    refuseSecondOwner(owner, w, "widget:visible(true)");
+                    // audit2 B08 (un-02): ...and a REPLACED window's SUBSTITUTION ends here, view and all.
+                    // dropHidden removes the record and nothing else — it never reads h.view — so showing a
+                    // replaced window left the stand-in standing over the restored one, and the later
+                    // w:replace(nil) found no record and was inert. This is that ending, and it is a no-op on
+                    // a window that carries no view.
+                    UiApi.unreplace(owner, w);
                     synchronized(monitor(w)) { w.show(); }
                     dropHidden(owner, w);                 // restored by hand: teardown has nothing left to undo
                 } else {
@@ -1113,7 +1135,7 @@ public final class LuaWidget {
         m.set("send", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.WIDGET_SEND);
+                AddonManager.requirePermission(AddonManager.current(), Permission.WIDGET_SEND);
                 // Args.str, not isstring(): in Lua a NUMBER answers isstring() (the coercion), so the laxer
                 // test would quietly put "42" on the wire as a message name — which is exactly the silent
                 // misread this grammar refuses. A message name is a string or it is a mistake.
@@ -1427,18 +1449,28 @@ public final class LuaWidget {
         m.set("value", new VarArgFunction() {
             public Varargs invoke(Varargs a) {            // w:value() → narg 1 · w:value(v) → narg 2
                 LuaValue self = a.arg1();
-                Widget w = live(handle(self, "value"));
+                LuaWidget h = handle(self, "value");
                 if(!Args.passed(a, 2)) {                  // w:value() — the read, on either provenance
-                    if(w == null)
+                    Widget rw = live(h);
+                    if(rw == null)
                         return LuaValue.NIL;
-                    Owned c = ownedContent(owner, w);
-                    return (c == null) ? value(w) : Controls.value(c);
+                    Owned rc = ownedContent(owner, rw);
+                    return (rc == null) ? value(rw) : Controls.value(rc);
                 }
+                // audit2 B08 (uw-12): THE GATE BEFORE THE STALE NO-OP (D-213). The write used to answer the
+                // 029.2 chaining no-op on a stale receiver BEFORE it looked at the manifest, so an addon that
+                // declared nothing was refused or silently ignored depending on whether the widget happened
+                // still to be in the tree — a state-dependent refusal, which is the one thing D-213 exists to
+                // stop. Provenance still comes first, because a control the addon BUILT is its own UI and has
+                // never been protected: it is read off the handle's own reference, which survives the widget
+                // leaving the tree, so the answer no longer depends on liveness either.
+                Owned c = ownedContent(owner, h.wdg);
+                if(c == null)                             // BORROWED (or gone): the act, and its gate
+                    AddonManager.requirePermission(AddonManager.current(), Permission.WIDGET_VALUE);
+                Widget w = live(h);
                 if(w == null)                             // a write on a stale widget: the 029.2 chaining no-op
                     return self;
-                Owned c = ownedContent(owner, w);
-                if(c == null) {                           // BORROWED: the act, and its gate
-                    AddonManager.requirePermission(owner, Permission.WIDGET_VALUE);
+                if(c == null) {
                     Controls.drive(w, Args.written(a, 2, "widget:value", "v"));
                     WidgetSurface.touch(w);               // 044.1: standing in the world? its picture moved
                     return self;
@@ -1883,6 +1915,21 @@ public final class LuaWidget {
         return null;
     }
 
+    /**
+     * <b>Is {@code w} the kin window, or inside it?</b> (audit2 B08, pk-02) — the boundary
+     * {@code widget:parent()} stops at. {@link haven.BuddyWnd} holds the character's hearth secret in a plain
+     * {@code TextEntry} child, so a handle minted <i>inside</i> that window may not climb out of it and back
+     * down a sibling branch. Reaching the window from outside is untouched — it is an ordinary window, and
+     * what it holds is unreadable on its own account ({@link #secret}).
+     */
+    private static boolean insideCredentialWnd(Widget w) {
+        for(Widget p = w; p != null; p = p.parent) {
+            if(p instanceof haven.BuddyWnd)
+                return true;
+        }
+        return false;
+    }
+
     /** A LuaValue for a possibly-null string. */
     private static LuaValue str(String s) {
         return (s == null) ? LuaValue.NIL : LuaValue.valueOf(s);
@@ -2008,14 +2055,23 @@ public final class LuaWidget {
         final Widget after;      // null ⇒ it was the FIRST child of `from`
         final Coord at;
         final UI ui;             // the tree it belongs to: after a relog there is nothing of it to put back
+        /**
+         * <b>The id {@code GameUI} tracked this window by</b>, or {@code null} for anything that is not one
+         * of its tracked windows (audit2 B08, un-03). Captured at the take, because taking it is what makes
+         * the client forget: {@code WidgetSurface.reparent} calls the old parent's {@code cdestroy}, and
+         * {@code GameUI.cdestroy} drops the id and writes the window's place to disk. {@link UiApi#home}
+         * hands it back with the window.
+         */
+        final String wndid;
 
-        Rehomed(Addon owner, Widget wdg, Widget from, Widget after, Coord at, UI ui) {
+        Rehomed(Addon owner, Widget wdg, Widget from, Widget after, Coord at, UI ui, String wndid) {
             this.owner = owner;
             this.wdg = wdg;
             this.from = from;
             this.after = after;
             this.at = at;
             this.ui = ui;
+            this.wndid = wndid;
         }
     }
 
@@ -2102,8 +2158,14 @@ public final class LuaWidget {
                 + " first, or point at a widget it does not hold");
         if(w.parent == dest)                       // already there: the write is a chaining no-op
             return self;
-        if(ex == null)                             // the FIRST touch is what records the home; a later move
-            UiApi.rehomedAdd(new Rehomed(owner, w, w.parent, w.prev, new Coord(w.c), w.ui));   // keeps it
+        if(ex == null) {                           // the FIRST touch is what records the home; a later move
+            // audit2 B08 (un-03): ...and the window id goes into the record with it, BEFORE the reparent
+            // below makes GameUI.cdestroy forget it. Read here and nowhere else: after the move there is
+            // nothing left to read it from.
+            GameUI gui = AddonManager.gui(w.ui);
+            UiApi.rehomedAdd(new Rehomed(owner, w, w.parent, w.prev, new Coord(w.c), w.ui,   // keeps it
+                                         (gui == null) ? null : gui.wndid(w)));
+        }
         // ONE tree, so one monitor, and reparent takes it: the same-session check above is what makes that
         // true. Widget.remove() is the wrong call here and reparent says why — it would announce a death that
         // is not happening to widget:on("Removed"), to every selector watch, and to a live substitution.
@@ -3024,12 +3086,39 @@ public final class LuaWidget {
     }
 
     /**
+     * <b>Is this a field the user's own secret goes into?</b> (audit2 B08, pk-02) — a {@link TextEntry} the
+     * client hides what is typed into, by either of the two flags it has for it: {@code pw} (the classic
+     * password field, rendered as dots) and {@code dshow} (shown until it is committed, then hidden — what
+     * {@code BuddyWnd} builds its {@code charpass} and {@code opass} entries with).
+     *
+     * <p><b>Every read of a text entry's buffer asks this first.</b> {@code widget:text()},
+     * {@code widget:value()} and the {@code :info()} snapshot that is built out of the first all used to end
+     * in {@code TextEntry.text()} with no exclusion of any kind, so an ordinary parent/children walk read the
+     * character's hearth secret out of the kin window — the one credential {@code kin:add} exists to consume,
+     * which the server itself fills that field with on a {@code "pwd"} message. They answer {@code nil} now,
+     * which is what a read answers for anything else it cannot see.
+     *
+     * <p>The WRITE is untouched: {@code widget:value(v)} is protected by {@code widget.value} and typing into
+     * a field is exactly what that key is for. It is reading one back that no key ever bought.
+     */
+    static boolean secret(Widget w) {
+        if(!(w instanceof TextEntry))
+            return false;
+        TextEntry t = (TextEntry)w;
+        return t.pw || t.dshow;
+    }
+
+    /**
      * Best-effort text for a text-bearing widget ({@code :text()}, spec 20, W1) — the one upstream-volatile bit,
      * localized in THIS switch (like the spec-14 adapters): {@link Label#texts}, {@link Button} caption,
      * {@link Window#cap}, {@link TextEntry#text()}, {@link ISBox#label()}. An unknown type returns {@code null} (&rarr; Lua {@code nil}),
      * never throws — upstream churn breaks only this method, not addons.
+     *
+     * <p>A {@link #secret} entry answers {@code nil}, whatever it holds.
      */
     static String text(Widget w) {
+        if(secret(w))
+            return null;                           // audit2 B08 (pk-02): a credential is not text
         if(w instanceof Label)
             return ((Label)w).texts;
         if(w instanceof Button) {
@@ -3204,6 +3293,8 @@ public final class LuaWidget {
      * still compares {@code ==} and can be handed straight back.
      */
     static LuaValue value(Widget w) {
+        if(secret(w))
+            return LuaValue.NIL;                   // audit2 B08 (pk-02): a credential is not a value either
         try {
             if(w instanceof RadioGroup.RadioButton) {
                 String row = ((RadioGroup.RadioButton)w).checked();

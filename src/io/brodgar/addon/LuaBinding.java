@@ -235,7 +235,7 @@ public final class LuaBinding {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 if(Args.passed(a, 2))
-                    AddonManager.requirePermission(owner, Permission.CLIENT_SETTINGS, "binding:key");
+                    AddonManager.requirePermission(AddonManager.current(), Permission.CLIENT_SETTINGS, "binding:key");
                 LuaBinding h = handle(self, "key");
                 KeyBinding b = h.binding();
                 if(!Args.passed(a, 2))

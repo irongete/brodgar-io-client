@@ -160,7 +160,7 @@ public final class PermissionSet {
             for(int i = 0; i < hosts.size(); i++) {
                 if(i > 0)
                     sb.append(", ");
-                if((known != null) && !Manifest.hostMatches(known, hosts.get(i)))
+                if((known != null) && !Manifest.hostMatches(known, Manifest.patternOrigin(hosts.get(i))))
                     sb.append(NEW).append(' ');
                 sb.append(hosts.get(i));
             }

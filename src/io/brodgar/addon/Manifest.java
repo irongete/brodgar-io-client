@@ -37,6 +37,18 @@ public final class Manifest {
      * user approved ({@link Addon#hostGranted}). See {@link #usesNetwork()} / {@link #hostAllowed(String)}.
      */
     public final List<String> network;
+    /**
+     * <b>Is this the engine-internal owner's manifest?</b> (audit2 B08) — true only for what {@link #internal}
+     * mints, and there is no spelling on disk that reaches it. The {@code :lua} REPL passes through no
+     * consent dialog, so it has no record to be granted by: this is the exemption the key gate tests
+     * ({@link Addon#keyGranted}), the exact counterpart of {@link #anyHost()} on the host side.
+     */
+    private final boolean internal;
+
+    /** @see #internal */
+    public boolean internal() {
+        return internal;
+    }
 
     /** Whether this addon declared any protected permission at all (it is then opt-in — D-027/D-028). */
     public boolean declaresPermissions() {
@@ -58,39 +70,107 @@ public final class Manifest {
     }
 
     /**
-     * Whether {@code host} is permitted by this addon's declared {@code network} allowlist (D-037) — what this
-     * manifest <b>asks</b> for. What an addon may actually reach is what the user approved
+     * Whether {@code origin} is permitted by this addon's declared {@code network} allowlist (D-037) — what
+     * this manifest <b>asks</b> for. What an addon may actually reach is what the user approved
      * ({@link Addon#hostGranted}); this answers the manifest's own question, and a refusal reads the two apart.
      */
-    public boolean hostAllowed(String host) {
-        return hostMatches(network, host);
+    public boolean hostAllowed(String origin) {
+        return hostMatches(network, origin);
     }
 
     /**
-     * Whether {@code host} is matched by the host patterns {@code allow}: a case-insensitive exact match, a
-     * {@code *.domain} wildcard (matching sub-domains, <b>not</b> the apex — {@code *.example.com} matches
-     * {@code a.example.com} but not {@code example.com}), or the internal-owner {@code "*"} allow-all.
+     * <b>The canonical origin of a url</b> — {@code scheme://host:port}, lower-cased, with the port always
+     * written out (audit2 B08, ht-05). This is what the allowlist is matched against and what a refusal
+     * names, because a grant is a grant to <b>one origin</b> and not to a bare host: a host the user approved
+     * for {@code https} was equally reachable in cleartext, on any port, while the match was
+     * {@code URL.getHost()} alone.
+     */
+    public static String origin(String scheme, String host, int port) {
+        String sc = (scheme == null) ? "" : scheme.toLowerCase(java.util.Locale.ROOT);
+        String h = (host == null) ? "" : host.toLowerCase(java.util.Locale.ROOT);
+        return sc + "://" + h + ":" + ((port > 0) ? port : defaultPort(sc));
+    }
+
+    /** The port a scheme speaks when neither a url nor a pattern writes one. */
+    public static int defaultPort(String scheme) {
+        return "http".equals(scheme) ? 80 : 443;
+    }
+
+    /**
+     * Whether {@code origin} ({@link #origin}) is matched by the host patterns {@code allow}: a
+     * case-insensitive exact host match, a {@code *.domain} wildcard (matching sub-domains, <b>not</b> the
+     * apex — {@code *.example.com} matches {@code a.example.com} but not {@code example.com}), or the
+     * internal-owner {@code "*"} allow-all.
+     *
+     * <p><b>The scheme and the port are part of the match</b> (ht-05). A pattern may write either
+     * ({@code "http://box.example.com:8080"}); what it leaves out it gets by default, and the default scheme
+     * is {@code https} — so {@code "example.com"} grants {@code https://example.com:443} and nothing else,
+     * and cleartext has to be asked for by name.
      *
      * <p>Static, and taking the patterns rather than reading a field, because two lists are matched with this
      * rule — the manifest's declaration and the record of what the user granted — and a second copy of
      * "a wildcard covers a sub-domain and not the apex" is the copy that ends up subtly different.
      */
-    public static boolean hostMatches(List<String> allow, String host) {
-        if((allow == null) || (host == null) || host.isEmpty())
+    public static boolean hostMatches(List<String> allow, String origin) {
+        if((allow == null) || (origin == null) || origin.isEmpty())
             return false;
-        String h = host.toLowerCase(java.util.Locale.ROOT);
+        String want = origin.toLowerCase(java.util.Locale.ROOT);
+        int ws = want.indexOf("://");
+        String wscheme = (ws < 0) ? "" : want.substring(0, ws);
+        String wrest = (ws < 0) ? want : want.substring(ws + 3);
+        int wc = wrest.lastIndexOf(':');
+        String whost = (wc < 0) ? wrest : wrest.substring(0, wc);
+        String wport = (wc < 0) ? Integer.toString(defaultPort(wscheme)) : wrest.substring(wc + 1);
         for(String pat : allow) {
             if(pat.equals("*"))
-                return true;                                   // REPL / internal owner: any host
-            if(pat.startsWith("*.")) {
-                String suffix = pat.substring(1);              // ".example.com"
-                if(h.endsWith(suffix) && (h.length() > suffix.length()))
+                return true;                                   // REPL / internal owner: any origin
+            String p = pat.toLowerCase(java.util.Locale.ROOT);
+            int ps = p.indexOf("://");
+            String pscheme = (ps < 0) ? "https" : p.substring(0, ps);   // no scheme written means https
+            String prest = (ps < 0) ? p : p.substring(ps + 3);
+            int pc = prest.lastIndexOf(':');
+            String phost = (pc < 0) ? prest : prest.substring(0, pc);
+            String pport = (pc < 0) ? Integer.toString(defaultPort(pscheme)) : prest.substring(pc + 1);
+            if(!pscheme.equals(wscheme) || !pport.equals(wport))
+                continue;
+            if(phost.startsWith("*.")) {
+                String suffix = phost.substring(1);            // ".example.com"
+                if(whost.endsWith(suffix) && (whost.length() > suffix.length()))
                     return true;
-            } else if(pat.equals(h)) {
+            } else if(phost.equals(whost)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * <b>A declared pattern read as the origin it stands for</b> — {@code "example.com"} is
+     * {@code "https://example.com:443"} and {@code "*.example.com"} is {@code "https://*.example.com:443"}.
+     * What {@link #hostsUncovered} measures one list of patterns against another with: containment asks
+     * whether the record already grants what the manifest declares, both sides are patterns, so the wanted
+     * one has to be spelled the way {@link #hostMatches} reads an origin.
+     */
+    public static String patternOrigin(String pat) {
+        if((pat == null) || pat.isEmpty() || pat.equals("*"))
+            return pat;
+        String p = pat.toLowerCase(java.util.Locale.ROOT);
+        int ps = p.indexOf("://");
+        String scheme = (ps < 0) ? "https" : p.substring(0, ps);
+        String rest = (ps < 0) ? p : p.substring(ps + 3);
+        int pc = rest.lastIndexOf(':');
+        String host = (pc < 0) ? rest : rest.substring(0, pc);
+        int port = (pc < 0) ? defaultPort(scheme) : parsePort(rest.substring(pc + 1));
+        return origin(scheme, host, port);
+    }
+
+    /** A port out of a pattern, or {@code -1} when it is not a number (which {@link #networkhosts} refuses). */
+    private static int parsePort(String s) {
+        try {
+            return Integer.parseInt(s);
+        } catch(NumberFormatException e) {
+            return -1;
+        }
     }
 
     /**
@@ -108,7 +188,7 @@ public final class Manifest {
         if(want == null)
             return out;
         for(String host : want) {
-            if(!hostMatches(allow, host))
+            if(!hostMatches(allow, patternOrigin(host)))
                 out.add(host);
         }
         return out;
@@ -133,7 +213,8 @@ public final class Manifest {
     private Manifest(String id, String name, String version, String author, String description,
                      int apiVersion, List<String> files, List<String> dependencies,
                      List<String> optionalDependencies, List<SavedVar> savedVariables,
-                     PermissionSet permissions, List<String> network) {
+                     PermissionSet permissions, List<String> network, boolean internal) {
+        this.internal = internal;
         this.id = id;
         this.name = name;
         this.version = version;
@@ -162,7 +243,7 @@ public final class Manifest {
         PermissionSet allperms = PermissionSet.all();
         // The REPL is the trusted operator console → allow-all network too (private IPs stay blocked).
         List<String> allnet = Collections.singletonList("*");
-        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars, allperms, allnet);
+        return new Manifest(id, id, "0", "brodgar", "engine-internal owner", 1, none, none, none, novars, allperms, allnet, true);
     }
 
     /** A synthetic manifest declaring NOTHING — the shape of an ordinary read-only addon. Probes only. */
@@ -170,7 +251,7 @@ public final class Manifest {
         List<String> none = Collections.emptyList();
         List<SavedVar> novars = Collections.emptyList();
         return new Manifest(id, id, "0", "brodgar", "probe owner", 1, none, none, none, novars,
-                            PermissionSet.NONE, none);
+                            PermissionSet.NONE, none, false);
     }
 
     /** Read and validate {@code <dir>/manifest.json}. Throws with a clear message on any problem. */
@@ -208,14 +289,20 @@ public final class Manifest {
                             str(m, "version", false), str(m, "author", false),
                             str(m, "description", false), intv(m, "api_version", 1),
                             files, strlist(m, "dependencies"), strlist(m, "optional_dependencies"),
-                            savedvars(m), perms, hosts);
+                            savedvars(m), perms, hosts, false);
     }
 
     /**
-     * Parse the {@code network} block (D-037): an object with a {@code hosts} array of allowlisted host
-     * patterns (exact or {@code *.domain}). Absent block ⇒ no network. Host patterns are lower-cased; the
-     * {@code "*"} allow-all is reserved for the internal owner and rejected here (a disk manifest must list
-     * concrete hosts, so a third-party addon cannot grant itself the whole internet).
+     * Parse the {@code network} block (D-037): an object with a {@code hosts} array of allowlisted patterns,
+     * each {@code [scheme://]host[:port]} where the host is exact or a {@code *.domain} wildcard. Absent
+     * block ⇒ no network. Patterns are lower-cased; the {@code "*"} allow-all is reserved for the internal
+     * owner and rejected here (a disk manifest must list concrete hosts, so a third-party addon cannot grant
+     * itself the whole internet).
+     *
+     * <p><b>A wildcard covers ONE label and no more</b> (audit2 B08, pm-02). {@code "*.com"} used to be a
+     * legal one-line declaration matching every {@code .com} host on the internet, because only the bare
+     * {@code "*"} was refused; the suffix a wildcard leaves behind must now name at least two labels, so
+     * {@code "*.example.com"} stands and {@code "*.com"} is the load error the panel shows.
      */
     private static List<String> networkhosts(Map<String, Object> m) {
         List<String> out = new ArrayList<String>();
@@ -234,9 +321,45 @@ public final class Manifest {
             if(host.isEmpty()) continue;
             if(host.equals("*"))
                 throw new IllegalArgumentException("'network.hosts' may not contain \"*\" (list concrete hosts or *.domain)");
+            checkPattern(host);
             out.add(host);
         }
         return out;
+    }
+
+    /**
+     * Refuse a {@code network.hosts} pattern that does not name one origin: an unknown scheme, a port that is
+     * not a number, an empty host, or a wildcard wider than one label (pm-02). Every refusal is the load
+     * error the AddOns panel shows, in the words the author needs to fix the line.
+     */
+    private static void checkPattern(String pat) {
+        int ps = pat.indexOf("://");
+        String scheme = (ps < 0) ? "https" : pat.substring(0, ps);
+        String rest = (ps < 0) ? pat : pat.substring(ps + 3);
+        if(!scheme.equals("http") && !scheme.equals("https"))
+            throw new IllegalArgumentException("'network.hosts' entry \"" + pat + "\": the scheme must be"
+                + " http or https (leave it out for https, which is the default)");
+        int pc = rest.lastIndexOf(':');
+        String host = (pc < 0) ? rest : rest.substring(0, pc);
+        if(pc >= 0) {
+            int port = parsePort(rest.substring(pc + 1));
+            if((port < 1) || (port > 65535))
+                throw new IllegalArgumentException("'network.hosts' entry \"" + pat + "\": the port after"
+                    + " the host must be a number from 1 to 65535 (leave it out for the scheme's own)");
+        }
+        if(host.isEmpty())
+            throw new IllegalArgumentException("'network.hosts' entry \"" + pat + "\" names no host");
+        if(host.startsWith("*.")) {
+            String suffix = host.substring(2);           // "example.com"
+            if(suffix.indexOf('.') < 0)
+                throw new IllegalArgumentException("'network.hosts' entry \"" + pat + "\": a wildcard covers"
+                    + " the sub-domains of ONE domain, and \"" + suffix + "\" is a whole top-level domain —"
+                    + " write \"*.<yourdomain>." + suffix + "\", or list the hosts. The user approves this"
+                    + " list by reading it, and nobody can read the whole internet.");
+        }
+        if((host.indexOf('*', 1) >= 0) || (!host.startsWith("*.") && (host.indexOf('*') >= 0)))
+            throw new IllegalArgumentException("'network.hosts' entry \"" + pat + "\": a wildcard is the"
+                + " whole first label and nothing else — \"*.example.com\", never \"a*.example.com\"");
     }
 
     /**

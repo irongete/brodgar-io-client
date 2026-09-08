@@ -113,11 +113,15 @@ final class VirtualApi {
         // that one's inverse, so the two must read the same pair; a is the button (MouseDown/MouseUp, default 1)
         // or the wheel's amount. It hands back whether a panel took it — false meaning the point was on none,
         // which is the moment the client's own world click goes on exactly as it always did, and is why this one
-        // write does not chain: the boolean is what the caller needs. This is the client's path from the map
-        // view INWARD and stops there: it cannot move the character and it never reaches the server, so it is
-        // unprotected like the rest of the section.
+        // write does not chain: the boolean is what the caller needs.
+        //   PROTECTED, under "virtual.click" (audit2 B08, vg-08). The section's blanket "the server never
+        // learns one exists" is written about PICTURES, and this is the one verb that reaches the kind that is
+        // not one: a panel can hold a standing client Widget (widget:parent(p)) whose activation does its own
+        // wdgmsg, so a pointer event put into it is an act the player could have performed with the mouse —
+        // which is the tier's whole definition. The gate is the FIRST statement (D-213).
         m.set("click", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                AddonManager.requirePermission(AddonManager.current(), Permission.VIRTUAL_CLICK);
                 Section.self(a.arg1(), "virtual", "click");
                 String key = pointerKey(Args.required(a, 2, "hafen.virtual():click", "key"));
                 int x = Args.integer(a, 3, "hafen.virtual():click", "x", "a root design pixel");

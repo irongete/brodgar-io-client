@@ -180,7 +180,7 @@ final class FlowerMenuApi {
         menu.set("select", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "select");
-                AddonManager.requirePermission(owner, Permission.FLOWERMENU_SELECT);
+                AddonManager.requirePermission(AddonManager.current(), Permission.FLOWERMENU_SELECT);
                 select(owner, user, Args.required(a, 2, FM + ":select", "key"));
                 return LuaValue.NIL;
             }
@@ -241,7 +241,7 @@ final class FlowerMenuApi {
         menu.set("cancel", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaCollection.receiver(a.arg1(), "cancel");
-                AddonManager.requirePermission(owner, Permission.FLOWERMENU_CANCEL);
+                AddonManager.requirePermission(AddonManager.current(), Permission.FLOWERMENU_CANCEL);
                 if(Args.passed(a, 2))
                     throw new LuaError(FM + ":cancel() takes no arguments: there is one open"
                         + " menu and cancelling it chooses nothing — to pick a petal, use "

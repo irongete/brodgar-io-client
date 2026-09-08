@@ -102,8 +102,11 @@ public final class AddonRegistry {
         // (D-027/D-028) until the user enables it through the AddOns-panel consent dialog (slice 4c); once enabled
         // it loads like any other addon (there is no global switch to also satisfy — D-028).
         Set<String> disabled = disabledSet();
-        // The consent record, read ONCE for the whole load: it is what each addon's network gate asks (the
-        // manifest is only the request), so every Addon is handed the hosts the user approved for it.
+        // The consent record, read ONCE for the whole load: it is what BOTH gates ask (the manifest is only
+        // the request), so every Addon is handed the keys and the hosts the user approved for it.
+        // audit2 B08 (pm-03): the keys travel with the hosts. They used to be read off the manifest at the
+        // call, so the two halves of one consent came from two sources and a widened key list was caught
+        // only by the enable-time scan.
         Map<String, Consent> consented = consentedMap();
         for(File sub : subs) {
             if(!new File(sub, "manifest.json").isFile())
@@ -117,7 +120,8 @@ public final class AddonRegistry {
                 Globals g = Sandbox.create();   // D-017 stdlib whitelist + D-018 instruction watchdog
                 Consent c = consented.get(sub.getName());
                 Addon addon = new Addon(m, sub.toPath(), g,
-                                        (c == null) ? Collections.<String>emptyList() : c.hosts);
+                                        (c == null) ? Collections.<String>emptyList() : c.hosts,
+                                        (c == null) ? EnumSet.<Permission>noneOf(Permission.class) : c.keys);
                 installHafen(g, addon);
                 LuaTable ad = new LuaTable();
                 ad.set("id", LuaValue.valueOf(m.id));

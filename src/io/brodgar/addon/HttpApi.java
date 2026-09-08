@@ -148,7 +148,7 @@ final class HttpApi {
 
     /**
      * A URL argument, through the house door so an explicit nil is refused like everywhere else — and
-     * <b>validated here</b>, where it was written. {@link #httpHost} raises on anything that is not an
+     * <b>validated here</b>, where it was written. {@link #httpOrigin} raises on anything that is not an
      * {@code http}/{@code https} address, so a typo is a refusal at {@code :request(url)} rather than
      * something the pool thread discovers with nobody left to tell.
      *
@@ -157,7 +157,7 @@ final class HttpApi {
      */
     private static String urlArg(Varargs a, int i, String verb) {
         String url = Args.str(a, i, verb, "url", "an http:// or https:// address").tojstring();
-        httpHost(url, verb);
+        httpOrigin(url, verb);
         return url;
     }
 
@@ -204,20 +204,23 @@ final class HttpApi {
      * between one enable and the next. The manifest still says whether the addon declared any network at all,
      * because that refusal is about a declaration the author forgot rather than about a grant.
      */
-    private static void requireNetwork(Addon owner, Permission perm, String host, String verb) {
-        AddonManager.requirePermission(owner, perm, verb);
+    private static void requireNetwork(Addon owner, Permission perm, String origin, String verb) {
+        AddonManager.requirePermission(AddonManager.current(), perm, verb);
         if((owner == null) || !owner.manifest.usesNetwork())
             throw new LuaError(verb + ": this addon declared \"" + perm.key + "\" but no hosts to reach — the"
                 + " key says WHETHER and the allowlist says WHERE. Add \"network\": { \"hosts\": [\""
-                + ((host != null) ? host : "example.com")
+                + ((origin != null) ? origin : "example.com")
                 + "\"] } to its manifest.json beside the permission.");
-        if(!owner.hostGranted(host))
-            throw new LuaError(verb + ": host \"" + host + "\" is not one the user approved for this addon"
+        // audit2 B08 (ht-05): the ORIGIN, not the host. The grant records a scheme and a port as well as a
+        // name, so a host approved for https is no longer reachable in cleartext or on another port.
+        if(!owner.hostGranted(origin))
+            throw new LuaError(verb + ": \"" + origin + "\" is not an origin the user approved for this addon"
                 + " (approved: " + owner.grantedHosts + ")."
-                + (owner.manifest.hostAllowed(host)
+                + (owner.manifest.hostAllowed(origin)
                    ? " Its manifest does list it, so it was added after consent was given: enable the addon"
-                     + " again to be asked, and the host is reachable once it is approved."
-                   : " Add it to \"network\": { \"hosts\": [...] } and enable the addon again."));
+                     + " again to be asked, and it is reachable once it is approved."
+                   : " A declared host with no scheme means https on its own port; add the origin to"
+                     + " \"network\": { \"hosts\": [...] } and enable the addon again."));
     }
 
     /** The shared HTTP pool, created on first use (engine-lifetime, daemon threads so it never blocks exit). */
@@ -256,7 +259,7 @@ final class HttpApi {
         final LuaHttpRequest req = new LuaHttpRequest(owner, method, url, null,
                                                       new LinkedHashMap<String, String>(),
                                                       LuaHttp.DEFAULT_TIMEOUT);
-        req.host = httpHost(url, "hafen.http():request");
+        req.origin = httpOrigin(url, "hafen.http():request");
         // The request handle is userdata over the record, the one shape every handle in the API has:
         // req.cancel = nil is refused where a table let an addon delete its own way of stopping a request,
         // a typo raises naming the vocabulary, and tostring(req) names the method and the URL.
@@ -356,7 +359,7 @@ final class HttpApi {
                 // client until :send(), and the method it leaves as is not known until then either. Both
                 // halves in one door, the key before the allowlist, exactly as 093 wrote it.
                 requireNetwork(owner, "POST".equals(req.method) ? Permission.HTTP_POST : Permission.HTTP_GET,
-                               req.host, "request:send");
+                               req.origin, "request:send");
                 if(req.dead)
                     throw new LuaError("request:send(): this request was cancelled");
                 if(req.sent)
@@ -460,6 +463,14 @@ final class HttpApi {
                 LuaHttp.Result res = LuaHttp.perform(req);
                 if(req.dead)
                     return;                       // cancelled while in flight → discard, no callback
+                // audit2 B08 (ht-07): AND THE LOGIN THIS WAS FOR MAY HAVE ENDED. The queue is that session's
+                // and its only drain is that session's tick, so a completion filed after the UI died is a
+                // result with no handler and up to 8 MB of body held behind a reference nothing reads. The
+                // request is ended instead, which is what a cancelled one already does.
+                if(!AddonManager.draining(st)) {
+                    req.dead = true;
+                    return;
+                }
                 st.httpResults.add(new HttpCompletion(req, res));
             }
         });
@@ -520,14 +531,14 @@ final class HttpApi {
      * Validate an {@code http}/{@code https} URL and return its (non-empty) host, or throw a guiding LuaError.
      *
      * <p><b>The parse is strict, because what it returns is the gate's question.</b> This host is
-     * {@code req.host}, the one {@code requireNetwork} measures against the consent record, so it is
+     * {@code req.origin}, the one {@code requireNetwork} measures against the consent record, so it is
      * produced by {@link java.net.URI} — an RFC 3986 parse that refuses a space, a brace, a bare
      * {@code %} and the rest of what a lenient parse hands on for the server to interpret. Both refusals
      * are caught: {@code URI.create} and {@code toURL} raise {@link IllegalArgumentException} (illegal
      * character, malformed escape, or a relative url with no protocol to open), {@code toURL} raises
      * {@link java.net.MalformedURLException} for a scheme with no handler. Either way the url is named.
      */
-    private static String httpHost(String url, String verb) {
+    private static String httpOrigin(String url, String verb) {
         java.net.URL u;
         try {
             u = java.net.URI.create(url).toURL();
@@ -541,7 +552,9 @@ final class HttpApi {
         String host = u.getHost();
         if((host == null) || host.isEmpty())
             throw new LuaError(verb + ": url has no host");
-        return host;
+        // audit2 B08 (ht-05): the scheme and the port travel with the name from here on, because the grant
+        // is a grant to one origin. LuaHttp builds the same string per hop, out of the same method.
+        return Manifest.origin(scheme, host, (u.getPort() > 0) ? u.getPort() : Manifest.defaultPort(scheme));
     }
 
     /** The value a request carries for {@code name}, matched case-insensitively, or {@code null}. */

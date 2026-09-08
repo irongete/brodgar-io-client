@@ -463,7 +463,7 @@ public final class LuaSpeed {
         extra.set("set", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue me = a.arg1();
-                AddonManager.requirePermission(owner, Permission.SPEED_SET);
+                AddonManager.requirePermission(AddonManager.current(), Permission.SPEED_SET);
                 LuaCollection.receiver(me, "set");
                 int n = demand(Args.required(a, 2, CharApi.SP + ":set", "speed"));
                 // That character's own selector sends it: Speedget.set walks the widget's own tree to that

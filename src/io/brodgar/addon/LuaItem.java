@@ -353,7 +353,7 @@ public final class LuaItem {
         m.set("use", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.ITEM_USE);
+                AddonManager.requirePermission(AddonManager.current(), Permission.ITEM_USE);
                 int mods = Args.optint(a, 2, "item:use", "mods", null, 0);
                 GItem g = target(self, "use");
                 Wire.send(owner, AddonManager.userOf(g), "item:use", g, "iact", iactArgs(mods));
@@ -365,7 +365,7 @@ public final class LuaItem {
         m.set("take", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.ITEM_TAKE);
+                AddonManager.requirePermission(AddonManager.current(), Permission.ITEM_TAKE);
                 noArgs(a, "item:take");
                 GItem g = target(self, "take");
                 Wire.send(owner, AddonManager.userOf(g), "item:take", g, "take", takeArgs());
@@ -376,7 +376,7 @@ public final class LuaItem {
         m.set("drop", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.ITEM_DROP);
+                AddonManager.requirePermission(AddonManager.current(), Permission.ITEM_DROP);
                 int n = Args.optint(a, 2, "item:drop", "n", null, -1);
                 GItem g = target(self, "drop");
                 Wire.send(owner, AddonManager.userOf(g), "item:drop", g, "drop", countArgs(n));
@@ -388,7 +388,7 @@ public final class LuaItem {
         m.set("transfer", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.ITEM_TRANSFER);
+                AddonManager.requirePermission(AddonManager.current(), Permission.ITEM_TRANSFER);
                 int n = Args.optint(a, 2, "item:transfer", "n", null, -1);
                 GItem g = target(self, "transfer");
                 Wire.send(owner, AddonManager.userOf(g), "item:transfer", g, "transfer", countArgs(n));

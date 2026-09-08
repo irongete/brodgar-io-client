@@ -437,7 +437,7 @@ public final class LuaPagina {
         // that may not act at all is told THAT rather than "not in the menu". The menugrid READS are untouched.
         m.set("use", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                AddonManager.requirePermission(owner, Permission.MENUGRID_USE);
+                AddonManager.requirePermission(AddonManager.current(), Permission.MENUGRID_USE);
                 LuaPagina h = handle(self, "use");
                 String res = h.res;
                 // THAT character's menu, and THAT character's button: PagButton.use sends through the grid

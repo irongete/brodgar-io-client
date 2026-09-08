@@ -193,7 +193,7 @@ public final class SessionApi {
              * COLLECTION back, so removals chain.
              */
             public void removeMember(LuaValue x) {
-                AddonManager.requirePermission(owner, Permission.SESSION_CLOSE,
+                AddonManager.requirePermission(AddonManager.current(), Permission.SESSION_CLOSE,
                                               "hafen.session():remove(s)");
                 LuaSession h = LuaSession.resolve(x);
                 if(h == null)

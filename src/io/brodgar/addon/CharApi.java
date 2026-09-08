@@ -1106,7 +1106,7 @@ final class CharApi {
         methods.set("move", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                requirePermission(owner, Permission.PLAYER_MOVE);
+                requirePermission(current(), Permission.PLAYER_MOVE);
                 // 076.3: the Position is resolved in THAT character's frame, so the refusal it already had
                 // changes subject — a place is unreachable for the character you addressed. That frame is also
                 // the one the order is sent in, so nothing translates it again on the way out.

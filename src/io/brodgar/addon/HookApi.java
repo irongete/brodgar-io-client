@@ -213,7 +213,7 @@ final class HookApi {
         // its manifest even when its argument was wrong too.
         m.set("run", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requirePermission(owner, Permission.CONSOLE_RUN);
+                AddonManager.requirePermission(AddonManager.current(), Permission.CONSOLE_RUN);
                 LuaValue self = a.arg1();
                 Section.self(self, "console", "run", CONS);
                 String line = Args.str(a, 2, RUN, "line",
@@ -281,14 +281,15 @@ final class HookApi {
                 // First time we see this name: refuse if a client command already owns it (our dispatcher would
                 // otherwise clobber a static command, or be silently shadowed by an instance/dir command), then
                 // install the ONE engine-lifetime dispatcher that forever routes to consoleHandlers.get(cmd) (C1).
-                boolean exists = false;
-                try {
-                    UI u = AddonManager.screen();
-                    exists = (u != null) && (u.cons != null) && (u.cons.findcmd(cmd) != null);
-                } catch(RuntimeException e) {
-                    /* best-effort collision check — proceed if the console can't be queried right now */
-                }
-                if(exists)
+                //   audit2 B08 (co-01): THE CONSOLE'S OWN RECORD ANSWERS THIS, not a session's console. The
+                // check used to walk from the drawn UI to its Console and call findcmd -- an instance method,
+                // so it needed a session, and there is none while the addon layer loads, which is exactly
+                // when an addon registers its commands. The null was swallowed and the claim went through:
+                // `:die`, `:gc`, `:lo`, `:gl`, `:act` and `:belt` were all claimable, and since findcmd reads
+                // the STATIC map first, the claim then shadowed the client's own for the life of the client.
+                // Console.declares reads a process-wide record of every name the client has declared, which
+                // is answerable with no console in hand and cannot be null.
+                if(Console.declares(cmd))
                     throw new LuaError("hafen.console():on: ':" + cmd + "' is already a client command");
                 Console.setscmd(cmd, new Console.Command() {
                     public void run(Console cons, String[] args) {

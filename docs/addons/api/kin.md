@@ -76,6 +76,18 @@ roster carries it. `:find` takes the ordinary [filter](conventions.md#the-filter
 Subscribe to [`KinChanged`](event/bus/character.md#roster-quests-markers) to react to a kin being added,
 removed, renamed, regrouped, or flipping online.
 
+### The row is where the walk ends
+
+`kin:widget()` is the crossing back from a roster entry to the widget tree, and it goes **one way**. The row
+it hands you reads, styles and draws like any other [Widget](ui/widget.md) — but `:parent()` on it answers
+`nil`, and so it does on anything under it: the Kin window is not walkable from inside.
+
+That is not a rule about rows. The window holds **your character's hearth secret** in an ordinary text
+entry two branches along, filled by the server itself, and the whole reach was a walk up from a row and back
+down. The same rule covers it from the other side: a field the client hides what you type into answers `nil`
+to `widget:text()`, `widget:value()` and `widget:info()`, wherever you reached it from. Style the row, read
+it, put an overlay on it; there is nothing above it to address.
+
 ### Kin and gob
 
 A kin standing in front of a character is both a roster entry and a [game object](gob.md), and you can go

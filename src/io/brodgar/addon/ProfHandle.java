@@ -372,6 +372,9 @@ public final class ProfHandle {
         });
 
         // p:reset() -- drop the ring and start measuring afresh. Chains, like every other write in hafen.*.
+        //   The frame ring is the CLIENT's own measurement and is dropped for everyone, which is what this
+        // verb has always meant; the per-addon rows behind p:addons() are not, and AddonManager.resetProfiling
+        // now clears the CALLING addon's alone (audit2 B08, pf-04).
         m.set("reset", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 Prof.reset();

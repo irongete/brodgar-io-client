@@ -260,11 +260,16 @@ btn:on("Pressed", function(ev)
 end)
 ```
 
+- **It needs the `ui.resend` [permission](../../guides/permissions.md).** A client button's own method is
+  its own `wdgmsg`, so running it sends the server what the press sends — the same wire
+  [`widget:send`](widget.md#send-a-message-protected) reaches, one step further in. Its own key rather than
+  `widget.send`, because it is a narrower thing to grant: it re-runs the press the user already made.
 - **It implies `ev:preventDefault()`**, so the action happens exactly once however many handlers ask for it.
 - **It does not re-enter any handler for that key**, so re-issuing cannot loop.
-- **It may be called from a later frame**, and more than once — each call runs the action once. The
-  subscription fires after the client has released its mouse grab, so nothing is left in flight waiting for
-  your answer, and a handler may destroy the window the button sits in.
+- **It runs once per event.** It may be called from a later frame — the subscription fires after the client
+  has released its mouse grab, so nothing is left in flight waiting for your answer, and a handler may
+  destroy the window the button sits in — but a second `ev:resend()` on the same event raises. One press is
+  one action, and an event a handler stashed would otherwise be replayable from a timer.
 - **It raises on a widget that has left the tree**, naming that, where most writes on a stale widget are a
   silent no-op: the point of re-issuing is that something happens, so silence there would be a lie.
 

@@ -275,7 +275,7 @@ public final class LuaChannel {
         // (D-213). The System log has no entry line: the client writes it and nobody says anything in it.
         m.set("send", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requirePermission(owner, Permission.CHAT_SEND);
+                AddonManager.requirePermission(AddonManager.current(), Permission.CHAT_SEND);
                 LuaValue self = a.arg1();
                 LuaChannel h = handle(self, "send");
                 String text = Args.str(a, 2, "channel:send", "text", null).tojstring();

@@ -483,7 +483,7 @@ public final class LuaSession {
         // none left. Returns self, so writes chain.
         m.set("close", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                AddonManager.requirePermission(owner, Permission.SESSION_CLOSE);
+                AddonManager.requirePermission(AddonManager.current(), Permission.SESSION_CLOSE);
                 LuaSession h = handle(self, "close");
                 Sessions.Member mem = Sessions.byuser(h.user);
                 if(mem == null)

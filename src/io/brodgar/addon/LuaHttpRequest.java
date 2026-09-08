@@ -51,9 +51,11 @@ final class LuaHttpRequest {
      * {@code volatile} for the same reason {@link #dead} is: two threads, and no lock between them.
      */
     volatile HttpURLConnection conn;
-    /** The host {@link #url} names, resolved once at construction — what the allowlist is checked against
-     *  when {@code :send()} runs the gate (095: there is no {@code :url(u)} setter, so it cannot change). */
-    String host;
+    /** The <b>origin</b> {@link #url} names ({@code scheme://host:port}), built once at construction — what
+     *  the allowlist is checked against when {@code :send()} runs the gate (095: there is no {@code :url(u)}
+     *  setter, so it cannot change). A grant is a grant to one origin (audit2 B08, ht-05), so the scheme and
+     *  the port travel with the name from the call to the socket. */
+    String origin;
     /** The Lua handle over this record — what {@code hafen.http():list()} hands back (095, A-118). */
     LuaValue handle;
     /** Has {@code :send()} been called? UI-thread only. Until it has, every setter is legal (095). */

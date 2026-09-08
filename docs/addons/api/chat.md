@@ -116,7 +116,8 @@ answers `nil`, because the scrollback grows while you read it.
 
 | Method | Returns | Description |
 |---|---|---|
-| `msg:text()` | string \| nil | the line as it was written, markup and all |
+| `msg:text()` | string \| nil | the line as the client draws it — markup quoted |
+| `msg:raw()` | string \| nil | the line as it arrived, quoting still to do |
 | `msg:kind()` | string \| nil | the [site key](#the-kind-a-line-wears) this line is drawn at |
 | `msg:color()` | [colour](shapes.md#colours) \| nil | the colour the line carries of itself |
 | `msg:time()` | number \| nil | when the client took the line, in epoch **seconds** |
@@ -136,8 +137,24 @@ a line — a line scrolled far out of sight is still read back exactly as it was
 `msg:time()` is a number with a fraction, so print it with `string.format("%d", msg:time())`. Lua's own
 `tostring` gives you scientific notation for it, which is a stamp nothing can read back.
 
-`msg:text()` is what the server or the client wrote, `$col{…}` markup included, because that markup is part
-of what was said. `msg:color()` is the colour that line carries before any [theme](ui/style/chat.md) paints
+### The quoting rule
+
+`msg:text()` is the line **as the chat drew it**, and the chat draws every line through the rich-text
+parser with its markup characters quoted — so a `$col{ff0000}{...}` another player typed appears in the
+window as those characters and not as red text. That quoting is why a stranger cannot colour, resize or
+picture your chat by talking in it, and `msg:text()` carries it with the line: put the answer on a label, a
+tooltip or a HUD overlay and it draws there exactly as it drew in the chat.
+
+`msg:raw()` is the same line **before** that, the bytes the server sent. It is the read for **matching** —
+a pattern written against what was said needs what was said — and it is the one to keep away from anything
+that renders rich text, because whatever markup the sender put in it becomes live the moment it is drawn.
+
+```lua
+if msg:raw():match("^wtb ") then ... end          -- matching: the raw line
+label:text(msg:text())                            -- drawing: the quoted one
+```
+
+`msg:color()` is the colour that line carries before any [theme](ui/style/chat.md) paints
 over it: the server's for a party line, the client's for your own, and `nil` for a line that takes the
 channel's ordinary colour.
 
@@ -198,6 +215,12 @@ you may write it to.
 
 **Changing tabs needs no permission.** It moves the client's own window and nothing else: the server is
 never told, and nothing about any character changes.
+
+**Taking the keyboard with it needs `ui.focus`.** The client's own tab change puts the cursor in that
+channel's entry line, and so does this one — for an addon the user granted
+[`ui.focus`](../guides/permissions.md#the-catalogue). Without the key the tab still changes and the keyboard
+stays exactly where the player left it, which is the only half of this verb they would have to undo by hand:
+called every frame, the focusing half held the entry line against them.
 
 ## Write (protected)
 

@@ -1252,6 +1252,23 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public Anim hide(Window wnd, Anim show) {return(new Anim(wnd, true,  show));}
     }
 
+    /* addon: (audit2 B08, un-03) the id this GameUI tracks `wnd` by, or null. A window an addon takes into
+     * one of its own surfaces (`widget:parent(p)`) is reparented, and reparenting runs cdestroy below, which
+     * forgets the id and writes the window's place to disk. Nothing re-registers it, so the client stopped
+     * tracking that window for the rest of the session -- the toggle, the saved place, the id the server
+     * names it by. The addon layer reads the id before it takes the window and hands it back with `rewnd`. */
+    public String wndid(Widget w) {
+	return((w instanceof Window) ? wndids.reverse().get((Window)w) : null);
+    }
+
+    /* addon: (audit2 B08, un-03) put a window back under the id the client tracks it by -- the other half of
+     * `wndid`, called when the addon layer gives a taken window back. Inert when the id is already held: the
+     * server may have placed a new window under it while ours was away, and that one is the live one. */
+    public void rewnd(String wndid, Widget w) {
+	if((wndid != null) && (w instanceof Window) && !wndids.containsKey(wndid))
+	    wndids.put(wndid, (Window)w);
+    }
+
     public void cdestroy(Widget w) {
 	if(w instanceof Window) {
 	    String wndid = wndids.reverse().get((Window)w);

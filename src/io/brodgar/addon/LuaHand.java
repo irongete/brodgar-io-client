@@ -141,7 +141,7 @@ final class LuaHand {
         m.set("use", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
-                AddonManager.requirePermission(owner, Permission.PLAYER_HAND_USE);
+                AddonManager.requirePermission(AddonManager.current(), Permission.PLAYER_HAND_USE);
                 final String user = handle(self, "use").user;
                 if(!Args.passed(a, 2) || a.arg(2).isnil())
                     throw new LuaError(USE + "(target, mods): target is required — you apply what you are"

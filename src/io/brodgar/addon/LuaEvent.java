@@ -195,6 +195,11 @@ public final class LuaEvent {
      * value after writing it, so this fire is a report rather than a question: both {@code preventDefault} and
      * {@code resend} raise naming that, instead of pretending to hold back something that already happened. */
     private boolean moved;
+    /** CONTROL: <b>{@code ev:resend()} has already run</b> (audit2 B08, uc-02) — the once-flag that makes one
+     *  press one action. The event object outlives the dispatch (a handler may stash it and resend from a
+     *  timer), and the tree guards only ask whether the widget is still there, so without this a single user
+     *  click could be replayed on the wire as often as an addon liked. */
+    private boolean resent;
 
     /** OVERLAY shape (041.7): {@code hafen.event():on("GobOverlayAdded"/"GobOverlayRemoved", fn)}'s payload. */
     private LuaEvent(Addon owner, Shape shape, long gobId, String key, boolean nat) {
@@ -723,8 +728,10 @@ public final class LuaEvent {
      *
      * <p><b>{@code resend} raises on a widget that has left the tree.</b> The point of re-issuing is that
      * something happens, and a silent no-op there would lie — the same refusal {@code widget:send} gives, for
-     * the same reason. It may be called more than once and from a later frame: the seam sits after the client
-     * released its mouse grab, so no gesture state is in flight waiting for it.
+     * the same reason. It may be called from a later frame — the seam sits after the client released its
+     * mouse grab, so no gesture state is in flight waiting for it — but <b>only once</b> (audit2 B08,
+     * uc-02): the action it runs is the control's own {@code wdgmsg}, so a second call would send the server
+     * a click the player never made.
      *
      * <p><b>There is no {@code ev:send(t)} twin</b>, so this shape spells the refusal out rather than letting
      * it fall into the generic unknown-verb one: what is deferred here is a METHOD, not a message, so there are
@@ -757,9 +764,21 @@ public final class LuaEvent {
         });
         m.set("resend", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
+                // audit2 B08 (uc-02): PROTECTED, under "ui.resend", and the gate is the FIRST statement
+                // (D-213). Controls.replay runs the client button's own action, which does the button's own
+                // wdgmsg -- the same wire the ACTION half's ev:resend() reaches under "widget.send", and the
+                // same act widget:value(v) is keyed for. This half carried no gate at all.
+                AddonManager.requirePermission(AddonManager.current(), Permission.UI_RESEND, "ev:resend");
                 LuaEvent e = self(a.arg1(), Shape.CONTROL, "resend");
                 if(e.moved)
                     throw new LuaError(MOVED + " ev:resend() has no held-back action of its own to run.");
+                // ...AND ONCE PER DISPATCH. The guards below only ask whether the widget is still there, so a
+                // stashed ev re-ran one user click as many times as a timer cared to call it. One press is one
+                // action, so the second call refuses instead of sending again.
+                if(e.resent)
+                    throw new LuaError("ev:resend(): this " + e.msg + " has already been re-sent — one press"
+                        + " is one action, and running it again would send the server a click the player never"
+                        + " made. Hold the widget and use widget:send(msg, ...) if you mean to send more.");
                 UI u = e.ui;
                 // Both halves have to still be there: the widget the handler holds, and — for a list one
                 // level inside a control (061.3) — the popup or inner list whose change() is what runs.
@@ -768,6 +787,7 @@ public final class LuaEvent {
                     throw new LuaError("ev:resend(): the widget this " + e.msg + " came from has LEFT THE TREE"
                         + " (widget:exists() is false), so there is no action of its own left to run. Nothing"
                         + " was re-sent.");
+                e.resent = true;
                 e.cancel.prevent();
                 Controls.replay(e.wdg, e.actor, e.msg, e.nval);
                 return LuaValue.NIL;
@@ -1067,7 +1087,7 @@ public final class LuaEvent {
         // nothing. The gate runs FIRST (D-213), before the receiver is even resolved.
         m.set("resend", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requirePermission(ownerOf(a.arg1()), Permission.WIDGET_SEND, "ev:resend");
+                AddonManager.requirePermission(AddonManager.current(), Permission.WIDGET_SEND, "ev:resend");
                 LuaEvent e = self(a.arg1(), Shape.ACTION, "resend");
                 e.cancel.prevent();
                 e.ui.rawWdgmsg(e.wdg, e.msg, e.args);      // the ORIGINAL args, verbatim and lossless
@@ -1076,7 +1096,7 @@ public final class LuaEvent {
         });
         m.set("send", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                AddonManager.requirePermission(ownerOf(a.arg1()), Permission.WIDGET_SEND, "ev:send");
+                AddonManager.requirePermission(AddonManager.current(), Permission.WIDGET_SEND, "ev:send");
                 LuaEvent e = self(a.arg1(), Shape.ACTION, "send");
                 LuaValue t = Args.required(a, 2, "ev:send", "args");
                 e.cancel.prevent();
@@ -1086,18 +1106,6 @@ public final class LuaEvent {
         });
     }
 
-    /**
-     * The addon whose {@code ev} this is, for a gate that has to run <b>before</b> the receiver is checked
-     * (D-213). {@code null} for anything that is not an event, which {@link AddonManager#requirePermission}
-     * refuses exactly as it refuses an addon that declared nothing — and {@link #self} then raises the shape
-     * refusal a beat later for a caller that passed something else entirely.
-     */
-    private static Addon ownerOf(LuaValue self) {
-        if((self == null) || !self.isuserdata())
-            return null;
-        Object o = self.touserdata();
-        return (o instanceof LuaEvent) ? ((LuaEvent)o).owner : null;
-    }
 
     /**
      * The inbound half: apply the message with different arguments. Unlike {@code preventDefault} it does

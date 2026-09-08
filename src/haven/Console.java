@@ -33,6 +33,14 @@ public class Console {
     private static final Map<String, Command> scommands = new HashMap<String, Command>();
     private final Map<String, Command> commands = new HashMap<String, Command>();
     private final Collection<Directory> dirs = new LinkedList<Directory>();
+    /* addon: (audit2 B08, co-01) every command name this process has declared -- static, instance and
+     * directory alike. `findcmd` is the only other answer to "is this name taken", and it is an INSTANCE
+     * method: an addon claiming a name has no console to ask while the addon layer loads, which is exactly
+     * when the claim is made, and the check that guessed one from the drawn session read null and proceeded.
+     * A static command installed over the client's own then wins for the life of the process, because
+     * `findcmd` reads `scommands` first. This is recorded as each declaration happens, so the answer is the
+     * client's whether or not a session holds a console yet. Names only: nothing here dispatches. */
+    private static final Set<String> declared = new HashSet<String>();
     private final ThreadLocal<Host> host = new ThreadLocal<>();
     private final ThreadLocal<String> rawtext = new ThreadLocal<>();   // addon: raw command line, quotes intact
     public PrintWriter out;
@@ -56,6 +64,22 @@ public class Console {
 	synchronized(scommands) {
 	    scommands.put(name, cmd);
 	}
+	declare(name);   // addon: (audit2 B08) see `declared`
+    }
+
+    /* addon: (audit2 B08, co-01) whether ANY command in this process answers to `name` -- the question a
+     * would-be claimant has to ask, answerable with no console in hand. See `declared`. */
+    public static boolean declares(String name) {
+	synchronized(declared) {
+	    return(declared.contains(name));
+	}
+    }
+
+    /* addon: (audit2 B08) record one declared name. */
+    private static void declare(String name) {
+	synchronized(declared) {
+	    declared.add(name);
+	}
     }
 
     // addon: TAKE a static command back out -- the counterpart setscmd never had. `scommands` is a
@@ -67,12 +91,16 @@ public class Console {
 	synchronized(scommands) {
 	    scommands.remove(name);
 	}
+	synchronized(declared) {   // addon: (audit2 B08) ...and the name is claimable again
+	    declared.remove(name);
+	}
     }
 
     public void setcmd(String name, Command cmd) {
 	synchronized(commands) {
 	    commands.put(name, cmd);
 	}
+	declare(name);   // addon: (audit2 B08) see `declared`
     }
 
     public Command findcmd(String name) {
@@ -97,6 +125,18 @@ public class Console {
     public void add(Directory dir) {
 	synchronized(dirs) {
 	    dirs.add(dir);
+	}
+	/* addon: (audit2 B08) record the names, so `declares` can answer with no console in hand -- see
+	 * `declared`. Both guards are real, and neither is hypothetical: `UILoop`'s constructor calls
+	 * `newui`, which adds the client's own directory before the subclass field holding it has been
+	 * assigned, so `dir` IS null for the login screen's console; and a directory reached that early can
+	 * answer null for a map it fills later. A directory with nothing to say declares nothing, which is
+	 * the whole of what this has to do about it -- registering it is still upstream's business, and
+	 * asking it for names is only ours. */
+	Map<String, Command> cmds = (dir == null) ? null : dir.findcmds();
+	if(cmds != null) {
+	    for(String name : cmds.keySet())
+		declare(name);
 	}
     }
 

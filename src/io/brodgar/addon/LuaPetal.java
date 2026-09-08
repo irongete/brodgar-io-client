@@ -108,7 +108,7 @@ final class LuaPetal {
             public Varargs invoke(Varargs a) {
                 LuaValue me = a.arg1();
                 LuaPetal h = handle(me, "select");
-                AddonManager.requirePermission(owner, Permission.FLOWERMENU_SELECT);
+                AddonManager.requirePermission(AddonManager.current(), Permission.FLOWERMENU_SELECT);
                 if(Args.passed(a, 2))
                     throw new LuaError("petal:select() takes no arguments — it picks THIS petal, which is"
                         + " what holding one is for; session:flowermenu():select(label|n) is the other door");

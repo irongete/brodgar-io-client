@@ -293,7 +293,7 @@ public final class LuaMarker {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 if(Args.passed(a, 2))
-                    AddonManager.requirePermission(owner, Permission.MAP_MARKER, "marker:color");
+                    AddonManager.requirePermission(AddonManager.current(), Permission.MAP_MARKER, "marker:color");
                 MapFile.Marker mk = marker(self, "color");
                 if(!Args.passed(a, 2)) {
                     if(!(mk instanceof MapFile.PMarker) || (((MapFile.PMarker)mk).color == null))
@@ -311,7 +311,7 @@ public final class LuaMarker {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 if(Args.passed(a, 2))
-                    AddonManager.requirePermission(owner, Permission.MAP_MARKER, "marker:onMap");
+                    AddonManager.requirePermission(AddonManager.current(), Permission.MAP_MARKER, "marker:onMap");
                 MapFile.Marker mk = marker(self, "onMap");
                 LuaValue v = Args.written(a, 2, "marker:onMap", "on");
                 if(v == null) {

@@ -91,7 +91,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -271,11 +273,70 @@ public final class AddonManager {
     // exactly as before, only its granularity — and the read of it is still gone.
 
     /**
-     * Gate a protected verb (D-027; D-028): the calling addon must have DECLARED this verb's own catalogue key
-     * in its manifest — exactly, or through the group that covers it — or this throws a guiding Lua error
-     * naming the verb and the key it needs. The user's consent is enforced at ENABLE time by the AddOns panel's
-     * consent dialog (a running declaring addon is already permitted for what it declared), so there is no
-     * separate runtime switch. Always the FIRST statement of the verb it guards (D-213).
+     * <b>The addon whose Lua is running on this thread</b>, or {@code null} outside one (audit2 B08) — the
+     * one thing every gate keys on, and what every {@code requirePermission} call site passes.
+     *
+     * <p>It was the <i>handle's</i> owner: the addon a Lua object had been minted for, read off that object
+     * (pm-05). A handle can cross addons — one addon hands another an {@code ev} or a {@code Widget} through
+     * a shared table — and the gate then asked the wrong manifest, granting the running addon whatever the
+     * minting one had declared. The running addon is the one the user consented to <i>for this act</i>, so
+     * it is the only honest answer, and reading it here rather than at each call site is what keeps the
+     * forty-odd doors from drifting apart again.
+     *
+     * <p>Pushed by {@link #enterLua} and popped by {@link #leaveLua} — the pair {@link #callLua},
+     * {@link Subs#fire}, the {@code :lua} REPL and an addon's own file bodies ({@link Addon#run}) all enter
+     * through — so it is set for exactly as long as that addon's code is on the stack. A stack and not a
+     * single slot, because Lua re-enters: a handler that fires an event of its own puts a second entry on,
+     * and popping restores the one underneath.
+     */
+    static Addon current() {
+        Deque<Addon> d = running.get();
+        return d.isEmpty() ? null : d.peek();
+    }
+
+    /**
+     * The per-thread stack {@link #current} reads. A {@link ThreadLocal} because the answer is <i>where is
+     * this code running</i>, which is a property of the thread and of nothing else — an HTTP completion, a
+     * Loader thread carrying an inbound message and the frame's own draw are all inside some addon's Lua at
+     * the same instant, each inside a different one.
+     */
+    private static final ThreadLocal<Deque<Addon>> running = new ThreadLocal<Deque<Addon>>() {
+        protected Deque<Addon> initialValue() {
+            return new ArrayDeque<Addon>(4);
+        }
+    };
+
+    /** {@link #enterLua}'s other half: this thread is now inside {@code owner}'s Lua. */
+    private static void pushRunning(Addon owner) {
+        running.get().push(owner);
+    }
+
+    /** Give back what {@link #pushRunning} took — the entry underneath becomes {@link #current} again. */
+    private static void popRunning() {
+        Deque<Addon> d = running.get();
+        if(!d.isEmpty())
+            d.pop();
+    }
+
+    /**
+     * <b>Does the user's consent record grant {@code owner} this key?</b> (audit2 B08) — the whole of the key
+     * gate's question, and the non-throwing read behind {@link #requirePermission}.
+     *
+     * <p><b>It reads the RECORD, not the manifest</b> (pm-03). The manifest is the addon's <i>request</i>, a
+     * file on disk it rewrites between one enable and the next; {@link Addon#grantedKeys} is the user's
+     * <i>answer</i>, taken out of the consent record at load. That is what the host gate has always asked
+     * ({@link Addon#hostGranted}), and the two halves of one consent reading different sources meant a
+     * widened key list was caught only by the enable-time scan.
+     */
+    static boolean permitted(Addon owner, Permission perm) {
+        return (owner != null) && owner.keyGranted(perm);
+    }
+
+    /**
+     * Gate a protected verb (D-027; D-028): the addon whose Lua is running must hold this verb's own
+     * catalogue key — exactly, or through the group that covers it — or this throws a guiding Lua error
+     * naming the verb and the key it needs. Always the FIRST statement of the verb it guards (D-213), and
+     * {@code owner} is always {@link #current()}: the running addon, never a handle's.
      */
     static void requirePermission(Addon owner, Permission perm) {
         requirePermission(owner, perm, perm.lua);
@@ -291,7 +352,14 @@ public final class AddonManager {
      * @param lua the verb as the caller wrote it ({@code "hafen.session():remove(s)"})
      */
     static void requirePermission(Addon owner, Permission perm, String lua) {
-        if((owner == null) || !owner.manifest.permissions.has(perm))
+        // audit2 B08 (pm-04): NO ADDON IS RUNNING is its own refusal. This arm used to fall into the message
+        // below and tell a caller with no manifest at all -- a Java seam, a callback that outlived its entry
+        // -- to add a key to a manifest.json that does not exist.
+        if(owner == null)
+            throw new LuaError(lua + ": no addon is running here, and a protected verb is granted per addon —"
+                + " there is no manifest to read the \"" + perm.key + "\" permission out of. Call it from"
+                + " your addon's own code (a handler, a timer, its file body), not from a bare Java seam.");
+        if(!permitted(owner, perm))
             throw new LuaError(lua + ": this addon did not declare the \"" + perm.key + "\" permission —"
                 + " add \"permissions\": [\"" + perm.key + "\"] to its manifest.json (or the group \""
                 + perm.group() + ".*\"). A protected verb is granted per key, and the user approves the list"
@@ -718,6 +786,17 @@ public final class AddonManager {
      * the whole client, and the session that did have the pump drained them and handed another session's
      * widgets to adapters that could only find nothing in them. Dropping them is that outcome, said out loud.
      */
+    /**
+     * <b>Is anything still draining this state's queues?</b> (audit2 B08, ht-07) — the question an off-thread
+     * completion has to ask before it files a result: the queues belong to one session and are drained by
+     * that session's own tick, so a result filed after that {@code UI} died sits there with its body until
+     * the state is dropped, and its handler never runs. The identity test is what makes it honest — a relogin
+     * replaces the {@code UI} and mints a new state, and the old one is nobody's to drain.
+     */
+    static boolean draining(SessionState st) {
+        return (st != null) && (st.ui != null) && !st.ui.destroyed && (states.get(st.ui) == st);
+    }
+
     static SessionState queueState(UI u) {
         SessionState st = state(u);
         if(st == null)
@@ -1625,11 +1704,26 @@ public final class AddonManager {
         return out;
     }
 
-    /** Clear every per-addon profiling figure — registered with {@code Prof}, so arming and {@code p:reset()} hit it. */
+    /**
+     * Clear the per-addon profiling figures — registered with {@code Prof}, so arming and {@code p:reset()}
+     * both reach it.
+     *
+     * <p><b>Whose figures depends on whether an addon is running</b> (audit2 B08, pf-04). {@code p:reset()}
+     * is called from inside some addon's Lua, and it used to walk {@link #profOwners()} and empty
+     * <i>everyone's</i> rows, averages and named scopes — one addon erasing another's measurements, which is
+     * a cross-addon authority crossing however unprotected the verb is. Keyed on {@link #current()} it clears
+     * the caller's own and nothing else. Arming the switch runs on no addon's stack, and there every row
+     * should start level, which is the walk this kept.
+     */
     static void resetProfiling() {
         prevProbed = false;   // 019.7: nothing measured yet, so the next roll has no split to carry over
-        for(Addon a : profOwners())
+        Addon a = current();
+        if(a != null) {
             a.profReset();
+            return;
+        }
+        for(Addon x : profOwners())
+            x.profReset();
     }
 
     /**
@@ -4245,20 +4339,32 @@ public final class AddonManager {
      *
      * <p>A missed entry costs a painter one frame of its picture, and it is reachable only while another
      * thread is inside that same addon's Lua at that instant — which the instruction cap bounds.
+     *
+     * <p><b>It also names the running addon</b> (audit2 B08): an entry that happens pushes {@code owner}
+     * onto {@link #current()}'s stack, and {@link #leaveLua} pops it. One pair, so the answer every
+     * permission gate keys on is set for exactly as long as that addon's code is on the stack, whichever
+     * door it came through.
      */
     static boolean enterLua(Addon owner) {
         if(owner == null)
             return false;
-        if(LuaWidget.heldOther(null) != null)
-            return owner.luaLock.tryLock();
+        if(LuaWidget.heldOther(null) != null) {
+            if(!owner.luaLock.tryLock())
+                return false;
+            pushRunning(owner);              // audit2 B08: ...and the gate now knows whose code this is
+            return true;
+        }
         owner.luaLock.lock();
+        pushRunning(owner);
         return true;
     }
 
     /** Give back what {@link #enterLua} took. Paired in a {@code finally}, always. */
     static void leaveLua(Addon owner) {
-        if(owner != null)
+        if(owner != null) {
+            popRunning();
             owner.luaLock.unlock();
+        }
     }
 
     /** {@link #callLua}'s body, inside the lock. */
@@ -4654,7 +4760,19 @@ public final class AddonManager {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 Section.self(self, "log", "write");
-                log(owner, Args.required(a, 2, "hafen.log():write", "msg").tojstring());
+                String msg = Args.required(a, 2, "hafen.log():write", "msg").tojstring();
+                // audit2 B08 (lg-03): A LINE IS SIGNED BY WHOEVER WROTE IT. The in-game half renders
+                // `<id>: <msg>`, so a message opening with another loaded addon's id and a colon reads as
+                // that addon's own line -- and the newlines the sink escapes (log(Addon, String)) close the
+                // terminal half of the same forge. Refused rather than mangled: an author who wrote it meant
+                // something, and the message says what.
+                String forged = logForgedPrefix(owner, msg);
+                if(forged != null)
+                    throw new LuaError("hafen.log():write(msg): the line opens with \"" + forged + ": \","
+                        + " which is the addon \"" + forged + "\" signing its own lines — the client writes"
+                        + " your id in front of every one of yours, so this would read as theirs. Say who you"
+                        + " mean some other way (\"about " + forged + ": ...\").");
+                log(owner, msg);
                 return self;
             }
         });
@@ -5094,8 +5212,61 @@ public final class AddonManager {
      */
     static void log(Addon owner, String msg) {
         String id = ownerName(owner);
-        System.out.println("[" + id + "] " + msg);
-        notice(clampMsg(id + ": " + msg));
+        String one = oneLine(msg);
+        System.out.println("[" + id + "] " + one);
+        notice(clampMsg(id + ": " + one));
+    }
+
+    /**
+     * <b>One line, whatever was written</b> (audit2 B08, lg-03) — the newlines in a logged message escaped
+     * to the two characters that spell them.
+     *
+     * <p>Nothing escaped the message, and the terminal half writes {@code "[" + id + "] " + msg}: an embedded
+     * newline therefore wrote a SECOND terminal line under whatever {@code [id]} the addon chose to put after
+     * it, which is a forged line and not a formatting slip. A tab goes the same way, for the same reason a
+     * terminal reader has: one written record is one line.
+     */
+    private static String oneLine(String msg) {
+        if(msg == null)
+            return "nil";
+        StringBuilder sb = null;
+        for(int i = 0; i < msg.length(); i++) {
+            char c = msg.charAt(i);
+            String esc = (c == 0x0a) ? "\\n" : (c == 0x0d) ? "\\r" : (c == 0x09) ? "\\t" : null;
+            if((esc == null) && (sb == null))
+                continue;                          // the common case: nothing to escape, nothing built
+            if(sb == null)
+                sb = new StringBuilder(msg.length() + 8).append(msg, 0, i);
+            if(esc == null)
+                sb.append(c);
+            else
+                sb.append(esc);
+        }
+        return (sb == null) ? msg : sb.toString();
+    }
+
+    /**
+     * <b>Is {@code msg} pretending to be another addon's line?</b> (audit2 B08, lg-03) — the in-game half
+     * renders {@code id + ": " + msg}, so a message opening with {@code "<other-id>: "} reads in the chat as
+     * two prefixes, and a reader scanning for the addon they are debugging finds a line that addon never
+     * wrote. Only a LOADED addon's id counts: a word with a colon in it is ordinary prose, and refusing that
+     * would make the verb unusable.
+     */
+    static String logForgedPrefix(Addon owner, String msg) {
+        if(msg == null)
+            return null;
+        int c = msg.indexOf(':');
+        if((c <= 0) || (c + 1 >= msg.length()) || (msg.charAt(c + 1) != ' '))
+            return null;
+        String claim = msg.substring(0, c);
+        if(claim.equals(ownerName(owner)))
+            return null;                        // its own id: nobody is being impersonated
+        for(Addon a : addons) {
+            if(claim.equals(ownerName(a)))
+                return claim;
+        }
+        Addon co = consoleOwner;
+        return ((co != null) && claim.equals(ownerName(co))) ? claim : null;
     }
 
     // ------------------------------------------------------------- :lua REPL

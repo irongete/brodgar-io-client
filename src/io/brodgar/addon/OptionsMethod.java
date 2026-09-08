@@ -55,7 +55,7 @@ abstract class OptionsMethod extends VarArgFunction {
         case 1:                       // opt:name()   — read
             return onRead();
         case 2:                       // opt:name(v)  — write, then chain
-            AddonManager.requirePermission(owner, Permission.CLIENT_SETTINGS, verb);
+            AddonManager.requirePermission(AddonManager.current(), Permission.CLIENT_SETTINGS, verb);
             if(a.arg(2).isnil())
                 throw Args.nilRefused(verb, "value");
             onWrite(a.arg(2));
