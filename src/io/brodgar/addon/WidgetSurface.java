@@ -132,13 +132,24 @@ final class WidgetSurface extends Widget {
     private final UI sui;
     /** The entity standing this surface, set the moment it is built — see {@link #takesPointer}. */
     LuaWidgetEntity ent;
-    private Texture2D tex;
-    private TexRender tr;
+    /*
+     * audit2 B06: VOLATILE, all six. `touch()` and `invalidate()` run from a control's setter on whatever
+     * thread the addon's Lua was on, `free()` from a :remove or a teardown on another, and the display pass
+     * reads every one of them on the frame's own -- three parties and, before this, no barrier between any
+     * two of them. A stale `dirty` was a panel that stopped repainting; a stale `freed` was the display pass
+     * drawing through a sampler that had already been given back. The GL free itself is already deferred one
+     * layer down: Texture2D/Sampler dispose() marks the object and GLObject.dispose0 enqueues it on the
+     * environment's own disposal list, which the render thread drains -- so `free()` hands the texture back
+     * without ever touching GL from here, and the field writes below are the whole of what it does that the
+     * display pass can see.
+     */
+    private volatile Texture2D tex;
+    private volatile TexRender tr;
     private Coord tsz;                 // the texture's size, which is this widget's size at stand time
-    private boolean dirty = true;      // never drawn, or something the signature cannot see has changed
-    private long sig;                  // the last content signature (see needsDraw)
-    private boolean sigged;
-    private boolean freed;
+    private volatile boolean dirty = true;   // never drawn, or something the signature cannot see has changed
+    private volatile long sig;         // the last content signature (see needsDraw)
+    private volatile boolean sigged;
+    private volatile boolean freed;
 
     /** 044.4: the quad's four corners in the map view's pixels — BL, BR, TL, TR — as of {@link #qframe}. */
     private volatile float[] quad;
@@ -348,7 +359,7 @@ final class WidgetSurface extends Widget {
         if(mine.isEmpty())
             return;
         st.surfaceFrames++;
-        synchronized(u) {
+        synchronized(LuaWidget.monitorOf(u)) {        // 112.2: the acquisition every site in this layer makes
             for(WidgetSurface s : mine)                // copy-on-write: a draw callback may stand or end one
                 s.render(out);
         }
@@ -356,12 +367,13 @@ final class WidgetSurface extends Widget {
 
     /** One surface's pass: clear to transparent, then the ordinary widget draw over an offscreen {@link GOut}. */
     private void render(Render out) {
-        if(freed || (tex == null))
+        Texture2D tx = tex;                // audit2 B06: ONE read of each, so the pass below cannot be
+        if(freed || (tx == null))          //   handed a texture free() nulled between the test and the use
             return;
         if(!needsDraw())
             return;
         Pipe base = new BufPipe();
-        base.prep(new FragColor<Texture.Image<Texture2D>>(tex.image(0)));
+        base.prep(new FragColor<Texture.Image<Texture2D>>(tx.image(0)));
         base.prep(FragColor.blend(BLEND));
         Area a = Area.sized(tsz);
         base.prep(new States.Viewport(a)).prep(new Ortho2D(a));
@@ -527,7 +539,7 @@ final class WidgetSurface extends Widget {
      * children changed, and dropping the focusable if it held one) and add to the new one.
      */
     static void reparent(UI u, Widget w, Widget np, Coord at) {
-        synchronized(u) {
+        synchronized(LuaWidget.monitorOf(u)) {        // 112.2: the acquisition every site in this layer makes
             Widget op = w.parent;
             if(op != null) {
                 if(w.canfocus)
@@ -544,7 +556,7 @@ final class WidgetSurface extends Widget {
     void free() {
         if(freed)
             return;
-        freed = true;
+        freed = true;                      // published FIRST: a display pass that reads it stops here
         AddonManager.SessionState st = AddonManager.state(sui);
         if(st != null)
             st.surfaces.remove(this);

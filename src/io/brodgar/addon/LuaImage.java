@@ -31,8 +31,9 @@ import org.luaj.vm2.LuaValue;
  * flag makes any later {@code g:image} a clean no-op, so a freed image never resurrects its texture via
  * {@code TexI.st()}'s lazy re-upload.
  *
- * <p><b>Threading.</b> Loading, freeing, and teardown run on the UI thread (P5); {@link #resolve} and
- * the {@link #tex}/{@link #dead} reads happen inside a draw callback (the render thread). {@code TexI} is
+ * <p><b>Threading.</b> Loading, freeing, and teardown run inside the addon's own Lua, serialized by its
+ * lock ({@code AddonManager.callLua}); {@link #resolve} and
+ * the {@link #tex}/{@link #dead} reads happen inside a draw callback (the frame's own thread). {@code TexI} is
  * itself draw-thread-safe (its GL upload is lazy + synchronized); {@link #dead} is {@code volatile}; the
  * {@link Addon#images} list is copy-on-write — so no extra locking is needed.
  */

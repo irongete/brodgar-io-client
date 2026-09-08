@@ -74,16 +74,23 @@ public final class LuaOption {
 
     /** The declared default — {@code nil} on the two kinds that carry no value. */
     final LuaValue def;
-    /** The value in force, written through to the preference store. {@code nil} on the two kinds without one. */
-    private LuaValue value;
+    /**
+     * The value in force, written through to the preference store. {@code nil} on the two kinds without one.
+     *
+     * <p><b>Volatile</b> (audit2 B06): Lua writes it from whatever thread the addon's handler ran on, and the
+     * control the client draws re-reads it every frame on the frame's own — two threads with no monitor
+     * between them, so the barrier is the field's.
+     */
+    private volatile LuaValue value;
     /** A {@link Kind#NUMBER}'s inclusive bounds, whole numbers because the control that draws it is. */
     public final int lo, hi;
     /** A {@link Kind#CHOICE}'s offered values, in declaration order; {@code null} on every other kind. */
     public final List<String> choices;
     /** A {@link Kind#BUTTON}'s handler — what the client runs when the row is pressed. */
     final LuaValue press;
-    /** A {@link Kind#LABEL}'s line, the one piece of a row the addon rewrites live. */
-    private String text;
+    /** A {@link Kind#LABEL}'s line, the one piece of a row the addon rewrites live. Volatile for
+     *  {@link #value}'s reason: written from Lua, re-read by the row that draws it. */
+    private volatile String text;
 
     /** {@code opt:on("Changed", fn)} — the only key, and only on a kind that carries a value. */
     final Subs subs;

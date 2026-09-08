@@ -249,12 +249,17 @@ public final class LuaStudySlot {
         return under(CharApi.studyWidget(user));
     }
 
-    /** The curiosities under one study inventory widget, in its own child order. */
+    /**
+     * The curiosities under one study inventory widget, in its own child order — copied out under that
+     * tree's monitor (audit2 B06), because the server adds and removes them on a Loader thread that holds it.
+     */
     private static List<GItem> under(Widget study) {
         List<GItem> out = new ArrayList<GItem>();
         if(study != null) {
-            for(GItem it : study.children(GItem.class))
-                out.add(it);
+            synchronized(LuaWidget.monitor(study)) {
+                for(GItem it : study.children(GItem.class))
+                    out.add(it);
+            }
         }
         return out;
     }
@@ -272,12 +277,16 @@ public final class LuaStudySlot {
         // The study inventory and its StudyInfo are SIBLINGS under SAttrWnd -- the info panel holds the
         // inventory rather than containing it -- so the walk goes up to the tab and back down, exactly as
         // CharApi.studyInfo does. Walking up to StudyInfo itself would never find one.
-        SAttrWnd w = it.getparent(SAttrWnd.class);
-        if(w == null)
-            return false;
-        for(SAttrWnd.StudyInfo si : w.children(SAttrWnd.StudyInfo.class)) {
-            if(si.study == it.parent)
-                return true;
+        // Both halves under that tree's monitor (audit2 B06): the walk up and the walk down each follow
+        // links a Loader thread re-points while it holds it.
+        synchronized(LuaWidget.monitor(it)) {
+            SAttrWnd w = it.getparent(SAttrWnd.class);
+            if(w == null)
+                return false;
+            for(SAttrWnd.StudyInfo si : w.children(SAttrWnd.StudyInfo.class)) {
+                if(si.study == it.parent)
+                    return true;
+            }
         }
         return false;
     }

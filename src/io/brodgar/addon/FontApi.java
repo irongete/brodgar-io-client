@@ -448,17 +448,24 @@ final class FontApi {
                 boolean clear = v.isnil();
                 if(clear && !"size".equals(prop) && !"aa".equals(prop) && !"outline".equals(prop))
                     throw Args.nilRefused("font:" + prop, prop);
-                fh.writable("font:" + prop);
-                if("size".equals(prop))
-                    fh.size = clear ? null : optSize(v, "font:size");
-                else if("aa".equals(prop))
-                    fh.aa = clear ? null : Boolean.valueOf(v.toboolean());
-                else if("color".equals(prop))
-                    fh.color = colorArg(a, 2, "font:color");
-                else if("outline".equals(prop))
-                    fh.outline = clear ? null : colorArg(a, 2, "font:outline");
-                else
-                    fh.style("bold".equals(prop), v.toboolean());
+                // audit2 B06: the CHECK AND THE WRITE UNDER ONE MONITOR. `writable` was synchronized and the
+                // assignment was not, so the barrier sat on the wrong side of it: a handle configured off the
+                // step had nothing publishing its fields to the thread that renders through them, and a
+                // second thread could pass the draft check while this one was still writing. rich() reads
+                // them under this very monitor, and seal() sets `used` under it.
+                synchronized(fh) {
+                    fh.writable("font:" + prop);
+                    if("size".equals(prop))
+                        fh.size = clear ? null : optSize(v, "font:size");
+                    else if("aa".equals(prop))
+                        fh.aa = clear ? null : Boolean.valueOf(v.toboolean());
+                    else if("color".equals(prop))
+                        fh.color = colorArg(a, 2, "font:color");
+                    else if("outline".equals(prop))
+                        fh.outline = clear ? null : colorArg(a, 2, "font:outline");
+                    else
+                        fh.style("bold".equals(prop), v.toboolean());
+                }
                 return self;
             }
         };

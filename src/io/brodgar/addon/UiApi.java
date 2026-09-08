@@ -39,8 +39,9 @@ import static io.brodgar.addon.AddonManager.*;
  * selector events (030), the window-toggle seam + the {@code widget:replace(view)} substitution (031/032), and the
  * read-only widget-tree walk + hit-testing (W1/W2 node API). Owns the subscription registries + overlay paint
  * state. The widget-placement seam {@code onWidgetPlaced} (called from {@code haven.UI}) stays a facade in
- * {@link AddonManager} and delegates here — placement also drives {@link #dispatchWidgetSubsPlaced} (042.7) and
- * {@link #offerPlaced}'s selector matching (030.2); the tick still drives {@link #anyHudOverlays}, but {@code
+ * {@link AddonManager} and delegates here — placement also drives {@link #dispatchWidgetSubsPlaced} (042.7);
+ * the selector matching is the entry seam's ({@link #offerEntered}, 112.3)
+ * and the tick still drives {@link #anyHudOverlays}, but {@code
  * WidgetSubs}'s {@code ItemAdded}/{@code ItemRemoved}/{@code Destroy} keys moved onto the placement/removal seams
  * ({@link #dispatchWidgetSubsPlaced}/{@link #dispatchWidgetSubsRemoved}, 042.7), so has the {@code
  * widget:replace(view)} substitution's own death test ({@link #dispatchReplacedRemoved}, 042.8), and so has the
@@ -88,9 +89,9 @@ final class UiApi {
     // takes the tree's monitor itself, for the walk and the match alone, giving it up before any Lua runs
     // (offerEntered, offer). The taps that feed them hold whatever their caller held and only append: the entry
     // tap under add0's synchronized(ui), the caption seam (Window.chcap) under nothing at all, which is why it
-    // records a Widget (markCaptionChanged) rather than walking the tree or calling Lua inline (P5). So the tree
-    // monitor still guards every actual reader/writer here and each subscription's `matched` map needs no lock
-    // of its own.
+    // records a Widget (markCaptionChanged) rather than walking the tree or calling Lua inline. So the tree
+    // monitor guards every walk and every match here; `matched` itself is concurrent, because the drops --
+    // a "Removed" dispatch on the step, sub:off(), the teardown -- arrive holding no monitor at all.
     // 073.2: and BOTH LISTS ARE ONE SESSION'S. They hold widgets of a tree, so they are
     // {@code SessionState.selectorWatches} / {@code .selectorPending}, reached with the ui of the widget the
     // seam was handed — never {@link AddonManager#screen()}, which answers the session on screen and is a
@@ -292,8 +293,8 @@ final class UiApi {
 
     /**
      * One entered widget offered to every selector subscription: <b>matched under the tree's monitor, fired
-     * outside it</b> (112.3). The two halves are split rather than folded into {@link #offerPlaced} because
-     * {@code record} calls Lua inline, and Lua called from inside a tree's monitor is the whole defect.
+     * outside it</b> (112.3). The two halves are split, and not folded into one loop, because Lua called from
+     * inside a tree's monitor is the whole defect.
      *
      * <p>Per widget rather than per subtree, so the re-test and the match are asked at the moment this widget
      * is handed over — a handler fired for an earlier one may have closed the window a later one sits in.
@@ -998,7 +999,7 @@ final class UiApi {
         if((u == null) || (u.root == null))
             return LuaValue.NIL;
         List<Widget> hits = new ArrayList<Widget>();
-        synchronized(u) { collect(u.root, sel, hits); }
+        synchronized(LuaWidget.monitorOf(u)) { collect(u.root, sel, hits); }
         return one(owner, hits, sel, UIS + ":");
     }
 
@@ -1013,7 +1014,7 @@ final class UiApi {
         if((u == null) || (u.root == null))
             return new LuaTable();
         List<Widget> hits = new ArrayList<Widget>();
-        synchronized(u) { collect(u.root, sel, hits); }
+        synchronized(LuaWidget.monitorOf(u)) { collect(u.root, sel, hits); }
         return table(owner, hits);
     }
 
@@ -1399,55 +1400,34 @@ final class UiApi {
      * that only watched creations lost every window open at the moment it was edited. An {@code "Added"}
      * subscription is called back here, inside its own registration (the {@code replace} precedent); a
      * {@code "Removed"} one records silently, which is what lets a later close still fire.
+     *
+     * <p><b>Matched under the tree's monitor, fired outside it</b> (audit2 B06) — the discipline
+     * {@link #offerEntered} and {@link #offer} already keep, and the last seam in this file that did not.
+     * Lua entered under a tree monitor is the one entry that cannot wait for its addon's lock, and a handler
+     * fired here met {@code monitorOf}'s refusal the moment it reached a second tree. The walk still runs
+     * under the monitor, because the placement seam and the tick both hold it while they re-link the tree.
      */
     private static void scanForWatch(LuaSelectorWatch w) {
         UI u = w.ui;                           // 073.2: the tree it was registered against, and no other
         if((u == null) || (u.root == null))
             return;
-        // Under the ui monitor for the WHOLE scan, not just the walk: the placement seam and the tick both hold it,
-        // so this is what keeps the subscription's `matched` map from being written by two threads at once (a
-        // registration can arrive off the UI thread, from the session bind). Lua under the monitor is the seam's
-        // own discipline, and re-entrant for the walk the handler may itself do.
-        synchronized(u) {
+        List<Widget> fire = null;
+        synchronized(LuaWidget.monitorOf(u)) {
             List<Widget> hits = new ArrayList<Widget>();
             collect(u.root, w.sel, hits);
-            for(Widget hit : hits)
-                record(w, hit, u.widgetid(hit));
+            for(Widget hit : hits) {
+                w.matched.put(hit, Integer.valueOf(u.widgetid(hit)));   // both events record; one fires
+                if(w.event == LuaSelectorWatch.ADDED) {
+                    if(fire == null)
+                        fire = new ArrayList<Widget>();
+                    fire.add(hit);
+                }
+            }
         }
-    }
-
-    /**
-     * Offer one newly-placed widget to every selector subscription (from {@link #onWidgetPlaced}, inside
-     * {@code AddWidget.run}'s {@code synchronized(ui)} block). A full match fires {@code "Added"} at once. A widget
-     * that matches only the STRUCTURE of a selector carrying a {@code [title=]}/{@code [res=]} refiner is queued for
-     * the bounded re-check instead: role and class are fixed for a widget's life, but a caption arrives by
-     * {@code uimsg} and can land a tick or two after placement, and a {@code .res} window would otherwise be
-     * unmatchable by the very key that identifies it.
-     */
-    private static void offerPlaced(SessionState st, Widget wdg, int id) {
-        boolean recheck = false;
-        for(LuaSelectorWatch w : st.selectorWatches) {   // copy-on-write: a handler may subscribe/remove here
-            if(!w.alive || w.matched.containsKey(wdg))
-                continue;
-            if(w.sel.matches(wdg))
-                record(w, wdg, id);
-            else if(w.sel.late() && w.sel.matchesStructure(wdg))
-                recheck = true;
-        }
-        if(recheck)
-            st.selectorPending.add(new PendingMatch(wdg, id));
-    }
-
-    /**
-     * Record a match on one subscription and, for an {@code "Added"} one, fire it. The tracked set is what keeps the
-     * bounded re-check from firing twice for the same widget, and what a {@code "Removed"} subscription later reads
-     * — so both events record, only one calls Lua. The payload is the interned Widget entity, the same value every
-     * other {@code hafen.ui} door hands back (029.1), so {@code ==} identifies it across the two events.
-     */
-    private static void record(LuaSelectorWatch w, Widget wdg, int id) {
-        w.matched.put(wdg, Integer.valueOf(id));
-        if(w.event == LuaSelectorWatch.ADDED)
-            callLua(w.owner, Addon.C_WIDGET, w.fn, LuaWidget.of(w.owner, wdg));
+        if(fire == null)
+            return;
+        for(int i = 0, n = fire.size(); i < n; i++)
+            callLua(w.owner, Addon.C_WIDGET, w.fn, LuaWidget.of(w.owner, fire.get(i)));
     }
 
     /**
@@ -1525,9 +1505,9 @@ final class UiApi {
     // which runs on whatever thread wrote it — a Loader thread applying a uimsg, OUTSIDE synchronized(ui):
     // UI.java:730-732 closes the monitor before calling AddonManager.onUimsg — or the UI thread for an addon's own
     // widget:title(…)). Everything the re-check does reads widget state (matchLive, Selector.matches, the subtree
-    // walk) and can call Lua (record -> callLua), so none of it may run from that thread (P5) — this queue is the
-    // whole marshal: appended here, drained on the tick (UI thread, under synchronized(ui) per AddonRoot's class
-    // doc). The WINDOW is what is recorded, not a bare flag: with 049's combinator a [title=] sits on an ancestor
+    // walk) and calls Lua, so none of it may run from that thread -- this queue is the
+    // whole marshal: appended here, drained on the step, which takes the tree's monitor for the walk and gives
+    // it up before the fire. The WINDOW is what is recorded, not a bare flag: with 049's combinator a [title=] sits on an ancestor
     // step, so what may start matching is a widget somewhere BELOW the window whose caption landed.
     // 073.2: and it is ONE SESSION'S — the recorded windows are windows of one tree, so the queue is
     // {@code SessionState.selectorCapChanged}, reached with w.ui at the seam. That is not a nicety on this
@@ -1769,7 +1749,7 @@ final class UiApi {
             destroyView(h.owner, v);          // 032.1: the view's fate follows the substitution, teardown included
         };
         if(u != null) {
-            synchronized(u) { restore.run(); }
+            synchronized(LuaWidget.monitorOf(u)) { restore.run(); }
         } else {
             restore.run();
         }
@@ -1800,7 +1780,7 @@ final class UiApi {
         LuaWidget.recountHidden();
         UI u = h.wdg.ui;                      // the tree that window stands in, not the one on screen
         if(u != null) {
-            synchronized(u) { restoreHidden(u, h); }
+            synchronized(LuaWidget.monitorOf(u)) { restoreHidden(u, h); }
         } else {
             restoreHidden(null, h);
         }
@@ -1906,7 +1886,7 @@ final class UiApi {
             return;
         Widget np = ((r.from != null) && r.from.hasparent(u.root)) ? r.from : u.root;
         try {
-            synchronized(u) {
+            synchronized(LuaWidget.monitorOf(u)) {
                 // THE BOX GOES BACK BEFORE THE WIDGET DOES, and the order is the whole of it. A parent that
                 // packs itself around its children measures each one AS IT ARRIVES -- every corner Hidepanel
                 // does, in its own `add` -- and it derives its place on screen from the box that comes out.
@@ -2090,7 +2070,7 @@ final class UiApi {
         for(final LuaWidget.Moved m : ms) {
             final UI u = m.wdg.ui;             // the tree that widget stands in, not the one on screen
             if(u != null) {
-                synchronized(u) { restoreMoved(u, m, true, true); }
+                synchronized(LuaWidget.monitorOf(u)) { restoreMoved(u, m, true, true); }
             } else {
                 restoreMoved(null, m, true, true);
             }
@@ -2438,14 +2418,14 @@ final class UiApi {
         UI l = layer();
         if((l != null) && (l.root != null)) {
             Widget hit;
-            synchronized(l) { hit = LuaWidget.hitTest(l.root, at); }
+            synchronized(LuaWidget.monitorOf(l)) { hit = LuaWidget.hitTest(l.root, at); }
             if(hit != null)
                 return hit;
         }
         UI u = screen();
         if((u == null) || (u.root == null) || (u == l))
             return null;
-        synchronized(u) { return LuaWidget.hitTest(u.root, at); }
+        synchronized(LuaWidget.monitorOf(u)) { return LuaWidget.hitTest(u.root, at); }
     }
 
     // ------------------------------------------------------ the replacement verb (widget:replace, 032.1)
@@ -2633,10 +2613,24 @@ final class UiApi {
      * addon: there is one pointer, so two addons wanting two pictures on it is a conflict rather than a
      * composition, and the last writer holding it plainly is better than a stack nobody can see the top of.
      * Volatile: written from Lua on the UI thread, read by UI.getcurs on it too, but through a different
-     * call chain -- and cleared from teardown, which is not always the same thread. */
-    private static volatile Addon cursOwner = null;
-    private static volatile String cursName = null;
-    private static volatile Indir<Resource> cursRes = null;
+     * call chain -- and cleared from teardown, which is not always the same thread.
+     *   ONE FIELD AND NOT THREE (audit2 B06): the three used to be written one after another, so the render
+     * thread could read an owner from one override and a name from the next, and a failing resource cleared
+     * an override that had already been replaced -- logging one addon's name over another addon's cursor. A
+     * Forced is immutable, so a reader gets a whole override or the previous whole one. */
+    private static final class Forced {
+        final Addon owner;
+        final String name;
+        final Indir<Resource> res;
+
+        Forced(Addon owner, String name, Indir<Resource> res) {
+            this.owner = owner;
+            this.name = name;
+            this.res = res;
+        }
+    }
+
+    private static volatile Forced forced = null;
 
     /**
      * The cursor an addon has forced, or {@code null} for "nobody has": the answer {@link UI#getcurs} takes
@@ -2645,33 +2639,35 @@ final class UiApi {
      * the override and says so, because a cursor stuck on a name that resolves to nothing is invisible.
      */
     public static Object forcedCursor() {
-        Indir<Resource> ind = cursRes;
-        if(ind == null)
+        Forced f = forced;
+        if(f == null)
             return null;
         try {
-            return ind.get();
+            return f.res.get();
         } catch(Loading l) {
             return null;
         } catch(RuntimeException e) {
-            Addon a = cursOwner;
-            String nm = cursName;
-            clearCursor();
-            if(a != null)
-                log(a, "mouse:cursor(\"" + nm + "\"): no such cursor resource — the pointer is back to normal");
+            // The override that failed, and no other: a write that landed between the read above and here
+            // is a different picture and its owner is still entitled to it.
+            if(dropCursor(f))
+                log(f.owner, "mouse:cursor(\"" + f.name + "\"): no such cursor resource — the pointer is"
+                    + " back to normal");
             return null;
         }
     }
 
-    /** Drop the override, whoever set it. */
-    private static void clearCursor() {
-        cursOwner = null;
-        cursName = null;
-        cursRes = null;
+    /** Drop {@code f} if it is still the override — the compare and the clear as one step. */
+    private static synchronized boolean dropCursor(Forced f) {
+        if(forced != f)
+            return false;
+        forced = null;
+        return true;
     }
 
     /** The name currently forced by {@code owner}, or null — a read answers only your own. */
     static String cursorOf(Addon owner) {
-        return (cursOwner == owner) ? cursName : null;
+        Forced f = forced;
+        return ((f != null) && (f.owner == owner)) ? f.name : null;
     }
 
     /**
@@ -2679,22 +2675,22 @@ final class UiApi {
      * name is one of the client's own under {@code gfx/hud/curs/}; anything with a slash in it is a resource
      * path taken as written.
      */
-    static void setCursor(Addon owner, String name) {
+    static synchronized void setCursor(Addon owner, String name) {
         if(name == null) {
-            if(cursOwner == owner)     // your own only: dropping somebody else's is not yours to do
-                clearCursor();
+            Forced f = forced;
+            if((f != null) && (f.owner == owner))   // your own only: dropping somebody else's is not yours to do
+                forced = null;
             return;
         }
         String res = (name.indexOf('/') >= 0) ? name : ("gfx/hud/curs/" + name);
-        cursOwner = owner;
-        cursName = name;
-        cursRes = Resource.local().load(res);
+        forced = new Forced(owner, name, Resource.local().load(res));
     }
 
     /** Teardown: an addon that has stopped running does not go on holding the pointer. */
-    static void teardownCursor(Addon a) {
-        if(cursOwner == a)
-            clearCursor();
+    static synchronized void teardownCursor(Addon a) {
+        Forced f = forced;
+        if((f != null) && (f.owner == a))
+            forced = null;
     }
 
     /** Any addon currently has a HUD overlay? (Decides whether to queue the per-frame afterdraw.) */
@@ -2826,7 +2822,7 @@ final class UiApi {
             UI u = sessionui(user);
             if(u == null)
                 continue;
-            synchronized(u) {
+            synchronized(LuaWidget.monitorOf(u)) {
                 try {
                     for(Gob g : allGobs(user)) {
                         LuaGobOverlay ol = LuaGobOverlay.on(g);
@@ -2872,7 +2868,7 @@ final class UiApi {
             UI u = sessionui(user);
             if(u == null)
                 continue;
-            synchronized(u) {
+            synchronized(LuaWidget.monitorOf(u)) {
                 try {
                     for(Gob g : allGobs(user)) {
                         GobScale.revert(g, a);

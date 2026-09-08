@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * One loaded addon: its {@link Manifest}, folder, Lua environment, and load status. Per-addon
@@ -50,6 +52,29 @@ public final class Addon {
      * through no dialog and is exempted by {@link Manifest#anyHost()} instead.
      */
     public final List<String> grantedHosts;
+
+    /**
+     * <b>The one entry into this addon's Lua</b> (audit2 B06) — every call that runs a chunk of this addon's
+     * code holds it, so one {@link Globals} and every {@link LuaTable} in it is entered by one thread at a
+     * time. {@link AddonManager#callLua} is the only door that takes it, the addon's file bodies take it for
+     * a load ({@link #run}), and {@link AddonManager#awaitIdle} takes each one for an instant to wait a
+     * shutdown out.
+     *
+     * <p><b>Re-entrant, because Lua re-enters</b>: a handler that fires an event of its own, a control's
+     * notification answering on the widget the handler just wrote, a {@code pcall} around a verb that calls
+     * back. Every one of those is the same thread coming through the door again, and a plain mutex would
+     * deadlock the addon against itself.
+     *
+     * <p><b>It sits ABOVE a tree monitor, and never under one.</b> Lua reaches a widget through
+     * {@code LuaWidget.monitor}, so a thread holding this wants tree monitors; a thread that took a tree
+     * monitor first and then enters Lua is the opposite order and the pair is the deadlock. There is no way
+     * to forbid the second — a {@code Draw} painter runs inside {@code ui.draw}'s block, the pick completion
+     * and {@code screenToWorld}'s answer inside {@code MapView}'s — so {@code callLua} does not <i>wait</i>
+     * for this lock on an entry made under a tree monitor: it takes it or it drops that one call.
+     * {@code threading.md} states it, and it is why the seams that <i>can</i> fire outside a tree's monitor
+     * all do.
+     */
+    final ReentrantLock luaLock = new ReentrantLock();
 
     /**
      * <b>The session this addon's Lua is acting for</b> — the {@code UI} on screen's
@@ -637,7 +662,13 @@ public final class Addon {
      * metatable here is: no Lua value crosses a sandbox boundary (D-017). A Sub holds no engine object, so
      * there is nothing to tear down.
      */
-    /** The six per-addon metatables 091 added, each built once on the first read of its kind (D-017). */
+    /**
+     * The six per-addon metatables 091 added, each built once on the first read of its kind (D-017).
+     *
+     * <p>Plain fields, and safely so for the reason every lazy value on this class is (audit2 B06): a
+     * metatable is only ever built from inside this addon's Lua, so the check and the build are one act
+     * under {@link #luaLock} and its release is what publishes the finished table.
+     */
     LuaValue meterSegMeta;
     LuaValue craftSpecMeta;
     LuaValue fepEntryMeta;
@@ -665,6 +696,10 @@ public final class Addon {
      * {@code hafen.timer():after}/{@code :every} hands back, built once on the first timer scheduled. Per
      * addon for the same reason every metatable here is (D-017). The handle holds the {@link
      * AddonManager.Timer} itself, which is torn down through {@link #timers}, not here.
+     *
+     * <p>Plain, and safely so: it is built from inside this addon's Lua, under {@link #luaLock}, whose
+     * release publishes it — a timer scheduled from an HTTP completion and one scheduled by the step are
+     * two entries, never two builders (audit2 B06).
      */
     LuaValue timerMeta;
 
@@ -678,8 +713,8 @@ public final class Addon {
      * written; this namespace was converted to the section shape without the identity half.
      *
      * <p>Per addon like every other Lua value here (D-017), and lazily for the same reason as
-     * {@link #subMeta}: an addon that never opens the settings never builds them. Unlocked for the same
-     * reason too — two threads racing build two equal handles and one wins. All but one are <b>stateless
+     * {@link #subMeta}: an addon that never opens the settings never builds them, and under
+     * {@link #luaLock} like every other lazy value here (audit2 B06). All but one are <b>stateless
      * proxies</b> over the client's live preference stores, so there is nothing to invalidate and nothing to
      * tear down: the fields go with this {@link Addon}. The exception is {@code addon()}, whose registry is
      * {@link #addonOptions} and which dies with the addon in exactly the same way.
@@ -1212,10 +1247,16 @@ public final class Addon {
      * Soft per-tick CPU-budget accounting (D-018 layer 2). {@link #tickLuaNanos} is the total time this
      * addon spent in Lua during the current engine tick (summed across its {@code Update}/timers/event
      * handlers by {@link AddonManager#callLua}); {@link #overBudgetStrikes} counts consecutive ticks over
-     * the budget. {@link AddonManager#tick(haven.UI)} zeroes {@code tickLuaNanos} each tick and
+     * the budget. The layer's step takes the frame out of it with {@link LongAdder#sumThenReset()} and
      * {@link AddonManager#enforceSoftBudget()} evaluates the strikes — see {@link Sandbox#SOFT_BUDGET_NANOS}.
+     *
+     * <p><b>A {@link LongAdder} and not a {@code long}</b> (audit2 B06): the accumulate happens inside
+     * {@link AddonManager#callLua}, which several threads enter — and the {@code += } was a read, an add and
+     * a store the step's zeroing could land in the middle of, so the watchdog judged a number that had lost
+     * whole handlers. The reset is the same instant the frame closes, and {@code sumThenReset} is what makes
+     * the close and the zero one step rather than two.
      */
-    public long tickLuaNanos;
+    public final LongAdder tickLuaNanos = new LongAdder();
     public int  overBudgetStrikes;
 
     // ------------------------------------------------------------- per-addon profiling (spec 019, 019.4)
@@ -1231,9 +1272,19 @@ public final class Addon {
 
     /* Current frame, written by callLua only while armed. tickLuaNanos above stays byte-for-byte what it
      * was: the D-018 watchdog must keep auto-disabling at exactly the same point, so the split is an
-     * ADDITION inside the same finally, never a replacement. */
-    final long[] catNanos = new long[CATS.length];
-    final int[] catCalls = new int[CATS.length];
+     * ADDITION inside the same finally, never a replacement.
+     *   Adders for tickLuaNanos' reason (audit2 B06): the same finally on the same threads, and profRoll
+     * takes the frame out of them where the total is taken out of it. */
+    final LongAdder[] catNanos = adders(CATS.length);
+    final LongAdder[] catCalls = adders(CATS.length);
+
+    /** {@code n} fresh adders — {@link #catNanos}/{@link #catCalls}, which Java will not fill by declaration. */
+    private static LongAdder[] adders(int n) {
+        LongAdder[] a = new LongAdder[n];
+        for(int i = 0; i < n; i++)
+            a[i] = new LongAdder();
+        return a;
+    }
 
     /* The last COMPLETED frame, plus the rolling figures, snapshotted by profRoll() at the top of the next
      * tick — the same instant tickLuaNanos is zeroed, so the row and :frame()'s addons roll-up read one
@@ -1265,26 +1316,36 @@ public final class Addon {
         Scope(String name) {this.name = name;}
     }
 
-    /** Get (or create) this addon's scope by name. Created lazily, so an off-state {@code p:scope()} costs nothing. */
+    /**
+     * Get (or create) this addon's scope by name. Created lazily, so an off-state {@code p:scope()} costs
+     * nothing.
+     *
+     * <p>Under the map's own monitor (audit2 B06): {@code p:addons()} walks ANOTHER addon's scopes to build
+     * its row, so a lazy put here could throw a {@code ConcurrentModificationException} out of that read.
+     * The scopes' own accounting is serialized by this addon's lock, which every open, close and roll is
+     * inside; the map is the one thing a second addon touches.
+     */
     Scope scope(String name) {
-        Scope s = scopes.get(name);
-        if(s == null)
-            scopes.put(name, s = new Scope(name));
-        return s;
+        synchronized(scopes) {
+            Scope s = scopes.get(name);
+            if(s == null)
+                scopes.put(name, s = new Scope(name));
+            return s;
+        }
     }
 
     /**
      * Close the frame: move this frame's accounting into the "last completed frame" fields and start the
-     * next one at zero. Called from {@link AddonManager#tick(haven.UI)} immediately before
-     * {@code tickLuaNanos} is zeroed, which is exactly the point at which that field holds the whole of the
-     * previous frame (it accrues through the tick <b>and</b> the draw callbacks that follow it).
+     * next one at zero. Called from the layer's step with the frame's own total, taken out of
+     * {@link #tickLuaNanos} in one step — which is exactly the point at which that adder held the whole of
+     * the previous frame (it accrues through the tick <b>and</b> the draw callbacks that follow it).
      */
-    void profRoll(boolean probed) {
-        profNanos = tickLuaNanos;
-        profSumNanos += tickLuaNanos;
+    void profRoll(boolean probed, long frameNanos) {
+        profNanos = frameNanos;
+        profSumNanos += frameNanos;
         profFrames++;
-        if(tickLuaNanos > profPeakNanos)
-            profPeakNanos = tickLuaNanos;
+        if(frameNanos > profPeakNanos)
+            profPeakNanos = frameNanos;
         // 019.7: a CONTROL frame ran with the category probes disarmed, so catNanos/catCalls and the scopes
         // are all zero for it -- while tickLuaNanos above is not, because the D-018 watchdog measures it
         // whether we are profiling or not. Rolling zeroes in would make one row in 64 read as "this addon
@@ -1292,9 +1353,10 @@ public final class Addon {
         if(!probed)
             return;
         for(int i = 0; i < CATS.length; i++) {
-            profCat[i] = catNanos[i];   catNanos[i] = 0;
-            profCalls[i] = catCalls[i]; catCalls[i] = 0;
+            profCat[i] = catNanos[i].sumThenReset();
+            profCalls[i] = (int)catCalls[i].sumThenReset();
         }
+        synchronized(scopes) {
         for(Scope s : scopes.values()) {
             s.lastNanos = s.nanos;
             s.lastCalls = s.calls;
@@ -1306,6 +1368,7 @@ public final class Addon {
             s.calls = 0;
             s.depth = 0;   // a scope left open by an erroring handler recovers here instead of never closing
         }
+        }
     }
 
     /** Drop every profiling figure ({@code p:reset()} and every arming of the switch). */
@@ -1313,10 +1376,12 @@ public final class Addon {
         profNanos = profPeakNanos = profSumNanos = 0;
         profFrames = 0;
         for(int i = 0; i < CATS.length; i++) {
-            catNanos[i] = profCat[i] = 0;
-            catCalls[i] = profCalls[i] = 0;
+            catNanos[i].reset();  profCat[i] = 0;
+            catCalls[i].reset();  profCalls[i] = 0;
         }
-        scopes.clear();
+        synchronized(scopes) {
+            scopes.clear();
+        }
     }
 
     Addon(Manifest manifest, Path dir, Globals env) {
@@ -1346,26 +1411,36 @@ public final class Addon {
      * <p>A {@code files} entry is a name out of a JSON file, so it is resolved through {@link Inside} rather
      * than by {@code dir.resolve} alone: an entry naming anything but a file inside this addon's own folder
      * is the load error the panel shows, not a chunk the client executes.
+     *
+     * <p><b>The whole load is one entry</b> (audit2 B06): a file body builds this addon's tables and may
+     * schedule a timer or subscribe on its last line, so the load holds {@link #luaLock} across every file
+     * rather than per call. It runs on a Loader thread holding no tree monitor, so waiting for the lock is
+     * the ordinary direction and never the deadlock.
      */
     void run() {
-        for(String file : manifest.files) {
-            try {
-                Path fp = Inside.inside(dir, file, "manifest 'files'");
-                String src = new String(Files.readAllBytes(fp), StandardCharsets.UTF_8);
-                LuaValue chunk = env.load(src, "@" + manifest.id + "/" + file);
-                // watchdog the file body too (D-018) — a full budget per file. 126.2: paired with a
-                // release, because loading runs off the frame's thread and an unreleased claim would be
-                // a holder left behind on a Loader thread that is about to end.
-                long budget = Sandbox.arm(env);
+        luaLock.lock();
+        try {
+            for(String file : manifest.files) {
                 try {
-                    chunk.call();
-                } finally {
-                    Sandbox.disarm(env, budget);
+                    Path fp = Inside.inside(dir, file, "manifest 'files'");
+                    String src = new String(Files.readAllBytes(fp), StandardCharsets.UTF_8);
+                    LuaValue chunk = env.load(src, "@" + manifest.id + "/" + file);
+                    // watchdog the file body too (D-018) — a full budget per file. 126.2: paired with a
+                    // release, because loading runs off the frame's thread and an unreleased claim would be
+                    // a holder left behind on a Loader thread that is about to end.
+                    long budget = Sandbox.arm(env);
+                    try {
+                        chunk.call();
+                    } finally {
+                        Sandbox.disarm(env, budget);
+                    }
+                } catch(Exception e) {
+                    error = file + ": " + e.getMessage();
+                    return;
                 }
-            } catch(Exception e) {
-                error = file + ": " + e.getMessage();
-                return;
             }
+        } finally {
+            luaLock.unlock();
         }
     }
 }

@@ -173,6 +173,10 @@ Two sends the `action` stream does not report, and a wildcard is where you would
   inside the tree the message is leaving — which is every player action and every message a widget sends
   while the client is running. A send from anywhere else passes straight through, unreported.
 
+Because an outbound handler is inside a tree while an inbound one is not, the two answer differently when
+your Lua is already busy on another thread: the inbound one waits its turn, and the outbound one is
+skipped rather than made to wait, on the terms [threading](../threading.md) states.
+
 ### Every update, on the way in
 
 `hafen.event():message():on("*", fn)` is the inbound mirror: it fires for every update the server sends,
@@ -200,13 +204,18 @@ subscription on the same stream firing.
 
 An inbound handler runs where the update arrived, before the widget applies it — that is what makes
 `ev:preventDefault()` and `ev:rewrite(t)` possible, and it is why the handler cannot be deferred. It holds
-no character's UI, so it may build a window and write any tree; but it is not the [step](../threading.md),
-so it can be running your Lua while the step is running your Lua too. Keep it to reading a field and
-recording what you saw, and do the work from the step. The time it spends is time the client is not
-spending elsewhere, and a wildcard spends it on every update the server sends rather than on one name;
-what stands between a slow handler and a visible stutter is the
-[CPU budget](../../runtime.md#budgets-and-the-watchdog), which disables an addon that sustains the overrun
-rather than letting the client stutter on.
+no character's UI, so it may build a window and write any tree, and it is the one row of
+[threading](../threading.md)'s table that is neither the step nor inside a tree.
+
+Being off the step costs you no guarding: the client lets one entry into your Lua at a time, so this
+handler and the step's own `Update` never run together and a table one of them writes is never read
+half-written by the other. What it does cost is **order**: the two are moments the client puts in no
+sequence, so anything that has to happen in a fixed order belongs in one place. It also costs time — the
+time this handler spends is time the client is not spending elsewhere, and a wildcard spends it on every
+update the server sends rather than on one name. What stands between a slow handler and a visible stutter
+is the [CPU budget](../../runtime.md#budgets-and-the-watchdog), which disables an addon that sustains the
+overrun rather than letting the client stutter on. So keep the body to reading a field and recording what
+you saw, and do the work from the step.
 
 > **Keep an inbound wildcard's body short.** Read a field, count something, append to a table you drain
 > on a [timer](../timer.md) — and read [threading](../threading.md) before you make one wait

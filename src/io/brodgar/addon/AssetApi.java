@@ -786,7 +786,12 @@ final class AssetApi {
     /**
      * The per-addon metatable one {@link Kind} of handle wears, built on the first handle of that kind. Per
      * addon for the reason every metatable in the bridge is: no Lua value crosses a sandbox boundary (D-017).
-     * Unlocked, like every other lazy metatable here — two threads racing build two equal ones and one wins.
+     *
+     * <p>Built lazily and stored plainly, like every other metatable in the bridge, and that is safe for the
+     * one reason it always needed and did not have (audit2 B06): a handle is only ever minted from inside
+     * this addon's Lua, so the whole check-and-build runs under {@link Addon#luaLock} and its release is what
+     * publishes the table to the next entry. Two threads can no longer both build one, and neither can hand
+     * out a reference to a {@code LuaTable} whose entries the other has not finished filling.
      */
     static LuaValue meta(Addon owner, Kind k) {
         LuaValue mt = owner.assetMeta[k.ordinal()];

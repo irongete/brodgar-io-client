@@ -223,10 +223,15 @@ public final class LuaOpponent {
         Fightview fv = view(user);
         if(fv == null)
             return LuaValue.NIL;
+        boolean live;
         Fightview.Relation rel;
         synchronized(LuaWidget.monitor(fv)) {   // `current` is reassigned from the "cur" uimsg off-thread
             rel = fv.current;
+            // audit2 B06: and `invalid` is read HERE, inside the same block. Relation.remove() sets it from
+            // the message thread under this very monitor, so a read taken after the block was a read of a
+            // field with no barrier behind it -- an opponent invalidated in that window came back as live.
+            live = (rel != null) && !rel.invalid;
         }
-        return ((rel == null) || rel.invalid) ? LuaValue.NIL : of(owner, user, rel.gobid);
+        return live ? of(owner, user, rel.gobid) : LuaValue.NIL;
     }
 }

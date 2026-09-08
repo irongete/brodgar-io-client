@@ -25,6 +25,7 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -435,9 +436,12 @@ public final class ProfHandle {
     private static LuaTable net() {
         LuaTable t = new LuaTable();
         UI u = AddonManager.screen();
-        if((u == null) || (u.sess == null) || !(u.sess.conn instanceof Connection))
+        // audit2 B06: ONE read of `sess`. It is a plain mutable field cleared on the session's own thread, so
+        // testing it and then dereferencing it twice was three different instants.
+        haven.Session sess = (u == null) ? null : u.sess;
+        if((sess == null) || !(sess.conn instanceof Connection))
             return t;
-        Connection.Stats s = ((Connection)u.sess.conn).stats;
+        Connection.Stats s = ((Connection)sess.conn).stats;
         t.set("packetsTx", LuaValue.valueOf((double)s.ptx()));
         t.set("packetsRx", LuaValue.valueOf((double)s.prx()));
         t.set("bytesTx", LuaValue.valueOf((double)s.btx()));
@@ -529,7 +533,10 @@ public final class ProfHandle {
             }
             t.set("vram", vram);
         }
-        MapView mv = u.root.findchild(MapView.class);
+        MapView mv;
+        synchronized(LuaWidget.monitorOf(u)) {   // audit2 B06: findchild is a subtree walk
+            mv = u.root.findchild(MapView.class);
+        }
         if(mv == null)
             return t;
         // 120.1: the remembered ground's four. Three are gauges and recallGridsRead is cumulative; all four
@@ -764,12 +771,21 @@ public final class ProfHandle {
         List<Addon> owners = AddonManager.profOwners();
         // Sorted at snapshot time, never on the frame path — and by the frame's own cost, so arming a runaway
         // addon puts it straight at the top of the table a profiler window draws.
-        owners.sort((x, y) -> Long.compare(y.profNanos, x.profNanos));
+        //   audit2 B06: the KEY IS READ ONCE PER ADDON, before the sort. `profNanos` is rewritten by the step
+        // as each addon's frame closes, and a comparator whose key moves under it throws TimSort's
+        // "comparison method violates its general contract" out of an ordinary read verb.
+        final Map<Addon, Long> cost = new IdentityHashMap<Addon, Long>();
+        for(int i = 0; i < owners.size(); i++) {
+            Addon a = owners.get(i);
+            cost.put(a, Long.valueOf(a.profNanos));
+        }
+        owners.sort((x, y) -> Long.compare(cost.get(y).longValue(), cost.get(x).longValue()));
         long total = 0;
         for(int i = 0; i < owners.size(); i++) {
             Addon a = owners.get(i);
-            total += a.profNanos;
-            out.set(i + 1, row(a, frameMs));
+            long ns = cost.get(a).longValue();
+            total += ns;
+            out.set(i + 1, row(a, frameMs, ns));
         }
         LuaTable t = new LuaTable();
         t.set("ms", LuaValue.valueOf(ms(total)));
@@ -779,11 +795,11 @@ public final class ProfHandle {
         return out;
     }
 
-    /** One addon's row. */
-    private static LuaTable row(Addon a, double frameMs) {
+    /** One addon's row, over the frame cost {@link #addons} already read for it. */
+    private static LuaTable row(Addon a, double frameMs, long frameNanos) {
         LuaTable r = new LuaTable();
         r.set("id", LuaValue.valueOf((a.manifest != null) ? a.manifest.id : "?"));
-        double cur = ms(a.profNanos);
+        double cur = ms(frameNanos);
         r.set("ms", LuaValue.valueOf(cur));
         r.set("msAvg", LuaValue.valueOf((a.profFrames > 0) ? (ms(a.profSumNanos) / a.profFrames) : 0));
         r.set("msPeak", LuaValue.valueOf(ms(a.profPeakNanos)));
@@ -797,7 +813,12 @@ public final class ProfHandle {
         r.set("calls", calls);
         r.set("cost", cost);
         LuaTable scopes = new LuaTable();
-        for(Addon.Scope s : a.scopes.values()) {
+        List<Addon.Scope> ss;
+        synchronized(a.scopes) {           // audit2 B06: the owner's own map, walked under its monitor
+            ss = new ArrayList<Addon.Scope>(a.scopes.values());
+        }
+        for(int i = 0; i < ss.size(); i++) {
+            Addon.Scope s = ss.get(i);
             LuaTable e = new LuaTable();
             e.set("ms", LuaValue.valueOf(ms(s.lastNanos)));
             e.set("msAvg", LuaValue.valueOf((s.frames > 0) ? (ms(s.sumNanos) / s.frames) : 0));
@@ -859,12 +880,20 @@ public final class ProfHandle {
         // real second tree ticked and drawn every frame. `total` is sold as the whole tree and `owner` as an
         // addon's own widgets, and an addon's own windows all live in the layer — so counting the session
         // alone left exactly the rows an addon profiles itself for out of the census.
+        // audit2 B06: each walk under its own tree's monitor, taken and given up before the next. It is a
+        // whole-tree child walk and the frame re-links it under the same monitor while it draws.
         UI u = AddonManager.screen();
-        if((u != null) && (u.root != null))
-            walk(u.root, types, top);
+        if((u != null) && (u.root != null)) {
+            synchronized(LuaWidget.monitorOf(u)) {
+                walk(u.root, types, top);
+            }
+        }
         UI l = AddonManager.layer();
-        if((l != null) && (l.root != null) && (l != u))
-            walk(l.root, types, top);
+        if((l != null) && (l.root != null) && (l != u)) {
+            synchronized(LuaWidget.monitorOf(l)) {
+                walk(l.root, types, top);
+            }
+        }
         if(types.isEmpty())
             return out;
 

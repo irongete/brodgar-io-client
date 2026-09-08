@@ -3,7 +3,6 @@ package io.brodgar.addon;
 import haven.Area;
 import haven.Coord;
 import haven.Defer;
-import haven.Locked;
 import haven.MapFile;
 import haven.MapSource;
 import haven.MCache;
@@ -102,8 +101,19 @@ final class MapImages {
             return live.get(key);
         }
 
-        /** Insert a fresh entry, evicting (and disposing) the least recently asked-for one past {@link #MAX}. */
-        synchronized void put(String key, Entry e) {
+        /**
+         * <b>Claim {@code key} for {@code e}</b> — and hand back what is actually in the cache under it,
+         * which is {@code e} when this call installed it and the winner's entry when another thread got
+         * there first (audit2 B06). It was a plain {@code put}: two threads that both missed the same key
+         * rendered it twice and the second overwrote the first without dropping it, so the loser's
+         * {@code TexI} was never registered anywhere and never disposed.
+         *
+         * <p>Evicts (and disposes) the least recently asked-for entry past {@link #MAX}.
+         */
+        synchronized Entry claim(String key, Entry e) {
+            Entry cur = live.get(key);
+            if(cur != null)
+                return cur;
             live.put(key, e);
             while(live.size() > MAX) {
                 Iterator<Map.Entry<String, Entry>> it = live.entrySet().iterator();
@@ -113,6 +123,7 @@ final class MapImages {
                 it.remove();
                 drop(old);
             }
+            return e;
         }
 
         /** Forget one entry — the handle's own {@code :dispose()}, so a later read renders it anew. */
@@ -179,15 +190,23 @@ final class MapImages {
             final MapFile mf = file;
             f = Defer.later(new Defer.Callable<TexI>() {
                 public TexI call() {
+                    // audit2 B06: the lock is TAKEN WITH tryLock and GIVEN UP BEFORE THE RASTER. It was a
+                    // blocking lock() held across the nine addgrids AND drawmap, so one grid:image(0) parked
+                    // a Defer worker behind a segment save and held the save behind a picture. The View owns
+                    // its grids once fin() has run, and drawmap reads nothing else off the file.
                     MapFile.View view = new MapFile.View(seg);
-                    try(Locked lk = new Locked(mf.lock.readLock())) {
+                    if(!mf.lock.readLock().tryLock())
+                        return null;               // busy: the next call renders it
+                    try {
                         for(int y = -1; y <= 1; y++) {
                             for(int x = -1; x <= 1; x++)
                                 view.addgrid(sc.add(x, y));
                         }
                         view.fin();
-                        return new TexI(MapSource.drawmap(view, Area.sized(sc.mul(MCache.cmaps), MCache.cmaps)));
+                    } finally {
+                        mf.lock.readLock().unlock();
                     }
+                    return new TexI(MapSource.drawmap(view, Area.sized(sc.mul(MCache.cmaps), MCache.cmaps)));
                 }
             });
         } else {
@@ -205,7 +224,11 @@ final class MapImages {
         }
         e = new Entry("map:" + Long.toString(gid) + "@" + lvl);
         e.future = f;
-        owner.mapImages.put(key, e);
+        Entry got = owner.mapImages.claim(key, e);
+        if(got != e) {                                     // another thread claimed it while we built ours
+            try { f.cancel(); } catch(RuntimeException x) { /* best-effort */ }
+            return answer(owner, key, got);
+        }
         return LuaValue.NIL;                               // kicked the render; the next call answers
     }
 
@@ -246,12 +269,17 @@ final class MapImages {
         final Coord sc = gi.sc;
         final String t = tag;
         e = new Entry("overlay:" + tag + "@" + Long.toString(gid));
-        e.future = Defer.later(new Defer.Callable<TexI>() {
+        final Defer.Future<TexI> of = Defer.later(new Defer.Callable<TexI>() {
             public TexI call() {
                 return new TexI(g.olrender(sc.mul(MCache.cmaps), t));   // Loading on an overlay res reschedules
             }
         });
-        owner.mapImages.put(key, e);
+        e.future = of;
+        Entry got = owner.mapImages.claim(key, e);
+        if(got != e) {                                     // as above: the loser cancels its own render
+            try { of.cancel(); } catch(RuntimeException x) { /* best-effort */ }
+            return answer(owner, key, got);
+        }
         return LuaValue.NIL;
     }
 
@@ -262,6 +290,10 @@ final class MapImages {
      * and {@code grid:overlays()} to tell it why nothing is coming.
      */
     private static LuaValue answer(Addon owner, String key, Entry e) {
+        // audit2 B06: under the entry's own monitor. Its four fields are the whole state of one render and
+        // two threads asking for the same picture reach this together -- one taking the future's result
+        // while the other reads a `handle` that is half-built.
+        synchronized(e) {
         if(e.handle != null)
             return e.handle;
         if(e.failed || (e.future == null))
@@ -297,6 +329,7 @@ final class MapImages {
         e.handle = LuaValue.userdataOf(li, AssetApi.meta(owner, AssetApi.Kind.MAP_IMAGE));
         li.handle = e.handle;
         return e.handle;
+        }
     }
 
     /**

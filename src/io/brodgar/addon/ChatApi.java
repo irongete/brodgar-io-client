@@ -82,7 +82,11 @@ final class ChatApi {
                     throw new LuaError(CH + ":selected(channel): that channel is another character's — a"
                         + " chat belongs to the login it was opened on, and " + CH + ":list() is this"
                         + " one's");
-                chat.select(c);
+                // audit2 B06: select() shows the channel selector, resizes and moves the focus -- three
+                // tree writes, under the monitor the frame holds while it ticks and draws that tree.
+                synchronized(LuaWidget.monitor(chat)) {
+                    chat.select(c);
+                }
                 return self;
             }
         });

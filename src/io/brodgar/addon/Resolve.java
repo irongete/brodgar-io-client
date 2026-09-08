@@ -28,11 +28,11 @@ import java.util.function.Consumer;
  * caller whose retry chain can legitimately rotate through many distinct blockers ask for a higher bound than
  * {@link #DEFAULT_MAX_RETRIES} instead of quietly giving up mid-load.
  *
- * <p><b>Marshalling (P5).</b> {@code Waitable.wnotify()} runs on whichever thread completed the load (a Loader
+ * <p><b>Marshalling.</b> {@code Waitable.wnotify()} runs on whichever thread completed the load (a Loader
  * thread, a {@code Defer} pool thread) — including, for some {@link Waitable}s, <i>inline</i> on the
  * registering thread if the value is already resolved. Either way {@code retry} never runs synchronously here:
- * it is hopped onto the UI-thread tick via {@link AddonManager#enqueueResolve}, so a caller holding some other
- * lock (an entity monitor, the map DB's) is never re-entered.
+ * it is hopped onto the layer's step via {@link AddonManager#enqueueResolve}, where no tree monitor is held, so
+ * a caller holding some other lock (an entity monitor, the map DB's) is never re-entered.
  *
  * <p><b>Ownership (P2).</b> Every {@link Waitable.Waiting} this mints is registered in the owning {@link
  * Addon}'s resource registry ({@link Addon#waitings}), so {@code :reload}/disable cancels it — and the

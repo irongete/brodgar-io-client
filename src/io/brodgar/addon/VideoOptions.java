@@ -62,12 +62,19 @@ public final class VideoOptions {
         }
     }
 
-    /** One tree's half of {@link #apply}. */
+    /**
+     * One tree's half of {@link #apply} — <b>under that tree's own monitor</b> (audit2 B06), taken and given
+     * up before the next tree's, because {@code setgprefs} replaces the settings that tree's tick flushes and
+     * its draw reads. One at a time is the only direction this client locks in, and taking each through
+     * {@code LuaWidget.monitorOf} is what keeps the walk from becoming a nesting.
+     */
     private static <T> void set(UI u, GSettings.Setting<T> setting, T val, String method) {
         if((u == null) || u.destroyed)
             return;
         try {
-            u.setgprefs(u.gprefs.update(null, setting, val));
+            synchronized(LuaWidget.monitorOf(u)) {
+                u.setgprefs(u.gprefs.update(null, setting, val));
+            }
         } catch(GSettings.SettingException e) {
             throw new LuaError("video:" + method + "(): " + e.getMessage());
         }

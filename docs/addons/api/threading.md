@@ -23,7 +23,7 @@ end)
 
 | What you subscribed to | When it runs | Trees it may reach |
 |---|---|---|
-| [`hafen.event():on(key, fn)`](event/bus/README.md) — every event in the catalogue | the step, and for `GobAdded` before the object is drawn | any |
+| [`hafen.event():on(key, fn)`](event/bus/README.md) — every event in the catalogue but the two below | the step, and for `GobAdded` before the object is drawn | any |
 | [`hafen.timer()`](timer.md) — `:after`, `:every` | the step | any |
 | [`widget:on("Update", fn)`](ui/custom.md) | the step | any |
 | [`s:ui():on(sel, "Added"/"Removed", fn)`](ui/replace.md) | the step, after the widget arrived or left | any |
@@ -38,11 +38,15 @@ end)
 | [`keybindings():on(name, fn)`](client/keybindings.md) — a hotkey | the key press that fired it | the **drawn character's** only |
 | [`hafen.event():action():on(msg, fn)`](event/streams.md) — outbound | the code that sent the message, before the server hears it | the **sender's** only |
 | [`hafen.console():on(name, fn)`](console.md) | the line being typed | the console's own only |
+| [`FlowerMenuAdded`, `FlowerMenuRemoved`](event/bus/character.md) | the ring going up or coming down, before its first drawn frame | the ring's own only |
+| [`GhostClicked`, `SpriteClicked`](event/bus/world.md#world-ghosts-and-sprites) and an entity's `onClick` | the click pass that resolved the pick | the clicked scene's only |
+| [`s:world():screenToWorld(x, y, fn)`](world.md) and its `fn` | that same pass, once the ground under the point is known | the scene's only |
 
 Everything in the first group runs on the step, and everything in it may build a window, read one character
-while writing another, and reach across every login the client holds. Everything in the last group is
-answering a thing that is already in progress — a pass that is painting, a press that is waiting for an
-answer, a message on its way out — and each of those is inside one tree and may touch only that one.
+while writing another, and reach across every login the client holds. Everything after it is answering a
+thing that is already in progress — a pass that is painting, a press that is waiting for an answer, a
+message on its way out, a ring the server has just put up — and each of those is inside one tree and may
+touch only that one.
 
 **The step is ordered ahead of the client's own drawing, for one event.**
 [`GobAdded`](event/bus/world.md#before-the-first-drawn-frame) runs before the object it announces reaches
@@ -123,24 +127,36 @@ one of your own surfaces: it runs on the step like the bus's, not in the pass th
 A `Draw` handler that wants to change another tree records what it wants and lets the step do it. That is
 the shape for every one of these: decide in the handler, act on the step.
 
-## What runs beside you
+## One at a time, in your own Lua
 
-Your addon is one Lua state, and the step is not the only thing that enters it. An
-[action](event/streams.md) handler runs where the message was sent, and an inbound
-[message](event/streams.md) handler runs where the update arrived — so either can be running your Lua while
-the step is running your Lua too. Two inbound updates aimed at different widgets can do it to each other.
+Your addon is one Lua state, and the rows above are entered from more than one of the client's threads. The
+client lets exactly **one** of them be inside your code at a time: an entry that arrives while another is
+running waits for it, so the tables, the upvalues and the state your handlers share are never read
+half-written. That holds across every row of the table — the step, an inbound update, an HTTP reply, a
+`Draw` pass — and it is why an ordinary addon never has to think about any of this.
 
-What that means in practice is small, because it is the only case:
+**Serialised is not sequenced.** An inbound update aimed at one widget and the step's own `Update` are two
+moments the client puts in no order, so which of your handlers sees a value first depends on when the server
+sent it. Anything you need in a fixed order, do in one place.
 
-- **A table one of those handlers writes and the step reads can be read half-written.** Keep such a handler
-  to recording what it saw — a field, a counter, an append — and do the work from the step.
-- **A write on a game object is safe from either group.** [`gob:scale(k)`](look.md#size-unprotected),
+> **A handler answering inside a tree may be skipped rather than made to wait.** The rows in the second
+> group are already holding a tree's guard when they reach you, and waiting there is the shape this client
+> deadlocks in — so when your Lua is busy on another thread at that instant, that one call does not happen:
+> a `Draw` handler's picture keeps the previous frame's, and a click or a `screenToWorld` answer is not
+> delivered. It takes your own code running on two threads at once, and a short handler never meets it. A
+> `Draw` handler that must not miss a frame keeps its body to drawing what the step already worked out.
+
+Two more facts follow from where a row runs rather than from that rule:
+
+- **A write on a game object is safe from every row.** [`gob:scale(k)`](look.md#size-unprotected),
   [`gob:visible(b)`](look.md#drawn-or-not-unprotected), [`gob:tint(c)`](look.md#tint-unprotected) and
   [`gob:overlay():add`/`:remove`](overlay.md#the-collection) may be made from a `Draw` handler and from the
   step at once, on the same object, and neither the object's place in the scene nor the value you wrote is
   the worse for it. The client serialises them per object.
-- **Nothing else needs guarding.** Everything in the first group of the table above runs on the step, one
-  after another, so an addon that only subscribes to events, timers and `Update` never meets this at all.
+- **A [line you log](log.md) from inside a tree lands a frame later.** The chat is a widget tree like any
+  other, so a line written from a `Draw` handler, a control's notification or a gesture is held and posted
+  by the next step. It lands, whole and in the order you wrote it; it is simply not on screen yet when the
+  handler returns.
 
 ## Nothing blocks
 

@@ -56,13 +56,16 @@ public final class LuaGhost extends LuaWorldEntity {
         return new haven.ResDrawable(gob, r, (sd == null) ? MessageBuf.nil : sd);
     }
 
-    String visualName() { return resName; }
+    // audit2 B06: under `this`, which is where :res(name) writes it -- the string filter and __tostring
+    // read it from whatever thread the addon's Lua is on.
+    synchronized String visualName() { return resName; }
 
     String clickEvent() { return "GhostClicked"; }   // V2: the owner-scoped click event (unchanged)
     String kind()       { return "ghost"; }
 
     void infoInto(org.luaj.vm2.LuaTable t) {   // :res()
-        if(resName != null)
-            t.set("res", org.luaj.vm2.LuaValue.valueOf(resName));
+        String nm = visualName();
+        if(nm != null)
+            t.set("res", org.luaj.vm2.LuaValue.valueOf(nm));
     }          // the hafen.virtual() collection this one belongs to
 }

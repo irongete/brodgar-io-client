@@ -40,9 +40,14 @@ import org.luaj.vm2.lib.OneArgFunction;
  * session that is not being drawn. Placing <i>with</i> that character is still the drawn character's own
  * business, and {@code s:world():place} says so.
  *
- * <p><b>Threading.</b> Reads run on the UI thread (addon tick / REPL). Each one re-resolves the Plob and then
- * takes the gob's own monitor for its fields, exactly as {@link LuaGob} does; the Plob is built on the Loader
- * thread, which {@code MapView.addonPlacing()} guards with {@code Future.done()}.
+ * <p><b>Threading.</b> A read is reached from every thread an addon's Lua runs on. Each one re-resolves the
+ * Plob and then takes THAT VIEW'S TREE MONITOR for its fields — not the gob's own, which is what
+ * {@link LuaGob} takes and what this took until audit2 B06: {@code Plob.move} writes {@code rc} and {@code a}
+ * through {@code Gob.move}, which takes no gob monitor at all, so the gob's bought no publication. What the
+ * writers <i>do</i> hold is the view's tree: the placement adjust runs in the pick completion under
+ * {@code synchronized(ui)}, and the wheel and the keyboard reach it through the input dispatch, under the
+ * same. The Plob itself is built on the Loader thread, which {@code MapView.addonPlacing()} guards with
+ * {@code Future.done()}.
  */
 public final class LuaPlacing {
     /** The account whose cursor this handle names — the whole of the handle, as an id is a Gob's. */
@@ -115,7 +120,7 @@ public final class LuaPlacing {
                 if(p == null)
                     return LuaValue.NIL;
                 Coord2d rc;
-                synchronized(p) { rc = p.rc; }
+                synchronized(LuaWidget.monitor(p.mv())) { rc = p.rc; }
                 if(rc == null)
                     return LuaValue.NIL;
                 return LuaPosition.of(owner, user, rc);
@@ -128,7 +133,7 @@ public final class LuaPlacing {
                 MapView.Plob p = plob(self, "facing");
                 if(p == null)
                     return LuaValue.NIL;
-                synchronized(p) {
+                synchronized(LuaWidget.monitor(p.mv())) {
                     return LuaValue.valueOf(p.a);
                 }
             }
@@ -171,7 +176,7 @@ public final class LuaPlacing {
                     t.set("name", LuaValue.valueOf(n));
                 Coord2d rc;
                 double a;
-                synchronized(p) {
+                synchronized(LuaWidget.monitor(p.mv())) {
                     rc = p.rc;
                     a = p.a;
                 }

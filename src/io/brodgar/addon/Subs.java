@@ -33,10 +33,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * {@code p:addons()}. A bus fire charges {@code events}, a widget's {@code Draw} charges {@code draw}, its
  * input keys charge {@code widgets} — which is what each of them costs today, unchanged.
  *
- * <p><b>Threading.</b> Every fire is on the UI thread or under {@code synchronized(ui)}, exactly as before;
- * nothing here moves threads. The maps are concurrent and the handler lists copy-on-write because a running
- * handler may subscribe or {@code sub:off()} while the fire walks them — it sees the snapshot it started
- * with, and a handler killed mid-walk is skipped by its {@link LuaSub#alive} flag.
+ * <p><b>Threading.</b> A fire reaches Lua from whichever thread raised the event — the layer's step, a
+ * Loader thread carrying an inbound message, the render-query callback that resolved a click, the frame's own
+ * draw. {@code docs/addons/api/threading.md} is the table. Nothing here moves threads: what serializes one
+ * addon's handlers against the rest of its Lua is the addon's own lock, taken inside
+ * {@link AddonManager#callLua}, and {@link #fire} holds it across the whole key so the handlers of one event
+ * are one entry rather than a queue of them. The maps are concurrent and the handler lists copy-on-write
+ * because a running handler may subscribe or {@code sub:off()} while the fire walks them — it sees the
+ * snapshot it started with, and a handler killed mid-walk is skipped by its {@link LuaSub#alive} flag.
  */
 public final class Subs {
     /**
@@ -269,12 +273,21 @@ public final class Subs {
         if(l == null)
             return false;
         int cat = cats.cat(key);
-        for(LuaSub s : l) {
-            if(!s.alive) {
-                l.remove(s);     // a sub that ended mid-walk: drop it here rather than sweeping later
-                continue;
+        // audit2 B06: ONE entry for the whole key, not one per handler. Two handlers on the same event are
+        // one addon reacting to one moment, so another thread's Lua may not land between them; each call
+        // below re-enters the lock this took, which is what a ReentrantLock is for.
+        if(!AddonManager.enterLua(owner))
+            return false;                    // the door is shut, or this entry may not wait for it
+        try {
+            for(LuaSub s : l) {
+                if(!s.alive) {
+                    l.remove(s);     // a sub that ended mid-walk: drop it here rather than sweeping later
+                    continue;
+                }
+                AddonManager.callLua(owner, cat, s.fn, args);
             }
-            AddonManager.callLua(owner, cat, s.fn, args);
+        } finally {
+            AddonManager.leaveLua(owner);
         }
         return (c != null) && c.prevented();
     }

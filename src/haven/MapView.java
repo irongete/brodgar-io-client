@@ -50,7 +50,9 @@ public class MapView extends PView implements DTarget, Console.Directory {
     private Collection<Delayed> delayed = new LinkedList<Delayed>();
     private Collection<Delayed> delayed2 = new LinkedList<Delayed>();
     public Camera camera = restorecam();
-    private Loader.Future<Plob> placing = null;
+    /* addon: (audit2 B06) volatile -- addonPlacing() reads it from whatever thread an addon's Lua is on,
+     * and the UI thread replaces it when the server puts a ghost on the cursor or takes it off. */
+    private volatile Loader.Future<Plob> placing = null;
     private Grabber grab;
     private Selector selection;
     private Coord3f camoff = new Coord3f(Coord3f.o);

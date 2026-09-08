@@ -1361,8 +1361,10 @@ final class VirtualApi {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
                 LuaValue rv = Args.written(a, 2, "ghost:res", "res");
-                if(rv == null)
-                    return (gh.resName == null) ? LuaValue.NIL : LuaValue.valueOf(gh.resName);
+                if(rv == null) {
+                    String nm = gh.visualName();   // audit2 B06: read under the monitor :res(name) writes under
+                    return (nm == null) ? LuaValue.NIL : LuaValue.valueOf(nm);
+                }
                 if(!rv.isstring() || rv.isnumber())
                     throw new LuaError("ghost:res(res [, spawnData]) expects a resource NAME string, got "
                         + rv.typename());
@@ -1377,9 +1379,19 @@ final class VirtualApi {
      * Destroy one world entity now (its {@code :destroy()}, and teardown): flip {@link LuaWorldEntity#dead} + hand
      * off the slot/gob under the entity's monitor (so a still-pending deferred create sees {@code dead} and discards
      * its un-added gob instead of leaking it), then remove the scene slot ({@link MapView#removeClientGob}, which
-     * swallows {@code SlotRemoved} for an already-torn-down scene) and dispose the gob's visual — all OUTSIDE the
-     * entity lock (no lock-ordering with the render tree's own lock). {@link LuaWorldEntity#unregister()} drops it
-     * from its addon's registry (ghosts / sprites). Shared by ghosts and sprites. Idempotent.
+     * swallows {@code SlotRemoved} for an already-torn-down scene) and dispose the gob's visual.
+     * {@link LuaWorldEntity#unregister()} drops it from its addon's registry (ghosts / sprites). Shared by
+     * ghosts and sprites. Idempotent.
+     *
+     * <p><b>Why the scene work is outside the monitor HERE and inside it everywhere else</b> (audit2 B06 —
+     * this used to be stated as a rule the file kept, and {@code retryAdd}, {@code setSectionVisible} and
+     * {@code setEntityFacing} all do their scene work under {@code synchronized(e)}). The rule is the
+     * monitor's: it guards the entity's own fields, and every write that must be ordered against a
+     * concurrent {@code :move}/{@code :destroy} — an attach, a detach, a facing swap — is a write of those
+     * fields and belongs inside it. A destroy is the one that does not: it has already published
+     * {@code dead} and taken the slot, the gob and the view out, so nothing can reach them again and the
+     * work below is a teardown of things that are nobody's any more. Keeping the monitor across it would buy
+     * nothing and would hold it across {@code removeClientGob}, which takes the render tree's.
      */
     private static void destroyEntity(LuaWorldEntity e) {
         RenderTree.Slot slot; Gob gob; MapView mv;
@@ -1810,7 +1822,7 @@ final class VirtualApi {
         owner.surfaces.add(we);
         entityRegister(mv.ui, we, place);              // 044.2/044.9/045.1: dies with its gob, or holds its own place
         we.handle = widgetHandle(we);
-        synchronized(u) {
+        synchronized(LuaWidget.monitorOf(u)) {         // 112.2: the acquisition every site in this layer makes
             u.root.add(surf, Coord.z);                 // in the tree: liveness, ticking and focus all keep resolving
             WidgetSurface.reparent(u, content, surf, Coord.z);
         }
@@ -3194,9 +3206,13 @@ final class VirtualApi {
      * click — no {@code wdgmsg}, so nothing reaches the server (client-only ⇒ still SAFE-tier, D-032). Returns {@code
      * false} for any non-entity / non-clickable gob, so a normal click proceeds. (A {@code "screen"} sprite has no world
      * mesh, so it never renders into the clickmap and never reaches here — only fixed sprites are pickable.) {@code x,
-     * y} = the world coord the click resolved to. Reached under {@code synchronized(ui)} (like the L3 message hook),
-     * so {@link #callLua} is safe with no extra thread guard; the entity lock is released before dispatch so a handler
-     * may re-entrantly {@code :destroy()}/{@code :move()} it.
+     * y} = the world coord the click resolved to.
+     *
+     * <p><b>It is reached from the pick pass, under that scene's tree monitor</b> — not the step and not the
+     * message stream, which holds none. {@code threading.md} carries the row. So the handler is inside one
+     * tree and reaches that tree only, and its entry into Lua does not wait: {@link #callLua} takes the
+     * addon's lock or drops this one call rather than inverting the order and deadlocking. The entity lock is
+     * released before the dispatch so a handler may re-entrantly {@code :destroy()}/{@code :move()} it.
      */
     static boolean onGhostClick(Gob cg, int button, Coord2d mc) {
         if(cg == null)
@@ -3272,9 +3288,9 @@ final class VirtualApi {
      * anybody's returns {@code false} and {@code MapView} does exactly what it always did, which is what makes
      * "a click that misses still reaches the world beneath it" true by construction.
      *
-     * <p>Reached on the UI thread under {@code synchronized(ui)}, like {@link #onGhostClick}, so
-     * {@link #callLua} needs no thread guard; the patch's monitor is released before the dispatch so a handler
-     * may re-entrantly move or remove the very patch it was told about.
+     * <p>Reached on the UI thread under {@code synchronized(ui)}, so the handler is inside that one tree and
+     * reaches that tree only, as {@link #onGhostClick}'s is; the patch's monitor is released before the
+     * dispatch so a handler may re-entrantly move or remove the very patch it was told about.
      */
     static boolean onPatchClick(MapView mv, Coord pc, int button) {
         if((mv == null) || (pc == null))

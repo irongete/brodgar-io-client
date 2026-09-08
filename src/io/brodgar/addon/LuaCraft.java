@@ -106,7 +106,11 @@ public final class LuaCraft {
                     throw new LuaError(CharApi.CR + ":make(all): no recipe is open on that character — "
                         + CharApi.CR + ":exists() is the test, and which recipe is open is the player's"
                         + " choice");
-                mw.wdgmsg("make", ((all != null) && all.toboolean()) ? 1 : 0);
+                // audit2 B06: under that tree's monitor -- wdgmsg walks the parent chain to reach the UI
+                // and a Loader thread re-links it, which is the guard every other send in this layer takes.
+                synchronized(LuaWidget.monitor(mw)) {
+                    mw.wdgmsg("make", ((all != null) && all.toboolean()) ? 1 : 0);
+                }
                 return me;
             }
         });

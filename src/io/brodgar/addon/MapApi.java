@@ -542,9 +542,12 @@ final class MapApi {
     static List<MapFile.Marker> markerList(Long seg) {
         List<MapFile.Marker> out = new ArrayList<MapFile.Marker>();
         MapFile file = mapfile();
-        if(file == null)
+        // audit2 B06: tryLock, like every grid read below and for the same reason the class doc gives -- the
+        // MapFile processor thread holds the write lock across disk I/O, and a blocking read here parked the
+        // caller's whole step behind a segment save. An empty list is the answer a pin nobody has read yet
+        // already gets, and the next call answers.
+        if((file == null) || !file.lock.readLock().tryLock())
             return out;
-        file.lock.readLock().lock();
         try {
             for(MapFile.Marker m : file.markers) {
                 if((seg == null) || (m.seg == seg.longValue()))
@@ -559,9 +562,8 @@ final class MapApi {
     /** Is this marker still in the DB? (An entity outlives the marker it names — a removal is not a destroy.) */
     static boolean markerLives(MapFile.Marker m) {
         MapFile file = mapfile();
-        if((file == null) || (m == null))
-            return false;
-        file.lock.readLock().lock();
+        if((file == null) || (m == null) || !file.lock.readLock().tryLock())
+            return false;      // audit2 B06: tryLock, as markerList above
         try {
             for(MapFile.Marker o : file.markers) {
                 if(o == m)
@@ -649,13 +651,6 @@ final class MapApi {
         }
     }
 
-    /** How many markers that database holds right now, under its read lock. */
-    private static int markerCount(MapFile file) {
-        file.lock.readLock().lock();
-        try { return file.markers.size(); }
-        finally { file.lock.readLock().unlock(); }
-    }
-
     // ---- icons (hafen.map():icon()) ----------------------------------------------------------------
     // The minimap icon registry (GobIcon.Settings, GameUI.iconconf) — one "category" per gob-icon kind
     // (a boar, a fir tree, a player, …), each with a show flag (draw it on the minimap) and a notify flag
@@ -700,29 +695,39 @@ final class MapApi {
     // the reason not one read here takes a callback (a minimap panel walks a dozen grids per frame; that
     // would be a callback tree, plan.md).
 
-    /** The recorded {@link MapFile.Segment} for an id — null when unknown, busy, or the DB is not up. */
+    /**
+     * The recorded {@link MapFile.Segment} for an id — null when unknown, busy, or the DB is not up.
+     *
+     * <p><b>The WRITE lock, and still a {@code tryLock}</b> (audit2 B06). {@code segments} is a
+     * {@link haven.BackCache} over an access-ordered {@code LinkedHashMap}: a miss inserts and a hit
+     * re-links, so this "read" structurally mutates the map. Under the read lock that is safe only while one
+     * thread does it, which is true of upstream and not of this layer — an addon reaches it from the step and
+     * from every entry beside it. {@code checklock} takes the write lock as readily, and the contended answer
+     * is the {@code null} the load model already documents.
+     */
     static MapFile.Segment segIn(MapFile file, long id) {
-        if((file == null) || !file.lock.readLock().tryLock())
+        if((file == null) || !file.lock.writeLock().tryLock())
             return null;
         try {
             return file.segments.get(Long.valueOf(id));
         } catch(RuntimeException e) {      // a torn/absent segment file warns and answers null
             return null;
         } finally {
-            file.lock.readLock().unlock();
+            file.lock.writeLock().unlock();
         }
     }
 
-    /** Where a grid id sits: its segment and its grid coord inside it. The whole live→recorded bridge. */
+    /** Where a grid id sits: its segment and its grid coord inside it. The whole live→recorded bridge.
+     *  The write lock, for {@link #segIn}'s reason: {@code gridinfo} is a {@link haven.BackCache} too. */
     static MapFile.GridInfo gridInfoIn(MapFile file, long id) {
-        if((file == null) || !file.lock.readLock().tryLock())
+        if((file == null) || !file.lock.writeLock().tryLock())
             return null;
         try {
             return file.gridinfo.get(Long.valueOf(id));
         } catch(RuntimeException e) {
             return null;
         } finally {
-            file.lock.readLock().unlock();
+            file.lock.writeLock().unlock();
         }
     }
 

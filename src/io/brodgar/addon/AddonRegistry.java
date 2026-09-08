@@ -398,8 +398,10 @@ public final class AddonRegistry {
         quitDone = true;
         final List<Addon> cur = new ArrayList<Addon>(addons);
         final long deadline = System.currentTimeMillis() + QUIT_BUDGET_MS;
-        // 0 = still in the Disable sweep, 1 = flushing, 2 = done. Read by the abandoning branch below, which
-        // must know whether the flush was ever reached and must not start a second one over the first.
+        // 0 = still in the Disable sweep, 1 = flushing, 2 = done. THE CLAIM ON THE FLUSH, and it is a
+        // compare-and-set on both sides (audit2 B06): the abandoning branch below used to read 0 and then
+        // flush while this thread's finally set 1 and flushed too, so an abandoned quit wrote every store
+        // file from two threads at once. Whichever thread moves it off 0 is the one that writes.
         final java.util.concurrent.atomic.AtomicInteger stage = new java.util.concurrent.atomic.AtomicInteger(0);
         Thread sweep = new Thread(new Runnable() {
                 public void run() {
@@ -418,9 +420,10 @@ public final class AddonRegistry {
                             }
                         }
                     } finally {
-                        stage.set(1);
-                        flushAll(cur);
-                        stage.set(2);
+                        if(stage.compareAndSet(0, 1)) {
+                            flushAll(cur);
+                            stage.set(2);
+                        }
                     }
                 }
             }, "addon-shutdown");
@@ -433,10 +436,11 @@ public final class AddonRegistry {
             Thread.currentThread().interrupt();
         }
         if(sweep.isAlive()) {
-            if(stage.get() == 0) {
+            if(stage.compareAndSet(0, 1)) {
                 logDiag("shutdown: an addon's Disable overran " + QUIT_BUDGET_MS + "ms -- abandoned;"
                         + " the saved variables are written without it");
                 flushAll(cur);
+                stage.set(2);
             } else {
                 logDiag("shutdown: the flush overran " + QUIT_BUDGET_MS + "ms -- the client leaves it running");
             }

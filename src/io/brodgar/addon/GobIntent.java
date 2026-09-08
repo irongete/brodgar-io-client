@@ -50,8 +50,8 @@ import java.util.Map;
  * {@code GobRemoved} fires and an overlay is reported gone. While any character can still see the object, the
  * object is still loaded, and one object drawn two sizes in two windows is the defect rather than the rule.
  *
- * <p>UI-thread only, like the writes that fill it and the drain that reads it (P5). Every entry point is
- * {@code synchronized} on this class, which is the one monitor over every addon's map alike; the maps are
+ * <p>Every entry point is {@code synchronized} on this class, which is the one monitor over every addon's
+ * map alike, and that is the whole of what the writes from Lua and the drain need. The maps are
  * plain {@link java.util.HashMap}s keyed by {@code Long}, a gob id being a server id rather than an object
  * identity.
  */

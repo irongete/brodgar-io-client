@@ -292,10 +292,16 @@ final class Sheet {
                 site.add(r);     // a SITE key: an owner-tagged entry in the Fonts provider (033.1)
         }
         Sheet s = new Sheet(owner, site, tree);
-        drop(owner);          // an addon owns ONE sheet: the previous one's entries leave first...
-        s.install(owner);     // ...then this one fills its site keys (so a site it no longer names falls back)
-        register(s);          // ...and its tree keys join the per-widget resolution (034.1)
-        owner.skin = s;
+        // audit2 B06: THE FOUR STEPS UNDER THE MONITOR forget() takes for the same four. They are one act --
+        // the old sheet's entries out, the new one's in, the registry, the addon's own pointer at it -- and a
+        // teardown interleaved with an install left the new sheet standing in `installed` with owner.skin
+        // unable to name it again, so its tree rules resolved for the life of the client.
+        synchronized(Sheet.class) {
+            drop(owner);          // an addon owns ONE sheet: the previous one's entries leave first...
+            s.install(owner);     // ...then this one fills its site keys (so a site it no longer names falls back)
+            register(s);          // ...and its tree keys join the per-widget resolution (034.1)
+            owner.skin = s;
+        }
         // 036.2: ...and its LAYOUT half is enforced now. Outside register()'s lock, because matching takes
         // Sheet.class under the ui monitor and a sweep holding Sheet.class would be the one path able to invert
         // that order — and synchronously, because a rule that moved a window has moved it by the time the call
@@ -693,7 +699,14 @@ final class Sheet {
      * The resolution cache: one folded style per widget. A {@link WeakHashMap} because {@code Widget} overrides
      * neither {@code equals} nor {@code hashCode} — that is an identity map for free — and because the keys
      * <b>must</b> be weak: a strong list of styled widgets would pin every closed window, the leak F5 already
-     * recorded. Guarded by {@code Sheet.class}.
+     * recorded.
+     *
+     * <p><b>Guarded by ITSELF, not by {@code Sheet.class}</b> (audit2 B06). This is the draw pass's own
+     * lookup — once per visible widget per frame, hundreds of times — and it used to take the one global
+     * monitor the rule registry uses, so an addon installing a sheet held the render out across four
+     * registry steps and every {@code Fonts} push inside them. The registry is still {@code Sheet.class}:
+     * a MISS takes that for the fold and this one for the store, in that order, which is the order
+     * {@link #rulesChanged} and {@link #stockChanged} already take them in.
      */
     // retained: weak keys, and a Resolved is folded properties -- it declares no widget, so the entry collects.
     private static final Map<Widget, Resolved> cache = new WeakHashMap<Widget, Resolved>();
@@ -777,10 +790,12 @@ final class Sheet {
     private static void stockChanged(Widget w) {
         anyStock = !stocks.isEmpty();
         anyStyle = anyTree || !skins.isEmpty() || anyStock;
-        if(anyStyle)
-            cache.remove(w);
-        else
-            cache.clear();       // the last style left: hold nothing, exactly as rulesChanged() would have
+        synchronized(cache) {
+            if(anyStyle)
+                cache.remove(w);
+            else
+                cache.clear();   // the last style left: hold nothing, exactly as rulesChanged() would have
+        }
     }
 
     /** Drop every stock {@code owner} declared (its teardown). Caller holds {@code Sheet.class}. */
@@ -844,7 +859,9 @@ final class Sheet {
     /** Any installed LAYOUT rule with a late refiner? Gates {@link Layout}'s bounded re-check at the placement seam. */
     private static volatile boolean anyLateLayout = false;
     /** Bumped whenever the installed tree rules change; a cached entry from an older one is stale. */
-    private static int treegen = 0;
+    // audit2 B06: volatile -- styleOf compares against it while holding the cache's monitor alone, and
+    // rulesChanged bumps it under Sheet.class.
+    private static volatile int treegen = 0;
     /** How many times a negative answer is re-matched before it settles (030.2's bounded re-check, same default). */
     private static final int LATE_RECHECK =
         Integer.getInteger("haven.addon.stylerecheck", 20).intValue();
@@ -1070,8 +1087,11 @@ final class Sheet {
         anyLateLayout = latelay;
         treegen++;
         specs.clear();           // the old rules' styles, and their stamps, do not outlive them
-        if(!any)
-            cache.clear();       // the last style left: hold nothing, so a stock client carries no state at all
+        if(!any) {
+            synchronized(cache) {
+                cache.clear();   // the last style left: hold nothing, so a stock client carries no state at all
+            }
+        }
         // 034.2: and the provider stops (or starts) asking us at the draw — on the DRAWING half alone (036.2), so
         // a sheet that only lays widgets out never opens a frame, never bumps a stamp and costs the draw nothing.
         //   `anyStock` IS ABSENT FROM THIS EXPRESSION ON PURPOSE, and stockChanged() rests on that: a stock is
@@ -1142,7 +1162,9 @@ final class Sheet {
         List<Skin> st = skins.remove(from);
         if(st != null)
             skins.put(to, st);
-        cache.remove(from);
+        synchronized(cache) {
+            cache.remove(from);
+        }
     }
 
     /** Drop every {@code widget:rule()} level {@code owner} installed (its teardown). Caller holds {@code Sheet.class}. */
@@ -1185,8 +1207,8 @@ final class Sheet {
         // anywhere -- that is what makes an addon's default look show on a client wearing no theme at all.
         if((!anyStyle && !anyStock) || (w == null))
             return null;
-        synchronized(Sheet.class) {
-            int left = LATE_RECHECK;
+        int left = LATE_RECHECK;
+        synchronized(cache) {                        // the HIT, and the draw pass wants nothing else
             Resolved cur = cache.get(w);
             if((cur != null) && (cur.gen == treegen)) {
                 if(!cur.empty())
@@ -1195,10 +1217,14 @@ final class Sheet {
                     return null;                     // a negative answer, settled
                 left = cur.recheck - 1;              // still worth asking: a late caption/res may have landed
             }
+        }
+        synchronized(Sheet.class) {                  // the MISS: the fold reads the registry
             Resolved r = fold(w);
             r.recheck = (r.empty() && anyLate) ? left : 0;
             r.spec = r.drawEmpty() ? null : specFor(r);    // a layout-only resolution carries no draw payload
-            cache.put(w, r);
+            synchronized(cache) {
+                cache.put(w, r);
+            }
             return r.empty() ? null : r;
         }
     }
@@ -1414,7 +1440,7 @@ final class Sheet {
             st.styleCapChanged.clear();   // the tree those windows belonged to is gone; so is anything cached for it
             return;
         }
-        synchronized(u) {
+        synchronized(LuaWidget.monitorOf(u)) {   // 112.2: the acquisition every site in this layer makes
             synchronized(Sheet.class) {          // ui -> Sheet.class, the order every other reader takes
                 for(int n = st.styleCapChanged.size(); n > 0; n--) {
                     Widget w = st.styleCapChanged.poll();
@@ -1428,7 +1454,9 @@ final class Sheet {
 
     /** Drop {@code w}'s cached resolution and every one below it. Caller holds {@code ui} and {@code Sheet.class}. */
     private static void invalidateSubtree(Widget w) {
-        cache.remove(w);
+        synchronized(cache) {
+            cache.remove(w);
+        }
         for(Widget c = w.child; c != null; c = c.next)
             invalidateSubtree(c);
     }

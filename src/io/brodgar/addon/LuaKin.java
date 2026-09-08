@@ -66,10 +66,12 @@ import java.util.Map;
  * that {@code UI}, and so to that {@code Session}), so a write lands on the character it was addressed at
  * whether or not anyone is looking at it.
  *
- * <p><b>Threading.</b> Every read/write runs on the UI thread (addon tick / REPL / timer / console command);
- * {@code BuddyWnd.iterator()} copies the list under the window's own lock, so iterating it is snapshot-safe
- * even though the server mutates it from the network thread. The {@link Cache} map is guarded on its own
- * monitor (UI + REPL threads touch it).
+ * <p><b>Threading.</b> A read or a write is reached from every thread {@code docs/addons/api/threading.md}
+ * lists. {@code BuddyWnd.iterator()} copies the list under the window's own lock, so iterating it is
+ * snapshot-safe even though the server mutates it from the network thread, and a {@link BuddyWnd.Buddy}'s
+ * own {@code name}/{@code online}/{@code group} are read under the <i>buddy's</i> monitor, which is what the
+ * network thread publishes them under ({@link CharApi#kinSnapshot}). The two sends walk the widget's parent
+ * chain, so each takes that tree's monitor. The {@link Cache} map is guarded on its own monitor.
  */
 public final class LuaKin {
     /** The account whose roster this kin is on — half the address, and what makes the id mean one person. */
@@ -232,7 +234,11 @@ public final class LuaKin {
         m.set("name", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 BuddyWnd.Buddy b = buddy(self, "name");
-                return ((b == null) || (b.name == null)) ? LuaValue.NIL : LuaValue.valueOf(b.name);
+                if(b == null)
+                    return LuaValue.NIL;
+                synchronized(b) {                      // audit2 B06: the monitor BuddyWnd publishes under
+                    return (b.name == null) ? LuaValue.NIL : LuaValue.valueOf(b.name);
+                }
             }
         });
         // group() reads, group(g) WRITES (protected) — one name for the pair the old setGroup made two. The
@@ -244,13 +250,19 @@ public final class LuaKin {
                 LuaValue group = Args.written(a, 2, "kin:group", "group");
                 if(group == null) {
                     BuddyWnd.Buddy b = buddy(self, "group");
-                    return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.group);
+                    if(b == null)
+                        return LuaValue.NIL;
+                    synchronized(b) {                  // audit2 B06: the monitor BuddyWnd publishes under
+                        return LuaValue.valueOf(b.group);
+                    }
                 }
                 AddonManager.requirePermission(owner, Permission.KIN_GROUP);
                 int g = Args.integer(group, "kin:group", "group", "0.." + MAXGROUP);
                 if((g < 0) || (g > MAXGROUP))
                     throw new LuaError("kin:group(group): group must be 0.." + MAXGROUP + ", got " + g);
-                require(self, "group").chgrp(g);                      // wdgmsg("grp", id, group)
+                synchronized(LuaWidget.monitor(kinwnd(self, "group"))) {    // audit2 B06: as above
+                    require(self, "group").chgrp(g);                        // wdgmsg("grp", id, group)
+                }
                 return self;
             }
         });
@@ -262,9 +274,14 @@ public final class LuaKin {
         m.set("color", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 BuddyWnd.Buddy b = buddy(self, "color");
-                if((b == null) || (b.group < 0) || (b.group >= BuddyWnd.ncolors))
+                if(b == null)
                     return LuaValue.NIL;
-                return AddonManager.color(BuddyWnd.gc[b.group]);
+                int grp;
+                synchronized(b) {                      // audit2 B06: as above
+                    grp = b.group;
+                }
+                return ((grp < 0) || (grp >= BuddyWnd.ncolors)) ? LuaValue.NIL
+                    : AddonManager.color(BuddyWnd.gc[grp]);
             }
         });
         // online() — the tri-state (1 online, 0 offline, -1 hearth-secret-only) as the boolean the common
@@ -272,7 +289,11 @@ public final class LuaKin {
         m.set("online", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 BuddyWnd.Buddy b = buddy(self, "online");
-                return (b == null) ? LuaValue.NIL : LuaValue.valueOf(b.online == 1);
+                if(b == null)
+                    return LuaValue.NIL;
+                synchronized(b) {                      // audit2 B06: as above
+                    return LuaValue.valueOf(b.online == 1);
+                }
             }
         });
         // gob() — the sweeping half of the Kin <-> Gob link (020.2). The buddy id lives ON the gob (the
@@ -309,7 +330,9 @@ public final class LuaKin {
             public LuaValue call(LuaValue self, LuaValue name) {
                 AddonManager.requirePermission(owner, Permission.KIN_RENAME);
                 Args.str(name, "kin:rename", "name", "the name YOUR list shows this kin under");
-                require(self, "rename").chname(name.tojstring());     // wdgmsg("nick", id, name)
+                synchronized(LuaWidget.monitor(kinwnd(self, "rename"))) {   // audit2 B06: the send walks to the UI
+                    require(self, "rename").chname(name.tojstring());       // wdgmsg("nick", id, name)
+                }
                 return self;
             }
         });
@@ -317,7 +340,9 @@ public final class LuaKin {
         m.set("endKin", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 AddonManager.requirePermission(owner, Permission.KIN_END);
-                require(self, "endKin").endkin();                     // "End kinship" → wdgmsg("rm", id)
+                synchronized(LuaWidget.monitor(kinwnd(self, "endKin"))) {   // audit2 B06: as above
+                    require(self, "endKin").endkin();                       // "End kinship" → wdgmsg("rm", id)
+                }
                 return self;
             }
         });
@@ -382,6 +407,17 @@ public final class LuaKin {
     }
 
     /** {@link #buddy} but a guiding error when there is no Kin window, or the kin is off the roster. */
+    /**
+     * The Kin window {@code self} is addressed at, or the refusal — the write half's own lookup, split off
+     * because a send walks that widget's parent chain and so runs under its tree's monitor (audit2 B06).
+     */
+    private static BuddyWnd kinwnd(LuaValue self, String method) {
+        BuddyWnd bw = CharApi.buddywnd(handle(self, method).user);
+        if(bw == null)
+            throw new LuaError("kin:" + method + "(): no Kin window (that character is not in the world yet)");
+        return bw;
+    }
+
     private static BuddyWnd.Buddy require(LuaValue self, String method) {
         LuaKin h = handle(self, method);
         BuddyWnd bw = CharApi.buddywnd(h.user);
@@ -487,7 +523,11 @@ public final class LuaKin {
 
             public String needle(LuaValue member) {
                 BuddyWnd.Buddy b = live(member);
-                return ((b == null) || (b.name == null)) ? "" : b.name;
+                if(b == null)
+                    return "";
+                synchronized(b) {                      // audit2 B06: the monitor BuddyWnd publishes under
+                    return (b.name == null) ? "" : b.name;
+                }
             }
 
             /** These have a name, so a string filter is a substring test over {@link #needle}. */
@@ -571,7 +611,11 @@ public final class LuaKin {
                 return LuaValue.NIL;
             String needle = key.tojstring();
             for(BuddyWnd.Buddy b : bw) {
-                if((b.name != null) && b.name.equalsIgnoreCase(needle))
+                String nm;
+                synchronized(b) {                      // audit2 B06: as above
+                    nm = b.name;
+                }
+                if((nm != null) && nm.equalsIgnoreCase(needle))
                     return of(owner, user, b.id);
             }
             return LuaValue.NIL;

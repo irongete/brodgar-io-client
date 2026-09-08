@@ -188,23 +188,27 @@ public class Control {
      *
      * @param m the session to go to, or null for the login screen.
      */
-    public static void take(Sessions.Member m) {
+    /* audit2 B06: it ANSWERS whether the screen moved. The caller used to test `m.ui == null` and then
+     * call this, and that field is cleared on the session's own thread -- so a member that lost its screen
+     * between the two lines took the silent path this method's own comment describes, which is the very
+     * silence the caller's refusal exists to remove. The outcome is the act's to report, not a field's. */
+    public static boolean take(Sessions.Member m) {
 	if(m == null) {
 	    Sessions.anchor(null);
 	    clear();
-	    return;
+	    return(true);
 	}
 	Sessions.anchor(m);
 	/* Already the anchor is not a failure -- the selection still follows. A switch that did NOT happen
 	 * (a session with no screen yet) is, and it leaves the character on screen alone rather than
 	 * selecting somebody the player did not ask for. */
 	if(Sessions.anchormember() != m)
-	    return;
+	    return(false);
 	/* Asked of the anchor rather than of m: the same character either way, and the anchor's own row is
 	 * where the character id has already been worked out. */
 	Sessions.Placed ss = Sessions.anchorsess();
 	if(!on)
-	    return;
+	    return(true);
 	if(ss == null) {
 	    /* The screen moved and we could not work out whose character is now on it. CLEAR rather than
 	     * leave: a selection still naming the character that just LOST the screen is the worst of the
@@ -213,8 +217,9 @@ public class Control {
 	     * they see the one they left walk off. An empty selection is the honest state, and the very next
 	     * switch fills it. */
 	    clear();
-	    return;
+	    return(true);
 	}
 	only(ss.gui.plid);
+	return(true);
     }
 }

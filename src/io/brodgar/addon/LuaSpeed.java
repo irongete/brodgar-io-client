@@ -258,16 +258,23 @@ public final class LuaSpeed {
     // The speed selector is a Speedget widget (crawl/walk/run/sprint) the server places under the HUD. It has
     // no named GameUI field, so we locate it with the 1d-1 Locator (a children(Class) subtree walk from the
     // HUD) — the same way vitals finds its IMeters. Both fields we read (cur = the selected speed, max = the
-    // highest currently selectable one) are public ints, so this is a zero-haven-edit read. All calls run on
-    // the UI thread (addon tick / REPL / console command).
+    // highest currently selectable one) are public ints, so this is a zero-haven-edit read.
 
-    /** That character's movement-speed widget, or {@code null} before its HUD has streamed one in. */
+    /**
+     * That character's movement-speed widget, or {@code null} before its HUD has streamed one in.
+     *
+     * <p>Under that tree's own monitor (audit2 B06): it is a recursive walk of the whole HUD subtree and a
+     * Loader thread re-links it under the same monitor, so an unguarded walk could miss the widget entirely
+     * or follow a {@code next} that had just been re-pointed.
+     */
     static Speedget speedget(String user) {
         GameUI g = AddonManager.gameui(user);          // THAT session's HUD, not the drawn one's
         if(g == null)
             return null;
-        for(Speedget s : g.children(Speedget.class))   // recursive subtree walk; take the first
-            return s;
+        synchronized(LuaWidget.monitor(g)) {
+            for(Speedget s : g.children(Speedget.class))   // recursive subtree walk; take the first
+                return s;
+        }
         return null;
     }
 

@@ -120,9 +120,12 @@ import javax.imageio.ImageIO;
  * and <b>timers</b> ({@code hafen.timer}). All of it is <b>zero core edit</b> — it reuses the
  * existing {@code RemoteUI.init} and {@code MapView} hooks plus the public {@link OCache#callback}.
  *
- * <p>All-static facade, mirroring {@code io.brodgar.voice.Voice}. Everything Lua runs on the UI
- * thread (principle P5): the {@link OCache} callback fires on network/loader threads, so it only
- * <em>enqueues</em> deltas that {@link #tick(UI)} drains and dispatches on the UI thread.
+ * <p>All-static facade, mirroring {@code io.brodgar.voice.Voice}. <b>Lua is entered from several
+ * threads</b> and {@code docs/addons/api/threading.md} is the table of them; what makes that safe is
+ * {@link #callLua}, the one door, which holds the addon's own lock for the length of an entry. The seams
+ * that would otherwise run Lua under a tree monitor <em>enqueue</em> instead — the {@link OCache} callback
+ * fires on network/loader threads and only files a delta that {@link #tick(UI)} drains on the step, holding
+ * no tree monitor at all.
  */
 public final class AddonManager {
 
@@ -134,7 +137,10 @@ public final class AddonManager {
      * outlives every session, and reaches sessions rather than belonging to one.
      */
     static final List<Addon> addons = new CopyOnWriteArrayList<Addon>();
-    static Addon consoleOwner;      // the :lua REPL, as a resource owner (persists across sessions)
+    // audit2 B06: volatile. It is built under this class's own monitor (console()) and read plain from
+    // every thread the two stream dispatches run on, so a Loader thread could see the reference before the
+    // Addon's fields were published. One write per client, and the read is on every dispatch.
+    static volatile Addon consoleOwner;   // the :lua REPL, as a resource owner (persists across sessions)
 
     // -- engine runtime state ---------------------------------------------------------------------
     // 073.1: the engine's own per-session state stands in ONE {@link SessionState} per session, reached
@@ -148,7 +154,10 @@ public final class AddonManager {
     // census row deferred to this feature, settled with `addons`). It accrues on the LAYER's tick, so it counts
     // one second per second however many sessions are up, and it is never reset: a clock that restarted would
     // make a timer set before a switch due at an instant that has already passed.
-    static double clock;
+    //   audit2 B06: volatile, because a double is not even written atomically under the JLS and a timer verb
+    // reads it off the step -- an HTTP Done handler, a message handler -- while the layer's tick advances it.
+    // A torn read would put a timer due at an instant nothing will ever reach.
+    static volatile double clock;
     // 038.3: `overlaySubs` is a FAST PATH, not a correctness gate: Gob.addol runs on the loader threads for
     // every decoration the server sends, so the seam must cost one volatile read when nobody listens. It is
     // set by a subscription and cleared per session/reload; a stale `true` (someone unsubscribed) only means
@@ -166,7 +175,8 @@ public final class AddonManager {
     static volatile boolean gobAddedSubs;
     // 042.1: the Resolve (M2) marshalling queue — a Loading's wnotify() runs on whichever thread finished
     // the load (Loader, Defer pool), so a retry callback never touches Lua directly; it enqueues here and the
-    // layer's tick drains it on the UI thread (P5), same shape as the per-session queues in SessionState. A
+    // layer's tick drains it on the step, holding no tree monitor, same shape as the per-session queues in
+    // SessionState. A
     // retry is owned by an ADDON and cancelled by that addon's teardown, so it is indexed where `addons` is —
     // process-wide since 074.2, with the set it is indexed by, and the seam is handed a bare Runnable that
     // names no session anyway.
@@ -174,8 +184,9 @@ public final class AddonManager {
 
     // -- widget-tree read mechanism (spec 14): Locator + Adapters + inbound-uimsg update hook -------
     // Adapters read a GameUI widget tree into a Lua snapshot and fire a semantic event on change. The
-    // UI.uimsg core tap runs off the UI thread, so it only marks the interested adapter(s) dirty; the
-    // tick re-reads + fires on the UI thread (principle P5). Both collections are session-scoped.
+    // UI.uimsg core tap runs off the UI thread and under that tree's monitor, so it only marks the
+    // interested adapter(s) dirty; the step re-reads + fires holding none. Both collections are
+    // session-scoped.
 
     // -- saved variables (spec 1e / D-002 / D-023): hafen.store persisted as JSON under savedata/ ------
     // Per-character vars key on <genus>_<char>, known only once the HUD is up (SessionEnteredWorld) —
@@ -737,7 +748,8 @@ public final class AddonManager {
         UiApi.pruneDeadTrees();
         // 074.4/079.1: what this does NOT do is WRITE that session's per-character saved variables, though
         // this is where they stop being reachable. It runs on the dying session's OWN thread, and the store's
-        // tables are Lua, which runs on the UI thread and nowhere else (P5). So the write is left to the
+        // tables are the addon's Lua, which the step is entitled to read and this thread is not. So the write
+        // is left to the
         // layer's next tick, which drains what sessionEnded filed above — and it lands in the right folder
         // because each set of tables HOLDS the one it was loaded for rather than asking a session that has
         // stopped being able to answer.
@@ -762,9 +774,9 @@ public final class AddonManager {
      *
      * <p>It exists because a quit has to write an addon's tables out while the frame loop is <b>still
      * running</b>: the flush must go before {@code UILoop.dispose()}, and until that call returns the UI
-     * thread goes on ticking, drawing and firing handlers. Lua runs on one thread and nowhere else (P5), so
-     * a second one reading those tables while a handler writes them is exactly the torn file this task is
-     * closing, one layer down.
+     * thread goes on ticking, drawing and firing handlers, and a handler writing an addon's tables while the
+     * flush reads them is exactly the torn file this task is closing, one layer down. {@link #awaitIdle} waits
+     * the ones already inside out; this shuts the door behind them.
      *
      * <p>Written once, before the thread it names is started, and read on every entry into Lua.
      * {@link #quiet()} is the read.
@@ -807,17 +819,42 @@ public final class AddonManager {
     static void awaitIdle() {
         // 112.1: the engine STEP first, which is no longer inside a tree's monitor and so is no longer waited
         // out by taking one. Given up again before the first tree's is taken, so the two never nest.
-        synchronized(stepping) { /* a step in flight has finished by the time this is taken */ }
+        awaitMonitor(stepping);
         UI l = layer();
-        if(l != null) {
-            synchronized(l) { /* a layer tick or draw in flight has finished by the time this is taken */ }
-        }
+        if(l != null)
+            awaitMonitor(l);              // a layer tick or draw in flight has finished by the time this is taken
         for(SessionState st : allStates()) {
             UI u = st.ui;
-            if(u != null) {
-                synchronized(u) { /* ...and the same for each session's own tree */ }
-            }
+            if(u != null)
+                awaitMonitor(u);          // ...and the same for each session's own tree
         }
+        // audit2 B06: AND EACH ADDON'S OWN LOCK. An inbound-message handler holds neither the step's barrier
+        // nor any tree's -- it runs on a Loader thread, outside both -- so a shutdown that waited only for
+        // those read an addon's tables while a handler was still writing them. One at a time, after the
+        // trees and never inside one, so this adds no direction to the lock graph either.
+        for(int i = 0, n = addons.size(); i < n; i++)
+            awaitLua(addons.get(i));
+        awaitLua(consoleOwner);
+    }
+
+    /**
+     * <b>Wait out whoever is inside {@code m} right now, and take nothing away</b> — {@link #awaitIdle}'s one
+     * step, taken once per barrier and once per tree.
+     *
+     * <p>It is a bare acquisition and deliberately not {@code LuaWidget.monitorOf}: this runs on the
+     * shutdown's own thread, holds none of its own, and takes each in turn — and a thrown refusal here would
+     * be the hang the method exists to make impossible.
+     */
+    private static void awaitMonitor(Object m) {
+        synchronized(m) { /* whoever was inside has left by the time this is taken */ }
+    }
+
+    /** The same wait for one addon's Lua — {@code null} (no REPL owner yet) is nobody to wait for. */
+    private static void awaitLua(Addon a) {
+        if(a == null)
+            return;
+        a.luaLock.lock();
+        a.luaLock.unlock();
     }
 
     /**
@@ -981,9 +1018,9 @@ public final class AddonManager {
      * character switch, so there is no third moment left that could want it.
      *
      * <p><b>On the UI thread, from the layer's own pump</b>, and not from the {@code UILoop} constructor a few
-     * lines above it. A file body is Lua (P5), and the constructor runs on the client's main thread; the layer
-     * is built there and loaded on the first frame it is ticked, which is the first instant this client has a
-     * thread Lua may run on.
+     * lines above it. A file body is Lua and the constructor runs on the client's main thread; the layer is
+     * built there and loaded on the first frame it is ticked, which is the first instant this client has a
+     * pump to load it from.
      *
      * <p><b>A change of screen never reaches here.</b> An addon is the client's and not a session's, so moving
      * the anchor tears nothing down and loads nothing again: {@code Sessions.anchor} fires
@@ -1080,8 +1117,8 @@ public final class AddonManager {
      * would fire two {@code Update}s a frame, run every timer twice and charge each addon's Lua budget twice.
      *
      * <p>It is also the <b>only</b> pump that is always running — the layer is built with the client and never
-     * replaced — which is why the boot below is hung on it: a file body is Lua, Lua runs on this thread (P5),
-     * and this is the first turn of it the client has.
+     * replaced — which is why the boot below is hung on it: a file body is Lua and this is the first turn of
+     * the pump the client has.
      *
      * <p><b>NO TREE MONITOR IS HELD HERE</b> (112.1), and that is what the step is <i>for</i>. It is NOT a
      * widget on the layer's root, which would mean every handler below it began with {@code synchronized(layer)}
@@ -1195,23 +1232,20 @@ public final class AddonManager {
             // 074.2: on the LAYER's tick, so an addon's frame closes once however many sessions are up.
             boolean armed = Prof.armed(), probed = prevProbed;
             prevProbed = Prof.on;
-            for(int i = 0, n = addons.size(); i < n; i++) {
-                Addon a = addons.get(i);
-                if(armed)
-                    a.profRoll(probed);
-                a.tickLuaNanos = 0L;
-            }
-            Addon co = consoleOwner;
-            if(co != null) {                 // the REPL is not an addon (no watchdog), but its Lua time is
-                if(armed)                    // real frame cost and it owns the scopes of a :lua snippet
-                    co.profRoll(probed);
-                co.tickLuaNanos = 0L;
-            }
+            for(int i = 0, n = addons.size(); i < n; i++)
+                closeFrame(addons.get(i), armed, probed);
+            // the REPL is not an addon (no watchdog), but its Lua time is real frame cost and it owns the
+            // scopes of a :lua snippet
+            closeFrame(consoleOwner, armed, probed);
 
             // Resolve (M2, 042.1) retries queued by a Loading resolving off-thread → run on the UI thread.
             // One frame's worth (a retry that re-registers must not spin this tick forever). Process-wide
             // with the addons that own them (074.2): the seam is handed a bare Runnable and knows no session.
             drainResolveQueue();
+
+            // audit2 B06: and the log lines a painter or a control's notification could not post itself,
+            // because it was already inside another tree's monitor. Free when nobody logged from one.
+            drainNotices();
 
             // 079.4: every session's gob queue, settled and reported ONCE for the client — GobAdded into the
             // first session that sees an object, GobRemoved out of the last, and nothing in between. Before
@@ -1236,7 +1270,7 @@ public final class AddonManager {
 
             // 079.1: the saved variables of any session that ended since the last frame, written back into
             // that character's own folder — the seam that saw it die runs on the dying session's thread and
-            // may only file it, so the write is here, where Lua is read (P5).
+            // may only file it, so the write is here, on the step, which holds no tree monitor.
             StoreApi.drainEnded();
 
             // 074.4: whose character the remembered placements belong to, which is the session on SCREEN —
@@ -1303,8 +1337,8 @@ public final class AddonManager {
      * <p><b>NO TREE MONITOR IS HELD HERE</b> (112.4), which is what the drains below are <i>for</i>. It used to
      * be a widget on that session's root ({@link AddonRoot}), so it ran inside {@link UI#tick()}'s
      * {@code TickEvent} broadcast — and both drivers hold the tree while they do: {@code UILoop.Frame.tick}'s
-     * {@code synchronized(ui)} for the session on screen, {@code Sessions.tick}'s {@code synchronized(u)} for
-     * every background member. So an {@code s:ui():on(sel, "Removed", fn)} handler began with that tree's
+     * {@code synchronized(ui)} for the session on screen, and {@code Sessions.tick} takes each background
+     * member's own. So an {@code s:ui():on(sel, "Removed", fn)} handler began with that tree's
      * monitor already taken, and building a window or writing another character's widget from it took a second
      * one under the first — the nesting {@code docs/client/multi-session.md}'s one lock direction forbids and
      * 112.2 now refuses at the line. Both drivers call this <b>after</b> their own block closes, which also
@@ -1564,10 +1598,10 @@ public final class AddonManager {
     static long luaNanosThisFrame() {
         long sum = 0;
         for(int i = 0, n = addons.size(); i < n; i++)
-            sum += addons.get(i).tickLuaNanos;
+            sum += addons.get(i).tickLuaNanos.sum();
         Addon c = consoleOwner;
         if(c != null)
-            sum += c.tickLuaNanos;
+            sum += c.tickLuaNanos.sum();
         return sum;
     }
 
@@ -1612,10 +1646,11 @@ public final class AddonManager {
         if((Sandbox.SOFT_BUDGET_NANOS <= 0) || (Sandbox.SOFT_STRIKE_LIMIT <= 0))
             return;   // soft budget disabled by config
         for(Addon a : addons) {
-            if(a.tickLuaNanos > Sandbox.SOFT_BUDGET_NANOS) {
+            long spent = a.tickLuaNanos.sum();
+            if(spent > Sandbox.SOFT_BUDGET_NANOS) {
                 if(++a.overBudgetStrikes >= Sandbox.SOFT_STRIKE_LIMIT)
                     autoDisable(a, ">" + (Sandbox.SOFT_BUDGET_NANOS / 1_000_000L) + "ms/tick x"
-                        + Sandbox.SOFT_STRIKE_LIMIT + " ticks; last " + (a.tickLuaNanos / 1_000_000L) + "ms");
+                        + Sandbox.SOFT_STRIKE_LIMIT + " ticks; last " + (spent / 1_000_000L) + "ms");
             } else {
                 a.overBudgetStrikes = 0;   // must be SUSTAINED — a single spike doesn't count
             }
@@ -1663,6 +1698,30 @@ public final class AddonManager {
         addons.remove(a);
     }
 
+    /**
+     * <b>Close one addon's frame</b> — move what it spent into its "last completed frame" figures and start
+     * the next at zero, in one step. Called from the layer's step for every addon and for the {@code :lua}
+     * REPL owner, which is why it takes a {@code null}.
+     *
+     * <p><b>Inside that addon's own lock</b> (audit2 B06): the figures and the named scopes are written by
+     * every entry into its Lua, and the roll reads and resets all of them. Holding the lock is what makes the
+     * frame the step reports one whole frame rather than a total a handler on a Loader thread was adding to
+     * while it was being read. The step holds no tree monitor here, so the wait is the ordinary direction.
+     */
+    private static void closeFrame(Addon a, boolean armed, boolean probed) {
+        if(a == null)
+            return;
+        if(!enterLua(a))
+            return;
+        try {
+            long frame = a.tickLuaNanos.sumThenReset();
+            if(armed)
+                a.profRoll(probed, frame);
+        } finally {
+            leaveLua(a);
+        }
+    }
+
     private static void runTimers() {
         for(Addon a : addons)
             runTimers(a);
@@ -1671,22 +1730,33 @@ public final class AddonManager {
             runTimers(c);
     }
 
+    /**
+     * One addon's due timers — <b>the whole pass as one entry into its Lua</b> (audit2 B06), for
+     * {@link Subs#fire}'s reason: several timers coming due on one frame are one addon's own beat, and a
+     * reschedule is engine state read either side of the call.
+     */
     private static void runTimers(Addon a) {
-        for(Timer t : a.timers) {
-            if(!t.alive) {
-                a.timers.remove(t);
-                continue;
-            }
-            if(clock >= t.due) {
-                callLua(a, Addon.C_TIMER, t.fn);
-                if(t.repeats) {
-                    t.due += t.secs;                         // repeating: reschedule (fires once/tick)
-                } else {
-                    t.fired = true;                          // one-shot: it ran, which tostring says
-                    t.alive = false;
+        if(a.timers.isEmpty() || !enterLua(a))
+            return;
+        try {
+            for(Timer t : a.timers) {
+                if(!t.alive) {
                     a.timers.remove(t);
+                    continue;
+                }
+                if(clock >= t.due) {
+                    callLua(a, Addon.C_TIMER, t.fn);
+                    if(t.repeats) {
+                        t.due += t.secs;                         // repeating: reschedule (fires once/tick)
+                    } else {
+                        t.fired = true;                          // one-shot: it ran, which tostring says
+                        t.alive = false;
+                        a.timers.remove(t);
+                    }
                 }
             }
+        } finally {
+            leaveLua(a);
         }
     }
 
@@ -1702,8 +1772,8 @@ public final class AddonManager {
      * this tap, that read must take the monitor itself or move to the UI-thread drain. Much high-value
      * state (vitals, buffs, FEP, …) lives in widget trees updated by targeted {@code uimsg} (audit B1);
      * this is where the engine learns about it. It must <b>not</b> touch Lua — it only flags the
-     * interested adapter(s) dirty; {@link #tick(UI)} drains them and fires the semantic event on the
-     * UI thread (principle P5).
+     * interested adapter(s) dirty; {@link #tick(UI)} drains them and fires the semantic event on the step,
+     * holding no tree monitor.
      */
     public static void onUimsg(Widget w, String msg) {
         CharApi.dispatchUimsg(w, msg);
@@ -2397,8 +2467,9 @@ public final class AddonManager {
      * {@link #fireSession}.
      *
      * <p><b>Queued, never fired at the seam.</b> A session is added from a console command's thread, picked
-     * from whatever thread reached {@code Sessions.anchor}, and destroyed from its own runner thread; Lua
-     * runs on the UI thread and nowhere else (P5), so all three only enqueue and {@link #drainSessionEvents}
+     * from whatever thread reached {@code Sessions.anchor}, and destroyed from its own runner thread; a fire
+     * from any of the three would run Lua on a thread with a session half-built or half-gone under it, so all
+     * three only enqueue and {@link #drainSessionEvents}
      * turns them into a fire — the same marshalling every off-thread seam in this layer uses (D-106). The
      * <b>layer's</b> tick and not a session's: these events are the client's, and the session one of them is
      * about may be the one that just ended.
@@ -3252,7 +3323,7 @@ public final class AddonManager {
      * <p><b>Must not touch Lua, and must read no widget state.</b> {@code chcap} runs on whatever thread applied
      * the message — a Loader thread, <b>outside</b> {@code synchronized(ui)} (UI.java:730-732) — or on the UI
      * thread for an addon's write. So each consumer only records the window here; the tree walks and any Lua run
-     * on the tick, on the UI thread (P5), from {@link UiApi#drainSelectorCaptionCheck} and
+     * on the step, from {@link UiApi#drainSelectorCaptionCheck} and
      * {@link Sheet#drainCaptionInvalidation}.
      */
     public static void onCaptionChanged(Widget w) {
@@ -3516,9 +3587,10 @@ public final class AddonManager {
     // ------------------------------------------------------------- Resolve marshalling (M2, 042.1)
 
     /**
-     * Queue a {@link Resolve} retry callback onto the UI-thread tick — {@code Waitable.wnotify()} runs on
-     * whichever thread finished the load (a Loader thread, a {@code Defer} pool thread), so the retry it wakes
-     * must never run Lua inline (principle P5). Package-private: {@link Resolve} is the only caller.
+     * Queue a {@link Resolve} retry callback onto the layer's step — {@code Waitable.wnotify()} runs on
+     * whichever thread finished the load (a Loader thread, a {@code Defer} pool thread), holding whatever that
+     * load held, so the retry it wakes must never run Lua inline. Package-private: {@link Resolve} is the only
+     * caller.
      */
     static void enqueueResolve(Runnable r) {
         resolveQueue.add(r);
@@ -4136,6 +4208,53 @@ public final class AddonManager {
         // and the shutdown reads what the addons hold without a frame writing it underneath.
         if(quiet())
             return LuaValue.NIL;
+        // audit2 B06: and THE lock. Re-entrant, so a handler that fires an event of its own comes back
+        // through here freely; the entry simply does not happen when it may not wait — see enterLua.
+        if(!enterLua(owner))
+            return LuaValue.NIL;
+        try {
+            return called(owner, cat, fn, args);
+        } finally {
+            leaveLua(owner);
+        }
+    }
+
+    /**
+     * <b>Take {@code owner}'s Lua lock for one entry into its code</b> (audit2 B06) — the acquisition behind
+     * {@link #callLua}, and {@link Subs#fire}'s, which holds it across a whole key so two handlers of one
+     * event are one entry rather than two. Answers whether the caller is inside; {@code false} means the
+     * entry does not happen at all.
+     *
+     * <p><b>The lock sits above a tree monitor.</b> An entry that holds none — the layer's step, a timer, an
+     * HTTP completion, an inbound-message handler, the console — <i>waits</i>, which is the ordinary
+     * direction: from inside, Lua goes on to take at most one tree's monitor
+     * ({@code LuaWidget.monitorOf} refuses a second). An entry made from <i>inside</i> a tree's monitor is
+     * the opposite order and the pair is a deadlock, so it never waits: a {@code Draw} painter runs inside
+     * {@code ui.draw}'s block, the pick completion and {@code screenToWorld}'s answer inside {@code MapView}'s,
+     * and each of them takes the lock or does not run. {@code threading.md} states it as the one rule an
+     * author has to know, and it is why every seam that <i>can</i> match under a tree's monitor and fire
+     * outside it does.
+     *
+     * <p>A missed entry costs a painter one frame of its picture, and it is reachable only while another
+     * thread is inside that same addon's Lua at that instant — which the instruction cap bounds.
+     */
+    static boolean enterLua(Addon owner) {
+        if(owner == null)
+            return false;
+        if(LuaWidget.heldOther(null) != null)
+            return owner.luaLock.tryLock();
+        owner.luaLock.lock();
+        return true;
+    }
+
+    /** Give back what {@link #enterLua} took. Paired in a {@code finally}, always. */
+    static void leaveLua(Addon owner) {
+        if(owner != null)
+            owner.luaLock.unlock();
+    }
+
+    /** {@link #callLua}'s body, inside the lock. */
+    private static Varargs called(Addon owner, int cat, LuaValue fn, LuaValue... args) {
         long t0 = System.nanoTime();
         // 126.2: the instruction budget for THIS entry, on THIS thread — outside the try, so what is
         // claimed here is exactly what the finally below releases. The value is the budget it displaced:
@@ -4169,14 +4288,14 @@ public final class AddonManager {
         } finally {
             Sandbox.disarm(owner.env, budget);   // 126.2: released where it was claimed, on every path out
             long d = System.nanoTime() - t0;
-            owner.tickLuaNanos += d;   // soft per-tick CPU-budget accounting (D-018 layer 2)
+            owner.tickLuaNanos.add(d);   // soft per-tick CPU-budget accounting (D-018 layer 2)
             // 019.4: the SAME measurement, split by what the addon was doing. Deliberately an addition
             // inside this finally and not a second timer: tickLuaNanos above must stay byte-for-byte what
             // it was, or the watchdog would start auto-disabling at a different point. When profiling is
             // off this is one branch on a static field.
             if(io.brodgar.prof.Prof.on) {
-                owner.catNanos[cat] += d;
-                owner.catCalls[cat]++;
+                owner.catNanos[cat].add(d);
+                owner.catCalls[cat].increment();
                 io.brodgar.prof.Overhead.hAddon++;   // 019.7: one probe hit, for the modelled addon-tier cost
             }
         }
@@ -4888,14 +5007,57 @@ public final class AddonManager {
      */
     static void log(String msg) {
         System.out.println("[addon] " + msg);
+        notice(clampMsg(msg));
+    }
+
+    /**
+     * <b>Post one line to the screen's chat, under that tree's monitor</b> (audit2 B06) — {@code UI.msg}
+     * dispatches a {@code NoticeEvent} down the whole tree and {@code GameUI.msg} appends it to the System
+     * channel's scrollback, so it is a tree write like any other and it used to run on whatever thread wrote
+     * the line: an HTTP completion, a timer, a {@code Draw} painter.
+     *
+     * <p><b>A caller already inside ANOTHER tree's monitor queues instead.</b> Taking a second is the nesting
+     * the client deadlocks in, and a log line may not be the thing that raises the one-tree refusal — so the
+     * line is filed and {@link #drainNotices} posts it on the next step, holding none. That is a frame's
+     * delay on a line written from inside a painter, and nothing else changes: the stdout half above is
+     * already out, in order, at the instant it was written.
+     */
+    private static void notice(String line) {
         UI u = screen();
-        if(u != null) {
-            try {
-                u.msg(clampMsg(msg));
-            } catch(RuntimeException e) {
-                /* pre-HUD or no notice sink yet; stdout still has it */
-            }
+        if(u == null)
+            return;                       // no session up: the stdout half carries the line alone
+        if(LuaWidget.heldOther(u) != null) {
+            pendingNotices.add(line);
+            return;
         }
+        try {
+            synchronized(LuaWidget.monitorOf(u)) {
+                u.msg(line);
+            }
+        } catch(RuntimeException e) {
+            /* pre-HUD or no notice sink yet; stdout still has it */
+        }
+    }
+
+    /**
+     * Lines written from inside a tree's monitor, waiting for the step — see {@link #notice}. Empty on every
+     * frame but the ones an addon logged from a painter or a control's own notification.
+     */
+    private static final Queue<String> pendingNotices = new ConcurrentLinkedQueue<String>();
+
+    /**
+     * Post what {@link #notice} could not — on the step, which holds no tree monitor. Taken out of the queue
+     * FIRST and posted after: the step holds none, so nothing here can file a line back, and draining into a
+     * list rather than polling as it goes is what makes that true by construction rather than by argument.
+     */
+    private static void drainNotices() {
+        if(pendingNotices.isEmpty())
+            return;
+        List<String> lines = new ArrayList<String>();
+        for(String line = pendingNotices.poll(); line != null; line = pendingNotices.poll())
+            lines.add(line);
+        for(int i = 0, n = lines.size(); i < n; i++)
+            notice(lines.get(i));
     }
 
     /**
@@ -4925,14 +5087,7 @@ public final class AddonManager {
     static void log(Addon owner, String msg) {
         String id = ownerName(owner);
         System.out.println("[" + id + "] " + msg);
-        UI u = screen();
-        if(u != null) {
-            try {
-                u.msg(clampMsg(id + ": " + msg));
-            } catch(RuntimeException e) {
-                /* pre-HUD or no notice sink yet; stdout still has it */
-            }
-        }
+        notice(clampMsg(id + ": " + msg));
     }
 
     // ------------------------------------------------------------- :lua REPL
@@ -5039,24 +5194,36 @@ public final class AddonManager {
             }
             // watchdog the console too (e.g. a stray `while true do end`); 126.2: paired with a release,
             // so this entry's budget is this entry's and the next line typed gets a full one of its own.
-            long budget = Sandbox.arm(consoleOwner.env);
+            // audit2 B06: and the REPL owner's lock, because a typed line is an entry into its Lua like any
+            // other -- it holds the very tables a handler it registered is writing.
+            Addon co = consoleOwner;
+            long budget = Sandbox.arm(co.env);
             LuaValue r;
+            boolean in = enterLua(co);
             try {
-                r = chunk.call();
+                r = in ? chunk.call() : LuaValue.NIL;
             } finally {
-                Sandbox.disarm(consoleOwner.env, budget);
+                if(in)
+                    leaveLua(co);
+                Sandbox.disarm(co.env, budget);
             }
             if(!r.isnil()) {
                 String out = "lua= " + Json.write(r);
                 System.out.println("[console] " + out);            // full result to the terminal...
-                if(u != null)
-                    u.msg(clampMsg(out));                          // ...clamped in-game (a huge one-line result crashes the text renderer)
+                notice(clampMsg(out));                             // ...clamped in-game (a huge one-line result crashes the text renderer)
             }
         } catch(LuaError e) {
             String err = "lua: " + e.getMessage();
             System.out.println("[console] " + err);
-            if(u != null)
-                u.error(clampMsg(err));
+            if(u != null) {
+                try {
+                    synchronized(LuaWidget.monitorOf(u)) {
+                        u.error(clampMsg(err));
+                    }
+                } catch(RuntimeException x) {
+                    /* pre-HUD or no notice sink yet; stdout still has it */
+                }
+            }
         }
     }
 

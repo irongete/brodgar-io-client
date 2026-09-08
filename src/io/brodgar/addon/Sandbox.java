@@ -40,8 +40,9 @@ import org.luaj.vm2.lib.jse.JsePlatform;
  *       dangerous entries that ride along inside otherwise-safe libraries ({@code os.execute}/
  *       {@code exit}/{@code getenv}/{@code remove}/{@code rename}/{@code tmpname}, and the base
  *       loaders) are stripped explicitly.</li>
- *   <li><b>Instruction hard-stop watchdog (D-018, layer 1).</b> Lua runs on the UI/render thread, so
- *       an infinite loop would freeze the client. Each {@link Globals} gets a {@link Watchdog}
+ *   <li><b>Instruction hard-stop watchdog (D-018, layer 1).</b> Every thread that enters Lua is a thread
+ *       the client needs back — the frame's own, a Loader carrying an inbound message, the render query
+ *       that resolved a click — so an infinite loop would freeze it. Each {@link Globals} gets a {@link Watchdog}
  *       installed as its {@code debuglib}: LuaJ then calls {@code onInstruction} on every VM
  *       instruction (guarded only by {@code debuglib != null} in {@code LuaClosure.execute}), so the
  *       watchdog decrements a per-call budget and raises a {@link LuaError} when it is exhausted —

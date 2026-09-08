@@ -111,7 +111,10 @@ public final class ProfScope {
     static void finish(Addon owner, String name) {
         if(!Prof.on)
             return;
-        Addon.Scope s = owner.scopes.get(name);
+        Addon.Scope s;
+        synchronized(owner.scopes) {         // audit2 B06: the map's own monitor, as Addon.scope takes
+            s = owner.scopes.get(name);
+        }
         if((s == null) || (s.depth == 0))
             return;                       // an unmatched finish(), or the switch was armed mid-section
         if(--s.depth == 0) {

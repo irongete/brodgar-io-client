@@ -36,8 +36,13 @@ public class Glob {
     public final MCache map;
     public final Session sess;
     public final Loader loader = new Loader();
-    public double gtime, sgtime, epoch = Utils.rtime();
-    public Astronomy ast;
+    /* addon: (audit2 B06) VOLATILE. Both are written on the ctick and again from the message thread
+     * (updgtime/blob), and io.brodgar reads them from every thread that enters an addon's Lua -- so a
+     * plain double was not even written atomically under the JLS, and `ast` could stay nil for a handler
+     * long after the astronomy update landed. */
+    public volatile double gtime;
+    public double sgtime, epoch = Utils.rtime();
+    public volatile Astronomy ast;
     public Party party;
     public Color lightamb = null, lightdif = null, lightspc = null;
     public Color olightamb = null, olightdif = null, olightspc = null;

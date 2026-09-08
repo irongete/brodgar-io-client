@@ -4,8 +4,8 @@ import haven.Widget;
 
 import org.luaj.vm2.LuaValue;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A <b>selector subscription</b> (spec {@code 030-ui-selectors}, task 030.2) — the Java half of
@@ -57,10 +57,11 @@ import java.util.Map;
  * make the whole selector worth re-checking), and both events remain about the widget the LAST step names. What did
  * change is which widget the deciding attribute sits on; see the dedup paragraph above.
  *
- * <p><b>Threading.</b> The {@code "Added"} raised at placement runs inside {@code AddWidget.run}'s
- * {@code synchronized(ui)} block (on a Loader thread, under the monitor the tick and draw hold), so its Lua never
- * races other Lua — the same discipline the observers had. The re-check and {@code "Removed"} run in the tick, on
- * the UI thread. Both go through {@link AddonManager#callLua} (watchdog-armed, error-isolated, CPU-accounted).
+ * <p><b>Threading.</b> Every {@code "Added"} and every {@code "Removed"} is matched under its tree's monitor
+ * and fired outside it, on the layer's step, holding none — {@code UiApi.offerEntered}, {@code UiApi.offer} and
+ * the registration scan alike. All of them go through {@link AddonManager#callLua}, which is watchdog-armed,
+ * error-isolated, CPU-accounted, and holds this addon's own lock, so one addon's handlers run one at a time
+ * whichever seam raised them.
  * The addon only ever sees the {@link LuaSub} its registration handed back — this object hangs off that sub's
  * {@link LuaSub#tag} (086.1), and {@code sub:off()} is what ends it; the bridge owns the subscription and drops
  * it on reload/disable (principle P2), and {@link #alive} makes a dispatch that races teardown a no-op.
@@ -90,13 +91,17 @@ final class LuaSelectorWatch {
     boolean alive = true;
     /**
      * The widgets currently matching this selector &rarr; the server widget id captured when they matched
-     * ({@code -1} = client-only). Identity-keyed ({@link Widget} does not override {@code equals}) and insertion-
-     * ordered, so events fire in tree order. See the class comment for why an {@code "Added"} subscription keeps it
-     * too.
+     * ({@code -1} = client-only). Identity-keyed ({@link Widget} does not override {@code equals}). See the class
+     * comment for why an {@code "Added"} subscription keeps it too.
+     *
+     * <p><b>Concurrent</b> (audit2 B06): the seams that record a match hold the tree's monitor, and the three
+     * that drop one do not — a {@code "Removed"} dispatch runs on the step, and {@code sub:off()} and the
+     * teardown run wherever the addon's Lua did. Nothing walks it (the order it kept bought nothing: the tree
+     * order events fire in is the walk's, not this map's), so every use is one atomic map operation.
      */
     // retired: UiApi.retireSelectorMatches -- strong keys, and the removal seam's own dispatch reaches only a
     //   widget that was removed; one that died as a descendant is retired here, silently.
-    final Map<Widget, Integer> matched = new LinkedHashMap<Widget, Integer>();
+    final Map<Widget, Integer> matched = new ConcurrentHashMap<Widget, Integer>();
 
     LuaSelectorWatch(Addon owner, haven.UI ui, Selector sel, int event, LuaValue fn) {
         this.owner = owner;

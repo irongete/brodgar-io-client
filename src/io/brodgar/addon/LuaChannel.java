@@ -48,8 +48,12 @@ public final class LuaChannel {
     /**
      * The channel widget, or {@code null} once it has been proven out of its tree. Mutable for exactly that
      * reason — see {@link #live}.
+     *
+     * <p><b>Volatile</b> (audit2 B06): the transition is a one-way proof made by whichever thread read the
+     * handle first, and every other reader has to see it. Without the barrier a second thread went on
+     * answering with a channel this one had already proved dead.
      */
-    private ChatUI.Channel chan;
+    private volatile ChatUI.Channel chan;
 
     private LuaChannel(ChatUI.Channel chan) {
         this.chan = chan;
@@ -88,7 +92,11 @@ public final class LuaChannel {
         UI u = c.ui;
         if((u == null) || (u.root == null))
             return null;                       // no UI yet: unresolvable now, but not proven dead
-        if(u.destroyed || !c.hasparent(u.root)) {
+        boolean gone;
+        synchronized(LuaWidget.monitor(c)) {   // audit2 B06: the parent walk, under the tree that re-links it
+            gone = u.destroyed || !c.hasparent(u.root);
+        }
+        if(gone) {
             h.chan = null;
             return null;
         }
@@ -103,9 +111,15 @@ public final class LuaChannel {
      * <p>It is also the string a filter matches, which is why it is package-visible.
      */
     static String nameOf(ChatUI.Channel c) {
-        if((c == null) || (c.getparent(GameUI.class) == null))
+        if(c == null)
             return null;
-        return c.name();
+        // audit2 B06: under that tree's monitor. The walk up to the HUD follows parent links a Loader thread
+        // re-points, and PrivChat.name() then reads GameUI.buddies, which the network thread rewrites.
+        synchronized(LuaWidget.monitor(c)) {
+            if(c.getparent(GameUI.class) == null)
+                return null;
+            return c.name();
+        }
     }
 
     /**
@@ -276,7 +290,12 @@ public final class LuaChannel {
                     throw new LuaError("channel:send(text): a channel of kind '" + kindOf(c) + "' has no"
                         + " entry line — the kinds that take one are \"chat\", \"chat.party\" and"
                         + " \"chat.private\", and ch:kind() says which this is");
-                ((ChatUI.EntryChannel)c).send(text);
+                // audit2 B06: send() appends to the channel's own history -- a plain list keydown walks --
+                // and then walks the parent chain to reach the UI for its wdgmsg. Both under that tree's
+                // monitor, which is what every other write in this section takes.
+                synchronized(LuaWidget.monitor(c)) {
+                    ((ChatUI.EntryChannel)c).send(text);
+                }
                 return self;
             }
         });

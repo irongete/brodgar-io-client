@@ -1634,8 +1634,10 @@ final class CharApi {
         CharWnd c = charwnd(user);
         if((c == null) || (c.sattr == null))
             return null;
-        for(SAttrWnd.StudyInfo si : c.sattr.children(SAttrWnd.StudyInfo.class))
-            return si;
+        synchronized(LuaWidget.monitor(c)) {   // audit2 B06: a live child walk, under the tree that owns it
+            for(SAttrWnd.StudyInfo si : c.sattr.children(SAttrWnd.StudyInfo.class))
+                return si;
+        }
         return null;
     }
 
@@ -1839,16 +1841,26 @@ final class CharApi {
     static LuaValue kinSnapshot(BuddyWnd.Buddy b) {
         if(b == null)
             return LuaValue.NIL;
+        // audit2 B06: the three published fields read together, under the monitor BuddyWnd writes them
+        // under -- so one snapshot is one roster row rather than a name from before a rename and a group
+        // from after it.
+        String name;
+        int group, online;
+        synchronized(b) {
+            name = b.name;
+            group = b.group;
+            online = b.online;
+        }
         LuaTable t = new LuaTable();
         t.set("id", LuaValue.valueOf(b.id));
-        if(b.name != null)
-            t.set("name", LuaValue.valueOf(b.name));
-        t.set("group", LuaValue.valueOf(b.group));               // the true index, 0..254, palette or not
+        if(name != null)
+            t.set("name", LuaValue.valueOf(name));
+        t.set("group", LuaValue.valueOf(group));                 // the true index, 0..254, palette or not
         // No `color` for a group above the 8-colour palette — same answer as kin:color(), and for the same
         // reason: the engine's ungrouped-colour fallback (BuddyWnd.gcolor) is a draw, not the group's colour.
-        if((b.group >= 0) && (b.group < BuddyWnd.ncolors))
-            t.set("color", color(BuddyWnd.gc[b.group]));
-        t.set("online", LuaValue.valueOf(b.online == 1));
+        if((group >= 0) && (group < BuddyWnd.ncolors))
+            t.set("color", color(BuddyWnd.gc[group]));
+        t.set("online", LuaValue.valueOf(online == 1));
         return t;
     }
 

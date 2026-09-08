@@ -837,9 +837,15 @@ final class WorldApi {
      * {@code (px,py)} — the space {@link haven.MapView.Maptest} itself takes, which the caller above has
      * already converted the addon's root design pixels into — via the
      * engine's own {@link haven.MapView.Maptest} (the pass the client's building placement uses), then call
-     * {@code fn} with the ground {@link LuaPosition} (or nil for no terrain). Asynchronous: {@code Maptest.run()}
-     * submits a GPU readback and its callback fires later under {@code synchronized(ui)} (so {@link #callLua} is
-     * safe there, serialized with every other addon Lua). Errors installing the test are swallowed (no callback).
+     * {@code fn} with the ground {@link LuaPosition} (or nil for no terrain). Errors installing the test are
+     * swallowed (no callback).
+     *
+     * <p><b>Asynchronous, and {@code fn} runs inside that scene's tree.</b> {@code Maptest.run()} submits a
+     * GPU readback and the callback fires later, on the pick pass's own thread, under
+     * {@code synchronized(ui)} — neither the step nor a widget's input dispatch, and
+     * {@code docs/addons/api/threading.md} carries the row. So {@code fn} reaches that one tree and no other,
+     * and its entry into Lua does not wait: {@link #callLua} takes the addon's lock or drops this one answer
+     * rather than inverting the order and deadlocking.
      */
     static void screenToWorld(final Addon owner, MapView mv, int px, int py, final LuaValue fn) {
         final Coord pc = new Coord(px, py);

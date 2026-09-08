@@ -188,8 +188,13 @@ public final class LuaWidget {
      * <p>Only LIVE trees are walked — the addon layer and every session the engine holds state for. A {@code UI}
      * the client has already taken down is nobody's tree and cannot be part of a cycle, and the login screen's
      * is reached by nothing in this layer.
+     *
+     * <p><b>{@code null} asks about every tree</b> (audit2 B06) — "does this thread hold ANY live tree's
+     * monitor", which is the question {@link AddonManager#callLua} asks before it waits for an addon's lock
+     * and {@link AddonManager#log(Addon, String)} asks before it posts a notice. No tree is {@code null}, so
+     * the exclusion simply never fires and the walk answers the first one held.
      */
-    private static UI heldOther(UI u) {
+    static UI heldOther(UI u) {
         UI l = AddonManager.layer();
         if((l != null) && (l != u) && Thread.holdsLock(l))
             return l;
@@ -413,7 +418,13 @@ public final class LuaWidget {
                 Widget w = live(handle(a.arg1(), "is"));
                 Selector sel = UiApi.selArg(Args.required(a, 2, "widget:is", "selector"),
                                             "widget:is(selector)");
-                return LuaValue.valueOf((w != null) && sel.matches(w));
+                if(w == null)
+                    return LuaValue.FALSE;
+                // Under the widget's own tree, which is what Selector.matches asks for: a match walks
+                // parents and reads captions a Loader thread re-links and rewrites.
+                synchronized(monitor(w)) {
+                    return LuaValue.valueOf(sel.matches(w));
+                }
             }
         });
         // res() — 030.1: the widget's RESOURCE name ("gfx/hud/…"), the stable server-published key [title=] only
@@ -2794,7 +2805,14 @@ public final class LuaWidget {
         UI u = w.ui;
         if((u == null) || (u.root == null))
             return null;                       // no UI yet: unresolvable now, but not proven dead — keep the ref
-        if(u.destroyed || !w.hasparent(u.root)) {   // its tree is gone, or it left it → destroyed
+        // audit2 B06: the walk runs under that tree's own monitor. A Loader thread re-links parent/child
+        // under it, and the failure here is PERMANENT — a walk that raced a re-link and ended early nulls
+        // the handle's reference and retires a widget that is still on screen for the rest of the session.
+        boolean gone;
+        synchronized(monitor(w)) {
+            gone = u.destroyed || !w.hasparent(u.root);
+        }
+        if(gone) {                             // its tree is gone, or it left it → destroyed
             n.wdg = null;                      // drop the ref so a dead subtree can be GC'd (no pin)
             return null;
         }
@@ -3248,7 +3266,7 @@ public final class LuaWidget {
         UI u = (w == null) ? null : w.ui;      // 074.1: the chain that would reach IT, in the tree it is in
         if((w == null) || (u == null) || (u.root == null))
             return false;
-        synchronized(u) {
+        synchronized(monitorOf(u)) {           // 112.2: the acquisition every site in this layer makes
             for(Widget p = u.root; p != null; p = p.focused) {
                 if(p == w)
                     return true;
@@ -3279,7 +3297,7 @@ public final class LuaWidget {
      */
     static Widget tipAt(UI u, Coord c) {
         Widget.TooltipQuery q = new Widget.TooltipQuery(c, null);
-        synchronized(u) {
+        synchronized(monitorOf(u)) {           // 112.2: the acquisition every site in this layer makes
             if(!AddonManager.surfaceQuery(q, c))
                 u.dispatch(u.root, q);
         }

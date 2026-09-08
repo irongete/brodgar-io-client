@@ -85,6 +85,14 @@ final class LocaleApi {
         private volatile boolean installed = false;
         /** The {@code (surface, text)} pairs this catalogue named nothing for, in the order they arrived. */
         private final Map<String, Miss> misses = new LinkedHashMap<String, Miss>();
+
+        /**
+         * <b>Whether the cap is already reached</b> (audit2 B06) — the one read {@link #missed} makes on a
+         * full round, and what makes the cost of a missing string fall away instead of staying a string
+         * concatenation and a monitor per draw for the rest of the session. Written under {@link #misses}
+         * wherever its size changes; a stale {@code false} costs one more ordinary pass.
+         */
+        private volatile boolean missfull = false;
         /** {@code hafen.locale():miss()} — the collection over {@link #misses}, minted once. */
         private LuaValue coll;
 
@@ -94,6 +102,8 @@ final class LocaleApi {
         }
 
         public void missed(String scope, String text) {
+            if(missfull)
+                return;                 // the round is full: no key to build, and no monitor to take
             // A NUL is the separator, and it has to be one: a space would make ("a b", "c") and ("a",
             // "b c") one key, and a chat line beginning with a space is an ordinary chat line.
             String key = scope + "\0" + text;
@@ -101,6 +111,7 @@ final class LocaleApi {
                 if(misses.containsKey(key) || (misses.size() >= MISSES))
                     return;
                 misses.put(key, new Miss(scope, text));
+                missfull = (misses.size() >= MISSES);
             }
         }
 
@@ -112,15 +123,19 @@ final class LocaleApi {
                     + " which still records everything that missed");
             synchronized(misses) {
                 misses.clear();
+                missfull = false;
             }
-            installed = true;
+            // audit2 B06: THE STACK FIRST, then the flag. `installed` is what info() reports and what a draw
+            // in flight reads, and setting it first left a render recording a miss into a catalogue the
+            // client was not yet displaying -- and, on the way out, into one it had already let go.
             Fonts.installCatalogue(this);
+            installed = true;
         }
 
         /** {@code :release()} — stop displaying it. The document is untouched, so {@code :install()} puts it back. */
         void release() {
+            Fonts.releaseCatalogue(this);   // audit2 B06: as above, and in this direction too
             installed = false;
-            Fonts.releaseCatalogue(this);
         }
 
         /** {@code :load(doc)} — replace what this catalogue says, whole. An installed one says it at once. */
@@ -132,11 +147,16 @@ final class LocaleApi {
 
         /** The misses, in the order they arrived — the collection reads this on every call and holds nothing. */
         List<LuaValue> members() {
-            List<LuaValue> out = new ArrayList<LuaValue>();
+            // audit2 B06: the LIST is copied under the monitor and the handles are minted outside it. Up to
+            // MISSES userdata built inside the very monitor `missed` takes per draw is a Lua read stalling
+            // the render; a copy of the values is a walk of a bounded map and nothing else.
+            List<Miss> ms;
             synchronized(misses) {
-                for(Miss m : misses.values())
-                    out.add(m.handle());
+                ms = new ArrayList<Miss>(misses.values());
             }
+            List<LuaValue> out = new ArrayList<LuaValue>(ms.size());
+            for(int i = 0, n = ms.size(); i < n; i++)
+                out.add(ms.get(i).handle());
             return out;
         }
 

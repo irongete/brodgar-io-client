@@ -111,16 +111,16 @@ public final class SessionApi {
                 // :exists(): the member is in the list, its Session is live and it is answering the server.
                 // It is the gap Sessions.Member.run leaves, where `ui` is cleared before the outgoing UI is
                 // taken down and the incoming one has not been built -- a character handoff, and the beat
-                // after a login is registered. Read here rather than asked of Control.take, because the whole
-                // of the answer is one field and the refusal owes the caller the reason, not the outcome.
-                if(m.ui == null)
+                // after a login is registered. ASKED OF Control.take (audit2 B06), which is the only place
+                // the answer is not already stale: `ui` is cleared on the session's own thread, so a field
+                // read here and an act on the next line are two different instants.
+                if(!Control.take(m))
                     throw new LuaError("hafen.session():current(session): the account '" + h.user + "' has no"
                         + " screen of its own yet — it is still arriving, or between the character it left"
                         + " and the one it is taking — so there is nothing to hand the screen to and no"
                         + " SessionSelected would follow. Its SessionEnteredWorld is the moment it has one:"
                         + " write the screen from there, or read hafen.session():current() to see who holds"
                         + " it now");
-                Control.take(m);
                 return me;
             }
         });

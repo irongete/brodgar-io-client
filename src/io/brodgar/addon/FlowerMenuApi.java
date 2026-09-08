@@ -307,8 +307,13 @@ final class FlowerMenuApi {
         UI u = AddonManager.sessionui(user);
         if((u == null) || (u.root == null))
             return null;
-        for(FlowerMenu fm : u.root.children(FlowerMenu.class))   // only one is ever open (it grabs input)
-            return fm;
+        // audit2 B06: under that tree's monitor, which is what :visible(b) in this same file already takes
+        // for a one-field write. The walk follows child/next links the message thread re-points as the ring
+        // goes up and comes down, and a ring lives about a second.
+        synchronized(LuaWidget.monitorOf(u)) {
+            for(FlowerMenu fm : u.root.children(FlowerMenu.class))   // only one is ever open (it grabs input)
+                return fm;
+        }
         return null;
     }
 
@@ -328,7 +333,12 @@ final class FlowerMenuApi {
     }
 
     static String[] names(FlowerMenu fm) {
-        FlowerMenu.Petal[] opts = (fm == null) ? null : fm.opts;
+        // audit2 B06: `opts` is a plain field the client REPLACES from the message path (added(), and the
+        // voice petal appended after it), under that tree's monitor -- so the read takes the same one.
+        FlowerMenu.Petal[] opts;
+        synchronized(LuaWidget.monitor(fm)) {
+            opts = (fm == null) ? null : fm.opts;
+        }
         if(opts == null)
             return new String[0];
         String[] names = new String[opts.length];
@@ -447,11 +457,15 @@ final class FlowerMenuApi {
                 + " case-insensitively) or its 1-based position on the ring (a number) — got a "
                 + key.typename());
         }
-        FlowerMenu.Petal[] opts = fm.opts;
-        if((opts == null) || (idx >= opts.length) || (opts[idx] == null))
-            throw new LuaError(verb + ": the menu's petals changed while it was being read — read"
-                + " " + FM + ":list() again");
-        fm.choose(opts[idx]);   // the client's own selection, client-side petals and all (D-009)
+        // audit2 B06: the read and the choose under that tree's monitor, as every write in this file is --
+        // choose() sends through the widget's own parent chain, and `opts` is replaced from the message path.
+        synchronized(LuaWidget.monitor(fm)) {
+            FlowerMenu.Petal[] opts = fm.opts;
+            if((opts == null) || (idx >= opts.length) || (opts[idx] == null))
+                throw new LuaError(verb + ": the menu's petals changed while it was being read — read"
+                    + " " + FM + ":list() again");
+            fm.choose(opts[idx]);   // the client's own selection, client-side petals and all (D-009)
+        }
     }
 
     // ---- the seams -------------------------------------------------------------------------------

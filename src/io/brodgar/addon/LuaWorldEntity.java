@@ -54,9 +54,12 @@ import org.luaj.vm2.LuaValue;
  * its scene slot + disposes the visual), leaking nothing. The {@link #dead} flag makes any late handle call — or a
  * deferred create landing after a destroy — a clean no-op.
  *
- * <p><b>Threading.</b> The handle methods, the {@code new*} facade, and teardown run on the UI thread (P5); only a
- * ghost's one-shot deferred create runs on a loader thread. {@code synchronized(this)} guards the transform/scene
- * publish so a deferred create never races a concurrent {@code :move}/{@code :destroy}.
+ * <p><b>Threading.</b> The handle methods, the {@code new*} facade and teardown are the addon's own Lua,
+ * serialized by its lock ({@code AddonManager.callLua}), and reached from every thread
+ * {@code docs/addons/api/threading.md} lists — a {@code GhostClicked} handler answers from the pick
+ * completion, a {@code Draw} painter from the frame. A ghost's one-shot deferred create runs on a loader
+ * thread beside all of it, and {@code synchronized(this)} guards the transform/scene publish so it never
+ * races a concurrent {@code :move}/{@code :destroy}.
  */
 public abstract class LuaWorldEntity {
     final Addon owner;

@@ -109,15 +109,16 @@ final class StoreApi {
      * changed, which is a good moment to put what is owed on disk: a tab is often followed by the session
      * being closed, and the auto-save runs every 30 seconds.
      *
-     * <p>Written by {@link #rescope} and {@link #detach} alone, both on the UI thread, which is also the only
-     * thread that reads it (P5).
+     * <p>Written by {@link #rescope} and {@link #detach} alone, both on the layer's step, which is also the
+     * only place it is read.
      */
     private static String placeScope;
 
     /**
      * <b>Sessions whose {@code UI} died with per-character tables still in them</b> (079.1). Filled by
      * {@link #sessionEnded} from the dying session's own thread, which may do nothing more than that: the
-     * tables are Lua, and Lua is read on the UI thread and nowhere else (P5). Drained by {@link #drainEnded}
+     * tables are the addon's Lua and reading them is an entry the step makes, holding the addon's own lock and
+     * no tree monitor. Drained by {@link #drainEnded}
      * on the layer's tick, which writes each one back into the folder its {@link CharStore} holds.
      */
     private static final Queue<AddonManager.SessionState> ended =
@@ -354,19 +355,26 @@ final class StoreApi {
         CharStore have = st.charStores.get(a);
         if(have != null)
             return have;
-        CharStore mk = new CharStore();
-        for(Manifest.SavedVar sv : a.manifest.savedVariables) {
-            if(!sv.account && !mk.vars.get(sv.name).istable())
-                mk.vars.set(sv.name, new LuaTable());    // always a usable (possibly empty) table
+        // audit2 B06: THE LOSER WAITS FOR THE LOAD. The putIfAbsent below picks one thread to fill the store
+        // from disk, and the loser used to be handed the winner's object straight back -- so a write it made
+        // in that window was wiped by the load's clearTable a moment later. The lock is per session-state
+        // and taken only on the first ask for one addon's tables.
+        synchronized(st.charStores) {
+            have = st.charStores.get(a);
+            if(have != null)
+                return have;
+            CharStore mk = new CharStore();
+            for(Manifest.SavedVar sv : a.manifest.savedVariables) {
+                if(!sv.account && !mk.vars.get(sv.name).istable())
+                    mk.vars.set(sv.name, new LuaTable());    // always a usable (possibly empty) table
+            }
+            if(st.charScope != null) {
+                mk.scope = st.charScope;
+                loadChar(a, mk);              // filled BEFORE it is published: nobody can write into a
+            }                                 //   store that is about to be cleared and refilled
+            st.charStores.put(a, mk);
+            return mk;
         }
-        CharStore prev = st.charStores.putIfAbsent(a, mk);
-        if(prev != null)
-            return prev;
-        if(st.charScope != null) {
-            mk.scope = st.charScope;
-            loadChar(a, mk);
-        }
-        return mk;
     }
 
     /** The declared saved-variable names, quoted, for the message a misspelt {@code :get} raises. */
@@ -518,7 +526,7 @@ final class StoreApi {
     /**
      * <b>A session's {@code UI} died with its per-character tables still in it</b> (079.1) — from
      * {@link AddonManager#uiDestroyed}, on the dying session's own thread, which is why this only files it.
-     * The tables are Lua and are read on the UI thread and nowhere else (P5), so the write is
+     * The tables are the addon's Lua, so the write is
      * {@link #drainEnded}'s, on the layer's next tick — and it still lands, because each {@link CharStore}
      * holds the folder it was loaded for rather than asking a session that no longer exists.
      */
@@ -1165,14 +1173,20 @@ final class StoreApi {
     /**
      * Write text to a file atomically (temp file + move), creating parent dirs. Returns whether it
      * succeeded (a failure — e.g. a read-only install — is logged, not thrown).
+     *
+     * <p><b>The temp file is this write's own</b> (audit2 B06): it was a fixed {@code <name>.tmp} sibling, so
+     * two writers of one store file — which an abandoned quit produces, and which nothing else in the client
+     * prevents — appended into one temp file and the move published the mixture. A unique name per write
+     * makes the loser's move a harmless second publish of a whole file instead.
      */
     private static boolean writeFile(File f, String text) {
+        Path tmp = null;
         try {
             File parent = f.getParentFile();
             if(parent != null)
                 parent.mkdirs();
             Path dst = f.toPath();
-            Path tmp = dst.resolveSibling(f.getName() + ".tmp");
+            tmp = dst.resolveSibling(f.getName() + "." + Long.toHexString(tmpseq.incrementAndGet()) + ".tmp");
             Files.write(tmp, text.getBytes(StandardCharsets.UTF_8));
             try {
                 Files.move(tmp, dst, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -1182,7 +1196,17 @@ final class StoreApi {
             return true;
         } catch(Exception e) {
             log("store: could not write " + f + ": " + e);
+            if(tmp != null) {
+                try {
+                    Files.deleteIfExists(tmp);   // a named temp that never moved is litter, not a backup
+                } catch(Exception x) {
+                    /* nothing to do about it, and the write already failed */
+                }
+            }
             return false;
         }
     }
+
+    /** What makes {@link #writeFile}'s temp name this write's own. Wraps harmlessly; only the name matters. */
+    private static final java.util.concurrent.atomic.AtomicLong tmpseq = new java.util.concurrent.atomic.AtomicLong();
 }
