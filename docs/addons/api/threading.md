@@ -134,8 +134,8 @@ What that means in practice is small, because it is the only case:
 
 - **A table one of those handlers writes and the step reads can be read half-written.** Keep such a handler
   to recording what it saw — a field, a counter, an append — and do the work from the step.
-- **A write on a game object is safe from either group.** [`gob:scale(k)`](gob.md#size-unprotected),
-  [`gob:visible(b)`](gob.md#drawn-or-not-unprotected) and
+- **A write on a game object is safe from either group.** [`gob:scale(k)`](look.md#size-unprotected),
+  [`gob:visible(b)`](look.md#drawn-or-not-unprotected), [`gob:tint(c)`](look.md#tint-unprotected) and
   [`gob:overlay():add`/`:remove`](overlay.md#the-collection) may be made from a `Draw` handler and from the
   step at once, on the same object, and neither the object's place in the scene nor the value you wrote is
   the worse for it. The client serialises them per object.

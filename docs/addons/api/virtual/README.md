@@ -168,7 +168,7 @@ is no value of it to photograph.
 
 **A look value outside its range is brought into it.** `:scale` holds to `0.01..100` and `:alpha` to `0..1`,
 so `:scale(0)` gives the smallest size these take rather than an error. Resizing a **game** object is
-[`gob:scale(k)`](../gob.md#size-unprotected), and that one refuses a `0` or a negative instead of clamping it.
+[`gob:scale(k)`](../look.md#size-unprotected), and that one refuses a `0` or a negative instead of clamping it.
 
 **A [standing widget](widgets.md) is the one kind that is not a picture, so it answers a click as a widget.**
 The kinds that are have `:onClick(fn)`, because "it was clicked" is the whole of what a picture has to say; a panel

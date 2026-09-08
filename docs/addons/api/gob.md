@@ -34,10 +34,9 @@ The answers do not depend on which one it was. `:name()`, `:health()` and the re
 object, and `:position()` hands back a [Position](position.md) anchored on a **server** grid
 id, so two characters looking at one tree compute the same place out of two different frames.
 
-**The writes go the other way**: [`gob:scale(k)`](#size-unprotected),
-[`gob:visible(b)`](#drawn-or-not-unprotected) and [`gob:overlay()`](overlay.md)`:add(key)` change how the
-object *looks*, and one object looks one way — so they are written to every character that can see it, not
-to the one that would have done a read.
+**The writes go the other way**: [`gob:scale(k)`, `gob:visible(b)`, `gob:tint(c)`](look.md) and
+[`gob:overlay()`](overlay.md)`:add(key)` change how the object *looks*, and one object looks one way — so
+they are written to every character that can see it, not to the one that would have done a read.
 
 ### `gob:sessions()`
 
@@ -201,96 +200,16 @@ local box = log and log:hitbox()   -- not nil: its click-box, not a collision sh
 ```
 
 > **The footprint is not what `gob:scale(k)` draws.** Scale changes how big the object *looks*; the
-> footprint is the game's own and does not move with it — [see below](#size-unprotected). Walk into the
-> boar you doubled and you still collide with the boar's own size.
+> footprint is the game's own and does not move with it — see [Look](look.md#size-unprotected). Walk into
+> the boar you doubled and you still collide with the boar's own size.
 
-## Size (unprotected)
+## How it is drawn
 
-`gob:scale(k)` draws the object `k` times its size — the herb you keep walking past, the boar you want to
-see coming, the cupboard you are lining up. It is the same read/write pair every
-[thing you stand in the world](virtual/README.md) answers, so one number is the whole of it.
-
-| Method | Returns | Description |
-|---|---|---|
-| `gob:scale()` | number \| nil | how big it is drawn; `1` for an object nobody resized |
-| `gob:scale(k)` | the Gob | draw it `k` times its size |
-
-```lua
-local boar = hafen.session():current():world():gob():nearest("kritter/boar")
-if boar then
-  boar:scale(2)          -- twice the size, and it hands the Gob back, so this chains
-  boar:scale(1)          -- back to the size the game draws it at
-end
-```
-
-The size is written on the **object**, so every character that can see the boar sees the same boar: tab
-between two standing together and it is the size you set on both, **and so does one that walks up to it
-afterwards**. The write is not a list of who is looking now — it is recorded against the object, and a
-character that loads it later draws it the size you asked for.
-
-It is **client-local and purely visual**, on the same footing as an [overlay](overlay.md): only you see
-it, the size is applied in place so the object's feet stay where they were, and it still turns, moves
-and takes a click exactly as it did — the pick follows the drawn size. Nothing about what the object
-*is* changes: [its footprint](#the-ground-it-stands-on), what it collides with and what a click sends
-are the game's, untouched. A few special resource types reset their own transform — the same ones that
-ignore a ghost's rotation —
-and those ignore scale too.
-
-`k` must be a number greater than zero, and finite. `0` collapses the object to a point and a negative one
-turns it inside out, so both raise naming the rule; `gob:scale(1)` is the original size and leaves nothing
-behind. Once the gob is gone the read answers `nil` and a write does nothing.
-
-> **The size ends with the object, not with a copy of it.** It is dropped when the object leaves its
-> **last** character's view — the moment [`GobRemoved`](event/bus/world.md#world) fires — so walking far
-> enough away for it to unload and coming back gives the size the game draws it at, while another character
-> still having it in view keeps it. Re-apply it from [`GobAdded`](event/bus/world.md#world) if you want it
-> kept across the unload — and a `:reload` or a disable puts back everything you resized, in every character's
-> view, so nothing is left distorted behind you anywhere.
-
-## Drawn or not (unprotected)
-
-`gob:visible(b)` says whether the client draws the object at all — the tree standing between you and what
-you are working on, the clutter over a spot you are lining up. It is the read/write pair
-[`gob:scale(k)`](#size-unprotected) is, with a boolean where that one has a number.
-
-| Method | Returns | Description |
-|---|---|---|
-| `gob:visible()` | bool \| nil | whether the client draws it; `true` for an object nobody hid |
-| `gob:visible(b)` | the Gob | draw it, or stop drawing it |
-
-```lua
-local tree = hafen.session():current():world():gob():nearest("terobjs/tree")
-if tree then
-  tree:visible(false)     -- out of the scene, and it hands the Gob back, so this chains
-  tree:visible(true)      -- and back into it, at whatever size it was being drawn
-end
-```
-
-> **An object you hide is not there to be clicked.** A click is resolved against the scene as it is drawn,
-> and an object with no model in it draws nothing — so a click where it stood reaches the ground behind
-> it. That is the verb's whole meaning: it will not hide a model and keep the click.
-
-Hiding withholds the object's own model, and nothing else. It is still where it was, still moving, and it
-still answers every read on this page; what is attached at it goes on drawing — the game's own overlays and
-[the ones you attached](overlay.md) both, standing where the model was. It also composes with the size:
-`boar:scale(2):visible(false):visible(true)` is a boar still twice its size.
-
-`b` must be `true` or `false`, and anything else raises naming the argument — a number most of all, since
-in Lua `0` is a true value and would quietly show an object you meant to hide. Once the gob is gone the
-read answers `nil` and a write does nothing.
-
-Where the write lands and how long it lasts are [a size's rules exactly](#size-unprotected) — the object
-rather than a character, and the loaded object's own lifetime — and a `:reload` or a disable puts back
-everything you hid, so nothing is left missing from the world behind you.
-
-## Overlays
-
-Everything drawn at a gob — the game's own, the labels and painters you attach, and whatever you have
-[stood in the world](virtual/README.md) anchored to it — is the collection
-[`gob:overlay()`](overlay.md), and it is unprotected.
-
-An overlay is attached to the **object**, and every character that can see the object draws it: it appears
-whichever of them is on screen, and a `:reload` or a disable takes it off all of them.
+How big the object is drawn, whether it is drawn at all, and what colour is laid over it are the three
+writes on [Look](look.md) — `gob:scale(k)`, `gob:visible(b)` and `gob:tint(c)` — and what stands at it is
+the collection [`gob:overlay()`](overlay.md). All of them are unprotected, all of them are written on the
+object rather than a character, and none of them changes anything on this page: a resized, hidden or
+tinted object still answers every read above.
 
 ## Clicking one
 
@@ -357,6 +276,7 @@ Anything that acts on a gob takes the **Gob object**, not an id: `me:overlay():a
 ## See also
 
 - [`session:world`](world.md) — finding the gobs you want to read, and clicking one
+- [Look](look.md) — how it is drawn: its size, whether it is drawn, and the colour laid over it
 - [Overlay](overlay.md) — everything drawn at a gob, and the labels and painters you add
 - [`session:kin`](kin.md) — the roster side of `gob:kin()`
 - [`session:player`](player.md#write-protected) — walking to a gob, and the cursor you aim at one

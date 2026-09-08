@@ -147,7 +147,7 @@ input until the animation finishes.
 ## Drawn or not (unprotected)
 
 `s:flowermenu():visible(b)` says whether the client paints that character's open ring. It is the read/write
-pair [`gob:visible(b)`](gob.md#drawn-or-not-unprotected) is, with the radial menu where that one has an
+pair [`gob:visible(b)`](look.md#drawn-or-not-unprotected) is, with the radial menu where that one has an
 object — and it is the one verb here that changes something and needs no key: it draws, or does not draw,
 and the server is told nothing.
 

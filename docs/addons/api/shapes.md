@@ -70,9 +70,9 @@ than looked up, because the neighbouring id it rounds to is a real grid somewher
 ```
 
 Every colour you read is the keyed one — `kin:color()`, `seg:color()`, `marker:color()`, `ov:color()`,
-`h:color()`, `e:tint()`, `rule:color()` — so `.r` answers on all of them and `[1]` on none. Both spellings
+`h:color()`, `e:tint()`, `gob:tint()`, `rule:color()` — so `.r` answers on all of them and `[1]` on none. Both spellings
 go in at every colour write: `rule:color(c)`, `marker:color(c)`, `ov:color(c)`, `h:color(c)`, a ghost or
-sprite `:tint(c)`, `g:text{color = c}`. A colour you read is one of the two, so `ov:color(kin:color())` is
+sprite `:tint(c)`, `gob:tint(c)`, `g:text{color = c}`. A colour you read is one of the two, so `ov:color(kin:color())` is
 one expression. Alpha defaults to `255`, and a component outside `0..255` is clamped.
 
 The colours inside a [stylesheet document](ui/style/README.md#the-clients-own-look) are that same table.

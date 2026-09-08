@@ -1,0 +1,9 @@
+{
+  "name": "135.2 — the page a gob's look is on",
+  "id": "135-gob-tint.2",
+  "version": "1.0.0",
+  "author": "brodgar",
+  "description": "Self-checking suite for task 135.2: what look.md promises of gob:tint — the keyed read shape, tint(nil) legal, the refusal naming both colour spellings, and the write reaching every session that can see the object.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}
