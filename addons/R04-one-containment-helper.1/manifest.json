@@ -1,0 +1,9 @@
+{
+  "id": "R04-one-containment-helper.1",
+  "name": "R04 One containment helper",
+  "version": "1.0.0",
+  "author": "irongete",
+  "description": "Verification suite for refactor block R04: every name that comes from data — an asset path, a .gltf's external URI, a manifest files entry, a character folder — is resolved to the file it really means inside the folder that owns it, or refused. Run it with :tR04.",
+  "api_version": 1,
+  "files": ["main.lua"]
+}

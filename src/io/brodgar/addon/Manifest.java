@@ -281,13 +281,22 @@ public final class Manifest {
         return ((Number)v).intValue();
     }
 
+    /**
+     * A string array field. A non-string entry <b>refuses</b>, like every other malformed thing in this
+     * file: dropping it silently makes a mistyped {@code files} entry an addon that loads and runs less than
+     * it says, and a mistyped {@code permissions} entry an addon whose gate later tells the author to
+     * declare what they already tried to.
+     */
     private static List<String> strlist(Map<String, Object> m, String key) {
         List<String> out = new ArrayList<String>();
         Object v = m.get(key);
         if(v == null) return out;
         if(!(v instanceof List)) throw new IllegalArgumentException("'" + key + "' must be an array");
-        for(Object o : (List<?>)v)
-            if(o instanceof String) out.add((String)o);
+        for(Object o : (List<?>)v) {
+            if(!(o instanceof String))
+                throw new IllegalArgumentException("'" + key + "' entries must be strings");
+            out.add((String)o);
+        }
         return out;
     }
 }

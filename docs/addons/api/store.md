@@ -31,6 +31,12 @@ Every saved variable is named in `manifest.json`, and nothing else here is persi
 
 Any scope other than `"account"` is per-character. A name declared twice keeps the first declaration.
 
+**A character's folder is named by the server**, so that name is checked before anything is written under
+it: it is reduced to characters a filesystem can hold, and then it has to be a folder *inside* `savedata/`.
+A `..`, an absolute name or a link pointing out of it is refused like any other path outside, and a character
+whose name is refused has no folder — the same state as a character who has not reached the world, and it
+raises the same way.
+
 ## Read and write
 
 | Method | Description |

@@ -670,13 +670,30 @@ final class StoreApi {
                 + " the teardown's, so it was made anyway; " + how + ":flush() refuses it instead");
     }
 
-    /** Build the {@code <genus>_<char>} folder name (path-sanitized), or {@code null} if no character. */
+    /**
+     * Build the {@code <genus>_<char>} folder name, or {@code null} if there is no character — and
+     * {@code null} too when the name the server sent is not a folder <b>inside</b> {@code savedata/}.
+     *
+     * <p><b>Two questions, and only one of them is a charset.</b> {@link #sanitize} answers what a folder
+     * name may be spelled with; {@link Inside} answers where the folder lands, which a charset cannot —
+     * {@code .} is a legal character and {@code ..} is two of them. So the key is minted, then asked, and a
+     * key that would land anywhere but under {@code savedata/} is no key at all — which puts the session in
+     * the state one that has not reached the world is already in, and it answers the same way.
+     */
     private static String scopeKey(String genus, String chrid) {
         if((chrid == null) || chrid.isEmpty())
             return null;
         String g = sanitize((genus == null) ? "" : genus);
         String c = sanitize(chrid);
-        return g.isEmpty() ? c : (g + "_" + c);
+        String key = g.isEmpty() ? c : (g + "_" + c);
+        try {
+            Inside.inside(saveDir().toPath(), key, "store");
+        } catch(RuntimeException e) {
+            AddonManager.log("store: this character's folder name is not one savedata/ can hold ("
+                + e.getMessage() + ") — nothing of this character's is written to disk this session");
+            return null;
+        }
+        return key;
     }
 
     /** Replace filesystem-hostile characters so a genus/char string is a safe single path segment. */
@@ -690,14 +707,18 @@ final class StoreApi {
         return b.toString().trim();
     }
 
-    /** The on-disk JSON file for one addon's account scope (may not exist yet). */
+    /**
+     * The on-disk JSON file for one addon's account scope (may not exist yet). Built through {@link Inside},
+     * like every other file under {@code savedata/}: the id is a name out of a manifest and the scope is a
+     * name off the wire, so what proves the file lands where it says is the same check the assets use.
+     */
     private static File accountFile(Addon a) {
-        return new File(new File(saveDir(), "account"), a.manifest.id + ".json");
+        return Inside.inside(saveDir().toPath(), "account/" + a.manifest.id + ".json", "store").toFile();
     }
 
     /** The on-disk JSON file for one addon under one character's folder (may not exist yet). */
     private static File charFile(Addon a, String scope) {
-        return new File(new File(saveDir(), scope), a.manifest.id + ".json");
+        return Inside.inside(saveDir().toPath(), scope + "/" + a.manifest.id + ".json", "store").toFile();
     }
 
     /**
@@ -727,7 +748,7 @@ final class StoreApi {
     }
 
     private static File clientDir(AddonManager.SessionState st) {
-        return new File(new File(saveDir(), st.charScope), "client");
+        return Inside.inside(saveDir().toPath(), st.charScope + "/client", "store").toFile();
     }
 
     /** One addon's account-scope saved variables, read in at install and primed for the write-skip. */
@@ -953,7 +974,7 @@ final class StoreApi {
 
     /** The per-scope placement file, beside the addon's own {@code <id>.json} in that same folder. */
     private static File placementFile(Addon a, String scope) {
-        return new File(new File(saveDir(), scope), a.manifest.id + ".layout.json");
+        return Inside.inside(saveDir().toPath(), scope + "/" + a.manifest.id + ".layout.json", "store").toFile();
     }
 
     /** Read one scope's placements off disk into a freshly minted set. */

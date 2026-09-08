@@ -32,7 +32,7 @@ your own folder and rejects everything outside it. The `savedata/` tree is writt
 | Field | Type | Meaning |
 |---|---|---|
 | `id` | string | unique id; must equal the folder name |
-| `files` | array of strings | the `.lua` files to run, in this order; at least one |
+| `files` | array of strings | the `.lua` files to run, in this order; at least one, each inside your own folder |
 | `name` | string | display name in the AddOns panel; defaults to `id` |
 | `version` | string | shown in the panel and in `:addons` |
 | `author` | string | shown in the panel |
@@ -49,9 +49,12 @@ for a dependency to import: two addons that cooperate do it through the client �
 console command — or not at all.
 
 A manifest the client cannot read is a load error naming what is wrong: bad JSON, a missing `id` or
-`files`, an id that does not match the folder, a `permissions` entry that is neither a key nor a group,
+`files`, an id that does not match the folder, an entry of `files`, `permissions` or either dependency list
+that is not a string, a `permissions` entry that is neither a key nor a group,
 a `network` block that is not an object with a `hosts` array, one whose hosts no `http.*` permission asks
-to reach, or a `hosts` entry of `"*"`. The addon then
+to reach, or a `hosts` entry of `"*"`. A `files` entry that is not a file inside your own folder — an
+absolute path, a `..` that climbs out, a link that points out of it — is the same kind of error, raised as
+the client goes to run that entry and naming it. The addon then
 shows an error row in the panel and runs nothing; the others are unaffected.
 
 ## When your code runs

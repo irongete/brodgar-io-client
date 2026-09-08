@@ -54,9 +54,10 @@ on an options table.
 
 `path` is relative to **your own addon folder** — `"icon.png"`, `"img/sign.png"`, `"props/tree.glb"`.
 Absolute paths and `..` escapes are **rejected**, because an addon reads only its own files. An internal
-`a/../b` is fine: it is normalised and still lands inside your folder. External `.gltf` buffer and texture
-files are resolved relative to the model file and re-checked against your folder, so a `.gltf` cannot reach
-out either.
+`a/../b` is fine: it is normalised and still lands inside your folder. A link inside your folder that points
+outside it is refused like any other path outside it, because the check is made on the file a name really
+reaches rather than on the way it is spelled. External `.gltf` buffer and texture files are resolved relative
+to the model file and go through that same check, so a `.gltf` cannot reach out either.
 
 Decoding is **synchronous**: call `:get` from setup code — `Load`, `SessionEnteredWorld`, a command —
 **never** from inside a draw callback.
@@ -209,8 +210,9 @@ Everything below raises a `pcall`-able error naming `hafen.asset`, and each shap
 
 | What you did | What you get |
 |---|---|
-| `:get("/etc/passwd")` | the path *is absolute* — an addon loads only its own files |
-| `:get("../other/icon.png")` | the path *climbs out of the addon folder* |
+| `:get("/etc/passwd")` | the path *is absolute* — every path here is relative to your own folder |
+| `:get("../other/icon.png")` | the path *is not inside* your addon folder |
+| `:get("link/icon.png")`, where `link` points out of your folder | the same refusal: the check follows the link |
 | `:get("nope.png")` | *no such file* in this addon's folder, checked before any decode |
 | `:get("theme.yaml")` | *no supported extension* — the message lists all of them |
 | `:get("broken.png")` | *not a decodable image*, *not a valid font*, or the glTF parser's own message |

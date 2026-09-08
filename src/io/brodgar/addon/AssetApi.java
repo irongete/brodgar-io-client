@@ -72,8 +72,10 @@ import javax.imageio.ImageIO;
  * {@link #imageFor view} of a file another addon loaded is reached through <i>your</i> {@code hafen.asset()}
  * and refused there, naming the owner.
  *
- * <p><b>Sandboxed</b> ([D-017]): {@link #resolveAddonAsset} is the single containment check every load goes
- * through — an addon reads only its own folder. Not instantiable.
+ * <p><b>Sandboxed</b> ([D-017]): every load goes through {@link Inside}, the client's one containment check
+ * — {@link #resolveAddonAsset} for the file the addon named, and the same call again for each external URI
+ * a {@code .gltf} reaches for. An addon reads only its own folder, and a link inside that folder pointing
+ * out of it is refused like any other path out of it. Not instantiable.
  */
 final class AssetApi {
     private AssetApi() {}
@@ -310,44 +312,20 @@ final class AssetApi {
     }
 
     /**
-     * Resolve an addon-relative asset path to a filesystem {@link Path} <b>inside</b> the addon's own folder,
-     * rejecting absolute paths and {@code ..} escapes ([D-017] — an addon reads only its own assets). {@code ctx}
-     * names the caller in the error text. After {@code normalize()}, both an absolute path and a {@code ..} that
-     * climbs out of the folder fail the <b>one containment check</b> (they no longer start with the folder),
-     * while an internal {@code a/../b} is allowed; the two messages only say which shape got caught. Never
-     * returns a path outside {@link Addon#dir}.
+     * Resolve an addon-relative asset path to a filesystem {@link Path} <b>inside</b> the addon's own folder
+     * ([D-017] — an addon reads only its own assets), through {@link Inside}, the one containment check this
+     * client has. {@code ctx} names the caller in the error text. Never returns a path outside
+     * {@link Addon#dir} — not for an absolute name, not for a {@code ..} that climbs out, and not for a link
+     * inside the folder that points anywhere else. An internal {@code a/../b} is allowed and comes back
+     * resolved.
      *
-     * <p>Moved here verbatim from {@code VirtualApi} (028.1): it is the loader's own boundary, and it was already
-     * the single check — {@code FontApi} called it too.
+     * <p>The one thing it asks before {@link Inside} does is whether this owner has a folder at all: the
+     * {@code :lua} console has none, which is a different answer from "outside it".
      */
     static Path resolveAddonAsset(Addon owner, String name, String ctx) {
-        if((name == null) || name.isEmpty())
-            throw new LuaError(ctx + ": path must be a non-empty string (addon-relative, e.g. \"icon.png\")");
         if(owner.dir == null)   // the :lua REPL owns no folder, so it has no files of "its own" to load
             throw new LuaError(ctx + ": the :lua console has no addon folder — an asset path is relative to the folder of the addon loading it");
-        Path base = owner.dir.toAbsolutePath().normalize();
-        Path p;
-        try {
-            p = base.resolve(name).normalize();
-        } catch(RuntimeException e) {                 // InvalidPathException — a malformed name
-            throw new LuaError(ctx + ": invalid path '" + name + "'");
-        }
-        if(!p.startsWith(base)) {                      // absolute, or a ".." that climbs out → rejected
-            throw new LuaError(ctx + ": path '" + name + "' " + (absolute(name)
-                ? "is absolute — an addon loads only its own files, by a folder-relative path (e.g. \"icon.png\")"
-                : "climbs out of the addon folder with '..' — an addon loads only its own files"));
-        }
-        return p;
-    }
-
-    /** Is this path spelled absolutely? (A Windows drive-less {@code /foo} is not {@code isAbsolute} but has a root.) */
-    private static boolean absolute(String name) {
-        try {
-            Path q = Paths.get(name);
-            return q.isAbsolute() || (q.getRoot() != null);
-        } catch(RuntimeException e) {                 // InvalidPathException — not a path at all, let alone absolute
-            return false;
-        }
+        return Inside.inside(owner.dir, name, ctx);
     }
 
     /** The lower-cased extension of a file path ({@code ""} when it has none) — what the loader dispatches on. */
@@ -507,14 +485,13 @@ final class AssetApi {
         } catch(IOException | RuntimeException e) {
             throw new LuaError("hafen.asset: could not read '" + name + "': " + e.getMessage());
         }
-        final Path base = owner.dir.toAbsolutePath().normalize();
-        final Path parent = p.getParent();             // external URIs resolve relative to the model file...
+        final Path beside = Paths.get(name).getParent();   // the model's own folder, addon-relative
         Gltf.Loader loader = new Gltf.Loader() {
             public byte[] read(String uri) throws Exception {
-                Path q = parent.resolve(uri).normalize();
-                if(!q.startsWith(base))                // ...but never escape the addon folder (D-017)
-                    throw new IOException("external asset '" + uri + "' escapes the addon folder");
-                return Files.readAllBytes(q);
+                // An external URI resolves relative to the model file, and then goes through the SAME check
+                // the model itself came through (D-017) — one door, in one wording, with no second hole.
+                Path rel = (beside == null) ? Paths.get(uri) : beside.resolve(uri);
+                return Files.readAllBytes(Inside.inside(owner.dir, rel.toString(), "hafen.asset"));
             }
         };
         Gltf mesh;

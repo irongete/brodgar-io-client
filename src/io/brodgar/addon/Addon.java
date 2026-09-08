@@ -1340,11 +1340,17 @@ public final class Addon {
         return manifest.anyHost() || Manifest.hostMatches(grantedHosts, host);
     }
 
-    /** Run the addon's Lua files in manifest order. On the first failure, record it and stop. */
+    /**
+     * Run the addon's Lua files in manifest order. On the first failure, record it and stop.
+     *
+     * <p>A {@code files} entry is a name out of a JSON file, so it is resolved through {@link Inside} rather
+     * than by {@code dir.resolve} alone: an entry naming anything but a file inside this addon's own folder
+     * is the load error the panel shows, not a chunk the client executes.
+     */
     void run() {
         for(String file : manifest.files) {
             try {
-                Path fp = dir.resolve(file);
+                Path fp = Inside.inside(dir, file, "manifest 'files'");
                 String src = new String(Files.readAllBytes(fp), StandardCharsets.UTF_8);
                 LuaValue chunk = env.load(src, "@" + manifest.id + "/" + file);
                 // watchdog the file body too (D-018) — a full budget per file. 126.2: paired with a
