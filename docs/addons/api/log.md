@@ -29,6 +29,13 @@ at, so that is where a line lands, whichever character your addon was watching w
 terminal half is written whatever the client is showing — the login screen included — which is what
 carries a line when no character is up at all.
 
+The prefix names your **addon**, never the character. With several characters up, a line says nothing about
+which one your handler was running for — so if that matters, write it into the line yourself:
+
+```lua
+hafen.log():write(s:user() .. ": entered the world")
+```
+
 The in-game line is **clipped at 500 characters**, with a note giving the real length, because one very
 long line has to fit into a single texture. The terminal always gets the whole thing, so print large
 values there and read them off the terminal.

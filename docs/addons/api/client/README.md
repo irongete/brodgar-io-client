@@ -155,6 +155,12 @@ Volumes are `0.0`..`1.0` here, not the panel's slider units, and a value outside
 `latency` is milliseconds, what the panel shows, not the sample count the engine stores, and writing it
 reopens the audio output line.
 
+**The four volumes are the character on screen's.** Each character has a scene of its own with its own
+mixer, so a read here reports the drawn one and a write moves the drawn one, leaving the others where they
+loaded. `latency` is the output line itself, which is the client's, so that one is shared. To move a
+background character's volumes, hand it the screen first with
+[`hafen.session():current(s)`](../session.md).
+
 To *play* sounds, see [`hafen.sound`](../sound.md) — this subsystem only sets levels. `ambientVolume`
 governs the world's ambient loops, which is what sounds like background music here.
 

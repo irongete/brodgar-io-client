@@ -50,10 +50,17 @@ import java.util.Map;
  * would otherwise be lost is published — {@code ov:count()}. Nothing else is lost, because a native overlay
  * is read-only: there is no operation a finer identity would enable.
  *
- * <p><b>Nothing crosses but the answer.</b> A handle holds the gob id, the key and the native flag, and
- * re-resolves through the {@link LuaGobOverlay} attrib (or through {@code Gob.ols}) on every call — so a stashed
- * handle tracks the gob, and {@code ov:exists()} goes false when the overlay, or the gob under it, is gone.
- * Interned per (addon, gob id, native, key), the {@link LuaGob} shape one level down.
+ * <p><b>Nothing crosses but the answer.</b> A handle holds the login it was read in, the gob id, the key and
+ * the native flag, and re-resolves through the {@link LuaGobOverlay} attrib (or through {@code Gob.ols}) on
+ * every call — so a stashed handle tracks the gob, and {@code ov:exists()} goes false when the overlay, or the
+ * gob under it, is gone. Interned per (addon, login, gob id, native, key), the {@link LuaGob} shape one level
+ * down.
+ *
+ * <p><b>The read half resolves in that login, exactly as the write half already walked every copy</b> (audit2
+ * B05). {@code gob:overlay()} is derived from a Gob handle, so it inherits that handle's login: which native
+ * overlays {@code :list()} names, and whether {@code :add}/{@code :remove} refuse a key as the game's, is a
+ * question about what THAT character can see. It used to be answered off whichever copy the drawn session
+ * happened to hold, so the two halves of one collection disagreed about the object they were looking at.
  */
 public final class LuaOverlay {
     /** This addon's own record — the only writable kind. */
@@ -63,6 +70,8 @@ public final class LuaOverlay {
     /** A {@code hafen.virtual()} entity this addon anchored to the gob: read-only here, addressed through its collection. */
     static final int VIRTUAL = 2;
 
+    /** The login this overlay was read in — the copy of the gob every read here resolves through. */
+    public final String user;
     /** The gob this overlay is attached to. */
     public final long gob;
     /** The key: the addon's own for its records, the resource name for the game's, {@code virtual#<n>} for an entity. */
@@ -70,7 +79,8 @@ public final class LuaOverlay {
     /** Where the thing behind this handle lives: {@link #MINE}, {@link #NATIVE} or {@link #VIRTUAL}. */
     public final int src;
 
-    private LuaOverlay(long gob, String key, int src) {
+    private LuaOverlay(String user, long gob, String key, int src) {
+        this.user = user;
         this.gob = gob;
         this.key = key;
         this.src = src;
@@ -88,8 +98,8 @@ public final class LuaOverlay {
     }
 
     /** An interned Overlay object in {@code owner}'s env — the one way one reaches Lua. */
-    static LuaValue of(Addon owner, long gob, String key, int src) {
-        return owner.gobOverlayObjs.of(gob, key, src);
+    static LuaValue of(Addon owner, String user, long gob, String key, int src) {
+        return owner.gobOverlayObjs.of(user, gob, key, src);
     }
 
     /** The {@code LuaOverlay} behind a Lua value, or {@code null} for anything that is not an Overlay object. */
@@ -106,20 +116,20 @@ public final class LuaOverlay {
      * are in none of them — keys are per addon, so two addons' {@code "tag"} on one gob neither collide nor see
      * each other, and the same is true of what each has standing there — and a departed gob simply has nothing.
      */
-    private static List<LuaValue> members(Addon owner, long gobId) {
+    private static List<LuaValue> members(Addon owner, String user, long gobId) {
         List<LuaValue> out = new ArrayList<LuaValue>();
-        Gob g = AddonManager.anygob(gobId);
+        Gob g = AddonManager.getgob(user, gobId);
         if(g == null)
             return out;
         LuaGobOverlay store = LuaGobOverlay.on(g);
         if(store != null) {
             for(String k : store.keys(owner))
-                out.add(of(owner, gobId, k, MINE));
+                out.add(of(owner, user, gobId, k, MINE));
         }
         for(LuaWorldEntity e : VirtualApi.anchoredMembers(owner, g))
-            out.add(of(owner, gobId, e.overlayKey(), VIRTUAL));
+            out.add(of(owner, user, gobId, e.overlayKey(), VIRTUAL));
         for(String k : LuaGobOverlay.nativeKeys(g))
-            out.add(of(owner, gobId, k, NATIVE));
+            out.add(of(owner, user, gobId, k, NATIVE));
         return out;
     }
 
@@ -132,10 +142,10 @@ public final class LuaOverlay {
      * cannot outlive the gob and needs no pruning of its own. A string filter matches the <b>key</b>, which for
      * the game's own overlays is their resource name.
      */
-    static LuaValue collection(final Addon owner, final long gobId) {
+    static LuaValue collection(final Addon owner, final String user, final long gobId) {
         return LuaCollection.create("gob:overlay()", new LuaCollection.Source() {
             public List<LuaValue> members() {
-                return LuaOverlay.members(owner, gobId);
+                return LuaOverlay.members(owner, user, gobId);
             }
 
             public String needle(LuaValue member) {
@@ -154,15 +164,15 @@ public final class LuaOverlay {
 
             public LuaValue getMember(LuaValue key) {
                 String k = keyArg(key, "gob:overlay():get");
-                Gob g = AddonManager.anygob(gobId);
+                Gob g = AddonManager.getgob(user, gobId);
                 if(g == null)
                     return LuaValue.NIL;
                 LuaGobOverlay store = LuaGobOverlay.on(g);
                 if((store != null) && (store.get(owner, k) != null))
-                    return of(owner, gobId, k, MINE);
+                    return of(owner, user, gobId, k, MINE);
                 if(VirtualApi.anchoredAt(owner, g, k) != null)
-                    return of(owner, gobId, k, VIRTUAL);
-                return LuaGobOverlay.findNative(g, k) ? of(owner, gobId, k, NATIVE) : LuaValue.NIL;
+                    return of(owner, user, gobId, k, VIRTUAL);
+                return LuaGobOverlay.findNative(g, k) ? of(owner, user, gobId, k, NATIVE) : LuaValue.NIL;
             }
 
             public boolean creatable() {
@@ -175,7 +185,7 @@ public final class LuaOverlay {
             // under it is a different one.
             public LuaValue addMember(Varargs a) {
                 String k = keyArg(Args.required(a, 2, "gob:overlay():add", "key"), "gob:overlay():add");
-                Gob g = AddonManager.anygob(gobId);
+                Gob g = AddonManager.getgob(user, gobId);
                 if(g == null)
                     throw new LuaError("gob:overlay():add(\"" + k + "\"): that gob is gone, so there is nothing"
                         + " to attach it to -- gob:exists() is the test, and an overlay dies with its gob");
@@ -199,7 +209,7 @@ public final class LuaOverlay {
                 if(old != null)
                     AddonManager.queueGobOverlay(false, g, k, owner);
                 AddonManager.queueGobOverlay(true, g, k, owner);
-                return of(owner, gobId, k, MINE);
+                return of(owner, user, gobId, k, MINE);
             }
 
             public boolean destroyable() {
@@ -222,7 +232,7 @@ public final class LuaOverlay {
                 } else {
                     k = keyArg(x, "gob:overlay():remove");
                 }
-                Gob g = AddonManager.anygob(gobId);
+                Gob g = AddonManager.getgob(user, gobId);
                 if(g == null)
                     return;                          // it died with its gob: the removal already happened
                 if(LuaGobOverlay.findNative(g, k))
@@ -264,10 +274,10 @@ public final class LuaOverlay {
             this.owner = owner;
         }
 
-        /** The interned handle for (gob, key, origin) — a cache hit, or a freshly minted (and inserted) one. */
-        synchronized LuaValue of(long gob, String key, int src) {
+        /** The interned handle for (login, gob, key, origin) — a hit, or a freshly minted (and inserted) one. */
+        synchronized LuaValue of(String user, long gob, String key, int src) {
             drain();
-            String ck = Long.toString(gob) + "\0" + src + "\0" + key;
+            String ck = user + "\0" + Long.toString(gob) + "\0" + src + "\0" + key;
             Ref r = live.get(ck);
             if(r != null) {
                 LuaValue v = r.get();
@@ -275,7 +285,7 @@ public final class LuaOverlay {
                     return v;
                 live.remove(ck);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaOverlay(gob, key, src), meta());
+            LuaValue v = LuaValue.userdataOf(new LuaOverlay(user, gob, key, src), meta());
             live.put(ck, new Ref(v, ck, dead));
             return v;
         }
@@ -334,7 +344,8 @@ public final class LuaOverlay {
         // gob() — the Gob it is attached to (D-066: the relation, not a stored id).
         m.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaGob.of(owner, handle(self, "gob").gob);
+                LuaOverlay h = handle(self, "gob");
+                return LuaGob.of(owner, h.user, h.gob);
             }
         });
         // native() — is this one of the GAME's overlays (read-only) rather than one of ours? A hafen.virtual() entity
@@ -509,7 +520,7 @@ public final class LuaOverlay {
         m.set("count", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaOverlay h = handle(self, "count");
-                Gob g = AddonManager.anygob(h.gob);
+                Gob g = AddonManager.getgob(h.user, h.gob);
                 if(g == null)
                     return LuaValue.NIL;
                 if(h.src == NATIVE) {
@@ -537,7 +548,7 @@ public final class LuaOverlay {
                 t.set("native", LuaValue.valueOf(h.nat()));
                 if(h.src == NATIVE) {
                     t.set("res", LuaValue.valueOf(h.key));
-                    t.set("count", LuaValue.valueOf(LuaGobOverlay.countNative(AddonManager.anygob(h.gob), h.key)));
+                    t.set("count", LuaValue.valueOf(LuaGobOverlay.countNative(AddonManager.getgob(h.user, h.gob), h.key)));
                 } else if(h.src == VIRTUAL) {
                     LuaWorldEntity e = (LuaWorldEntity)r;
                     t.set("count", LuaValue.valueOf(1));
@@ -567,7 +578,7 @@ public final class LuaOverlay {
      * disagree.
      */
     private static Object rec(Addon owner, LuaOverlay h) {
-        Gob g = AddonManager.anygob(h.gob);
+        Gob g = AddonManager.getgob(h.user, h.gob);
         if(g == null)
             return null;
         if(h.src == NATIVE)

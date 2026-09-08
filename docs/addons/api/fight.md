@@ -33,8 +33,9 @@ end
 
 A hotkey slot and an opponent's gob id both count inside one character alone — slot 3 on two characters is
 two different places, and the same id in two fights is two different creatures — so a `DeckCard` and an
-`Opponent` each carry their character beside their key. `target:gob()` resolves in that character's own
-world, which is the one the id came out of.
+`Opponent` each carry their character beside their key. `target:gob()` **answers in the login you asked
+through** — that character's own world, which is the one the id came out of — so `target:gob():exists()` is
+that character's line of sight and not the screen's.
 
 ## Read
 
@@ -110,7 +111,7 @@ every maneuver that character knows.
 | Method | Returns | Description |
 |---|---|---|
 | `target:id()` | number | the creature's gob id — always answers |
-| `target:gob()` | [Gob](gob.md) | the creature itself — never `nil` |
+| `target:gob()` | [Gob](gob.md) | the creature itself, **in the login whose fight this is** — never `nil` |
 | `target:exists()` | boolean | whether that character is still fighting them — always answers |
 | `target:info()` | `{ id }` \| nil | a plain-table **snapshot** |
 

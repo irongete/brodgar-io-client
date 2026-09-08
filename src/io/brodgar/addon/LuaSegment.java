@@ -242,7 +242,7 @@ public final class LuaSegment {
                     for(int x = 0; x < sz.x; x++) {
                         MapFile.Grid g = MapApi.gridAtIn(file, seg, ul.add(x, y));
                         if(g != null)
-                            out.set(++n, LuaMapGrid.of(owner, g.id));
+                            out.set(++n, LuaMapGrid.of(owner, AddonManager.drawnUser(), g.id));
                     }
                 }
                 return out;
@@ -262,7 +262,7 @@ public final class LuaSegment {
             public LuaValue getMember(LuaValue key) {
                 MapFile file = MapApi.mapfile();
                 MapFile.Grid g = MapApi.gridAtIn(file, MapApi.segIn(file, id), coordArg(key));
-                return (g == null) ? LuaValue.NIL : LuaMapGrid.of(owner, g.id);
+                return (g == null) ? LuaValue.NIL : LuaMapGrid.of(owner, AddonManager.drawnUser(), g.id);
             }
 
             /** The key is a segment grid coord, which grid:segmentCoord() hands you. */

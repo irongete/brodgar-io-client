@@ -68,6 +68,11 @@ that read it, or `nil`. The kin pair went both ways and this one did not.
 that character's world does not currently hold answers a Gob whose `:exists()` is `false`. So the way to
 ask whether that character can see someone is `member:gob():exists()`, not a `nil` test.
 
+The Gob **answers in the login you asked through** — the character whose party this is — so
+`member:gob():exists()` is that character's own line of sight, and `member:gob():position()` is where they
+stand in that character's frame. Another of your characters looking at the same person is a separate
+reading, reached through its own `s:party()`.
+
 `member:position()` and `member:gob():position()` are **not** the same read. The member's own position is
 the live one while they are in view and the **last-known** one once they walk out of it, so it keeps
 answering where the gob has stopped existing; it is `nil` only for a member the server has never placed.

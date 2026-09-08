@@ -532,7 +532,7 @@ final class WorldApi {
                 for(Gob g : allGobs(user)) {
                     if(g.id == self)
                         continue;
-                    if(!gobMatches(filter, owner, g))
+                    if(!gobMatches(filter, owner, user, g))
                         continue;
                     double d = distTo(g, prc);
                     if(Double.isNaN(d) || (d >= bestd))
@@ -540,7 +540,7 @@ final class WorldApi {
                     bestd = d;
                     best = g;
                 }
-                return (best == null) ? LuaValue.NIL : LuaGob.of(owner, best.id);
+                return (best == null) ? LuaValue.NIL : LuaGob.of(owner, user, best.id);
             }
         });
         extra.set("within", new VarArgFunction() {
@@ -561,12 +561,12 @@ final class WorldApi {
                 for(Gob g : allGobs(user)) {
                     if(g.id == self)
                         continue;
-                    if(!gobMatches(filter, owner, g))
+                    if(!gobMatches(filter, owner, user, g))
                         continue;
                     double d = distTo(g, prc);
                     if(Double.isNaN(d) || (d > r))
                         continue;
-                    out.set(++i, LuaGob.of(owner, g.id));
+                    out.set(++i, LuaGob.of(owner, user, g.id));
                 }
                 return out;
             }
@@ -575,13 +575,16 @@ final class WorldApi {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
                 for(Gob g : allGobs(user))
-                    out.add(LuaGob.of(owner, g.id));
+                    out.add(LuaGob.of(owner, user, g.id));
                 return out;
             }
 
+            /** THIS session's copy, like {@link #members()} — one collection, one resolution (audit2 B05).
+             *  The name used to come off a drawn-first probe with a per-session walk behind it, so a name
+             *  filter on a background login read another character's copy and cost O(gobs x sessions). */
             public String needle(LuaValue member) {
                 LuaGob h = LuaGob.resolve(member);
-                Gob g = (h == null) ? null : anygob(h.id);
+                Gob g = (h == null) ? null : AddonManager.getgob(user, h.id);
                 return (g == null) ? null : gobName(g);
             }
 
@@ -595,9 +598,10 @@ final class WorldApi {
             }
 
             public LuaValue getMember(LuaValue key) {
-                return LuaGob.of(owner, Args.integer(key, W + ":gob():get", "id", "a gob id — the \"player\"/\"me\"/\"partyN\" tokens are"
-                                                    + " gone; your own gob is session:player():gob()",
-                                                    -Args.EXACT, Args.EXACT));
+                return LuaGob.of(owner, user,
+                                 Args.integer(key, W + ":gob():get", "id", "a gob id — the \"player\"/\"me\"/\"partyN\" tokens are"
+                                              + " gone; your own gob is session:player():gob()",
+                                              -Args.EXACT, Args.EXACT));
             }
 
             /** A gob id is the server's own, so the handle is the identity: gob:exists() is the question. */
@@ -635,14 +639,14 @@ final class WorldApi {
                 if((mc == null) || (rc == null))
                     return LuaValue.NIL;
                 MCache.Grid g = AddonWidgets.loadedGrid(mc, rc.floor(MCache.tilesz).div(MCache.cmaps));
-                return (g == null) ? LuaValue.NIL : LuaMapGrid.of(owner, g.id);
+                return (g == null) ? LuaValue.NIL : LuaMapGrid.of(owner, user, g.id);
             }
         });
         return LuaCollection.create(W + ":grid()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
                 for(MCache.Grid g : AddonWidgets.loadedGrids(mcache(user)))
-                    out.add(LuaMapGrid.of(owner, g.id));
+                    out.add(LuaMapGrid.of(owner, user, g.id));
                 return out;
             }
 
@@ -653,7 +657,7 @@ final class WorldApi {
             public LuaValue getMember(LuaValue key) {
                 long id = MapApi.idArg(key, W + ":grid():get(id)", "grid");
                 return (AddonWidgets.gridWorldUL(mcache(user), id) == null)
-                    ? LuaValue.NIL : LuaMapGrid.of(owner, id);
+                    ? LuaValue.NIL : LuaMapGrid.of(owner, user, id);
             }
 
             /** The key is the grid id the server published, a decimal string. */
@@ -692,7 +696,7 @@ final class WorldApi {
 
     /** {@link #here(Varargs, int, String, String)} for a read whose Position argument is not called {@code p}. */
     private static Coord2d here(Varargs a, int i, String verb, String param, String user) {
-        return LuaPosition.posArg(a, i, verb, param).world(user);
+        return LuaPosition.posArg(a, i, verb, param).world(user, verb);
     }
 
     // ---- the two wire shapes, pure so they are testable without a session --------------------------
@@ -839,12 +843,13 @@ final class WorldApi {
      */
     static void screenToWorld(final Addon owner, MapView mv, int px, int py, final LuaValue fn) {
         final Coord pc = new Coord(px, py);
+        final String in = AddonManager.userOf(mv.ui);   // the tree the readback is off, which is the scene's
         try {
             mv.new Maptest(pc) {
                 protected void hit(Coord pc, Coord2d mc) {
-                    // The readback is off the DRAWN scene, so the point is in that session's frame.
+                    // The readback is off that view's own scene, so the point is in that session's frame.
                     callLua(owner, Addon.C_EVENT, fn,
-                            LuaPosition.ofWorld(owner, AddonManager.drawnUser(), mc.x, mc.y));
+                            LuaPosition.ofWorld(owner, in, mc.x, mc.y));
                 }
                 protected void nohit(Coord pc) {
                     callLua(owner, Addon.C_EVENT, fn, LuaValue.NIL);

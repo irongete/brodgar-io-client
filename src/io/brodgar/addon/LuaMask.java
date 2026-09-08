@@ -158,7 +158,8 @@ public final class LuaMask {
         // grid() — the recorded Grid it belongs to (D-066: the relation, not a stored id).
         m.set("grid", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaMapGrid.of(owner, handle(self, "grid").grid);
+                // A mask is read out of the recorded map, which is the character on screen's (audit2 B05).
+                return LuaMapGrid.of(owner, AddonManager.drawnUser(), handle(self, "grid").grid);
             }
         });
         // exists() — does that grid still carry this tag? False once the ground was re-recorded without it.

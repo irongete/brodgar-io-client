@@ -52,7 +52,8 @@ all three answer before that character has entered the world. All three are unpr
 
 `s:flowermenu():gob()` is the [Gob](gob.md) that was right-clicked to put the ring up — the tree you are
 about to chop, the animal you are about to butcher. It is what turns a list of captions into a decision an
-addon can make, and it resolves in that character's own world, which is where the click happened.
+addon can make, and it **answers in the login you asked through** — that character's own world, which is
+where the click happened and where the id came from.
 
 Where that answer comes from is worth knowing, because it is what decides when there is none. **The menu
 carries no object of its own**: what arrives is a list of captions and nothing else, so the client works

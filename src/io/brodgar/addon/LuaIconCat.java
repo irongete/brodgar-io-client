@@ -67,10 +67,18 @@ import java.util.Set;
  * with no torn read. The {@link Cache} map is guarded on its own monitor (UI + REPL threads touch it).
  */
 public final class LuaIconCat {
-    /** The icon resource name — the whole state of a handle, and its identity. */
+    /** The icon resource name — the identity of the category. */
     public final String res;
+    /**
+     * <b>The login this category was read in</b> (audit2 B05). The registry is one character's — its
+     * {@code dsave()} writes that character's own settings — so a handle read while one character was on
+     * screen goes on editing that character's icons after the player tabs away, instead of quietly moving to
+     * whoever is drawn when the write happens.
+     */
+    public final String user;
 
-    private LuaIconCat(String res) {
+    private LuaIconCat(String user, String res) {
+        this.user = user;
         this.res = res;
     }
 
@@ -79,9 +87,9 @@ public final class LuaIconCat {
         return "IconCat(" + res + ")";
     }
 
-    /** An interned IconCat object for {@code res} in {@code owner}'s env — the one way one reaches Lua. */
-    static LuaValue of(Addon owner, String res) {
-        return owner.iconCats.of(res);
+    /** An interned IconCat object for {@code res} in {@code user}'s registry — the one way one reaches Lua. */
+    static LuaValue of(Addon owner, String user, String res) {
+        return owner.iconCats.of(user, res);
     }
 
     /** The {@code LuaIconCat} behind a Lua value, or {@code null} for anything that is not an IconCat object. */
@@ -109,18 +117,19 @@ public final class LuaIconCat {
             this.owner = owner;
         }
 
-        /** The interned handle for {@code res} — a cache hit, or a freshly minted (and inserted) one. */
-        synchronized LuaValue of(String res) {
+        /** The interned handle for {@code res} in {@code user} — a hit, or a freshly minted (inserted) one. */
+        synchronized LuaValue of(String user, String res) {
             drain();
-            Ref r = live.get(res);
+            String key = user + "\0" + res;
+            Ref r = live.get(key);
             if(r != null) {
                 LuaValue v = r.get();
                 if(v != null)
                     return v;
-                live.remove(res);
+                live.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaIconCat(res), meta());
-            live.put(res, new Ref(v, res, dead));
+            LuaValue v = LuaValue.userdataOf(new LuaIconCat(user, res), meta());
+            live.put(key, new Ref(v, key, dead));
             return v;
         }
 
@@ -189,14 +198,16 @@ public final class LuaIconCat {
         // icon types, so a handle for a resource not yet seen answers false and starts answering later.
         m.set("exists", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(!settingsFor(handle(self, "exists").res).isEmpty());
+                LuaIconCat h = handle(self, "exists");
+                return LuaValue.valueOf(!settingsFor(h.user, h.res).isEmpty());
             }
         });
         // name() — the icon's TOOLTIP (its display name), falling back to the resource name; nil once the
         // category is gone. Never throws: a Loading icon, or a custom mapicon whose name() blows up, falls back.
         m.set("name", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                List<GobIcon.Setting> sets = settingsFor(handle(self, "name").res);
+                LuaIconCat h = handle(self, "name");
+                List<GobIcon.Setting> sets = settingsFor(h.user, h.res);
                 return sets.isEmpty() ? LuaValue.NIL : LuaValue.valueOf(catName(sets));
             }
         });
@@ -205,8 +216,9 @@ public final class LuaIconCat {
         // info() — the one SNAPSHOT escape hatch (the old RadarCategory shape), for logging/serialising.
         m.set("info", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                String res = handle(self, "info").res;
-                List<GobIcon.Setting> sets = settingsFor(res);
+                LuaIconCat h = handle(self, "info");
+                String res = h.res;
+                List<GobIcon.Setting> sets = settingsFor(h.user, res);
                 if(sets.isEmpty())
                     return LuaValue.NIL;
                 LuaTable t = new LuaTable();
@@ -230,14 +242,15 @@ public final class LuaIconCat {
         final String verb = notifyFlag ? "notify" : "show";
         return new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue v) {
-                String res = handle(self, verb).res;
+                LuaIconCat h = handle(self, verb);
+                String res = h.res;
                 if(v.isnil()) {
-                    List<GobIcon.Setting> sets = settingsFor(res);
+                    List<GobIcon.Setting> sets = settingsFor(h.user, res);
                     return sets.isEmpty() ? LuaValue.NIL : LuaValue.valueOf(anyFlag(sets, notifyFlag));
                 }
                 if(!v.isboolean())
                     throw new LuaError("cat:" + verb + "(on): on must be true or false");
-                if(setIn(MapApi.iconconf(), res, v.toboolean(), notifyFlag) == 0)
+                if(setIn(MapApi.iconconf(h.user), res, v.toboolean(), notifyFlag) == 0)
                     throw new LuaError("cat:" + verb + "(on): no such icon category — the registry carries no \""
                         + res + "\" (it is empty before the HUD is up, and grows as new icon types are seen)");
                 return self;
@@ -256,9 +269,10 @@ public final class LuaIconCat {
         return h;
     }
 
-    /** Every {@link GobIcon.Setting} the registry carries under {@code res} (a resource may publish variants). */
-    static List<GobIcon.Setting> settingsFor(String res) {
-        return settingsIn(MapApi.iconconf(), res);
+    /** Every {@link GobIcon.Setting} <b>that login's</b> registry carries under {@code res} (a resource may
+     *  publish variants). */
+    static List<GobIcon.Setting> settingsFor(String user, String res) {
+        return settingsIn(MapApi.iconconf(user), res);
     }
 
     /**
@@ -339,7 +353,10 @@ public final class LuaIconCat {
         return LuaCollection.create("hafen.map():icon()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
-                GobIcon.Settings conf = MapApi.iconconf();
+                // hafen.map() is the character on screen's map, and each handle records WHICH character it
+                // was read as, so a stashed one keeps editing that character's registry (audit2 B05).
+                String user = AddonManager.drawnUser();
+                GobIcon.Settings conf = MapApi.iconconf(user);
                 Map<GobIcon.Setting.ID, GobIcon.Setting> m = (conf == null) ? null : conf.settings;
                 if(m == null)
                     return out;
@@ -353,7 +370,7 @@ public final class LuaIconCat {
                 }
                 Collections.sort(names);
                 for(String res : names)
-                    out.add(of(owner, res));
+                    out.add(of(owner, user, res));
                 return out;
             }
 
@@ -361,7 +378,7 @@ public final class LuaIconCat {
             // list of them would type; :get(res) is how you address one, and it takes the resource name.
             public String needle(LuaValue member) {
                 LuaIconCat h = resolve(member);
-                return (h == null) ? null : catName(settingsFor(h.res));
+                return (h == null) ? null : catName(settingsFor(h.user, h.res));
             }
 
             /** These have a name, so a string filter is a substring test over {@link #needle}. */
@@ -379,7 +396,8 @@ public final class LuaIconCat {
                         + " is its icon RESOURCE name (\"gfx/terobjs/mm/boar\"). To search by the name a"
                         + " player sees, use :find(needle) or :list(needle).");
                 String res = key.tojstring();
-                return settingsFor(res).isEmpty() ? LuaValue.NIL : of(owner, res);
+                String user = AddonManager.drawnUser();
+                return settingsFor(user, res).isEmpty() ? LuaValue.NIL : of(owner, user, res);
             }
 
             /** A category's identity is its icon RESOURCE name; the player-facing name is a search. */

@@ -43,20 +43,34 @@ import java.util.List;
  * {@code overlay} come off the server's object, and {@code position()} hands back a {@link LuaPosition} whose
  * anchor is a <b>server</b> grid id, so whichever session computes it the answer matches. What each session
  * holds is its own {@link Gob} — placed against its own map, with {@code Gob.rc} in its own frame — so a read
- * still has to say which one computes it, and that is one rule stated once in
- * {@link AddonManager#gobUser(long)}: <b>the session on screen when it holds the object, and otherwise the
- * first that does</b>. It is the rule a bare {@code p:distance()} already had, and with one character logged
- * in it resolves to that one.
+ * still has to say which one computes it.
+ *
+ * <p><b>And the handle says it: a Gob knows the login it was minted through</b> (audit2 B05). The account
+ * comes from the door — {@code s:world():gob():get(id)} is that character's, {@code member:gob()} is the party
+ * it was read in, a {@code GobAdded} payload is the login the object entered — and every read here resolves
+ * through {@link AddonManager#getgob(String, long)} in that login and no other. What it replaces is a
+ * drawn-first fallback: a handle that named no session read the copy <i>on screen</i> whenever the screen
+ * happened to hold the object too, so two characters standing in view of each other answered about the wrong
+ * one, and {@code member:gob():exists()} — the page's own can-that-character-see-them test — answered about
+ * the character being drawn. A login that no longer holds the object simply answers {@code nil}, which is the
+ * same nothing a despawned object always answered.
+ *
+ * <p><b>The cross-session reads stay cross-session</b>, because they are about the object rather than about a
+ * copy: {@code gob:sessions()} asks every live cache, and the visual writes ({@code :scale}, {@code :tint},
+ * {@code :visible}, an overlay attach) land on every copy so that one object is drawn the same whichever
+ * character is looking at it.
  *
  * <p><b>Which characters can see it is a read, not bookkeeping</b> — {@code gob:sessions()} asks the live
  * object caches at the moment of the call, so a session that ends drops out of the answer with nothing having
  * to be notified, and an object nobody holds answers the empty array rather than {@code nil}.
  *
- * <p><b>Identity by interning (D-045), on the id.</b> Each addon's {@link Cache} (held in {@link Addon#gobs})
- * maps {@code id} to a {@link WeakReference} of the handle, with a {@link ReferenceQueue}, so two reads of one
- * id are {@code ==} however they were reached — {@code seen[gob] = true} is reliable, {@code s:player():gob()}
- * is literally the same object as {@code s:world():gob():get(<player id>)}, and so is the Gob two characters
- * standing together each find. That is what lets one object be reported once. Weak <b>values</b> (not a
+ * <p><b>Identity by interning (D-045), on the login and the id.</b> Each addon's {@link Cache} (held in
+ * {@link Addon#gobs}) maps {@code <login>@<id>} to a {@link WeakReference} of the handle, with a
+ * {@link ReferenceQueue}, so two reads of one object <i>through one character</i> are {@code ==} however they
+ * were reached — {@code seen[gob] = true} is reliable, and {@code s:player():gob()} is literally the same
+ * object as {@code s:world():gob():get(<player id>)} on that same session. Two characters that both see one
+ * object hold two handles for it, because they are two answers about two frames; {@code gob:id()} is what
+ * compares across them, and {@code gob:sessions()} is what says who else has it. Weak <b>values</b> (not a
  * {@code WeakHashMap}: that is weak <i>keys</i>) so an entry dies when the addon drops its last reference; the
  * queue is drained on every access (amortised, no sweep timer) because the key + the dead
  * {@code WeakReference} would otherwise accumulate — a per-tick world sweep sees tens of thousands of ids over
@@ -77,10 +91,13 @@ import java.util.List;
  * accessor did. The {@link Cache} map itself is guarded on its own monitor (UI + REPL threads touch it).
  */
 public final class LuaGob {
-    /** The gob id — the object this handle names, in every session that has loaded it, and the whole ref. */
+    /** The gob id — the object this handle names, in every session that has loaded it. */
     public final long id;
+    /** <b>The login this handle was minted through</b> — the one every read on it resolves in (audit2 B05). */
+    public final String user;
 
-    private LuaGob(long id) {
+    private LuaGob(String user, long id) {
+        this.user = user;
         this.id = id;
     }
 
@@ -94,9 +111,13 @@ public final class LuaGob {
         return "Gob(" + id + ")";
     }
 
-    /** An interned Gob object for {@code id} in {@code owner}'s env — the one way a Gob reaches Lua. */
-    static LuaValue of(Addon owner, long id) {
-        return owner.gobs.of(id);
+    /**
+     * An interned Gob object for {@code id} <b>as {@code user} holds it</b>, in {@code owner}'s env — the one
+     * way a Gob reaches Lua. {@code user} is the login the door that minted it names; there is no session-less
+     * form, because a read that cannot say whose copy it is about has nothing to answer with.
+     */
+    static LuaValue of(Addon owner, String user, long id) {
+        return owner.gobs.of(user, id);
     }
 
     /**
@@ -120,8 +141,8 @@ public final class LuaGob {
      */
     static final class Cache {
         private final Addon owner;
-        /** {@code id} to handle — one level, because the id is the whole key an object is named by. */
-        private final Map<Long, Ref> live = new HashMap<Long, Ref>();
+        /** {@code <login>@<id>} to handle — one level, because a handle is one object read through one login. */
+        private final Map<String, Ref> live = new HashMap<String, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
@@ -129,10 +150,10 @@ public final class LuaGob {
             this.owner = owner;
         }
 
-        /** The interned handle for {@code id} — a hit, or a freshly minted (and inserted) one. */
-        synchronized LuaValue of(long id) {
+        /** The interned handle for {@code id} in {@code user} — a hit, or a freshly minted (and inserted) one. */
+        synchronized LuaValue of(String user, long id) {
             drain();
-            Long key = Long.valueOf(id);
+            String key = user + "@" + Long.toString(id);
             Ref r = live.get(key);
             if(r != null) {
                 LuaValue v = r.get();
@@ -140,7 +161,7 @@ public final class LuaGob {
                     return v;
                 live.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaGob(id), meta());
+            LuaValue v = LuaValue.userdataOf(new LuaGob(user, id), meta());
             live.put(key, new Ref(v, key, dead));
             return v;
         }
@@ -164,9 +185,9 @@ public final class LuaGob {
 
     /** A weak handle reference that remembers its map key, so the {@link ReferenceQueue} drain can unmap it. */
     private static final class Ref extends WeakReference<LuaValue> {
-        final Long key;
+        final String key;
 
-        Ref(LuaValue v, Long key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, String key, ReferenceQueue<LuaValue> q) {
             super(v, q);
             this.key = key;
         }
@@ -261,15 +282,12 @@ public final class LuaGob {
         m.set("position", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaGob h = handle(self, "position");
-                String user = AddonManager.gobUser(h.id);
-                if(user == null)
-                    return LuaValue.NIL;
-                Gob g = AddonManager.getgob(user, h.id);
+                Gob g = AddonManager.getgob(h.user, h.id);
                 if(g == null)
                     return LuaValue.NIL;
                 Coord2d rc;
                 synchronized(g) { rc = g.rc; }
-                return LuaPosition.of(owner, user, rc);
+                return LuaPosition.of(owner, h.user, rc);
             }
         });
         m.set("facing", new OneArgFunction() {
@@ -347,7 +365,7 @@ public final class LuaGob {
                 if(Args.passed(a, 2))
                     throw new LuaError("gob:sdt() takes no arguments — arity is the verb here, so call"
                         + " it with no argument to read the state bytes");
-                return AddonManager.gobSdt(AddonManager.anygob(h.id));
+                return AddonManager.gobSdt(AddonManager.getgob(h.user, h.id));
             }
         });
         // hitbox() -- the ground the object stands on (113.2): every obst (collision) ring the resource
@@ -366,7 +384,7 @@ public final class LuaGob {
                 if(Args.passed(a, 2))
                     throw new LuaError("gob:hitbox() takes no arguments — arity is the verb here, so"
                         + " call it with no argument to read the collision footprint");
-                return AddonManager.gobHitbox(owner, h.id);
+                return AddonManager.gobHitbox(owner, h.user, h.id);
             }
         });
         // overlay() — THE ONE WAY to attach anything to a game object, and the one way to read what is already
@@ -394,7 +412,7 @@ public final class LuaGob {
                         + " reads one, gob:overlay():add(key) attaches one and its setters say what it draws"
                         + " (:draw/:text/:image/:model/:ghost), gob:overlay():remove(key) removes one, and"
                         + " gob:overlay():list() is every one of them");
-                return LuaOverlay.collection(owner, h.id);
+                return LuaOverlay.collection(owner, h.user, h.id);
             }
         });
         // scale() / scale(k) -- how big the game object is DRAWN (046.1), the elder of this handle's three
@@ -409,8 +427,8 @@ public final class LuaGob {
         // EVERY live session's copy of it: one object is drawn the same whichever character is looking at it,
         // and tabbing to another character does not find it its old size. A session that does not hold the
         // object is skipped -- a state, not a fault, like every other answer about who can see a thing. The
-        // READ still resolves through one copy, like every reader here (the character on screen when it can
-        // see the object, and otherwise whichever of yours can), because they all now agree.
+        // READ still resolves through one copy, like every reader here (the login this handle was minted
+        // through), because they all now agree.
         //   092.7 (A-087): and it REACHES A SESSION THAT LOADS THE OBJECT LATER. The walk above is who holds it
         // at the moment of the write; GobIntent is the same write recorded against the object, applied to each
         // copy as it arrives. The size still ends with the object -- when it leaves its LAST session, which is
@@ -521,11 +539,8 @@ public final class LuaGob {
         m.set("kin", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaGob h = handle(self, "kin");
-                String user = AddonManager.gobUser(h.id);
-                if(user == null)
-                    return LuaValue.NIL;
-                Integer bid = LuaKin.buddyId(AddonManager.getgob(user, h.id));
-                return (bid == null) ? LuaValue.NIL : LuaKin.of(owner, user, bid.intValue());
+                Integer bid = LuaKin.buddyId(AddonManager.getgob(h.user, h.id));
+                return (bid == null) ? LuaValue.NIL : LuaKin.of(owner, h.user, bid.intValue());
             }
         });
         // party() — 094 (A-110): the PartyMember this gob is, in the session that read it, or nil. The
@@ -537,36 +552,25 @@ public final class LuaGob {
         m.set("party", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaGob h = handle(self, "party");
-                String user = AddonManager.gobUser(h.id);
-                if(user == null)
-                    return LuaValue.NIL;
-                return (LuaPartyMember.member(user, h.id) == null)
-                    ? LuaValue.NIL : LuaPartyMember.of(owner, user, h.id);
+                return (LuaPartyMember.member(h.user, h.id) == null)
+                    ? LuaValue.NIL : LuaPartyMember.of(owner, h.user, h.id);
             }
         });
         // distance([other]) — world distance to another Gob; `other` defaults to the character measuring.
         //   Gob.rc is one session's frame, so subtracting two of them across sessions measures nothing: the
-        // pair is measured inside ONE character's world, the screen's when it holds both and otherwise the
-        // first that does. Two objects no single character can see have no distance between them and answer
-        // nil — the same nothing an object that has despawned answers.
+        // pair is measured inside the login THIS handle was minted through, which is the character whose eyes
+        // the receiver is being seen with. An `other` that character cannot see has no distance from it and
+        // answers nil — the same nothing an object that has despawned answers — whoever minted `other`.
         m.set("distance", new TwoArgFunction() {
             public LuaValue call(LuaValue self, LuaValue other) {
                 LuaGob ha = handle(self, "distance");
-                if(other.isnil()) {
-                    String user = AddonManager.gobUser(ha.id);
-                    if(user == null)
-                        return LuaValue.NIL;
-                    // the character whose eyes this object is being seen with
-                    return between(AddonManager.getgob(user, ha.id), AddonManager.playerGob(user));
-                }
+                if(other.isnil())
+                    return between(AddonManager.getgob(ha.user, ha.id), AddonManager.playerGob(ha.user));
                 LuaGob hb = resolve(other);
                 if(hb == null)
                     throw new LuaError("gob:distance([other]) -- 'other' must be a Gob object"
                         + " (s:world():gob():get(id)), or nil for the character measuring");
-                String user = AddonManager.gobUser(ha.id, hb.id);
-                if(user == null)
-                    return LuaValue.NIL;
-                return between(AddonManager.getgob(user, ha.id), AddonManager.getgob(user, hb.id));
+                return between(AddonManager.getgob(ha.user, ha.id), AddonManager.getgob(ha.user, hb.id));
             }
         });
         return m;
@@ -612,10 +616,12 @@ public final class LuaGob {
     }
 
     /**
-     * The LIVE gob behind a method's {@code self} — re-resolved every call, in whichever session
-     * {@link AddonManager#gobUser(long)} names, and {@code null} once no session holds it at all.
+     * The LIVE gob behind a method's {@code self} — re-resolved every call, <b>in the login this handle was
+     * minted through</b>, and {@code null} once that character no longer holds it (it walked out of view, it
+     * despawned, or that session has ended).
      */
     private static Gob gob(LuaValue self, String method) {
-        return AddonManager.anygob(handle(self, method).id);
+        LuaGob h = handle(self, method);
+        return AddonManager.getgob(h.user, h.id);
     }
 }

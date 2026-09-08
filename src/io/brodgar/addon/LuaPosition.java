@@ -32,15 +32,22 @@ import org.luaj.vm2.lib.VarArgFunction;
  * has been through the store carries the anchor and rebuilds its world coordinate by adding back what was
  * subtracted, which is exact to the tile and not to the last bit of a double.)
  *
- * <p><b>A Position carries no session, and that is the rule this type sets</b> (spec
- * {@code 076-the-session-is-the-address}). A ref that names one character's things carries its session; a place
- * does not, because a place is answerable in whichever session you ask and giving it one would make two
- * Positions for one patch of ground. What follows is that <b>the session belongs to the DERIVATION, never to
- * the value</b>: {@code gob:position()} derives its anchor through the gob's own session, at the one point where
- * that session is known, and hands back a value with nothing session-shaped left in it; a verb that consumes a
- * Position resolves it in <i>its</i> session's frame. Both directions take a {@code user} — the account name,
- * which is the whole of a session's address — and {@code null} means <b>the session on screen</b>, which is what
- * the Position's own verbs ask, since they were asked without a session in hand.
+ * <p><b>An ANCHORED Position carries no session, and that is the rule this type sets</b> (spec
+ * {@code 076-the-session-is-the-address}). A ref that names one character's things carries its session; an
+ * anchored place does not, because a grid id is the server's own naming of a patch of ground and is answerable
+ * in whichever session you ask. What follows is that <b>the session belongs to the DERIVATION, never to the
+ * anchor</b>: {@code gob:position()} derives its anchor through the gob's own session, at the one point where
+ * that session is known, and hands back a value that crosses freely; a verb that consumes it resolves it in
+ * <i>its</i> session's frame. Both directions take a {@code user} — the account name, which is the whole of a
+ * session's address.
+ *
+ * <p><b>A place with NO anchor keeps the login it was read in</b> (audit2 B05), because the world form is the
+ * one form that does not cross. Its two numbers are relative to where that character logged in, so the same
+ * pair read by another login names ground as far away as the two of them are apart. Such a Position therefore
+ * <b>records</b> its login: its own verbs ({@code :x()}, {@code :offset}, {@code :distance}, {@code :durable})
+ * re-derive in that login rather than in whichever character is on screen, and an addressed door handed it for
+ * a different character <b>refuses</b>, naming the anchor as the way to carry the place across. That is the
+ * whole of the difference between the two forms, and the reason to prefer the anchored one.
  *
  * <p><b>Two forms, one type.</b> A Position knows either a <i>session world</i> coordinate (what a gob reports,
  * what the map view takes) or a <i>durable anchor</i> — a server-published grid id plus the offset within that
@@ -67,14 +74,28 @@ public final class LuaPosition {
     /** The durable anchor — meaningful only when <b>not</b> {@link #located}. */
     private final long gridId;
     private final double gx, gy;
+    /**
+     * <b>The login this place was READ IN</b> (audit2 B05), or {@code null} for one rebuilt from a durable
+     * form — which belongs to no login, because a grid id names the same ground to everybody. It is what the
+     * world form is worth: a world coordinate is relative to where its session logged in, so the pair of
+     * numbers means that character's ground and nobody else's. The Position's own verbs re-derive in it; an
+     * addressed door handed such a place for another character refuses (see {@link #world(String, String)}).
+     */
+    private final String login;
 
-    private LuaPosition(boolean located, double wx, double wy, long gridId, double gx, double gy) {
+    private LuaPosition(boolean located, double wx, double wy, long gridId, double gx, double gy, String login) {
         this.located = located;
         this.wx = wx;
         this.wy = wy;
         this.gridId = gridId;
         this.gx = gx;
         this.gy = gy;
+        this.login = login;
+    }
+
+    /** {@link #login} — the login this place was read in, or {@code null} for a durable one. */
+    String login() {
+        return login;
     }
 
     /** {@code tostring(p)} — the form it actually holds, so a log line says which one it is. */
@@ -159,19 +180,32 @@ public final class LuaPosition {
      * cannot locate it — a place recorded in another segment, and every place at all while that character is
      * in a cave. {@code null} for {@code user} asks the session on screen.
      *
-     * <p>A world-form Position answers its own numbers whichever session asks, because a world form is what a
-     * reader in one session produced and there is nothing else it could mean. That is why the durable form is
-     * derived at the point a reader knows its session, rather than left for a consumer to guess at.
+     * <p><b>A world-form Position belongs to the login it was read in, and asked for another one it RAISES</b>
+     * (audit2 B05, naming {@code verb}). It has no anchor, so there is nothing to re-derive: its two numbers
+     * are relative to where <i>that</i> character logged in, and handing them to another session names ground
+     * as far away as the two logins are apart. Answering them silently was the one place this API let a
+     * coordinate cross a login — the very thing the durable form exists to prevent — so the refusal says how
+     * to carry the place across instead. A Position <b>with</b> an anchor crosses freely: a grid id is the
+     * server's own naming of a patch of ground, and {@link #worldOf} re-derives it in whichever login asks.
      */
-    Coord2d world(String user) {
-        if(located)
+    Coord2d world(String user, String verb) {
+        if(located) {
+            if((user != null) && (login != null) && !user.equals(login))
+                throw new LuaError(((verb == null) ? "position" : verb) + ": this place was read in another"
+                    + " login; anchor it (position.md) to carry it across");
             return Coord2d.of(wx, wy);
+        }
         return worldOf(gridId, gx, gy, user);
     }
 
-    /** {@link #world(String)} in the session on screen — what the Position's own verbs ask. */
+    /** {@link #world(String, String)} with no verb to name — an internal derivation, never a Lua door. */
+    Coord2d world(String user) {
+        return world(user, null);
+    }
+
+    /** {@link #world(String, String)} in this place's OWN login — what the Position's own verbs ask. */
     Coord2d world() {
-        return world(null);
+        return world(login, null);
     }
 
     /**
@@ -182,9 +216,9 @@ public final class LuaPosition {
         return located ? anchorAt(user, wx, wy) : new Anchor(gridId, gx, gy);
     }
 
-    /** {@link #anchor(String)} in the session on screen — what the Position's own verbs ask. */
+    /** {@link #anchor(String)} in this place's OWN login — what the Position's own verbs ask. */
     Anchor anchor() {
-        return anchor(null);
+        return anchor(login);
     }
 
     // ---- construction ------------------------------------------------------------------------------
@@ -206,12 +240,14 @@ public final class LuaPosition {
         Anchor an = anchorAt(user, x, y);
         if(an != null)
             return ofAnchor(owner, an.id, an.x, an.y);
-        return LuaValue.userdataOf(new LuaPosition(true, x, y, 0, 0, 0), owner.positions.meta());
+        // No anchor: it keeps the world form AND the login that form is in, so nothing downstream has to
+        // guess whose ground the two numbers name (audit2 B05).
+        return LuaValue.userdataOf(new LuaPosition(true, x, y, 0, 0, 0, user), owner.positions.meta());
     }
 
     /** A Position from a durable anchor — what the store, {@code hafen.json} and {@code :position(info)} rebuild. */
     static LuaValue ofAnchor(Addon owner, long id, double x, double y) {
-        return LuaValue.userdataOf(new LuaPosition(false, 0, 0, id, x, y), owner.positions.meta());
+        return LuaValue.userdataOf(new LuaPosition(false, 0, 0, id, x, y, null), owner.positions.meta());
     }
 
     /** A Position at {@code rc} in session {@code user}, or {@code NIL} when the caller had no coordinate. */
@@ -256,7 +292,7 @@ public final class LuaPosition {
      */
     static Coord2d worldArg(Varargs a, int i, String verb, String param, String user) {
         LuaPosition p = posArg(a, i, verb, param);
-        Coord2d rc = p.world(user);
+        Coord2d rc = p.world(user, verb);
         if(rc == null)
             throw new LuaError(verb + ": " + param + " " + unreachable(user));
         return rc;
@@ -364,24 +400,31 @@ public final class LuaPosition {
         });
         // offset(dx, dy) — a NEW Position, dx east and dy south in world units. The engine owns this because a
         // grid is 1100 world units: adding 22 to a within-grid offset near the edge is a different grid.
+        //   Both halves run in the RECEIVER'S OWN LOGIN (audit2 B05): the coordinate is read in it and the new
+        // place is re-derived in it. It used to read and re-mint through the character on screen, so offsetting
+        // a place only a background login could locate answered nil — and position.md says it is arithmetic.
         m.set("offset", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaPosition p = handle(a.arg1(), "offset");
                 double dx = num(a, 2, "position:offset", "dx"), dy = num(a, 3, "position:offset", "dy");
                 Coord2d rc = p.world();
-                return (rc == null) ? LuaValue.NIL : ofWorld(owner, null, rc.x + dx, rc.y + dy);
+                return (rc == null) ? LuaValue.NIL : ofWorld(owner, p.login, rc.x + dx, rc.y + dy);
             }
         });
         // distance([other]) — world distance to another Position; `other` defaults to the player, exactly as
         // gob:distance() does. nil when either end has no coordinate this session.
+        //   MEASURED IN THE RECEIVER'S OWN LOGIN (audit2 B05), both ends: subtracting two coordinates read in
+        // two logins measures nothing, so `other` is resolved in this place's login — which is a refusal when
+        // `other` is a world form belonging to another one — and the bare form asks that login's own player.
         m.set("distance", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                Coord2d here = handle(a.arg1(), "distance").world();
+                LuaPosition p = handle(a.arg1(), "distance");
+                Coord2d here = p.world();
                 Coord2d there;
                 if(!Args.passed(a, 2)) {
-                    there = AddonManager.playerPos();   // the character on screen: a bare verb was asked
+                    there = AddonManager.playerPos(p.login);   // the character this place was read in
                 } else {
-                    there = posArg(a, 2, "position:distance", "other").world();
+                    there = posArg(a, 2, "position:distance", "other").world(p.login, "position:distance");
                 }
                 return ((here == null) || (there == null)) ? LuaValue.NIL : LuaValue.valueOf(here.dist(there));
             }

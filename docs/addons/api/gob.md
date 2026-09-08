@@ -27,17 +27,23 @@ Gob that does not exist yet, while `1.5` is not an id at all.
 ## Which character does the reading
 
 Each of your characters holds its own copy of the object, placed against its own map, so a read still has to
-be computed by one of them. **The character on screen does it when it can see the object, and otherwise
-whichever of your characters can** — one rule, for every read on this page. With one character logged in it
-is that character, and [`gob:sessions()`](#gobsessions) is how you see the choice being made.
+be computed by one of them. **A Gob answers in the login you asked through** — the character whose door
+handed it to you — for every read on this page. `s:world():gob():get(id)` and `s:player():gob()` answer in
+`s`; `member:gob()` in the character whose party you read; a `GobAdded` payload in the character the object
+came into view for. With one character logged in it is that character, and
+[`gob:sessions()`](#gobsessions) says which others can see it.
 
-The answers do not depend on which one it was. `:name()`, `:health()` and the rest read the **server's**
-object, and `:position()` hands back a [Position](position.md) anchored on a **server** grid
-id, so two characters looking at one tree compute the same place out of two different frames.
+So `:exists()` is the question "can **that** character see it", and it goes `false` the moment the object
+leaves that character's view — even while another of yours is still looking straight at it. Every other read
+answers `nil` in the same moment, exactly as it does for an object that has despawned.
+
+The answers do not otherwise depend on which character did the reading. `:name()`, `:health()` and the rest
+read the **server's** object, and `:position()` hands back a [Position](position.md) anchored on a **server**
+grid id, so two characters looking at one tree compute the same place out of two different frames.
 
 **The writes go the other way**: [`gob:scale(k)`, `gob:visible(b)`, `gob:tint(c)`](look.md) and
 [`gob:overlay()`](overlay.md)`:add(key)` change how the object *looks*, and one object looks one way — so
-they are written to every character that can see it, not to the one that would have done a read.
+they are written to every character that can see it, not to the one that did the read.
 
 ### `gob:sessions()`
 
@@ -240,15 +246,15 @@ single attribute read and never guesses from a name. A kin's **hearth fire** car
 
 ## Identity
 
-**Two Gobs for the same id are the same object**, however you reached them, so equality and table keys work
-directly:
+**Two Gobs for the same id read through the same character are the same object**, however you reached them,
+so equality and table keys work directly:
 
 ```lua
 local a, b = hafen.session():get("main"), hafen.session():get("alt")
 
 a:world():gob():get(4711) == a:world():gob():get(4711)   --> true
-a:world():gob():get(4711) == b:world():gob():get(4711)   --> true: one object, one handle
 a:player():gob() == a:world():gob():get(myId)            --> true
+a:world():gob():get(4711) == b:world():gob():get(4711)   --> false: two characters, two answers
 
 local seen = {}
 for _, g in ipairs(a:world():gob():list()) do
@@ -256,13 +262,14 @@ for _, g in ipairs(a:world():gob():list()) do
 end
 ```
 
-That is what lets two characters standing together count one tree once: the handle each of them finds is the
-same value, so a set keyed by Gobs is a set of objects rather than a set of viewings. `gob:id()` is the same
-identity written as a number, for when you need to put it in a file or a message.
+That is what lets one sweep of one character count a tree once: the handle is the same value wherever that
+character reaches it, so a set keyed by Gobs is a set of objects rather than a set of readings. Across two
+characters the two handles are two answers about two frames, and **`gob:id()` is what compares them** — the
+same identity written as a number, which is also the form to put in a file or a message.
 
-One object per id is also the only arrangement whose two equalities cannot disagree: Lua table keys compare
-objects directly and ignore `__eq`, so two handles with a cleverer `==` would have counted one gob twice as a
-key while claiming to be one.
+One handle per id per login is also the only arrangement whose two equalities cannot disagree: Lua table keys
+compare objects directly and ignore `__eq`, so two handles with a cleverer `==` would have counted one gob
+twice as a key while claiming to be one.
 
 Identity is per addon: your Gob objects are yours, never shared with another addon.
 

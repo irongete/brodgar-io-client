@@ -32,6 +32,10 @@ instead would put a heap read on the frame loop whether profiling is armed or no
 
 Empty while there is no connection, such as on the login screen. `rtt` and `rttVar` are in milliseconds.
 
+**These are the character on screen's**, as `loader()` and `render()` below are. A connection is per login,
+so a handler running for a background character reads the drawn character's traffic rather than its own;
+hand that character the screen with [`hafen.session():current(s)`](../../session.md) to read it.
+
 | Key | Description |
 |---|---|
 | `packetsTx` / `packetsRx` / `bytesTx` / `bytesRx` | the traffic counters, cumulative for the session |

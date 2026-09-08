@@ -168,8 +168,9 @@ final class FlowerMenuApi {
                         + " and it was opened on one object — to read that object, call it bare");
                 long id = gobOf(open(user));
                 // The id was recorded by a press in the tree this menu stands in, so it resolves in THAT
-                // session's object cache (077.4) — the same one s:world():gob():get(id) reads.
-                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, id);
+                // session's object cache (077.4) — the same one s:world():gob():get(id) reads. The handle
+                // carries that login, which is what makes the sentence above true (audit2 B05).
+                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, user, id);
             }
         });
         // select(label | n) — pick a petal of the OPEN menu, exactly as a click on it does: by its caption

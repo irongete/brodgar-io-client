@@ -1258,9 +1258,13 @@ public final class AddonManager {
             runTimers();
 
             // Custom UI overlays (2b): queue the HUD-overlay afterdraw for THIS frame if any addon has one.
-            // UI.drawafter is one-shot, tick precedes draw, so it paints above the HUD this frame. The SCREEN's
-            // after-draw: a HUD overlay paints over what is drawn.
-            UI hu = screen();
+            // UI.drawafter is one-shot, tick precedes draw, so it paints above the HUD this frame.
+            //   The LAYER's after-draw, and not the screen's (audit2 B05). The two trees are drawn in order
+            // and the layer is drawn LAST, so an after-draw queued on the session ran before every addon
+            // window and was covered by them -- against overlay.md's "over the finished HUD, windows
+            // included" -- and there was none at all on the login screen, where no session is drawn. The
+            // layer is the client's own tree: it is always there, and it is always on top.
+            UI hu = layer();
             if((hu != null) && UiApi.anyHudOverlays())
                 hu.drawafter(UiApi.hudAfterDraw);
 
@@ -2575,19 +2579,24 @@ public final class AddonManager {
      * for the addons that don't listen. On {@code GobRemoved} the gob is already gone, so only {@code :id()}
      * answers — an addon that needs the name must have indexed it on {@code GobAdded}.
      *
-     * <p><b>Reached once per object and not once per session</b> (079.4): the payload is the interned handle
-     * for the id — the same one {@code s:world():gob():get(id)} answers with — and which characters can see it
-     * is {@code gob:sessions()}, a live read. {@link #drainGobEvents} is the one caller, and the edge it
-     * settles is what makes "once" true.
+     * <p><b>Reached once per object and not once per session</b> (079.4): the event is the object's, and which
+     * characters can see it is {@code gob:sessions()}, a live read. {@link #drainGobEvents} is the one caller,
+     * and the edge it settles is what makes "once" true.
+     *
+     * <p><b>The handle is minted in the login the edge was crossed in</b> (audit2 B05) — the session the object
+     * entered on a {@code GobAdded}, the one it left on a {@code GobRemoved} — because a Gob handle reads
+     * through the login it was minted from, and a payload that named none read through whichever character
+     * happened to be on screen. On a {@code GobRemoved} that login no longer holds the object, which is exactly
+     * why only {@code :id()} answers there.
      */
-    static void fireGob(String event, long id) {
+    static void fireGob(String event, long id, String user) {
         for(Addon a : addons) {
             if(hasSub(a, event))
-                fireTo(a, event, LuaGob.of(a, id));
+                fireTo(a, event, LuaGob.of(a, user, id));
         }
         Addon c = consoleOwner;
         if((c != null) && hasSub(c, event))
-            fireTo(c, event, LuaGob.of(c, id));
+            fireTo(c, event, LuaGob.of(c, user, id));
     }
 
     /**
@@ -2815,8 +2824,9 @@ public final class AddonManager {
     // what the OCaches already know and the one that disagrees is the one nothing reads.
 
     /** The ids at least one live session holds, as of the last settle — the edge {@code GobAdded}/{@code
-     *  GobRemoved} fire on. */
-    private static final Set<Long> heldGobs = new LinkedHashSet<Long>();
+     *  GobRemoved} fire on — each mapped to <b>the login it was announced in</b>, which is the login the
+     *  {@code GobRemoved} payload is then minted from when the object leaves the last session. */
+    private static final Map<Long, String> heldGobs = new LinkedHashMap<Long, String>();
 
     /** The game's own overlay keys at least one session carries, per gob id — the same edge, one level down,
      *  and dropped whole with the gob it hangs on. */
@@ -2978,8 +2988,10 @@ public final class AddonManager {
      */
     private static void drainGobEvents() {
         List<Long> touched = null;
+        List<String> touchedIn = null;  // the login each entry came out of — the edge's own (audit2 B05)
         List<Gob> held = null;          // 114.1: the copies this drain is releasing, once it has announced them
         for(SessionState st : allStates()) {
+            String in = userOf(st);
             GobEvent ge;
             while((ge = st.gobEvents.poll()) != null) {
                 // 038.2: an overlay dies with its gob. Done BEFORE the event reaches Lua, so a GobRemoved
@@ -3011,9 +3023,12 @@ public final class AddonManager {
                         held = new ArrayList<Gob>();
                     held.add(ge.gob);
                 }
-                if(touched == null)
+                if(touched == null) {
                     touched = new ArrayList<Long>();
+                    touchedIn = new ArrayList<String>();
+                }
                 touched.add(Long.valueOf(ge.gob.id));
+                touchedIn.add(in);
             }
         }
         int gen = gobRescans;
@@ -3021,20 +3036,24 @@ public final class AddonManager {
         gobRescansSeen = gen;
         if(touched != null) {
             for(int i = 0, n = touched.size(); i < n; i++)
-                settleGob(touched.get(i).longValue());   // a repeated id is idempotent: only an edge fires
+                // a repeated id is idempotent: only an edge fires, and it fires in the login that crossed it
+                settleGob(touched.get(i).longValue(), touchedIn.get(i));
         }
         if(rescan) {
             // A session ended. Whatever it alone could see left its last session at that moment, and the
             // caches are the only place that says so — so the held set is re-asked whole. Collected first and
             // reported afterwards, because a handler runs between the two.
             List<Long> gone = new ArrayList<Long>();
-            for(Long id : heldGobs) {
-                if(!gobHeld(id.longValue()))
-                    gone.add(id);
+            List<String> goneIn = new ArrayList<String>();
+            for(Map.Entry<Long, String> e : heldGobs.entrySet()) {
+                if(!gobHeld(e.getKey().longValue())) {
+                    gone.add(e.getKey());
+                    goneIn.add(e.getValue());
+                }
             }
-            heldGobs.removeAll(gone);
+            heldGobs.keySet().removeAll(gone);
             for(int i = 0, n = gone.size(); i < n; i++)
-                gobLeft(gone.get(i).longValue(), true);
+                gobLeft(gone.get(i).longValue(), true, goneIn.get(i));
             // 114.1: ...and a copy that session was holding is a copy nothing will ever announce -- its queue
             // went with its state. The ones no live session can see any more are exactly the stranded ones:
             // an object still in somebody's cache is still on its way to a drain that will release it.
@@ -3051,19 +3070,24 @@ public final class AddonManager {
     }
 
     /** One id, settled against the caches: {@code GobAdded} into the first session, {@code GobRemoved} out of
-     *  the last, and nothing at all for the sessions in between. */
-    private static void settleGob(long id) {
+     *  the last, and nothing at all for the sessions in between. {@code in} is the login whose queue entry
+     *  caused this settle — the login the payload handle is minted from, and the one remembered against the
+     *  id so a later {@code GobRemoved} out of an ended session still names a character. */
+    private static void settleGob(long id, String in) {
         Long key = Long.valueOf(id);
         if(gobHeld(id)) {
-            if(heldGobs.add(key))
-                fireGob("GobAdded", id);
-        } else if(heldGobs.remove(key)) {
-            gobLeft(id, false);
+            if(!heldGobs.containsKey(key)) {
+                heldGobs.put(key, in);
+                fireGob("GobAdded", id, in);
+            }
+        } else if(heldGobs.containsKey(key)) {
+            String was = heldGobs.remove(key);
+            gobLeft(id, false, (in != null) ? in : was);
         }
     }
 
     /** The object left its last session: forget the game's overlays that hung on it, then report it gone. */
-    private static void gobLeft(long id, boolean rescan) {
+    private static void gobLeft(long id, boolean rescan, String in) {
         heldNative.remove(Long.valueOf(id));   // the client drops a departing gob whole, decorations and all
         lastSdt.remove(Long.valueOf(id));      // 113.3: ...and what it last reported for the object's state
         List<LuaGobOverlay.Attach> mine = GobIntent.forget(id);   // 092.7: ...and what was ASKED for at it goes with the object
@@ -3089,7 +3113,7 @@ public final class AddonManager {
         // reach, the moment another character loaded those same objects. anchorGone re-asks seenAnywhere
         // itself, so an object a live session still holds is left exactly as it is.
         VirtualApi.anchorGone(id);
-        fireGob("GobRemoved", id);
+        fireGob("GobRemoved", id, in);
     }
 
     /** <b>Does any live session hold {@code id}?</b> Asked of the object caches, never counted. */
@@ -3804,7 +3828,26 @@ public final class AddonManager {
      * session on screen need not be the one whose bar changed.
      */
     static String userOf(Widget w) {
-        return (w == null) ? null : Sessions.nameof(w.ui);
+        return (w == null) ? null : userOf(w.ui);
+    }
+
+    /**
+     * <b>The account of the session a tree belongs to</b>, or {@code null} for the addon layer and for the
+     * login screen. The one conversion from a {@link UI} in hand to the login it is — what a door that already
+     * holds the tree it is about asks, instead of {@link #screen()}.
+     */
+    static String userOf(UI u) {
+        return (u == null) ? null : Sessions.nameof(u);
+    }
+
+    /**
+     * <b>The account of the session whose object cache holds this copy</b>, or {@code null} when the copy has
+     * no live session behind it. A {@link Gob} is per {@link OCache}, so a site handed one already knows whose
+     * frame its {@code rc} is in, and this is how it says so.
+     */
+    static String userOf(Gob g) {
+        Glob gl = (g == null) ? null : g.glob;
+        return (gl == null) ? null : userOf(Sessions.uifor(gl));
     }
 
     /**
@@ -5379,13 +5422,14 @@ public final class AddonManager {
     // three are that rule, in one place:
     //
     //   gobUsers(id)  every live session that holds the object, in membership order -- gob:sessions()
-    //   gobUser(id)   the ONE a bare read resolves through: the session on screen when it holds the
-    //                 object, and otherwise the first that does
-    //   anygob(id)    the Gob that session holds
+    //   gobCopies(id) every live session's copy of it -- what a visual WRITE lands on
     //
-    // The screen first, because that is the rule this API already has for a value carrying no session: a
-    // bare p:distance() and p:x() answer for the character on screen. With one session logged in -- the
-    // whole of the client until 076 -- it resolves to that one and every read costs exactly what it did.
+    // There is NO ambient "whichever session holds it" resolver here any more (audit2 B05). A read is taken
+    // through the login the handle was minted from -- getgob(user, id), one line up -- because the drawn-first
+    // one it replaced answered a question nobody asked: with two characters in view of each other, a handle
+    // minted from a background login read the copy on screen, in the screen's frame. A handle carries its
+    // login, so the site never has to guess, and what remains here is the pair of CROSS-SESSION reads, which
+    // are about the object rather than about anybody's copy of it.
     //
     // Nothing is kept. The set is asked of the OCaches at the moment of the call, so a session that has
     // ended drops out of every answer with nothing having to be notified, and a count that could disagree
@@ -5408,8 +5452,8 @@ public final class AddonManager {
      * <b>Every live session's copy of one object</b>, in membership order — what a visual WRITE lands on
      * (080.1). A gob id is the server's and names one object, but a {@link Gob} is per {@link OCache}: the
      * object is what an addon addresses, and the copies are what the engine paints. So a read resolves
-     * through {@link #gobUser(long)} and picks one, while {@code gob:scale(k)} and an overlay attach take
-     * this list and land on all of them — one object drawn the same whichever character is looking at it.
+     * through the login its handle was minted from and picks one, while {@code gob:scale(k)} and an overlay
+     * attach take this list and land on all of them — one object drawn the same whichever character looks.
      *
      * <p>Live, like the set it is built from: the caches are asked at the moment of the call, so a session
      * that joined since the last write is in it with nothing having been notified, and one that ended is
@@ -5437,45 +5481,6 @@ public final class AddonManager {
         for(Sessions.Member m : Sessions.members())
             out.add(m.user);
         return out;
-    }
-
-    /**
-     * <b>The session a bare Gob read resolves through</b> — the one on screen when it holds the object,
-     * otherwise the first that does, {@code null} when none does. The drawn session is tried without
-     * copying the membership list, so the ordinary read is one lookup and one {@code OCache} probe.
-     */
-    static String gobUser(long id) {
-        String drawn = drawnUser();
-        if((drawn != null) && (getgob(drawn, id) != null))
-            return drawn;
-        for(Sessions.Member m : Sessions.members()) {
-            if(holds(m, id))
-                return m.user;
-        }
-        return null;
-    }
-
-    /**
-     * <b>The session a read across TWO gobs resolves through</b> — the one on screen when it holds both,
-     * otherwise the first that does, {@code null} when no single character can see them together.
-     * {@code gob:distance(other)}'s door: {@code Gob.rc} is one session's frame, so a pair measured across two
-     * of them measures nothing, and the pair has to be resolved before it is subtracted.
-     */
-    static String gobUser(long a, long b) {
-        String drawn = drawnUser();
-        if((drawn != null) && (getgob(drawn, a) != null) && (getgob(drawn, b) != null))
-            return drawn;
-        for(Sessions.Member m : Sessions.members()) {
-            if(holds(m, a) && holds(m, b))
-                return m.user;
-        }
-        return null;
-    }
-
-    /** The live {@link Gob} for an id, in whichever session {@link #gobUser(long)} names; {@code null} for none. */
-    static Gob anygob(long id) {
-        String user = gobUser(id);
-        return (user == null) ? null : getgob(user, id);
     }
 
     /** Does this member's object cache hold {@code id}? A session being taken down answers no, not a throw. */
@@ -5645,16 +5650,16 @@ public final class AddonManager {
      * a <b>function</b> → called with the owner's interned {@link LuaGob} object, truthy keeps it (an error drops
      * it). The caller must already be OUTSIDE the OCache lock — a function filter re-enters Lua.
      *
-     * <p>The Gob a predicate is handed is the object itself (079.3), interned on the id alone, so it is the
-     * very handle the {@code :list()} around it is building an array of — the filter and the array cannot
-     * disagree about what they are talking about.
+     * <p>The Gob a predicate is handed is the very handle the {@code :list()} around it is building an array
+     * of — minted in {@code user}, the login whose cache the walk is over — so the filter and the array
+     * cannot disagree about what they are talking about, nor about whose copy of it.
      */
-    static boolean gobMatches(LuaValue filter, Addon owner, Gob g) {
+    static boolean gobMatches(LuaValue filter, Addon owner, String user, Gob g) {
         if((filter == null) || filter.isnil())
             return true;
         if(filter.isfunction()) {
             try {
-                return filter.call(LuaGob.of(owner, g.id)).toboolean();
+                return filter.call(LuaGob.of(owner, user, g.id)).toboolean();
             } catch(RuntimeException e) {   // LuaError is a RuntimeException
                 return false;
             }
@@ -5753,10 +5758,7 @@ public final class AddonManager {
      * origin, then offset by {@code Gob.rc}. {@code nil} once the gob is gone, its resource has not
      * resolved, or its resource carries no {@code obst} layer or an empty one.
      */
-    static LuaValue gobHitbox(Addon owner, long id) {
-        String user = gobUser(id);
-        if(user == null)
-            return LuaValue.NIL;
+    static LuaValue gobHitbox(Addon owner, String user, long id) {
         return hitboxOf(owner, user, getgob(user, id));
     }
 

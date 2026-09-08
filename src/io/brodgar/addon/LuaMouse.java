@@ -150,11 +150,12 @@ final class LuaMouse {
      */
     private static LuaValue over(Addon owner) {
         UI u = AddonManager.screen();
-        if((u == null) || (u.root == null) || (u.mc == null))
+        if((u == null) || (u.mc == null))
             return LuaValue.NIL;
-        Widget hit;
+        // BOTH trees, the addon layer first, exactly as hafen.ui():hit(x, y) walks them (audit2 B05) — the
+        // two doors are documented as one question, so they answer out of the same walk.
         Coord at = Px.in(Px.out(u.mc));
-        synchronized(u) { hit = LuaWidget.hitTest(u.root, at); }
+        Widget hit = UiApi.deepest(at);
         return (hit == null) ? LuaValue.NIL : LuaWidget.of(owner, hit);
     }
 

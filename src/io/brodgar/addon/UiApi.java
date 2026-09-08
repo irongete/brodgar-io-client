@@ -539,10 +539,11 @@ final class UiApi {
                 Section.self(a.arg1(), "ui", "tipAt");
                 int tx = Args.integer(a, 2, "hafen.ui():tipAt", "x", "a root design pixel");
                 int ty = Args.integer(a, 3, "hafen.ui():tipAt", "y", "a root design pixel");
-                UI u = screen();
-                if((u == null) || (u.root == null))
-                    return LuaValue.NIL;
-                Widget from = LuaWidget.tipAt(u, Px.in(new Coord(tx, ty)));   // design px, like :hit
+                // BOTH trees, layer first, exactly as :hit walks them (audit2 B05): a tooltip on a standing
+                // widget of yours is that widget's, and the client's own tree answers for everywhere else.
+                Widget from = tipIn(layer(), Px.in(new Coord(tx, ty)));
+                if(from == null)
+                    from = tipIn(screen(), Px.in(new Coord(tx, ty)));
                 return (from == null) ? LuaValue.NIL : LuaWidget.of(owner, from);
             }
         });
@@ -2419,14 +2420,32 @@ final class UiApi {
     private static LuaValue nodeHit(Addon owner, LuaValue xv, LuaValue yv) {
         int hx = Args.integer(xv, "hafen.ui():hit", "x", "a root design pixel");
         int hy = Args.integer(yv, "hafen.ui():hit", "y", "a root design pixel");
-        UI u = screen();
-        if((u == null) || (u.root == null))
-            return LuaValue.NIL;
-        Widget hit;
         // DESIGN PIXELS in, exactly like widget:position/:size (058.1) — so hafen.ui():hit(m:x(), m:y()) is the
         // widget the pointer is over, and an addon's own hit rectangle is the box it drew.
-        synchronized(u) { hit = LuaWidget.hitTest(u.root, Px.in(new Coord(hx, hy))); }
+        Widget hit = deepest(Px.in(new Coord(hx, hy)));
         return (hit == null) ? LuaValue.NIL : LuaWidget.of(owner, hit);
+    }
+
+    /**
+     * <b>The deepest widget under a root point, in BOTH trees the client draws</b> (audit2 B05) — the addon
+     * layer first, then the session on screen. The client draws the layer last and over everything
+     * ({@code UILoop.display}), so a point over one of your own windows is over that window and not over the
+     * client widget behind it; asking the session alone answered the thing underneath, which is one pointer
+     * with two answers. The login screen has no session and still has the layer, so a hit test there is not a
+     * blank. {@code null} for a point over neither.
+     */
+    static Widget deepest(Coord at) {
+        UI l = layer();
+        if((l != null) && (l.root != null)) {
+            Widget hit;
+            synchronized(l) { hit = LuaWidget.hitTest(l.root, at); }
+            if(hit != null)
+                return hit;
+        }
+        UI u = screen();
+        if((u == null) || (u.root == null) || (u == l))
+            return null;
+        synchronized(u) { return LuaWidget.hitTest(u.root, at); }
     }
 
     // ------------------------------------------------------ the replacement verb (widget:replace, 032.1)
@@ -2438,6 +2457,11 @@ final class UiApi {
      * Per-addon by construction ({@link LuaWidget#findHidden} looks only at this owner's list), so it never reports
      * another addon's stand-in.
      */
+    /** {@link LuaWidget#tipAt} in one tree, or {@code null} for a tree that is not up. */
+    private static Widget tipIn(UI u, Coord at) {
+        return ((u == null) || (u.root == null)) ? null : LuaWidget.tipAt(u, at);
+    }
+
     static LuaValue installedView(Addon owner, Widget w) {
         LuaWidget.Hidden h = LuaWidget.findHidden(owner, LuaWidget.nativeWindowOf(w));
         return (h == null) ? LuaValue.NIL : LuaWidget.of(owner, h.liveView());
@@ -2761,8 +2785,9 @@ final class UiApi {
             LuaTable gt = gwrap.bind(g, o.owner);
             try {
                 if(o.draw != null)
-                    // A gob overlay is drawn into the scene on screen, so its gob is that session's.
-                    callLua(o.owner, Addon.C_DRAW, o.draw, gt, LuaGob.of(o.owner, gob.id),
+                    // A gob overlay is drawn into the scene on screen, so its gob is that session's -- and
+                    // the copy in hand says which that is, rather than a resolver guessing (audit2 B05).
+                    callLua(o.owner, Addon.C_DRAW, o.draw, gt, LuaGob.of(o.owner, AddonManager.userOf(gob), gob.id),
                             LuaValue.valueOf(Px.out((double)sc.x)), LuaValue.valueOf(Px.out((double)sc.y)));
                 else
                     gwrap.label(g, o.text, sc.add(Px.in(o.screenOffset())), 0.5, 1.0, o.font, o.color);

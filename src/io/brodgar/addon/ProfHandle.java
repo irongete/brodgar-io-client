@@ -851,12 +851,20 @@ public final class ProfHandle {
      */
     private static LuaTable widgets() {
         LuaTable out = new LuaTable();
-        UI u = AddonManager.screen();
-        if(!Prof.armed() || (u == null) || (u.root == null))
+        if(!Prof.armed())
             return out;
         Map<String, double[]> types = new HashMap<String, double[]>();
         List<Object[]> top = new ArrayList<Object[]>();
-        walk(u.root, types, top);
+        // BOTH trees the frame attends (audit2 B05): the session on screen and the addon layer, which is a
+        // real second tree ticked and drawn every frame. `total` is sold as the whole tree and `owner` as an
+        // addon's own widgets, and an addon's own windows all live in the layer — so counting the session
+        // alone left exactly the rows an addon profiles itself for out of the census.
+        UI u = AddonManager.screen();
+        if((u != null) && (u.root != null))
+            walk(u.root, types, top);
+        UI l = AddonManager.layer();
+        if((l != null) && (l.root != null) && (l != u))
+            walk(l.root, types, top);
         if(types.isEmpty())
             return out;
 

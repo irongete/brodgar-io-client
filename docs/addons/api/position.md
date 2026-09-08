@@ -11,7 +11,7 @@ local p = s:player():gob():position()
 
 p:x()  p:y()                            -- session world components, when you need numbers
 p:offset(0, 22)                         -- a NEW Position two tiles south
-p:distance(other)                       -- world distance; with no argument, to the drawn character
+p:distance(other)                       -- world distance; with no argument, to its own character
 p:tileCoord()                           -- the tile it sits in, {x, y}
 p:durable()                             -- can it be saved?
 p:info()                                -- {gridId, x, y} — the durable form
@@ -31,7 +31,7 @@ refuses anything else naming the verb and the parameter. A numeric string is
 |---|---|---|
 | `p:x()` `p:y()` | number \| nil | session world components |
 | `p:offset(dx, dy)` | Position \| nil | a new Position `dx` east and `dy` south, in world units |
-| `p:distance(other)` | number \| nil | world distance to another Position; defaults to the drawn character |
+| `p:distance(other)` | number \| nil | world distance to another Position; defaults to that place's own character |
 | `p:tileCoord()` | `{x, y}` \| nil | the session tile coord it sits in |
 | `p:durable()` | bool | whether it has a durable form |
 | `p:info()` | `{gridId, x, y}` \| nil | the durable form: a grid id, and the offset **within** that grid |
@@ -39,13 +39,24 @@ refuses anything else naming the verb and the parameter. A numeric string is
 You build one with `s:world():position(x, y)` from that session's world components, or
 `s:world():position(saved)` from the `{gridId, x, y}` table `:info()` gives you.
 
-**A Position carries no session, and that is deliberate**: a place is answerable in whichever session you
-ask, so giving one a session would make two Positions for one patch of ground. A **world coordinate is
-relative to where its session logged in**, so the durable form is worked out where the reader knows its
-session — `gob:position()` uses the character that read it — and it is the grid id that travels. The
-verbs *on* a Position were asked without a session, so `p:x()`, `p:y()`, `p:tileCoord()` and a bare
-`p:distance()` answer for the character on screen, while a verb reached through a session resolves the place
-in **its** frame.
+**A durable Position carries no session, and that is deliberate**: a grid id is the server's own naming of a
+patch of ground, so an anchored place is answerable in whichever session you ask and giving it one would make
+two Positions for one patch of ground. The anchor is worked out where the reader knows its session —
+`gob:position()` uses the character that read it — and it is the grid id that travels.
+
+**A place with no anchor keeps the login it was read in**, because a world coordinate is relative to where
+that session logged in. Its own verbs — `p:x()`, `p:y()`, `p:tileCoord()`, `p:offset()` and a bare
+`p:distance()` — answer in that login, whichever character is on screen. Hand it to a verb addressed at a
+**different** character and it raises: the two numbers name ground as far away as the two characters are
+apart, so there is nothing honest to answer.
+
+```text
+hafen.map():marker():add: this place was read in another login; anchor it (position.md) to carry it across
+```
+
+**Anchor it and it crosses.** A place over ground the character has walked is anchored already, so this is
+a refusal you meet only on ground nobody has recorded — where `p:durable()` is `false`. Walk that ground, or
+read the place from a character that has, and the same call goes through.
 
 > **`:info()` and `:x()`/`:y()` are not the same numbers.** `:x()`/`:y()` are session world components;
 > `:info()` carries a grid id plus the offset *inside that grid*, `0` to `1100`.
@@ -115,15 +126,17 @@ A **lattice cell** is an index, not a place, and keeps its own name: `grid:segme
 [design pixels](ui/pixels.md), and handing one to `s:player():move()` raises rather than walking a character
 somewhere wrong.
 
-## The verbs here answer for the screen; `s:world()` has the addressed three
+## The verbs here answer in the place's own login; `s:world()` has the addressed three
 
-A Position carries no session, so the verbs *on* one were asked without an address and resolve in the
-**drawn** character's frame: `p:x()`, `p:y()`, `p:tileCoord()` and a bare `p:distance()`. With one login
-that is the only frame there is. With two, the same three questions asked *about* a named character are
+The verbs *on* a Position resolve in the login the place belongs to: the one it was read in for a place with
+no anchor, and the character on screen for an anchored one, which every character derives for itself.
+`p:x()`, `p:y()`, `p:tileCoord()` and a bare `p:distance()` all answer there. With one login that is the only
+frame there is. With two, the same three questions asked *about* a named character are
 [`s:world():components(p)`](world.md#terrain-and-coordinates), `s:world():tileCoord(p)` and
 `s:world():distance(p [, other])` — the section holds the address, so those resolve in its frame.
 
-`p:offset(dx, dy)` needs no twin: it is arithmetic in world units and hands back a Position.
+`p:offset(dx, dy)` needs no twin: it is arithmetic in world units, in that place's own login, and hands back
+a Position in the same one.
 
 ## See also
 

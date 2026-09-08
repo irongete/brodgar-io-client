@@ -1085,7 +1085,7 @@ final class CharApi {
         methods.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 long id = plgob(user);
-                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, id);
+                return (id < 0) ? LuaValue.NIL : LuaGob.of(owner, user, id);
             }
         });
         /* vitals() is GONE (027-meters-oop's hard cut): the HUD bars are s:meter():list(), which is every meter

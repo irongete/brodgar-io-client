@@ -167,7 +167,7 @@ public final class LuaOpponent {
         m.set("gob", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaOpponent h = handle(self, "gob");
-                return LuaGob.of(owner, h.gobid);
+                return LuaGob.of(owner, h.user, h.gobid);
             }
         });
         // exists() — is that character still in a fight with them?

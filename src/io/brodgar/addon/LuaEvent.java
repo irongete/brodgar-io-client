@@ -562,8 +562,9 @@ public final class LuaEvent {
     /** {@code ev:gob()} (OVERLAY) — the interned Gob handle, minted on the first ask (like {@code :widget()}). */
     private LuaValue gob() {
         if(gobObj == null)
-            // A Gob is the object, so this is the same handle s:world():gob():get(id) hands back (079.3).
-            gobObj = LuaGob.of(owner, gobId);
+            // The object, read through the login this event is about (audit2 B05) -- the same handle
+            // s:world():gob():get(id) hands back on that session.
+            gobObj = LuaGob.of(owner, AddonManager.userOf(ui), gobId);
         return gobObj;
     }
 
@@ -657,7 +658,10 @@ public final class LuaEvent {
             public Varargs invoke(Varargs a) {
                 LuaEvent e = self(a.arg1(), shape, "position");
                 Coord c = e.coordArg(a, "position", "pixel");
-                return LuaPosition.of(e.owner, AddonManager.drawnUser(), Coord2d.of(c).mul(OCache.posres));
+                // audit2 B05: the EVENT's own login. dispatchAction runs a handler for the session the
+                // message left, so a coordinate in that message is in THAT character's frame; deriving it
+                // in the drawn one anchored a background login's action against another character's ground.
+                return LuaPosition.of(e.owner, AddonManager.userOf(e.ui), Coord2d.of(c).mul(OCache.posres));
             }
         });
         m.set("pixel", new VarArgFunction() {
@@ -1050,7 +1054,7 @@ public final class LuaEvent {
                 // whole client shared — where a handler running for a background character could read what
                 // the drawn one had just clicked.
                 long id = AddonManager.clickGobId(e.ui);
-                return (id < 0) ? LuaValue.NIL : LuaGob.of(e.owner, id);
+                return (id < 0) ? LuaValue.NIL : LuaGob.of(e.owner, AddonManager.userOf(e.ui), id);
             }
         });
         // 093.1 (A-095): BOTH are PROTECTED, under the existing widget.send -- the same wire, the same key,

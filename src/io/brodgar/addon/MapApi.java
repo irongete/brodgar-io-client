@@ -190,7 +190,11 @@ final class MapApi {
 
             public LuaValue getMember(LuaValue key) {
                 long gid = idArg(key, "hafen.map():grid():get(gridId)", "grid");
-                return (gridInfoIn(mapfile(), gid) == null) ? LuaValue.NIL : LuaMapGrid.of(owner, gid);
+                // hafen.map() is the character on screen's map, and the handle records WHICH character that
+                // was (audit2 B05) — so a grid read here still answers about that login after a tab away.
+                String user = drawnUser();
+                return (gridInfoIn(mapfile(user), gid) == null)
+                    ? LuaValue.NIL : LuaMapGrid.of(owner, user, gid);
             }
 
             /** The key is the grid id the SERVER published, a decimal string. */
@@ -250,8 +254,8 @@ final class MapApi {
                 LuaValue nm = Args.required(a, 2, "hafen.map():marker():add", "name");
                 if(nm.type() != LuaValue.TSTRING)
                     throw new LuaError("hafen.map():marker():add(name, p): name is the label the map shows");
-                Coord2d rc = LuaPosition.worldArg(a, 3, "hafen.map():marker():add", "p");
-                return addMarker(owner, nm.tojstring(), rc.x, rc.y);
+                return addMarker(owner, nm.tojstring(),
+                                 LuaPosition.posArg(a, 3, "hafen.map():marker():add", "p"));
             }
 
             public boolean destroyable() {
@@ -580,13 +584,23 @@ final class MapApi {
      * <p>{@code nil} when the map or the session location is not up yet, which is also when a Position could
      * not have been located.
      */
-    private static LuaValue addMarker(Addon owner, String nm, double wx, double wy) {
-        MapFile file = mapfile();
-        MiniMap.Location sl = sessloc();
+    private static LuaValue addMarker(Addon owner, String nm, LuaPosition p) {
+        // audit2 B05: THE LOGIN THE PLACE WAS READ IN, and the character on screen only for a place that
+        // carries none (a durable one, which every login derives for itself). A world→segment conversion is
+        // one character's — sessloc is where THAT session logged in — so converting a coordinate read in one
+        // login under another's offset drops the pin however far apart the two characters are standing.
+        String user = p.login();
+        if(user == null)
+            user = drawnUser();
+        Coord2d rc = p.world(user, "hafen.map():marker():add");
+        if(rc == null)
+            throw new LuaError("hafen.map():marker():add: p " + LuaPosition.unreachable(user));
+        MapFile file = mapfile(user);
+        MiniMap.Location sl = sessloc(user);
         if((file == null) || (sl == null))
             return LuaValue.NIL;                  // map / session location not up yet
         // world → segment tile coord (mirrors MapWnd.FindMark.hit: sessloc.tc + floor(world / tilesz)).
-        Coord segTc = sl.tc.add(Coord2d.of(wx, wy).floor(MCache.tilesz));
+        Coord segTc = sl.tc.add(rc.floor(MCache.tilesz));
         MapFile.PMarker pm = new MapFile.PMarker(file, sl.seg.id, segTc, nm, DEFAULT_MARKER_COLOR, false);
         file.add(pm);                             // takes the write lock, persists (defersave), bumps markerseq
         return LuaMarker.of(owner, markerId(owner, pm));
@@ -653,6 +667,16 @@ final class MapApi {
     // UI thread (addon tick / REPL), matching the settings window. No *Changed event — categories change
     // only as new icon types are seen (rare); read on demand (the A4 precedent for rarely-changing data).
     // The entity half is LuaIconCat; this is the one accessor it (and nothing else) resolves through.
+
+    /**
+     * <b>One named character's</b> minimap icon registry, or null while that session has no HUD (audit2 B05).
+     * The registry is per character and its {@code dsave()} writes that character's own settings file, so a
+     * handle read in one login edits that login's icons whichever character is later on screen.
+     */
+    static GobIcon.Settings iconconf(String user) {
+        GameUI g = AddonManager.gameui(user);
+        return (g == null) ? null : g.iconconf;
+    }
 
     /** The character's minimap icon registry (GameUI.iconconf), or null before the HUD is up. */
     static GobIcon.Settings iconconf() {
@@ -777,7 +801,13 @@ final class MapApi {
      * a grid in a segment the player is not standing in has no world coordinate this session at all.
      */
     static LuaValue gridWorldUL(MapFile.GridInfo gi) {
-        Coord2d ul = gridUL(gi);
+        return gridWorldUL(gi, null);
+    }
+
+    /** {@link #gridWorldUL(MapFile.GridInfo)} <b>in one named login</b> — a recorded grid has a world
+     *  coordinate only in a session standing in its own segment, so which session asks is the question. */
+    static LuaValue gridWorldUL(MapFile.GridInfo gi, String user) {
+        Coord2d ul = gridUL(gi, user);
         return (ul == null) ? LuaValue.NIL : xy(ul.x, ul.y);
     }
 
@@ -951,6 +981,8 @@ final class MapApi {
 
     /** One addon's hold on one display toggle — the {@code hiddenNative} shape, one subsystem along. */
     static final class Hold {
+        /** The login the hold was taken in — a MapView/MapWnd is one session's, and so is the +1 on it. */
+        final String user;
         final String tag;
         /** {@code realm}: the map window's tag SET (so the stock value matters); otherwise MapView's refcount. */
         final boolean recorded;
@@ -959,7 +991,8 @@ final class MapApi {
         /** The {@code MapView} / {@code MapWnd} the hold was taken on — weak, so a relog cannot pin the scene. */
         final WeakReference<Object> on;
 
-        Hold(String tag, boolean recorded, boolean stock, Object on) {
+        Hold(String user, String tag, boolean recorded, boolean stock, Object on) {
+            this.user = user;
             this.tag = tag;
             this.recorded = recorded;
             this.stock = stock;
@@ -988,15 +1021,28 @@ final class MapApi {
         return (g == null) ? null : g.map;
     }
 
+    /** <b>One named session's</b> 3D map view, or null while that session has no HUD. */
+    static MapView mapview(String user) {
+        GameUI g = AddonManager.gameui(user);
+        return (g == null) ? null : g.map;
+    }
+
     /** The map window (the {@code realm} side), or null before the HUD is up. */
     static MapWnd mapwnd() {
         GameUI g = gui();
         return (g == null) ? null : g.mapfile;
     }
 
-    /** The side that owns a tag, or null when it is not up yet — the one place the two are told apart. */
-    private static Object sideOf(String tag) {
-        return recorded(tag) ? (Object)mapwnd() : (Object)mapview();
+    /** <b>One named session's</b> map window, or null while that session has no HUD. */
+    static MapWnd mapwnd(String user) {
+        GameUI g = AddonManager.gameui(user);
+        return (g == null) ? null : g.mapfile;
+    }
+
+    /** The side that owns a tag <b>in that login</b>, or null when it is not up — the one place the two are
+     *  told apart. */
+    private static Object sideOf(String tag, String user) {
+        return recorded(tag) ? (Object)mapwnd(user) : (Object)mapview(user);
     }
 
     /** Is this overlay displayed right now — by anyone? {@code null} when its side is not up. */
@@ -1009,18 +1055,25 @@ final class MapApi {
         return (m == null) ? null : Boolean.valueOf(m.visol(tag));
     }
 
-    /** Does {@code owner} hold this tag right now? (The record, not the screen.) */
+    /** Does {@code owner} hold this tag right now, <b>in the login on screen</b>? (The record, not the paint.) */
     static boolean held(Addon owner, String tag) {
-        return holdIn(owner, tag) != null;
+        return holdIn(owner, drawnUser(), tag) != null;
     }
 
-    private static Hold holdIn(Addon owner, String tag) {
+    /**
+     * {@code owner}'s hold on one tag <b>in one login</b>, or null. Keyed on the login as well as the tag
+     * (audit2 B05): the {@code +1} a hold leaves is on one session's own {@code MapView}/{@code MapWnd}, so a
+     * key that named the tag alone made the second character's {@code :hold()} a silent no-op — its scene was
+     * never touched — and made one {@code :release()} give back the other character's.
+     */
+    private static Hold holdIn(Addon owner, String user, String tag) {
         if(owner == null)
             return null;
         List<Hold> hs = owner.overlayHolds;
         for(int i = 0, n = hs.size(); i < n; i++) {
-            if(hs.get(i).tag.equals(tag))
-                return hs.get(i);
+            Hold h = hs.get(i);
+            if(h.tag.equals(tag) && ((h.user == null) ? (user == null) : h.user.equals(user)))
+                return h;
         }
         return null;
     }
@@ -1032,27 +1085,28 @@ final class MapApi {
      * the map window's set, so releasing it cannot switch off what the user's own checkbox turned on.
      */
     static void take(Addon owner, String tag) {
-        if((owner == null) || (holdIn(owner, tag) != null))
+        String user = drawnUser();
+        if((owner == null) || (holdIn(owner, user, tag) != null))
             return;
-        Object side = sideOf(tag);
+        Object side = sideOf(tag, user);
         if(side == null)
             return;                       // the HUD is not up: nothing to hold, and nothing recorded
         if(side instanceof MapWnd) {
             MapWnd w = (MapWnd)side;
             boolean stock = w.overlays.contains(tag);
-            owner.overlayHolds.add(new Hold(tag, true, stock, w));
+            owner.overlayHolds.add(new Hold(user, tag, true, stock, w));
             if(!stock)
                 w.overlays.add(tag);
         } else {
             MapView m = (MapView)side;
-            owner.overlayHolds.add(new Hold(tag, false, false, m));
+            owner.overlayHolds.add(new Hold(user, tag, false, false, m));
             m.enol(tag);                  // +1 on the multiset — never an assignment
         }
     }
 
     /** Release {@code owner}'s hold, if it has one. A release without a hold is a no-op, never someone else's -1. */
     static void release(Addon owner, String tag) {
-        Hold h = holdIn(owner, tag);
+        Hold h = holdIn(owner, drawnUser(), tag);
         if(h == null)
             return;
         owner.overlayHolds.remove(h);

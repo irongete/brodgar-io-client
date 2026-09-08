@@ -297,11 +297,11 @@ public final class LuaKin {
                     if((bid == null) || (bid.intValue() != h.id))
                         continue;
                     if(AddonManager.gobIsPlayer(g))
-                        return LuaGob.of(owner, g.id);
+                        return LuaGob.of(owner, h.user, g.id);
                     if(other == null)
                         other = g;
                 }
-                return (other == null) ? LuaValue.NIL : LuaGob.of(owner, other.id);
+                return (other == null) ? LuaValue.NIL : LuaGob.of(owner, h.user, other.id);
             }
         });
         // -- protected writes (D-027/D-028): drive the client's own Buddy methods (D-009), return self ------

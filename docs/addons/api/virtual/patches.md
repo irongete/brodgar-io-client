@@ -126,8 +126,10 @@ can see through.
 | `occluded` | whether the world may hide it, the boolean [`patch:occluded()`](#drawing-through-the-world) reads |
 | `ring` | the shape, as an array of the `{gridId, x, y}` tables a [Position](../position.md) answers with |
 
-`border` is absent while no line is laid and `ring` while this character cannot locate the patch at all,
-exactly as a key is absent everywhere in this API when the thing it names is not known; `occluded` is always
+`border` is absent while no line is laid and `ring` while the character on screen cannot locate the patch at
+all — `hafen.virtual()` stands its things in the scene being drawn, so `ring` is that character's reading of
+the ground, whichever character laid the patch. It is absent exactly as a key is absent everywhere in this
+API when the thing it names is not known; `occluded` is always
 there, since a boolean property has a value at every moment. The snapshot names the two halves of a border
 where the call counts them, because a snapshot is a document and a call is not.
 

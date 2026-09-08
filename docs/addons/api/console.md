@@ -101,6 +101,12 @@ end)
 `line` is the command and the rest of the line, **without the opening colon**: the colon opens the console
 line and the client never sees it as part of one. `run("reload")`, not `run(":reload")`.
 
+**What it answers with goes to the character on screen.** The line runs at the character you addressed —
+that is the whole point of the address — but its result, its error and anything `:lua` prints are notices,
+and a notice is drawn by the session you are looking at. So `s:console():run("lua 1 + 1")` said at a
+background character does what it says there and reports it in front of the character on screen. What the
+line *did* is read back through `s` like anything else.
+
 **A line belongs to a character.** `:lo` logs out the character it is run at, `:gl` writes that
 character's graphics settings, and `:act`, `:belt`, `:afk`, `:cam` and `:exportmap` each answer for the
 character whose own window registered them — so `s:console():run("lo")` logs out the character `s` names,

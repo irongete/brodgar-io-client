@@ -620,11 +620,17 @@ final class VirtualApi {
         LuaValue v = Args.required(a, 3, verb, "anchor");
         LuaGob lg = LuaGob.resolve(v);
         if(lg != null) {
-            Gob g = anygob(lg.id);   // 079.3: the object, wherever it is held -- gob:exists()'s own question
+            // audit2 B05: the copy THE SCENE holds, and no other. hafen.virtual() stands its entities in the
+            // drawn session's scene and FollowMoving re-resolves the target through that scene's own Glob, so
+            // an rc read out of any other login is a number in a frame this entity will never be drawn in --
+            // it would sit on another character's coordinate and never correct. A target the character on
+            // screen cannot see is therefore refused rather than followed from somewhere else.
+            Gob g = AddonManager.getgob(AddonManager.drawnUser(), lg.id);
             if(g == null)
-                throw new LuaError(verb + "(what, gob): that gob is gone — it had already left the object cache"
-                    + " when this call ran, so there is nothing to follow (read gob:exists() first, or place it"
-                    + " at a point with " + verb + "(what, p))");
+                throw new LuaError(verb + "(what, gob): the character on screen cannot see that gob — it left"
+                    + " view, despawned, or is one only a background login holds, and a thing standing in the"
+                    + " scene follows the object as the scene has it (gob:sessions() says who has it). Place it"
+                    + " at a point with " + verb + "(what, p) instead)");
             Coord2d rc;
             synchronized(g) { rc = g.rc; }
             return new Anchor((rc == null) ? Coord2d.z : rc, lg.id, null);
@@ -829,6 +835,17 @@ final class VirtualApi {
         if(e == null)
             throw new LuaError(where + ": there is no map view yet — a thing standing in the 3D world needs the"
                 + " scene, so place it once you are in the world (SessionEnteredWorld)");
+        // audit2 B05: the target is proved AGAIN, after the registration. anchorGone is one-shot -- an id it
+        // already found absent from `anchored` is never revisited -- so an object whose removal drained
+        // between the anchor read and entityRegister was filed under an id nothing will ever come back for:
+        // the entity would follow nothing, hold at its last point and never be reaped. Ended here instead,
+        // and the refusal is the same one the anchor door gives, because it is the same fact one beat later.
+        if((e.followTgt != 0) && (AddonManager.getgob(AddonManager.drawnUser(), e.followTgt) == null)) {
+            destroyEntity(e);
+            throw new LuaError(where + "(what, gob): that gob left the character on screen while this call was"
+                + " running, so there is nothing left to follow — nothing was left standing (gob:exists() is"
+                + " the test, and an anchored thing dies with its object)");
+        }
         return e.handle;
     }
 

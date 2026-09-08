@@ -155,13 +155,26 @@ final class LuaHand {
                         + " it is empty, so read it again rather than holding a Hand across a drop."
                         + " Nothing was sent.");
                 // (a) another ITEM: the GItem's own "itemact", exactly what WItem.iteminteract sends.
+                //   audit2 B05: through the SAME two gates the other two branches run. The view is asked for
+                // first, because a held-item gesture is one the character on screen makes and sendView is
+                // where that is said once (this branch used to return before it was ever called, so a
+                // background character's hand acted). Then the target: item:exists() only says the widget is
+                // live in ITS OWN tree, and the message leaves through whichever UI owns that widget -- so an
+                // item in another character's tree made the DRAWN character act on a hand that was not its.
                 LuaItem ti = LuaItem.resolve(target);
                 if(ti != null) {
+                    view(user);
                     GItem g = LuaItem.live(ti);
                     if(g == null)
                         throw new LuaError(USE + ": the target item is gone — it was moved, used or consumed"
                             + " (item:exists() is false). Nothing was sent: an item that has left is not the"
                             + " item that took its place. Re-read the container and retry.");
+                    if(!user.equals(AddonManager.userOf(g)))
+                        throw new LuaError(USE + ": that item is in another character's tree — a hand is one"
+                            + " character's, and the message would leave through whichever character owns the"
+                            + " item rather than through this one. Read the target out of this session"
+                            + " (s:ui()), or address the hand of the character that holds it. Nothing was"
+                            + " sent.");
                     g.wdgmsg("itemact", itemArgs(mods));
                     return self;
                 }

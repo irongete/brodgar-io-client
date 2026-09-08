@@ -57,15 +57,25 @@ import java.util.Map;
  * same for one recorded mask. Both are built on {@link haven.Defer} and follow the load model above: the
  * first call kicks the render and answers nil. See {@link MapImages}.
  *
- * <p><b>Interned on the GRID ID</b> (D-063), not on the Java object: a {@code Grid} lives in a weak
- * {@code CacheMap} and is rebuilt from disk after an eviction, so identity interning would go stale
+ * <p><b>Interned on the LOGIN and the GRID ID</b> (D-063), not on the Java object: a {@code Grid} lives in a
+ * weak {@code CacheMap} and is rebuilt from disk after an eviction, so identity interning would go stale
  * invisibly. Every method re-resolves, so a stashed handle tracks both halves of the world.
+ *
+ * <p><b>The login is half the handle</b> (audit2 B05). The id is the server's and names the same ground to
+ * everybody, but the two live questions are one character's: {@code grid:live()} asks whether that character
+ * has it streamed in, and the recorded half is read out of the database that character's HUD holds. So the
+ * handle records the login it was minted through — the addressed one for {@code s:world():grid()}, the
+ * character on screen for {@code hafen.map():grid()} — and answers about it afterwards, rather than about
+ * whichever character happens to be drawn when the question is asked.
  */
 public final class LuaMapGrid {
-    /** The server's grid id — the whole state of a handle, its identity, and the shareable anchor. */
+    /** The server's grid id — the identity of the ground, and the shareable anchor. */
     public final long id;
+    /** The login this handle was minted through — whose streaming and whose database it answers about. */
+    public final String user;
 
-    private LuaMapGrid(long id) {
+    private LuaMapGrid(String user, long id) {
+        this.user = user;
         this.id = id;
     }
 
@@ -74,9 +84,9 @@ public final class LuaMapGrid {
         return "Grid(" + Long.toString(id) + ")";
     }
 
-    /** An interned Grid object for {@code id} in {@code owner}'s env — the one way one reaches Lua. */
-    static LuaValue of(Addon owner, long id) {
-        return owner.mapGrids.of(id);
+    /** An interned Grid object for {@code id} as {@code user} sees it — the one way one reaches Lua. */
+    static LuaValue of(Addon owner, String user, long id) {
+        return owner.mapGrids.of(user, id);
     }
 
     /** The {@code LuaMapGrid} behind a Lua value, or {@code null} for anything that is not a Grid object. */
@@ -92,7 +102,7 @@ public final class LuaMapGrid {
     /** One addon's Grid interning cache and metatable ({@link Addon#mapGrids}); the {@link LuaGob} shape. */
     static final class Cache {
         private final Addon owner;
-        private final Map<Long, Ref> live = new HashMap<Long, Ref>();
+        private final Map<String, Ref> live = new HashMap<String, Ref>();
         private final ReferenceQueue<LuaValue> dead = new ReferenceQueue<LuaValue>();
         private LuaValue mt;
 
@@ -100,10 +110,10 @@ public final class LuaMapGrid {
             this.owner = owner;
         }
 
-        /** The interned handle for {@code id} — a cache hit, or a freshly minted (and inserted) one. */
-        synchronized LuaValue of(long id) {
+        /** The interned handle for {@code id} in {@code user} — a hit, or a freshly minted (and inserted) one. */
+        synchronized LuaValue of(String user, long id) {
             drain();
-            Long key = Long.valueOf(id);
+            String key = user + "@" + Long.toString(id);
             Ref r = live.get(key);
             if(r != null) {
                 LuaValue v = r.get();
@@ -111,7 +121,7 @@ public final class LuaMapGrid {
                     return v;
                 live.remove(key);
             }
-            LuaValue v = LuaValue.userdataOf(new LuaMapGrid(id), meta());
+            LuaValue v = LuaValue.userdataOf(new LuaMapGrid(user, id), meta());
             live.put(key, new Ref(v, key, dead));
             return v;
         }
@@ -135,9 +145,9 @@ public final class LuaMapGrid {
 
     /** A weak handle reference that remembers its map key, so the {@link ReferenceQueue} drain can unmap it. */
     private static final class Ref extends WeakReference<LuaValue> {
-        final Long key;
+        final String key;
 
-        Ref(LuaValue v, Long key, ReferenceQueue<LuaValue> q) {
+        Ref(LuaValue v, String key, ReferenceQueue<LuaValue> q) {
             super(v, q);
             this.key = key;
         }
@@ -179,7 +189,7 @@ public final class LuaMapGrid {
         // asking whether ground is here must not fetch it.
         m.set("live", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
-                return LuaValue.valueOf(streamed(handle(self, "live").id));
+                return LuaValue.valueOf(streamed(handle(self, "live")));
             }
         });
         // segmentCoord() — this grid's coord WITHIN ITS SEGMENT, {x,y}. A lattice cell, not a place, and
@@ -197,7 +207,7 @@ public final class LuaMapGrid {
         m.set("position", new OneArgFunction() {
             public LuaValue call(LuaValue self) {
                 LuaMapGrid h = handle(self, "position");
-                if(!streamed(h.id) && (info(h) == null))
+                if(!streamed(h) && (info(h) == null))
                     return LuaValue.NIL;
                 return LuaPosition.ofAnchor(owner, h.id, 0, 0);
             }
@@ -260,7 +270,7 @@ public final class LuaMapGrid {
                 if(Args.passed(a, 2))
                     throw new LuaError("grid:mask(tag) is a COLLECTION: grid:mask():get(tag) is the Mask for"
                         + " one tag and grid:mask():list() is every tag this grid carries");
-                return maskCollection(owner, h.id);
+                return maskCollection(owner, h.user, h.id);
             }
         });
         // image(lvl) — the recorded MINIMAP DRAWING of this ground, as an ordinary image handle (037.4): the
@@ -298,10 +308,10 @@ public final class LuaMapGrid {
                 t.set("id", LuaValue.valueOf(Long.toString(h.id)));
                 t.set("seg", LuaValue.valueOf(Long.toString(gi.seg)));
                 t.set("sc", AddonManager.xy(gi.sc.x, gi.sc.y));
-                LuaValue pos = MapApi.gridWorldUL(gi);
+                LuaValue pos = MapApi.gridWorldUL(gi, h.user);
                 if(!pos.isnil())
                     t.set("pos", pos);
-                t.set("live", LuaValue.valueOf(streamed(h.id)));
+                t.set("live", LuaValue.valueOf(streamed(h)));
                 t.set("loaded", LuaValue.valueOf(g != null));
                 if(g != null)
                     t.set("mtime", LuaValue.valueOf((double)g.mtime));
@@ -314,17 +324,18 @@ public final class LuaMapGrid {
 
     /** Where this grid sits (segment + segment coord) — the small record, available without a disk read. */
     private static MapFile.GridInfo info(LuaMapGrid h) {
-        return MapApi.gridInfoIn(MapApi.mapfile(), h.id);
+        return MapApi.gridInfoIn(MapApi.mapfile(h.user), h.id);
     }
 
     /** The grid's tile data — kicks the load and answers null until it lands (the one load model). */
     private static MapFile.Grid data(LuaMapGrid h) {
-        return MapApi.gridDataIn(MapApi.mapfile(), h.id);
+        return MapApi.gridDataIn(MapApi.mapfile(h.user), h.id);
     }
 
-    /** Is this grid streamed in right now? A plain lookup — never {@code MCache.getgrid}, which would ask. */
-    private static boolean streamed(long id) {
-        return AddonWidgets.gridWorldUL(AddonManager.mcache(), id) != null;
+    /** Is this grid streamed in <b>by that character</b> right now? A plain lookup — never
+     *  {@code MCache.getgrid}, which would ask the server. */
+    private static boolean streamed(LuaMapGrid h) {
+        return AddonWidgets.gridWorldUL(AddonManager.mcache(h.user), h.id) != null;
     }
 
     /**
@@ -332,11 +343,11 @@ public final class LuaMapGrid {
      * like every collection owned by an entity: it re-derives from the grid id on every call and holds
      * nothing between them, so it cannot outlive the grid and needs no pruning of its own.
      */
-    private static LuaValue maskCollection(final Addon owner, final long id) {
+    private static LuaValue maskCollection(final Addon owner, final String user, final long id) {
         return LuaCollection.create("grid:mask()", new LuaCollection.Source() {
             public List<LuaValue> members() {
                 List<LuaValue> out = new ArrayList<LuaValue>();
-                List<String> tags = MapApi.gridTags(MapApi.mapfile(), id);
+                List<String> tags = MapApi.gridTags(MapApi.mapfile(user), id);
                 if(tags == null)
                     return out;             // still loading: an empty census, and it fills in next tick
                 for(String t : tags)
@@ -364,7 +375,7 @@ public final class LuaMapGrid {
                         + " \"vlg\", \"realm\") \u2014 grid:mask():list() is the census of the ones this"
                         + " grid carries");
                 String t = key.tojstring();
-                return (MapApi.maskIn(MapApi.mapfile(), id, t) == null)
+                return (MapApi.maskIn(MapApi.mapfile(user), id, t) == null)
                     ? LuaValue.NIL : LuaMask.of(owner, id, t);
             }
 
