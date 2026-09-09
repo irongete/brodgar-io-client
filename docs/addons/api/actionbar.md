@@ -141,8 +141,13 @@ it assigns that action. The name it takes is the same string it reads back — s
 is to put the action on the bar by hand once and read it. The write works on any slot, empty or
 occupied, overwriting an occupied one, and a non-string or empty name raises an error. An unknown
 resource name is **silently ignored** by the server, exactly as dragging something that does not exist
-would be: the slot does not change, and no error comes back. There is no way to assign by pagina id,
-since those are session-local and opaque to addons.
+would be: the slot does not change, and no error comes back.
+
+**The name is enough for every action in the menu**, the server-pushed abilities included. The server
+addresses those by an id of its own rather than by a resource name, and a drag sends that id — so does this
+verb: it looks the name up in that character's menu and sends whichever message the client's own drop would
+send for that entry. Nothing about it shows from Lua. The name you read off a slot is the name that puts the
+action back, whichever kind of entry it is, and the id is never a thing an addon holds.
 
 **`slot:clear()` is `:res(name)`'s opposite, and it takes no arguments** — an argument is an error naming
 both the assignment and `slot:hold(nil)`. It empties the slot whether or not anything is in it: clearing an
@@ -176,9 +181,9 @@ end)
 
 ## Hold a slot (unprotected)
 
-**One of your own [menu entries](menugrid.md#write-unprotected) sits on the bar too**, drawing its icon in
+**A [menu entry an addon added](menugrid.md#write-unprotected) sits on the bar too**, drawing its icon in
 the slot and running its Lua when that slot's key is pressed. It does not go *into* the slot: the server
-owns the bar and has never heard of your entry's name, so the client **holds** the slot instead — it draws
+owns the bar and has never heard of the entry's name, so the client **holds** the slot instead — it draws
 over what the server has there and hands it back untouched when the hold ends.
 
 ```lua
@@ -189,12 +194,20 @@ s:actionbar():get(11):hold(dig)            -- the entry now draws in that slot, 
 ```
 
 The entry and the slot are **one character's pair**: a slot is held for an entry in that same character's
-menu, and holding one for an entry you added on another login is refused naming whose menu it is in.
+menu, and holding one for an entry that is not in it — added on another login, or removed again — is refused
+naming which addon's entry it is and why it is not there.
+
+**Whose entry it is does not matter.** The bar is one shared surface, and a slot is held for another addon's
+entry exactly as for your own: [`s:menugrid():get(res)`](menugrid.md) hands you the `Pagina` for any entry in
+the menu, and `slot:hold(pag)` places it. That is the drag's own rule — the client's bar takes whatever entry
+the player drops on it without asking who added it — and an addon that draws a bar of its own does the same
+for them. A hold *places* an entry and writes nothing on it; renaming it, re-iconing it or giving it handlers
+stays [the entry's owner's](menugrid.md#write-unprotected).
 
 | Method | Returns | Description |
 |---|---|---|
 | `slot:hold()` | `Pagina` \| nil | the entry this slot is being held for; `nil` for every slot the server owns |
-| `slot:hold(pag)` | the `Slot` | hold this slot for one of the entries your addon added |
+| `slot:hold(pag)` | the `Slot` | hold this slot for an entry an addon added to that character's menu — yours or another's |
 | `slot:hold(nil)` | the `Slot` | end the hold, whoever took it; inert on a slot nobody is holding |
 
 Nothing reaches the server, so this needs **no permission** and it lands **immediately** — where
@@ -231,7 +244,9 @@ that row — your own write ends your own hold, a beat later, when the server ec
 > **The bar is one shared surface.** A slot belongs to nobody: the player drags what they like onto it, and
 > so does every other addon. Holding a slot another addon holds is allowed and the last write wins — what is
 > carried through the whole pile is the *server's* own content, so one release puts the game's action back
-> however many addons took that slot in turn.
+> however many addons took that slot in turn. Nor does the entry belong to the hold: a slot held for another
+> addon's entry follows *that* entry — it goes back when that addon removes the entry, reloads or is disabled,
+> whichever addon placed it, exactly as a slot the player filled by dragging does.
 
 ### A hold is remembered
 
@@ -270,14 +285,14 @@ another character, and a slot you hold on one is not held on the next.
 | What you did | What you get |
 |---|---|
 | `slot:hold(pag)` for one of the game's own entries | that *is the client's own entry* — pointing at `slot:res(name)` |
-| `slot:hold(pag)` for another addon's entry | it *belongs to* that addon, named |
 | `slot:hold(pag)` for an entry you removed | that entry *is no longer in the menu* |
+| `slot:hold(pag)` for an entry another addon removed | *not in that character's menu*, naming that addon |
 | `slot:hold(7)`, `slot:hold("dig")` | expected the **`Pagina` object**, or `nil` |
 | `slot:res("addon/myaddon/dig")` | that *is an entry an addon added* — pointing back at `slot:hold` |
 
 The last row is the pair's dividing line: `slot:res(name)` assigns one of the game's actions, by a name the
-server publishes and stores; `slot:hold(pag)` holds a slot for one of yours, which the server never sees.
-One string could never mean both.
+server publishes and stores; `slot:hold(pag)` holds a slot for an entry an addon added, which the server never
+sees. One string could never mean both.
 
 ## See also
 

@@ -18,7 +18,7 @@ import static io.brodgar.addon.AddonManager.SessionState;
 import static io.brodgar.addon.AddonManager.state;
 
 /**
- * <b>A bar slot held for an addon's own menu entry</b> ({@code slot:pagina(pag)}, spec
+ * <b>A bar slot held for a menu entry an addon added</b> ({@code slot:hold(pag)}, spec
  * {@code 059-menugrid-entries}) — the layer that lets an {@link AddonPagina} draw and fire on the action bar
  * without ever going onto it.
  *
@@ -40,7 +40,7 @@ import static io.brodgar.addon.AddonManager.state;
  * that fires it are the very {@link AddonPagina.AddonPagButton} the menu grid draws and clicks — one button,
  * two places, and no second path that could answer differently.
  *
- * <p><b>Five ways a hold ends</b>, and every one of them puts the slot back: {@code slot:pagina(nil)}, a
+ * <p><b>Five ways a hold ends</b>, and every one of them puts the slot back: {@code slot:hold(nil)}, a
  * right-click on the slot ({@link #release}, which is why the right-click is not sent), the entry being
  * {@code :remove}d ({@link #entryRemoved}), the addon being reloaded or disabled ({@link #teardownHolds}),
  * and a <b>server write</b> to that slot ({@link #serverWrote}) — the one case where nothing is put back,
@@ -58,7 +58,7 @@ import static io.brodgar.addon.AddonManager.state;
  * the moment an entry with that identity is added again. At login that is the addon's own
  * {@code SessionEnteredWorld}
  * {@code :add}, so nothing has to guess when the bar is ready. The two endings above split here: a hold
- * <b>released by hand</b> — {@code slot:pagina(nil)}, a right-click, the server taking the slot — is
+ * <b>released by hand</b> — {@code slot:hold(nil)}, a right-click, the server taking the slot — is
  * <b>forgotten</b>, while one whose <b>entry merely went away</b> — {@code :remove}, a {@code :reload},
  * disable, a logout — is <b>remembered</b>, because the slot is still where that entry belongs.
  *
@@ -70,7 +70,7 @@ import static io.brodgar.addon.AddonManager.state;
  * bar it was taken on, which is what lets an ending put a slot back on the bar it was borrowed from rather
  * than on whichever one is drawn at that moment — the case that matters, because {@code init} tears the old
  * session's addons down once {@link AddonManager#screen()} ALREADY answers the session being switched to. The
- * verbs an addon calls ({@code slot:pagina(pag)}, {@code s:menugrid():add(id)}) name their own session, and
+ * verbs an addon calls ({@code slot:hold(pag)}, {@code s:menugrid():add(id)}) name their own session, and
  * that is the same bar the rest of {@code LuaSlot} reads.
  *
  * <p><b>Threading.</b> The Lua verbs and the mouse hooks run on the UI thread; {@link #serverWrote} runs on
@@ -116,7 +116,7 @@ public final class BeltHold {
 
     /**
      * The entry a slot is being held for, or {@code null} for every slot the server owns — the read half of
-     * {@code slot:pagina()}, on the bar the Slot names, like every other read on {@code LuaSlot}.
+     * {@code slot:hold()}, on the bar the Slot names, like every other read on {@code LuaSlot}.
      */
     static synchronized AddonPagina held(String user, int n) {
         GameUI g = AddonManager.gameui(user);      // 077.3: the bar the Slot names, not the drawn one
@@ -128,7 +128,7 @@ public final class BeltHold {
     }
 
     /**
-     * <b>Hold slot {@code n} for {@code pag}</b> — the write half of {@code slot:pagina(pag)} and the whole of
+     * <b>Hold slot {@code n} for {@code pag}</b> — the write half of {@code slot:hold(pag)} and the whole of
      * a drag from the grid. What the slot had is remembered <i>once</i>: a second hold on the same slot
      * carries the original {@link Hold#displaced} across, so the server's content survives any number of
      * addons taking that slot in turn rather than being replaced by the previous addon's button.
@@ -140,7 +140,7 @@ public final class BeltHold {
         GameUI g = AddonManager.gameui(user);
         SessionState st = (g == null) ? null : state(g.ui);
         if((g == null) || (g.belt == null) || (st == null) || (n < 0) || (n >= g.belt.length))
-            throw new LuaError("slot:pagina(pagOrNil): that character has no action bar yet — hold a slot"
+            throw new LuaError("slot:hold(pagOrNil): that character has no action bar yet — hold a slot"
                 + " from SessionEnteredWorld or later, not from Load");
         hold(st, g, n, pag);
     }
@@ -187,7 +187,7 @@ public final class BeltHold {
 
     /**
      * <b>End the hold on slot {@code n}</b> and put the server's own content back, whether there was one or
-     * not — {@code slot:pagina(nil)}, a right-click, a removed entry, a torn-down addon. {@code true} when
+     * not — {@code slot:hold(nil)}, a right-click, a removed entry, a torn-down addon. {@code true} when
      * there was a hold to end, which is what makes the right-click hook send nothing.
      *
      * <p>The slot is restored only when it still holds <b>our</b> slot object: a server write that landed
@@ -200,7 +200,7 @@ public final class BeltHold {
     }
 
     /**
-     * {@code slot:pagina(nil)} — the addon's own way to end a hold, on the bar the Slot names like the rest
+     * {@code slot:hold(nil)} — the addon's own way to end a hold, on the bar the Slot names like the rest
      * of {@code LuaSlot}.
      */
     static synchronized boolean release(String user, int n) {

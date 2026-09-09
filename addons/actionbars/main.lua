@@ -425,8 +425,8 @@ local function onPress(s, n, vert, ev)
 end
 
 -- A drag out of the action menu. The descriptor is neutral -- {kind, res} -- and the resource name splits
--- it: one of ours goes into a HOLD, which the server never hears about, and one of the game's own is a
--- write to the slot, which is a round trip the server echoes back a beat later.
+-- it: an entry an addon added (any addon's) goes into a HOLD, which the server never hears about, and one
+-- of the game's own is a write to the slot, which is a round trip the server echoes back a beat later.
 local function onDrop(s, n, vert, ev)
   local i = squareAt(vert, ev:x(), ev:y())
   if not i then return end
@@ -436,8 +436,7 @@ local function onDrop(s, n, vert, ev)
   if not s:exists() then return end
 
   if not thing.res then
-    hafen.log():write("Actionbars: that action carries no resource name -- the server pushed it, and there"
-      .. " is nothing a slot can be given")
+    hafen.log():write("Actionbars: that action's resource has not loaded yet -- drop it again in a moment")
     return
   end
 
@@ -445,7 +444,7 @@ local function onDrop(s, n, vert, ev)
   local ok, err = pcall(function()
     if thing.res:sub(1, 6) == "addon/" then
       local pag = s:menugrid():get(thing.res)
-      if pag then slot:hold(pag) end        -- refuses, naming the owner, for an entry another addon added
+      if pag then slot:hold(pag) end        -- any addon's entry: the bar is one shared surface
     else
       slot:res(thing.res)
     end

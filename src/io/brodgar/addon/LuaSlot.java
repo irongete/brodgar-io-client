@@ -56,8 +56,9 @@ import java.util.Map;
  *
  * <p><b>Writes</b> ({@code :use}, {@code :res(name)}) keep the {@code requirePermission} gate (D-027/D-028) and
  * go through the client's own paths (wrap-not-reimplement, D-009): {@code :use} drives {@code Belt.act},
- * {@code :res(name)} sends the very {@code wdgmsg("setbelt", n, "res", name)} a drag from the menu grid sends
- * ({@code GameUI.Belt.dropthing}). Both return <b>self</b> so they chain, and {@code :res()} with no argument
+ * {@code :res(name)} sends the very {@code wdgmsg("setbelt", n, …)} a drag from the menu grid sends
+ * ({@code GameUI.Belt.dropthing}) — {@code "res", name} for a resource-based action, {@code "pag", id} for an
+ * id-only one, told apart by looking the name up in that character's menu. Both return <b>self</b> so they chain, and {@code :res()} with no argument
  * is the read half of that one name.
  *
  * <p><b>Each keeps the ONE key it has, addressed or not</b> (077.3). A key names the <i>action</i>, not the
@@ -65,9 +66,9 @@ import java.util.Map;
  * the anchor — both leave from that session's own widgets, its {@code GameUI} and that HUD's own
  * {@code beltwdg} — so a write lands on the bar it was addressed at whether or not it is on screen.
  *
- * <p><b>{@code :pagina(pagOrNil)} is the third write, and it is UNPROTECTED</b> (059.4): it puts one of this
- * addon's own menu entries on the bar, which reaches no server and needs no more permission than drawing a HUD
- * overlay does. It is not an assignment but a <b>hold</b> — see {@link BeltHold} — so it lands immediately
+ * <p><b>{@code :hold(pagOrNil)} is the third write, and it is UNPROTECTED</b> (059.4): it puts an entry an
+ * addon added to that character's menu — any addon's — on the bar, which reaches no server and needs no more
+ * permission than drawing a HUD overlay does. It is not an assignment but a <b>hold</b> — see {@link BeltHold} — so it lands immediately
  * where {@code :res(name)} round-trips the server, and the slot's own content comes back untouched when the
  * hold ends. A held slot reads as the entry throughout: {@code :res()} answers the {@code addon/…} identity
  * ({@link CharApi#actionbarRes}), {@code :empty()} is false, and {@code ActionbarChanged} fires on both edges.
@@ -243,12 +244,15 @@ public final class LuaSlot {
         });
         // res() reads the slot's action by resource name; res(name) ASSIGNS one (protected) — one name for the
         // pair the old set() made two. The write is exactly the message dragging that action off the menu grid
-        // onto the bar sends (GameUI.Belt.dropthing -> wdgmsg("setbelt", n, "res", pag.res().name)), so the
-        // server treats it identically. It lands ASYNCHRONOUSLY (the server echoes a "setbelt" uimsg back), so
-        // the slot still reads the OLD content on the next line; the change surfaces as an ActionbarChanged on
-        // this very Slot. An unknown resource name is simply ignored by the server — same as a drag of
-        // something that does not exist — so there is nothing to report back here. No "pag" variant: pagina
-        // ids are session-local and opaque to addons (022 spec, out of scope).
+        // onto the bar sends (GameUI.Belt.dropthing), so the server treats it identically — and that is TWO
+        // messages, chosen by the entry, not one: a resource-based pagina goes as ("setbelt", n, "res", name),
+        // and an id-only one (MenuGrid "fill" with fl&2 — the server-pushed abilities, which is most of the
+        // menu now) as ("setbelt", n, "pag", pag.id), because the server keys those by its own id and would
+        // drop the name. The name is looked up in THAT character's menu to tell the two apart; the id never
+        // reaches Lua, and a name the menu does not have goes out as "res", which the server ignores exactly
+        // as a drag of something that does not exist. It lands ASYNCHRONOUSLY (the server echoes a "setbelt"
+        // uimsg back), so the slot still reads the OLD content on the next line; the change surfaces as an
+        // ActionbarChanged on this very Slot.
         m.set("res", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 LuaValue self = a.arg1();
@@ -280,8 +284,11 @@ public final class LuaSlot {
                 GameUI g = AddonManager.gameui(h.user);
                 if(g == null)
                     throw new LuaError("slot:res(): no game UI (that character is not in the world yet)");
-                Wire.send(owner, h.user, "slot:res", g, "setbelt",
-                          new Object[] {Integer.valueOf(h.index), "res", res});
+                MenuGrid.Pagina p = LuaPagina.live(h.user, res);
+                Object[] msg = ((p != null) && !(p instanceof AddonPagina) && !(p.id instanceof haven.Indir))
+                    ? new Object[] {Integer.valueOf(h.index), "pag", p.id}
+                    : new Object[] {Integer.valueOf(h.index), "res", res};
+                Wire.send(owner, h.user, "slot:res", g, "setbelt", msg);
                 return self;
             }
         });
@@ -313,10 +320,22 @@ public final class LuaSlot {
                 return self;
             }
         });
-        // pagina() reads the entry an addon is HOLDING this slot for, nil for every slot the server owns;
-        // pagina(pag) holds it for one of THIS addon's menu entries, and pagina(nil) gives it back (059.4).
-        // Nothing is sent: the client draws over the slot and keeps what the server has there, so the write
-        // is UNPROTECTED (like a HUD overlay) and lands immediately, unlike :res(name)'s server round trip.
+        // hold() reads the entry an addon is HOLDING this slot for, nil for every slot the server owns;
+        // hold(pag) holds it for an entry an addon added to that character's menu — ANY addon's, not only
+        // this one's — and hold(nil) gives it back (059.4). Nothing is sent: the client draws over the slot
+        // and keeps what the server has there, so the write is UNPROTECTED (like a HUD overlay) and lands
+        // immediately, unlike :res(name)'s server round trip.
+        //
+        // WHOSE ENTRY IT IS does not matter here, and that is the drag's rule, not a relaxation of it: the
+        // bar is one shared surface, GameUI.Belt.dropthing -> BeltHold.dropped takes any AddonPagina the
+        // player drops without asking who added it, and an addon that draws a bar of its own has to be able
+        // to do for the player what the client's own bar does. A hold WRITES NOTHING on the entry — it is
+        // placed, not renamed — which is why AddonPagina.owned (the guard on :name/:icon/:on) is the wrong
+        // gate for it; it is kept only for this addon's own identities, where it tells "removed again" from
+        // "another character" from "a replaced menu". The lifetime edges are the entry's, as for a drag:
+        // BeltHold.teardownHolds and entryRemoved match on the ENTRY's owner, so a slot held for another
+        // addon's button goes back when THAT addon leaves, and the placement is the character's record.
+        //
         // nil is DOCUMENTED here (end the hold), so it is the write and not the read: Args.passed, never
         // Args.written. The read half is the hold alone — a slot holding one of the game's own actions is
         // already named by :res(), and s:menugrid():get(that) is the Pagina for it.
@@ -335,16 +354,13 @@ public final class LuaSlot {
                 }
                 LuaPagina ph = LuaPagina.resolve(v);
                 if(ph == null)
-                    throw new LuaError("slot:pagina(pagOrNil): expected the Pagina object"
-                        + " " + CharApi.MG + ":add(id) handed you, or nil to end the hold, got " + v.typename());
-                if(!ph.res.startsWith(AddonPagina.PREFIX))
-                    throw new LuaError("slot:pagina(pagOrNil): \"" + ph.res + "\" is the client's own entry,"
-                        + " and a slot is held for an entry your addon added (" + CharApi.MG + ":add(id)). To"
-                        + " put one of the game's own actions on the bar, assign it: slot:res(name).");
+                    throw new LuaError("slot:hold(pagOrNil): expected a Pagina object — one "
+                        + CharApi.MG + ":add(id) handed you, or one " + CharApi.MG + ":get(res) found for"
+                        + " an entry another addon added — or nil to end the hold, got " + v.typename());
                 // The entry has to be in THIS character's menu: an entry added to another login's grid draws
-                // nothing here, and the bar and the grid are that one character's pair.
-                BeltHold.hold(h.user, h.index,
-                              AddonPagina.owned(owner, h.user, ph.res, "slot:pagina(pagOrNil)"));
+                // nothing here, and the bar and the grid are that one character's pair. inMenu says whose it
+                // is only to say WHY it is not there; a client's-own name is refused pointing at :res(name).
+                BeltHold.hold(h.user, h.index, AddonPagina.inMenu(owner, h.user, ph.res, "slot:hold(pagOrNil)"));
                 return self;
             }
         });

@@ -703,8 +703,13 @@ public final class LuaPagina {
         }
     }
 
-    /** The live pagina behind a resource name in that character's menu, or {@code null} for no such entry. */
-    private static MenuGrid.Pagina live(String user, String res) {
+    /**
+     * The live pagina behind a resource name in that character's menu, or {@code null} for no such entry. An
+     * id-only pagina answers to its resource's name here exactly as it does in the catalogue ({@link #resname}),
+     * which is what lets {@code slot:res(name)} find it and send its id, and {@code slot:hold(pag)} find another
+     * addon's entry by the identity the drop descriptor carried.
+     */
+    static MenuGrid.Pagina live(String user, String res) {
         List<MenuGrid.Pagina> all = closure(user);
         for(int i = 0; i < all.size(); i++) {
             MenuGrid.Pagina p = all.get(i);

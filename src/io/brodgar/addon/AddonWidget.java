@@ -252,10 +252,13 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
 
     /**
      * Build the neutral drop descriptor for {@code onDrop} (D-038), or {@code null} for a thing v1 does not
-     * deliver. A menu-grid action &rarr; {@code {kind="pagina", res="<name>"}}. The {@code res} is included
-     * only for a <b>resource-based</b> pagina (its {@code id} is the resource {@link Indir} itself) and only
-     * once resolved — an id-only pagina ({@code fl&2}) has no stable resource name, so it carries {@code kind}
-     * alone (usable in-session, not reliably persistable). Loading is swallowed (res absent until ready).
+     * deliver. A menu-grid action &rarr; {@code {kind="pagina", res="<name>"}}, where {@code res} is the
+     * action's resource name once it has resolved — for an <b>id-only</b> pagina ({@code fl&2}, the
+     * server-pushed abilities) as much as for a resource-based one, because that name is the entry's identity
+     * everywhere else in the bridge: it is what {@code s:menugrid():get(res)} finds and what
+     * {@code slot:res(name)} takes, and {@code slot:res} itself picks the {@code "pag"} message for an id-only
+     * entry. Loading is swallowed ({@code res} absent until ready), so a descriptor with {@code kind} alone is
+     * an action still loading, not a kind of action.
      *
      * <p><b>A custom entry names itself</b> (059.3), like everywhere else: its backing {@link Resource} is a
      * stand-in shared by every one of them, so reading {@code pag.res} here would report the paging arrow to
@@ -271,11 +274,9 @@ final class AddonWidget extends Widget implements DropTarget, Owned {
                 d.set("res", LuaValue.valueOf(((AddonPagina)pag).id));
                 return d;
             }
-            if(pag.id instanceof Indir) {          // resource-based (stable) vs. id-only (no stable res name)
-                String nm = resName(pag.res);
-                if(nm != null)
-                    d.set("res", LuaValue.valueOf(nm));
-            }
+            String nm = resName(pag.res);
+            if(nm != null)
+                d.set("res", LuaValue.valueOf(nm));
             return d;
         }
         return null;

@@ -508,9 +508,9 @@ public final class AddonPagina extends MenuGrid.Pagina {
      * writes the entries it added and nothing else: the client's own are the server's to describe, and another
      * addon's are that addon's.
      *
-     * <p>{@code call} is the whole call being refused, not a bare verb name: the same check answers for
-     * {@code slot:pagina(pagOrNil)} on the action bar as for the setters here, and an error names the line
-     * that wrote it.
+     * <p>{@code call} is the whole call being refused, not a bare verb name, so an error names the line that
+     * wrote it. {@link #inMenu} is the other resolver — for a verb that <i>places</i> an entry rather than
+     * writes it, where whose it is does not matter.
      */
     static AddonPagina owned(Addon owner, String user, String res, String call) {
         reap(owner, user, LuaPagina.grid(user));
@@ -532,7 +532,31 @@ public final class AddonPagina extends MenuGrid.Pagina {
             + " your own that every one of these verbs writes");
     }
 
-    /** The addon id inside a foreign identity, for the refusal above. */
+    /**
+     * The <b>live</b> entry with identity {@code res} in {@code user}'s menu, <b>whoever added it</b> — the
+     * resolver for {@code slot:hold(pag)}, which places an entry and writes nothing on it. The bar is one
+     * shared surface: {@code GameUI.Belt.dropthing} takes any addon's entry the player drops, and a verb that
+     * lets an addon do the same for them takes the same. One of this addon's own identities still goes through
+     * {@link #owned}, which is what tells "removed again" from "another character" from "a replaced menu";
+     * another addon's is looked up in that character's grid as it stands, so an entry that addon has removed,
+     * or one it added on another login, is refused as not being in the menu.
+     */
+    static AddonPagina inMenu(Addon owner, String user, String res, String call) {
+        if(res.startsWith(PREFIX + owner.manifest.id + "/"))
+            return owned(owner, user, res, call);
+        MenuGrid.Pagina p = LuaPagina.live(user, res);
+        if(p instanceof AddonPagina)
+            return (AddonPagina)p;
+        if(res.startsWith(PREFIX))
+            throw new LuaError(call + ": \"" + res + "\" is not in that character's menu — " + other(res)
+                + " added it and removed it again, added it on another character, or added it to a menu a"
+                + " relogin has since replaced (check :exists())");
+        throw new LuaError(call + ": \"" + res + "\" is the client's own entry, and a slot is held for an entry"
+            + " an addon added (" + CharApi.MG + ":add(id)). To put one of the game's own actions on the bar,"
+            + " assign it: slot:res(name).");
+    }
+
+    /** The addon id inside a foreign identity, for the refusals above. */
     private static String other(String res) {
         int e = res.indexOf('/', PREFIX.length());
         return (e < 0) ? "another addon" : ("the addon \"" + res.substring(PREFIX.length(), e) + "\"");
