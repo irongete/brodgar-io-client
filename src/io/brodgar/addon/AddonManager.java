@@ -6136,6 +6136,26 @@ public final class AddonManager {
         return (b == null) ? LuaValue.NIL : sdtTable(b);
     }
 
+    /**
+     * {@code gob:pose()} — the animation poses in force on a composed body, as a 1-based array of resource
+     * names. The counterpart of {@link #gobSdt} in every respect: {@code nil} once the gob is gone or its
+     * body is resource-drawn rather than composed (a tree, whose drawing's state is its bytes), the empty
+     * array for a composed body whose poses have not arrived — and between the two verbs every gob's
+     * drawing state has exactly one door. A one-shot animation is what it answers while one plays; see
+     * {@link AddonWidgets#gobPose}, which states why.
+     */
+    static LuaValue gobPose(Gob g) {
+        if(g == null)
+            return LuaValue.NIL;
+        String[] names = AddonWidgets.gobPose(g);
+        if(names == null)
+            return LuaValue.NIL;
+        LuaTable t = new LuaTable();
+        for(int i = 0; i < names.length; i++)
+            t.set(i + 1, LuaValue.valueOf(names[i]));
+        return t;
+    }
+
     /** {@code 0..255} bytes as a 1-based Lua array — the one conversion the live read above and
      *  {@link #fireGobSdt}'s event payload share. A fresh table every call: a handler must never be able
      *  to scribble on another owner's copy of one firing, or on what a later live read hands back. */
@@ -6389,6 +6409,11 @@ public final class AddonManager {
                 LuaValue sdt = gobSdt(g);
                 if(!sdt.isnil())
                     t.set("sdt", sdt);
+                // The other half of the same fact, and never present beside it: a composed body has poses,
+                // a resource-drawn one has state bytes, and a snapshot carries whichever its gob has.
+                LuaValue pose = gobPose(g);
+                if(!pose.isnil())
+                    t.set("pose", pose);
                 // 114.3: whether the client draws this object at all. Always present, like `moving`: an
                 // object nobody hid answers true, and the two are different facts rather than one absence.
                 t.set("visible", LuaValue.valueOf(!g.addoninvis));

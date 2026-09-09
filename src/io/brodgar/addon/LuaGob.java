@@ -368,6 +368,22 @@ public final class LuaGob {
                 return AddonManager.gobSdt(AddonManager.getgob(h.user, h.id));
             }
         });
+        // pose() — the ANIMATION POSES in force on a composed body, as resource names. The exact
+        // counterpart of sdt() above, and between them every gob's drawing state has one door and no
+        // overlap: a composed body (a player, an animal) has poses and no state bytes, a resource-drawn
+        // one (a tree, a crop) has bytes and no poses, and each verb answers nil for the other's kind.
+        // The empty array is a composed body whose poses have not arrived yet, which is not the same
+        // answer as nil. A ONE-SHOT WINS WHILE IT PLAYS: the client draws a transient set in place of the
+        // base and puts the base back when it ends, so this names what the eye sees.
+        m.set("pose", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                LuaGob h = handle(a.arg1(), "pose");
+                if(Args.passed(a, 2))
+                    throw new LuaError("gob:pose() takes no arguments — arity is the verb here, so call"
+                        + " it with no argument to read the poses in force");
+                return AddonManager.gobPose(AddonManager.getgob(h.user, h.id));
+            }
+        });
         // hitbox() -- the ground the object stands on (113.2): every obst (collision) ring the resource
         // carries bar its `build` box, PLUS a rectangle per neg layer (addon: a resource with no obst at
         // all can still carry one of those -- gfx/terobjs/log among them; the two are different facts in

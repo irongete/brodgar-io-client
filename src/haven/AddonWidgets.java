@@ -1,5 +1,7 @@
 package haven;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -87,6 +89,57 @@ public final class AddonWidgets {
             if(!(d instanceof ResDrawable))
                 return null;
             return ((ResDrawable)d).sdt.clone().bytes();
+        }
+    }
+
+    /**
+     * The animation poses in force on a gob's composed body ({@link Composite#curposes} /
+     * {@link Composite#curtposes}) — backs {@code gob:pose()}, and is the exact counterpart of
+     * {@link #gobSdt} above: {@code null} for a gob whose {@link Drawable} is not a {@link Composite}
+     * (a tree is a {@code ResDrawable}, and its drawing's state is its bytes instead), the empty array
+     * for a composed body whose poses have not arrived yet. Between the two verbs, every gob's drawing
+     * state has exactly one door and neither answers for the other's kind.
+     *
+     * <p><b>A one-shot wins while it plays.</b> {@code Composite.ctick} makes a transient set the
+     * {@code Composited.Poses} that is actually drawn and puts the base back in its {@code done()}, so
+     * "the pose it is in" is the transient whenever there is one — which is also what the eye sees.
+     *
+     * <p>Names are resolved <b>here</b>, per read, because the server sends pose resources as ids and an
+     * {@code Indir} still loading throws rather than answering. A pose whose resource has not resolved is
+     * left out rather than reported as a hole: the set is what it is drawing, and a name arriving a frame
+     * later is the next read's.
+     */
+    public static String[] gobPose(Gob g) {
+        if(g == null)
+            return null;
+        Drawable d;
+        synchronized(g) {
+            d = g.getattr(Drawable.class);
+        }
+        if(!(d instanceof Composite))
+            return null;
+        Composite c = (Composite)d;
+        Collection<ResData> in = c.curtposes;      // one volatile read each: the pair may not be swapped
+        if(in == null)                             //   under us mid-answer
+            in = c.curposes;
+        if(in == null)
+            return new String[0];
+        List<String> out = new ArrayList<String>(in.size());
+        for(ResData dat : in) {
+            String nm = resName(dat);
+            if(nm != null)
+                out.add(nm);
+        }
+        return out.toArray(new String[0]);
+    }
+
+    /** One pose's resource name, or {@code null} while its {@code Indir} is still loading. */
+    private static String resName(ResData dat) {
+        try {
+            Resource r = ((dat == null) || (dat.res == null)) ? null : dat.res.get();
+            return (r == null) ? null : r.name;
+        } catch(RuntimeException e) {   // Loading, and a resource that never resolves
+            return null;
         }
     }
 

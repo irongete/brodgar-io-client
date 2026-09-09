@@ -45,6 +45,13 @@ public class Composite extends Drawable implements EquipTarget {
     public List<ED> nequ;
     private Collection<ResData> nposes = null, tposes = null;
     private boolean nposesold, retainequ = false;
+    /* addon: THE POSES IN FORCE, kept for gob:pose(). nposes/tposes above are the PENDING queue -- ctick
+     * applies them and nulls them the same tick -- and what they become, a Composited.Poses of PoseMods,
+     * does not remember the resource each mod was built from. So the only place the names survive is here,
+     * assigned at the two doors the server's own message reaches (chposes/tposes below), which is also the
+     * only place they can change. Volatile and whole-reference: the lists come out of $cmppose already
+     * built and are never mutated after, so a reader sees one whole set or the other, never half of one. */
+    public volatile Collection<ResData> curposes = null, curtposes = null;
     private float tptime;
     private WrapMode tpmode;
     
@@ -117,6 +124,7 @@ public class Composite extends Drawable implements EquipTarget {
 			protected void done() {
 			    cp.set(ipollen);
 			    updequ();
+			    curtposes = null;   // addon: the one-shot is over; the base is drawn again
 			}
 		    };
 		np.limit = tptime;
@@ -150,12 +158,15 @@ public class Composite extends Drawable implements EquipTarget {
 	    tposes = null;
 	nposes = poses;
 	nposesold = !interp;
+	curposes = poses;      // addon: the base set, for gob:pose()
+	curtposes = null;      //   ...and it is what is drawn: a pending transient was just dropped above
     }
-    
+
     public void tposes(Collection<ResData> poses, WrapMode mode, float time) {
 	this.tposes = poses;
 	this.tpmode = mode;
 	this.tptime = time;
+	curtposes = poses;     // addon: a one-shot laid OVER the base, for gob:pose(); cleared when it ends
     }
 
     public void chmod(List<MD> mod) {

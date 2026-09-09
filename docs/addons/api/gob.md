@@ -97,6 +97,7 @@ answer. None of them throws.
 | `gob:party()` | [`PartyMember`](party.md) \| nil | the party member standing here, in the party of the character that read it |
 | `gob:distance(other)` | number \| nil | world distance to another Gob; defaults to the reading character |
 | `gob:sdt()` | number[] \| nil | state bytes the server sent with its resource — [see below](#state) |
+| `gob:pose()` | string[] \| nil | the animation poses its composed body is in — [see below](#the-poses-it-is-in) |
 | `gob:hitbox()` | Position[][] \| nil | the ground it stands on — [see below](#the-ground-it-stands-on) |
 | `gob:info()` | [`GobInfo`](types/world.md#gobinfo) \| nil | a plain snapshot of what is read above, **`hitbox` excepted** |
 
@@ -140,6 +141,42 @@ Reading it on every frame to catch the moment it moves is a sweep —
 [`GobSdtChanged`](event/bus/world.md#the-state-changing) is the edge instead: it fires when the bytes
 actually change, once for the object however many of your characters see it, and for the first state a
 gob is given as well as every one after.
+
+## The poses it is in
+
+`gob:pose()` answers the **animation poses** in force on a composed body — a player, an animal — as an
+array of the pose resources' names.
+
+```lua
+local me = hafen.session():current():player():gob()
+for _, pose in ipairs(me:pose() or {}) do
+  hafen.log():write(pose)                      -- "gfx/borka/idle", "gfx/borka/walking", ...
+end
+```
+
+**It is the exact counterpart of [`gob:sdt()`](#state), and neither answers for the other's kind.** A body
+the client *composes* out of a skeleton and a set of poses has no state bytes; an object *drawn from a
+resource* — a tree, a crop, a gate — has bytes and no poses. So a tree answers `nil` here and an array
+there, a player the other way round, and between the two verbs every object's drawing state has exactly one
+door. `nil` also once the gob is gone. The **empty array** is a composed body whose poses have not arrived
+yet, and that is not the same answer as `nil`.
+
+**A one-shot wins while it plays.** The server sends two kinds: the standing set, which is what the body
+does until told otherwise, and a *transient* — a swing, a bite, a bow — laid over it for a fixed time. The
+client draws the transient in place of the standing set and puts the set back when it ends, so this verb
+names **what the eye sees**: the transient while one runs, the standing set otherwise.
+
+Unlike the bytes, a pose **is** a name and this verb hands it to you as one. What that name means is the
+pose resource's own business, and the client is not decoding anything to answer: these are the very
+resources the server named.
+
+> A pose that has not resolved yet is **left out** rather than reported as a hole — the array is what the
+> body is drawing, and a name that arrives a frame later belongs to the next read. So an array can be
+> shorter than the set the server sent, for the moment it takes a resource to load.
+
+There is no `GobPoseChanged`: reading it is a live read like [`gob:name()`](#read), and a body that is
+animating changes pose often enough that an edge would fire more than a frame does. Read it where you
+draw.
 
 ## The ground it stands on
 
